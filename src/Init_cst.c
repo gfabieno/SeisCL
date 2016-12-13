@@ -276,31 +276,6 @@ int Init_cst(struct modcsts * m) {
             
             GMALLOC(m->gradfreqsn  ,m->NT*sizeof(float))
             
-
-            if (m->Hout){
-                GMALLOC(m->H.pp,m->nfreqs*m->NX*m->NY*m->NZ*sizeof(double));
-                GMALLOC(m->H.mp,m->nfreqs*m->NX*m->NY*m->NZ*sizeof(double));
-                GMALLOC(m->H.up,m->nfreqs*m->NX*m->NY*m->NZ*sizeof(double));
-                GMALLOC(m->H.tpp,m->nfreqs*m->NX*m->NY*m->NZ*sizeof(double));
-                GMALLOC(m->H.tsp,m->nfreqs*m->NX*m->NY*m->NZ*sizeof(double));
-                
-                GMALLOC(m->H.mm,m->nfreqs*m->NX*m->NY*m->NZ*sizeof(double));
-                GMALLOC(m->H.um,m->nfreqs*m->NX*m->NY*m->NZ*sizeof(double));
-                GMALLOC(m->H.tpm,m->nfreqs*m->NX*m->NY*m->NZ*sizeof(double));
-                GMALLOC(m->H.tsm,m->nfreqs*m->NX*m->NY*m->NZ*sizeof(double));
-                
-                GMALLOC(m->H.uu,m->nfreqs*m->NX*m->NY*m->NZ*sizeof(double));
-                GMALLOC(m->H.tpu,m->nfreqs*m->NX*m->NY*m->NZ*sizeof(double));
-                GMALLOC(m->H.tsu,m->nfreqs*m->NX*m->NY*m->NZ*sizeof(double));
-                
-                GMALLOC(m->H.tptp,m->nfreqs*m->NX*m->NY*m->NZ*sizeof(double));
-                GMALLOC(m->H.tstp,m->nfreqs*m->NX*m->NY*m->NZ*sizeof(double));
-                
-                GMALLOC(m->H.tsts,m->nfreqs*m->NX*m->NY*m->NZ*sizeof(double));
-
-                
-                
-            }
             
             
         }

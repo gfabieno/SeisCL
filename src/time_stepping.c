@@ -791,8 +791,6 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
                 for (d=0;d<m->num_devices;d++){
                     clFinish((*vcl)[d].cmd_queue);
                     if (!state) calc_grad(m, &(*mloc)[d]);
-                    if (m->Hout)
-                        if (!state) calc_Hessian(m, &(*mloc)[d]);
                 }
             }
             

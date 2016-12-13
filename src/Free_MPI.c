@@ -78,27 +78,6 @@ int Free_MPI(struct modcsts * m)  {
     GFree(m->topo);
     GFree(m->sinccoef);
     
-    GFree(m->H.pp);
-    GFree(m->H.mp);
-    GFree(m->H.up);
-    GFree(m->H.tpp);
-    GFree(m->H.tsp);
-    
-    GFree(m->H.mm);
-    GFree(m->H.um);
-    GFree(m->H.tpm);
-    GFree(m->H.tsm);
-    
-    GFree(m->H.uu);
-    GFree(m->H.tpu);
-    GFree(m->H.tsu);
-    
-    GFree(m->H.tptp);
-    GFree(m->H.tstp);
-    
-    GFree(m->H.tsts);
-    
-
     GFree(m->no_use_GPUs)
 
     GFree(m->nsrc)

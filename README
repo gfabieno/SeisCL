@@ -1,0 +1,16 @@
+SeisCL is a program to perform (visco)elastic full waveform inversion in 3D and 2D (SV and SH).
+As input, it takes model parameters and recorded data.
+It can ouput modelled seismograms, a video of particule velocities, and the gradient for different parametrizations.
+
+
+Cite this publication if you use this software:
+
+Fabien-Ouellet, G., Gloaguen, E., & Giroux, B. (2016). Time-domain seismic modeling in viscoelastic media for full waveform inversion on heterogeneous computing platforms with OpenCL. Computers & Geosciences.
+
+
+To compile the program, do:
+
+cd ./SeisCL_MPI_3D/
+make all
+
+

@@ -148,28 +148,6 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
                 if (m->gradtaup) (*mloc)[d].gradtaup =&m->gradtaup[(*mloc)[d].offset];
                 if (m->gradtaus) (*mloc)[d].gradtaus =&m->gradtaus[(*mloc)[d].offset];
                 
-                if (m->Hout){
-                    if (m->H.pp) (*mloc)[d].H.pp     =&m->H.pp[(*mloc)[d].offset];
-                    if (m->H.mp) (*mloc)[d].H.mp     =&m->H.mp[(*mloc)[d].offset];
-                    if (m->H.up) (*mloc)[d].H.up     =&m->H.up[(*mloc)[d].offset];
-                    if (m->H.tpp) (*mloc)[d].H.tpp   =&m->H.tpp[(*mloc)[d].offset];
-                    if (m->H.tsp) (*mloc)[d].H.tsp   =&m->H.tsp[(*mloc)[d].offset];
-                    
-                    if (m->H.mm)(*mloc)[d].H.mm      =&m->H.mm[(*mloc)[d].offset];
-                    if (m->H.um)(*mloc)[d].H.um      =&m->H.um[(*mloc)[d].offset];
-                    if (m->H.tpm)(*mloc)[d].H.tpm    =&m->H.tpm[(*mloc)[d].offset];
-                    if (m->H.tsm)(*mloc)[d].H.tsm    =&m->H.tsm[(*mloc)[d].offset];
-                    
-                    if (m->H.uu)(*mloc)[d].H.uu      =&m->H.uu[(*mloc)[d].offset];
-                    if (m->H.tpu)(*mloc)[d].H.tpu    =&m->H.tpu[(*mloc)[d].offset];
-                    if (m->H.tsu)(*mloc)[d].H.tsu    =&m->H.tsu[(*mloc)[d].offset];
-                    
-                    if (m->H.tptp)(*mloc)[d].H.tptp  =&m->H.tptp[(*mloc)[d].offset];
-                    if (m->H.tstp)(*mloc)[d].H.tstp  =&m->H.tstp[(*mloc)[d].offset];
-                    
-                    if (m->H.tsts)(*mloc)[d].H.tsts  =&m->H.tsts[(*mloc)[d].offset];
-                    
-                }
                 
                 if (m->movvx)  (*mloc)[d].movvx  =&m->movvx[(*mloc)[d].offset];
                 if (m->movvy)  (*mloc)[d].movvy  =&m->movvy[(*mloc)[d].offset];
