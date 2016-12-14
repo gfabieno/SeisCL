@@ -370,12 +370,7 @@ int readhdf5(struct filenames files, struct modcsts * m) {
         __GUARD checkscalar(file_id, "/movout");
         __GUARD readvar(file_id, H5T_NATIVE_INT,   "/movout", &m->movout);
     }
-    if (!state) {
-        if (1==H5Lexists( file_id, "/Nr", H5P_DEFAULT)){
-            __GUARD checkscalar(file_id, "/Nr");
-            __GUARD readvar(file_id, H5T_NATIVE_INT,   "/Nr", &m->Nr);
-        }
-    }
+
 
     
     if (m->restype==0){

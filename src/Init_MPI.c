@@ -61,7 +61,6 @@ int Init_MPI(struct modcsts * m) {
         MPI_Bcast( &m->bcastvx, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->bcastvy, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->bcastvz, 1, MPI_INT, 0, MPI_COMM_WORLD );
-        MPI_Bcast( &m->Nr, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->gradsrcout, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->Hout, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->seisout, 1, MPI_INT, 0, MPI_COMM_WORLD );

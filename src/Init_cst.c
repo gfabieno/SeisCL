@@ -267,29 +267,22 @@ int Init_cst(struct modcsts * m) {
             GMALLOC(m->gradtaus  ,m->NX*m->NY*m->NZ*sizeof(double))
             
         }
-        
-        
-        
-        
-        
+
         if (m->back_prop_type==2){
-            
             GMALLOC(m->gradfreqsn  ,m->NT*sizeof(float))
-            
-            
-            
         }
         
+        if (m->gradsrcout==1 ){
+            GMALLOC(m->gradsrc,sizeof(float*)*m->ns)
+            if (!state) memset((void*)m->gradsrc, 0, sizeof(float*)*m->ns);
+            GMALLOC(m->gradsrc[0],sizeof(float)*m->allns*m->NT)
+            for (i=1;i<m->ns;i++){
+                m->gradsrc[i]=m->gradsrc[i-1]+m->nsrc[i-1]*m->NT;
+            }
+        }
     }
     
-    if (m->gradsrcout==1 ){
-        GMALLOC(m->gradsrc,sizeof(float*)*m->ns)
-        if (!state) memset((void*)m->gradsrc, 0, sizeof(float*)*m->ns);
-        GMALLOC(m->gradsrc[0],sizeof(float)*m->allns*m->NT)
-        for (i=1;i<m->ns;i++){
-            m->gradsrc[i]=m->gradsrc[i-1]+m->nsrc[i-1]*m->NT;
-        }    
-    }
+
     
     
     return state;

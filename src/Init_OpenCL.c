@@ -30,7 +30,6 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
     size_t buffer_size_L=0;
     size_t thissize=0;
     cl_platform_id sel_plat_id;
-    size_t buffer_size_sinccoef=0;
     
     cl_device_id device=0;
     cl_ulong global_mem_size=0;
@@ -45,23 +44,21 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
     int offcomm1=0;
     int offcomm2=0;
     
-    if (m->maingrid){
-        // Find a platform where the prefered device type can be found
-        __GUARD GetPlatformID( &m->pref_device_type, &m->device_type, &sel_plat_id, &m->num_devices, m->n_no_use_GPUs, m->no_use_GPUs);
-        if (m->num_devices>m->nmax_dev)
-            m->num_devices=m->nmax_dev;
-        
-        //For each GPU, allocate the memory structures
-        GMALLOC((*vcl),sizeof(struct varcl)*m->num_devices)
-        if (!state) memset ((void*)(*vcl), 0, sizeof(struct varcl)*m->num_devices);
-        GMALLOC((*mloc),sizeof(struct modcstsloc)*m->num_devices)
-        if (!state) memset ((void*)(*mloc), 0, sizeof(struct modcstsloc)*m->num_devices);
-        
-        //Connect all GPUs
-        
-        __GUARD connect_allgpus( vcl, &m->context, &m->device_type, &sel_plat_id, m->n_no_use_GPUs, m->no_use_GPUs,m->nmax_dev);
-        
-    }
+    // Find a platform where the prefered device type can be found
+    __GUARD GetPlatformID( &m->pref_device_type, &m->device_type, &sel_plat_id, &m->num_devices, m->n_no_use_GPUs, m->no_use_GPUs);
+    if (m->num_devices>m->nmax_dev)
+        m->num_devices=m->nmax_dev;
+    
+    //For each GPU, allocate the memory structures
+    GMALLOC((*vcl),sizeof(struct varcl)*m->num_devices)
+    if (!state) memset ((void*)(*vcl), 0, sizeof(struct varcl)*m->num_devices);
+    GMALLOC((*mloc),sizeof(struct modcstsloc)*m->num_devices)
+    if (!state) memset ((void*)(*mloc), 0, sizeof(struct modcstsloc)*m->num_devices);
+    
+    //Connect all GPUs
+    
+    __GUARD connect_allgpus( vcl, &m->context, &m->device_type, &sel_plat_id, m->n_no_use_GPUs, m->no_use_GPUs,m->nmax_dev);
+    
     
     //For each device, create the memory buffers and programs on the GPU
     for (d=0; d<m->num_devices; d++) {
@@ -141,36 +138,35 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             if (m->tausipjp) (*mloc)[d].tausipjp =&m->tausipjp[(*mloc)[d].offset];
             if (m->tausjpkp) (*mloc)[d].tausjpkp =&m->tausjpkp[(*mloc)[d].offset];
             
-            if (m->maingrid){
-                if (m->gradrho)  (*mloc)[d].gradrho  =&m->gradrho[(*mloc)[d].offset];
-                if (m->gradM)    (*mloc)[d].gradM    =&m->gradM[(*mloc)[d].offset];
-                if (m->gradmu)   (*mloc)[d].gradmu   =&m->gradmu[(*mloc)[d].offset];
-                if (m->gradtaup) (*mloc)[d].gradtaup =&m->gradtaup[(*mloc)[d].offset];
-                if (m->gradtaus) (*mloc)[d].gradtaus =&m->gradtaus[(*mloc)[d].offset];
-                
-                
-                if (m->movvx)  (*mloc)[d].movvx  =&m->movvx[(*mloc)[d].offset];
-                if (m->movvy)  (*mloc)[d].movvy  =&m->movvy[(*mloc)[d].offset];
-                if (m->movvz)  (*mloc)[d].movvz  =&m->movvz[(*mloc)[d].offset];
-                if (m->movout>0){
-                    if (m->ND==3){
-                        thissize=((*mloc)[d].NX+m->FDORDER)*((*mloc)[d].NY+m->FDORDER)*((*mloc)[d].NZ+m->FDORDER)*sizeof(cl_float);
-                    }
-                    else{
-                        thissize=((*mloc)[d].NX+m->FDORDER)*((*mloc)[d].NZ+m->FDORDER)*sizeof(cl_float);
-                    }
-                    if (m->ND!=21){
-                        GMALLOC((*mloc)[d].buffermovvx,thissize);
-                        GMALLOC((*mloc)[d].buffermovvz,thissize);
-                    }
-                    if (m->ND==3 || m->ND==21){
-                        GMALLOC((*mloc)[d].buffermovvy,thissize);
-                    }
-                    
+            if (m->gradrho)  (*mloc)[d].gradrho  =&m->gradrho[(*mloc)[d].offset];
+            if (m->gradM)    (*mloc)[d].gradM    =&m->gradM[(*mloc)[d].offset];
+            if (m->gradmu)   (*mloc)[d].gradmu   =&m->gradmu[(*mloc)[d].offset];
+            if (m->gradtaup) (*mloc)[d].gradtaup =&m->gradtaup[(*mloc)[d].offset];
+            if (m->gradtaus) (*mloc)[d].gradtaus =&m->gradtaus[(*mloc)[d].offset];
+            
+            
+            if (m->movvx)  (*mloc)[d].movvx  =&m->movvx[(*mloc)[d].offset];
+            if (m->movvy)  (*mloc)[d].movvy  =&m->movvy[(*mloc)[d].offset];
+            if (m->movvz)  (*mloc)[d].movvz  =&m->movvz[(*mloc)[d].offset];
+            if (m->movout>0){
+                if (m->ND==3){
+                    thissize=((*mloc)[d].NX+m->FDORDER)*((*mloc)[d].NY+m->FDORDER)*((*mloc)[d].NZ+m->FDORDER)*sizeof(cl_float);
                 }
+                else{
+                    thissize=((*mloc)[d].NX+m->FDORDER)*((*mloc)[d].NZ+m->FDORDER)*sizeof(cl_float);
+                }
+                if (m->ND!=21){
+                    GMALLOC((*mloc)[d].buffermovvx,thissize);
+                    GMALLOC((*mloc)[d].buffermovvz,thissize);
+                }
+                if (m->ND==3 || m->ND==21){
+                    GMALLOC((*mloc)[d].buffermovvy,thissize);
+                }
+                
             }
             
-            if (m->gradout==1 && m->maingrid){
+            
+            if (m->gradout==1){
 
                 
                 if (m->back_prop_type==2){
@@ -561,9 +557,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             if (m->ND==3){// For 3D
                 (*mloc)[d].required_global_mem_size += 9*(*vcl)[d].buffer_size_fd + 8*(*vcl)[d].buffer_size_model + buffer_size_s + buffer_size_ns + buffer_size_ng;
                 
-                if (m->maingrid){
-                    (*mloc)[d].required_global_mem_size +=  3*buffer_size_vout;
-                }
+                (*mloc)[d].required_global_mem_size +=  3*buffer_size_vout;
                 
                 if (m->abs_type==1){
                     (*mloc)[d].required_global_mem_size+= 36*buffer_size_taper + 6*(*vcl)[d].buffer_size_CPML_NX+ 6*(*vcl)[d].buffer_size_CPML_NY+ 6*(*vcl)[d].buffer_size_CPML_NZ;
@@ -584,7 +578,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
                     }
                 }
                 
-                if (m->gradout==1 && m->back_prop_type==2 && m->maingrid){
+                if (m->gradout==1 && m->back_prop_type==2){
                     
                     (*mloc)[d].required_global_mem_size+= 9*(*vcl)[d].buffer_size_modelc;
                     if (m->L>0){
@@ -596,9 +590,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             if (m->ND==2){// For 2D
                 (*mloc)[d].required_global_mem_size += 6*(*vcl)[d].buffer_size_fd + 5*(*vcl)[d].buffer_size_model + buffer_size_s + buffer_size_ns + buffer_size_ng;
                 
-                if (m->maingrid){
-                    (*mloc)[d].required_global_mem_size +=  3*buffer_size_vout;
-                }
+                (*mloc)[d].required_global_mem_size +=  3*buffer_size_vout;
                 
                 if (m->abs_type==1){
                     (*mloc)[d].required_global_mem_size+= 16*buffer_size_taper + 4*(*vcl)[d].buffer_size_CPML_NX+ 4*(*vcl)[d].buffer_size_CPML_NZ;
@@ -620,7 +612,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
                     }
                 }
                 
-                if (m->gradout==1 && m->back_prop_type==2 && m->maingrid){
+                if (m->gradout==1 && m->back_prop_type==2){
                     
                     (*mloc)[d].required_global_mem_size+= 6*(*vcl)[d].buffer_size_modelc;
                     if (m->L>0){
@@ -632,9 +624,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             if (m->ND==21){// For 2D
                 (*mloc)[d].required_global_mem_size += 3*(*vcl)[d].buffer_size_fd + 3*(*vcl)[d].buffer_size_model + buffer_size_s +buffer_size_ns + buffer_size_ng;
                 
-                if (m->maingrid){
-                    (*mloc)[d].required_global_mem_size +=   3*buffer_size_vout;
-                }
+                (*mloc)[d].required_global_mem_size +=   3*buffer_size_vout;
                 
                 if (m->abs_type==1){
                     (*mloc)[d].required_global_mem_size+= 12*buffer_size_taper + 2*(*vcl)[d].buffer_size_CPML_NX+ 2*(*vcl)[d].buffer_size_CPML_NZ;
@@ -655,7 +645,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
                     }
                 }
                 
-                if (m->gradout==1 && m->back_prop_type==2 && m->maingrid){
+                if (m->gradout==1 && m->back_prop_type==2){
                     
                     (*mloc)[d].required_global_mem_size+= 3*(*vcl)[d].buffer_size_modelc;
                     if (m->L>0){
@@ -693,10 +683,8 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].u);
             __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].pi);
             __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].uipkp);
-            if (m->maingrid){
-                __GUARD create_gpu_memory_buffer( &m->context, buffer_size_vout,            &(*vcl)[d].vxout);
-                __GUARD create_gpu_memory_buffer( &m->context, buffer_size_vout,            &(*vcl)[d].vzout);
-            }
+            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_vout,            &(*vcl)[d].vxout);
+            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_vout,            &(*vcl)[d].vzout);
         }
         if (m->ND==3 || m->ND==21){
             __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].syy);
@@ -706,9 +694,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].rjp);
             __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].uipjp);
             __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].ujpkp);
-            if (m->maingrid){
-                __GUARD create_gpu_memory_buffer( &m->context, buffer_size_vout,            &(*vcl)[d].vyout);
-            }
+            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_vout,            &(*vcl)[d].vyout);
         }
         if (m->ND==3){// For 3D
             __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].syy);
@@ -831,21 +817,15 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             if (!state) (*vcl)[d].subr2_off=(*mloc)[d].NZ_al0+(*mloc)[d].NX*((*mloc)[d].NZ+m->FDORDER+(*mloc)[d].NZ_al16)*sizeof(float);
         }
         
-        if(m->Nr>0){
-            buffer_size_sinccoef=sizeof(float)* pow(m->FDORDER,2);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, buffer_size_sinccoef, &(*vcl)[d].sinccoef);
-        }
         
         // Create the kernels of the devices
         __GUARD gpu_initialize_update_v(&m->context, &(*vcl)[d].program_v, &(*vcl)[d].kernel_v, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm1, lcomm, 0 );
         __GUARD gpu_initialize_update_s(&m->context, &(*vcl)[d].program_s, &(*vcl)[d].kernel_s, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm1, lcomm, 0  );
         __GUARD gpu_intialize_seis(&m->context, &(*vcl)[d].program_initseis, &(*vcl)[d].kernel_initseis, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d]);
-        if (m->maingrid){
-            __GUARD gpu_intialize_vout(&m->context, &(*vcl)[d].program_vout, &(*vcl)[d].kernel_vout, NULL, &(*vcl)[d], m, &(*mloc)[d]);
-            __GUARD gpu_intialize_voutinit(&m->context, &(*vcl)[d].program_voutinit, &(*vcl)[d].kernel_voutinit, NULL, &(*vcl)[d], m, &(*mloc)[d]);
-            if (m->freesurf==1){
-                __GUARD gpu_initialize_surface(&m->context, &(*vcl)[d].program_surf, &(*vcl)[d].kernel_surf, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d] );
-            }
+        __GUARD gpu_intialize_vout(&m->context, &(*vcl)[d].program_vout, &(*vcl)[d].kernel_vout, NULL, &(*vcl)[d], m, &(*mloc)[d]);
+        __GUARD gpu_intialize_voutinit(&m->context, &(*vcl)[d].program_voutinit, &(*vcl)[d].kernel_voutinit, NULL, &(*vcl)[d], m, &(*mloc)[d]);
+        if (m->freesurf==1){
+            __GUARD gpu_initialize_surface(&m->context, &(*vcl)[d].program_surf, &(*vcl)[d].kernel_surf, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d] );
         }
         
         if (d>0 || m->MYLOCALID>0){
@@ -934,18 +914,16 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
 
                 
                 //Allocate the gradient output
-                if (m->maingrid){
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradrho);
+                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradrho);
+                if (m->ND!=21){
+                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradM);
+                }
+                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradmu);
+                if (m->L>0){
                     if (m->ND!=21){
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradM);
+                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradtaup);
                     }
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradmu);
-                    if (m->L>0){
-                        if (m->ND!=21){
-                            __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradtaup);
-                        }
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradtaus);
-                    }
+                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradtaus);
                 }
                 if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(state));
                 
@@ -979,7 +957,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
 
             }
             
-            else if (m->back_prop_type==2 && m->maingrid){
+            else if (m->back_prop_type==2){
                 
                 __GUARD create_gpu_memory_buffer( &m->context, sizeof(float)*m->nfreqs, &(*vcl)[d].gradfreqsn);
                 if (m->ND!=21){
@@ -1014,7 +992,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
    
             }
             
-            if (m->gradsrcout && m->maingrid){
+            if (m->gradsrcout ){
                 __GUARD create_gpu_memory_buffer( &m->context, buffer_size_s, &(*vcl)[d].gradsrc);
             }
             //Create the kernels for the backpropagation and gradient computation
@@ -1030,21 +1008,19 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
                 __GUARD gpu_initialize_update_adjs(&m->context, &(*vcl)[d].program_adjs, &(*vcl)[d].kernel_adjscomm2, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm2, lcomm, 1 );
             }
             
-            if (m->maingrid){
-                __GUARD gpu_intialize_residuals(&m->context, &(*vcl)[d].program_residuals, &(*vcl)[d].kernel_residuals, NULL, &(*vcl)[d], m, &(*mloc)[d]);
-                __GUARD gpu_intialize_grad(&m->context, &(*vcl)[d].program_initgrad, &(*vcl)[d].kernel_initgrad, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d]);
-            }
+            __GUARD gpu_intialize_residuals(&m->context, &(*vcl)[d].program_residuals, &(*vcl)[d].kernel_residuals, NULL, &(*vcl)[d], m, &(*mloc)[d]);
+            __GUARD gpu_intialize_grad(&m->context, &(*vcl)[d].program_initgrad, &(*vcl)[d].kernel_initgrad, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d]);
             __GUARD gpu_intialize_seis_r(&m->context, &(*vcl)[d].program_initseis_r, &(*vcl)[d].kernel_initseis_r, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d]);
 
             
             if (m->back_prop_type==1){
                 __GUARD gpu_initialize_savebnd(&m->context, &(*vcl)[d].program_bnd, &(*vcl)[d].kernel_bnd, NULL, &(*vcl)[d], m, &(*mloc)[d]);
             }
-            if (m->back_prop_type==2 && m->maingrid){
+            if (m->back_prop_type==2){
                 __GUARD gpu_initialize_savefreqs(&m->context, &(*vcl)[d].program_savefreqs, &(*vcl)[d].kernel_savefreqs, NULL, &(*vcl)[d], m, &(*mloc)[d], 0);
                 __GUARD gpu_initialize_initsavefreqs(&m->context, &(*vcl)[d].program_initsavefreqs, &(*vcl)[d].kernel_initsavefreqs, NULL, &(*vcl)[d], m, &(*mloc)[d]);
             }
-            if (m->gradsrcout==1 && m->maingrid){
+            if (m->gradsrcout==1){
                 __GUARD gpu_initialize_gradsrc(&m->context, &(*vcl)[d].program_initialize_gradsrc, &(*vcl)[d].kernel_initialize_gradsrc, NULL, &(*vcl)[d], m, &(*mloc)[d]);
                 
             }
@@ -1110,13 +1086,10 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, sizeof(float)*m->L,        &(*vcl)[d].eta,  m->eta );
         }
         
-        if (m->gradout==1 && m->back_prop_type==2 && m->maingrid){
+        if (m->gradout==1 && m->back_prop_type==2 ){
             __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, sizeof(float)*m->nfreqs, &(*vcl)[d].gradfreqsn,   m->gradfreqsn );
         }
         
-        if(m->Nr>0 && !m->maingrid){
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, buffer_size_sinccoef, &(*vcl)[d].sinccoef,    m->sinccoef );
-        }
         if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(state));
         
     }

@@ -357,17 +357,13 @@ int Free_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             
 
             
-            if (m->maingrid){
-                if ((*vcl)[d].cmd_queue) clReleaseCommandQueue((*vcl)[d].cmd_queue);
-                if ((*vcl)[d].cmd_queuecomm) clReleaseCommandQueue((*vcl)[d].cmd_queuecomm);
-            }
+            if ((*vcl)[d].cmd_queue) clReleaseCommandQueue((*vcl)[d].cmd_queue);
+            if ((*vcl)[d].cmd_queuecomm) clReleaseCommandQueue((*vcl)[d].cmd_queuecomm);
         }
 
     }
 
-    if (m->maingrid){
-        if (m->context) clReleaseContext(m->context);
-    }
+    if (m->context) clReleaseContext(m->context);
     if ((*vcl)) free((*vcl));
     if ((*mloc)) free((*mloc));
     

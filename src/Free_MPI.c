@@ -76,7 +76,6 @@ int Free_MPI(struct modcsts * m)  {
     GFree(m->gradsrc)
     
     GFree(m->topo);
-    GFree(m->sinccoef);
     
     GFree(m->no_use_GPUs)
 

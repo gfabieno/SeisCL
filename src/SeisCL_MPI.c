@@ -26,10 +26,7 @@ int main(int argc, char **argv) {
     struct modcsts m={};
     struct modcstsloc *mloc=NULL;
     struct varcl *vcl=NULL;
-    
-    struct modcsts m_surf={};
-    struct modcstsloc *mloc_surf=NULL;
-    struct varcl *vcl_surf=NULL;
+
     
     int i,d;
     double time1=0.0, time2=0.0, time3=0.0, time4=0.0, time5=0.0;
@@ -81,7 +78,6 @@ int main(int argc, char **argv) {
     time1=MPI_Wtime();
     if (m.MYID==0){
         __GUARD readhdf5(file, &m);
-        m.maingrid=1;
     }
     time2=MPI_Wtime();
     
@@ -97,21 +93,13 @@ int main(int argc, char **argv) {
     
     
     
-    // This is part is experimental, trying to include to grids (one with topo). NOT WORKING
-    if (m.Nr>0){
-        __GUARD Init_surfgrid(&m, &vcl, &mloc, &m_surf, &vcl_surf, &mloc_surf);
-        __GUARD Init_OpenCL(&m_surf, &vcl_surf, &mloc_surf);
-        for (d=0;d<m.num_devices;d++){
-            __GUARD gpu_intialize_surfgrid_coarse2fine( &m.context, &(vcl)[d].program_v, &(vcl)[d].kernel_v, &(vcl)[d], &m, &(mloc)[d], &(vcl_surf)[d], &m_surf, &(mloc_surf)[d], (mloc)[d].local_work_size  );
-            __GUARD gpu_intialize_surfgrid_fine2coarse( &m.context, &(vcl)[d].program_v, &(vcl)[d].kernel_v, &(vcl)[d], &m, &(mloc)[d], &(vcl_surf)[d], &m_surf, &(mloc_surf)[d] );
-        }
-    }
+
     
     time4=MPI_Wtime();
     
     
     // Main part, where seismic modeling occurs
-    __GUARD time_stepping(&m, &vcl, &mloc, &m_surf, &vcl_surf, &mloc_surf);
+    __GUARD time_stepping(&m, &vcl, &mloc);
     
     time5=MPI_Wtime();
     
@@ -154,9 +142,6 @@ int main(int argc, char **argv) {
     
     
     // Free the memory
-    if (m.Nr>0){
-        Free_OpenCL(&m_surf, &vcl_surf, &mloc_surf);
-    }
     Free_OpenCL(&m, &vcl, &mloc);
     Free_MPI(&m);
     

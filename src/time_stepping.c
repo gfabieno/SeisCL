@@ -388,7 +388,7 @@ int initialize_grid(struct modcsts * m, struct varcl ** vcl, struct modcstsloc *
 }
 
 
-int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc, struct modcsts * m_s, struct varcl ** vcl_s, struct modcstsloc ** mloc_s) {
+int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc) {
     
     int state=0;
 
@@ -446,9 +446,6 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
         
         // Initialization of the seismic variables
         initialize_grid(m, vcl, mloc, s);
-        if (m->Nr){
-            initialize_grid(m_s, vcl_s, mloc_s, s);
-        }
         
         // Loop for seismic propagation
         for (t=0;t<m->tmax; t++){
@@ -464,17 +461,6 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
             
             update_grid(m, vcl, mloc, t);
             
-            // Second grid with topo, NOT WORKING
-            if (m->Nr>0){
-                for (i=0;i<(int)pow(2,m->Nr);i++){
-                    update_grid(m_s, vcl_s, mloc_s, (int)pow(2,m->Nr)*t+i);
-                }
-                for (d=0;d<m->num_devices;d++){
-                    __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_surfgrid_fine2coarse, (*vcl)[d].numdim, (*mloc)[d].global_work_size_surfgrid, NULL, 0, NULL, NULL);
-                    __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_surfgrid_coarse2fine, (*vcl)[d].numdim, (*mloc_s)[d].global_work_size_surfgrid, NULL, 0, NULL, NULL);
-                }
-            }
-
             // Computing the free surface
             if (m->freesurf==1){
                 for (d=0;d<m->num_devices;d++){
@@ -579,19 +565,6 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
             }
             if (m->gradout==1 && m->back_prop_type==1){
                 __GUARD clReleaseEvent((*vcl)[d].event_bndtransf);
-            }
-        }
-        if (m->Nr){
-            for (d=0;d<m->num_devices;d++){
-                if (d>0){
-                    __GUARD clReleaseEvent((*vcl_s)[d].event_writes1);
-                }
-                if (d<m->num_devices-1){
-                    __GUARD clReleaseEvent((*vcl_s)[d].event_writes2);
-                }
-                if (m->gradout==1 && m->back_prop_type==1){
-                    __GUARD clReleaseEvent((*vcl_s)[d].event_bndtransf);
-                }
             }
         }
         

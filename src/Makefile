@@ -42,8 +42,7 @@ SeisCL_MPI_SRC= \
 	kiss_fft.c \
 	kiss_fftr.c \
 	residuals.c \
-	Hessian.c \
-	Init_surfgrid.c \
+
 	
 SeisCL_MPI_OBJ = $(SeisCL_MPI_SRC:%.c=%.o)
 

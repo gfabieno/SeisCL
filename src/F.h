@@ -315,8 +315,6 @@ struct varcl {
     cl_mem vy_r_sub2;
     cl_mem vz_r_sub2;
     
-    cl_mem  sinccoef;
-    
     cl_kernel kernel_v;
     cl_kernel kernel_vcomm1;
     cl_kernel kernel_vcomm2;
@@ -424,7 +422,6 @@ struct modcsts {
     int tmin;
     int NTnyq;
     int dtnyq;
-    int Nr;
     
     int NGROUP;
     int MYGROUPID;
@@ -447,11 +444,6 @@ struct modcsts {
     int restype;
     int (*res_calc)(struct modcsts * , int );
     
-    int maingrid;
-    int *cubic_ind;
-    int *cubic_wt;
-    int *cubic_pos;
-    float *sinccoef;
     
     cl_float2 * f_sxx;
     cl_float2 * f_syy;
@@ -744,7 +736,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
 
 int Free_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc) ;
 
-int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc, struct modcsts * m_s, struct varcl ** vcl_s, struct modcstsloc ** mloc_s);
+int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc);
 
 int comm_v(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc, int bstep);
 
