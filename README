@@ -13,4 +13,20 @@ To compile the program, do:
 cd ./SeisCL_MPI_3D/
 make all
 
+You may have to adapt the makefile to your system.
+Tested systems are Mac OS X and Linux Suse.
+Prerequisites are HDF5, OpenCL, and MPI libraries.
+To install OpenCL on Linux, see this very good tutorial:
+
+
+To launch the program on N machines, call:
+cd PATH_TO_SEISCL
+mpirun -np N ./SeisCL_MPI INPUT_MODEL_FILE INPUT_DATA_FILE
+
+
+For the moment, the current directory in terminal must be the the directory of SeisCL binary, as kernels are read and compiled at each program call.
+
+See the Python and matlab caller located in tests for the structure of the HDF5 input files.
+
+
 
