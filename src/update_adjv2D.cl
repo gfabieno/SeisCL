@@ -261,7 +261,7 @@ __kernel void update_adjv(int offcomm, int nsrc,  int ng, int nt,
                           __global float *psi_sxz_z,  __global float *psi_szz_z,
                           __local  float *lvar,       __global float *gradrho, __global float *gradsrc)
 {
-    ù
+
     int g,i,j,k,m;
     float sxx_x_r;
     float szz_z_r;

@@ -28,3 +28,6 @@ Thumbs.db
 *.xcworkspacedata
 *.xcscheme
 *.plist
+*.mat
+out
+err

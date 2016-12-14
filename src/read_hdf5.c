@@ -661,7 +661,7 @@ int readhdf5(struct filenames files, struct modcsts * m) {
             __GUARD readvar(file_id, H5T_NATIVE_INT, "/param_type", &m->param_type);
         }
         
-        if (m->back_prop_type==2){
+        if (m->back_prop_type==2 && m->gradout==1){
             
             
             __GUARD checkexists(file_id,"/gradfreqs");
