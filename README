@@ -17,6 +17,7 @@ You may have to adapt the makefile to your system.
 Tested systems are Mac OS X and Linux Suse.
 Prerequisites are HDF5, OpenCL, and MPI libraries.
 To install OpenCL on Linux, see this very good tutorial:
+https://wiki.tiker.net/OpenCLHowTo
 
 
 To launch the program on N machines, call:
