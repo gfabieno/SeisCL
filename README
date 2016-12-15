@@ -1,6 +1,6 @@
 SeisCL is a program to perform (visco)elastic full waveform inversion in 3D and 2D (SV and SH).
 As input, it takes model parameters and recorded data.
-It can ouput modelled seismograms, a video of particule velocities, and the gradient for different parametrizations.
+It can ouput modelled seismograms, a video of particle velocities, and the gradient for different parametrizations.
 
 
 Cite this publication if you use this software:
@@ -28,6 +28,3 @@ mpirun -np N ./SeisCL_MPI INPUT_MODEL_FILE INPUT_DATA_FILE
 For the moment, the current directory in terminal must be the the directory of SeisCL binary, as kernels are read and compiled at each program call.
 
 See the Python and matlab caller located in tests for the structure of the HDF5 input files.
-
-
-
