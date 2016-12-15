@@ -7,7 +7,7 @@ It can ouput modelled seismograms, a movie of particle velocities, and the gradi
 
 Cite this publication if you use this software:
 
-[Fabien-Ouellet, G., Gloaguen, E., & Giroux, B. (2016). Time-domain seismic modeling in viscoelastic media for full waveform inversion on heterogeneous computing platforms with OpenCL. Computers & Geosciences.](http://dx.doi.org/10.1016/j.cageo.2016.12.004)
+Fabien-Ouellet, G., Gloaguen, E., & Giroux, B. (2016). Time-domain seismic modeling in viscoelastic media for full waveform inversion on heterogeneous computing platforms with OpenCL. Computers & Geosciences. http://dx.doi.org/10.1016/j.cageo.2016.12.004
 
 
 To compile the program, do:
