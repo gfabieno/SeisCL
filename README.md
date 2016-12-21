@@ -31,3 +31,4 @@ mpirun -np N ./SeisCL_MPI INPUT_MODEL_FILE INPUT_DATA_FILE
 For the moment, the working directory in terminal must be the directory of the SeisCL binary, as kernels are read and compiled at each program call.
 
 See the Python caller located in tests for the structure of the HDF5 input files.
+
