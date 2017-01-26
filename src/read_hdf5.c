@@ -926,7 +926,7 @@ int readhdf5(struct filenames files, struct modcsts * m) {
 
             
             dims2D[0]=m->allng;dims2D[1]=m->NT;
-            if ( 1==H5Lexists( file_id, "/vz0", H5P_DEFAULT) ){
+            if ( m->ND!=21 && 1==H5Lexists( file_id, "/vz0", H5P_DEFAULT) ){
                 
                 m->bcastvz=1;
                 
@@ -943,7 +943,7 @@ int readhdf5(struct filenames files, struct modcsts * m) {
                     }
                 }
             }
-            if ( 1==H5Lexists( file_id, "/vx0", H5P_DEFAULT) ){
+            if ( m->ND!=21 && 1==H5Lexists( file_id, "/vx0", H5P_DEFAULT) ){
                 
                 m->bcastvx=1;
                 
@@ -960,7 +960,7 @@ int readhdf5(struct filenames files, struct modcsts * m) {
                     }
                 }
             }
-            if ( (1==H5Lexists( file_id, "/vy0", H5P_DEFAULT))){
+            if ( m->ND!=2 && 1==H5Lexists( file_id, "/vy0", H5P_DEFAULT) ){
                 
                 m->bcastvy=1;
                 if (!state) if ((state=checkmatndim_atleast(file_id, "/vy0",  2, dims2D)))   {state=1;fprintf(stderr, "Variable vy0 must be nt x number of geophones\n");};

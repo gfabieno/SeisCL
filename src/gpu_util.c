@@ -37,7 +37,7 @@ cl_int GetPlatformID( cl_device_type * pref_device_type, cl_device_type * device
     if (*pref_device_type!=CL_DEVICE_TYPE_GPU &&
         *pref_device_type!=CL_DEVICE_TYPE_CPU &&
         *pref_device_type!=CL_DEVICE_TYPE_ACCELERATOR ){
-        fprintf(stderr," Warning: invalid prefered device type, defaulting to GPU\n");
+        fprintf(stdout," Warning: invalid prefered device type, defaulting to GPU\n");
         *pref_device_type=CL_DEVICE_TYPE_GPU;
         
     }
@@ -51,7 +51,7 @@ cl_int GetPlatformID( cl_device_type * pref_device_type, cl_device_type * device
             return 1;
         }
         else{
-            fprintf(stderr,"Found %u OpenCL platforms:\n", num_platforms);
+            fprintf(stdout,"Found %u OpenCL platforms:\n", num_platforms);
             // if there's a platform or more, make space for ID's
             if ((clPlatformIDs = (cl_platform_id*)malloc(num_platforms * sizeof(cl_platform_id))) == NULL){
                 fprintf(stderr,"Failed to allocate memory for cl_platform ID's!\n\n");
@@ -69,7 +69,7 @@ cl_int GetPlatformID( cl_device_type * pref_device_type, cl_device_type * device
                         if(num_devices>0){
                             cl_err = clGetPlatformInfo (clPlatformIDs[i], CL_PLATFORM_NAME, 1024, &chBuffer, NULL);
                             if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
-                            fprintf(stderr,"Connection to platform %d: %s\n", i, chBuffer);
+                            fprintf(stdout,"Connection to platform %d: %s\n", i, chBuffer);
                             *clsel_plat_id = clPlatformIDs[i];
                             *device_type=*pref_device_type;
                             
@@ -96,7 +96,7 @@ cl_int GetPlatformID( cl_device_type * pref_device_type, cl_device_type * device
                         if(device_found == CL_SUCCESS){
                             if(num_devices>0){
                                 cl_err = clGetPlatformInfo (clPlatformIDs[i], CL_PLATFORM_NAME, 1024, &chBuffer, NULL);
-                                fprintf(stderr,"Connection to platform %d: %s\n", i, chBuffer);
+                                fprintf(stdout,"Connection to platform %d: %s\n", i, chBuffer);
                                 *clsel_plat_id = clPlatformIDs[i];
                                 *device_type=CL_DEVICE_TYPE_GPU;
                                 *outnum_devices=num_devices;
@@ -112,7 +112,7 @@ cl_int GetPlatformID( cl_device_type * pref_device_type, cl_device_type * device
                         if(device_found == CL_SUCCESS){
                             if(num_devices>0){
                                 cl_err = clGetPlatformInfo (clPlatformIDs[i], CL_PLATFORM_NAME, 1024, &chBuffer, NULL);
-                                fprintf(stderr,"Connection to platform %d: %s\n", i, chBuffer);
+                                fprintf(stdout,"Connection to platform %d: %s\n", i, chBuffer);
                                 *clsel_plat_id = clPlatformIDs[i];
                                 *device_type=CL_DEVICE_TYPE_ACCELERATOR;
                                 *outnum_devices=num_devices;
@@ -128,7 +128,7 @@ cl_int GetPlatformID( cl_device_type * pref_device_type, cl_device_type * device
                         if(device_found == CL_SUCCESS){
                             if(num_devices>0){
                                 cl_err = clGetPlatformInfo (clPlatformIDs[i], CL_PLATFORM_NAME, 1024, &chBuffer, NULL);
-                                fprintf(stderr,"Connection to platform %d: %s\n", i, chBuffer);
+                                fprintf(stdout,"Connection to platform %d: %s\n", i, chBuffer);
                                 *clsel_plat_id = clPlatformIDs[i];
                                 *device_type=CL_DEVICE_TYPE_CPU;
                                 *outnum_devices=num_devices;
@@ -165,7 +165,7 @@ cl_int connect_allgpus(struct varcl ** vcl, cl_context *incontext, cl_device_typ
     cl_char device_name[1024] = {0};
     int i,j;
     if (nmax_dev<1){
-        fprintf(stderr,"Warning, maximum number of devices too small, default to 1\n");
+        fprintf(stdout,"Warning, maximum number of devices too small, default to 1\n");
         nmax_dev=1;
     }
     
@@ -177,11 +177,11 @@ cl_int connect_allgpus(struct varcl ** vcl, cl_context *incontext, cl_device_typ
         
         devices=malloc(sizeof(cl_device_id)*num_devices);
         if (*device_type==CL_DEVICE_TYPE_GPU)
-            fprintf(stderr,"Found %d GPU, ", num_devices);
+            fprintf(stdout,"Found %d GPU, ", num_devices);
         else if (*device_type==CL_DEVICE_TYPE_ACCELERATOR)
-            fprintf(stderr,"Found %d Accelerator, ", num_devices);
+            fprintf(stdout,"Found %d Accelerator, ", num_devices);
         else if (*device_type==CL_DEVICE_TYPE_CPU)
-            fprintf(stderr,"Found %d CPU, ", num_devices);
+            fprintf(stdout,"Found %d CPU, ", num_devices);
         cl_err = clGetDeviceIDs(*clsel_plat_id, *device_type, num_devices, devices, NULL);
         if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
         
@@ -217,13 +217,13 @@ cl_int connect_allgpus(struct varcl ** vcl, cl_context *incontext, cl_device_typ
             }
             
             num_allowed_devices=num_allowed_devices>nmax_dev ? nmax_dev : num_allowed_devices;
-            fprintf(stderr,"connecting to  %d devices:\n", num_allowed_devices);
+            fprintf(stdout,"connecting to  %d devices:\n", num_allowed_devices);
             
             for (i=0;i<num_allowed_devices;i++){
                 // Get some information about the returned devices
                 cl_err = clGetDeviceInfo(devices[allowed_devices[i]], CL_DEVICE_VENDOR, sizeof(vendor_name), vendor_name, NULL);
                 cl_err = clGetDeviceInfo(devices[allowed_devices[i]], CL_DEVICE_NAME, sizeof(device_name), device_name, NULL);
-                fprintf(stderr,"-Device %d: %s %s\n", i, vendor_name, device_name);
+                fprintf(stdout,"-Device %d: %s %s\n", i, vendor_name, device_name);
                 
             }
         }

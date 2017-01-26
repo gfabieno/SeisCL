@@ -185,7 +185,7 @@ __kernel void surface(        __global float *vx,         __global float *vz,
     /* partially updating sxx  in the same way*/
     f=u(gidz,  gidx)*2.0*(1.0+L*taus(gidz,  gidx));
     g=pi(gidz,  gidx)*(1.0+L*taup(gidz,  gidx));
-    h=-(DT*(g-f)*(g-f)*(vxx+vyy)/g)-(DT*(g-f)*vzz);
+    h=-(DT*(g-f)*(g-f)*(vxx)/g)-(DT*(g-f)*vzz);
     sxx(gidz,  gidx)+=h-(DT/2.0*rxx(gidz,  gidx));
     
     /* updating the memory-variable rxx at the free surface */

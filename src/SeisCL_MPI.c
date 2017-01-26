@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
     char processor_name[MPI_MAX_PROCESSOR_NAME];
     int name_len;
     MPI_Get_processor_name(processor_name, &name_len);
-    fprintf(stderr,"MPI connected to processor %s\n",processor_name);
+    fprintf(stdout,"MPI connected to processor %s\n",processor_name);
     
     //if (m.MYID== 0 ) sleep(600);
     
