@@ -17,11 +17,37 @@
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  --------------------------------------------------------------------------*/
 
-/*Initalize the kernel that updates the velocity components*/
+/*Initalize the kernel for SeisCL*/
 
 #include "F.h"
 
-char *get_build_options(struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc, int lcomm, int comm, int dirprop){
+/*Loading files autmatically created by the makefile that contain the *.cl kernels in a c string. 
+This way, no .cl file need to be read and there is no need to be in the executable directory to execute SeisCL.*/
+#include "initialize.hcl"
+#include "residuals.hcl"
+#include "savebnd2D.hcl"
+#include "savebnd3D.hcl"
+#include "savefreqs.hcl"
+#include "surface2D.hcl"
+#include "surface2D_SH.hcl"
+#include "surface3D.hcl"
+#include "update_adjs2D.hcl"
+#include "update_adjs2D_SH.hcl"
+#include "update_adjs3D.hcl"
+#include "update_adjv2D.hcl"
+#include "update_adjv2D_SH.hcl"
+#include "update_adjv3D.hcl"
+#include "update_s2D.hcl"
+#include "update_s2D_SH.hcl"
+#include "update_s3D.hcl"
+#include "update_v2D.hcl"
+#include "update_v2D_SH.hcl"
+#include "update_v3D.hcl"
+#include "update_v_CPML.hcl"
+#include "vout.hcl"
+
+char *get_build_options(struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc, int lcomm, int comm, int dirprop)
+{
     
     static char option_DH [2000];
     sprintf(option_DH, "-D NX=%d -D NY=%d -D NZ=%d -D offset=%d -D fdo=%d -D fdoh=%d -D hc0=%9.9f -D hc1=%9.9f -D hc2=%9.9f -D hc3=%9.9f -D hc4=%9.9f -D hc5=%9.9f -D hc6=%9.9f -D dhi=%9.9f -D dhi2=%9.9f -D dtdh=%9.9f -D dtdh2=%9.9f -D DH=%9.9f -D DT=%9.9f -D dt2=%9.9f -D NT=%d -D nab=%d -D Nbnd=%d -D local_off=%d -D Lve=%d -D dev=%d -D num_devices=%d -D ND=%d -D abs_type=%d -D freesurf=%d -D lcomm=%d -D MYLOCALID=%d -D NLOCALP=%d -D nfreqs=%d -D back_prop_type=%d -D comm12=%d -D locsizexy=%d -D NZ_al16=%d -D NZ_al0=%d -D NTnyq=%d -D dtnyq=%d -D gradsrcout=%d -D bcastvx=%d -D bcastvy=%d -D bcastvz=%d -D dirprop=%d",(*inmloc).NX+(*inm).FDORDER, (*inmloc).NY+(*inm).FDORDER, (*inmloc).NZ+(*inm).FDORDER, (*inmloc).NX0, (*inm).fdo, (*inm).fdoh, (*inm).hc[0], (*inm).hc[1], (*inm).hc[2], (*inm).hc[3], (*inm).hc[4], (*inm).hc[5], (*inm).hc[6], (*inm).dhi, (*inm).dhi/2.0, (*inm).dt/(*inm).dh, (*inm).dt/(*inm).dh/2.0, (*inm).dh, (*inm).dt, (*inm).dt/2.0, (*inm).NT, (*inm).nab, (*inmloc).Nbnd, (*inmloc).local_off, (*inm).L, (*inmloc).dev, (*inmloc).num_devices,(*inm).ND, (*inm).abs_type, (*inm).freesurf, lcomm, (*inm).MYLOCALID, (*inm).NLOCALP, (*inm).nfreqs, (*inm).back_prop_type, comm, (int)(*inmloc).local_work_size[1], (*inmloc).NZ_al16, (*inmloc).NZ_al0, (*inm).NTnyq,(*inm).dtnyq, (*inm).gradsrcout, (*inm).bcastvx, (*inm).bcastvy, (*inm).bcastvz, dirprop  );
@@ -29,32 +55,26 @@ char *get_build_options(struct varcl *inmem, struct modcsts *inm, struct modcsts
     return option_DH;
 }
 
-
-
-
 int gpu_initialize_update_v(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc, int bndoff, int lcomm, int comm )
 {
 
 	cl_int cl_err = 0;
     size_t shared_size=sizeof(float);
     
-    char filename[20];
-    if ((*inm).ND==3){
-      sprintf(filename,"./update_v3D.cl");
-    }
-    else if ((*inm).ND==2){
-      sprintf(filename,"./update_v2D.cl");
-    }
-    else if ((*inm).ND==21){
-        sprintf(filename,"./update_v2D_SH.cl");
-    }
-
     const char * build_options=get_build_options(inmem, inm, inmloc, lcomm, comm, 0);
     
     /*Create the kernel, ther kernel version depends on the finite difference order*/
     const char * program_name = "update_v";
-    cl_err = create_gpu_kernel( filename, program, pcontext, pkernel, program_name, build_options);
-    
+ 
+    if ((*inm).ND==3){
+        cl_err = create_gpu_kernel_from_string( update_v3D_source, program, pcontext, pkernel, program_name, build_options);
+    }
+    else if ((*inm).ND==2){
+        cl_err = create_gpu_kernel_from_string( update_v2D_source, program, pcontext, pkernel, program_name, build_options);
+    }
+    else if ((*inm).ND==21){
+        cl_err = create_gpu_kernel_from_string( update_v2D_SH_source, program, pcontext, pkernel, program_name, build_options);
+    }
 
     /*Define the size of the local variables of the compute device*/
     if ((*inmloc).local_off==0){
@@ -200,29 +220,25 @@ int gpu_initialize_update_v(cl_context  * pcontext, cl_program  * program, cl_ke
 }
 
 int gpu_initialize_update_s(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc, int bndoff, int lcomm , int comm )
-
-
 {
 	cl_int cl_err = 0;
     size_t shared_size=sizeof(float);
-    
-    char filename[20];
-    if ((*inm).ND==3){
-        sprintf(filename,"./update_s3D.cl");
-    }
-    else if ((*inm).ND==2){
-        sprintf(filename,"./update_s2D.cl");
-    }
-    else if ((*inm).ND==21){
-        sprintf(filename,"./update_s2D_SH.cl");
-    }
     
     /* Pass some constant arguments as build options */
     const char * build_options=get_build_options(inmem, inm, inmloc, lcomm, comm, 0);
     
     /*Create the kernel*/
     const char * program_name = "update_s";
-    cl_err = create_gpu_kernel( filename, program, pcontext, pkernel, program_name, build_options);
+    
+    if ((*inm).ND==3){
+        cl_err = create_gpu_kernel_from_string( update_s3D_source, program, pcontext, pkernel, program_name, build_options);
+    }
+    else if ((*inm).ND==2){
+        cl_err = create_gpu_kernel_from_string( update_s2D_source, program, pcontext, pkernel, program_name, build_options);
+    }
+    else if ((*inm).ND==21){
+        cl_err = create_gpu_kernel_from_string( update_s2D_SH_source, program, pcontext, pkernel, program_name, build_options);
+    }
     
     /*Define the size of the local variables of the compute device*/
     if ((*inmloc).local_off==0){
@@ -402,30 +418,24 @@ int gpu_initialize_update_s(cl_context  * pcontext, cl_program  * program, cl_ke
 }
 
 int gpu_initialize_surface(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc )
-
-
 {
     cl_int cl_err = 0;
-    
-    
-    char filename[20];
-    if ((*inm).ND==3){
-        sprintf(filename,"./surface3D.cl");
-    }
-    else if ((*inm).ND==2){
-        sprintf(filename,"./surface2D.cl");
-    }
-    else if ((*inm).ND==21){
-        sprintf(filename,"./surface2D_SH.cl");
-    }
-    
+   
     /* Pass some constant arguments as build options */
     const char * build_options=get_build_options(inmem, inm, inmloc, 0, 0, 0);
 
     /*Create the kernel*/
     const char * program_name = "surface";
-    cl_err = create_gpu_kernel( filename, program, pcontext, pkernel, program_name, build_options);
-    
+    if ((*inm).ND==3){
+        cl_err = create_gpu_kernel_from_string( surface3D_source, program, pcontext, pkernel, program_name, build_options);
+    }
+    else if ((*inm).ND==2){
+        cl_err = create_gpu_kernel_from_string( surface2D_source, program, pcontext, pkernel, program_name, build_options);
+    }
+    else if ((*inm).ND==21){
+        cl_err = create_gpu_kernel_from_string( surface2D_SH_source, program, pcontext, pkernel, program_name, build_options);
+    }
+
     /*Define the arguments for this kernel */
     if ((*inm).ND==3){
         cl_err = clSetKernelArg(*pkernel,  0, sizeof(cl_mem), &inmem->vx);
@@ -476,24 +486,17 @@ int gpu_initialize_surface(cl_context  * pcontext, cl_program  * program, cl_ker
     return cl_err;
 }
 
+int gpu_intialize_seis(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc )
+{
 
-
-
-int gpu_intialize_seis(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc ){
-    
-    
 	cl_int cl_err = 0;
-    
-    
-    
-    const char * filename = "./initialize.cl";
-    
+
     /* Pass some constant arguments as build options */
     const char * build_options=get_build_options(inmem, inm, inmloc, 0, 0, 0);
 
     /*Create the kernel*/
     const char * program_name = "initialize_seis";
-    cl_err = create_gpu_kernel( filename, program, pcontext, pkernel, program_name, build_options);
+    cl_err = create_gpu_kernel_from_string( initialize_source, program, pcontext, pkernel, program_name, build_options);
     
     
     /*Define the arguments for this kernel */
@@ -540,23 +543,17 @@ int gpu_intialize_seis(cl_context  * pcontext, cl_program  * program, cl_kernel 
     
 }
 
-int gpu_intialize_seis_r(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc ){
-    
-    
+int gpu_intialize_seis_r(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc )
+{
+
 	cl_int cl_err = 0;
-    
-    
-    
-    const char * filename = "./initialize.cl";
     
     /* Pass some constant arguments as build options */
     const char * build_options=get_build_options(inmem, inm, inmloc, 0, 0, 0);
-    
-    
-    
+
     /*Create the kernel, ther kernel version depends on the finite difference order*/
     const char * program_name = "initialize_seis";
-    cl_err = create_gpu_kernel( filename, program, pcontext, pkernel, program_name, build_options);
+    cl_err = create_gpu_kernel_from_string( initialize_source, program, pcontext, pkernel, program_name, build_options);
     
     
     /*Define the arguments for this kernel */
@@ -620,23 +617,17 @@ int gpu_intialize_seis_r(cl_context  * pcontext, cl_program  * program, cl_kerne
     
 }
 
-int gpu_intialize_grad(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc  ){
-    
+int gpu_intialize_grad(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc  )
+{
     
 	cl_int cl_err = 0;
-    
-    
-    
-    const char * filename = "./initialize.cl";
-    
+
     /* Pass some constant arguments as build options */
     const char * build_options=get_build_options(inmem, inm, inmloc, 0, 0, 1);
-    
-    
-    
+
     /*Create the kernel, ther kernel version depends on the finite difference order*/
     const char * program_name = "initialize_grad";
-    cl_err = create_gpu_kernel( filename, program, pcontext, pkernel, program_name, build_options);
+    cl_err = create_gpu_kernel_from_string( initialize_source, program, pcontext, pkernel, program_name, build_options);
     
     
     /*Define the arguments for this kernel */
@@ -653,26 +644,18 @@ int gpu_intialize_grad(cl_context  * pcontext, cl_program  * program, cl_kernel 
     
 }
 
+int gpu_intialize_vout(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc )
+{
 
-int gpu_intialize_vout(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc ){
-    
-    
 	cl_int cl_err = 0;
-    
-    
-    
-    const char * filename = "./vout.cl";
-    
+
     /* Pass some constant arguments as build options */
     const char * build_options=get_build_options(inmem, inm, inmloc, 0, 0, 0);
-    
-    
-    
+
     /*Create the kernel, ther kernel version depends on the finite difference order*/
     const char * program_name = "vout";
-    cl_err = create_gpu_kernel( filename, program, pcontext, pkernel, program_name, build_options);
-    
-    
+    cl_err = create_gpu_kernel_from_string( vout_source, program, pcontext, pkernel, program_name, build_options);
+
     /*Define the arguments for this kernel */
     cl_err = clSetKernelArg(*pkernel,  0, sizeof(cl_mem), &inmem->vx);
     cl_err = clSetKernelArg(*pkernel,  1, sizeof(cl_mem), &inmem->vy);
@@ -688,23 +671,18 @@ int gpu_intialize_vout(cl_context  * pcontext, cl_program  * program, cl_kernel 
     
 }
 
-int gpu_intialize_voutinit(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc ){
+int gpu_intialize_voutinit(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc )
+{
     
     
     cl_int cl_err = 0;
-    
-    
-    
-    const char * filename = "./initialize.cl";
-    
+
     /* Pass some constant arguments as build options */
     const char * build_options=get_build_options(inmem, inm, inmloc, 0, 0, 0);
-    
-    
-    
+
     /*Create the kernel, ther kernel version depends on the finite difference order*/
     const char * program_name = "voutinit";
-    cl_err = create_gpu_kernel( filename, program, pcontext, pkernel, program_name, build_options);
+    cl_err = create_gpu_kernel_from_string( initialize_source, program, pcontext, pkernel, program_name, build_options);
     
     
     /*Define the arguments for this kernel */
@@ -718,25 +696,18 @@ int gpu_intialize_voutinit(cl_context  * pcontext, cl_program  * program, cl_ker
     
 }
 
-
-
-int gpu_intialize_residuals(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc ){
+int gpu_intialize_residuals(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc )
+{
     
     
     cl_int cl_err = 0;
     
-    
-    
-    const char * filename = "./residuals.cl";
-    
     /* Pass some constant arguments as build options */
     const char * build_options=get_build_options(inmem, inm, inmloc, 0, 0, 0);
-    
-    
-    
+
     /*Create the kernel, ther kernel version depends on the finite difference order*/
     const char * program_name = "residuals";
-    cl_err = create_gpu_kernel( filename, program, pcontext, pkernel, program_name, build_options);
+    cl_err = create_gpu_kernel_from_string( residuals_source, program, pcontext, pkernel, program_name, build_options);
     
     
     /*Define the arguments for this kernel */
@@ -771,24 +742,21 @@ int gpu_initialize_update_adjv(cl_context  * pcontext, cl_program  * program, cl
 	
 	cl_int cl_err = 0;
     size_t shared_size=sizeof(float);
-    
-    char filename[50];
-    if ((*inm).ND==3){
-        sprintf(filename,"./update_adjv3D.cl");
-    }
-    else if ((*inm).ND==2){
-        sprintf(filename,"./update_adjv2D.cl");
-    }
-    else if ((*inm).ND==21){
-        sprintf(filename,"./update_adjv2D_SH.cl");
-    }
-    
+
     /* Pass some constant arguments as build options */
     const char * build_options=get_build_options(inmem, inm, inmloc, lcomm, comm, 1);
     
     /*Create the kernel, ther kernel version depends on the finite difference order*/
     const char * program_name = "update_adjv";
-    cl_err = create_gpu_kernel( filename, program, pcontext, pkernel, program_name, build_options);
+    if ((*inm).ND==3){
+        cl_err = create_gpu_kernel_from_string( update_adjv3D_source, program, pcontext, pkernel, program_name, build_options);
+    }
+    else if ((*inm).ND==2){
+        cl_err = create_gpu_kernel_from_string( update_adjv2D_source, program, pcontext, pkernel, program_name, build_options);
+    }
+    else if ((*inm).ND==21){
+        cl_err = create_gpu_kernel_from_string( update_adjv2D_SH_source, program, pcontext, pkernel, program_name, build_options);
+    }
     
     /*Define the size of the local variables of the compute device*/
     if ((*inmloc).local_off==0){
@@ -1017,34 +985,25 @@ int gpu_initialize_update_adjv(cl_context  * pcontext, cl_program  * program, cl
 }
 
 int gpu_initialize_update_adjs(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc, int bndoff, int lcomm, int comm  )
-
-
 {
 	
 	cl_int cl_err = 0;
     size_t shared_size=sizeof(float);
-    
-    
 
-    char filename[50];
-    if ((*inm).ND==3){
-        sprintf(filename,"./update_adjs3D.cl");
-    }
-    else if ((*inm).ND==2){
-        sprintf(filename,"./update_adjs2D.cl");
-    }
-    else if ((*inm).ND==21){
-        sprintf(filename,"./update_adjs2D_SH.cl");
-    }
-    
     /* Pass some constant arguments as build options */
     const char * build_options=get_build_options(inmem, inm, inmloc, lcomm, comm, 1);
-    
-    
-    
+
     /*Create the kernel, ther kernel version depends on the finite difference order*/
     const char * program_name = "update_adjs";
-    cl_err = create_gpu_kernel( filename, program, pcontext, pkernel, program_name, build_options);
+    if ((*inm).ND==3){
+        cl_err = create_gpu_kernel_from_string( update_adjs3D_source, program, pcontext, pkernel, program_name, build_options);
+    }
+    else if ((*inm).ND==2){
+        cl_err = create_gpu_kernel_from_string( update_adjs2D_source, program, pcontext, pkernel, program_name, build_options);
+    }
+    else if ((*inm).ND==21){
+        cl_err = create_gpu_kernel_from_string( update_adjs2D_SH_source, program, pcontext, pkernel, program_name, build_options);
+    }
     
     /*Define the size of the local variables of the compute device*/
     if ((*inmloc).local_off==0){
@@ -1349,27 +1308,20 @@ int gpu_initialize_update_adjs(cl_context  * pcontext, cl_program  * program, cl
 
 
 int gpu_initialize_savebnd(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc )
-
-
 {
 	
 	cl_int cl_err = 0;
-    
-    
-    char filename[20];
-    if ((*inm).ND==3){
-        sprintf(filename,"./savebnd3D.cl");
-    }
-    else if ((*inm).ND==2){
-        sprintf(filename,"./savebnd2D.cl");
-    }
     
     /* Pass some constant arguments as build options */
     const char * build_options=get_build_options(inmem, inm, inmloc, 0, 0, 0);
     
     const char * program_name = "savebnd";
-    cl_err = create_gpu_kernel( filename, program, pcontext, pkernel, program_name, build_options);
-    
+    if ((*inm).ND==3){
+        cl_err = create_gpu_kernel_from_string( savebnd3D_source, program, pcontext, pkernel, program_name, build_options);
+    }
+    else if ((*inm).ND==2){
+        cl_err = create_gpu_kernel_from_string( savebnd2D_source, program, pcontext, pkernel, program_name, build_options);
+    }
     
     /*Define the arguments for this kernel */
     cl_err = clSetKernelArg(*pkernel,  0,  sizeof(cl_mem), &inmem->vx);
@@ -1398,22 +1350,17 @@ int gpu_initialize_savebnd(cl_context  * pcontext, cl_program  * program, cl_ker
     
 	return cl_err;
 }
+
 int gpu_initialize_savefreqs(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc, int dirprop )
-
-
 {
     
     cl_int cl_err = 0;
-    
-    
-    char filename[20];
-    sprintf(filename,"./savefreqs.cl");
     
     /* Pass some constant arguments as build options */
     const char * build_options=get_build_options(inmem, inm, inmloc, 0, 0, dirprop);
     
     const char * program_name = "savefreqs";
-    cl_err = create_gpu_kernel( filename, program, pcontext, pkernel, program_name, build_options);
+    cl_err = create_gpu_kernel_from_string( savefreqs_source, program, pcontext, pkernel, program_name, build_options);
     
     
     /*Define the arguments for this kernel */
@@ -1461,26 +1408,18 @@ int gpu_initialize_savefreqs(cl_context  * pcontext, cl_program  * program, cl_k
 }
 
 int gpu_initialize_initsavefreqs(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc )
-
-
 {
     
     cl_int cl_err = 0;
-    
-    
-    char filename[20];
-    sprintf(filename,"./initialize.cl");
     
     /* Pass some constant arguments as build options */
     const char * build_options=get_build_options(inmem, inm, inmloc, 0, 0, 0);
     
     const char * program_name = "initialize_savefreqs";
-    cl_err = create_gpu_kernel( filename, program, pcontext, pkernel, program_name, build_options);
+    cl_err = create_gpu_kernel_from_string( initialize_source, program, pcontext, pkernel, program_name, build_options);
     
     
     /*Define the arguments for this kernel */
-    
-    
     cl_err = clSetKernelArg(*pkernel,  0,  sizeof(cl_mem), &inmem->f_vx);
     cl_err = clSetKernelArg(*pkernel,  1,  sizeof(cl_mem), &inmem->f_vy);
     cl_err = clSetKernelArg(*pkernel,  2,  sizeof(cl_mem), &inmem->f_vz);
@@ -1508,15 +1447,11 @@ int gpu_initialize_gradsrc(cl_context  * pcontext, cl_program  * program, cl_ker
     
     cl_int cl_err = 0;
     
-    
-    char filename[20];
-    sprintf(filename,"./initialize.cl");
-    
     /* Pass some constant arguments as build options */
     const char * build_options=get_build_options(inmem, inm, inmloc, 0, 0, 0);
     
     const char * program_name = "initialize_gradsrc";
-    cl_err = create_gpu_kernel( filename, program, pcontext, pkernel, program_name, build_options);
+    cl_err = create_gpu_kernel_from_string( initialize_source, program, pcontext, pkernel, program_name, build_options);
     
     
     /*Define the arguments for this kernel */

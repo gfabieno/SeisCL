@@ -325,6 +325,26 @@ cl_int create_gpu_kernel(const char * filename, cl_program *program, cl_context 
     
 }
 
+cl_int create_gpu_kernel_from_string(const char *program_source, cl_program *program, cl_context *context, cl_kernel *kernel, const char * program_name, const char * build_options)
+{
+    /* Routine to build a kernel from the source file contained in a c string*/
+    
+    cl_int cl_err = 0;
+
+    *program = clCreateProgramWithSource(*context, 1, &program_source,NULL, &cl_err);
+    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+    
+    cl_err = clBuildProgram(program[0], 0, NULL, build_options, NULL, NULL);
+    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+    
+    // Now create the kernel "objects"
+    *kernel = clCreateKernel(program[0], program_name, &cl_err);
+    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+    
+    
+    return cl_err;
+    
+}
 
 cl_int transfer_gpu_memory( cl_command_queue *inqueue, size_t buffer_size, cl_mem *var_mem, float *var)
 {

@@ -16,10 +16,31 @@ UNAME_S := $(shell uname -s)
     endif
 
 
+SeisCL_CL= \
+	initialize.cl \
+	residuals.cl \
+	savebnd2D.cl \
+	savebnd3D.cl \
+	savefreqs.cl \
+	surface2D.cl \
+	surface2D_SH.cl \
+	surface3D.cl \
+	update_adjs2D.cl \
+	update_adjs2D_SH.cl \
+	update_adjs3D.cl \
+	update_adjv2D.cl \
+	update_adjv2D_SH.cl \
+	update_adjv3D.cl \
+	update_s2D.cl \
+	update_s2D_SH.cl \
+	update_s3D.cl \
+	update_v2D.cl \
+	update_v2D_SH.cl \
+	update_v3D.cl \
+	update_v_CPML.cl \
+	vout.cl \
 
-.c.o:
-	$(CC) $(CFLAGS) -c $<
-
+SeisCL_CL_Headers = $(SeisCL_CL:%.cl=%.hcl)
 
 SeisCL_MPI_SRC= \
 	gpu_util.c \
@@ -43,15 +64,27 @@ SeisCL_MPI_SRC= \
 	kiss_fftr.c \
 	residuals.c \
 
-	
 SeisCL_MPI_OBJ = $(SeisCL_MPI_SRC:%.c=%.o)
 
-SeisCL_MPI:		$(SeisCL_MPI_OBJ)
+%.o: %.c $(SeisCL_CL_Headers)
+	$(CC) $(CFLAGS) -c -o $@ $<
+	
+%.hcl: %.cl cl2cstring
+	./cl2cstring $< $@
+
+
+SeisCL_MPI:	$(SeisCL_CL_Headers) $(SeisCL_MPI_OBJ) 
 	$(CC) $(LFLAGS) $(SeisCL_MPI_OBJ) -o SeisCL_MPI
 	
 clean:
 	find . -name "*.o" -exec rm {} \; 
 	find . -name "*.c%" -exec rm {} \;
 	find . -name "*.bck" -exec rm {} \;
+	find . -name "*.hcl" -exec rm {} \;
+
+headers: clean $(SeisCL_CL_Headers)
+
+cl2cstring:
+	$(CC) cl2cstring.c -o cl2cstring
 
 all: clean SeisCL_MPI
