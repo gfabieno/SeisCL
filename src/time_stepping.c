@@ -445,7 +445,7 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
         }
         
         // Initialization of the seismic variables
-        initialize_grid(m, vcl, mloc, s);
+        __GUARD initialize_grid(m, vcl, mloc, s);
         
         // Loop for seismic propagation
         for (t=0;t<m->tmax; t++){
@@ -479,14 +479,14 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
             }
 
             // Outputting the movie
-            if (m->movout>0 && (t+1)%m->movout==0){
+            if (m->movout>0 && (t+1)%m->movout==0 && state==0){
                 for (d=0;d<m->num_devices;d++){
                     if (m->ND!=21){
-                        read_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_fd, &(*vcl)[d].vx, (*mloc)[d].buffermovvx);
-                        read_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_fd, &(*vcl)[d].vz, (*mloc)[d].buffermovvz);
+                        __GUARD read_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_fd, &(*vcl)[d].vx, (*mloc)[d].buffermovvx);
+                        __GUARD read_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_fd, &(*vcl)[d].vz, (*mloc)[d].buffermovvz);
                     }
                     if (m->ND==3 || m->ND==21){
-                        read_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_fd, &(*vcl)[d].vy, (*mloc)[d].buffermovvy);
+                        __GUARD read_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_fd, &(*vcl)[d].vy, (*mloc)[d].buffermovvy);
                     }
                 }
                 
@@ -548,8 +548,8 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
             // Flush all the previous command to the computing device
             for (d=0;d<m->num_devices;d++){
                 if (d>0 || d<m->num_devices-1)
-                    clFlush((*vcl)[d].cmd_queuecomm);
-                clFlush((*vcl)[d].cmd_queue);
+                    __GUARD clFlush((*vcl)[d].cmd_queuecomm);
+                __GUARD clFlush((*vcl)[d].cmd_queue);
             }
             
         }
@@ -590,7 +590,7 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
                 memset(m->vyout[s],0,sizeof(float)*m->NT*m->nrec[s]);
             }
             for (d=0;d<m->num_devices;d++){
-                clFinish((*vcl)[d].cmd_queue);
+                __GUARD clFinish((*vcl)[d].cmd_queue);
                 for (i=0;i<m->nrec[s];i++){
                     posx=(int)floor(m->rec_pos[s][8*i]/m->dh);
                     if (posx>=(*mloc)[d].NX0 && posx<((*mloc)[d].NX0+(*mloc)[d].NX) ){
@@ -694,12 +694,12 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
             // Inverse time stepping
             for (t=m->tmax-1;t>=m->tmin; t--){
 
-                update_grid_adj(m, vcl, mloc, t, global_work_size_vout);
+                __GUARD update_grid_adj(m, vcl, mloc, t, global_work_size_vout);
                 
                 for (d=0;d<m->num_devices;d++){
                     if (d>0 || d<m->num_devices-1)
-                        clFlush((*vcl)[d].cmd_queuecomm);
-                    clFlush((*vcl)[d].cmd_queue);
+                        __GUARD clFlush((*vcl)[d].cmd_queuecomm);
+                    __GUARD clFlush((*vcl)[d].cmd_queue);
                 }
             }
             
@@ -762,7 +762,7 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
                 }
 
                 for (d=0;d<m->num_devices;d++){
-                    clFinish((*vcl)[d].cmd_queue);
+                    __GUARD clFinish((*vcl)[d].cmd_queue);
                     if (!state) calc_grad(m, &(*mloc)[d]);
                 }
             }
@@ -784,7 +784,7 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
         }
         
         for (d=0;d<m->num_devices;d++){
-            clFinish((*vcl)[d].cmd_queue);
+            __GUARD clFinish((*vcl)[d].cmd_queue);
         }
     }
     

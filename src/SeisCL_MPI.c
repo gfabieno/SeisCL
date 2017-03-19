@@ -28,7 +28,7 @@ int main(int argc, char **argv) {
     struct varcl *vcl=NULL;
 
     
-    int i,d;
+    int i;
     double time1=0.0, time2=0.0, time3=0.0, time4=0.0, time5=0.0;
 
     

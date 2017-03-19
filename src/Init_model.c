@@ -65,12 +65,82 @@ int Init_model(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mlo
 
     int state=0;
     int i,j,k,l;
+    float ws=0,sumu=0,sumpi=0, thisvp=0, thisvs=0, thistaup=0, thistaus=0;
+    float *pts=NULL;
+    float vpmax, vpmin, vsmin, vsmax, vmin, vmax;
+    float gamma=0, g=0, dtstable;
     
+    
+    //Transform variables into modulus
+    if (!state){
+        
+        if (m->ND!=21){
+            if (m->param_type==0){
+                for (i=0;i<m->NX*m->NY*m->NZ;i++){
+                    m->u[i]=powf(m->u[i],2)*m->rho[i];
+                    m->pi[i]=powf(m->pi[i],2)*m->rho[i];
+                }
+            }
+            if (m->param_type==2){
+                for (i=0;i<m->NX*m->NY*m->NZ;i++){
+                    m->u[i]=powf(m->u[i]/m->rho[i],2)*m->rho[i];
+                    m->pi[i]=powf(m->pi[i]/m->rho[i],2)*m->rho[i];
+                }
+            }
+            if (m->param_type==3){
+                for (i=0;i<m->NX*m->NY*m->NZ;i++){
+                    
+                    thisvp=m->pi[i]-m->taup[i];
+                    thistaup=m->taup[i]/(m->pi[i]-m->taup[i]);
+                    if (m->u[i]>0){
+                        thisvs=m->u[i]-m->taus[i];
+                        thistaus=m->taus[i]/(m->u[i]-m->taus[i]);
+                    }
+                    else{
+                        thistaus=0;
+                        thisvs=0;
+                    }
+                    m->u[i]=powf(thisvs,2)*m->rho[i];
+                    m->pi[i]=powf(thisvp,2)*m->rho[i];
+                    m->taup[i]=thistaup;
+                    m->taus[i]=thistaus;
+                }
+                
+            }
+        }
+        else {
+            if (m->param_type==0){
+                for (i=0;i<m->NX*m->NY*m->NZ;i++){
+                    m->u[i]=powf(m->u[i],2)*m->rho[i];
+                }
+            }
+            if (m->param_type==2){
+                for (i=0;i<m->NX*m->NY*m->NZ;i++){
+                    m->u[i]=powf(m->u[i]/m->rho[i],2)*m->rho[i];
+                }
+            }
+            if (m->param_type==3){
+                for (i=0;i<m->NX*m->NY*m->NZ;i++){
+                    if (m->u[i]>0){
+                        thisvs=m->u[i]-m->taus[i];
+                        thistaus=m->taus[i]/(m->u[i]-m->taus[i]);
+                    }
+                    else{
+                        thistaus=0;
+                        thisvs=0;
+                    }
+                    m->u[i]=powf(thisvs,2)*m->rho[i];
+                    m->taus[i]=thistaus;
+                }
+                
+            }
+        }
+        
+    }
     
     if (m->L>0){
 
         /* vector for maxwellbodies */
-        float *pts=NULL;
         if (!state) if (!(pts =malloc(m->L*sizeof(float))))              {state=1; fprintf(stderr,"could not allocate eta\n");};
 
         for (l=0;l<m->L;l++) {
@@ -78,10 +148,9 @@ int Init_model(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mlo
             m->eta[l]=m->dt/pts[l];
         }
         
-        float ws=2.0*PI*m->f0;
-        
-        float sumu=0.0;
-        float sumpi=0.0;
+        ws=2.0*PI*m->f0;
+        sumu=0.0;
+        sumpi=0.0;
 
         /* loop over global grid */
         if (m->pi){
@@ -115,8 +184,80 @@ int Init_model(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mlo
         
     }
     
+    /* Check stability and dispersion */
+    vpmax=0;
+    vsmax=0;
+    vpmin=99999;
+    vsmin=99999;
+    for (i=0;i<m->NX*m->NY*m->NZ;i++){
+        
+        thisvp=sqrt(m->pi[i]/m->rho[i]);
+        thisvs=sqrt(m->u[i]/m->rho[i]);
+        
+        if (vpmax<thisvp) vpmax=thisvp;
+        if (vsmax<thisvs) vsmax=thisvs;
+        if (vsmin>thisvs && thisvs>0.1) vsmin=thisvs;
+        if (vpmin>thisvp && thisvp>0.1) vpmin=thisvp;
+        
+    }
+    if (vsmin==99999){
+        vmin=vpmin;
+    }
+    else{
+        vmin=vsmin;
+    }
+    if (vpmax==0){
+        vmax=vsmax;
+    }
+    else{
+        vmax=vpmax;
+    }
     
-
+    switch (m->FDORDER){
+        case 2: g=12.0;
+        break;
+        case 4: g=8.32;
+        break;
+        case 6: g=4.77;
+        break;
+        case 8: g=3.69;
+        break;
+        case 10: g=3.19;
+        break;
+        case 12: g=2.91;
+        break;
+        default: g=0;
+        break;
+    }
+    if ((m->dh>(vmin/m->fmax/g)))
+        fprintf(stdout,"Warning: Grid spacing too large, dispersion will affect the solution\n");
+    
+    /*  gamma for stability estimation (Holberg) */
+    switch (m->FDORDER){
+        case 2: gamma=1.0;
+        break;
+        case 4: gamma=1.184614;
+        break;
+        case 6: gamma=1.283482;
+        break;
+        case 8: gamma=1.345927;
+        break;
+        case 10: gamma=1.38766;
+        break;
+        case 12: gamma=1.417065;
+        break;
+        default: gamma=1.0;
+        break;
+    }
+    if (m->ND==3)
+        dtstable=m->dh/(gamma*sqrt(3.0)*vmax);
+    else
+        dtstable=m->dh/(gamma*sqrt(2.0)*vmax);
+    
+    if (m->dt>dtstable){
+        state=1;
+        fprintf(stderr, "Error: Time step too small, to be stable, set dt<%f\n", dtstable);
+    }
     
     /* harmonic averaging of shear modulus */
     if (m->uipjp){
