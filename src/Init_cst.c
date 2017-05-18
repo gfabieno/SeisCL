@@ -280,7 +280,28 @@ int Init_cst(struct modcsts * m) {
                 m->gradsrc[i]=m->gradsrc[i-1]+m->nsrc[i-1]*m->NT;
             }
         }
+        
+        //Alocate memory for the Hessian approximation
+        if (m->Hout==1 ){
+            
+            GMALLOC(m->Hrho  ,m->NX*m->NY*m->NZ*sizeof(double))
+            if (m->ND!=21){
+                GMALLOC(m->HM  ,m->NX*m->NY*m->NZ*sizeof(double))
+            }
+            GMALLOC(m->Hmu  ,m->NX*m->NY*m->NZ*sizeof(double))
+            
+            if (m->L>0){
+                if (m->ND!=21){
+                    GMALLOC(m->Htaup  ,m->NX*m->NY*m->NZ*sizeof(double))
+                }
+                GMALLOC(m->Htaus  ,m->NX*m->NY*m->NZ*sizeof(double))
+                
+            }
+            
+        }
     }
+    
+
     
 
     

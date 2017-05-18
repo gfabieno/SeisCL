@@ -251,6 +251,12 @@ int Free_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             clReleaseMemObject((*vcl)[d].gradM);
             clReleaseMemObject((*vcl)[d].gradmu);
             
+            clReleaseMemObject((*vcl)[d].Hrho);
+            clReleaseMemObject((*vcl)[d].HM);
+            clReleaseMemObject((*vcl)[d].Hmu);
+            clReleaseMemObject((*vcl)[d].Htaup);
+            clReleaseMemObject((*vcl)[d].Htaus);
+            
             clReleaseMemObject((*vcl)[d].f_sxx);
             clReleaseMemObject((*vcl)[d].f_syy);
             clReleaseMemObject((*vcl)[d].f_szz);

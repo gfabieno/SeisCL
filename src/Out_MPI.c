@@ -204,7 +204,36 @@ int Out_MPI(struct filenames file, struct modcsts * m)  {
             }
         }
         
+        if (m->Hout==1){
+            
+            
+            if (m->MYID==0){
+                if (!state) MPI_Reduce(MPI_IN_PLACE, m->Hrho, m->NX*m->NY*m->NZ, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+                if (m->ND!=21)
+                if (!state) MPI_Reduce(MPI_IN_PLACE, m->HM,   m->NX*m->NY*m->NZ, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+                if (!state) MPI_Reduce(MPI_IN_PLACE, m->Hmu,  m->NX*m->NY*m->NZ, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+                if (m->L>0){
+                    if (m->ND!=21)
+                    if (!state) MPI_Reduce(MPI_IN_PLACE, m->Htaup, m->NX*m->NY*m->NZ, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+                    if (!state) MPI_Reduce(MPI_IN_PLACE, m->Htaus, m->NX*m->NY*m->NZ, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+                }
+            }
+            else{
+                if (!state) MPI_Reduce(m->gradrho, m->Hrho, m->NX*m->NY*m->NZ, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+                if (m->ND!=21)
+                if (!state) MPI_Reduce(m->gradM,   m->HM, m->NX*m->NY*m->NZ, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+                if (!state) MPI_Reduce(m->gradmu,  m->Hmu, m->NX*m->NY*m->NZ, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+                if (m->L>0){
+                    if (m->ND!=21)
+                    if (!state) MPI_Reduce(m->gradtaup, m->Htaup, m->NX*m->NY*m->NZ, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+                    if (!state) MPI_Reduce(m->gradtaus, m->Htaus, m->NX*m->NY*m->NZ, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+                }
+            }
+            
+        }
+        
     }
+
     
     MPI_Barrier(MPI_COMM_WORLD);
     

@@ -37,6 +37,12 @@
 #define gradtaup(z,y,x) gradtaup[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
 #define gradtaus(z,y,x) gradtaus[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
 
+#define Hrho(z,y,x) Hrho[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
+#define HM(z,y,x) HM[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
+#define Hmu(z,y,x) Hmu[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
+#define Htaup(z,y,x) Htaup[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
+#define Htaus(z,y,x) Htaus[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
+
 #define pp(z,y,x) pp[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
 #define mp(z,y,x) mp[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
 #define up(z,y,x) up[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
@@ -225,6 +231,19 @@ cl_integral(cl_float2 a, float w)
     output.x=a.y/w;
     output.y=-a.x/w;
     return output;
+}
+static inline cl_float2
+cl_derivative(cl_float2 a, float w)
+{
+    cl_float2 output;
+    output.x=-a.y*w;
+    output.y=a.x*w;
+    return output;
+}
+static inline float
+cl_norm(cl_float2 a)
+{
+    return pow(a.x,2)+pow(a.y,2);
 }
 
 // Coefficient of the scalar products
@@ -498,6 +517,7 @@ int calc_grad(struct modcsts* mglob, struct modcstsloc * m)  {
     
     cl_float2 sxxzz, sxxzzr, sxx_mzz, szz_mxx;
     cl_float2 rxxzz, rxxzzr, rxx_mzz, rzz_mxx;
+    cl_float2 one={1,1};
     
     int (*c_calc)(double (*c)[24],float M, float mu, float taup, float taus, float rho, float ND, float L, float al)=NULL;
     
@@ -701,7 +721,6 @@ int calc_grad(struct modcsts* mglob, struct modcstsloc * m)  {
                     dot[0]=freq*cl_itreal( sxxzzr, sxxzz )/mglob->NTnyq;
                     dot[2]=freq* ( cl_itreal( m->f_sxzr2(k,i,f), m->f_sxz2(k,i,f))  )/mglob->NTnyq;
                     dot[3]=dot[0];
-                    dot[3]=dot[0];
                     dot[4]=freq*(+cl_itreal( m->f_sxxr2(k,i,f), sxx_mzz )
                                  +cl_itreal( m->f_szzr2(k,i,f), szz_mxx ))/mglob->NTnyq;
 
@@ -709,7 +728,7 @@ int calc_grad(struct modcsts* mglob, struct modcstsloc * m)  {
                     
                     
                     m->gradM(k,0,i)+=c[0]*dot[0]-c[1]*dot[1];
-                    m->gradmu(k,0,i)+=pow(m->uipkp(k,0,i),2)/pow(m->u(k,0,i),2)*c[2]*dot[2]-c[3]*dot[3]+c[4]*dot[4]-pow(m->uipkp(k,0,i),2)/pow(m->u(k,0,i),2)*c[5]*dot[5]+c[6]*dot[6]-c[7]*dot[7];
+                    m->gradmu(k,0,i)+=c[2]*dot[2]-c[3]*dot[3]+c[4]*dot[4]-c[5]*dot[5]+c[6]*dot[6]-c[7]*dot[7];
                     
                     if (mglob->L>0){
                         m->gradtaup(k,0,i)+=c[8]*dot[0]-c[9]*dot[1];
@@ -717,6 +736,46 @@ int calc_grad(struct modcsts* mglob, struct modcstsloc * m)  {
                     }
                     
                     m->gradrho(k,0,i)+=dot[8] +c[16]*dot[0]-c[17]*dot[1]+c[18]*dot[2]-c[19]*dot[3]+c[20]*dot[4]-c[21]*dot[5]+c[22]*dot[6]-c[23]*dot[7];
+                    
+                    if(mglob->Hout){
+                        dot[1]=0;dot[5]=0;dot[6]=0;dot[7]=0;
+                        for (l=0;l<mglob->L;l++){
+                            rxxzz=    cl_add2(m->f_rxx2(k,i,f,l), m->f_rzz2(k,i,f,l));
+                            rxx_mzz= cl_diff2(m->f_rxx2(k,i,f,l), m->f_rzz2(k,i,f,l));
+                            rzz_mxx= cl_diff2(m->f_rzz2(k,i,f,l), m->f_rxx2(k,i,f,l));
+                            
+                            dot[1]+=cl_norm(cl_add2( rxxzz, cl_derivative(rxxzz, freq*tausigl[l])) )/mglob->NTnyq;
+                            dot[5]+=cl_norm(cl_add2( m->f_rxz2(k,i,f,l), cl_derivative(m->f_rxz2(k,i,f,l), freq*tausigl[l])) )/mglob->NTnyq;
+                            dot[6]=dot[1];
+                            dot[7]+=(cl_norm(cl_add2( rxx_mzz, cl_derivative(rxx_mzz, freq*tausigl[l])) )
+                                    +cl_norm(cl_add2( rzz_mxx, cl_derivative(rzz_mxx, freq*tausigl[l])) ))/mglob->NTnyq;
+                            
+                        }
+                        sxxzz=    cl_add2(m->f_sxx2(k,i,f), m->f_szz2(k,i,f));
+                        sxx_mzz= cl_diff2(m->f_sxx2(k,i,f), m->f_szz2(k,i,f));
+                        szz_mxx= cl_diff2(m->f_szz2(k,i,f), m->f_sxx2(k,i,f));
+                        
+                        
+                        dot[0]=cl_norm(cl_derivative(sxxzz, freq))/mglob->NTnyq;
+                        dot[2]=cl_norm(cl_derivative(m->f_sxz2(k,i,f), freq))/mglob->NTnyq;
+                        dot[3]=dot[0];
+                        dot[4]=(cl_norm(cl_derivative(sxx_mzz, freq))
+                                    +cl_norm(cl_derivative(szz_mxx, freq)))/mglob->NTnyq;
+                        dot[8]=(cl_norm(cl_derivative(m->f_vx2(k,i,f), freq))
+                                +cl_norm(cl_derivative(m->f_vz2(k,i,f), freq)))/mglob->NTnyq;
+                        
+                        m->HM(k,0,i)+=c[0]*dot[0]-c[1]*dot[1];
+                        m->Hmu(k,0,i)+=c[2]*dot[2]-c[3]*dot[3]+c[4]*dot[4]-c[5]*dot[5]+c[6]*dot[6]-c[7]*dot[7];
+                        
+                        if (mglob->L>0){
+                            m->Htaup(k,0,i)+=c[8]*dot[0]-c[9]*dot[1];
+                            m->Htaus(k,0,i)+=c[10]*dot[2]-c[11]*dot[3]+c[12]*dot[4]-c[13]*dot[5]+c[14]*dot[6]-c[15]*dot[7];
+                        }
+                        
+                        m->Hrho(k,0,i)+=dot[8] +c[16]*dot[0]-c[17]*dot[1]+c[18]*dot[2]-c[19]*dot[3]+c[20]*dot[4]-c[21]*dot[5]+c[22]*dot[6]-c[23]*dot[7];
+                        
+                    }
+                    
                     
                 }
             }

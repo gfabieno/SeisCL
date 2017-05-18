@@ -225,7 +225,6 @@ int readhdf5(struct filenames files, struct modcsts * m) {
     hsize_t     dims3D[3],dims2D[2],dimsfreqs[2], dims0[2];
     int         state =0, maxrecid;
     float thisid, tmaxf, tminf;
-    float thisvp, thisvs, thistaup, thistaus;
     int  i=0, nsg=0, n=0, p=0;
     float *src0=NULL, *src_pos0=NULL, *rec_pos0=NULL, *vx00=NULL, *vy00=NULL, *vz00=NULL, *mute0=NULL, *weight0=NULL ;
 

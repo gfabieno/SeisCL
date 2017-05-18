@@ -144,6 +144,12 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             if (m->gradtaup) (*mloc)[d].gradtaup =&m->gradtaup[(*mloc)[d].offset];
             if (m->gradtaus) (*mloc)[d].gradtaus =&m->gradtaus[(*mloc)[d].offset];
             
+            if (m->Hrho)  (*mloc)[d].Hrho  =&m->Hrho[(*mloc)[d].offset];
+            if (m->HM)    (*mloc)[d].HM    =&m->HM[(*mloc)[d].offset];
+            if (m->Hmu)   (*mloc)[d].Hmu   =&m->Hmu[(*mloc)[d].offset];
+            if (m->Htaup) (*mloc)[d].Htaup =&m->Htaup[(*mloc)[d].offset];
+            if (m->Htaus) (*mloc)[d].Htaus =&m->Htaus[(*mloc)[d].offset];
+            
             
             if (m->movvx)  (*mloc)[d].movvx  =&m->movvx[(*mloc)[d].offset];
             if (m->movvy)  (*mloc)[d].movvy  =&m->movvy[(*mloc)[d].offset];
@@ -843,9 +849,6 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
         
         if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(state));
 
-        
-
-       
 
         //If we want the gradient by the adjoint model method, we create the variables
         if (m->gradout==1 ){
@@ -925,6 +928,23 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
                     }
                     __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradtaus);
                 }
+                
+                
+                //Allocate H output
+                if (m->Hout==1){
+                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].Hrho);
+                    if (m->ND!=21){
+                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].HM);
+                    }
+                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].Hmu);
+                    if (m->L>0){
+                        if (m->ND!=21){
+                            __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].Htaup);
+                        }
+                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].Htaus);
+                    }
+                }
+                
                 if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(state));
                 
                 //Create buffers and memory for GPU communication of the residual wavefield

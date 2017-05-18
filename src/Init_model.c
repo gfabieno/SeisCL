@@ -256,7 +256,7 @@ int Init_model(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mlo
     
     if (m->dt>dtstable){
         state=1;
-        fprintf(stderr, "Error: Time step too small, to be stable, set dt<%f\n", dtstable);
+        fprintf(stderr, "Error: Time step too large, to be stable, set dt<%f\n", dtstable);
     }
     
     /* harmonic averaging of shear modulus */
@@ -385,7 +385,6 @@ int Init_model(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mlo
         if (m->gradtaus) memset (m->gradtaus, 0, m->NX*m->NY*m->NZ*sizeof(double));
         
         if (m->back_prop_type==2){
-            
             float fmaxout=0;
             for (j=0;j<m->nfreqs;j++){
                 if (m->gradfreqs[j]>fmaxout)
@@ -398,11 +397,22 @@ int Init_model(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mlo
             for (j=0;j<m->nfreqs;j++){
                 m->gradfreqsn[j]=floor(m->gradfreqs[j]/df);
             }
+        }
+        
+        //Initialize the amplitude output (approximate Hessian)
+        if (m->Hout==1 ){
             
+            if (m->Hrho) memset (m->Hrho, 0, m->NX*m->NY*m->NZ*sizeof(double));
+            if (m->HM) memset (m->HM, 0, m->NX*m->NY*m->NZ*sizeof(double));
+            if (m->Hmu) memset (m->Hmu, 0, m->NX*m->NY*m->NZ*sizeof(double));
+            if (m->Htaup) memset (m->Htaup, 0, m->NX*m->NY*m->NZ*sizeof(double));
+            if (m->Htaus) memset (m->Htaus, 0, m->NX*m->NY*m->NZ*sizeof(double));
             
         }
         
     }
+    
+
 
     if (state && m->MPI_INIT==1) MPI_Bcast( &state, 1, MPI_INT, m->MYID, MPI_COMM_WORLD );
     

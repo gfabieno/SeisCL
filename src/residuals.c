@@ -447,28 +447,34 @@ int res_raw(struct modcsts * mptr, int s)
     if (mptr->back_prop_type==2 )  {
         nfft=kiss_fft_next_fast_size(mptr->tmax);
         if (vx0){
-            GMALLOC(temp_vx,sizeof(float)*nfft);
-            GMALLOC(temp_vx_out,sizeof(float)*nfft);
-            GMALLOC(temp_vx0,sizeof(float)*nfft);
-            GMALLOC(temp_vx0_out,sizeof(float)*nfft);
-            memset(temp_vx,0,sizeof(float)*nfft);
-            memset(temp_vx0,0,sizeof(float)*nfft);
+            GMALLOC(temp_vx,sizeof(float)*nfft*2);
+            GMALLOC(temp_vx_out,sizeof(float)*nfft*2);
+            GMALLOC(temp_vx0,sizeof(float)*nfft*2);
+            GMALLOC(temp_vx0_out,sizeof(float)*nfft*2);
+            memset(temp_vx,0,sizeof(float)*nfft*2);
+            memset(temp_vx0,0,sizeof(float)*nfft*2);
+            memset(temp_vx_out,0,sizeof(float)*nfft*2);
+            memset(temp_vx0_out,0,sizeof(float)*nfft*2);
         }
         if (vy0){
-            GMALLOC(temp_vy,sizeof(float)*nfft);
-            GMALLOC(temp_vy_out,sizeof(float)*nfft);
-            GMALLOC(temp_vy0,sizeof(float)*nfft);
-            GMALLOC(temp_vy0_out,sizeof(float)*nfft);
-            memset(temp_vy,0,sizeof(float)*nfft);
-            memset(temp_vy0,0,sizeof(float)*nfft);
+            GMALLOC(temp_vy,sizeof(float)*nfft*2);
+            GMALLOC(temp_vy_out,sizeof(float)*nfft*2);
+            GMALLOC(temp_vy0,sizeof(float)*nfft*2);
+            GMALLOC(temp_vy0_out,sizeof(float)*nfft*2);
+            memset(temp_vy,0,sizeof(float)*nfft*2);
+            memset(temp_vy0,0,sizeof(float)*nfft*2);
+            memset(temp_vy_out,0,sizeof(float)*nfft*2);
+            memset(temp_vy0_out,0,sizeof(float)*nfft*2);
         }
         if (vz0){
-            GMALLOC(temp_vz,sizeof(float)*nfft);
-            GMALLOC(temp_vz_out,sizeof(float)*nfft);
-            GMALLOC(temp_vz0,sizeof(float)*nfft);
-            GMALLOC(temp_vz0_out,sizeof(float)*nfft);
-            memset(temp_vz,0,sizeof(float)*nfft);
-            memset(temp_vz0,0,sizeof(float)*nfft);
+            GMALLOC(temp_vz,sizeof(float)*nfft*2);
+            GMALLOC(temp_vz_out,sizeof(float)*nfft*2);
+            GMALLOC(temp_vz0,sizeof(float)*nfft*2);
+            GMALLOC(temp_vz0_out,sizeof(float)*nfft*2);
+            memset(temp_vz,0,sizeof(float)*nfft*2);
+            memset(temp_vz0,0,sizeof(float)*nfft*2);
+            memset(temp_vz_out,0,sizeof(float)*nfft*2);
+            memset(temp_vz0_out,0,sizeof(float)*nfft*2);
         }
 
         stf = kiss_fftr_alloc( nfft ,0 ,0,0);
@@ -554,7 +560,7 @@ int res_raw(struct modcsts * mptr, int s)
             }
             else {
                 if (rx)
-                    rx(g,t)= -mw*rms_scaling[g]*(vxout(g,t)-vx0(g,t));
+                rx(g,t)= -mw*rms_scaling[g]*(vxout(g,t)-vx0(g,t));
                 if (ry)
                     ry(g,t)= -mw*rms_scaling[g]*(vyout(g,t)-vy0(g,t));
                 if (rz)

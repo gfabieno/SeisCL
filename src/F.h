@@ -258,6 +258,12 @@ struct varcl {
     cl_mem gradfreqs;
     cl_mem gradfreqsn;
     
+    cl_mem Hrho;
+    cl_mem HM;
+    cl_mem Hmu;
+    cl_mem Htaup;
+    cl_mem Htaus;
+    
     cl_mem f_sxx;
     cl_mem f_syy;
     cl_mem f_szz;
@@ -533,6 +539,11 @@ struct modcsts {
     float *uipkp;
     float *taper;
     double *gradrho, *gradM, *gradmu, *gradtaup, *gradtaus;
+    double *Hrho;
+    double *HM;
+    double *Hmu;
+    double *Htaup;
+    double *Htaus;
     float **gradsrc;
     float **rx, **ry, **rz;
     float *taus;
@@ -627,6 +638,12 @@ struct modcstsloc {
     
     
     double *gradrho, *gradM, *gradmu, *gradtaup, *gradtaus;
+    double *Hrho;
+    double *HM;
+    double *Hmu;
+    double *Htaup;
+    double *Htaus;
+
     float *taus;
     float *tausipjp;
     float *tausjpkp;

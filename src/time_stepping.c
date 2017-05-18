@@ -578,6 +578,10 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
             if (m->ND==3 || m->ND==21){// For 3D
                 __GUARD read_gpu_memory( &(*vcl)[d].cmd_queue, buffer_size_thisvout, &(*vcl)[d].vyout, (*mloc)[d].vyout[s]);
             }
+            if ((*mloc)[d].vxout[s][0]!=(*mloc)[d].vxout[s][0]){
+                state=1;
+                fprintf(stderr,"Simulation has become unstable, stopping\n");
+            }
         }
 
         // Aggregate the seismograms in the output variable
@@ -781,6 +785,17 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
             }
             __GUARD read_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradmu, (*mloc)[d].gradmu);
             
+        }
+        
+        if (m->Hout==1){
+            for (d=0;d<m->num_devices;d++){
+                __GUARD read_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].Hrho, (*mloc)[d].Hrho);
+                if (m->ND!=21){
+                    __GUARD read_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].HM, (*mloc)[d].HM);
+                }
+                __GUARD read_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].Hmu, (*mloc)[d].Hmu);
+                
+            }
         }
         
         for (d=0;d<m->num_devices;d++){

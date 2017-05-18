@@ -73,6 +73,12 @@ int Free_MPI(struct modcsts * m)  {
     if  (m->gradsrc){
         GFree(m->gradsrc[0])
     }
+    GFree(m->Hrho)
+    GFree(m->HM)
+    GFree(m->Hmu)
+    GFree(m->Htaup)
+    GFree(m->Htaus)
+
     GFree(m->gradsrc)
     
     GFree(m->topo);

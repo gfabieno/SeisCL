@@ -196,12 +196,18 @@ int writehdf5(struct filenames file, struct modcsts * m) {
         
         // Output name depends on the parametrization
         const char *var1=NULL, *var2=NULL, *var3=NULL, *var4=NULL, *var5=NULL;
+        const char *Hvar1=NULL, *Hvar2=NULL, *Hvar3=NULL, *Hvar4=NULL, *Hvar5=NULL;
         if (m->param_type==1){
             var1="/gradrho";
             var2="/gradM";
             var3="/gradmu";
             var4="/gradtaup";
             var5="/gradtaus";
+            Hvar1="/Hrho";
+            Hvar2="/HM";
+            Hvar3="/Hmu";
+            Hvar4="/Htaup";
+            Hvar5="/Htaus";
         }
         else if (m->param_type==2){
             var1="/gradrho";
@@ -209,6 +215,11 @@ int writehdf5(struct filenames file, struct modcsts * m) {
             var3="/gradIs";
             var4="/gradtaup";
             var5="/gradtaus";
+            Hvar1="/Hrho";
+            Hvar2="/HIp";
+            Hvar3="/HIs";
+            Hvar4="/Htaup";
+            Hvar5="/Htaus";
         }
         else if (m->param_type==3){
             var1="/gradrho";
@@ -216,6 +227,11 @@ int writehdf5(struct filenames file, struct modcsts * m) {
             var3="/gradvsR";
             var4="/gradvpI";
             var5="/gradvsI";
+            Hvar1="/Hrho";
+            Hvar2="/HvpR";
+            Hvar3="/HvsR";
+            Hvar4="/HvpI";
+            Hvar5="/HvsI";
         }
         else {
             var1="/gradrho";
@@ -223,6 +239,11 @@ int writehdf5(struct filenames file, struct modcsts * m) {
             var3="/gradvs";
             var4="/gradtaup";
             var5="/gradtaus";
+            Hvar1="/Hrho";
+            Hvar2="/Hvp";
+            Hvar3="/Hvs";
+            Hvar4="/Htaup";
+            Hvar5="/Htaus";
         }
         
         
@@ -242,9 +263,23 @@ int writehdf5(struct filenames file, struct modcsts * m) {
             
         }
 
+        // Write Hessian output file
+        if ( m->Hout){
+            writetomatd(&file_id, Hvar1, m->Hrho, 3, dims3D );
+            if (m->ND!=21)
+            writetomatd(&file_id, Hvar2, m->HM, 3, dims3D );
+            writetomatd(&file_id, Hvar3, m->Hmu, 3, dims3D );
+            if (m->L>0){
+                if (m->ND!=21)
+                writetomatd(&file_id, Hvar4, m->Htaup, 3, dims3D );
+                writetomatd(&file_id, Hvar5, m->Htaus, 3, dims3D );
+            }
+        }
         if (file_id) H5Fclose(file_id);
     
     }
+    
+
     
     // Write movie output file
     if (m->movout>0){
