@@ -654,7 +654,8 @@ int readhdf5(struct filenames files, struct modcsts * m) {
         __GUARD checkexists(file_id,"/back_prop_type");
         __GUARD checkscalar(file_id, "/back_prop_type");
         __GUARD readvar(file_id, H5T_NATIVE_INT, "/back_prop_type", &m->back_prop_type);
-        
+    if (!(m->back_prop_type ==1 | m->back_prop_type ==2)) {state=1;fprintf(stderr, "bac_prop_type must be 1 or 2\n");}
+    
         if (H5Lexists( file_id, "/param_type", H5P_DEFAULT) ){
             __GUARD checkscalar(file_id, "/param_type");
             __GUARD readvar(file_id, H5T_NATIVE_INT, "/param_type", &m->param_type);

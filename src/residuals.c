@@ -210,6 +210,7 @@ int res_raw(struct modcsts * mptr, int s)
     if (mptr->weight)
         weight=mptr->weight[s];
     
+    
     //  The data is filtered between the maximum and minimum frequencies
     if ( (mptr->fmax>0 | mptr->fmin>0) ){
         if (vx0){

@@ -445,24 +445,18 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
         // Calculate the dimension of the buffers needed to transfer memory from/to the GPU
         if (!state){
             
-            if ((*mloc)[d].local_off==0){
-                if (m->ND==3){// For 3D
-                    (*vcl)[d].buffer_size_fd    = sizeof(float)
-                    * ((*mloc)[d].global_work_size[0]+(*mloc)[d].global_work_sizecomm1[0]+(*mloc)[d].global_work_sizecomm2[0]+m->FDORDER)
-                    * ((*mloc)[d].global_work_size[1]+(*mloc)[d].global_work_sizecomm1[1]+(*mloc)[d].global_work_sizecomm2[1]+m->FDORDER)
-                    * ((*mloc)[d].global_work_size[2]+(*mloc)[d].global_work_sizecomm1[2]+(*mloc)[d].global_work_sizecomm2[2]+m->FDORDER);
-                }
-                else{// For 2D
-                    (*vcl)[d].buffer_size_fd    = sizeof(float)
-                    * ((*mloc)[d].global_work_size[0]+(*mloc)[d].global_work_sizecomm1[0]+(*mloc)[d].global_work_sizecomm2[0]+m->FDORDER)
-                    * ((*mloc)[d].global_work_size[1]+(*mloc)[d].global_work_sizecomm1[1]+(*mloc)[d].global_work_sizecomm2[1]+m->FDORDER);
-                }
-            }
-            else {
+            if (m->ND==3){// For 3D
                 (*vcl)[d].buffer_size_fd    = sizeof(float)
-                * ((*mloc)[d].global_work_size[0]+(*mloc)[d].global_work_sizecomm1[0]+(*mloc)[d].global_work_sizecomm2[0]);
-                
+                * ((*mloc)[d].NX+m->FDORDER)
+                * ((*mloc)[d].NY+m->FDORDER)
+                * ((*mloc)[d].NZ+m->FDORDER);
             }
+            else{// For 2D
+                (*vcl)[d].buffer_size_fd    = sizeof(float)
+                * ((*mloc)[d].NX+m->FDORDER)
+                * ((*mloc)[d].NZ+m->FDORDER);
+            }
+
             (*vcl)[d].buffer_size_model = sizeof(float) * (*mloc)[d].NX * (*mloc)[d].NY * (*mloc)[d].NZ;
             if (m->ND==3){
                 (*vcl)[d].buffer_size_modelc = sizeof(cl_float2)*( (*mloc)[d].NX+m->FDORDER ) *( (*mloc)[d].NY+m->FDORDER )*( (*mloc)[d].NZ+m->FDORDER )* m->nfreqs;

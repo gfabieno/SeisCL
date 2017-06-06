@@ -337,9 +337,9 @@ __kernel void update_s(int offcomm, int nsrc,  int nt,
 
     
 // Correct spatial derivatives to implement CPML
-    {
+    
 #if abs_type==1
-        
+        {
         
         if (gidz>NZ-nab-fdoh-1){
             
@@ -400,9 +400,9 @@ __kernel void update_s(int offcomm, int nsrc,  int nt,
             
         }
 #endif
-        
+       }
 #endif
-    }
+    
     
 // Read model parameters into local memory
     {
@@ -522,5 +522,6 @@ __kernel void update_s(int offcomm, int nsrc,  int nt,
 #endif
     }
 #endif
+    
 }
 
