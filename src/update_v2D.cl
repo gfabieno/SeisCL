@@ -90,14 +90,13 @@
 float2 ssource(int gidz, int gidx,  int nsrc, __global float *srcpos_loc, __global float *signals, int nt, __global float * rip, __global float * rkp){
     
     float2 ampv={0.0,0.0};
+    int i,k;
     if (nsrc>0){
-        
-        
+
         for (int srci=0; srci<nsrc; srci++){
-            
-            
-            int i=(int)floor(srcpos_loc(0,srci)/DH-0.5)+fdoh;
-            int k=(int)floor(srcpos_loc(2,srci)/DH-0.5)+fdoh;
+
+            i=(int)(srcpos_loc(0,srci)/DH-0.5)+fdoh;
+            k=(int)(srcpos_loc(2,srci)/DH-0.5)+fdoh;
             
             if (i==gidx && k==gidz){
                 
@@ -115,19 +114,19 @@ float2 ssource(int gidz, int gidx,  int nsrc, __global float *srcpos_loc, __glob
                     ampv.y  +=  amp/rkp(k,i-offset);
                 }
                 
-//                if (SOURCE_TYPE==2){
-//                    /* single force in x */
-//                    ampv.x  +=  amp;
-//                }
-//                else if (SOURCE_TYPE==4){
-//                    /* single force in z */
-//                    
-//                    ampv.y  +=  amp;
-//                }
+                if (SOURCE_TYPE==2){
+                    /* single force in x */
+                    ampv.x  +=  amp;
+                }
+                else if (SOURCE_TYPE==4){
+                    /* single force in z */
+                    
+                    ampv.y  +=  amp;
+                }
                 
             }
         }
-        
+    
         
     }
     

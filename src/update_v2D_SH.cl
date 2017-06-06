@@ -101,8 +101,8 @@ float ssource(int gidz,  int gidx,  int nsrc, __global float *srcpos_loc, __glob
         for (int srci=0; srci<nsrc; srci++){
             
             
-            int i=(int)floor(srcpos_loc(0,srci)/DH-0.5)+fdoh;
-            int k=(int)floor(srcpos_loc(2,srci)/DH-0.5)+fdoh;
+            int i=(int)(srcpos_loc(0,srci)/DH-0.5)+fdoh;
+            int k=(int)(srcpos_loc(2,srci)/DH-0.5)+fdoh;
             
             
             if (i==gidx  && k==gidz){

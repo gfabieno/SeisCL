@@ -105,9 +105,9 @@ float3 ssource(int gidz, int gidy, int gidx,  int nsrc, __global float *srcpos_l
         for (int srci=0; srci<nsrc; srci++){
             
             
-            int i=(int)floor(srcpos_loc(0,srci)/DH-0.5)+fdoh;
-            int j=(int)floor(srcpos_loc(1,srci)/DH-0.5)+fdoh;
-            int k=(int)floor(srcpos_loc(2,srci)/DH-0.5)+fdoh;
+            int i=(int)(srcpos_loc(0,srci)/DH-0.5)+fdoh;
+            int j=(int)(srcpos_loc(1,srci)/DH-0.5)+fdoh;
+            int k=(int)(srcpos_loc(2,srci)/DH-0.5)+fdoh;
             
             if (i==gidx && j==gidy && k==gidz){
 //                float azi_rad=srcpos_loc(6,srci) * PI / 180;

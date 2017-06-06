@@ -84,8 +84,8 @@ float psource(int gidz, int gidx,  int nsrc, __global float *srcpos_loc, __globa
             int SOURCE_TYPE= (int)srcpos_loc(4,srci);
             
             if (SOURCE_TYPE==1){
-                int i=(int)floor(srcpos_loc(0,srci)/DH-0.5)+fdoh;
-                int k=(int)floor(srcpos_loc(2,srci)/DH-0.5)+fdoh;
+                int i=(int)(srcpos_loc(0,srci)/DH-0.5)+fdoh;
+                int k=(int)(srcpos_loc(2,srci)/DH-0.5)+fdoh;
                 
                 
                 if (i==gidx && k==gidz){

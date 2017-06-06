@@ -47,9 +47,9 @@ __kernel void vout( __global float *vx,     __global float *vy,    __global floa
  
     int gid = get_global_id(0);
     
-    int i=(int)floor(rec_pos(gid,0)/DH-0.5)+fdoh;
-    int j=(int)floor(rec_pos(gid,1)/DH-0.5)+fdoh;
-    int k=(int)floor(rec_pos(gid,2)/DH-0.5)+fdoh;
+    int i=(int)(rec_pos(gid,0)/DH-0.5)+fdoh;
+    int j=(int)(rec_pos(gid,1)/DH-0.5)+fdoh;
+    int k=(int)(rec_pos(gid,2)/DH-0.5)+fdoh;
     
     if ( (i-offset)>=fdoh && (i-offset)<(NX-fdoh) ){
         
