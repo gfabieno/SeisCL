@@ -223,7 +223,6 @@ __kernel void initialize_savefreqs(
     
 }
 
-
 __kernel void voutinit(__global float *vxout, __global float *vyout, __global float *vzout)
 {
     

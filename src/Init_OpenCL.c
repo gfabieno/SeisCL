@@ -1015,6 +1015,8 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             if (m->gradsrcout ){
                 __GUARD create_gpu_memory_buffer( &m->context, buffer_size_s, &(*vcl)[d].gradsrc);
             }
+            
+            
             //Create the kernels for the backpropagation and gradient computation
             __GUARD gpu_initialize_update_adjv(&m->context, &(*vcl)[d].program_adjv, &(*vcl)[d].kernel_adjv, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm1, lcomm, 0  );
             __GUARD gpu_initialize_update_adjs(&m->context, &(*vcl)[d].program_adjs, &(*vcl)[d].kernel_adjs, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm1, lcomm, 0 );
