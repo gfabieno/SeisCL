@@ -240,7 +240,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
 
         
         // Create the memory to read the seismograms for each shot
-        if (m->vxout){
+        if (m->vxout && !state){
             GMALLOC((*mloc)[d].vxout, sizeof(float*)*m->ns)
             if ((*mloc)[d].vxout) memset ((void*)(*mloc)[d].vxout, 0, sizeof(float*)*m->ns);
             GMALLOC((*mloc)[d].vxout[0], sizeof(float)*m->allng*m->NT)
@@ -248,7 +248,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
                 (*mloc)[d].vxout[s]=(*mloc)[d].vxout[s-1]+m->nrec[s-1]*m->NT;
             }
         }
-        if (m->vyout){
+        if (m->vyout && !state){
             GMALLOC((*mloc)[d].vyout, sizeof(float*)*m->ns)
             if ((*mloc)[d].vyout) memset ((void*)(*mloc)[d].vyout, 0, sizeof(float*)*m->ns);
             GMALLOC((*mloc)[d].vyout[0], sizeof(float)*m->allng*m->NT)
@@ -256,7 +256,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
                 (*mloc)[d].vyout[s]=(*mloc)[d].vyout[s-1]+m->nrec[s-1]*m->NT;
             }
         }
-        if (m->vzout){
+        if (m->vzout && !state){
             GMALLOC((*mloc)[d].vzout, sizeof(float*)*m->ns)
             if ((*mloc)[d].vzout) memset ((void*)(*mloc)[d].vzout, 0, sizeof(float*)*m->ns);
             GMALLOC((*mloc)[d].vzout[0], sizeof(float)*m->allng*m->NT)
@@ -284,8 +284,8 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
         // Define the local work size and global work size of the device.
         if (!state){
             if (workitem_size[0]<m->FDORDER || workitem_size[1]<2|| workitem_size[2]<2){
-                fprintf(stderr,"Maximum device work item size of device %d doesn't support 3D local memory\n", d);
-                fprintf(stderr,"Switching off local memory optimization\n");
+                fprintf(stdout,"Maximum device work item size of device %d doesn't support 3D local memory\n", d);
+                fprintf(stdout,"Switching off local memory optimization\n");
                 (*mloc)[d].local_off = 1;
                 
             }
@@ -362,6 +362,9 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
                     lcomm+=m->fdoh;
                     offcomm2=(*mloc)[d].NX-m->fdoh;
                 }
+                if (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
+                    (*mloc)[d].global_work_size_fillcomm[0] = (*mloc)[d].NY*m->fdoh*(*mloc)[d].NZ;
+                }
                 
                 (*mloc)[d].global_work_size[0] = ((*mloc)[d].NX-lcomm)*(*mloc)[d].NY*(*mloc)[d].NZ;
                 
@@ -402,6 +405,11 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
                         lcomm+=(*mloc)[d].local_work_size[2];
                         offcomm2=(*mloc)[d].NX-(int)(*mloc)[d].local_work_size[2];
                     }
+                    if (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
+                        (*mloc)[d].global_work_size_fillcomm[0] = (*mloc)[d].NZ;
+                        (*mloc)[d].global_work_size_fillcomm[1] = (*mloc)[d].NY;
+                        (*mloc)[d].global_work_size_fillcomm[2] = m->fdoh;
+                    }
                     
                     
                     (*mloc)[d].global_work_size[2] = (*mloc)[d].NX-lcomm
@@ -428,6 +436,10 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
                         (*mloc)[d].global_work_sizecomm2[1] = (*mloc)[d].local_work_size[1];
                         lcomm+=(*mloc)[d].local_work_size[1];
                         offcomm2=(*mloc)[d].NX-(int)(*mloc)[d].local_work_size[1];
+                    }
+                    if (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
+                        (*mloc)[d].global_work_size_fillcomm[0] = (*mloc)[d].NZ;
+                        (*mloc)[d].global_work_size_fillcomm[1] = m->fdoh;
                     }
                     
                     (*mloc)[d].global_work_size[1] = (*mloc)[d].NX-lcomm
@@ -470,12 +482,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             buffer_size_taper    = sizeof(float) * m->nab;
             buffer_size_vout     = sizeof(float) * m->NT * m->ngmax;
             buffer_size_L        = sizeof(float) * m->L;
-            if (m->ND==3){// For 3D
-            m->buffer_size_comm     = sizeof(float) * m->fdoh*( ((*mloc)[d].NY+m->FDORDER)*((*mloc)[d].NZ+m->FDORDER+(*mloc)[d].NZ_al16) );
-            }
-            else{// For 2D
-               m->buffer_size_comm     = sizeof(float) * m->fdoh*( ((*mloc)[d].NZ+m->FDORDER+(*mloc)[d].NZ_al16) );
-            }
+            m->buffer_size_comm     = sizeof(float) * m->fdoh*(*mloc)[d].NY*(*mloc)[d].NZ;
             
             if (m->abs_type==1){
                 (*vcl)[d].buffer_size_CPML_NX=sizeof(float) * 2*m->nab * (*mloc)[d].NY * (*mloc)[d].NZ;
@@ -791,6 +798,17 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxz_sub2, &(*mloc)[d].sxz_sub2);
             __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vx_sub2, &(*mloc)[d].vx_sub2);
             __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vz_sub2, &(*mloc)[d].vz_sub2);
+            
+            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxx_sub1_dev);
+            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].szz_sub1_dev);
+            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxz_sub1_dev);
+            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vx_sub1_dev);
+            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vz_sub1_dev);
+            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxx_sub2_dev);
+            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].szz_sub2_dev);
+            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxz_sub2_dev);
+            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vx_sub2_dev);
+            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vz_sub2_dev);
         }
         if (m->ND==3 || m->ND==21){
             __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxy_sub1, &(*mloc)[d].sxy_sub1);
@@ -800,22 +818,22 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].syz_sub2, &(*mloc)[d].syz_sub2);
             __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vy_sub2, &(*mloc)[d].vy_sub2);
             
+            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxy_sub1_dev);
+            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].syz_sub1_dev);
+            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vy_sub1_dev);
+            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxy_sub2_dev);
+            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].syz_sub2_dev);
+            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vy_sub2_dev);
+            
         }
         if (m->ND==3){// For 3D
             __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].syy_sub1, &(*mloc)[d].syy_sub1);
             __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].syy_sub2, &(*mloc)[d].syy_sub2);
+            
+            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].syy_sub1_dev);
+            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].syy_sub2_dev);
         }
-        if (!state) (*vcl)[d].subw1_off=(*mloc)[d].NZ_al0;
-        if (m->ND==3){// For 3D
-            if (!state) (*vcl)[d].subr1_off=(*mloc)[d].NZ_al0+m->fdoh*((*mloc)[d].NY+m->FDORDER)*((*mloc)[d].NZ+m->FDORDER+(*mloc)[d].NZ_al16)*sizeof(float);
-            if (!state) (*vcl)[d].subw2_off=(*mloc)[d].NZ_al0+((*mloc)[d].NX+m->fdoh)*((*mloc)[d].NY+m->FDORDER)*((*mloc)[d].NZ+m->FDORDER+(*mloc)[d].NZ_al16)*sizeof(float);
-            if (!state) (*vcl)[d].subr2_off=(*mloc)[d].NZ_al0+(*mloc)[d].NX*((*mloc)[d].NY+m->FDORDER)*((*mloc)[d].NZ+m->FDORDER+(*mloc)[d].NZ_al16)*sizeof(float);
-        }
-        else{
-            if (!state) (*vcl)[d].subr1_off=(*mloc)[d].NZ_al0+m->fdoh*((*mloc)[d].NZ+m->FDORDER+(*mloc)[d].NZ_al16)*sizeof(float);
-            if (!state) (*vcl)[d].subw2_off=(*mloc)[d].NZ_al0+((*mloc)[d].NX+m->fdoh)*((*mloc)[d].NZ+m->FDORDER+(*mloc)[d].NZ_al16)*sizeof(float);
-            if (!state) (*vcl)[d].subr2_off=(*mloc)[d].NZ_al0+(*mloc)[d].NX*((*mloc)[d].NZ+m->FDORDER+(*mloc)[d].NZ_al16)*sizeof(float);
-        }
+
         
         
         // Create the kernels of the devices
@@ -829,14 +847,19 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
         }
         
         if (d>0 || m->MYLOCALID>0){
-            __GUARD gpu_initialize_update_v(&m->context, &(*vcl)[d].program_v, &(*vcl)[d].kernel_vcomm1, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], 0 , lcomm, 1);
-            __GUARD gpu_initialize_update_s(&m->context, &(*vcl)[d].program_s, &(*vcl)[d].kernel_scomm1, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], 0 , lcomm, 1);
+            __GUARD gpu_initialize_update_v(&m->context, &(*vcl)[d].program_vcomm1, &(*vcl)[d].kernel_vcomm1, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], 0 , lcomm, 1);
+            __GUARD gpu_initialize_update_s(&m->context, &(*vcl)[d].program_scomm1, &(*vcl)[d].kernel_scomm1, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], 0 , lcomm, 1);
         }
         if (d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-            __GUARD gpu_initialize_update_v(&m->context, &(*vcl)[d].program_v, &(*vcl)[d].kernel_vcomm2, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm2, lcomm, 1 );
-            __GUARD gpu_initialize_update_s(&m->context, &(*vcl)[d].program_s, &(*vcl)[d].kernel_scomm2, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm2, lcomm, 1 );
+            __GUARD gpu_initialize_update_v(&m->context, &(*vcl)[d].program_vcomm2, &(*vcl)[d].kernel_vcomm2, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm2, lcomm, 1 );
+            __GUARD gpu_initialize_update_s(&m->context, &(*vcl)[d].program_scomm2, &(*vcl)[d].kernel_scomm2, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm2, lcomm, 1 );
         }
-        
+        if (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
+            __GUARD gpu_intialize_fill_transfer_buff_v_in(&m->context, &(*vcl)[d].program_fill_transfer_buff_v_in, &(*vcl)[d].kernel_fill_transfer_buff_v_in, &(*vcl)[d], m, &(*mloc)[d] );
+            __GUARD gpu_intialize_fill_transfer_buff_v_out(&m->context, &(*vcl)[d].program_fill_transfer_buff_v_out, &(*vcl)[d].kernel_fill_transfer_buff_v_out, &(*vcl)[d], m, &(*mloc)[d] );
+            __GUARD gpu_intialize_fill_transfer_buff_s_in(&m->context, &(*vcl)[d].program_fill_transfer_buff_s_in, &(*vcl)[d].kernel_fill_transfer_buff_s_in, &(*vcl)[d], m, &(*mloc)[d] );
+            __GUARD gpu_intialize_fill_transfer_buff_s_out(&m->context, &(*vcl)[d].program_fill_transfer_buff_s_out, &(*vcl)[d].kernel_fill_transfer_buff_s_out, &(*vcl)[d], m, &(*mloc)[d] );
+        }
         
         
         
@@ -953,6 +976,17 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
                     __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxz_r_sub2, &(*mloc)[d].sxz_r_sub2);
                     __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vx_r_sub2, &(*mloc)[d].vx_r_sub2);
                     __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vz_r_sub2, &(*mloc)[d].vz_r_sub2);
+                    
+                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxx_r_sub1_dev);
+                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].szz_r_sub1_dev);
+                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxz_r_sub1_dev);
+                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vx_r_sub1_dev);
+                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vz_r_sub1_dev);
+                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxx_r_sub2_dev);
+                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].szz_r_sub2_dev);
+                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxz_r_sub2_dev);
+                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vx_r_sub2_dev);
+                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vz_r_sub2_dev);
                 }
                 if (m->ND==3 || m->ND==21){
                     __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxy_r_sub1, &(*mloc)[d].sxy_r_sub1);
@@ -962,10 +996,20 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
                     __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].syz_r_sub2, &(*mloc)[d].syz_r_sub2);
                     __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vy_r_sub2, &(*mloc)[d].vy_r_sub2);
                     
+                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxy_r_sub1_dev);
+                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].syz_r_sub1_dev);
+                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vy_r_sub1_dev);
+                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxy_r_sub2_dev);
+                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].syz_r_sub2_dev);
+                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vy_r_sub2_dev);
+                    
                 }
                 if (m->ND==3){// For 3D
                     __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].syy_r_sub1, &(*mloc)[d].syy_r_sub1);
                     __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].syy_r_sub2, &(*mloc)[d].syy_r_sub2);
+                    
+                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].syy_r_sub1_dev);
+                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].syy_r_sub2_dev);
                 }
                 
 
@@ -1016,14 +1060,20 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             __GUARD gpu_initialize_update_adjs(&m->context, &(*vcl)[d].program_adjs, &(*vcl)[d].kernel_adjs, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm1, lcomm, 0 );
             
             if (d>0 || m->MYLOCALID>0){
-                __GUARD gpu_initialize_update_adjv(&m->context, &(*vcl)[d].program_adjv, &(*vcl)[d].kernel_adjvcomm1, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], 0 , lcomm, 1);
-                __GUARD gpu_initialize_update_adjs(&m->context, &(*vcl)[d].program_adjs, &(*vcl)[d].kernel_adjscomm1, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], 0 , lcomm, 1);
+                __GUARD gpu_initialize_update_adjv(&m->context, &(*vcl)[d].program_adjvcomm1, &(*vcl)[d].kernel_adjvcomm1, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], 0 , lcomm, 1);
+                __GUARD gpu_initialize_update_adjs(&m->context, &(*vcl)[d].program_adjscomm1, &(*vcl)[d].kernel_adjscomm1, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], 0 , lcomm, 1);
             }
             if (d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1 ){
-                __GUARD gpu_initialize_update_adjv(&m->context, &(*vcl)[d].program_adjv, &(*vcl)[d].kernel_adjvcomm2, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm2, lcomm, 1 );
-                __GUARD gpu_initialize_update_adjs(&m->context, &(*vcl)[d].program_adjs, &(*vcl)[d].kernel_adjscomm2, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm2, lcomm, 1 );
+                __GUARD gpu_initialize_update_adjv(&m->context, &(*vcl)[d].program_adjvcomm2, &(*vcl)[d].kernel_adjvcomm2, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm2, lcomm, 1 );
+                __GUARD gpu_initialize_update_adjs(&m->context, &(*vcl)[d].program_adjscomm2, &(*vcl)[d].kernel_adjscomm2, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm2, lcomm, 1 );
             }
-            
+            if ( (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1) && m->back_prop_type==1 ){
+                __GUARD gpu_intialize_adj_fill_transfer_buff_v_in(&m->context, &(*vcl)[d].program_fill_transfer_buff_v_in, &(*vcl)[d].kernel_fill_transfer_buff_v_in, &(*vcl)[d], m, &(*mloc)[d] );
+                __GUARD gpu_intialize_adj_fill_transfer_buff_v_out(&m->context, &(*vcl)[d].program_adj_fill_transfer_buff_v_out, &(*vcl)[d].kernel_adj_fill_transfer_buff_v_out, &(*vcl)[d], m, &(*mloc)[d] );
+                __GUARD gpu_intialize_adj_fill_transfer_buff_s_in(&m->context, &(*vcl)[d].program_adj_fill_transfer_buff_s_in, &(*vcl)[d].kernel_adj_fill_transfer_buff_s_in, &(*vcl)[d], m, &(*mloc)[d] );
+                __GUARD gpu_intialize_adj_fill_transfer_buff_s_out(&m->context, &(*vcl)[d].program_adj_fill_transfer_buff_s_out, &(*vcl)[d].kernel_adj_fill_transfer_buff_s_out, &(*vcl)[d], m, &(*mloc)[d] );
+            }
+
             __GUARD gpu_intialize_residuals(&m->context, &(*vcl)[d].program_residuals, &(*vcl)[d].kernel_residuals, NULL, &(*vcl)[d], m, &(*mloc)[d]);
             __GUARD gpu_intialize_grad(&m->context, &(*vcl)[d].program_initgrad, &(*vcl)[d].kernel_initgrad, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d]);
             __GUARD gpu_intialize_seis_r(&m->context, &(*vcl)[d].program_initseis_r, &(*vcl)[d].kernel_initseis_r, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d]);

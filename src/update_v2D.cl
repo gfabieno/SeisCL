@@ -428,7 +428,7 @@ __kernel void update_v(int offcomm,int nsrc,  int nt,
         vx(gidz,gidx)+= ((sxx_x + sxz_z)/rip(gidz,gidx))+amp.x;
         vz(gidz,gidx)+= ((szz_z + sxz_x)/rkp(gidz,gidx))+amp.y;
     }
-    
+
 // Absorbing boundary
 #if abs_type==2
     {

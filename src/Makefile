@@ -39,6 +39,8 @@ SeisCL_CL= \
 	update_v3D.cl \
 	update_v_CPML.cl \
 	vout.cl \
+	fill_transfer_buff_s.cl \
+	fill_transfer_buff_v.cl
 
 SeisCL_CL_Headers = $(SeisCL_CL:%.cl=%.hcl)
 
