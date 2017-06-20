@@ -88,21 +88,25 @@ __kernel void fill_transfer_buff_v_out( __global float *vx, __global float *vy, 
 #endif
 #endif
 
-#if dev!=0 & MYLOCALID!=0
+#if !(dev==0 & MYLOCALID==0)
     vx_buf1(gidz,gidy,gidx)=vx(gidz,gidy,gidx+fdoh);
     vz_buf1(gidz,gidy,gidx)=vz(gidz,gidy,gidx+fdoh);
 #endif
-#if dev!=num_devices-1 & MYLOCALID!=NLOCALP-1
+#if !(dev==num_devices-1 & MYLOCALID==NLOCALP-1)
+    if (vx(gidz,gidy,gidx+NX-fdoh)>0){
+        printf( "%f\n",vx(gidz,gidy,gidx+NX-fdoh));
+               }
+    printf( "%f\n",vx[gidz]);
     vx_buf2(gidz,gidy,gidx+fdoh)=vx(gidz,gidy,gidx+NX-fdoh);
     vz_buf2(gidz,gidy,gidx+fdoh)=vz(gidz,gidy,gidx+NX-fdoh);
 #endif
     
     
 #if ND==3
-#if dev!=0 & MYLOCALID!=0
+#if !(dev==0 & MYLOCALID==0)
     vy_buf1(gidz,gidy,gidx)=vy(gidz,gidy,gidx+fdoh);
 #endif
-#if dev!=num_devices-1 & MYLOCALID!=NLOCALP-1
+#if !(dev==num_devices-1 & MYLOCALID==NLOCALP-1)
     vy_buf2(gidz,gidy,gidx+fdoh)=vy(gidz,gidy,gidx+NX-fdoh);
 #endif
 #endif
@@ -149,21 +153,21 @@ __kernel void fill_transfer_buff_v_in( __global float *vx, __global float *vy, _
 #endif
 #endif
     
-#if dev!=0 & MYLOCALID!=0
+#if !(dev==0 & MYLOCALID==0)
     vx(gidz,gidy,gidx+fdoh)=vx_buf1(gidz,gidy,gidx);
     vz(gidz,gidy,gidx+fdoh)=vz_buf1(gidz,gidy,gidx);
 #endif
-#if dev!=num_devices-1 & MYLOCALID!=NLOCALP-1
+#if !(dev==num_devices-1 & MYLOCALID==NLOCALP-1)
     vx(gidz,gidy,gidx+NX-fdoh)=vx_buf2(gidz,gidy,gidx+fdoh);
     vz(gidz,gidy,gidx+NX-fdoh)=vz_buf2(gidz,gidy,gidx+fdoh);
 #endif
     
     
 #if ND==3
-#if dev!=0 & MYLOCALID!=0
+#if !(dev==0 & MYLOCALID==0)
     vy(gidz,gidy,gidx+fdoh)=vy_buf1(gidz,gidy,gidx);
 #endif
-#if dev!=num_devices-1 & MYLOCALID!=NLOCALP-1
+#if !(dev==num_devices-1 & MYLOCALID==NLOCALP-1)
     vy(gidz,gidy,gidx+NX-fdoh)=vy_buf2(gidz,gidy,gidx+fdoh);
 #endif
 #endif
