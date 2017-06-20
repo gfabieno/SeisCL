@@ -48,7 +48,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
     __GUARD GetPlatformID( &m->pref_device_type, &m->device_type, &sel_plat_id, &m->num_devices, m->n_no_use_GPUs, m->no_use_GPUs);
     if (m->num_devices>m->nmax_dev)
         m->num_devices=m->nmax_dev;
-    m->num_devices==3;
+    
     //For each GPU, allocate the memory structures
     GMALLOC((*vcl),sizeof(struct varcl)*m->num_devices)
     if (!state) memset ((void*)(*vcl), 0, sizeof(struct varcl)*m->num_devices);
