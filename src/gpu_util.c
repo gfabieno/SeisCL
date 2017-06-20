@@ -245,7 +245,7 @@ cl_int connect_allgpus(struct varcl ** vcl, cl_context *incontext, cl_device_typ
 //        if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
 //    }
 
-    for (i=0;i<3;i++){
+    for (i=0;i<1;i++){
         (*vcl)[i].cmd_queue = clCreateCommandQueue(*incontext, devices[0], 0 , &cl_err);
         if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
         (*vcl)[i].cmd_queuecomm = clCreateCommandQueue(*incontext, devices[0], 0 , &cl_err);

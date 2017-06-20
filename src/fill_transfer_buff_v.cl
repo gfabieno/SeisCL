@@ -21,31 +21,31 @@
 
 /*Define useful macros to be able to write a matrix formulation in 2D with OpenCl */
 #if ND==3
-#define vx(z,y,x)   vx[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vy(z,y,x)   vy[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vz(z,y,x)   vz[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
+#define vx(z,y,x)   vx[(x)*NY*NZ+(y)*NZ+(z)]
+#define vy(z,y,x)   vy[(x)*NY*NZ+(y)*NZ+(z)]
+#define vz(z,y,x)   vz[(x)*NY*NZ+(y)*NZ+(z)]
 
-#define vx_buf1(z,y,x)   vx_buf1[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vy_buf1(z,y,x)   vy_buf1[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vz_buf1(z,y,x)   vz_buf1[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
+#define vx_buf1(z,y,x)   vx_buf1[(x)*(NY-2*fdoh)*(NZ-2*fdoh)+(y)*(NZ-2*fdoh)+(z)]
+#define vy_buf1(z,y,x)   vy_buf1[(x)*(NY-2*fdoh)*(NZ-2*fdoh)+(y)*(NZ-2*fdoh)+(z)]
+#define vz_buf1(z,y,x)   vz_buf1[(x)*(NY-2*fdoh)*(NZ-2*fdoh)+(y)*(NZ-2*fdoh)+(z)]
 
-#define vx_buf2(z,y,x)   vx_buf2[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vy_buf2(z,y,x)   vy_buf2[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vz_buf2(z,y,x)   vz_buf2[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
+#define vx_buf2(z,y,x)   vx_buf2[(x)*(NY-2*fdoh)*(NZ-2*fdoh)+(y)*(NZ-2*fdoh)+(z)]
+#define vy_buf2(z,y,x)   vy_buf2[(x)*(NY-2*fdoh)*(NZ-2*fdoh)+(y)*(NZ-2*fdoh)+(z)]
+#define vz_buf2(z,y,x)   vz_buf2[(x)*(NY-2*fdoh)*(NZ-2*fdoh)+(y)*(NZ-2*fdoh)+(z)]
 #endif
 
 #if ND==2 || ND==21
-#define vx(z,y,x)  vx[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vy(z,y,x)  vy[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vz(z,y,x)  vz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
+#define vx(z,y,x)  vx[(x)*NZ+(z)]
+#define vy(z,y,x)  vy[(x)*NZ+(z)]
+#define vz(z,y,x)  vz[(x)*NZ+(z)]
 
-#define vx_buf1(z,y,x)  vx_buf1[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vy_buf1(z,y,x)  vy_buf1[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vz_buf1(z,y,x)  vz_buf1[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
+#define vx_buf1(z,y,x)  vx_buf1[(x)*(NZ-2*fdoh)+(z)]
+#define vy_buf1(z,y,x)  vy_buf1[(x)*(NZ-2*fdoh)+(z)]
+#define vz_buf1(z,y,x)  vz_buf1[(x)*(NZ-2*fdoh)+(z)]
 
-#define vx_buf2(z,y,x)  vx_buf2[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vy_buf2(z,y,x)  vy_buf2[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vz_buf2(z,y,x)  vz_buf2[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
+#define vx_buf2(z,y,x)  vx_buf2[(x)*(NZ-2*fdoh)+(z)]
+#define vy_buf2(z,y,x)  vy_buf2[(x)*(NZ-2*fdoh)+(z)]
+#define vz_buf2(z,y,x)  vz_buf2[(x)*(NZ-2*fdoh)+(z)]
 
 #endif
 
