@@ -115,6 +115,8 @@ int update_grid(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
                 }
             }
             //Launch kernel on the interior elements
+            if (t==500)
+                printf("hey");
             __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_v, (*vcl)[d].numdim, (*mloc)[d].global_work_size, (*mloc)[d].local_work_size, 0, NULL, NULL);
         }
     }

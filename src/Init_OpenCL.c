@@ -406,8 +406,8 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
                         offcomm2=(*mloc)[d].NX-(int)(*mloc)[d].local_work_size[2];
                     }
                     if (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-                        (*mloc)[d].global_work_size_fillcomm[0] = (*mloc)[d].global_work_size[0];
-                        (*mloc)[d].global_work_size_fillcomm[1] = (*mloc)[d].global_work_size[1];
+                        (*mloc)[d].global_work_size_fillcomm[0] = (*mloc)[d].NZ;
+                        (*mloc)[d].global_work_size_fillcomm[1] = (*mloc)[d].NY;
                         (*mloc)[d].global_work_size_fillcomm[2] = m->fdoh;
                     }
                     
@@ -438,7 +438,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
                         offcomm2=(*mloc)[d].NX-(int)(*mloc)[d].local_work_size[1];
                     }
                     if (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-                        (*mloc)[d].global_work_size_fillcomm[0] = (*mloc)[d].global_work_size[0];
+                        (*mloc)[d].global_work_size_fillcomm[0] = (*mloc)[d].NZ;
                         (*mloc)[d].global_work_size_fillcomm[1] = m->fdoh;
                     }
                     

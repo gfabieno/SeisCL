@@ -112,27 +112,27 @@ __kernel void fill_transfer_buff_s_out(__global float *sxx,        __global floa
 
 
 #if !(dev==0 & MYLOCALID==0)
-    sxx_buf1(gidz,gidy,gidx)=sxx(gidz,gidy,gidx+fdoh);
-    szz_buf1(gidz,gidy,gidx)=szz(gidz,gidy,gidx+fdoh);
-    sxz_buf1(gidz,gidy,gidx)=sxz(gidz,gidy,gidx+fdoh);
+    sxx_buf1(gidz-fdoh,gidy,gidx)=sxx(gidz,gidy,gidx+fdoh);
+    szz_buf1(gidz-fdoh,gidy,gidx)=szz(gidz,gidy,gidx+fdoh);
+    sxz_buf1(gidz-fdoh,gidy,gidx)=sxz(gidz,gidy,gidx+fdoh);
 #endif
 #if !(dev==num_devices-1 & MYLOCALID==NLOCALP-1)
-    sxx_buf2(gidz,gidy,gidx+fdoh)=sxx(gidz,gidy,gidx+NX-fdoh);
-    szz_buf2(gidz,gidy,gidx+fdoh)=szz(gidz,gidy,gidx+NX-fdoh);
-    sxz_buf2(gidz,gidy,gidx+fdoh)=sxz(gidz,gidy,gidx+NX-fdoh);
+    sxx_buf2(gidz-fdoh,gidy,gidx)=sxx(gidz,gidy,gidx+NX-2*fdoh);
+    szz_buf2(gidz-fdoh,gidy,gidx)=szz(gidz,gidy,gidx+NX-2*fdoh);
+    sxz_buf2(gidz-fdoh,gidy,gidx)=sxz(gidz,gidy,gidx+NX-2*fdoh);
 #endif
     
     
 #if ND==3
 #if !(dev==0 & MYLOCALID==0)
-    syy_buf1(gidz,gidy,gidx)=syy(gidz,gidy,gidx+fdoh);
-    sxy_buf1(gidz,gidy,gidx)=sxy(gidz,gidy,gidx+fdoh);
-    syz_buf1(gidz,gidy,gidx)=syz(gidz,gidy,gidx+fdoh);
+    syy_buf1(gidz-fdoh,gidy,gidx)=syy(gidz,gidy,gidx+fdoh);
+    sxy_buf1(gidz-fdoh,gidy,gidx)=sxy(gidz,gidy,gidx+fdoh);
+    syz_buf1(gidz-fdoh,gidy,gidx)=syz(gidz,gidy,gidx+fdoh);
 #endif
 #if !(dev==num_devices-1 & MYLOCALID==NLOCALP-1)
-    syy_buf2(gidz,gidy,gidx+fdoh)=syy(gidz,gidy,gidx+NX-fdoh);
-    sxy_buf2(gidz,gidy,gidx+fdoh)=sxy(gidz,gidy,gidx+NX-fdoh);
-    syz_buf2(gidz,gidy,gidx+fdoh)=syz(gidz,gidy,gidx+NX-fdoh);
+    syy_buf2(gidz-fdoh,gidy,gidx)=syy(gidz,gidy,gidx+NX-2*fdoh);
+    sxy_buf2(gidz-fdoh,gidy,gidx)=sxy(gidz,gidy,gidx+NX-2*fdoh);
+    syz_buf2(gidz-fdoh,gidy,gidx)=syz(gidz,gidy,gidx+NX-2*fdoh);
 #endif
 #endif
     
@@ -183,27 +183,27 @@ __kernel void fill_transfer_buff_s_in(__global float *sxx,        __global float
 #endif
     
 #if !(dev==0 & MYLOCALID==0)
-    sxx(gidz,gidy,gidx+fdoh)=sxx_buf1(gidz,gidy,gidx);
-    szz(gidz,gidy,gidx+fdoh)=szz_buf1(gidz,gidy,gidx);
-    sxz(gidz,gidy,gidx+fdoh)=sxz_buf1(gidz,gidy,gidx);
+    sxx(gidz,gidy,gidx)=sxx_buf1(gidz-fdoh,gidy,gidx);
+    szz(gidz,gidy,gidx)=szz_buf1(gidz-fdoh,gidy,gidx);
+    sxz(gidz,gidy,gidx)=sxz_buf1(gidz-fdoh,gidy,gidx);
 #endif
 #if !(dev==num_devices-1 & MYLOCALID==NLOCALP-1)
-    sxx(gidz,gidy,gidx+NX-fdoh)=sxx_buf2(gidz,gidy,gidx+fdoh);
-    szz(gidz,gidy,gidx+NX-fdoh)=szz_buf2(gidz,gidy,gidx+fdoh);
-    sxz(gidz,gidy,gidx+NX-fdoh)=sxz_buf2(gidz,gidy,gidx+fdoh);
+    sxx(gidz,gidy,gidx+NX-fdoh)=sxx_buf2(gidz-fdoh,gidy,gidx);
+    szz(gidz,gidy,gidx+NX-fdoh)=szz_buf2(gidz-fdoh,gidy,gidx);
+    sxz(gidz,gidy,gidx+NX-fdoh)=sxz_buf2(gidz-fdoh,gidy,gidx);
 #endif
 
 
 #if ND==3
 #if !(dev==0 & MYLOCALID==0)
-    syy(gidz,gidy,gidx+fdoh)=syy_buf1(gidz,gidy,gidx);
-    sxy(gidz,gidy,gidx+fdoh)=sxy_buf1(gidz,gidy,gidx);
-    syz(gidz,gidy,gidx+fdoh)=syz_buf1(gidz,gidy,gidx);
+    syy(gidz,gidy,gidx)=syy_buf1(gidz-fdoh,gidy,gidx);
+    sxy(gidz,gidy,gidx)=sxy_buf1(gidz-fdoh,gidy,gidx);
+    syz(gidz,gidy,gidx)=syz_buf1(gidz-fdoh,gidy,gidx);
 #endif
 #if !(dev==num_devices-1 & MYLOCALID==NLOCALP-1)
-    syy(gidz,gidy,gidx+NX-fdoh)=syy_buf2(gidz,gidy,gidx+fdoh);
-    sxy(gidz,gidy,gidx+NX-fdoh)=sxy_buf2(gidz,gidy,gidx+fdoh);
-    syz(gidz,gidy,gidx+NX-fdoh)=syz_buf2(gidz,gidy,gidx+fdoh);
+    syy(gidz,gidy,gidx+NX-fdoh)=syy_buf2(gidz-fdoh,gidy,gidx);
+    sxy(gidz,gidy,gidx+NX-fdoh)=sxy_buf2(gidz-fdoh,gidy,gidx);
+    syz(gidz,gidy,gidx+NX-fdoh)=syz_buf2(gidz-fdoh,gidy,gidx);
 #endif
 #endif
     
