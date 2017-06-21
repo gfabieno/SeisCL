@@ -134,7 +134,7 @@ int Init_MPI(struct modcsts * m) {
         if (!state) memset((void*)m->rec_pos, 0, sizeof(float*)*m->ns);
         GMALLOC(m->rec_pos[0],sizeof(float)*m->allng*8)
     }
-     fprintf(stdout,"PE: %d, group=%d\n", m->MYID, m->MYGROUPID);
+
     if (!state){
         MPI_Barrier(MPI_COMM_WORLD);
         MPI_Bcast( m->nsrc, m->ns, MPI_INT, 0, MPI_COMM_WORLD );

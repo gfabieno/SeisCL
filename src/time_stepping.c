@@ -627,7 +627,7 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
                 fprintf(stderr,"Simulation has become unstable, stopping\n");
             }
         }
-
+        
         // Aggregate the seismograms in the output variable
         if (!state){
             if (m->ND!=21){
@@ -640,7 +640,7 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
             for (d=0;d<m->num_devices;d++){
                 __GUARD clFinish((*vcl)[d].cmd_queue);
                 for (i=0;i<m->nrec[s];i++){
-                    posx=(int)floor(m->rec_pos[s][8*i]/m->dh);
+                    posx=(int)floor(m->rec_pos[s][8*i]/m->dh-0.5);
                     if (posx>=(*mloc)[d].NX0 && posx<((*mloc)[d].NX0+(*mloc)[d].NX) ){
                         for (j=0;j<m->NT;j++){
                             if (m->ND!=21){
@@ -655,7 +655,7 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
                 }
             }
         }
-        
+
         
         //Calculate the residual
         if (m->gradout || m->rmsout){

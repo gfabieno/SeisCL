@@ -52,7 +52,7 @@ __kernel void vout( __global float *vx,     __global float *vy,    __global floa
     int k=(int)(rec_pos(gid,2)/DH-0.5)+fdoh;
     
     if ( (i-offset)>=fdoh && (i-offset)<(NX-fdoh) ){
-        
+
 #if ND!=21
         vxout(gid, nt)= vx(k,j,i-offset);
         vzout(gid, nt)= vz(k,j,i-offset);
