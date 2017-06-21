@@ -58,6 +58,7 @@ int Init_MPI(struct modcsts * m) {
         MPI_Bcast( &m->K_MAX_CPML, 1, MPI_FLOAT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->f0, 1, MPI_FLOAT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->allng, 1, MPI_INT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->allns, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->bcastvx, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->bcastvy, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->bcastvz, 1, MPI_INT, 0, MPI_COMM_WORLD );
@@ -83,7 +84,7 @@ int Init_MPI(struct modcsts * m) {
         
         MPI_Barrier(MPI_COMM_WORLD);
     }
-    
+
     m->NGROUP=m->NP/m->MPI_NPROC_SHOT;
     if (m->NGROUP<1){
         m->NGROUP=1;
@@ -106,16 +107,18 @@ int Init_MPI(struct modcsts * m) {
         m->MYLOCALID=m->MYID;
     }
     
-    
-    if (m->MYID!=0){
-        GMALLOC(m->no_use_GPUs,sizeof(int)*m->n_no_use_GPUs)
+    if (m->n_no_use_GPUs>0){
+        if (m->MYID!=0){
+            GMALLOC(m->no_use_GPUs,sizeof(int)*m->n_no_use_GPUs)
+        }
+        
+        if (!state){
+            MPI_Barrier(MPI_COMM_WORLD);
+            MPI_Bcast( m->no_use_GPUs, m->n_no_use_GPUs, MPI_INT, 0, MPI_COMM_WORLD );
+            MPI_Barrier(MPI_COMM_WORLD);
+        }
     }
-    
-    if (!state){
-        MPI_Bcast( m->no_use_GPUs, m->n_no_use_GPUs, MPI_INT, 0, MPI_COMM_WORLD );
-        MPI_Barrier(MPI_COMM_WORLD);
-    }
-    
+
     if (m->MYID!=0){
         GMALLOC(m->nsrc,sizeof(int)*m->ns)
         GMALLOC(m->src_pos,sizeof(float*)*m->ns)
@@ -131,8 +134,9 @@ int Init_MPI(struct modcsts * m) {
         if (!state) memset((void*)m->rec_pos, 0, sizeof(float*)*m->ns);
         GMALLOC(m->rec_pos[0],sizeof(float)*m->allng*8)
     }
-    
+     fprintf(stdout,"PE: %d, group=%d\n", m->MYID, m->MYGROUPID);
     if (!state){
+        MPI_Barrier(MPI_COMM_WORLD);
         MPI_Bcast( m->nsrc, m->ns, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( m->src_pos[0], m->allns*5, MPI_FLOAT, 0, MPI_COMM_WORLD );
         MPI_Bcast( m->src[0], m->allns*m->NT,  MPI_FLOAT, 0, MPI_COMM_WORLD );
@@ -140,7 +144,7 @@ int Init_MPI(struct modcsts * m) {
         MPI_Bcast( m->rec_pos[0], m->allng*8,  MPI_FLOAT, 0, MPI_COMM_WORLD );
         MPI_Barrier(MPI_COMM_WORLD);
     }
-    
+
     if (m->MYID!=0){
         for (i=1; i<m->ns; i++){
             m->src_pos[i]=m->src_pos[i-1]+m->nsrc[i-1]*5;
@@ -163,7 +167,7 @@ int Init_MPI(struct modcsts * m) {
         if (m->ND!=21)
             MPI_Bcast( m->pi, m->NX*m->NY*m->NZ, MPI_FLOAT, 0, MPI_COMM_WORLD );
     }
-    
+
     if (m->L>0){
         if (m->MYID!=0){
             GMALLOC(m->FL,sizeof(float)*m->L)
@@ -179,7 +183,7 @@ int Init_MPI(struct modcsts * m) {
             MPI_Bcast( m->taus, m->NX*m->NY*m->NZ, MPI_FLOAT, 0, MPI_COMM_WORLD );
         }
     }
-    
+
     if (m->topo){
         if (m->MYID!=0){
             GMALLOC(m->topo,sizeof(float)*m->NX*m->NY)

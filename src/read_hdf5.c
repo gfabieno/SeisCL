@@ -514,9 +514,9 @@ int readhdf5(struct filenames files, struct modcsts * m) {
     /* Assign the 2D arrays in which shot and receivers variables are stored */
     GMALLOC(m->src_pos,sizeof(float*)*m->ns)
     GMALLOC(m->src,sizeof(float*)*m->ns)
-    GMALLOC(m->nsrc,sizeof(float)*m->ns)
+    GMALLOC(m->nsrc,sizeof(int)*m->ns)
     GMALLOC(m->rec_pos,sizeof(float*)*m->ns)
-    GMALLOC(m->nrec,sizeof(float)*m->ns)
+    GMALLOC(m->nrec,sizeof(int)*m->ns)
     
     if (!state){
         

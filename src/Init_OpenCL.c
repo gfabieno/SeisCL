@@ -48,7 +48,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
     __GUARD GetPlatformID( &m->pref_device_type, &m->device_type, &sel_plat_id, &m->num_devices, m->n_no_use_GPUs, m->no_use_GPUs);
     if (m->num_devices>m->nmax_dev)
         m->num_devices=m->nmax_dev;
-    
+
     //For each GPU, allocate the memory structures
     GMALLOC((*vcl),sizeof(struct varcl)*m->num_devices)
     if (!state) memset ((void*)(*vcl), 0, sizeof(struct varcl)*m->num_devices);
@@ -834,8 +834,6 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].syy_sub2_dev);
         }
 
-        
-        
         // Create the kernels of the devices
         __GUARD gpu_initialize_update_v(&m->context, &(*vcl)[d].program_v, &(*vcl)[d].kernel_v, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm1, lcomm, 0 );
         __GUARD gpu_initialize_update_s(&m->context, &(*vcl)[d].program_s, &(*vcl)[d].kernel_s, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm1, lcomm, 0  );
@@ -855,10 +853,14 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             __GUARD gpu_initialize_update_s(&m->context, &(*vcl)[d].program_scomm2, &(*vcl)[d].kernel_scomm2, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm2, lcomm, 1 );
         }
         if (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-            __GUARD gpu_intialize_fill_transfer_buff_v_in(&m->context, &(*vcl)[d].program_fill_transfer_buff_v_in, &(*vcl)[d].kernel_fill_transfer_buff_v_in, &(*vcl)[d], m, &(*mloc)[d] );
-            __GUARD gpu_intialize_fill_transfer_buff_v_out(&m->context, &(*vcl)[d].program_fill_transfer_buff_v_out, &(*vcl)[d].kernel_fill_transfer_buff_v_out, &(*vcl)[d], m, &(*mloc)[d] );
-            __GUARD gpu_intialize_fill_transfer_buff_s_in(&m->context, &(*vcl)[d].program_fill_transfer_buff_s_in, &(*vcl)[d].kernel_fill_transfer_buff_s_in, &(*vcl)[d], m, &(*mloc)[d] );
-            __GUARD gpu_intialize_fill_transfer_buff_s_out(&m->context, &(*vcl)[d].program_fill_transfer_buff_s_out, &(*vcl)[d].kernel_fill_transfer_buff_s_out, &(*vcl)[d], m, &(*mloc)[d] );
+            __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_fill_transfer_buff1_v_in, &(*vcl)[d], m, &(*mloc)[d],0,1,0);
+            __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_fill_transfer_buff2_v_in, &(*vcl)[d], m, &(*mloc)[d],0,2,0);
+            __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_fill_transfer_buff1_v_out, &(*vcl)[d], m, &(*mloc)[d],1,1,0);
+            __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_fill_transfer_buff2_v_out, &(*vcl)[d], m, &(*mloc)[d],1,2,0);
+            __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_fill_transfer_buff1_s_in, &(*vcl)[d], m, &(*mloc)[d],0,1,0);
+            __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_fill_transfer_buff2_s_in, &(*vcl)[d], m, &(*mloc)[d],0,2,0);
+            __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_fill_transfer_buff1_s_out, &(*vcl)[d], m, &(*mloc)[d],1,1,0);
+            __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_fill_transfer_buff2_s_out, &(*vcl)[d], m, &(*mloc)[d],1,2,0);
         }
         
         
@@ -1068,10 +1070,14 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
                 __GUARD gpu_initialize_update_adjs(&m->context, &(*vcl)[d].program_adjscomm2, &(*vcl)[d].kernel_adjscomm2, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm2, lcomm, 1 );
             }
             if ( (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1) && m->back_prop_type==1 ){
-                __GUARD gpu_intialize_adj_fill_transfer_buff_v_in(&m->context, &(*vcl)[d].program_fill_transfer_buff_v_in, &(*vcl)[d].kernel_fill_transfer_buff_v_in, &(*vcl)[d], m, &(*mloc)[d] );
-                __GUARD gpu_intialize_adj_fill_transfer_buff_v_out(&m->context, &(*vcl)[d].program_adj_fill_transfer_buff_v_out, &(*vcl)[d].kernel_adj_fill_transfer_buff_v_out, &(*vcl)[d], m, &(*mloc)[d] );
-                __GUARD gpu_intialize_adj_fill_transfer_buff_s_in(&m->context, &(*vcl)[d].program_adj_fill_transfer_buff_s_in, &(*vcl)[d].kernel_adj_fill_transfer_buff_s_in, &(*vcl)[d], m, &(*mloc)[d] );
-                __GUARD gpu_intialize_adj_fill_transfer_buff_s_out(&m->context, &(*vcl)[d].program_adj_fill_transfer_buff_s_out, &(*vcl)[d].kernel_adj_fill_transfer_buff_s_out, &(*vcl)[d], m, &(*mloc)[d] );
+                __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_adj_fill_transfer_buff1_v_in, &(*vcl)[d], m, &(*mloc)[d],0,1,1);
+                __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_adj_fill_transfer_buff2_v_in, &(*vcl)[d], m, &(*mloc)[d],0,1,1);
+                __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_adj_fill_transfer_buff1_v_out, &(*vcl)[d], m, &(*mloc)[d],1,1,1);
+                __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_adj_fill_transfer_buff2_v_out, &(*vcl)[d], m, &(*mloc)[d],1,1,1);
+                __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_adj_fill_transfer_buff1_s_in, &(*vcl)[d], m, &(*mloc)[d],0,1,1);
+                __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_adj_fill_transfer_buff2_s_in, &(*vcl)[d], m, &(*mloc)[d],0,1,1);
+                __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_adj_fill_transfer_buff1_s_out, &(*vcl)[d], m, &(*mloc)[d],1,1,1);
+                __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_adj_fill_transfer_buff2_s_out, &(*vcl)[d], m, &(*mloc)[d],1,1,1);
             }
 
             __GUARD gpu_intialize_residuals(&m->context, &(*vcl)[d].program_residuals, &(*vcl)[d].kernel_residuals, NULL, &(*vcl)[d], m, &(*mloc)[d]);

@@ -359,13 +359,17 @@ struct varcl {
     cl_kernel kernel_v;
     cl_kernel kernel_vcomm1;
     cl_kernel kernel_vcomm2;
-    cl_kernel kernel_fill_transfer_buff_v_out;
-    cl_kernel kernel_fill_transfer_buff_v_in;
+    cl_kernel kernel_fill_transfer_buff1_v_out;
+    cl_kernel kernel_fill_transfer_buff2_v_out;
+    cl_kernel kernel_fill_transfer_buff1_v_in;
+    cl_kernel kernel_fill_transfer_buff2_v_in;
     cl_kernel kernel_s;
     cl_kernel kernel_scomm1;
     cl_kernel kernel_scomm2;
-    cl_kernel kernel_fill_transfer_buff_s_out;
-    cl_kernel kernel_fill_transfer_buff_s_in;
+    cl_kernel kernel_fill_transfer_buff1_s_out;
+    cl_kernel kernel_fill_transfer_buff2_s_out;
+    cl_kernel kernel_fill_transfer_buff1_s_in;
+    cl_kernel kernel_fill_transfer_buff2_s_in;
     cl_kernel kernel_surf;
     cl_kernel kernel_initseis;
     cl_kernel kernel_initseis_r;
@@ -376,13 +380,17 @@ struct varcl {
     cl_kernel kernel_adjv;
     cl_kernel kernel_adjvcomm1;
     cl_kernel kernel_adjvcomm2;
-    cl_kernel kernel_adj_fill_transfer_buff_v_out;
-    cl_kernel kernel_adj_fill_transfer_buff_v_in;
+    cl_kernel kernel_adj_fill_transfer_buff1_v_out;
+    cl_kernel kernel_adj_fill_transfer_buff2_v_out;
+    cl_kernel kernel_adj_fill_transfer_buff1_v_in;
+    cl_kernel kernel_adj_fill_transfer_buff2_v_in;
     cl_kernel kernel_adjs;
     cl_kernel kernel_adjscomm1;
     cl_kernel kernel_adjscomm2;
-    cl_kernel kernel_adj_fill_transfer_buff_s_out;
-    cl_kernel kernel_adj_fill_transfer_buff_s_in;
+    cl_kernel kernel_adj_fill_transfer_buff1_s_out;
+    cl_kernel kernel_adj_fill_transfer_buff2_s_out;
+    cl_kernel kernel_adj_fill_transfer_buff1_s_in;
+    cl_kernel kernel_adj_fill_transfer_buff2_s_in;
     cl_kernel kernel_bnd;
     cl_kernel kernel_savefreqs;
     cl_kernel kernel_initsavefreqs;
@@ -396,14 +404,8 @@ struct varcl {
     cl_program program_vcomm2;
     cl_program program_scomm1;
     cl_program program_scomm2;
-    cl_program program_fill_transfer_buff_v_out;
-    cl_program program_fill_transfer_buff_v_in;
-    cl_program program_fill_transfer_buff_s_out;
-    cl_program program_fill_transfer_buff_s_in;
-    cl_program program_adj_fill_transfer_buff_v_out;
-    cl_program program_adj_fill_transfer_buff_v_in;
-    cl_program program_adj_fill_transfer_buff_s_out;
-    cl_program program_adj_fill_transfer_buff_s_in;
+    cl_program program_fill_transfer_buff_v;
+    cl_program program_fill_transfer_buff_s;
     cl_program program_surf;
     cl_program program_initseis;
     cl_program program_initseis_r;
@@ -438,8 +440,10 @@ struct varcl {
     cl_event event_writes1;
     cl_event event_writes2;
     
-    cl_event event_updatev_comm;
-    cl_event event_updates_comm;
+    cl_event event_updatev_comm1;
+    cl_event event_updatev_comm2;
+    cl_event event_updates_comm1;
+    cl_event event_updates_comm2;
 
     cl_event event_bndsave;
     cl_event event_bndtransf;
@@ -884,10 +888,9 @@ int gpu_intialize_fill_transfer_buff_s_out(cl_context  * pcontext, cl_program  *
 int gpu_intialize_fill_transfer_buff_v_in(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc );
 int gpu_intialize_fill_transfer_buff_v_out(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc );
 
-int gpu_intialize_adj_fill_transfer_buff_s_in(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc );
-int gpu_intialize_adj_fill_transfer_buff_s_out(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc );
-int gpu_intialize_adj_fill_transfer_buff_v_in(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc );
-int gpu_intialize_adj_fill_transfer_buff_v_out(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc );
+int gpu_intialize_fill_transfer_buff_s(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc, int out, int comm, int adj );
+int gpu_intialize_fill_transfer_buff_v(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc, int out, int comm, int adj );
+
 
 void CPML_coeff(struct modcsts * m);
 

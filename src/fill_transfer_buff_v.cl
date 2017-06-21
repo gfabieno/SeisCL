@@ -25,13 +25,10 @@
 #define vy(z,y,x)   vy[(x)*NY*NZ+(y)*NZ+(z)]
 #define vz(z,y,x)   vz[(x)*NY*NZ+(y)*NZ+(z)]
 
-#define vx_buf1(z,y,x)   vx_buf1[(x)*(NY-2*fdoh)*(NZ-2*fdoh)+(y)*(NZ-2*fdoh)+(z)]
-#define vy_buf1(z,y,x)   vy_buf1[(x)*(NY-2*fdoh)*(NZ-2*fdoh)+(y)*(NZ-2*fdoh)+(z)]
-#define vz_buf1(z,y,x)   vz_buf1[(x)*(NY-2*fdoh)*(NZ-2*fdoh)+(y)*(NZ-2*fdoh)+(z)]
+#define vx_buf(z,y,x)   vx_buf[(x)*(NY-2*fdoh)*(NZ-2*fdoh)+(y)*(NZ-2*fdoh)+(z)]
+#define vy_buf(z,y,x)   vy_buf[(x)*(NY-2*fdoh)*(NZ-2*fdoh)+(y)*(NZ-2*fdoh)+(z)]
+#define vz_buf(z,y,x)   vz_buf[(x)*(NY-2*fdoh)*(NZ-2*fdoh)+(y)*(NZ-2*fdoh)+(z)]
 
-#define vx_buf2(z,y,x)   vx_buf2[(x)*(NY-2*fdoh)*(NZ-2*fdoh)+(y)*(NZ-2*fdoh)+(z)]
-#define vy_buf2(z,y,x)   vy_buf2[(x)*(NY-2*fdoh)*(NZ-2*fdoh)+(y)*(NZ-2*fdoh)+(z)]
-#define vz_buf2(z,y,x)   vz_buf2[(x)*(NY-2*fdoh)*(NZ-2*fdoh)+(y)*(NZ-2*fdoh)+(z)]
 #endif
 
 #if ND==2 || ND==21
@@ -39,19 +36,15 @@
 #define vy(z,y,x)  vy[(x)*NZ+(z)]
 #define vz(z,y,x)  vz[(x)*NZ+(z)]
 
-#define vx_buf1(z,y,x)  vx_buf1[(x)*(NZ-2*fdoh)+(z)]
-#define vy_buf1(z,y,x)  vy_buf1[(x)*(NZ-2*fdoh)+(z)]
-#define vz_buf1(z,y,x)  vz_buf1[(x)*(NZ-2*fdoh)+(z)]
+#define vx_buf(z,y,x)  vx_buf[(x)*(NZ-2*fdoh)+(z)]
+#define vy_buf(z,y,x)  vy_buf[(x)*(NZ-2*fdoh)+(z)]
+#define vz_buf(z,y,x)  vz_buf[(x)*(NZ-2*fdoh)+(z)]
 
-#define vx_buf2(z,y,x)  vx_buf2[(x)*(NZ-2*fdoh)+(z)]
-#define vy_buf2(z,y,x)  vy_buf2[(x)*(NZ-2*fdoh)+(z)]
-#define vz_buf2(z,y,x)  vz_buf2[(x)*(NZ-2*fdoh)+(z)]
 
 #endif
 
-__kernel void fill_transfer_buff_v_out( __global float *vx, __global float *vy, __global float *vz,
-                                       __global float *vx_buf1,  __global float *vy_buf1, __global float *vz_buf1,
-                                       __global float *vx_buf2,  __global float *vy_buf2, __global float *vz_buf2)
+__kernel void fill_transfer_buff_v_out( int gidx0, __global float *vx, __global float *vy, __global float *vz,
+                                       __global float *vx_buf,  __global float *vy_buf, __global float *vz_buf)
 {
 #if ND==3
     // If we use local memory
@@ -87,37 +80,19 @@ __kernel void fill_transfer_buff_v_out( __global float *vx, __global float *vy, 
     int gidy = 0;
 #endif
 #endif
+    //gidx0=fdoh for comm1 and NX-2*fdoh for comm2
+    vx_buf(gidz-fdoh,gidy,gidx)=vx(gidz,gidy,gidx+gidx0);
+    vz_buf(gidz-fdoh,gidy,gidx)=vz(gidz,gidy,gidx+gidx0);
 
-#if !(dev==0 & MYLOCALID==0)
-    vx_buf1(gidz-fdoh,gidy,gidx)=vx(gidz,gidy,gidx+fdoh);
-    vz_buf1(gidz-fdoh,gidy,gidx)=vz(gidz,gidy,gidx+fdoh);
-#endif
-#if !(dev==num_devices-1 & MYLOCALID==NLOCALP-1)
-    vx_buf2(gidz-fdoh,gidy,gidx)=vx(gidz,gidy,gidx+NX-2*fdoh);
-    vz_buf2(gidz-fdoh,gidy,gidx)=vz(gidz,gidy,gidx+NX-2*fdoh);
-#endif
-//    if (dev==0 ){
-//        //        if (vx(gidz,gidx+NX-fdoh)>0){
-//        //            printf( "%f\n",vx(gidz,gidx+NX-fdoh));
-//        //        }
-//        printf( "%f\n",vx_buf2(37,gidy,0)*1000000000000);
-//
-//    }
 #if ND==3
-#if !(dev==0 & MYLOCALID==0)
-    vy_buf1(gidz-fdoh,gidy,gidx)=vy(gidz,gidy,gidx+fdoh);
-#endif
-#if !(dev==num_devices-1 & MYLOCALID==NLOCALP-1)
-    vy_buf2(gidz-fdoh,gidy,gidx)=vy(gidz,gidy,gidx+NX-2*fdoh);
-#endif
+    vy_buf(gidz-fdoh,gidy,gidx)=vy(gidz,gidy,gidx+gidx0);
 #endif
 
 
 }
 
-__kernel void fill_transfer_buff_v_in( __global float *vx, __global float *vy, __global float *vz,
-                                       __global float *vx_buf1,  __global float *vy_buf1, __global float *vz_buf1,
-                                       __global float *vx_buf2,  __global float *vy_buf2, __global float *vz_buf2)
+__kernel void fill_transfer_buff_v_in( int gidx0, __global float *vx, __global float *vy, __global float *vz,
+                                       __global float *vx_buf,  __global float *vy_buf, __global float *vz_buf)
 {
 #if ND==3
     // If we use local memory
@@ -153,25 +128,13 @@ __kernel void fill_transfer_buff_v_in( __global float *vx, __global float *vy, _
     int gidy = 0;
 #endif
 #endif
-    
-#if !(dev==0 & MYLOCALID==0)
-    vx(gidz,gidy,gidx)=vx_buf1(gidz-fdoh,gidy,gidx);
-    vz(gidz,gidy,gidx)=vz_buf1(gidz-fdoh,gidy,gidx);
-#endif
-#if !(dev==num_devices-1 & MYLOCALID==NLOCALP-1)
-    vx(gidz,gidy,gidx+NX-fdoh)=vx_buf2(gidz-fdoh,gidy,gidx);
-    vz(gidz,gidy,gidx+NX-fdoh)=vz_buf2(gidz-fdoh,gidy,gidx);
-#endif
+    //gidx0=0 for comm1 and NX-fdoh for comm2
+    vx(gidz,gidy,gidx+gidx0)=vx_buf(gidz-fdoh,gidy,gidx);
+    vz(gidz,gidy,gidx+gidx0)=vz_buf(gidz-fdoh,gidy,gidx);
     
     
 #if ND==3
-#if !(dev==0 & MYLOCALID==0)
-    vy(gidz,gidy,gidx)=vy_buf1(gidz-fdoh,gidy,gidx);
-#endif
-#if !(dev==num_devices-1 & MYLOCALID==NLOCALP-1)
-    vy(gidz,gidy,gidx+NX-fdoh)=vy_buf2(gidz-fdoh,gidy,gidx);
-#endif
+    vy(gidz,gidy,gidx+gidx0)=vy_buf(gidz-fdoh,gidy,gidx);
 #endif
     
 }
-

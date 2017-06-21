@@ -89,31 +89,15 @@ int update_grid(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
     for (d=0;d<m->num_devices;d++){
         {
             // Launch the kernel on the outside grid needing communication only if a neighbouring device or processing elelement exist
-            if (t==0){ // some event are not created yet
-                if (d>0 || m->MYLOCALID>0){
-                    __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_vcomm1, (*vcl)[d].numdim, (*mloc)[d].global_work_sizecomm1, (*mloc)[d].local_work_size, 0, NULL, NULL);
-                }
-                if (d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-                    __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_vcomm2, (*vcl)[d].numdim, (*mloc)[d].global_work_sizecomm2, (*mloc)[d].local_work_size, 0, NULL, NULL);
-                }
-                if (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-                    __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff_v_out, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, &(*vcl)[d].event_updatev_comm);
-                }
-                
+            if (d>0 || m->MYLOCALID>0){
+                __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_vcomm1, (*vcl)[d].numdim, (*mloc)[d].global_work_sizecomm1, (*mloc)[d].local_work_size, 0, NULL, NULL);
+                __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff1_v_out, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, &(*vcl)[d].event_updatev_comm1);
             }
-            else{
-                if (d>0 || m->MYLOCALID>0){
-                    __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_vcomm1, (*vcl)[d].numdim, (*mloc)[d].global_work_sizecomm1, (*mloc)[d].local_work_size, 1, &(*vcl)[d].event_writes1, NULL);
-                    __GUARD clReleaseEvent((*vcl)[d].event_writes1);
-                }
-                if (d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-                    __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_vcomm2, (*vcl)[d].numdim, (*mloc)[d].global_work_sizecomm2, (*mloc)[d].local_work_size, 1, &(*vcl)[d].event_writes2, NULL);
-                    __GUARD clReleaseEvent((*vcl)[d].event_writes2);
-                }
-                if (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-                    __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff_v_out, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, &(*vcl)[d].event_updatev_comm);
-                }
+            if (d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
+                __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_vcomm2, (*vcl)[d].numdim, (*mloc)[d].global_work_sizecomm2, (*mloc)[d].local_work_size, 0, NULL, NULL);
+                __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff2_v_out, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, &(*vcl)[d].event_updatev_comm2);
             }
+
             //Launch kernel on the interior elements
             __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_v, (*vcl)[d].numdim, (*mloc)[d].global_work_size, (*mloc)[d].local_work_size, 0, NULL, NULL);
         }
@@ -123,8 +107,13 @@ int update_grid(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
     if (m->num_devices>1 || m->NLOCALP>1)
         __GUARD comm_v(m, vcl, mloc, 0);
     for (d=0;d<m->num_devices;d++){
-        if (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff_v_in, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, NULL);
+        if (d>0 || m->MYLOCALID>0){
+            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff1_v_in, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 1, &(*vcl)[d].event_writev1, NULL);
+            __GUARD clReleaseEvent((*vcl)[d].event_writev1);
+        }
+        if (d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
+            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff2_v_in, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 1, &(*vcl)[d].event_writev2, NULL);
+            __GUARD clReleaseEvent((*vcl)[d].event_writev2);
         }
     }
     
@@ -170,15 +159,12 @@ int update_grid(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
         
         // Launch the kernel on the outside grid needing communication only if a neighbouring device or processing elelement exist
         if (d>0 || m->MYLOCALID>0){
-            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_scomm1, (*vcl)[d].numdim, (*mloc)[d].global_work_sizecomm1, (*mloc)[d].local_work_size, 1, &(*vcl)[d].event_writev1, NULL);
-            __GUARD clReleaseEvent((*vcl)[d].event_writev1);
+            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_scomm1, (*vcl)[d].numdim, (*mloc)[d].global_work_sizecomm1, (*mloc)[d].local_work_size, 0, NULL, NULL);
+            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff1_s_out, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, &(*vcl)[d].event_updates_comm1);
         }
         if (d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_scomm2, (*vcl)[d].numdim, (*mloc)[d].global_work_sizecomm2, (*mloc)[d].local_work_size, 1, &(*vcl)[d].event_writev2, NULL);
-            __GUARD clReleaseEvent((*vcl)[d].event_writev2);
-        }
-        if (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff_s_out, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, &(*vcl)[d].event_updates_comm);
+            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_scomm2, (*vcl)[d].numdim, (*mloc)[d].global_work_sizecomm2, (*mloc)[d].local_work_size, 0, NULL, NULL);
+            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff2_s_out, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, &(*vcl)[d].event_updates_comm2);
         }
         
         __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_s, (*vcl)[d].numdim, (*mloc)[d].global_work_size, (*mloc)[d].local_work_size, 0, NULL, NULL);
@@ -188,8 +174,13 @@ int update_grid(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
     if (m->num_devices>1 || m->NLOCALP>1)
         __GUARD comm_s(m, vcl, mloc, 0);
     for (d=0;d<m->num_devices;d++){
-        if (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff_s_in, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, NULL);
+        if (d>0 || m->MYLOCALID>0){
+            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff1_s_in, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 1, &(*vcl)[d].event_writes1, NULL);
+            __GUARD clReleaseEvent((*vcl)[d].event_writes1);
+        }
+        if (d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
+            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff2_s_in, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 1, &(*vcl)[d].event_writes2, NULL);
+            __GUARD clReleaseEvent((*vcl)[d].event_writes2);
         }
     }
 
@@ -224,35 +215,19 @@ int update_grid_adj(struct modcsts * m, struct varcl ** vcl, struct modcstsloc *
         
         //Update the stresses
         {
-            if (t==m->tmax-1){
-                if (d>0 || m->MYLOCALID>0){
-                    __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_adjscomm1, (*vcl)[d].numdim, (*mloc)[d].global_work_sizecomm1, (*mloc)[d].local_work_size, 0, NULL, NULL);
+            if (d>0 || m->MYLOCALID>0){
+                __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_adjscomm1, (*vcl)[d].numdim, (*mloc)[d].global_work_sizecomm1, (*mloc)[d].local_work_size, 0, NULL, NULL);
+                if (m->back_prop_type==1){
+                    __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_adj_fill_transfer_buff1_s_out, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, NULL);
                 }
-                if (d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-                    __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_adjscomm2, (*vcl)[d].numdim, (*mloc)[d].global_work_sizecomm2, (*mloc)[d].local_work_size, 0, NULL, NULL);
-                }
-                if (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-                    if (m->back_prop_type==1){
-                        __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_adj_fill_transfer_buff_s_out, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, NULL);
-                    }
-                    __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff_s_out, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, &(*vcl)[d].event_updates_comm);
-                }
+                __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff1_s_out, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, &(*vcl)[d].event_updates_comm1);
             }
-            else{
-                if (d>0 || m->MYLOCALID>0){
-                    __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_adjscomm1, (*vcl)[d].numdim, (*mloc)[d].global_work_sizecomm1, (*mloc)[d].local_work_size, 1, &(*vcl)[d].event_writev1, NULL);
-                    clReleaseEvent((*vcl)[d].event_writev1);
+            if (d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
+                __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_adjscomm2, (*vcl)[d].numdim, (*mloc)[d].global_work_sizecomm2, (*mloc)[d].local_work_size, 0, NULL, NULL);
+                if (m->back_prop_type==1){
+                    __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_adj_fill_transfer_buff2_s_out, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, NULL);
                 }
-                if (d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-                    __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_adjscomm2, (*vcl)[d].numdim, (*mloc)[d].global_work_sizecomm2, (*mloc)[d].local_work_size, 1, &(*vcl)[d].event_writev2, NULL);
-                    if (!state) clReleaseEvent((*vcl)[d].event_writev2);
-                }
-                if (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-                    if (m->back_prop_type==1){
-                        __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_adj_fill_transfer_buff_s_out, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, NULL);
-                    }
-                    __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff_s_out, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, &(*vcl)[d].event_updates_comm);
-                }
+                __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff2_s_out, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, &(*vcl)[d].event_updates_comm1);
             }
             
             if (m->back_prop_type==1){
@@ -328,31 +303,41 @@ int update_grid_adj(struct modcsts * m, struct varcl ** vcl, struct modcstsloc *
     // Communicating the stress variables between GPUs
     if (m->num_devices>1 || m->NLOCALP>1)
         __GUARD comm_s(m, vcl, mloc, 1);
+    
     for (d=0;d<m->num_devices;d++){
-        if (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
+        if (d>0 || m->MYLOCALID>0){
+            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff1_s_in, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 1, &(*vcl)[d].event_writes1, NULL);
+            __GUARD clReleaseEvent((*vcl)[d].event_writes1);
             if (m->back_prop_type==1){
-                __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_adj_fill_transfer_buff_s_in, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, NULL);
+                __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_adj_fill_transfer_buff1_s_in, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, NULL);
             }
-            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff_s_in, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, &(*vcl)[d].event_updates_comm);
+        }
+        if (d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
+            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff2_s_in, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 1, &(*vcl)[d].event_writes2, NULL);
+            __GUARD clReleaseEvent((*vcl)[d].event_writes2);
+            if (m->back_prop_type==1){
+                __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_adj_fill_transfer_buff2_s_in, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, NULL);
+            }
         }
     }
+    
     
     // Adjoint time stepping of the velocity variables
     for (d=0;d<m->num_devices;d++){
         
         if (d>0 || m->MYLOCALID>0){
-            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_adjvcomm1, (*vcl)[d].numdim, (*mloc)[d].global_work_sizecomm1, (*mloc)[d].local_work_size, 1, &(*vcl)[d].event_writes1, NULL);
-            if (!state) clReleaseEvent((*vcl)[d].event_writes1);
+            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_adjvcomm1, (*vcl)[d].numdim, (*mloc)[d].global_work_sizecomm1, (*mloc)[d].local_work_size, 0, NULL, NULL);
+            if (m->back_prop_type==1){
+                __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_adj_fill_transfer_buff1_v_out, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, NULL);
+            }
+            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff1_v_out, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, &(*vcl)[d].event_updatev_comm1);
         }
         if (d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_adjvcomm2, (*vcl)[d].numdim, (*mloc)[d].global_work_sizecomm2, (*mloc)[d].local_work_size, 1, &(*vcl)[d].event_writes2, NULL);
-            if (!state) clReleaseEvent((*vcl)[d].event_writes2);
-        }
-        if (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
+            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_adjvcomm2, (*vcl)[d].numdim, (*mloc)[d].global_work_sizecomm2, (*mloc)[d].local_work_size, 0, NULL, NULL);
             if (m->back_prop_type==1){
-                __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_adj_fill_transfer_buff_v_out, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, NULL);
+                __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_adj_fill_transfer_buff2_v_out, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, NULL);
             }
-            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff_v_out, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, &(*vcl)[d].event_updatev_comm);
+            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff2_v_out, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, &(*vcl)[d].event_updatev_comm1);
         }
         
         if (m->back_prop_type==1){
@@ -370,11 +355,19 @@ int update_grid_adj(struct modcsts * m, struct varcl ** vcl, struct modcstsloc *
     if (m->num_devices>1 || m->NLOCALP>1)
         __GUARD comm_v(m, vcl, mloc, 1);
     for (d=0;d<m->num_devices;d++){
-        if (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
+        if (d>0 || m->MYLOCALID>0){
+            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff1_v_in, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 1, &(*vcl)[d].event_writev1, NULL);
+            __GUARD clReleaseEvent((*vcl)[d].event_writev1);
             if (m->back_prop_type==1){
-                __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_adj_fill_transfer_buff_v_in, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, NULL);
+                __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_adj_fill_transfer_buff1_v_in, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, NULL);
             }
-            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff_v_in, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, &(*vcl)[d].event_updates_comm);
+        }
+        if (d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
+            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff2_v_in, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 1, &(*vcl)[d].event_writev2, NULL);
+            __GUARD clReleaseEvent((*vcl)[d].event_writev2);
+            if (m->back_prop_type==1){
+                __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_adj_fill_transfer_buff2_v_in, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 0, NULL, NULL);
+            }
         }
     }
     
@@ -613,12 +606,7 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
 
         //Realease events that have not been released
         for (d=0;d<m->num_devices;d++){
-            if (d>0){
-                __GUARD clReleaseEvent((*vcl)[d].event_writes1);
-            }
-            if (d<m->num_devices-1){
-                __GUARD clReleaseEvent((*vcl)[d].event_writes2);
-            }
+
             if (m->gradout==1 && m->back_prop_type==1){
                 __GUARD clReleaseEvent((*vcl)[d].event_bndtransf);
             }

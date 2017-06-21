@@ -1465,29 +1465,70 @@ int gpu_initialize_gradsrc(cl_context  * pcontext, cl_program  * program, cl_ker
 }
 
 
-int gpu_intialize_fill_transfer_buff_v_out(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc )
+int gpu_intialize_fill_transfer_buff_v(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc, int out, int comm, int adj )
 {
     
     cl_int cl_err = 0;
+    static char program_name [2000];
+    int gidx0=0;
     
     /* Pass some constant arguments as build options */
     const char * build_options=get_build_options(inmem, inm, inmloc, 0, 0, 0);
     
     /*Create the kernel*/
-    const char * program_name = "fill_transfer_buff_v_out";
+    if (out==1){
+        sprintf(program_name,"fill_transfer_buff_v_out");
+        if (comm==1){
+            gidx0=(*inm).fdoh;
+        }
+        else{
+            gidx0=(*inmloc).NX+(*inm).FDORDER-2*(*inm).fdoh;
+        }
+    }
+    else{
+        sprintf(program_name,"fill_transfer_buff_v_in");
+        if (comm==1){
+            gidx0=0;
+        }
+        else{
+            gidx0=(*inmloc).NX+(*inm).FDORDER-(*inm).fdoh;
+        }
+    }
     cl_err = create_gpu_kernel_from_string( fill_transfer_buff_v_source, program, pcontext, pkernel, program_name, build_options);
     
     
     /*Define the arguments for this kernel */
-    cl_err = clSetKernelArg(*pkernel,  0,  sizeof(cl_mem), &inmem->vx);
-    cl_err = clSetKernelArg(*pkernel,  1,  sizeof(cl_mem), &inmem->vy);
-    cl_err = clSetKernelArg(*pkernel,  2,  sizeof(cl_mem), &inmem->vz);
-    cl_err = clSetKernelArg(*pkernel,  3,  sizeof(cl_mem), &inmem->vx_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  4,  sizeof(cl_mem), &inmem->vy_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  5,  sizeof(cl_mem), &inmem->vz_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  6,  sizeof(cl_mem), &inmem->vx_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  7,  sizeof(cl_mem), &inmem->vy_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  8,  sizeof(cl_mem), &inmem->vz_sub2_dev);
+    cl_err = clSetKernelArg(*pkernel,  0,  sizeof(int), &gidx0);
+    if (adj==0){
+        cl_err = clSetKernelArg(*pkernel,  1,  sizeof(cl_mem), &inmem->vx);
+        cl_err = clSetKernelArg(*pkernel,  2,  sizeof(cl_mem), &inmem->vy);
+        cl_err = clSetKernelArg(*pkernel,  3,  sizeof(cl_mem), &inmem->vz);
+        if (comm==1){
+            cl_err = clSetKernelArg(*pkernel,  4,  sizeof(cl_mem), &inmem->vx_sub1_dev);
+            cl_err = clSetKernelArg(*pkernel,  5,  sizeof(cl_mem), &inmem->vy_sub1_dev);
+            cl_err = clSetKernelArg(*pkernel,  6,  sizeof(cl_mem), &inmem->vz_sub1_dev);
+        }
+        else {
+            cl_err = clSetKernelArg(*pkernel,  4,  sizeof(cl_mem), &inmem->vx_sub2_dev);
+            cl_err = clSetKernelArg(*pkernel,  5,  sizeof(cl_mem), &inmem->vy_sub2_dev);
+            cl_err = clSetKernelArg(*pkernel,  6,  sizeof(cl_mem), &inmem->vz_sub2_dev);
+        }
+    }
+    else{
+        cl_err = clSetKernelArg(*pkernel,  1,  sizeof(cl_mem), &inmem->vx_r);
+        cl_err = clSetKernelArg(*pkernel,  2,  sizeof(cl_mem), &inmem->vy_r);
+        cl_err = clSetKernelArg(*pkernel,  3,  sizeof(cl_mem), &inmem->vz_r);
+        if (comm==1){
+            cl_err = clSetKernelArg(*pkernel,  4,  sizeof(cl_mem), &inmem->vx_r_sub1_dev);
+            cl_err = clSetKernelArg(*pkernel,  5,  sizeof(cl_mem), &inmem->vy_r_sub1_dev);
+            cl_err = clSetKernelArg(*pkernel,  6,  sizeof(cl_mem), &inmem->vz_r_sub1_dev);
+        }
+        else {
+            cl_err = clSetKernelArg(*pkernel,  4,  sizeof(cl_mem), &inmem->vx_r_sub2_dev);
+            cl_err = clSetKernelArg(*pkernel,  5,  sizeof(cl_mem), &inmem->vy_r_sub2_dev);
+            cl_err = clSetKernelArg(*pkernel,  6,  sizeof(cl_mem), &inmem->vz_r_sub2_dev);
+        }
+    }
     
     if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
     
@@ -1495,70 +1536,93 @@ int gpu_intialize_fill_transfer_buff_v_out(cl_context  * pcontext, cl_program  *
     
 }
 
-int gpu_intialize_fill_transfer_buff_v_in(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc )
-{
-    
-    cl_int cl_err = 0;
-    
-    /* Pass some constant arguments as build options */
-    const char * build_options=get_build_options(inmem, inm, inmloc, 0, 0, 0);
-    
-    /*Create the kernel*/
-    const char * program_name = "fill_transfer_buff_v_in";
-    cl_err = create_gpu_kernel_from_string( fill_transfer_buff_v_source, program, pcontext, pkernel, program_name, build_options);
-    
-    
-    /*Define the arguments for this kernel */
-    cl_err = clSetKernelArg(*pkernel,  0,  sizeof(cl_mem), &inmem->vx);
-    cl_err = clSetKernelArg(*pkernel,  1,  sizeof(cl_mem), &inmem->vy);
-    cl_err = clSetKernelArg(*pkernel,  2,  sizeof(cl_mem), &inmem->vz);
-    cl_err = clSetKernelArg(*pkernel,  3,  sizeof(cl_mem), &inmem->vx_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  4,  sizeof(cl_mem), &inmem->vy_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  5,  sizeof(cl_mem), &inmem->vz_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  6,  sizeof(cl_mem), &inmem->vx_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  7,  sizeof(cl_mem), &inmem->vy_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  8,  sizeof(cl_mem), &inmem->vz_sub2_dev);
-    
-    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
-    
-    return cl_err;
-    
-}
 
-int gpu_intialize_fill_transfer_buff_s_out(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc )
+int gpu_intialize_fill_transfer_buff_s(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc, int out, int comm, int adj )
 {
     
     cl_int cl_err = 0;
+    static char program_name [2000];
+    int gidx0=0;
     
     /* Pass some constant arguments as build options */
     const char * build_options=get_build_options(inmem, inm, inmloc, 0, 0, 0);
     
     /*Create the kernel*/
-    const char * program_name = "fill_transfer_buff_s_out";
+    if (out==1){
+        sprintf(program_name,"fill_transfer_buff_s_out");
+        if (comm==1){
+            gidx0=(*inm).fdoh;
+        }
+        else{
+            gidx0=(*inmloc).NX+(*inm).FDORDER-2*(*inm).fdoh;
+        }
+    }
+    else{
+        sprintf(program_name,"fill_transfer_buff_s_in");
+        if (comm==1){
+            gidx0=0;
+        }
+        else{
+            gidx0=(*inmloc).NX+(*inm).FDORDER-(*inm).fdoh;
+        }
+    }
+
     cl_err = create_gpu_kernel_from_string( fill_transfer_buff_s_source, program, pcontext, pkernel, program_name, build_options);
     
     
     /*Define the arguments for this kernel */
-    cl_err = clSetKernelArg(*pkernel,  0,  sizeof(cl_mem), &inmem->sxx);
-    cl_err = clSetKernelArg(*pkernel,  1,  sizeof(cl_mem), &inmem->syy);
-    cl_err = clSetKernelArg(*pkernel,  2,  sizeof(cl_mem), &inmem->szz);
-    cl_err = clSetKernelArg(*pkernel,  3,  sizeof(cl_mem), &inmem->sxy);
-    cl_err = clSetKernelArg(*pkernel,  4,  sizeof(cl_mem), &inmem->syz);
-    cl_err = clSetKernelArg(*pkernel,  5,  sizeof(cl_mem), &inmem->sxz);
-    
-    cl_err = clSetKernelArg(*pkernel,  6,  sizeof(cl_mem), &inmem->sxx_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  7,  sizeof(cl_mem), &inmem->syy_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  8,  sizeof(cl_mem), &inmem->szz_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  9,  sizeof(cl_mem), &inmem->sxy_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  10,  sizeof(cl_mem), &inmem->syz_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  11,  sizeof(cl_mem), &inmem->sxz_sub1_dev);
-    
-    cl_err = clSetKernelArg(*pkernel,  12,  sizeof(cl_mem), &inmem->sxx_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  13,  sizeof(cl_mem), &inmem->syy_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  14,  sizeof(cl_mem), &inmem->szz_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  15,  sizeof(cl_mem), &inmem->sxy_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  16,  sizeof(cl_mem), &inmem->syz_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  17,  sizeof(cl_mem), &inmem->sxz_sub2_dev);
+    cl_err = clSetKernelArg(*pkernel,  0,  sizeof(int), &gidx0);
+    if (adj==0){
+        cl_err = clSetKernelArg(*pkernel,  1,  sizeof(cl_mem), &inmem->sxx);
+        cl_err = clSetKernelArg(*pkernel,  2,  sizeof(cl_mem), &inmem->syy);
+        cl_err = clSetKernelArg(*pkernel,  3,  sizeof(cl_mem), &inmem->szz);
+        cl_err = clSetKernelArg(*pkernel,  4,  sizeof(cl_mem), &inmem->sxy);
+        cl_err = clSetKernelArg(*pkernel,  5,  sizeof(cl_mem), &inmem->syz);
+        cl_err = clSetKernelArg(*pkernel,  6,  sizeof(cl_mem), &inmem->sxz);
+        
+        if (comm==1){
+            cl_err = clSetKernelArg(*pkernel,  7,  sizeof(cl_mem), &inmem->sxx_sub1_dev);
+            cl_err = clSetKernelArg(*pkernel,  8,  sizeof(cl_mem), &inmem->syy_sub1_dev);
+            cl_err = clSetKernelArg(*pkernel,  9,  sizeof(cl_mem), &inmem->szz_sub1_dev);
+            cl_err = clSetKernelArg(*pkernel,  10,  sizeof(cl_mem), &inmem->sxy_sub1_dev);
+            cl_err = clSetKernelArg(*pkernel,  11,  sizeof(cl_mem), &inmem->syz_sub1_dev);
+            cl_err = clSetKernelArg(*pkernel,  12,  sizeof(cl_mem), &inmem->sxz_sub1_dev);
+        }
+        else {
+            cl_err = clSetKernelArg(*pkernel,  7,  sizeof(cl_mem), &inmem->sxx_sub2_dev);
+            cl_err = clSetKernelArg(*pkernel,  8,  sizeof(cl_mem), &inmem->syy_sub2_dev);
+            cl_err = clSetKernelArg(*pkernel,  9,  sizeof(cl_mem), &inmem->szz_sub2_dev);
+            cl_err = clSetKernelArg(*pkernel,  10,  sizeof(cl_mem), &inmem->sxy_sub2_dev);
+            cl_err = clSetKernelArg(*pkernel,  11,  sizeof(cl_mem), &inmem->syz_sub2_dev);
+            cl_err = clSetKernelArg(*pkernel,  12,  sizeof(cl_mem), &inmem->sxz_sub2_dev);
+        }
+    }
+    else{
+        cl_err = clSetKernelArg(*pkernel,  1,  sizeof(cl_mem), &inmem->sxx_r);
+        cl_err = clSetKernelArg(*pkernel,  2,  sizeof(cl_mem), &inmem->syy_r);
+        cl_err = clSetKernelArg(*pkernel,  3,  sizeof(cl_mem), &inmem->szz_r);
+        cl_err = clSetKernelArg(*pkernel,  4,  sizeof(cl_mem), &inmem->sxy_r);
+        cl_err = clSetKernelArg(*pkernel,  5,  sizeof(cl_mem), &inmem->syz_r);
+        cl_err = clSetKernelArg(*pkernel,  6,  sizeof(cl_mem), &inmem->sxz_r);
+        
+        if (comm==1){
+            cl_err = clSetKernelArg(*pkernel,  7,  sizeof(cl_mem), &inmem->sxx_r_sub1_dev);
+            cl_err = clSetKernelArg(*pkernel,  8,  sizeof(cl_mem), &inmem->syy_r_sub1_dev);
+            cl_err = clSetKernelArg(*pkernel,  9,  sizeof(cl_mem), &inmem->szz_r_sub1_dev);
+            cl_err = clSetKernelArg(*pkernel,  10,  sizeof(cl_mem), &inmem->sxy_r_sub1_dev);
+            cl_err = clSetKernelArg(*pkernel,  11,  sizeof(cl_mem), &inmem->syz_r_sub1_dev);
+            cl_err = clSetKernelArg(*pkernel,  12,  sizeof(cl_mem), &inmem->sxz_r_sub1_dev);
+        }
+        else {
+            cl_err = clSetKernelArg(*pkernel,  7,  sizeof(cl_mem), &inmem->sxx_r_sub2_dev);
+            cl_err = clSetKernelArg(*pkernel,  8,  sizeof(cl_mem), &inmem->syy_r_sub2_dev);
+            cl_err = clSetKernelArg(*pkernel,  9,  sizeof(cl_mem), &inmem->szz_r_sub2_dev);
+            cl_err = clSetKernelArg(*pkernel,  10,  sizeof(cl_mem), &inmem->sxy_r_sub2_dev);
+            cl_err = clSetKernelArg(*pkernel,  11,  sizeof(cl_mem), &inmem->syz_r_sub2_dev);
+            cl_err = clSetKernelArg(*pkernel,  12,  sizeof(cl_mem), &inmem->sxz_r_sub2_dev);
+        }
+    }
+
     
     if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
     
@@ -1566,186 +1630,3 @@ int gpu_intialize_fill_transfer_buff_s_out(cl_context  * pcontext, cl_program  *
     
 }
 
-int gpu_intialize_fill_transfer_buff_s_in(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc )
-{
-    
-    cl_int cl_err = 0;
-    
-    /* Pass some constant arguments as build options */
-    const char * build_options=get_build_options(inmem, inm, inmloc, 0, 0, 0);
-    
-    /*Create the kernel*/
-    const char * program_name = "fill_transfer_buff_s_in";
-    cl_err = create_gpu_kernel_from_string( fill_transfer_buff_s_source, program, pcontext, pkernel, program_name, build_options);
-    
-    
-    /*Define the arguments for this kernel */
-    cl_err = clSetKernelArg(*pkernel,  0,  sizeof(cl_mem), &inmem->sxx);
-    cl_err = clSetKernelArg(*pkernel,  1,  sizeof(cl_mem), &inmem->syy);
-    cl_err = clSetKernelArg(*pkernel,  2,  sizeof(cl_mem), &inmem->szz);
-    cl_err = clSetKernelArg(*pkernel,  3,  sizeof(cl_mem), &inmem->sxy);
-    cl_err = clSetKernelArg(*pkernel,  4,  sizeof(cl_mem), &inmem->syz);
-    cl_err = clSetKernelArg(*pkernel,  5,  sizeof(cl_mem), &inmem->sxz);
-    
-    cl_err = clSetKernelArg(*pkernel,  6,  sizeof(cl_mem), &inmem->sxx_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  7,  sizeof(cl_mem), &inmem->syy_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  8,  sizeof(cl_mem), &inmem->szz_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  9,  sizeof(cl_mem), &inmem->sxy_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  10,  sizeof(cl_mem), &inmem->syz_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  11,  sizeof(cl_mem), &inmem->sxz_sub1_dev);
-    
-    cl_err = clSetKernelArg(*pkernel,  12,  sizeof(cl_mem), &inmem->sxx_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  13,  sizeof(cl_mem), &inmem->syy_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  14,  sizeof(cl_mem), &inmem->szz_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  15,  sizeof(cl_mem), &inmem->sxy_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  16,  sizeof(cl_mem), &inmem->syz_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  17,  sizeof(cl_mem), &inmem->sxz_sub2_dev);
-    
-    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
-    
-    return cl_err;
-    
-}
-
-
-int gpu_intialize_adj_fill_transfer_buff_v_out(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc )
-{
-    
-    cl_int cl_err = 0;
-    
-    /* Pass some constant arguments as build options */
-    const char * build_options=get_build_options(inmem, inm, inmloc, 0, 0, 0);
-    
-    /*Create the kernel*/
-    const char * program_name = "fill_transfer_buff_v_out";
-    cl_err = create_gpu_kernel_from_string( fill_transfer_buff_v_source, program, pcontext, pkernel, program_name, build_options);
-    
-    
-    /*Define the arguments for this kernel */
-    cl_err = clSetKernelArg(*pkernel,  0,  sizeof(cl_mem), &inmem->vx_r);
-    cl_err = clSetKernelArg(*pkernel,  1,  sizeof(cl_mem), &inmem->vy_r);
-    cl_err = clSetKernelArg(*pkernel,  2,  sizeof(cl_mem), &inmem->vz_r);
-    cl_err = clSetKernelArg(*pkernel,  3,  sizeof(cl_mem), &inmem->vx_r_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  4,  sizeof(cl_mem), &inmem->vy_r_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  5,  sizeof(cl_mem), &inmem->vz_r_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  6,  sizeof(cl_mem), &inmem->vx_r_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  7,  sizeof(cl_mem), &inmem->vy_r_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  8,  sizeof(cl_mem), &inmem->vz_r_sub2_dev);
-    
-    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
-    
-    return cl_err;
-    
-}
-
-int gpu_intialize_adj_fill_transfer_buff_v_in(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc )
-{
-    
-    cl_int cl_err = 0;
-    
-    /* Pass some constant arguments as build options */
-    const char * build_options=get_build_options(inmem, inm, inmloc, 0, 0, 0);
-    
-    /*Create the kernel*/
-    const char * program_name = "fill_transfer_buff_v_in";
-    cl_err = create_gpu_kernel_from_string( fill_transfer_buff_v_source, program, pcontext, pkernel, program_name, build_options);
-    
-    
-    /*Define the arguments for this kernel */
-    cl_err = clSetKernelArg(*pkernel,  0,  sizeof(cl_mem), &inmem->vx_r);
-    cl_err = clSetKernelArg(*pkernel,  1,  sizeof(cl_mem), &inmem->vy_r);
-    cl_err = clSetKernelArg(*pkernel,  2,  sizeof(cl_mem), &inmem->vz_r);
-    cl_err = clSetKernelArg(*pkernel,  3,  sizeof(cl_mem), &inmem->vx_r_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  4,  sizeof(cl_mem), &inmem->vy_r_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  5,  sizeof(cl_mem), &inmem->vz_r_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  6,  sizeof(cl_mem), &inmem->vx_r_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  7,  sizeof(cl_mem), &inmem->vy_r_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  8,  sizeof(cl_mem), &inmem->vz_r_sub2_dev);
-    
-    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
-    
-    return cl_err;
-    
-}
-
-int gpu_intialize_adj_fill_transfer_buff_s_out(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc )
-{
-    
-    cl_int cl_err = 0;
-    
-    /* Pass some constant arguments as build options */
-    const char * build_options=get_build_options(inmem, inm, inmloc, 0, 0, 0);
-    
-    /*Create the kernel*/
-    const char * program_name = "fill_transfer_buff_s_out";
-    cl_err = create_gpu_kernel_from_string( fill_transfer_buff_s_source, program, pcontext, pkernel, program_name, build_options);
-    
-    
-    /*Define the arguments for this kernel */
-    cl_err = clSetKernelArg(*pkernel,  0,  sizeof(cl_mem), &inmem->sxx_r);
-    cl_err = clSetKernelArg(*pkernel,  1,  sizeof(cl_mem), &inmem->syy_r);
-    cl_err = clSetKernelArg(*pkernel,  2,  sizeof(cl_mem), &inmem->szz_r);
-    cl_err = clSetKernelArg(*pkernel,  3,  sizeof(cl_mem), &inmem->sxy_r);
-    cl_err = clSetKernelArg(*pkernel,  4,  sizeof(cl_mem), &inmem->syz_r);
-    cl_err = clSetKernelArg(*pkernel,  5,  sizeof(cl_mem), &inmem->sxz_r);
-    
-    cl_err = clSetKernelArg(*pkernel,  6,  sizeof(cl_mem), &inmem->sxx_r_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  7,  sizeof(cl_mem), &inmem->syy_r_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  8,  sizeof(cl_mem), &inmem->szz_r_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  9,  sizeof(cl_mem), &inmem->sxy_r_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  10,  sizeof(cl_mem), &inmem->syz_r_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  11,  sizeof(cl_mem), &inmem->sxz_r_sub1_dev);
-    
-    cl_err = clSetKernelArg(*pkernel,  12,  sizeof(cl_mem), &inmem->sxx_r_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  13,  sizeof(cl_mem), &inmem->syy_r_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  14,  sizeof(cl_mem), &inmem->szz_r_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  15,  sizeof(cl_mem), &inmem->sxy_r_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  16,  sizeof(cl_mem), &inmem->syz_r_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  17,  sizeof(cl_mem), &inmem->sxz_r_sub2_dev);
-    
-    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
-    
-    return cl_err;
-    
-}
-
-int gpu_intialize_adj_fill_transfer_buff_s_in(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc )
-{
-    
-    cl_int cl_err = 0;
-    
-    /* Pass some constant arguments as build options */
-    const char * build_options=get_build_options(inmem, inm, inmloc, 0, 0, 0);
-    
-    /*Create the kernel*/
-    const char * program_name = "fill_transfer_buff_s_in";
-    cl_err = create_gpu_kernel_from_string( fill_transfer_buff_s_source, program, pcontext, pkernel, program_name, build_options);
-    
-    
-    /*Define the arguments for this kernel */
-    cl_err = clSetKernelArg(*pkernel,  0,  sizeof(cl_mem), &inmem->sxx_r);
-    cl_err = clSetKernelArg(*pkernel,  1,  sizeof(cl_mem), &inmem->syy_r);
-    cl_err = clSetKernelArg(*pkernel,  2,  sizeof(cl_mem), &inmem->szz_r);
-    cl_err = clSetKernelArg(*pkernel,  3,  sizeof(cl_mem), &inmem->sxy_r);
-    cl_err = clSetKernelArg(*pkernel,  4,  sizeof(cl_mem), &inmem->syz_r);
-    cl_err = clSetKernelArg(*pkernel,  5,  sizeof(cl_mem), &inmem->sxz_r);
-    
-    cl_err = clSetKernelArg(*pkernel,  6,  sizeof(cl_mem), &inmem->sxx_r_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  7,  sizeof(cl_mem), &inmem->syy_r_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  8,  sizeof(cl_mem), &inmem->szz_r_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  9,  sizeof(cl_mem), &inmem->sxy_r_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  10,  sizeof(cl_mem), &inmem->syz_r_sub1_dev);
-    cl_err = clSetKernelArg(*pkernel,  11,  sizeof(cl_mem), &inmem->sxz_r_sub1_dev);
-    
-    cl_err = clSetKernelArg(*pkernel,  12,  sizeof(cl_mem), &inmem->sxx_r_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  13,  sizeof(cl_mem), &inmem->syy_r_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  14,  sizeof(cl_mem), &inmem->szz_r_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  15,  sizeof(cl_mem), &inmem->sxy_r_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  16,  sizeof(cl_mem), &inmem->syz_r_sub2_dev);
-    cl_err = clSetKernelArg(*pkernel,  17,  sizeof(cl_mem), &inmem->sxz_r_sub2_dev);
-    
-    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
-    
-    return cl_err;
-    
-}

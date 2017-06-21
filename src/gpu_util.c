@@ -330,13 +330,14 @@ cl_int create_gpu_kernel_from_string(const char *program_source, cl_program *pro
     /* Routine to build a kernel from the source file contained in a c string*/
     
     cl_int cl_err = 0;
-
-    *program = clCreateProgramWithSource(*context, 1, &program_source,NULL, &cl_err);
-    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
     
-    cl_err = clBuildProgram(program[0], 0, NULL, build_options, NULL, NULL);
-    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
-    
+    if (!*program){
+        *program = clCreateProgramWithSource(*context, 1, &program_source,NULL, &cl_err);
+        if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+        
+        cl_err = clBuildProgram(program[0], 0, NULL, build_options, NULL, NULL);
+        if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+    }
     // Now create the kernel "objects"
     *kernel = clCreateKernel(program[0], program_name, &cl_err);
     if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
