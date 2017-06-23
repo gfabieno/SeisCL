@@ -76,7 +76,7 @@ SeisCL_MPI_OBJ = $(SeisCL_MPI_SRC:%.c=%.o)
 
 
 SeisCL_MPI:	$(SeisCL_CL_Headers) $(SeisCL_MPI_OBJ) 
-	$(CC) $(LFLAGS) $(SeisCL_MPI_OBJ) -o SeisCL_MPI
+	$(CC) $(SeisCL_MPI_OBJ) $(LFLAGS) -o SeisCL_MPI
 	
 clean:
 	find . -name "*.o" -exec rm {} \; 

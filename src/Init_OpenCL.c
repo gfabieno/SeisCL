@@ -29,7 +29,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
     size_t buffer_size_vout=0;
     size_t buffer_size_L=0;
     size_t thissize=0;
-    cl_platform_id sel_plat_id;
+    cl_platform_id sel_plat_id=0;
     
     cl_device_id device=0;
     cl_ulong global_mem_size=0;
