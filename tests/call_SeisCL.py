@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Created on Wed Jan 20 20:35:05 2016
@@ -52,7 +53,7 @@ csts['FPML']=15              #Dominant frequency of the wavefield
 csts['K_MAX_CPML']=2        #Coeffienc involved in CPML (may influence simulation stability)
 csts['nab']=32              #Width in grid points of the absorbing layer
 csts['abpc']=6              #Exponential decay of the absorbing layer of Cerjan et. al.
-csts['pref_device_type']=4  #Type of processor used: 2: CPU, 4: GPU, 8: Accelerator
+csts['pref_device_type']=2  #Type of processor used: 2: CPU, 4: GPU, 8: Accelerator
 csts['nmax_dev']=9999       #Maximum number of devices that can be used
 csts['no_use_GPUs']=np.empty( (1,0) )  #Array of device numbers that should not be used for computation
 csts['MPI_NPROC_SHOT']=1    #Maximum number of MPI process (nodes) per shot involved in domain decomposition
@@ -72,7 +73,7 @@ csts['weight']=None         # NTxnumber of geophones or 1x number of geophones. 
 
 csts['gradout']=0           #Output gradient 1:yes, 0: no
 csts['gradsrcout']=0        #Output source gradient 1:yes, 0: no
-csts['seisout']=1           #Output seismograms 1:yes, 0: no
+csts['seisout']=1           #Output seismograms 1:velocities, 2: pressure, 3: velocities and pressure, 4: velocities and stresses
 csts['resout']=0            #Output residuals 1:yes, 0: no
 csts['rmsout']=0            #Output rms value 1:yes, 0: no
 csts['movout']=0            #Output movie 1:yes, 0: no
@@ -127,7 +128,7 @@ h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_pyt
 h5mat.savemat(filenames['model'], model , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
 
 filepath=os.getcwd()
-cmdlaunch='cd ../src/; mpirun -np 1 SeisCL_MPI '+filepath+'/SeisCL > ../tests/out 2>../tests/err'
+cmdlaunch='cd ../src/; mpirun -np 1 ./SeisCL_MPI '+filepath+'/SeisCL > ../tests/out 2>../tests/err'
 print(cmdlaunch)
 pipes = subprocess.Popen(cmdlaunch,stdout=subprocess.PIPE, stderr=subprocess.PIPE,shell=True)
 while (pipes.poll() is None):

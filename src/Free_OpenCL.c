@@ -34,15 +34,45 @@ int Free_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             if  ((*mloc)[d].vxout){
                 GFree((*mloc)[d].vxout[0])
             }
+            GFree((*mloc)[d].vxout);
             if  ((*mloc)[d].vyout){
                 GFree((*mloc)[d].vyout[0])
             }
+            GFree((*mloc)[d].vyout);
             if  ((*mloc)[d].vzout){
                 GFree((*mloc)[d].vzout[0])
             }
-            if ((*mloc)[d].vxout) free((*mloc)[d].vxout);
-            if ((*mloc)[d].vyout) free((*mloc)[d].vyout);
-            if ((*mloc)[d].vzout) free((*mloc)[d].vzout);
+            GFree((*mloc)[d].vzout);
+            
+            
+            if  ((*mloc)[d].sxxout){
+                GFree((*mloc)[d].sxxout[0])
+            }
+            GFree((*mloc)[d].sxxout);
+            if  ((*mloc)[d].syyout){
+                GFree((*mloc)[d].syyout[0])
+            }
+            GFree((*mloc)[d].syyout);
+            if  ((*mloc)[d].szzout){
+                GFree((*mloc)[d].szzout[0])
+            }
+            GFree((*mloc)[d].szzout);
+            if  ((*mloc)[d].sxyout){
+                GFree((*mloc)[d].sxyout[0])
+            }
+            GFree((*mloc)[d].sxyout);
+            if  ((*mloc)[d].sxzout){
+                GFree((*mloc)[d].sxzout[0])
+            }
+            GFree((*mloc)[d].sxzout);
+            if  ((*mloc)[d].syzout){
+                GFree((*mloc)[d].syzout[0])
+            }
+            GFree((*mloc)[d].syzout);
+            if  ((*mloc)[d].pout){
+                GFree((*mloc)[d].pout[0])
+            }
+            GFree((*mloc)[d].pout);
             
             GFree((*mloc)[d].f_vx);
             GFree((*mloc)[d].f_vy);
@@ -159,6 +189,19 @@ int Free_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             if ((*vcl)[d].vxout) clReleaseMemObject((*vcl)[d].vxout);
             if ((*vcl)[d].vyout) clReleaseMemObject((*vcl)[d].vyout);
             if ((*vcl)[d].vzout) clReleaseMemObject((*vcl)[d].vzout);
+            
+            if ((*vcl)[d].sxxout) clReleaseMemObject((*vcl)[d].sxxout);
+            if ((*vcl)[d].syyout) clReleaseMemObject((*vcl)[d].syyout);
+            if ((*vcl)[d].szzout) clReleaseMemObject((*vcl)[d].szzout);
+            if ((*vcl)[d].sxyout) clReleaseMemObject((*vcl)[d].sxyout);
+            if ((*vcl)[d].sxzout) clReleaseMemObject((*vcl)[d].sxzout);
+            if ((*vcl)[d].syzout) clReleaseMemObject((*vcl)[d].syzout);
+            if ((*vcl)[d].pout) clReleaseMemObject((*vcl)[d].pout);
+            
+            if ((*vcl)[d].rx) clReleaseMemObject((*vcl)[d].rx);
+            if ((*vcl)[d].ry) clReleaseMemObject((*vcl)[d].ry);
+            if ((*vcl)[d].rz) clReleaseMemObject((*vcl)[d].rz);
+            if ((*vcl)[d].rp) clReleaseMemObject((*vcl)[d].rp);
             
             if ((*vcl)[d].taup) clReleaseMemObject((*vcl)[d].taup);
             if ((*vcl)[d].taus) clReleaseMemObject((*vcl)[d].taus);
@@ -366,8 +409,8 @@ int Free_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             if ((*vcl)[d].kernel_s) clReleaseKernel((*vcl)[d].kernel_s);
             if ((*vcl)[d].kernel_surf) clReleaseKernel((*vcl)[d].kernel_surf);
             if ((*vcl)[d].kernel_initseis) clReleaseKernel((*vcl)[d].kernel_initseis);
-            if ((*vcl)[d].kernel_vout) clReleaseKernel((*vcl)[d].kernel_vout);
-            if ((*vcl)[d].kernel_voutinit) clReleaseKernel((*vcl)[d].kernel_voutinit);
+            if ((*vcl)[d].kernel_seisout) clReleaseKernel((*vcl)[d].kernel_seisout);
+            if ((*vcl)[d].kernel_seisoutinit) clReleaseKernel((*vcl)[d].kernel_seisoutinit);
             if ((*vcl)[d].kernel_vcomm1) clReleaseKernel((*vcl)[d].kernel_vcomm1);
             if ((*vcl)[d].kernel_scomm1) clReleaseKernel((*vcl)[d].kernel_scomm1);
             if ((*vcl)[d].kernel_vcomm2) clReleaseKernel((*vcl)[d].kernel_vcomm2);
@@ -417,8 +460,8 @@ int Free_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             if ((*vcl)[d].program_fill_transfer_buff_s) clReleaseProgram((*vcl)[d].program_fill_transfer_buff_s);
             if ((*vcl)[d].program_surf) clReleaseProgram((*vcl)[d].program_surf);
             if ((*vcl)[d].program_initseis) clReleaseProgram((*vcl)[d].program_initseis);
-            if ((*vcl)[d].program_vout) clReleaseProgram((*vcl)[d].program_vout);
-            if ((*vcl)[d].program_voutinit) clReleaseProgram((*vcl)[d].program_voutinit);
+            if ((*vcl)[d].program_seisout) clReleaseProgram((*vcl)[d].program_seisout);
+            if ((*vcl)[d].program_seisoutinit) clReleaseProgram((*vcl)[d].program_seisoutinit);
             if ((*vcl)[d].program_adjv) clReleaseProgram((*vcl)[d].program_adjv);
             if ((*vcl)[d].program_adjs) clReleaseProgram((*vcl)[d].program_adjs);
             if ((*vcl)[d].program_initseis_r) clReleaseProgram((*vcl)[d].program_initseis_r);

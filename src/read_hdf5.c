@@ -20,6 +20,7 @@
 #include "F.h"
 
 
+
 int checkexists(hid_t file_id, const char * invar){
     
     int state=0;
@@ -226,7 +227,7 @@ int readhdf5(struct filenames files, struct modcsts * m) {
     int         state =0, maxrecid;
     float thisid=0, tmaxf=0, tminf=0;
     int  i=0, nsg=0, n=0, p=0;
-    float *src0=NULL, *src_pos0=NULL, *rec_pos0=NULL, *vx00=NULL, *vy00=NULL, *vz00=NULL, *mute0=NULL, *weight0=NULL ;
+    float *src0=NULL, *src_pos0=NULL, *rec_pos0=NULL, *vx00=NULL, *vy00=NULL, *vz00=NULL, *p00=NULL, *mute0=NULL, *weight0=NULL ;
 
     
     /* Open the input file. */
@@ -770,7 +771,7 @@ int readhdf5(struct filenames files, struct modcsts * m) {
      __________________________________________________________________*/
     
     /* Open the data file. */
-    if (m->rmsout==1 || m->gradout==1){
+    if (m->rmsout==1 || m->resout || m->gradout==1){
         file_id = H5Fopen(files.din, H5F_ACC_RDWR, H5P_DEFAULT);
         if (!state) if (file_id<0 && m->gradout) {state=1;fprintf(stderr, "Could not open the input file for data_in\n");};
         
@@ -828,6 +829,23 @@ int readhdf5(struct filenames files, struct modcsts * m) {
                     }
                 }
             }
+            if ( m->ND!=21 && 1==H5Lexists( file_id, "/p0", H5P_DEFAULT) ){
+                
+                m->bcastp=1;
+                
+                if (!state) if ((state=checkmatndim_atleast(file_id, "/p0",  2, dims2D)))   {state=1;fprintf(stderr, "Variable p0 must be nt x number of hydrophones\n");};
+                GMALLOC(p00,sizeof(float)*m->allng*m->NT)
+                if (!state) memset(p00,0,sizeof(float)*m->allng*m->NT);
+                __GUARD read_seis(file_id, H5T_NATIVE_FLOAT, "/p0", p00, m->rec_pos[0], m->allng, m->NT);
+                GMALLOC(m->p0,sizeof(float*)*m->ns)
+                if (!state){
+                    m->p0[0]=vx00;
+                    
+                    for (i=1;i<m->ns;i++){
+                        m->p0[i]=m->p0[i-1]+m->nrec[i-1]*m->NT;
+                    }
+                }
+            }
           
             
         }
@@ -835,7 +853,7 @@ int readhdf5(struct filenames files, struct modcsts * m) {
         if (file_id>=0) H5Fclose(file_id);
         
     }
-    if (   m->bcastvx!=1 && m->bcastvy!=1 && m->bcastvz!=1 && (m->gradout || m->rmsout==1 || m->resout==1)){
+    if (   m->bcastvx!=1 && m->bcastvy!=1 && m->bcastvz!=1 && m->bcastp!=1 && (m->gradout || m->rmsout==1 || m->resout==1)){
         state=1;
         fprintf(stderr, "Cannot output rms or residuals without reference data\n");
     }

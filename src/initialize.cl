@@ -223,18 +223,48 @@ __kernel void initialize_savefreqs(
     
 }
 
-__kernel void voutinit(__global float *vxout, __global float *vyout, __global float *vzout)
+__kernel void seisoutinit(__global float *vxout,      __global float *vyout,         __global float *vzout,
+                          __global float *sxxout,     __global float *syyout,        __global float *szzout,
+                          __global float *sxyout,     __global float *syzout,        __global float *sxzout,
+                          __global float *pout)
 {
     
     
     int gid = get_global_id(0);
-#if ND!=21
+
+#if bcastvx==1
     vxout[gid]=0.0;
-    vzout[gid]=0.0;
 #endif
-#if ND==3 || ND==21
+#if bcastvy==1
     vyout[gid]=0.0;
 #endif
+#if bcastvz==1
+    vzout[gid]=0.0;
+#endif
+#if bcastsxx==1
+    sxxout[gid]=0.0;
+#endif
+#if bcastsyy==1
+    syyout[gid]=0.0;
+#endif
+#if bcastszz==1
+    szzout[gid]=0.0;
+#endif
+#if bcastsxy==1
+    sxyout[gid]=0.0;
+#endif
+#if bcastsxz==1
+    sxzout[gid]=0.0;
+#endif
+#if bcastsyz==1
+    syzout[gid]=0.0;
+#endif
+#if bcastp==1
+    pout[gid]=0.0;
+#endif
+    
+    
+    
 }
 __kernel void initialize_gradsrc(__global float *gradsrc)
     {

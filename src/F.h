@@ -170,6 +170,13 @@ struct varcl {
     cl_mem vxout;
     cl_mem vyout;
     cl_mem vzout;
+    cl_mem sxxout;
+    cl_mem syyout;
+    cl_mem szzout;
+    cl_mem sxyout;
+    cl_mem sxzout;
+    cl_mem syzout;
+    cl_mem pout;
     
     cl_mem sxx_r;
     cl_mem syy_r;
@@ -243,6 +250,7 @@ struct varcl {
     cl_mem rx;
     cl_mem ry;
     cl_mem rz;
+    cl_mem rp;
     cl_mem gradrho;
     cl_mem gradM;
     cl_mem gradmu;
@@ -374,8 +382,8 @@ struct varcl {
     cl_kernel kernel_initseis;
     cl_kernel kernel_initseis_r;
     cl_kernel kernel_initgrad;
-    cl_kernel kernel_vout;
-    cl_kernel kernel_voutinit;
+    cl_kernel kernel_seisout;
+    cl_kernel kernel_seisoutinit;
     cl_kernel kernel_residuals;
     cl_kernel kernel_adjv;
     cl_kernel kernel_adjvcomm1;
@@ -410,8 +418,8 @@ struct varcl {
     cl_program program_initseis;
     cl_program program_initseis_r;
     cl_program program_initgrad;
-    cl_program program_vout;
-    cl_program program_voutinit;
+    cl_program program_seisout;
+    cl_program program_seisoutinit;
     cl_program program_residuals;
     cl_program program_adjv;
     cl_program program_adjs;
@@ -606,7 +614,7 @@ struct modcsts {
     double *Htaup;
     double *Htaus;
     float **gradsrc;
-    float **rx, **ry, **rz;
+    float **rx, **ry, **rz, **rp;
     float *taus;
     float *tausipjp;
     float *tausjpkp;
@@ -627,12 +635,27 @@ struct modcsts {
     float **vxout;
     float **vyout;
     float **vzout;
+    float **sxxout;
+    float **syyout;
+    float **szzout;
+    float **sxyout;
+    float **sxzout;
+    float **syzout;
+    float **pout;
     float **vx0;
     float **vy0;
     float **vz0;
+    float **p0;
     int bcastvx;
     int bcastvy;
     int bcastvz;
+    int bcastp;
+    int bcastsxx;
+    int bcastsyy;
+    int bcastszz;
+    int bcastsxy;
+    int bcastsxz;
+    int bcastsyz;
     
     float *movvx;
     float *movvy;
@@ -714,6 +737,13 @@ struct modcstsloc {
     float **vxout;
     float **vyout;
     float **vzout;
+    float **sxxout;
+    float **syyout;
+    float **szzout;
+    float **sxyout;
+    float **sxzout;
+    float **syzout;
+    float **pout;
     
     float * sxx_sub1;
     float * syy_sub1;
@@ -869,8 +899,8 @@ int gpu_initialize_update_v(cl_context  * pcontext, cl_program  * program, cl_ke
 int gpu_initialize_update_s(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc, int bndoff, int lcomm , int comm);
 int gpu_initialize_surface(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc );
 
-int gpu_intialize_vout(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc );
-int gpu_intialize_voutinit(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc );
+int gpu_intialize_seisout(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc );
+int gpu_intialize_seisoutinit(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc );
 int gpu_intialize_residuals(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc );
 
 int gpu_initialize_update_adjv(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm , struct modcstsloc *inmloc, int bndoff, int lcomm, int comm );
@@ -904,3 +934,5 @@ int res_raw(struct modcsts * mptr, int s);
 int res_amp(struct modcsts * mptr, int s);
 
 int Init_surfgrid(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc, struct modcsts * m_s, struct varcl ** vcl_s, struct modcstsloc ** mloc_s);
+
+int alloc_seismo(float *** var, int ns, int allng, int NT, int * nrec );

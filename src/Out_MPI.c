@@ -97,28 +97,35 @@ int Out_MPI(struct filenames file, struct modcsts * m)  {
     int state=0;
 
     // Gather the seismograms from all processing elements
-
-    if (m->MYID==0){
-        if (m->ND!=21){
-            if (!state) MPI_Reduce(MPI_IN_PLACE, m->vxout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-            if (!state) MPI_Reduce(MPI_IN_PLACE, m->vzout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+    if (!state && m->seisout){
+        if (m->MYID==0){
+            if (m->bcastvx)  MPI_Reduce(MPI_IN_PLACE, m->vxout[0],  m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastvy)  MPI_Reduce(MPI_IN_PLACE, m->vyout[0],  m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastvz)  MPI_Reduce(MPI_IN_PLACE, m->vzout[0],  m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastsxx) MPI_Reduce(MPI_IN_PLACE, m->sxxout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastsyy) MPI_Reduce(MPI_IN_PLACE, m->syyout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastszz) MPI_Reduce(MPI_IN_PLACE, m->szzout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastsxy) MPI_Reduce(MPI_IN_PLACE, m->sxyout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastsxz) MPI_Reduce(MPI_IN_PLACE, m->sxzout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastsyz) MPI_Reduce(MPI_IN_PLACE, m->syzout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastp)   MPI_Reduce(MPI_IN_PLACE, m->pout[0],   m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            
         }
-        if (m->ND==3 || m->ND==21){//For 3D
-            if (!state) MPI_Reduce(MPI_IN_PLACE, m->vyout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+        else{
+            if (m->bcastvx)  MPI_Reduce(m->vxout[0],  m->vxout[0],  m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastvy)  MPI_Reduce(m->vyout[0],  m->vyout[0],  m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastvz)  MPI_Reduce(m->vzout[0],  m->vzout[0],  m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastsxx) MPI_Reduce(m->sxxout[0], m->sxxout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastsyy) MPI_Reduce(m->syyout[0], m->syyout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastszz) MPI_Reduce(m->szzout[0], m->szzout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastsxy) MPI_Reduce(m->sxyout[0], m->sxyout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastsxz) MPI_Reduce(m->sxzout[0], m->sxzout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastsyz) MPI_Reduce(m->syzout[0], m->syzout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastp)   MPI_Reduce(m->pout[0],   m->pout[0],   m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
         }
     }
-    else{
-        if (m->ND!=21){
-            if (!state) MPI_Reduce(m->vxout[0], m->vxout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-            if (!state) MPI_Reduce(m->vxout[0], m->vzout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-        }
-        if (m->ND==3 || m->ND==21){//For 3D
-            if (!state) MPI_Reduce(m->vxout[0], m->vyout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-        }
-    }
-    
     // Add the rms value of all processing elements
-    if (m->bcastvx || m->bcastvy || m->bcastvz){
+    if (m->rmsout){
         if (m->MYID==0){
             if (!state) MPI_Reduce(MPI_IN_PLACE, &m->rms, 1, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
             if (!state) MPI_Reduce(MPI_IN_PLACE, &m->rmsnorm, 1, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);

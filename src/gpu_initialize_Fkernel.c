@@ -44,7 +44,7 @@ This way, no .cl file need to be read and there is no need to be in the executab
 #include "update_v2D_SH.hcl"
 #include "update_v3D.hcl"
 #include "update_v_CPML.hcl"
-#include "vout.hcl"
+#include "seisout.hcl"
 #include "fill_transfer_buff_s.hcl"
 #include "fill_transfer_buff_v.hcl"
 
@@ -52,7 +52,7 @@ char *get_build_options(struct varcl *inmem, struct modcsts *inm, struct modcsts
 {
     
     static char option_DH [2000];
-    sprintf(option_DH, "-D NX=%d -D NY=%d -D NZ=%d -D offset=%d -D fdo=%d -D fdoh=%d -D hc0=%9.9f -D hc1=%9.9f -D hc2=%9.9f -D hc3=%9.9f -D hc4=%9.9f -D hc5=%9.9f -D hc6=%9.9f -D dhi=%9.9f -D dhi2=%9.9f -D dtdh=%9.9f -D dtdh2=%9.9f -D DH=%9.9f -D DT=%9.9f -D dt2=%9.9f -D NT=%d -D nab=%d -D Nbnd=%d -D local_off=%d -D Lve=%d -D dev=%d -D num_devices=%d -D ND=%d -D abs_type=%d -D freesurf=%d -D lcomm=%d -D MYLOCALID=%d -D NLOCALP=%d -D nfreqs=%d -D back_prop_type=%d -D comm12=%d -D locsizexy=%d -D NZ_al16=%d -D NZ_al0=%d -D NTnyq=%d -D dtnyq=%d -D gradsrcout=%d -D bcastvx=%d -D bcastvy=%d -D bcastvz=%d -D dirprop=%d",(*inmloc).NX+(*inm).FDORDER, (*inmloc).NY+(*inm).FDORDER, (*inmloc).NZ+(*inm).FDORDER, (*inmloc).NX0, (*inm).fdo, (*inm).fdoh, (*inm).hc[0], (*inm).hc[1], (*inm).hc[2], (*inm).hc[3], (*inm).hc[4], (*inm).hc[5], (*inm).hc[6], (*inm).dhi, (*inm).dhi/2.0, (*inm).dt/(*inm).dh, (*inm).dt/(*inm).dh/2.0, (*inm).dh, (*inm).dt, (*inm).dt/2.0, (*inm).NT, (*inm).nab, (*inmloc).Nbnd, (*inmloc).local_off, (*inm).L, (*inmloc).dev, (*inmloc).num_devices,(*inm).ND, (*inm).abs_type, (*inm).freesurf, lcomm, (*inm).MYLOCALID, (*inm).NLOCALP, (*inm).nfreqs, (*inm).back_prop_type, comm, (int)(*inmloc).local_work_size[1], (*inmloc).NZ_al16, (*inmloc).NZ_al0, (*inm).NTnyq,(*inm).dtnyq, (*inm).gradsrcout, (*inm).bcastvx, (*inm).bcastvy, (*inm).bcastvz, dirprop  );
+    sprintf(option_DH, "-D NX=%d -D NY=%d -D NZ=%d -D offset=%d -D fdo=%d -D fdoh=%d -D hc0=%9.9f -D hc1=%9.9f -D hc2=%9.9f -D hc3=%9.9f -D hc4=%9.9f -D hc5=%9.9f -D hc6=%9.9f -D dhi=%9.9f -D dhi2=%9.9f -D dtdh=%9.9f -D dtdh2=%9.9f -D DH=%9.9f -D DT=%9.9f -D dt2=%9.9f -D NT=%d -D nab=%d -D Nbnd=%d -D local_off=%d -D Lve=%d -D dev=%d -D num_devices=%d -D ND=%d -D abs_type=%d -D freesurf=%d -D lcomm=%d -D MYLOCALID=%d -D NLOCALP=%d -D nfreqs=%d -D back_prop_type=%d -D comm12=%d -D locsizexy=%d -D NZ_al16=%d -D NZ_al0=%d -D NTnyq=%d -D dtnyq=%d -D gradsrcout=%d -D bcastvx=%d -D bcastvy=%d -D bcastvz=%d -D bcastsxx=%d -D bcastsyy=%d -D bcastszz=%d -D bcastsxy=%d -D bcastsxz=%d -D bcastsyz=%d -D bcastp=%d -D dirprop=%d",(*inmloc).NX+(*inm).FDORDER, (*inmloc).NY+(*inm).FDORDER, (*inmloc).NZ+(*inm).FDORDER, (*inmloc).NX0, (*inm).fdo, (*inm).fdoh, (*inm).hc[0], (*inm).hc[1], (*inm).hc[2], (*inm).hc[3], (*inm).hc[4], (*inm).hc[5], (*inm).hc[6], (*inm).dhi, (*inm).dhi/2.0, (*inm).dt/(*inm).dh, (*inm).dt/(*inm).dh/2.0, (*inm).dh, (*inm).dt, (*inm).dt/2.0, (*inm).NT, (*inm).nab, (*inmloc).Nbnd, (*inmloc).local_off, (*inm).L, (*inmloc).dev, (*inmloc).num_devices,(*inm).ND, (*inm).abs_type, (*inm).freesurf, lcomm, (*inm).MYLOCALID, (*inm).NLOCALP, (*inm).nfreqs, (*inm).back_prop_type, comm, (int)(*inmloc).local_work_size[1], (*inmloc).NZ_al16, (*inmloc).NZ_al0, (*inm).NTnyq,(*inm).dtnyq, (*inm).gradsrcout, (*inm).bcastvx, (*inm).bcastvy, (*inm).bcastvz, (*inm).bcastsxx,(*inm).bcastsyy,(*inm).bcastszz,(*inm).bcastsxy,(*inm).bcastsxz,(*inm).bcastsyz,(*inm).bcastp, dirprop  );
     
     return option_DH;
 }
@@ -646,7 +646,7 @@ int gpu_intialize_grad(cl_context  * pcontext, cl_program  * program, cl_kernel 
     
 }
 
-int gpu_intialize_vout(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc )
+int gpu_intialize_seisout(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc )
 {
 
 	cl_int cl_err = 0;
@@ -655,17 +655,30 @@ int gpu_intialize_vout(cl_context  * pcontext, cl_program  * program, cl_kernel 
     const char * build_options=get_build_options(inmem, inm, inmloc, 0, 0, 0);
 
     /*Create the kernel, ther kernel version depends on the finite difference order*/
-    const char * program_name = "vout";
-    cl_err = create_gpu_kernel_from_string( vout_source, program, pcontext, pkernel, program_name, build_options);
+    const char * program_name = "seisout";
+    cl_err = create_gpu_kernel_from_string( seisout_source, program, pcontext, pkernel, program_name, build_options);
 
     /*Define the arguments for this kernel */
     cl_err = clSetKernelArg(*pkernel,  0, sizeof(cl_mem), &inmem->vx);
     cl_err = clSetKernelArg(*pkernel,  1, sizeof(cl_mem), &inmem->vy);
     cl_err = clSetKernelArg(*pkernel,  2, sizeof(cl_mem), &inmem->vz);
-    cl_err = clSetKernelArg(*pkernel,  3, sizeof(cl_mem), &inmem->vxout);
-    cl_err = clSetKernelArg(*pkernel,  4, sizeof(cl_mem), &inmem->vyout);
-    cl_err = clSetKernelArg(*pkernel,  5, sizeof(cl_mem), &inmem->vzout);
-    cl_err = clSetKernelArg(*pkernel,  6, sizeof(cl_mem), &inmem->rec_pos);
+    cl_err = clSetKernelArg(*pkernel,  3, sizeof(cl_mem), &inmem->sxx);
+    cl_err = clSetKernelArg(*pkernel,  4, sizeof(cl_mem), &inmem->syy);
+    cl_err = clSetKernelArg(*pkernel,  5, sizeof(cl_mem), &inmem->szz);
+    cl_err = clSetKernelArg(*pkernel,  6, sizeof(cl_mem), &inmem->sxy);
+    cl_err = clSetKernelArg(*pkernel,  7, sizeof(cl_mem), &inmem->sxz);
+    cl_err = clSetKernelArg(*pkernel,  8, sizeof(cl_mem), &inmem->syz);
+    cl_err = clSetKernelArg(*pkernel,  9, sizeof(cl_mem), &inmem->vxout);
+    cl_err = clSetKernelArg(*pkernel,  10, sizeof(cl_mem), &inmem->vyout);
+    cl_err = clSetKernelArg(*pkernel,  11, sizeof(cl_mem), &inmem->vzout);
+    cl_err = clSetKernelArg(*pkernel,  12, sizeof(cl_mem), &inmem->sxxout);
+    cl_err = clSetKernelArg(*pkernel,  13, sizeof(cl_mem), &inmem->syyout);
+    cl_err = clSetKernelArg(*pkernel,  14, sizeof(cl_mem), &inmem->szzout);
+    cl_err = clSetKernelArg(*pkernel,  15, sizeof(cl_mem), &inmem->sxyout);
+    cl_err = clSetKernelArg(*pkernel,  16, sizeof(cl_mem), &inmem->sxzout);
+    cl_err = clSetKernelArg(*pkernel,  17, sizeof(cl_mem), &inmem->syzout);
+    cl_err = clSetKernelArg(*pkernel,  18, sizeof(cl_mem), &inmem->pout);
+    cl_err = clSetKernelArg(*pkernel,  19, sizeof(cl_mem), &inmem->rec_pos);
     
     if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
     
@@ -673,7 +686,7 @@ int gpu_intialize_vout(cl_context  * pcontext, cl_program  * program, cl_kernel 
     
 }
 
-int gpu_intialize_voutinit(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc )
+int gpu_intialize_seisoutinit(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc )
 {
     
     
@@ -683,7 +696,7 @@ int gpu_intialize_voutinit(cl_context  * pcontext, cl_program  * program, cl_ker
     const char * build_options=get_build_options(inmem, inm, inmloc, 0, 0, 0);
 
     /*Create the kernel, ther kernel version depends on the finite difference order*/
-    const char * program_name = "voutinit";
+    const char * program_name = "seisoutinit";
     cl_err = create_gpu_kernel_from_string( initialize_source, program, pcontext, pkernel, program_name, build_options);
     
     
@@ -691,6 +704,13 @@ int gpu_intialize_voutinit(cl_context  * pcontext, cl_program  * program, cl_ker
     cl_err = clSetKernelArg(*pkernel,  0, sizeof(cl_mem), &inmem->vxout);
     cl_err = clSetKernelArg(*pkernel,  1, sizeof(cl_mem), &inmem->vyout);
     cl_err = clSetKernelArg(*pkernel,  2, sizeof(cl_mem), &inmem->vzout);
+    cl_err = clSetKernelArg(*pkernel,  3, sizeof(cl_mem), &inmem->sxxout);
+    cl_err = clSetKernelArg(*pkernel,  4, sizeof(cl_mem), &inmem->syyout);
+    cl_err = clSetKernelArg(*pkernel,  5, sizeof(cl_mem), &inmem->szzout);
+    cl_err = clSetKernelArg(*pkernel,  6, sizeof(cl_mem), &inmem->sxyout);
+    cl_err = clSetKernelArg(*pkernel,  7, sizeof(cl_mem), &inmem->sxzout);
+    cl_err = clSetKernelArg(*pkernel,  8, sizeof(cl_mem), &inmem->syzout);
+    cl_err = clSetKernelArg(*pkernel,  9, sizeof(cl_mem), &inmem->pout);
     
     if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
     

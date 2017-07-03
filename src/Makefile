@@ -38,7 +38,7 @@ SeisCL_CL= \
 	update_v2D_SH.cl \
 	update_v3D.cl \
 	update_v_CPML.cl \
-	vout.cl \
+	seisout.cl \
 	fill_transfer_buff_s.cl \
 	fill_transfer_buff_v.cl
 

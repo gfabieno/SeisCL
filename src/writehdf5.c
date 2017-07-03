@@ -140,28 +140,28 @@ int writehdf5(struct filenames file, struct modcsts * m) {
 
    
     // Write data output file
-    if (m->seisout){
+    if (m->seisout || m->resout){
         
         file_id = create_file(file.dout);
         if (!state) if (file_id<0) {state=1;fprintf(stderr, "Could not open the input/output file %s", file.dout);};
         
         dims2D[0]=m->allng; dims2D[1]=m->NT;
         
-        if (m->ND!=21){
-            writetomat(&file_id, "/vxout", m->vxout[0], 2, dims2D );
-            writetomat(&file_id, "/vzout", m->vzout[0], 2, dims2D );
-        }
-        if (m->ND==3 || m->ND==21){
-            writetomat(&file_id, "/vyout", m->vyout[0], 2, dims2D );
-        }
+        if (m->bcastvx)  writetomat(&file_id, "/vxout",  m->vxout[0],  2, dims2D );
+        if (m->bcastvy)  writetomat(&file_id, "/vyout",  m->vyout[0],  2, dims2D );
+        if (m->bcastvz)  writetomat(&file_id, "/vzout",  m->vzout[0],  2, dims2D );
+        if (m->bcastsxx) writetomat(&file_id, "/sxxout", m->sxxout[0], 2, dims2D );
+        if (m->bcastsyy) writetomat(&file_id, "/syyout", m->syyout[0], 2, dims2D );
+        if (m->bcastszz) writetomat(&file_id, "/szzout", m->szzout[0], 2, dims2D );
+        if (m->bcastsxy) writetomat(&file_id, "/sxyout", m->sxyout[0], 2, dims2D );
+        if (m->bcastsxz) writetomat(&file_id, "/sxzout", m->sxzout[0], 2, dims2D );
+        if (m->bcastsyz) writetomat(&file_id, "/syzout", m->syzout[0], 2, dims2D );
+        if (m->bcastp)   writetomat(&file_id, "/pout",   m->pout[0],   2, dims2D );
+
         if (m->resout){
-            if (m->ND!=21){
-                writetomat(&file_id, "/rx", m->rx[0], 2, dims2D );
-                writetomat(&file_id, "/rz", m->rz[0], 2, dims2D );
-            }
-            if (m->ND==3 || m->ND==21){
-                writetomat(&file_id, "/ry", m->ry[0], 2, dims2D );
-            }
+            if (m->bcastvx) writetomat(&file_id, "/rx", m->rx[0], 2, dims2D );
+            if (m->bcastvz) writetomat(&file_id, "/rz", m->rz[0], 2, dims2D );
+            if (m->bcastvy) writetomat(&file_id, "/ry", m->ry[0], 2, dims2D );
         }
         
         dims2D[0]=m->allns; dims2D[1]=5;

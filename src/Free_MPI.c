@@ -102,15 +102,45 @@ int Free_MPI(struct modcsts * m)  {
     if  (m->vxout){
         GFree(m->vxout[0])
     }
+    GFree(m->vxout)
     if  (m->vyout){
         GFree(m->vyout[0])
     }
+    GFree(m->vyout)
     if  (m->vzout){
         GFree(m->vzout[0])
     }
-    GFree(m->vxout)
-    GFree(m->vyout)
     GFree(m->vzout)
+    
+    if  (m->sxxout){
+        GFree(m->sxxout[0])
+    }
+    GFree(m->sxxout)
+    if  (m->syyout){
+        GFree(m->syyout[0])
+    }
+    GFree(m->syyout)
+    if  (m->szzout){
+        GFree(m->szzout[0])
+    }
+    GFree(m->szzout)
+    if  (m->sxyout){
+        GFree(m->sxyout[0])
+    }
+    GFree(m->sxyout)
+    if  (m->sxzout){
+        GFree(m->sxzout[0])
+    }
+    GFree(m->sxzout)
+    if  (m->syzout){
+        GFree(m->syzout[0])
+    }
+    GFree(m->syzout)
+    if  (m->pout){
+        GFree(m->pout[0])
+    }
+    GFree(m->pout)
+    
 
     GFree(m->gradfreqs)
     
@@ -123,9 +153,13 @@ int Free_MPI(struct modcsts * m)  {
     if  (m->vz0){
         GFree(m->vz0[0])
     }
+    if  (m->p0){
+        GFree(m->p0[0])
+    }
     GFree(m->vx0)
     GFree(m->vy0)
     GFree(m->vz0)
+    GFree(m->p0)
     
     if  (m->rx){
         GFree(m->rx[0])
@@ -136,9 +170,13 @@ int Free_MPI(struct modcsts * m)  {
     if  (m->rz){
         GFree(m->rz[0])
     }
+    if  (m->rp){
+        GFree(m->rp[0])
+    }
     GFree(m->rx)
     GFree(m->ry)
     GFree(m->rz)
+    GFree(m->rp)
     
     if  (m->mute){
         GFree(m->mute[0])

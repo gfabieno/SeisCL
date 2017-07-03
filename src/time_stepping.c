@@ -63,7 +63,19 @@
 
 #define PI (3.141592653589793238462643383279502884197169)
 
-
+void reduce_seis(float * varloc, float * varglob, int nrec, float * rec_pos, float dh, int NX0, int NX, int NT ){
+    
+    int posx, i, j;
+    for ( i=0;i<nrec;i++){
+        posx=(int)floor(rec_pos[8*i]/dh-0.5);
+        if (posx>=NX0 && posx<( NX0+NX) ){
+            for (j=0;j<NT;j++){
+                varglob[i*NT+j]+=varloc[i*NT+j];
+            }
+        }
+    }
+    
+}
 int update_grid(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc, int t){
     /*Update operations of one iteration */
     int state=0;
@@ -82,7 +94,7 @@ int update_grid(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             __GUARD clSetKernelArg((*vcl)[d].kernel_scomm2,  2, sizeof(int), &t);
             __GUARD clSetKernelArg((*vcl)[d].kernel_vcomm2,  2, sizeof(int), &t);
         }
-        __GUARD clSetKernelArg((*vcl)[d].kernel_vout,  7, sizeof(int), &t);
+        __GUARD clSetKernelArg((*vcl)[d].kernel_seisout,  20, sizeof(int), &t);
     }
     
     // Updating the velocity variables
@@ -187,7 +199,7 @@ int update_grid(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
     return state;
 }
 
-int update_grid_adj(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc, int t, size_t global_work_size_vout){
+int update_grid_adj(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc, int t, size_t global_work_size_seisout){
     /*Update operations of one iteration */
     int state=0;
     int d, thist;
@@ -348,7 +360,7 @@ int update_grid_adj(struct modcsts * m, struct varcl ** vcl, struct modcstsloc *
         else{
             __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_adjv, (*vcl)[d].numdim, (*mloc)[d].global_work_size, (*mloc)[d].local_work_size, 0, NULL, NULL);
         }
-        __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_residuals, 1, &global_work_size_vout, NULL, 0, NULL, NULL);
+        __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_residuals, 1, &global_work_size_seisout, NULL, 0, NULL, NULL);
     }
     
     // Communicating the velocity variables between GPUs
@@ -391,7 +403,7 @@ int initialize_grid(struct modcsts * m, struct varcl ** vcl, struct modcstsloc *
     size_t buffer_size_thiss=0;
     size_t buffer_size_thisns=0;
     size_t buffer_size_nrec=0;
-    size_t global_work_size_vout=0;
+    size_t global_work_size_seisout=0;
     
     // Buffer size for this shot
     if (!state){
@@ -404,10 +416,10 @@ int initialize_grid(struct modcsts * m, struct varcl ** vcl, struct modcstsloc *
         
         
         __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_initseis, 1, &(*mloc)[d].global_work_size_initfd, NULL, 0, NULL, NULL);
-        if (!state) global_work_size_vout= m->NT*m->nrec[s];
-        __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_voutinit, 1, &global_work_size_vout , NULL, 0, NULL, NULL);
-        if (!state) global_work_size_vout= m->nrec[s];
-        /* Global size for the vout kernel */
+        if (!state) global_work_size_seisout= m->NT*m->nrec[s];
+        __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_seisoutinit, 1, &global_work_size_seisout , NULL, 0, NULL, NULL);
+        if (!state) global_work_size_seisout= m->nrec[s];
+        /* Global size for the seisout kernel */
         
         //if (m->fmax || m->fmin) butterworth(m->src[s], m->fmin, m->fmax, m->dt, m->NT, 1, 6);
         __GUARD transfer_gpu_memory(&(*vcl)[d].cmd_queue,  buffer_size_thiss,  &(*vcl)[d].src,     m->src[s]);
@@ -444,8 +456,8 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
     size_t buffer_size_thiss=0;
     size_t buffer_size_thisns=0;
     size_t buffer_size_nrec=0;
-    size_t buffer_size_thisvout=0;
-    size_t global_work_size_vout=0;
+    size_t buffer_size_thisseisout=0;
+    size_t global_work_size_seisout=0;
 
 
     
@@ -490,7 +502,7 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
             buffer_size_thiss  = sizeof(float) * m->NT * m->nsrc[s];
             buffer_size_thisns = sizeof(float) * 5 * m->nsrc[s];
             buffer_size_nrec = sizeof(float) * 8 * m->nrec[s];
-            global_work_size_vout= m->nrec[s];
+            global_work_size_seisout= m->nrec[s];
         }
         
         // Initialization of the seismic variables
@@ -524,7 +536,7 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
             
             // Outputting seismograms
             for (d=0;d<m->num_devices;d++){
-                __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_vout, 1, &global_work_size_vout, NULL, 0, NULL, NULL);
+                __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_seisout, 1, &global_work_size_seisout, NULL, 0, NULL, NULL);
             }
 
             // Outputting the movie
@@ -613,52 +625,80 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
         }
         
         // Transfer the seismogram from GPUs to host
-        if (!state) buffer_size_thisvout = sizeof(float) * m->NT * m->nrec[s];
+        if (!state) buffer_size_thisseisout = sizeof(float) * m->NT * m->nrec[s];
         for (d=0;d<m->num_devices;d++){
-            if (m->ND!=21){
-                __GUARD read_gpu_memory( &(*vcl)[d].cmd_queue, buffer_size_thisvout, &(*vcl)[d].vxout, (*mloc)[d].vxout[s]);
-                __GUARD read_gpu_memory( &(*vcl)[d].cmd_queue, buffer_size_thisvout, &(*vcl)[d].vzout, (*mloc)[d].vzout[s]);
+            if (m->bcastvx) {
+                __GUARD read_gpu_memory( &(*vcl)[d].cmd_queue, buffer_size_thisseisout, &(*vcl)[d].vxout, (*mloc)[d].vxout[s]);
             }
-            if (m->ND==3 || m->ND==21){// For 3D
-                __GUARD read_gpu_memory( &(*vcl)[d].cmd_queue, buffer_size_thisvout, &(*vcl)[d].vyout, (*mloc)[d].vyout[s]);
+            if (m->bcastvy) {
+                __GUARD read_gpu_memory( &(*vcl)[d].cmd_queue, buffer_size_thisseisout, &(*vcl)[d].vyout, (*mloc)[d].vyout[s]);
             }
-            if ((*mloc)[d].vxout[s][0]!=(*mloc)[d].vxout[s][0]){
-                state=1;
-                fprintf(stderr,"Simulation has become unstable, stopping\n");
+            if (m->bcastvz) {
+                __GUARD read_gpu_memory( &(*vcl)[d].cmd_queue, buffer_size_thisseisout, &(*vcl)[d].vzout, (*mloc)[d].vzout[s]);
+            }
+            if (m->bcastsxx) {
+                __GUARD read_gpu_memory( &(*vcl)[d].cmd_queue, buffer_size_thisseisout, &(*vcl)[d].sxxout, (*mloc)[d].sxxout[s]);
+            }
+            if (m->bcastsyy) {
+                __GUARD read_gpu_memory( &(*vcl)[d].cmd_queue, buffer_size_thisseisout, &(*vcl)[d].syyout, (*mloc)[d].syyout[s]);
+            }
+            if (m->bcastszz) {
+                __GUARD read_gpu_memory( &(*vcl)[d].cmd_queue, buffer_size_thisseisout, &(*vcl)[d].szzout, (*mloc)[d].szzout[s]);
+            }
+            if (m->bcastsxy) {
+                __GUARD read_gpu_memory( &(*vcl)[d].cmd_queue, buffer_size_thisseisout, &(*vcl)[d].sxyout, (*mloc)[d].sxyout[s]);
+            }
+            if (m->bcastsxz) {
+                __GUARD read_gpu_memory( &(*vcl)[d].cmd_queue, buffer_size_thisseisout, &(*vcl)[d].sxzout, (*mloc)[d].sxzout[s]);
+            }
+            if (m->bcastsyz) {
+                __GUARD read_gpu_memory( &(*vcl)[d].cmd_queue, buffer_size_thisseisout, &(*vcl)[d].syzout, (*mloc)[d].syzout[s]);
+            }
+            if (m->bcastp) {
+                __GUARD read_gpu_memory( &(*vcl)[d].cmd_queue, buffer_size_thisseisout, &(*vcl)[d].pout, (*mloc)[d].pout[s]);
             }
         }
         
         // Aggregate the seismograms in the output variable
         if (!state){
-            if (m->ND!=21){
-            memset(m->vxout[s],0,sizeof(float)*m->NT*m->nrec[s]);
-            memset(m->vzout[s],0,sizeof(float)*m->NT*m->nrec[s]);
-            }
-            if (m->ND==3 || m->ND==21){// For 3D
-                memset(m->vyout[s],0,sizeof(float)*m->NT*m->nrec[s]);
-            }
             for (d=0;d<m->num_devices;d++){
                 __GUARD clFinish((*vcl)[d].cmd_queue);
-                for (i=0;i<m->nrec[s];i++){
-                    posx=(int)floor(m->rec_pos[s][8*i]/m->dh-0.5);
-                    if (posx>=(*mloc)[d].NX0 && posx<((*mloc)[d].NX0+(*mloc)[d].NX) ){
-                        for (j=0;j<m->NT;j++){
-                            if (m->ND!=21){
-                                m->vxout[s][i*m->NT+j]+=(*mloc)[d].vxout[s][i*m->NT+j];
-                                m->vzout[s][i*m->NT+j]+=(*mloc)[d].vzout[s][i*m->NT+j];
-                            }
-                            if (m->ND==3 || m->ND==21){// For 3D
-                                m->vyout[s][i*m->NT+j]+=(*mloc)[d].vyout[s][i*m->NT+j];
-                            }
-                        }
-                    }
+                if (m->bcastvx){
+                    reduce_seis((*mloc)[d].vxout[s], m->vxout[s], m->nrec[s], m->rec_pos[s], m->dh, (*mloc)[d].NX0, (*mloc)[d].NX, m->NT);
+                }
+                if (m->bcastvy){
+                    reduce_seis((*mloc)[d].vyout[s], m->vyout[s], m->nrec[s], m->rec_pos[s], m->dh, (*mloc)[d].NX0, (*mloc)[d].NX, m->NT);
+                }
+                if (m->bcastvz){
+                    reduce_seis((*mloc)[d].vzout[s], m->vzout[s], m->nrec[s], m->rec_pos[s], m->dh, (*mloc)[d].NX0, (*mloc)[d].NX, m->NT);
+                }
+                if (m->bcastsxx){
+                    reduce_seis((*mloc)[d].sxxout[s], m->sxxout[s], m->nrec[s], m->rec_pos[s], m->dh, (*mloc)[d].NX0, (*mloc)[d].NX, m->NT);
+                }
+                if (m->bcastsyy){
+                    reduce_seis((*mloc)[d].syyout[s], m->syyout[s], m->nrec[s], m->rec_pos[s], m->dh, (*mloc)[d].NX0, (*mloc)[d].NX, m->NT);
+                }
+                if (m->bcastszz){
+                    reduce_seis((*mloc)[d].szzout[s], m->szzout[s], m->nrec[s], m->rec_pos[s], m->dh, (*mloc)[d].NX0, (*mloc)[d].NX, m->NT);
+                }
+                if (m->bcastsxy){
+                    reduce_seis((*mloc)[d].sxyout[s], m->sxyout[s], m->nrec[s], m->rec_pos[s], m->dh, (*mloc)[d].NX0, (*mloc)[d].NX, m->NT);
+                }
+                if (m->bcastsxz){
+                    reduce_seis((*mloc)[d].sxzout[s], m->sxzout[s], m->nrec[s], m->rec_pos[s], m->dh, (*mloc)[d].NX0, (*mloc)[d].NX, m->NT);
+                }
+                if (m->bcastsyz){
+                    reduce_seis((*mloc)[d].syzout[s], m->syzout[s], m->nrec[s], m->rec_pos[s], m->dh, (*mloc)[d].NX0, (*mloc)[d].NX, m->NT);
+                }
+                if (m->bcastp){
+                    reduce_seis((*mloc)[d].pout[s], m->pout[s], m->nrec[s], m->rec_pos[s], m->dh, (*mloc)[d].NX0, (*mloc)[d].NX, m->NT);
                 }
             }
         }
 
         
         //Calculate the residual
-        if (m->gradout || m->rmsout){
+        if (m->gradout || m->rmsout || m->resout){
             __GUARD m->res_calc(m,s);
         }
         
@@ -670,9 +710,9 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
             // Initialize the backpropagation and gradient. Transfer the residual to GPUs
             for (d=0;d<m->num_devices;d++){
                
-                if (!state) if (m->vx0) state = transfer_gpu_memory(&(*vcl)[d].cmd_queue,  buffer_size_thisvout, &(*vcl)[d].vxout, m->rx[s]);
-                if (!state) if (m->vz0) state = transfer_gpu_memory(&(*vcl)[d].cmd_queue,  buffer_size_thisvout, &(*vcl)[d].vzout, m->rz[s]);
-                if (!state) if (m->vy0) state = transfer_gpu_memory(&(*vcl)[d].cmd_queue,  buffer_size_thisvout, &(*vcl)[d].vyout, m->ry[s]);
+                if (!state) if (m->vx0) state = transfer_gpu_memory(&(*vcl)[d].cmd_queue,  buffer_size_thisseisout, &(*vcl)[d].vxout, m->rx[s]);
+                if (!state) if (m->vz0) state = transfer_gpu_memory(&(*vcl)[d].cmd_queue,  buffer_size_thisseisout, &(*vcl)[d].vzout, m->rz[s]);
+                if (!state) if (m->vy0) state = transfer_gpu_memory(&(*vcl)[d].cmd_queue,  buffer_size_thisseisout, &(*vcl)[d].vyout, m->ry[s]);
                 
                 __GUARD clSetKernelArg((*vcl)[d].kernel_adjs,  1, sizeof(int), &m->nsrc[s]);
                 __GUARD clSetKernelArg((*vcl)[d].kernel_adjv,  1, sizeof(int), &m->nsrc[s]);
@@ -742,7 +782,7 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
             // Inverse time stepping
             for (t=m->tmax-1;t>=m->tmin; t--){
 
-                __GUARD update_grid_adj(m, vcl, mloc, t, global_work_size_vout);
+                __GUARD update_grid_adj(m, vcl, mloc, t, global_work_size_seisout);
                 
                 for (d=0;d<m->num_devices;d++){
                     if (d>0 || d<m->num_devices-1)

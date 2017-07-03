@@ -26,7 +26,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
     size_t buffer_size_ns=0;
     size_t buffer_size_ng=0;
     size_t buffer_size_taper=0;
-    size_t buffer_size_vout=0;
+    size_t buffer_size_seisout=0;
     size_t buffer_size_L=0;
     size_t thissize=0;
     cl_platform_id sel_plat_id=0;
@@ -241,28 +241,34 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
         
         // Create the memory to read the seismograms for each shot
         if (m->vxout && !state){
-            GMALLOC((*mloc)[d].vxout, sizeof(float*)*m->ns)
-            if ((*mloc)[d].vxout) memset ((void*)(*mloc)[d].vxout, 0, sizeof(float*)*m->ns);
-            GMALLOC((*mloc)[d].vxout[0], sizeof(float)*m->allng*m->NT)
-            for (s=1;s<m->ns;s++){
-                (*mloc)[d].vxout[s]=(*mloc)[d].vxout[s-1]+m->nrec[s-1]*m->NT;
-            }
+            alloc_seismo(&(*mloc)[d].vxout, m->ns, m->allng, m->NT, m->nrec);
         }
         if (m->vyout && !state){
-            GMALLOC((*mloc)[d].vyout, sizeof(float*)*m->ns)
-            if ((*mloc)[d].vyout) memset ((void*)(*mloc)[d].vyout, 0, sizeof(float*)*m->ns);
-            GMALLOC((*mloc)[d].vyout[0], sizeof(float)*m->allng*m->NT)
-            for (s=1;s<m->ns;s++){
-                (*mloc)[d].vyout[s]=(*mloc)[d].vyout[s-1]+m->nrec[s-1]*m->NT;
-            }
+            alloc_seismo(&(*mloc)[d].vyout, m->ns, m->allng, m->NT, m->nrec);
         }
         if (m->vzout && !state){
-            GMALLOC((*mloc)[d].vzout, sizeof(float*)*m->ns)
-            if ((*mloc)[d].vzout) memset ((void*)(*mloc)[d].vzout, 0, sizeof(float*)*m->ns);
-            GMALLOC((*mloc)[d].vzout[0], sizeof(float)*m->allng*m->NT)
-            for (s=1;s<m->ns;s++){
-                (*mloc)[d].vzout[s]=(*mloc)[d].vzout[s-1]+m->nrec[s-1]*m->NT;
-            }
+            alloc_seismo(&(*mloc)[d].vzout, m->ns, m->allng, m->NT, m->nrec);
+        }
+        if (m->sxxout && !state){
+            alloc_seismo(&(*mloc)[d].sxxout, m->ns, m->allng, m->NT, m->nrec);
+        }
+        if (m->syyout && !state){
+            alloc_seismo(&(*mloc)[d].syyout, m->ns, m->allng, m->NT, m->nrec);
+        }
+        if (m->szzout && !state){
+            alloc_seismo(&(*mloc)[d].szzout, m->ns, m->allng, m->NT, m->nrec);
+        }
+        if (m->sxyout && !state){
+            alloc_seismo(&(*mloc)[d].sxyout, m->ns, m->allng, m->NT, m->nrec);
+        }
+        if (m->sxzout && !state){
+            alloc_seismo(&(*mloc)[d].sxzout, m->ns, m->allng, m->NT, m->nrec);
+        }
+        if (m->syzout && !state){
+            alloc_seismo(&(*mloc)[d].syzout, m->ns, m->allng, m->NT, m->nrec);
+        }
+        if (m->pout && !state){
+            alloc_seismo(&(*mloc)[d].pout, m->ns, m->allng, m->NT, m->nrec);
         }
         
         
@@ -480,7 +486,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             buffer_size_ns       = sizeof(float) * 5 * m->nsmax;
             buffer_size_ng       = sizeof(float) * 8 * m->ngmax;
             buffer_size_taper    = sizeof(float) * m->nab;
-            buffer_size_vout     = sizeof(float) * m->NT * m->ngmax;
+            buffer_size_seisout     = sizeof(float) * m->NT * m->ngmax;
             buffer_size_L        = sizeof(float) * m->L;
             m->buffer_size_comm     = sizeof(float) * m->fdoh*(*mloc)[d].NY*(*mloc)[d].NZ;
             
@@ -564,7 +570,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             if (m->ND==3){// For 3D
                 (*mloc)[d].required_global_mem_size += 9*(*vcl)[d].buffer_size_fd + 8*(*vcl)[d].buffer_size_model + buffer_size_s + buffer_size_ns + buffer_size_ng;
                 
-                (*mloc)[d].required_global_mem_size +=  3*buffer_size_vout;
+                (*mloc)[d].required_global_mem_size +=  3*buffer_size_seisout;
                 
                 if (m->abs_type==1){
                     (*mloc)[d].required_global_mem_size+= 36*buffer_size_taper + 6*(*vcl)[d].buffer_size_CPML_NX+ 6*(*vcl)[d].buffer_size_CPML_NY+ 6*(*vcl)[d].buffer_size_CPML_NZ;
@@ -597,7 +603,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             if (m->ND==2){// For 2D
                 (*mloc)[d].required_global_mem_size += 6*(*vcl)[d].buffer_size_fd + 5*(*vcl)[d].buffer_size_model + buffer_size_s + buffer_size_ns + buffer_size_ng;
                 
-                (*mloc)[d].required_global_mem_size +=  3*buffer_size_vout;
+                (*mloc)[d].required_global_mem_size +=  3*buffer_size_seisout;
                 
                 if (m->abs_type==1){
                     (*mloc)[d].required_global_mem_size+= 16*buffer_size_taper + 4*(*vcl)[d].buffer_size_CPML_NX+ 4*(*vcl)[d].buffer_size_CPML_NZ;
@@ -631,7 +637,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             if (m->ND==21){// For 2D
                 (*mloc)[d].required_global_mem_size += 3*(*vcl)[d].buffer_size_fd + 3*(*vcl)[d].buffer_size_model + buffer_size_s +buffer_size_ns + buffer_size_ng;
                 
-                (*mloc)[d].required_global_mem_size +=   3*buffer_size_vout;
+                (*mloc)[d].required_global_mem_size +=   3*buffer_size_seisout;
                 
                 if (m->abs_type==1){
                     (*mloc)[d].required_global_mem_size+= 12*buffer_size_taper + 2*(*vcl)[d].buffer_size_CPML_NX+ 2*(*vcl)[d].buffer_size_CPML_NZ;
@@ -679,6 +685,38 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
         __GUARD create_gpu_memory_buffer_cst( &m->context, buffer_size_ns,              &(*vcl)[d].src_pos);
         __GUARD create_gpu_memory_buffer_cst( &m->context, buffer_size_ng,              &(*vcl)[d].rec_pos);
         __GUARD create_gpu_memory_buffer_cst( &m->context, buffer_size_s,               &(*vcl)[d].src);
+        // Allocate memory for the seismograms
+        if ( m->bcastvx){
+            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].vxout);
+        }
+        if ( m->bcastvy){
+            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].vyout);
+        }
+        if ( m->bcastvz){
+            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].vzout);
+        }
+        if ( m->bcastp){
+            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].pout);
+        }
+        if ( m->bcastsxx){
+            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].sxxout);
+        }
+        if ( m->bcastsyy){
+            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].syyout);
+        }
+        if ( m->bcastszz){
+            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].szzout);
+        }
+        if ( m->bcastsxy){
+            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].sxyout);
+        }
+        if ( m->bcastsxz){
+            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].sxzout);
+        }
+        if ( m->bcastsyz){
+            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].syzout);
+        }
+
         if (m->ND!=21){
             __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].sxx);
             __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].szz);
@@ -690,8 +728,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].u);
             __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].pi);
             __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].uipkp);
-            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_vout,            &(*vcl)[d].vxout);
-            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_vout,            &(*vcl)[d].vzout);
+
         }
         if (m->ND==3 || m->ND==21){
             __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].syy);
@@ -701,7 +738,6 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].rjp);
             __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].uipjp);
             __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].ujpkp);
-            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_vout,            &(*vcl)[d].vyout);
         }
         if (m->ND==3){// For 3D
             __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].syy);
@@ -838,8 +874,8 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
         __GUARD gpu_initialize_update_v(&m->context, &(*vcl)[d].program_v, &(*vcl)[d].kernel_v, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm1, lcomm, 0 );
         __GUARD gpu_initialize_update_s(&m->context, &(*vcl)[d].program_s, &(*vcl)[d].kernel_s, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm1, lcomm, 0  );
         __GUARD gpu_intialize_seis(&m->context, &(*vcl)[d].program_initseis, &(*vcl)[d].kernel_initseis, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d]);
-        __GUARD gpu_intialize_vout(&m->context, &(*vcl)[d].program_vout, &(*vcl)[d].kernel_vout, NULL, &(*vcl)[d], m, &(*mloc)[d]);
-        __GUARD gpu_intialize_voutinit(&m->context, &(*vcl)[d].program_voutinit, &(*vcl)[d].kernel_voutinit, NULL, &(*vcl)[d], m, &(*mloc)[d]);
+        __GUARD gpu_intialize_seisout(&m->context, &(*vcl)[d].program_seisout, &(*vcl)[d].kernel_seisout, NULL, &(*vcl)[d], m, &(*mloc)[d]);
+        __GUARD gpu_intialize_seisoutinit(&m->context, &(*vcl)[d].program_seisoutinit, &(*vcl)[d].kernel_seisoutinit, NULL, &(*vcl)[d], m, &(*mloc)[d]);
         if (m->freesurf==1){
             __GUARD gpu_initialize_surface(&m->context, &(*vcl)[d].program_surf, &(*vcl)[d].kernel_surf, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d] );
         }

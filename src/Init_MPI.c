@@ -19,6 +19,23 @@
 
 #include "F.h"
 
+int alloc_seismo(float *** var, int ns, int allng, int NT, int * nrec ){
+    int state=0;
+    
+    GMALLOC(*var,sizeof(float*)*ns)
+    if (!state) memset((void*)*var, 0, sizeof(float*)*ns);
+    GMALLOC((*var)[0],sizeof(float)*allng*NT)
+    if (!state) memset((void*)(*var)[0], 0, sizeof(float)*allng*NT);
+    if (!state){
+        for (int i=1; i<ns; i++){
+            (*var)[i]=(*var)[i-1]+nrec[i-1]*NT;
+        }
+    }
+
+    return state;
+    
+}
+
 
 int Init_MPI(struct modcsts * m) {
 
@@ -193,36 +210,41 @@ int Init_MPI(struct modcsts * m) {
         }
     }
     // Allocate memory for the seismograms
-    if (m->ND!=21){
-        GMALLOC(m->vxout,sizeof(float*)*m->ns)
-        GMALLOC(m->vzout,sizeof(float*)*m->ns)
-        
-        if (!state) memset((void*)m->vxout, 0, sizeof(float*)*m->ns);
-        if (!state) memset((void*)m->vzout, 0, sizeof(float*)*m->ns);
-        
-        GMALLOC(m->vxout[0],sizeof(float)*m->allng*m->NT)
-        GMALLOC(m->vzout[0],sizeof(float)*m->allng*m->NT)
-        
-        if (!state) memset((void*)m->vxout[0], 0, sizeof(float)*m->allng*m->NT);
-        if (!state) memset((void*)m->vzout[0], 0, sizeof(float)*m->allng*m->NT);
-        
-        if (!state){
-            for (i=1; i<m->ns; i++){
-                m->vxout[i]=m->vxout[i-1]+m->nrec[i-1]*m->NT;
-                m->vzout[i]=m->vzout[i-1]+m->nrec[i-1]*m->NT;
-            }
+    if (m->seisout && m->seisout!=2){
+        if (m->ND!=21){
+            alloc_seismo(&m->vxout, m->ns, m->allng, m->NT, m->nrec);
+            m->bcastvx=1;
+            alloc_seismo(&m->vzout, m->ns, m->allng, m->NT, m->nrec);
+            m->bcastvz=1;
         }
-        
+        if (m->ND==3 || m->ND==21){
+            alloc_seismo(&m->vyout, m->ns, m->allng, m->NT, m->nrec);
+            m->bcastvy=1;
+        }
     }
-    if (m->ND==3 || m->ND==21){
-        GMALLOC(m->vyout,sizeof(float*)*m->ns)
-        if (!state) memset((void*)m->vyout, 0, sizeof(float*)*m->ns);
-        GMALLOC(m->vyout[0],sizeof(float)*m->allng*m->NT)
-        if (!state) memset((void*)m->vyout[0], 0, sizeof(float)*m->allng*m->NT);
-        if (!state){
-            for (i=1; i<m->ns; i++){
-                m->vyout[i]=m->vyout[i-1]+m->nrec[i-1]*m->NT;
-            }
+    if (m->seisout && m->seisout!=1){
+        alloc_seismo(&m->pout, m->ns, m->allng, m->NT, m->nrec);
+        m->bcastp=1;
+    }
+    if (m->seisout && m->seisout==4){
+        
+        if (m->ND!=21){
+            alloc_seismo(&m->sxxout, m->ns, m->allng, m->NT, m->nrec);
+            m->bcastsxx=1;
+            alloc_seismo(&m->szzout, m->ns, m->allng, m->NT, m->nrec);
+             m->bcastszz=1;
+            alloc_seismo(&m->sxzout, m->ns, m->allng, m->NT, m->nrec);
+             m->bcastsxz=1;
+        }
+        if (m->ND==3 || m->ND==21){
+            alloc_seismo(&m->sxyout, m->ns, m->allng, m->NT, m->nrec);
+             m->bcastsxy=1;
+            alloc_seismo(&m->syzout, m->ns, m->allng, m->NT, m->nrec);
+             m->bcastsyz=1;
+        }
+        if (m->ND==3 ){
+            alloc_seismo(&m->syyout, m->ns, m->allng, m->NT, m->nrec);
+             m->bcastsyy=1;
         }
     }
     
@@ -243,100 +265,49 @@ int Init_MPI(struct modcsts * m) {
 
     }
     
-    
-    
-    
-    
-    
-    if (m->bcastvx){
-        
-        // Allocate memory for the resiudals seismograms
-        GMALLOC(m->rx,sizeof(float*)*m->ns)
-        if (!state) memset((void*)m->rx, 0, sizeof(float*)*m->ns);
-        GMALLOC(m->rx[0],sizeof(float)*m->allng*m->NT)
-        if (!state) memset((void*)m->rx[0], 0, sizeof(float)*m->allng*m->NT);
-        if (!state){
-            for (i=1; i<m->ns; i++){
-                m->rx[i]=m->rx[i-1]+m->nrec[i-1]*m->NT;
-            }
-        }
 
+    if ( (m->rmsout==1 || m->resout) && m->bcastvx){
         
+        // Allocate memory for the residuals seismograms
+        alloc_seismo(&m->rx, m->ns, m->allng, m->NT, m->nrec);
         if (m->MYID!=0){
-            
-            GMALLOC(m->vx0,sizeof(float*)*m->ns)
-            if (!state) memset((void*)m->vx0, 0, sizeof(float*)*m->ns);
-            GMALLOC(m->vx0[0],sizeof(float)*m->allng*m->NT)
-            if (!state) memset((void*)m->vx0[0], 0, sizeof(float)*m->allng*m->NT);
-            if (!state){
-                for (i=1; i<m->ns; i++){
-                    m->vx0[i]=m->vx0[i-1]+m->nrec[i-1]*m->NT;
-                }
-            }
+            alloc_seismo(&m->vx0, m->ns, m->allng, m->NT, m->nrec);
         }
-        
         if (!state){
             MPI_Bcast( m->vx0[0], m->allng*m->NT, MPI_FLOAT, 0, MPI_COMM_WORLD );
         }
     }
-    if (m->bcastvy){
+    if ( (m->rmsout==1 || m->resout) && m->bcastvy){
         
         // Allocate memory for the resiudals seismograms
-        GMALLOC(m->ry,sizeof(float*)*m->ns)
-        if (!state) memset((void*)m->ry, 0, sizeof(float*)*m->ns);
-        GMALLOC(m->ry[0],sizeof(float)*m->allng*m->NT)
-        if (!state) memset((void*)m->ry[0], 0, sizeof(float)*m->allng*m->NT);
-        if (!state){
-            for (i=1; i<m->ns; i++){
-                m->ry[i]=m->ry[i-1]+m->nrec[i-1]*m->NT;
-            }
-        }
-
+        alloc_seismo(&m->ry, m->ns, m->allng, m->NT, m->nrec);
         if (m->MYID!=0){
-            
-            GMALLOC(m->vy0,sizeof(float*)*m->ns)
-            if (!state) memset((void*)m->vy0, 0, sizeof(float*)*m->ns);
-            GMALLOC(m->vy0[0],sizeof(float)*m->allng*m->NT)
-            if (!state) memset((void*)m->vy0[0], 0, sizeof(float)*m->allng*m->NT);
-            if (!state){
-                for (i=1; i<m->ns; i++){
-                    m->vy0[i]=m->vy0[i-1]+m->nrec[i-1]*m->NT;
-                }
-            }
+            alloc_seismo(&m->vy0, m->ns, m->allng, m->NT, m->nrec);
         }
-        
         if (!state){
             MPI_Bcast( m->vy0[0], m->allng*m->NT, MPI_FLOAT, 0, MPI_COMM_WORLD );
         }
     }
-    if (m->bcastvz){
+    if ( (m->rmsout==1 || m->resout) && m->bcastvz){
         
         // Allocate memory for the resiudals seismograms
-        GMALLOC(m->rz,sizeof(float*)*m->ns)
-        if (!state) memset((void*)m->rz, 0, sizeof(float*)*m->ns);
-        GMALLOC(m->rz[0],sizeof(float)*m->allng*m->NT)
-        if (!state) memset((void*)m->rz[0], 0, sizeof(float)*m->allng*m->NT);
-        if (!state){
-            for (i=1; i<m->ns; i++){
-                m->rz[i]=m->rz[i-1]+m->nrec[i-1]*m->NT;
-            }
-        }
-        
+        alloc_seismo(&m->rz, m->ns, m->allng, m->NT, m->nrec);
         if (m->MYID!=0){
-            
-            GMALLOC(m->vz0,sizeof(float*)*m->ns)
-            if (!state) memset((void*)m->vz0, 0, sizeof(float*)*m->ns);
-            GMALLOC(m->vz0[0],sizeof(float)*m->allng*m->NT)
-            if (!state) memset((void*)m->vz0[0], 0, sizeof(float)*m->allng*m->NT);
-            if (!state){
-                for (i=1; i<m->ns; i++){
-                    m->vz0[i]=m->vz0[i-1]+m->nrec[i-1]*m->NT;
-                }
-            }
+            alloc_seismo(&m->vz0, m->ns, m->allng, m->NT, m->nrec);
         }
-        
         if (!state){
             MPI_Bcast( m->vz0[0], m->allng*m->NT, MPI_FLOAT, 0, MPI_COMM_WORLD );
+        }
+    }
+    if ( (m->rmsout==1 || m->resout) && m->bcastp){
+        
+        // Allocate memory for the resiudals seismograms
+        alloc_seismo(&m->rp, m->ns, m->allng, m->NT, m->nrec);
+        if (m->MYID!=0){
+            alloc_seismo(&m->p0, m->ns, m->allng, m->NT, m->nrec);
+        }
+        if (!state){
+            MPI_Bcast( m->p0[0], m->allng*m->NT, MPI_FLOAT, 0, MPI_COMM_WORLD );
         }
     }
     
