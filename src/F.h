@@ -194,39 +194,7 @@ struct varcl {
     cl_mem rxy_r;
     cl_mem ryz_r;
     cl_mem rxz_r;
-    
-    cl_mem sxx_surf;
-    cl_mem syy_surf;
-    cl_mem szz_surf;
-    cl_mem sxy_surf;
-    cl_mem syz_surf;
-    cl_mem sxz_surf;
-    cl_mem vx_surf;
-    cl_mem vy_surf;
-    cl_mem vz_surf;
-    
-    cl_mem rip_surf;
-    cl_mem rjp_surf;
-    cl_mem rkp_surf;
-    cl_mem u_surf;
-    cl_mem pi_surf;
-    cl_mem uipjp_surf;
-    cl_mem ujpkp_surf;
-    cl_mem uipkp_surf;
-    
-    cl_mem taup_surf;
-    cl_mem taus_surf;
-    cl_mem tausipjp_surf;
-    cl_mem tausjpkp_surf;
-    cl_mem tausipkp_surf;
-    cl_mem rxx_surf;
-    cl_mem ryy_surf;
-    cl_mem rzz_surf;
-    cl_mem rxy_surf;
-    cl_mem ryz_surf;
-    cl_mem rxz_surf;
-    
-    
+
     cl_mem sxxbnd;
     cl_mem syybnd;
     cl_mem szzbnd;
@@ -461,7 +429,7 @@ struct varcl {
     
 };
 
-// Structure containing all seismic paramters
+// Structure containing all seismic parameters
 struct modcsts {
     
     int NY;
@@ -913,10 +881,6 @@ int gpu_initialize_gradsrc(cl_context  * pcontext, cl_program  * program, cl_ker
 
 int gpu_intialize_surfgrid_coarse2fine(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem_c, struct modcsts *inm_c, struct modcstsloc *inmloc_c ,struct varcl *inmem_f, struct modcsts *inm_f, struct modcstsloc *inmloc_f,size_t *local_work_size );
 int gpu_intialize_surfgrid_fine2coarse(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem_c, struct modcsts *inm_c, struct modcstsloc *inmloc_c ,struct varcl *inmem_f, struct modcsts *inm_f, struct modcstsloc *inmloc_f );
-int gpu_intialize_fill_transfer_buff_s_in(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc );
-int gpu_intialize_fill_transfer_buff_s_out(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc );
-int gpu_intialize_fill_transfer_buff_v_in(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc );
-int gpu_intialize_fill_transfer_buff_v_out(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc );
 
 int gpu_intialize_fill_transfer_buff_s(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc, int out, int comm, int adj );
 int gpu_intialize_fill_transfer_buff_v(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc, int out, int comm, int adj );

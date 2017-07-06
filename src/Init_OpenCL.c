@@ -330,7 +330,6 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
                     
                 }
                 
-                lsizex=m->FDORDER/2;
                 if (required_local_mem_size>0.9*local_mem_size && required_local_mem_size<local_mem_size){
                     fprintf(stderr,"Warning: local memory needed to perform seismic modeling (%llu bits) exceeds 90%% of the local memory capacity of device %d (%llu bits)\n", required_local_mem_size, d, local_mem_size);
                 }
