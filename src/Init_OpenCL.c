@@ -18,10 +18,15 @@
  --------------------------------------------------------------------------*/
 #include "F.h"
 
-int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc)  {
+int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
 
     int state=0;
-    int i,s,d;
+    int dimbool;
+    int i,j,s,d;
+    int nsmax=0;
+    int ngmax=0;
+    int paramsize;
+    int fdsize;
     size_t buffer_size_s=0;
     size_t buffer_size_ns=0;
     size_t buffer_size_ng=0;
@@ -35,11 +40,10 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
     cl_ulong global_mem_size=0;
     cl_ulong local_mem_size=0;
     cl_ulong required_local_mem_size=0;
-    size_t workitem_size[3];
+    int required_work_size;
+    size_t workitem_size[MAX_DIMS];
     size_t workgroup_size=0;
-    int lsizez=0;
-    int lsizex=0;
-    int lsizey=0;
+    int lsize[MAX_DIMS];
     int lcomm=0;
     int offcomm1=0;
     int offcomm2=0;
@@ -52,11 +56,8 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
     //For each GPU, allocate the memory structures
     GMALLOC((*vcl),sizeof(struct varcl)*m->num_devices)
     if (!state) memset ((void*)(*vcl), 0, sizeof(struct varcl)*m->num_devices);
-    GMALLOC((*mloc),sizeof(struct modcstsloc)*m->num_devices)
-    if (!state) memset ((void*)(*mloc), 0, sizeof(struct modcstsloc)*m->num_devices);
-    
+ 
     //Connect all GPUs
-    
     __GUARD connect_allgpus( vcl, &m->context, &m->device_type, &sel_plat_id, m->n_no_use_GPUs, m->no_use_GPUs,m->nmax_dev);
     
     
@@ -66,289 +67,167 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
         //The domain of the seismic simulation is decomposed between the devices
         //along the X direction.
         if (!state){
-            (*mloc)[d].dev=d;
-            (*mloc)[d].num_devices=m->num_devices;
-            (*mloc)[d].NY=m->NY;
-            (*mloc)[d].NZ=m->NZ;
-            
-            
-            (*mloc)[d].NZ_al0=m->fdoh%16;
-            (*mloc)[d].NZ_al16= ((*mloc)[d].NZ+m->FDORDER)%16;
-            
-            (*mloc)[d].NZ_al0=0;
-            (*mloc)[d].NZ_al16= 0;
-            
-            
-            if (m->MYLOCALID<m->NX%m->NLOCALP){
-                (*mloc)[d].NX=m->NX/m->NLOCALP+1;
-                m->NXP=m->NX/m->NLOCALP+1;
+            (*vcl)[d].dev=d;
+            for (i=0;i<m->numdim-1;i++){
+                (*vcl)[d].N[i]=m->N[i];
+            }
+
+            if (m->MYLOCALID<m->N[m->numdim-1]%m->NLOCALP){
+                (*vcl)[d].N[m->numdim-1]=m->N[m->numdim-1]/m->NLOCALP+1;
+                m->NXP=m->N[m->numdim-1]/m->NLOCALP+1;
             }
             else{
-                (*mloc)[d].NX=m->NX/m->NLOCALP;
-                m->NXP=m->NX/m->NLOCALP;
+                (*vcl)[d].N[m->numdim-1]=m->N[m->numdim-1]/m->NLOCALP;
+                m->NXP=m->N[m->numdim-1]/m->NLOCALP;
             }
-            if (d<(*mloc)[d].NX%m->num_devices)
-                (*mloc)[d].NX= (*mloc)[d].NX/m->num_devices+1;
+            if (d<(*vcl)[d].N[m->numdim-1]%m->num_devices)
+                (*vcl)[d].N[m->numdim-1]= (*vcl)[d].N[m->numdim-1]/m->num_devices+1;
             else
-                (*mloc)[d].NX= (*mloc)[d].NX/m->num_devices;
+                (*vcl)[d].N[m->numdim-1]= (*vcl)[d].N[m->numdim-1]/m->num_devices;
 
-            (*mloc)[d].offset=0;
-            (*mloc)[d].NX0=0;
-            (*mloc)[d].offsetfd=0;
+            (*vcl)[d].offset=0;
+            (*vcl)[d].NX0=0;
+            (*vcl)[d].offsetfd=0;
+            int sizedims=1;
+            int sizedimsfd=1;
+            for (i=0;i<m->numdim-1;i++){
+                sizedims*=m->N[i];
+                sizedimsfd*=m->N[i];
+            }
             
             for (i=0;i<m->MYLOCALID;i++){
-                if (i<m->NX%m->NLOCALP){
-                    (*mloc)[d].offset+=(m->NX/m->NLOCALP+1)*m->NY*m->NZ;
-                    (*mloc)[d].NX0+=(m->NX/m->NLOCALP+1);
+                if (i<m->N[m->numdim-1]%m->NLOCALP){
+                    (*vcl)[d].offset+=(m->N[m->numdim-1]/m->NLOCALP+1)*sizedims;
+                    (*vcl)[d].NX0+=(m->N[m->numdim-1]/m->NLOCALP+1);
                 }
                 else{
-                    (*mloc)[d].offset+=(m->NX/m->NLOCALP)*m->NY*m->NZ;
-                    (*mloc)[d].NX0+=(m->NX/m->NLOCALP);
+                    (*vcl)[d].offset+=(m->N[m->numdim-1]/m->NLOCALP)*sizedims;
+                    (*vcl)[d].NX0+=(m->N[m->numdim-1]/m->NLOCALP);
                 }
                 
             }
 
-
             for (i=0;i<d;i++){
-                (*mloc)[d].NX0+=(*mloc)[i].NX;
-                (*mloc)[d].offset+=(*mloc)[i].NX*(*mloc)[i].NY*(*mloc)[i].NZ;
-                if (m->ND==3){
-                    (*mloc)[d].offsetfd+=((*mloc)[i].NX+m->FDORDER)*((*mloc)[i].NY+m->FDORDER)*((*mloc)[i].NZ+m->FDORDER);
-                }
-                else {
-                    (*mloc)[d].offsetfd+=((*mloc)[i].NX+m->FDORDER)*((*mloc)[i].NZ+m->FDORDER);
-                }
+                (*vcl)[d].NX0+=(*vcl)[i].N[m->numdim-1];
+                (*vcl)[d].offset+=(*vcl)[i].N[m->numdim-1]*sizedims;
+                (*vcl)[d].offsetfd+=((*vcl)[i].N[m->numdim-1]+m->FDORDER)*sizedimsfd;
             }
         }
 
         // Create a pointer at the right position (offset) of the decomposed model
+        // and assign memory buffers on the host side for each device
         if (!state){
-            if (m->rho)      (*mloc)[d].rho      =&m->rho[(*mloc)[d].offset];
-            if (m->rip)      (*mloc)[d].rip      =&m->rip[(*mloc)[d].offset];
-            if (m->rkp)      (*mloc)[d].rkp      =&m->rkp[(*mloc)[d].offset];
-            if (m->u)        (*mloc)[d].u        =&m->u[(*mloc)[d].offset];
-            if (m->pi)       (*mloc)[d].pi       =&m->pi[(*mloc)[d].offset];
-            if (m->uipkp)    (*mloc)[d].uipkp    =&m->uipkp[(*mloc)[d].offset];
-            if (m->taus)     (*mloc)[d].taus     =&m->taus[(*mloc)[d].offset];
-            if (m->tausipkp) (*mloc)[d].tausipkp =&m->tausipkp[(*mloc)[d].offset];
-            if (m->taup)     (*mloc)[d].taup     =&m->taup[(*mloc)[d].offset];
-            if (m->rjp)      (*mloc)[d].rjp      =&m->rjp[(*mloc)[d].offset];
-            if (m->uipjp)    (*mloc)[d].uipjp    =&m->uipjp[(*mloc)[d].offset];
-            if (m->ujpkp)    (*mloc)[d].ujpkp    =&m->ujpkp[(*mloc)[d].offset];
-            if (m->tausipjp) (*mloc)[d].tausipjp =&m->tausipjp[(*mloc)[d].offset];
-            if (m->tausjpkp) (*mloc)[d].tausjpkp =&m->tausjpkp[(*mloc)[d].offset];
-            
-            if (m->gradrho)  (*mloc)[d].gradrho  =&m->gradrho[(*mloc)[d].offset];
-            if (m->gradM)    (*mloc)[d].gradM    =&m->gradM[(*mloc)[d].offset];
-            if (m->gradmu)   (*mloc)[d].gradmu   =&m->gradmu[(*mloc)[d].offset];
-            if (m->gradtaup) (*mloc)[d].gradtaup =&m->gradtaup[(*mloc)[d].offset];
-            if (m->gradtaus) (*mloc)[d].gradtaus =&m->gradtaus[(*mloc)[d].offset];
-            
-            if (m->Hrho)  (*mloc)[d].Hrho  =&m->Hrho[(*mloc)[d].offset];
-            if (m->HM)    (*mloc)[d].HM    =&m->HM[(*mloc)[d].offset];
-            if (m->Hmu)   (*mloc)[d].Hmu   =&m->Hmu[(*mloc)[d].offset];
-            if (m->Htaup) (*mloc)[d].Htaup =&m->Htaup[(*mloc)[d].offset];
-            if (m->Htaus) (*mloc)[d].Htaus =&m->Htaus[(*mloc)[d].offset];
-            
-            
-            if (m->movvx)  (*mloc)[d].movvx  =&m->movvx[(*mloc)[d].offset];
-            if (m->movvy)  (*mloc)[d].movvy  =&m->movvy[(*mloc)[d].offset];
-            if (m->movvz)  (*mloc)[d].movvz  =&m->movvz[(*mloc)[d].offset];
-            if (m->movout>0){
-                if (m->ND==3){
-                    thissize=((*mloc)[d].NX+m->FDORDER)*((*mloc)[d].NY+m->FDORDER)*((*mloc)[d].NZ+m->FDORDER)*sizeof(cl_float);
-                }
-                else{
-                    thissize=((*mloc)[d].NX+m->FDORDER)*((*mloc)[d].NZ+m->FDORDER)*sizeof(cl_float);
-                }
-                if (m->ND!=21){
-                    GMALLOC((*mloc)[d].buffermovvx,thissize);
-                    GMALLOC((*mloc)[d].buffermovvz,thissize);
-                }
-                if (m->ND==3 || m->ND==21){
-                    GMALLOC((*mloc)[d].buffermovvy,thissize);
-                }
-                
+            paramsize=1;
+            fdsize=1;
+            for (i=0;i<m->numdim;i++){
+                fdsize*=(*vcl)[d].N[i]+m->FDORDER;
+                paramsize*=(*vcl)[d].N[i];
             }
             
-            
-            if (m->gradout==1){
-
-                
+            for (i=0;i<m->nparams;i++){
+                (*vcl)[d].params[i].gl_param=&m->params[i].gl_param[(*vcl)[d].offset];
+                (*vcl)[d].params[i].num_ele=paramsize;
+                if (m->params[i].to_grad){
+                    (*vcl)[d].params[i].gl_grad=&m->params[i].gl_grad[(*vcl)[d].offset];
+                    if (m->params[i].gl_H)
+                        (*vcl)[d].params[i].gl_H=&m->params[i].gl_H[(*vcl)[d].offset];
+                }
+            }
+            for (i=0;i<m->nvars;i++){
+                (*vcl)[d].vars[i].num_ele=fdsize;
+                if ((*vcl)[d].vars[i].to_output){
+                    alloc_seismo(&(*vcl)[d].vars[i].de_varout, m->ns, m->allng, m->NT, m->src_recs.nrec);
+                }
+                if (m->movout){
+                    if (m->vars[i].to_output){
+                        (*vcl)[d].vars[i].gl_mov=&m->vars[i].gl_mov[(*vcl)[d].offset];
+                        GMALLOC((*vcl)[d].vars[i].de_mov,(*vcl)[d].vars[i].num_ele*sizeof(cl_float));
+                    }
+                }
                 if (m->back_prop_type==2){
-                    if (m->ND==3){
-                        thissize=m->nfreqs*((*mloc)[d].NX+m->FDORDER)*((*mloc)[d].NY+m->FDORDER)*((*mloc)[d].NZ+m->FDORDER)*sizeof(cl_float2);
-                    }
-                    else{
-                        thissize=m->nfreqs*((*mloc)[d].NX+m->FDORDER)*((*mloc)[d].NZ+m->FDORDER)*sizeof(cl_float2);
-                    }
-                    
-                    if (m->ND!=21){
-                        GMALLOC((*mloc)[d].f_vx,thissize);
-                        GMALLOC((*mloc)[d].f_vz,thissize);
-                        GMALLOC((*mloc)[d].f_sxx,thissize);
-                        GMALLOC((*mloc)[d].f_szz,thissize);
-                        GMALLOC((*mloc)[d].f_sxz,thissize);
-                        GMALLOC((*mloc)[d].f_vxr,thissize);
-                        GMALLOC((*mloc)[d].f_vzr,thissize);
-                        GMALLOC((*mloc)[d].f_sxxr,thissize);
-                        GMALLOC((*mloc)[d].f_szzr,thissize);
-                        GMALLOC((*mloc)[d].f_sxzr,thissize);
-                    }
-                    
-                    if (m->ND==3 || m->ND==21){
-                        GMALLOC((*mloc)[d].f_vy,thissize);
-                        GMALLOC((*mloc)[d].f_sxy,thissize);
-                        GMALLOC((*mloc)[d].f_syz,thissize);
-                        GMALLOC((*mloc)[d].f_vyr,thissize);
-                        GMALLOC((*mloc)[d].f_sxyr,thissize);
-                        GMALLOC((*mloc)[d].f_syzr,thissize);
-                    }
-                    if (m->ND==3 ){
-                        GMALLOC((*mloc)[d].f_syy,thissize);
-                        GMALLOC((*mloc)[d].f_syyr,thissize);
-                    }
-                    
-                    if (m->L>0){
-                        if (m->ND!=21){
-                            GMALLOC((*mloc)[d].f_rxx,thissize*m->L);
-                            GMALLOC((*mloc)[d].f_rzz,thissize*m->L);
-                            GMALLOC((*mloc)[d].f_rxz,thissize*m->L);
-                            GMALLOC((*mloc)[d].f_rxxr,thissize*m->L);
-                            GMALLOC((*mloc)[d].f_rzzr,thissize*m->L);
-                            GMALLOC((*mloc)[d].f_rxzr,thissize*m->L);
-                        }
-                        
-                        if (m->ND==3 || m->ND==21){
-                            GMALLOC((*mloc)[d].f_rxy,thissize*m->L);
-                            GMALLOC((*mloc)[d].f_ryz,thissize*m->L);
-                            GMALLOC((*mloc)[d].f_rxyr,thissize*m->L);
-                            GMALLOC((*mloc)[d].f_ryzr,thissize*m->L);
-                        }
-                        if (m->ND==3){
-                            GMALLOC((*mloc)[d].f_ryy,thissize*m->L);
-                            GMALLOC((*mloc)[d].f_ryyr,thissize*m->L);
-                        }
-                        
-                        
-                    }
-                    
+                    GMALLOC( (*vcl)[d].vars[i].de_fvar, m->nfreqs*(*vcl)[d].vars[i].num_ele*sizeof(cl_float2));
                 }
+                
+                
+                
             }
+            
 
         }
 
-        
-        // Create the memory to read the seismograms for each shot
-        if (m->vxout && !state){
-            alloc_seismo(&(*mloc)[d].vxout, m->ns, m->allng, m->NT, m->nrec);
-        }
-        if (m->vyout && !state){
-            alloc_seismo(&(*mloc)[d].vyout, m->ns, m->allng, m->NT, m->nrec);
-        }
-        if (m->vzout && !state){
-            alloc_seismo(&(*mloc)[d].vzout, m->ns, m->allng, m->NT, m->nrec);
-        }
-        if (m->sxxout && !state){
-            alloc_seismo(&(*mloc)[d].sxxout, m->ns, m->allng, m->NT, m->nrec);
-        }
-        if (m->syyout && !state){
-            alloc_seismo(&(*mloc)[d].syyout, m->ns, m->allng, m->NT, m->nrec);
-        }
-        if (m->szzout && !state){
-            alloc_seismo(&(*mloc)[d].szzout, m->ns, m->allng, m->NT, m->nrec);
-        }
-        if (m->sxyout && !state){
-            alloc_seismo(&(*mloc)[d].sxyout, m->ns, m->allng, m->NT, m->nrec);
-        }
-        if (m->sxzout && !state){
-            alloc_seismo(&(*mloc)[d].sxzout, m->ns, m->allng, m->NT, m->nrec);
-        }
-        if (m->syzout && !state){
-            alloc_seismo(&(*mloc)[d].syzout, m->ns, m->allng, m->NT, m->nrec);
-        }
-        if (m->pout && !state){
-            alloc_seismo(&(*mloc)[d].pout, m->ns, m->allng, m->NT, m->nrec);
-        }
-        
-        
-        
-        
         // Get some properties of the device
-        __GUARD  clGetCommandQueueInfo(	(*vcl)[d].cmd_queue, CL_QUEUE_DEVICE, sizeof(cl_device_id), &device, NULL);
-        if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(state));
-        
-        __GUARD clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(workitem_size), &workitem_size, NULL);
-        __GUARD clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(workgroup_size), &workgroup_size, NULL);
-        __GUARD clGetDeviceInfo(device, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(local_mem_size), &local_mem_size, NULL);
-        if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(state));
-        
-        //Intel SDK does not give the right max work_group_size our kernels, we force it here!
-        if (!state && m->pref_device_type==CL_DEVICE_TYPE_CPU) workgroup_size= workgroup_size>1024 ? 1024:workgroup_size;
-        if (!state && m->pref_device_type==CL_DEVICE_TYPE_ACCELERATOR) workgroup_size= workgroup_size>1024 ? 1024:workgroup_size;
-        
-        // Define the local work size and global work size of the device.
+        {
+            __GUARD clGetCommandQueueInfo(	(*vcl)[d].cmd_queue, CL_QUEUE_DEVICE, sizeof(cl_device_id), &device, NULL);
+            __GUARD clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(workitem_size), &workitem_size, NULL);
+            __GUARD clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(workgroup_size), &workgroup_size, NULL);
+            __GUARD clGetDeviceInfo(device, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(local_mem_size), &local_mem_size, NULL);
+            if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(state));
+            
+            //Intel SDK does not give the right max work_group_size our kernels, we force it here!
+            if (!state && m->pref_device_type==CL_DEVICE_TYPE_CPU) workgroup_size= workgroup_size>1024 ? 1024:workgroup_size;
+            if (!state && m->pref_device_type==CL_DEVICE_TYPE_ACCELERATOR) workgroup_size= workgroup_size>1024 ? 1024:workgroup_size;
+        }
+        // Define the local work size and global work size for the update kernels.
         if (!state){
-            if (workitem_size[0]<m->FDORDER || workitem_size[1]<2|| workitem_size[2]<2){
+            dimbool=0;
+            for (i=0;i<m->numdim;i++){
+                if (workitem_size[i]<2)
+                    dimbool=1;
+            }
+            if (workitem_size[0]<m->FDORDER || dimbool){
                 fprintf(stdout,"Maximum device work item size of device %d doesn't support 3D local memory\n", d);
                 fprintf(stdout,"Switching off local memory optimization\n");
-                (*mloc)[d].local_off = 1;
+                (*vcl)[d].local_off = 1;
                 
             }
             else {
 
-                lsizez=32;
-                lsizex=16;
-                lsizey=16;
-                if (m->ND==3){// For 3D
-                    required_local_mem_size = (lsizez+m->FDORDER)*(lsizex+m->FDORDER)*(lsizey+m->FDORDER)*sizeof(float);
-                    while ( (lsizex>(m->FDORDER)/2 && lsizey>(m->FDORDER)/2 &&  required_local_mem_size>local_mem_size) || lsizex*lsizey*lsizez>workgroup_size ){
-                        lsizex-=2;
-                        lsizey-=2;
-                        required_local_mem_size = (lsizez+m->FDORDER)*(lsizex+m->FDORDER)*(lsizey+m->FDORDER)*sizeof(float);
-                    }
-                    if (required_local_mem_size>local_mem_size){
-                        while ( (lsizex>(m->FDORDER)/4 &&  required_local_mem_size>local_mem_size) || lsizex*lsizey*lsizez>workgroup_size ){
-                            lsizex-=2;
-                            required_local_mem_size = (lsizez+m->FDORDER)*(lsizex+m->FDORDER)*(lsizey+m->FDORDER)*sizeof(float);
-                        }
-                    }
-                    if (required_local_mem_size>local_mem_size){
-                        while ( (lsizey>(m->FDORDER)/4 &&  required_local_mem_size>local_mem_size) || lsizex*lsizey*lsizez>workgroup_size ){
-                            lsizey-=2;
-                            required_local_mem_size = (lsizez+m->FDORDER)*(lsizex+m->FDORDER)*(lsizey+m->FDORDER)*sizeof(float);
-                        }
-                    }
-  
+                lsize[0]=32;
+                for (i=1;i<m->numdim;i++){
+                    lsize[i]=16;
                 }
-                if (m->ND==2){// For 2D
-                    required_local_mem_size = (lsizez+m->FDORDER)*(lsizex+m->FDORDER)*sizeof(float);
-                    while ( (lsizex>(m->FDORDER)/4  &&  required_local_mem_size>local_mem_size) || lsizex*lsizez>workgroup_size ){
-                        lsizex-=2;
-                        required_local_mem_size = (lsizez+m->FDORDER)*(lsizex+m->FDORDER)*sizeof(float);
+                required_local_mem_size =sizeof(float);
+                for (i=0;i<m->numdim;i++){
+                    required_local_mem_size *= (lsize[i]+m->FDORDER);
+                }
+                while ( (lsize[1]>(m->FDORDER)/2 &&  required_local_mem_size>local_mem_size) || required_work_size>workgroup_size ){
+                    required_local_mem_size =sizeof(float);
+                    required_work_size=1;
+                    for (i=0;i<m->numdim;i++){
+                        if (i>0)
+                            lsize[i]-=2;
+                        required_local_mem_size *= (lsize[i]+m->FDORDER);
+                        required_work_size*=lsize[i];
                     }
-                    
+                }
+                for (j=0;j<m->numdim;j++){
+                    if (required_local_mem_size>local_mem_size){
+                        while ( (lsize[j]>(m->FDORDER)/4 &&  required_local_mem_size>local_mem_size) || required_work_size>workgroup_size ){
+                            required_local_mem_size =sizeof(float);
+                            required_work_size=1;
+                            for (i=0;i<m->numdim;i++){
+                                lsize[j]-=2;
+                                required_local_mem_size *= (lsize[i]+m->FDORDER);
+                                required_work_size*=lsize[i];
+                            }
+                        }
+                    }
                 }
                 
-                if (required_local_mem_size>0.9*local_mem_size && required_local_mem_size<local_mem_size){
-                    fprintf(stderr,"Warning: local memory needed to perform seismic modeling (%llu bits) exceeds 90%% of the local memory capacity of device %d (%llu bits)\n", required_local_mem_size, d, local_mem_size);
-                }
-                else if (required_local_mem_size>local_mem_size){
-                    
+                if (required_local_mem_size>local_mem_size){
                     fprintf(stderr,"Local memory needed to perform seismic modeling (%llu bits) exceeds the local memory capacity of device %d (%llu bits)\n", required_local_mem_size, d, local_mem_size );
                     fprintf(stderr,"Switching off local memory optimization\n");
-                    (*mloc)[d].local_off = 1;
+                    (*vcl)[d].local_off = 1;
                 }
                 
             }
+
+
             
+
         }
         if (!state){
-            (*mloc)[d].local_work_size[0] = lsizez;
-            (*mloc)[d].local_work_size[1] = lsizex;
-            (*mloc)[d].local_work_size[2] = lsizey;
-            
-            
+
             /* Global sizes for the kernels */
             if ((*mloc)[d].local_off==1){
                 (*mloc)[d].local_work_size[0] = 1;
@@ -458,6 +337,22 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
 
         }
         
+        GMALLOC((*vcl)[d].updates_f, m->nupdates*sizeof(struct update))
+        for (i=0;i<m->nupdates;i++){
+            (*vcl)[d].updates_f[i].name=m->update_names[i];
+        }
+        if (m->gradout){
+            GMALLOC((*vcl)[d].updates_adj, m->nupdates*sizeof(struct update))
+            for (i=0;i<m->nupdates;i++){
+                (*vcl)[d].updates_adj[i].name=m->update_names[i];
+            }
+        }
+        (*vcl)[d].local_work_size[0] = lsizez;
+        (*mloc)[d].local_work_size[1] = lsizex;
+        (*mloc)[d].local_work_size[2] = lsizey;
+        if ((*mloc)[d].local_off==1)
+            (*mloc)[d].local_work_size[0] = 1;
+        
         
         // Calculate the dimension of the buffers needed to transfer memory from/to the GPU
         if (!state){
@@ -481,11 +376,16 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             else{
                 (*vcl)[d].buffer_size_modelc = sizeof(cl_float2)*( (*mloc)[d].NX+m->FDORDER )*( (*mloc)[d].NZ+m->FDORDER )* m->nfreqs;
             }
-            buffer_size_s        = sizeof(float) * m->NT * m->nsmax;
-            buffer_size_ns       = sizeof(float) * 5 * m->nsmax;
-            buffer_size_ng       = sizeof(float) * 8 * m->ngmax;
+
+            for (i=0;i<m->ns; i++){
+                nsmax = fmax(nsmax, m->nsrc[i]);
+                ngmax = fmax(ngmax, m->nrec[i]);
+            }
+            buffer_size_s        = sizeof(float) * m->NT * nsmax;
+            buffer_size_ns       = sizeof(float) * 5 * nsmax;
+            buffer_size_ng       = sizeof(float) * 8 * ngmax;
             buffer_size_taper    = sizeof(float) * m->nab;
-            buffer_size_seisout     = sizeof(float) * m->NT * m->ngmax;
+            buffer_size_seisout     = sizeof(float) * m->NT * ngmax;
             buffer_size_L        = sizeof(float) * m->L;
             m->buffer_size_comm     = sizeof(float) * m->fdoh*(*mloc)[d].NY*(*mloc)[d].NZ;
             
@@ -540,146 +440,22 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
                 (*mloc)[d].global_work_size_surf[1] = (*mloc)[d].NX;
                 (*mloc)[d].global_work_size_initfd=  (*vcl)[d].buffer_size_fd/sizeof(float);
                 (*mloc)[d].global_work_size_f = ((*mloc)[d].NY+2*m->fdoh)*((*mloc)[d].NX+2*m->fdoh)*((*mloc)[d].NZ+2*m->fdoh);
-                
-                (*mloc)[d].global_work_size_surfgrid[0] = (*mloc)[d].NZ;
-                (*mloc)[d].global_work_size_surfgrid[1] = (*mloc)[d].NY;
-                (*mloc)[d].global_work_size_surfgrid[2] = (*mloc)[d].NZ;
+
                 
             }
             else{
                 (*mloc)[d].global_work_size_surf[0] = (*mloc)[d].NX;
                 (*mloc)[d].global_work_size_initfd= (*vcl)[d].buffer_size_fd/sizeof(float);
                 (*mloc)[d].global_work_size_f = ((*mloc)[d].NX+2*m->fdoh)*((*mloc)[d].NZ+2*m->fdoh);
-                
-                (*mloc)[d].global_work_size_surfgrid[0] = (*mloc)[d].NZ;
-                (*mloc)[d].global_work_size_surfgrid[1] = (*mloc)[d].NX;
+
                 
             }
             (*mloc)[d].global_work_size_init=  (*mloc)[d].NX*(*mloc)[d].NY*(*mloc)[d].NZ;
-            (*mloc)[d].global_work_size_gradsrc = m->NT*m->nsmax ;
+            (*mloc)[d].global_work_size_gradsrc = m->NT*nsmax ;
             
         }
 
-        
-        // Check global memory is sufficient
-        __GUARD clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(global_mem_size), &global_mem_size, NULL);
-        if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(state));
- 
-        if (!state){
-            if (m->ND==3){// For 3D
-                (*mloc)[d].required_global_mem_size += 9*(*vcl)[d].buffer_size_fd + 8*(*vcl)[d].buffer_size_model + buffer_size_s + buffer_size_ns + buffer_size_ng;
-                
-                (*mloc)[d].required_global_mem_size +=  3*buffer_size_seisout;
-                
-                if (m->abs_type==1){
-                    (*mloc)[d].required_global_mem_size+= 36*buffer_size_taper + 6*(*vcl)[d].buffer_size_CPML_NX+ 6*(*vcl)[d].buffer_size_CPML_NY+ 6*(*vcl)[d].buffer_size_CPML_NZ;
-                }
-                else if (m->abs_type==2){
-                    (*mloc)[d].required_global_mem_size+= buffer_size_taper;
-                }
-                
-                if (m->L>0){
-                    (*mloc)[d].required_global_mem_size+= 6*(*vcl)[d].buffer_size_fd*m->L + 5*(*vcl)[d].buffer_size_model;
-                }
-                
-                if (m->gradout==1 && m->back_prop_type==1 ){
-                    
-                    (*mloc)[d].required_global_mem_size+= 9*(*vcl)[d].buffer_size_fd+ 9*(*vcl)[d].buffer_size_bnd + 3*(*vcl)[d].buffer_size_model;
-                    if (m->L>0){
-                        (*mloc)[d].required_global_mem_size+= 6*(*vcl)[d].buffer_size_fd*m->L + 2*(*vcl)[d].buffer_size_model;
-                    }
-                }
-                
-                if (m->gradout==1 && m->back_prop_type==2){
-                    
-                    (*mloc)[d].required_global_mem_size+= 9*(*vcl)[d].buffer_size_modelc;
-                    if (m->L>0){
-                        (*mloc)[d].required_global_mem_size+= m->L*6*(*vcl)[d].buffer_size_modelc;
-                    }
-                }
-                
-            }
-            if (m->ND==2){// For 2D
-                (*mloc)[d].required_global_mem_size += 6*(*vcl)[d].buffer_size_fd + 5*(*vcl)[d].buffer_size_model + buffer_size_s + buffer_size_ns + buffer_size_ng;
-                
-                (*mloc)[d].required_global_mem_size +=  3*buffer_size_seisout;
-                
-                if (m->abs_type==1){
-                    (*mloc)[d].required_global_mem_size+= 16*buffer_size_taper + 4*(*vcl)[d].buffer_size_CPML_NX+ 4*(*vcl)[d].buffer_size_CPML_NZ;
-                }
-                
-                else if (m->abs_type==2){
-                    (*mloc)[d].required_global_mem_size+=buffer_size_taper;
-                }
-                
-                if (m->L>0){
-                    (*mloc)[d].required_global_mem_size+= 3*(*vcl)[d].buffer_size_fd*m->L + 3*(*vcl)[d].buffer_size_model;
-                }
-                
-                if (m->gradout==1 && m->back_prop_type==1 ){
-                    
-                    (*mloc)[d].required_global_mem_size+= 6*(*vcl)[d].buffer_size_fd+ 5*(*vcl)[d].buffer_size_bnd + 3*(*vcl)[d].buffer_size_model;
-                    if (m->L>0){
-                        (*mloc)[d].required_global_mem_size+= 3*(*vcl)[d].buffer_size_fd*m->L + 2*(*vcl)[d].buffer_size_model;
-                    }
-                }
-                
-                if (m->gradout==1 && m->back_prop_type==2){
-                    
-                    (*mloc)[d].required_global_mem_size+= 6*(*vcl)[d].buffer_size_modelc;
-                    if (m->L>0){
-                        (*mloc)[d].required_global_mem_size+= m->L*3*(*vcl)[d].buffer_size_modelc;
-                    }
-                }
-                
-            }
-            if (m->ND==21){// For 2D
-                (*mloc)[d].required_global_mem_size += 3*(*vcl)[d].buffer_size_fd + 3*(*vcl)[d].buffer_size_model + buffer_size_s +buffer_size_ns + buffer_size_ng;
-                
-                (*mloc)[d].required_global_mem_size +=   3*buffer_size_seisout;
-                
-                if (m->abs_type==1){
-                    (*mloc)[d].required_global_mem_size+= 12*buffer_size_taper + 2*(*vcl)[d].buffer_size_CPML_NX+ 2*(*vcl)[d].buffer_size_CPML_NZ;
-                }
-                else if (m->abs_type==2){
-                    (*mloc)[d].required_global_mem_size+=buffer_size_taper;
-                }
-                
-                if (m->L>0){
-                    (*mloc)[d].required_global_mem_size+= 2*(*vcl)[d].buffer_size_fd*m->L + 2*(*vcl)[d].buffer_size_model;
-                }
-                
-                if (m->gradout==1 && m->back_prop_type==1){
-                    
-                    (*mloc)[d].required_global_mem_size+= 3*(*vcl)[d].buffer_size_fd+ 3*(*vcl)[d].buffer_size_bnd + 2*(*vcl)[d].buffer_size_model;
-                    if (m->L>0){
-                        (*mloc)[d].required_global_mem_size+= 2*(*vcl)[d].buffer_size_fd*m->L + 1*(*vcl)[d].buffer_size_model;
-                    }
-                }
-                
-                if (m->gradout==1 && m->back_prop_type==2){
-                    
-                    (*mloc)[d].required_global_mem_size+= 3*(*vcl)[d].buffer_size_modelc;
-                    if (m->L>0){
-                        (*mloc)[d].required_global_mem_size+= m->L*2*(*vcl)[d].buffer_size_modelc;
-                    }
-                }
-                
-            }
-            
 
-            if ((*mloc)[d].required_global_mem_size>0.9*global_mem_size && (*mloc)[d].required_global_mem_size<global_mem_size){
-                fprintf(stderr,"Warning: memory needed to perform seismic modeling (%llu bits) exceeds 90%% of the memory capacity of device %d (%llu bits)\n", (*mloc)[d].required_global_mem_size, d, global_mem_size);
-            }
-            else if ((*mloc)[d].required_global_mem_size>global_mem_size){
-                
-                fprintf(stderr,"Memory needed to perform seismic modeling (%llu bits) exceeds the memory capacity of device %d (%llu bits)\nTerminating\n", (*mloc)[d].required_global_mem_size, d, global_mem_size );
-                state=1;
-            }
-        }
-        
-        
-       
         // Create the memory buffers for the seismic variables of the GPU
         __GUARD create_gpu_memory_buffer_cst( &m->context, buffer_size_ns,              &(*vcl)[d].src_pos);
         __GUARD create_gpu_memory_buffer_cst( &m->context, buffer_size_ng,              &(*vcl)[d].rec_pos);

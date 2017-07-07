@@ -19,169 +19,184 @@
 
 #include "F.h"
 
-#define rho(z,y,x) rho[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define rip(z,y,x) rip[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define rjp(z,y,x) rjp[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define rkp(z,y,x) rkp[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define uipjp(z,y,x) uipjp[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define ujpkp(z,y,x) ujpkp[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define uipkp(z,y,x) uipkp[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define u(z,y,x) u[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define pi(z,y,x) pi[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define grad(z,y,x) grad[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define grads(z,y,x) grads[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define amp1(z,y,x) amp1[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define amp2(z,y,x) amp2[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-
-#define vxout(y,x) vxout[(y)*m->NT+(x)]
-#define vyout(y,x) vyout[(y)*m->NT+(x)]
-#define vzout(y,x) vzout[(y)*m->NT+(x)]
-#define vx0(y,x) vx0[(y)*m->NT+(x)]
-#define vy0(y,x) vy0[(y)*m->NT+(x)]
-#define vz0(y,x) vz0[(y)*m->NT+(x)]
-#define rx(y,x) rx[(y)*m->NT+(x)]
-#define ry(y,x) ry[(y)*m->NT+(x)]
-#define rz(y,x) rz[(y)*m->NT+(x)]
-
-#define vxcum(y,x) vxcum[(y)*m->NT+(x)]
-#define vycum(y,x) vycum[(y)*m->NT+(x)]
-
-#define u_in(z,y,x) u_in[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define pi_in(z,y,x) pi_in[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define uL(z,y,x) uL[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define piL(z,y,x) piL[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define taus(z,y,x) taus[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define tausipjp(z,y,x) tausipjp[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define tausjpkp(z,y,x) tausjpkp[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define tausipkp(z,y,x) tausipkp[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define taup(z,y,x) taup[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-
-
-#define PI (3.141592653589793238462643383279502884197169)
+#define rho(z,y,x) rho[(x)*NY*NZ+(y)*NZ+(z)]
+#define rip(z,y,x) rip[(x)*NY*NZ+(y)*NZ+(z)]
+#define rjp(z,y,x) rjp[(x)*NY*NZ+(y)*NZ+(z)]
+#define rkp(z,y,x) rkp[(x)*NY*NZ+(y)*NZ+(z)]
+#define muipjp(z,y,x) muipjp[(x)*NY*NZ+(y)*NZ+(z)]
+#define mujpkp(z,y,x) mujpkp[(x)*NY*NZ+(y)*NZ+(z)]
+#define muipkp(z,y,x) muipkp[(x)*NY*NZ+(y)*NZ+(z)]
+#define mu(z,y,x) mu[(x)*NY*NZ+(y)*NZ+(z)]
+#define pi(z,y,x) pi[(x)*NY*NZ+(y)*NZ+(z)]
+#define taus(z,y,x) taus[(x)*NY*NZ+(y)*NZ+(z)]
+#define tausipjp(z,y,x) tausipjp[(x)*NY*NZ+(y)*NZ+(z)]
+#define tausjpkp(z,y,x) tausjpkp[(x)*NY*NZ+(y)*NZ+(z)]
+#define tausipkp(z,y,x) tausipkp[(x)*NY*NZ+(y)*NZ+(z)]
+#define taup(z,y,x) taup[(x)*NY*NZ+(y)*NZ+(z)]
 
 
 
-int Init_model(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc) {
+int Init_model(struct modcsts * m) {
 
     int state=0;
     int i,j,k,l;
+    int NX, NY, NZ;
     float ws=0,sumu=0,sumpi=0, thisvp=0, thisvs=0, thistaup=0, thistaus=0;
     float *pts=NULL;
     float vpmax, vpmin, vsmin, vsmax, vmin, vmax;
     float gamma=0, g=0, dtstable;
     
     
-    //Transform variables into modulus
-    if (!state){
-        
-        if (m->ND!=21){
-            if (m->param_type==0){
-                for (i=0;i<m->NX*m->NY*m->NZ;i++){
-                    m->u[i]=powf(m->u[i],2)*m->rho[i];
-                    m->pi[i]=powf(m->pi[i],2)*m->rho[i];
-                }
-            }
-            if (m->param_type==2){
-                for (i=0;i<m->NX*m->NY*m->NZ;i++){
-                    m->u[i]=powf(m->u[i]/m->rho[i],2)*m->rho[i];
-                    m->pi[i]=powf(m->pi[i]/m->rho[i],2)*m->rho[i];
-                }
-            }
-            if (m->param_type==3){
-                for (i=0;i<m->NX*m->NY*m->NZ;i++){
-                    
-                    thisvp=m->pi[i]-m->taup[i];
-                    thistaup=m->taup[i]/(m->pi[i]-m->taup[i]);
-                    if (m->u[i]>0){
-                        thisvs=m->u[i]-m->taus[i];
-                        thistaus=m->taus[i]/(m->u[i]-m->taus[i]);
-                    }
-                    else{
-                        thistaus=0;
-                        thisvs=0;
-                    }
-                    m->u[i]=powf(thisvs,2)*m->rho[i];
-                    m->pi[i]=powf(thisvp,2)*m->rho[i];
-                    m->taup[i]=thistaup;
-                    m->taus[i]=thistaus;
-                }
-                
-            }
+    float * mu=NULL;
+    float * M=NULL;
+    float * rho=NULL;
+    float * taup=NULL;
+    float * taus=NULL;
+    
+    float * rip=NULL;
+    float * rjp=NULL;
+    float * rkp=NULL;
+    
+    float * muipjp=NULL;
+    float * mujpkp=NULL;
+    float * muipkp=NULL;
+    
+    float * tausipjp=NULL;
+    float * tausjpkp=NULL;
+    float * tausipkp=NULL;
+    
+    int num_ele=0;
+
+    for (i=0;i<m->nparams;i++){
+        if (strcmp(m->params[i].name,"rho")==0){
+            rho= m->params[i].gl_param;
+            num_ele=m->params[i].num_ele;
         }
-        else {
-            if (m->param_type==0){
-                for (i=0;i<m->NX*m->NY*m->NZ;i++){
-                    m->u[i]=powf(m->u[i],2)*m->rho[i];
-                }
-            }
-            if (m->param_type==2){
-                for (i=0;i<m->NX*m->NY*m->NZ;i++){
-                    m->u[i]=powf(m->u[i]/m->rho[i],2)*m->rho[i];
-                }
-            }
-            if (m->param_type==3){
-                for (i=0;i<m->NX*m->NY*m->NZ;i++){
-                    if (m->u[i]>0){
-                        thisvs=m->u[i]-m->taus[i];
-                        thistaus=m->taus[i]/(m->u[i]-m->taus[i]);
-                    }
-                    else{
-                        thistaus=0;
-                        thisvs=0;
-                    }
-                    m->u[i]=powf(thisvs,2)*m->rho[i];
-                    m->taus[i]=thistaus;
-                }
-                
-            }
+        else if (strcmp(m->params[i].name,"M")==0){
+            M= m->params[i].gl_param;            
         }
-        
+        else if (strcmp(m->params[i].name,"mu")==0){
+            mu= m->params[i].gl_param;
+        }
+        else if (strcmp(m->params[i].name,"taup")==0){
+            taup= m->params[i].gl_param;
+        }
+        else if (strcmp(m->params[i].name,"taus")==0){
+            taus= m->params[i].gl_param;
+        }
+        else if (strcmp(m->params[i].name,"rip")==0){
+            rip= m->params[i].gl_param;
+        }
+        else if (strcmp(m->params[i].name,"rjp")==0){
+            rjp= m->params[i].gl_param;
+        }
+        else if (strcmp(m->params[i].name,"rkp")==0){
+            rkp= m->params[i].gl_param;
+        }
+        else if (strcmp(m->params[i].name,"muipjp")==0){
+            muipjp= m->params[i].gl_param;
+        }
+        else if (strcmp(m->params[i].name,"mujpkp")==0){
+            mujpkp= m->params[i].gl_param;
+        }
+        else if (strcmp(m->params[i].name,"muipkp")==0){
+            muipkp= m->params[i].gl_param;
+        }
+        else if (strcmp(m->params[i].name,"tausipjp")==0){
+            tausipjp= m->params[i].gl_param;
+        }
+        else if (strcmp(m->params[i].name,"tausjpkp")==0){
+            tausjpkp= m->params[i].gl_param;
+        }
+        else if (strcmp(m->params[i].name,"tausipkp")==0){
+            tausipkp= m->params[i].gl_param;
+        }
     }
     
+    //Transform variables into modulus
+    if (!state){
+        if (m->param_type==0){
+            if (M){
+                for (i=0;i<num_ele;i++){
+                    M[i]=powf(M[i],2)*rho[i];
+                }
+            }
+            if (mu){
+                for (i=0;i<num_ele;i++){
+                    mu[i]=powf(mu[i],2)*rho[i];
+                }
+            }
+        }
+        else if (m->param_type==2){
+            if (M){
+                for (i=0;i<num_ele;i++){
+                    M[i]=powf(M[i]/rho[i],2)*rho[i];
+                }
+            }
+            if (mu){
+                for (i=0;i<num_ele;i++){
+                    mu[i]=powf(mu[i]/rho[i],2)*rho[i];
+                }
+            }
+        }
+        if (m->param_type==3){
+            if (M && mu && taup && taus){
+                for (i=0;i<num_ele;i++){
+                    
+                    thisvp=M[i]-taup[i];
+                    thistaup=taup[i]/(M[i]-taup[i]);
+                    if (mu[i]>0){
+                        thisvs=mu[i]-taus[i];
+                        thistaus=taus[i]/(mu[i]-taus[i]);
+                    }
+                    else{
+                        thistaus=0;
+                        thisvs=0;
+                    }
+                    mu[i]=powf(thisvs,2)*rho[i];
+                    M[i]=powf(thisvp,2)*rho[i];
+                    taup[i]=thistaup;
+                    taus[i]=thistaus;
+                }
+            }
+            
+        }
+    }
+
+    //Correct the phase velocity for viscoelastic modeling
     if (m->L>0){
 
         /* vector for maxwellbodies */
-        if (!state) if (!(pts =malloc(m->L*sizeof(float))))              {state=1; fprintf(stderr,"could not allocate eta\n");};
+        GMALLOC(pts,m->L*sizeof(float))
 
         for (l=0;l<m->L;l++) {
-            pts[l]=1.0/(2.0*PI*m->FL[l]);
-            m->eta[l]=m->dt/pts[l];
+            pts[l]=m->dt/m->csts[20].gl_cst[l];
         }
         
         ws=2.0*PI*m->f0;
         sumu=0.0;
         sumpi=0.0;
 
-        /* loop over global grid */
-        if (m->pi){
-            for (k=0;k<m->NZ;k++){
-                for (j=0;j<m->NY;j++){
-                    for (i=0;i<m->NX;i++){
-                        sumpi=0.0;
-                        for (l=0;l<m->L;l++){
-                            sumpi+= ((ws*ws*pts[l]*pts[l]*m->taup(k,j,i))/(1.0+ws*ws*pts[l]*pts[l]));
-                        }
-                        m->pi(k,j,i)=m->pi(k,j,i)/(1.0+sumpi);
-                    }
+        if (M){
+            for (i=0;i<num_ele;i++){
+                sumpi=0.0;
+                for (l=0;l<m->L;l++){
+                    sumpi+= ((ws*ws*pts[l]*pts[l]*taup[i])/(1.0+ws*ws*pts[l]*pts[l]));
                 }
+                M[i]=M[i]/(1.0+sumpi);
             }
         }
-        if (m->u){
-            for (k=0;k<m->NZ;k++){
-                for (j=0;j<m->NY;j++){
-                    for (i=0;i<m->NX;i++){
-                        sumu=0.0;
-                        for (l=0;l<m->L;l++){
-                            sumu+=  ((ws*ws*pts[l]*pts[l]*m->taus(k,j,i))/(1.0+ws*ws*pts[l]*pts[l]));
-                        }
-                        m->u(k,j,i)=m->u(k,j,i)/(1.0+sumu);
-                    }
+        if (mu){
+            for (i=0;i<num_ele;i++){
+                sumu=0.0;
+                for (l=0;l<m->L;l++){
+                    sumu+= ((ws*ws*pts[l]*pts[l]*taus[i])/(1.0+ws*ws*pts[l]*pts[l]));
                 }
+                mu[i]=mu[i]/(1.0+sumu);
             }
         }
-        
+
         free(pts);
-        
     }
     
     /* Check stability and dispersion */
@@ -189,16 +204,19 @@ int Init_model(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mlo
     vsmax=0;
     vpmin=99999;
     vsmin=99999;
-    for (i=0;i<m->NX*m->NY*m->NZ;i++){
-        
-        thisvp=sqrt(m->pi[i]/m->rho[i]);
-        thisvs=sqrt(m->u[i]/m->rho[i]);
-        
-        if (vpmax<thisvp) vpmax=thisvp;
-        if (vsmax<thisvs) vsmax=thisvs;
-        if (vsmin>thisvs && thisvs>0.1) vsmin=thisvs;
-        if (vpmin>thisvp && thisvp>0.1) vpmin=thisvp;
-        
+    if (mu){
+        for (i=0;i<num_ele;i++){
+            thisvs=sqrt(mu[i]/rho[i]);
+            if (vsmax<thisvs) vsmax=thisvs;
+            if (vsmin>thisvs && thisvs>0.1) vsmin=thisvs;
+        }
+    }
+    if (M){
+        for (i=0;i<num_ele;i++){
+            thisvp=sqrt(M[i]/rho[i]);
+            if (vpmax<thisvp) vpmax=thisvp;
+            if (vpmin>thisvp && thisvp>0.1) vpmin=thisvp;
+        }
     }
     if (vsmin==99999){
         vmin=vpmin;
@@ -259,161 +277,134 @@ int Init_model(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mlo
         fprintf(stderr, "Error: Time step too large, to be stable, set dt<%f\n", dtstable);
     }
     
+    //Create averaged properties
+    if (m->numdim==3){
+        NX=m->N[2];
+        NY=m->N[1];
+        NZ=m->N[0];
+    }
+    else
+    {
+        NX=m->N[1];
+        NY=0;
+        NZ=m->N[0];
+    }
+    
     /* harmonic averaging of shear modulus */
-    if (m->uipjp){
-        for (k=0;k<m->NZ;k++){
-            for (j=0;j<m->NY;j++){
-                for (i=0;i<m->NX;i++){
-                    if (i<m->NX-1 && j<m->NY-1)
-                        m->uipjp(k,j,i)=4.0/((1.0/m->u(k,j,i))+(1.0/m->u(k,j,i+1))+(1.0/m->u(k,j+1,i+1))+(1.0/m->u(k,j+1,i)));
+    if (muipjp){
+        for (k=0;k<NZ;k++){
+            for (j=0;j<NY;j++){
+                for (i=0;i<NX;i++){
+                    if (i<NX-1 && j<NY-1)
+                        muipjp(k,j,i)=4.0/((1.0/mu(k,j,i))+(1.0/mu(k,j,i+1))+(1.0/mu(k,j+1,i+1))+(1.0/mu(k,j+1,i)));
                     else
-                        m->uipjp(k,j,i)=m->u(k,j,i);
+                        muipjp(k,j,i)=mu(k,j,i);
                 }
             }
         }
     }
-    if (m->ujpkp){
-        for (k=0;k<m->NZ;k++){
-            for (j=0;j<m->NY;j++){
-                for (i=0;i<m->NX;i++){
-                    if (k<m->NZ-1 && j<m->NY-1)
-                        m->ujpkp(k,j,i)=4.0/((1.0/m->u(k,j,i))+(1.0/m->u(k+1,j,i))+(1.0/m->u(k+1,j+1,i))+(1.0/m->u(k,j+1,i)));
+    if (mujpkp){
+        for (k=0;k<NZ;k++){
+            for (j=0;j<NY;j++){
+                for (i=0;i<NX;i++){
+                    if (k<NZ-1 && j<NY-1)
+                        mujpkp(k,j,i)=4.0/((1.0/mu(k,j,i))+(1.0/mu(k+1,j,i))+(1.0/mu(k+1,j+1,i))+(1.0/mu(k,j+1,i)));
                     else
-                        m->ujpkp(k,j,i)=m->u(k,j,i);
+                        mujpkp(k,j,i)=mu(k,j,i);
                 }
             }
         }
     }
-    if (m->uipkp){
-        for (k=0;k<m->NZ;k++){
-            for (j=0;j<m->NY;j++){
-                for (i=0;i<m->NX;i++){
-                    if (k<m->NZ-1 && i<m->NX-1)
-                        m->uipkp(k,j,i)=4.0/((1.0/m->u(k,j,i))+(1.0/m->u(k+1,j,i))+(1.0/m->u(k+1,j,i+1))+(1.0/m->u(k,j,i+1)));
+    if (muipkp){
+        for (k=0;k<NZ;k++){
+            for (j=0;j<NY;j++){
+                for (i=0;i<NX;i++){
+                    if (k<NZ-1 && i<NX-1)
+                        muipkp(k,j,i)=4.0/((1.0/mu(k,j,i))+(1.0/mu(k+1,j,i))+(1.0/mu(k+1,j,i+1))+(1.0/mu(k,j,i+1)));
                     else
-                        m->uipkp(k,j,i)=m->u(k,j,i);
+                        muipkp(k,j,i)=mu(k,j,i);
                      }
             }
         }
     }
     /* arithmetic averaging of TAU for S-waves and density */
-    if (m->tausipjp){
-        for (k=0;k<m->NZ;k++){
-            for (j=0;j<m->NY;j++){
-                for (i=0;i<m->NX;i++){
-                    if (i<m->NX-1 && j<m->NY-1)
-                        m->tausipjp(k,j,i)=0.25*(m->taus(k,j,i)+m->taus(k,j,i+1)+m->taus(k,j+1,i+1)+m->taus(k,j+1,i));
+    if (tausipjp){
+        for (k=0;k<NZ;k++){
+            for (j=0;j<NY;j++){
+                for (i=0;i<NX;i++){
+                    if (i<NX-1 && j<NY-1)
+                        tausipjp(k,j,i)=0.25*(taus(k,j,i)+taus(k,j,i+1)+taus(k,j+1,i+1)+taus(k,j+1,i));
                     else
-                        m->tausipjp(k,j,i)=m->taus(k,j,i);                }
+                        tausipjp(k,j,i)=taus(k,j,i);                }
             }
         }
     }
 
-    if (m->tausjpkp){
-        for (k=0;k<m->NZ;k++){
-            for (j=0;j<m->NY;j++){
-                for (i=0;i<m->NX;i++){
-                    if (k<m->NZ-1 && j<m->NY-1)
-                        m->tausjpkp(k,j,i)=0.25*(m->taus(k,j,i)+m->taus(k,j+1,i)+m->taus(k+1,j+1,i)+m->taus(k+1,j,i));
+    if (tausjpkp){
+        for (k=0;k<NZ;k++){
+            for (j=0;j<NY;j++){
+                for (i=0;i<NX;i++){
+                    if (k<NZ-1 && j<NY-1)
+                        tausjpkp(k,j,i)=0.25*(taus(k,j,i)+taus(k,j+1,i)+taus(k+1,j+1,i)+taus(k+1,j,i));
                     else
-                        m->tausjpkp(k,j,i)=m->taus(k,j,i);
+                        tausjpkp(k,j,i)=taus(k,j,i);
                 }
             }
         }
     }
     
-    if (m->tausipkp){
-        for (k=0;k<m->NZ;k++){
-            for (j=0;j<m->NY;j++){
-                for (i=0;i<m->NX;i++){
-                    if (k<m->NZ-1 && i<m->NX-1)
-                        m->tausipkp(k,j,i)=0.25*(m->taus(k,j,i)+m->taus(k,j,i+1)+m->taus(k+1,j,i+1)+m->taus(k+1,j,i));
+    if (tausipkp){
+        for (k=0;k<NZ;k++){
+            for (j=0;j<NY;j++){
+                for (i=0;i<NX;i++){
+                    if (k<NZ-1 && i<NX-1)
+                        tausipkp(k,j,i)=0.25*(taus(k,j,i)+taus(k,j,i+1)+taus(k+1,j,i+1)+taus(k+1,j,i));
                     else
-                        m->tausipkp(k,j,i)=m->taus(k,j,i);
+                        tausipkp(k,j,i)=taus(k,j,i);
 
                 }
             }
         }
     }
-    if (m->rjp){
-        for (k=0;k<m->NZ;k++){
-            for (j=0;j<m->NY;j++){
-                for (i=0;i<m->NX;i++){
-                    if (j<m->NY-1)
-                        m->rjp(k,j,i)=0.5*(m->rho(k,j,i)+m->rho(k,j+1,i));
+    if (rjp){
+        for (k=0;k<NZ;k++){
+            for (j=0;j<NY;j++){
+                for (i=0;i<NX;i++){
+                    if (j<NY-1)
+                        rjp(k,j,i)=0.5*(rho(k,j,i)+rho(k,j+1,i));
                     else
-                        m->rjp(k,j,i)=m->rho(k,j,i);
+                        rjp(k,j,i)=rho(k,j,i);
                 }
             }
         }
     }
-    if (m->rip){
-        for (k=0;k<m->NZ;k++){
-            for (j=0;j<m->NY;j++){
-                for (i=0;i<m->NX;i++){
-                    if (i<m->NX-1)
-                        m->rip(k,j,i)=0.5*(m->rho(k,j,i)+m->rho(k,j,i+1));
+    if (rip){
+        for (k=0;k<NZ;k++){
+            for (j=0;j<NY;j++){
+                for (i=0;i<NX;i++){
+                    if (i<NX-1)
+                        rip(k,j,i)=0.5*(rho(k,j,i)+rho(k,j,i+1));
                     else
-                        m->rip(k,j,i)=m->rho(k,j,i);
-                }
-            }
-        }
-    }
-
-    if (m->rkp){
-        for (k=0;k<m->NZ;k++){
-            for (j=0;j<m->NY;j++){
-                for (i=0;i<m->NX;i++){
-                    if (k<m->NZ-1)
-                        m->rkp(k,j,i)=0.5*(m->rho(k,j,i)+m->rho(k+1,j,i));
-                    else
-                        m->rkp(k,j,i)=m->rho(k,j,i);
+                        rip(k,j,i)=rho(k,j,i);
                 }
             }
         }
     }
 
- 
-
-    //Initialize the gradient
-    if (m->gradout==1 ){
-
-        if (m->gradrho) memset (m->gradrho, 0, m->NX*m->NY*m->NZ*sizeof(double));
-        if (m->gradM) memset (m->gradM, 0, m->NX*m->NY*m->NZ*sizeof(double));
-        if (m->gradmu) memset (m->gradmu, 0, m->NX*m->NY*m->NZ*sizeof(double));
-        if (m->gradtaup) memset (m->gradtaup, 0, m->NX*m->NY*m->NZ*sizeof(double));
-        if (m->gradtaus) memset (m->gradtaus, 0, m->NX*m->NY*m->NZ*sizeof(double));
-        
-        if (m->back_prop_type==2){
-            float fmaxout=0;
-            for (j=0;j<m->nfreqs;j++){
-                if (m->gradfreqs[j]>fmaxout)
-                    fmaxout=m->gradfreqs[j];
-            }
-            float df;
-            m->dtnyq=ceil(0.0156/fmaxout/m->dt);
-            m->NTnyq=(m->tmax-m->tmin)/m->dtnyq+1;
-            df=1.0/m->NTnyq/m->dt/m->dtnyq;
-            for (j=0;j<m->nfreqs;j++){
-                m->gradfreqsn[j]=floor(m->gradfreqs[j]/df);
+    if (rkp){
+        for (k=0;k<NZ;k++){
+            for (j=0;j<NY;j++){
+                for (i=0;i<NX;i++){
+                    if (k<NZ-1)
+                        rkp(k,j,i)=0.5*(rho(k,j,i)+rho(k+1,j,i));
+                    else
+                        rkp(k,j,i)=rho(k,j,i);
+                }
             }
         }
-        
-        //Initialize the amplitude output (approximate Hessian)
-        if (m->Hout==1 ){
-            
-            if (m->Hrho) memset (m->Hrho, 0, m->NX*m->NY*m->NZ*sizeof(double));
-            if (m->HM) memset (m->HM, 0, m->NX*m->NY*m->NZ*sizeof(double));
-            if (m->Hmu) memset (m->Hmu, 0, m->NX*m->NY*m->NZ*sizeof(double));
-            if (m->Htaup) memset (m->Htaup, 0, m->NX*m->NY*m->NZ*sizeof(double));
-            if (m->Htaus) memset (m->Htaus, 0, m->NX*m->NY*m->NZ*sizeof(double));
-            
-        }
-        
     }
+
     
-
-
     if (state && m->MPI_INIT==1) MPI_Bcast( &state, 1, MPI_INT, m->MYID, MPI_COMM_WORLD );
     
     return state;

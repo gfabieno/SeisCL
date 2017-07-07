@@ -183,32 +183,32 @@ int res_raw(struct modcsts * mptr, int s)
     int tmax=mptr->tmax;
     int tmin=mptr->tmin;
     float dt=mptr->dt;
-    int nrec=(mptr->nrec[s]);
+    int nrec=(mptr->src_recs.nrec[s]);
     
     // For a lighter notation, we use local pointers to the data
-    if (mptr->vx0){
-        vxout=mptr->vxout[s];
-        vx0=mptr->vx0[s];
-    }
-    if (mptr->vy0){
-        vyout=mptr->vyout[s];
-        vy0=mptr->vy0[s];
-    }
-    if (mptr->vz0){
-        vzout=mptr->vzout[s];
-        vz0=mptr->vz0[s];
-    }
-    if (mptr->rx)
-        rx=mptr->rx[s];
-    if (mptr->ry)
-        ry=mptr->ry[s];
-    if (mptr->rz)
-        rz=mptr->rz[s];
-    
-    if (mptr->mute)
-        mute=mptr->mute[s];
-    if (mptr->weight)
-        weight=mptr->weight[s];
+//    if (mptr->vx0){
+//        vxout=mptr->vxout[s];
+//        vx0=mptr->vx0[s];
+//    }
+//    if (mptr->vy0){
+//        vyout=mptr->vyout[s];
+//        vy0=mptr->vy0[s];
+//    }
+//    if (mptr->vz0){
+//        vzout=mptr->vzout[s];
+//        vz0=mptr->vz0[s];
+//    }
+//    if (mptr->rx)
+//        rx=mptr->rx[s];
+//    if (mptr->ry)
+//        ry=mptr->ry[s];
+//    if (mptr->rz)
+//        rz=mptr->rz[s];
+//    
+//    if (mptr->mute)
+//        mute=mptr->mute[s];
+//    if (mptr->weight)
+//        weight=mptr->weight[s];
     
     
     //  The data is filtered between the maximum and minimum frequencies
@@ -227,51 +227,7 @@ int res_raw(struct modcsts * mptr, int s)
         }
     }
     
-    
-    
-    // We apply the muting to the traces
-    if (mptr->mute){
-        for (g=0;g<nrec;g++){
-            for (t=tmin;t<tmax;t++){
-                mw=1.0;
-                ts=t*dt;
-                if (ts<mute(g,0) || ts>mute(g,3)){
-                    mw=0.0;
-                }
-                else if (ts>mute(g,1) && ts<mute(g,2)){
-                    mw=1.0;
-                }
-                else if (ts<=mute(g,1) ) {
-                    Nw=2*(mute(g,1)-mute(g,0))/dt-1;
-                    t0=mute(g,0)/dt;
-                    mw=0.5*(1.0-cosf(2.0*PI*(t-t0 )/Nw ));
-                }
-                else {
-                    Nw=2*(mute(g,3)-mute(g,2))/dt-1;
-                    t0=mute(g,2)/dt;
-                    mw=0.5*(1.0-cosf(2.0*PI*(t-t0+Nw/2)/Nw ));
-                }
-                if (mute(g,4)==1){
-                    mw=1.0-mw;
-                }
-                if (vx0){
-                    vxout(g,t)*= mw;
-                    vx0(g,t)*= mw;
-                }
-                if (vy0){
-                    vyout(g,t)*= mw;
-                    vy0(g,t)*= mw;
-                }
-                if (vz0){
-                    vzout(g,t)*= mw;
-                    vz0(g,t)*= mw;
-                }
-                
-                
-            }
-            
-        }
-    }
+
     
     
     // We calculate the rms value, if data is to be scaled with it
@@ -337,52 +293,7 @@ int res_raw(struct modcsts * mptr, int s)
     
     
     
-    // Weight the traces if weights are provided
-    if (mptr->weight){
-        for (g=0;g<nrec;g++){
-            
-            if (vx0){
-                for (t=tmin;t<tmax;t++){
-                    
-                    if (mptr->weightlength==1){
-                        mw=weight[g];
-                    }
-                    else {
-                        mw=weight(g,t);
-                    }
-                    vxout(g,t)*= mw;
-                    vx0(g,t)*= mw;
-                }
-            }
-            if (vy0){
-                for (t=tmin;t<tmax;t++){
-                    
-                    if (mptr->weightlength==1){
-                        mw=weight[g];
-                    }
-                    else {
-                        mw=weight(g,t);
-                    }
-                    vyout(g,t)*= mw;
-                    vy0(g,t)*= mw;
-                }
-            }
-            if (vz0){
-                for (t=tmin;t<tmax;t++){
-                    
-                    if (mptr->weightlength==1){
-                        mw=weight[g];
-                    }
-                    else {
-                        mw=weight(g,t);
-                    }
-                    vzout(g,t)*= mw;
-                    vz0(g,t)*= mw;
-                }
-            }
 
-        }
-    }
     
     //Apply the rms scaling to the data
     if (mptr->scalerms || mptr->scaleshot || mptr->scalermsnorm){
@@ -488,37 +399,7 @@ int res_raw(struct modcsts * mptr, int s)
         for (t=0;t<tmax;t++){
             mw=1.0;
             
-            if (mptr->mute){
-                ts=t*dt;
-                if (ts<mute(g,0) || ts>mute(g,3)){
-                    mw=0.0;
-                }
-                else if (ts>mute(g,1) && ts<mute(g,2)){
-                    mw=1.0;
-                }
-                else if (ts<=mute(g,1) ) {
-                    Nw=2*(mute(g,1)-mute(g,0))/dt-1;
-                    t0=mute(g,0)/dt;
-                    mw=0.5*(1.0-cosf(2.0*PI*(t-t0 )/Nw ));
-                }
-                else {
-                    Nw=2*(mute(g,3)-mute(g,2))/dt-1;
-                    t0=mute(g,2)/dt;
-                    mw=0.5*(1.0-cosf(2.0*PI*(t-t0+Nw/2)/Nw ));
-                }
-                if (mute(g,4)==1){
-                    mw=1.0-mw;
-                }
-            }
-            
-            if (mptr->weight){
-                if (mptr->weightlength==1){
-                    mw*=weight[g];
-                }
-                else {
-                    mw*=weight(g,t);
-                }
-            }
+           
             
             // Calculate the rms value
             if (mptr->back_prop_type==1){
@@ -586,7 +467,7 @@ int res_raw(struct modcsts * mptr, int s)
             }
 
             for (n=0;n<mptr->nfreqs;n++){
-                thisfreq=mptr->gradfreqs[n]*nfft*mptr->dt+1;
+                thisfreq=mptr->csts[21].gl_cst[n]*nfft*mptr->dt+1;
                 if (vx0){
                     mptr->rms+=powf(temp_vx_out[thisfreq].i ,2)+powf(temp_vx_out[thisfreq].r, 2);
                     mptr->rmsnorm+=powf(temp_vx0_out[thisfreq].i,2)+powf(temp_vx0_out[thisfreq].r,2);
@@ -651,24 +532,24 @@ int res_amp(struct modcsts * m, int s){
     int NT=m->NT;
     int tmax=m->tmax;
     float dt=m->dt;
-    int nrec=(m->nrec[s]);
-    vxout=m->vxout[s];
-    vzout=m->vzout[s];
-    vx0=m->vx0[s];
-    vz0=m->vz0[s];
-    
-    
-    if (m->ND==3){
-        vyout=m->vyout[s];
-        vy0=m->vy0[s];
-    }
-    if (m->rx){
-        rx=m->rx[s];
-        rz=m->rz[s];
-        if (m->ND==3){
-            ry=m->ry[s];
-        }
-    }
+    int nrec=(m->src_recs.nrec[s]);
+//    vxout=m->vxout[s];
+//    vzout=m->vzout[s];
+//    vx0=m->vx0[s];
+//    vz0=m->vz0[s];
+//    
+//    
+//    if (m->ND==3){
+//        vyout=m->vyout[s];
+//        vy0=m->vy0[s];
+//    }
+//    if (m->rx){
+//        rx=m->rx[s];
+//        rz=m->rz[s];
+//        if (m->ND==3){
+//            ry=m->ry[s];
+//        }
+//    }
 
     
     kiss_fft_cpx *trace=NULL, *trace0=NULL;
@@ -689,10 +570,10 @@ int res_amp(struct modcsts * m, int s){
     for (g=0;g<nrec;g++){
         
         
-        ampdiff( &vxout(g,0), &vx0(g,0), &rx(g,0), trace, trace0,  Trace, Trace0, tmax, dt, nfft, nfmax, nfmin, &stf, &sti, m->back_prop_type, &m->rms, &m->rmsnorm, m->nfreqs, m->gradfreqs);
-        ampdiff( &vzout(g,0), &vz0(g,0), &rz(g,0), trace, trace0,  Trace, Trace0, tmax, dt, nfft, nfmax, nfmin, &stf, &sti, m->back_prop_type, &m->rms, &m->rmsnorm, m->nfreqs, m->gradfreqs);
+        ampdiff( &vxout(g,0), &vx0(g,0), &rx(g,0), trace, trace0,  Trace, Trace0, tmax, dt, nfft, nfmax, nfmin, &stf, &sti, m->back_prop_type, &m->rms, &m->rmsnorm, m->nfreqs, m->csts[21].gl_cst);
+        ampdiff( &vzout(g,0), &vz0(g,0), &rz(g,0), trace, trace0,  Trace, Trace0, tmax, dt, nfft, nfmax, nfmin, &stf, &sti, m->back_prop_type, &m->rms, &m->rmsnorm, m->nfreqs, m->csts[21].gl_cst);
         if (m->ND==3){
-            ampdiff( &vyout(g,0), &vy0(g,0), &ry(g,0), trace, trace0,  Trace, Trace0, tmax, dt, nfft, nfmax, nfmin, &stf, &sti, m->back_prop_type, &m->rms, &m->rmsnorm, m->nfreqs, m->gradfreqs);
+            ampdiff( &vyout(g,0), &vy0(g,0), &ry(g,0), trace, trace0,  Trace, Trace0, tmax, dt, nfft, nfmax, nfmin, &stf, &sti, m->back_prop_type, &m->rms, &m->rmsnorm, m->nfreqs, m->csts[21].gl_cst);
         }
 
         
@@ -708,3 +589,5 @@ int res_amp(struct modcsts * m, int s){
     
     return state;
 }
+
+
