@@ -25,9 +25,9 @@
 #define vy(z,y,x)   vy[(x)*NY*NZ+(y)*NZ+(z)]
 #define vz(z,y,x)   vz[(x)*NY*NZ+(y)*NZ+(z)]
 
-#define vx_buf(z,y,x)   vx_buf[(x)*(NY-2*fdoh)*(NZ-2*fdoh)+(y)*(NZ-2*fdoh)+(z)]
-#define vy_buf(z,y,x)   vy_buf[(x)*(NY-2*fdoh)*(NZ-2*fdoh)+(y)*(NZ-2*fdoh)+(z)]
-#define vz_buf(z,y,x)   vz_buf[(x)*(NY-2*fdoh)*(NZ-2*fdoh)+(y)*(NZ-2*fdoh)+(z)]
+#define vx_buf(z,y,x)   vx_buf[(x)*(NY-2*FDOH)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
+#define vy_buf(z,y,x)   vy_buf[(x)*(NY-2*FDOH)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
+#define vz_buf(z,y,x)   vz_buf[(x)*(NY-2*FDOH)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
 
 #endif
 
@@ -36,9 +36,9 @@
 #define vy(z,y,x)  vy[(x)*NZ+(z)]
 #define vz(z,y,x)  vz[(x)*NZ+(z)]
 
-#define vx_buf(z,y,x)  vx_buf[(x)*(NZ-2*fdoh)+(z)]
-#define vy_buf(z,y,x)  vy_buf[(x)*(NZ-2*fdoh)+(z)]
-#define vz_buf(z,y,x)  vz_buf[(x)*(NZ-2*fdoh)+(z)]
+#define vx_buf(z,y,x)  vx_buf[(x)*(NZ-2*FDOH)+(z)]
+#define vy_buf(z,y,x)  vy_buf[(x)*(NZ-2*FDOH)+(z)]
+#define vz_buf(z,y,x)  vz_buf[(x)*(NZ-2*FDOH)+(z)]
 
 
 #endif
@@ -48,18 +48,18 @@ __kernel void fill_transfer_buff_v_out( int gidx0, __global float *vx, __global 
 {
 #if ND==3
     // If we use local memory
-#if local_off==0
+#if LOCAL_OFF==0
     
-    int gidz = get_global_id(0)+fdoh;
-    int gidy = get_global_id(1)+fdoh;
+    int gidz = get_global_id(0)+FDOH;
+    int gidy = get_global_id(1)+FDOH;
     int gidx = get_global_id(2);
     
     // If local memory is turned off
-#elif local_off==1
+#elif LOCAL_OFF==1
     
     int gid = get_global_id(0);
-    int gidz = gid%glsizez+fdoh;
-    int gidy = (gid/glsizez)%glsizey+fdoh;
+    int gidz = gid%glsizez+FDOH;
+    int gidy = (gid/glsizez)%glsizey+FDOH;
     int gidx = gid/(glsizez*glsizey);
     
 #endif
@@ -67,25 +67,25 @@ __kernel void fill_transfer_buff_v_out( int gidx0, __global float *vx, __global 
 #else
     
     // If we use local memory
-#if local_off==0
-    int gidz = get_global_id(0)+fdoh;
+#if LOCAL_OFF==0
+    int gidz = get_global_id(0)+FDOH;
     int gidx = get_global_id(1);
     int gidy = 0;
     
     // If local memory is turned off
-#elif local_off==1
+#elif LOCAL_OFF==1
     int gid = get_global_id(0);
-    int gidz = gid%glsizez+fdoh;
+    int gidz = gid%glsizez+FDOH;
     int gidx = (gid/glsizez);
     int gidy = 0;
 #endif
 #endif
-    //gidx0=fdoh for comm1 and NX-2*fdoh for comm2
-    vx_buf(gidz-fdoh,gidy,gidx)=vx(gidz,gidy,gidx+gidx0);
-    vz_buf(gidz-fdoh,gidy,gidx)=vz(gidz,gidy,gidx+gidx0);
+    //gidx0=FDOH for comm1 and NX-2*FDOH for comm2
+    vx_buf(gidz-FDOH,gidy,gidx)=vx(gidz,gidy,gidx+gidx0);
+    vz_buf(gidz-FDOH,gidy,gidx)=vz(gidz,gidy,gidx+gidx0);
 
 #if ND==3
-    vy_buf(gidz-fdoh,gidy,gidx)=vy(gidz,gidy,gidx+gidx0);
+    vy_buf(gidz-FDOH,gidy,gidx)=vy(gidz,gidy,gidx+gidx0);
 #endif
 
 
@@ -96,18 +96,18 @@ __kernel void fill_transfer_buff_v_in( int gidx0, __global float *vx, __global f
 {
 #if ND==3
     // If we use local memory
-#if local_off==0
+#if LOCAL_OFF==0
     
-    int gidz = get_global_id(0)+fdoh;
-    int gidy = get_global_id(1)+fdoh;
+    int gidz = get_global_id(0)+FDOH;
+    int gidy = get_global_id(1)+FDOH;
     int gidx = get_global_id(2);
     
     // If local memory is turned off
-#elif local_off==1
+#elif LOCAL_OFF==1
     
     int gid = get_global_id(0);
-    int gidz = gid%glsizez+fdoh;
-    int gidy = (gid/glsizez)%glsizey+fdoh;
+    int gidz = gid%glsizez+FDOH;
+    int gidy = (gid/glsizez)%glsizey+FDOH;
     int gidx = gid/(glsizez*glsizey);
     
 #endif
@@ -115,26 +115,26 @@ __kernel void fill_transfer_buff_v_in( int gidx0, __global float *vx, __global f
 #else
     
     // If we use local memory
-#if local_off==0
-    int gidz = get_global_id(0)+fdoh;
+#if LOCAL_OFF==0
+    int gidz = get_global_id(0)+FDOH;
     int gidx = get_global_id(1);
     int gidy = 0;
     
     // If local memory is turned off
-#elif local_off==1
+#elif LOCAL_OFF==1
     int gid = get_global_id(0);
-    int gidz = gid%glsizez+fdoh;
+    int gidz = gid%glsizez+FDOH;
     int gidx = (gid/glsizez);
     int gidy = 0;
 #endif
 #endif
-    //gidx0=0 for comm1 and NX-fdoh for comm2
-    vx(gidz,gidy,gidx+gidx0)=vx_buf(gidz-fdoh,gidy,gidx);
-    vz(gidz,gidy,gidx+gidx0)=vz_buf(gidz-fdoh,gidy,gidx);
+    //gidx0=0 for comm1 and NX-FDOH for comm2
+    vx(gidz,gidy,gidx+gidx0)=vx_buf(gidz-FDOH,gidy,gidx);
+    vz(gidz,gidy,gidx+gidx0)=vz_buf(gidz-FDOH,gidy,gidx);
     
     
 #if ND==3
-    vy(gidz,gidy,gidx+gidx0)=vy_buf(gidz-fdoh,gidy,gidx);
+    vy(gidz,gidy,gidx+gidx0)=vy_buf(gidz-FDOH,gidy,gidx);
 #endif
     
 }

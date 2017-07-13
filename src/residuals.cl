@@ -21,21 +21,21 @@
 
 /*Define useful macros to be able to write a matrix formulation in 2D with OpenCl */
 #if ND==3
-#define vx(z,y,x)   vx[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vy(z,y,x)   vy[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vz(z,y,x)   vz[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define rip(z,y,x)     rip[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define rjp(z,y,x)     rjp[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define rkp(z,y,x)     rkp[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
+#define vx(z,y,x)   vx[(x)*NY*(NZ)+(y)*(NZ)+(z)]
+#define vy(z,y,x)   vy[(x)*NY*(NZ)+(y)*(NZ)+(z)]
+#define vz(z,y,x)   vz[(x)*NY*(NZ)+(y)*(NZ)+(z)]
+#define rip(z,y,x)     rip[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define rjp(z,y,x)     rjp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define rkp(z,y,x)     rkp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #endif
 
 #if ND==2 || ND==21
-#define vx(z,y,x)  vx[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vy(z,y,x)  vy[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vz(z,y,x)  vz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define rip(z,y,x)    rip[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define rjp(z,y,x)    rjp[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define rkp(z,y,x)    rkp[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
+#define vx(z,y,x)  vx[(x)*(NZ)+(z)]
+#define vy(z,y,x)  vy[(x)*(NZ)+(z)]
+#define vz(z,y,x)  vz[(x)*(NZ)+(z)]
+#define rip(z,y,x)    rip[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define rjp(z,y,x)    rjp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define rkp(z,y,x)    rkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #endif
 
 #define vxout(y,x) vxout[(y)*NT+(x)]
@@ -60,20 +60,20 @@ __kernel void residuals( __global float *vx, __global float *vy, __global float 
  
     int gid = get_global_id(0);
     
-    int i=(int)(rec_pos(gid,0)/DH-0.5)+fdoh;
-    int j=(int)(rec_pos(gid,1)/DH-0.5)+fdoh;
-    int k=(int)(rec_pos(gid,2)/DH-0.5)+fdoh;
+    int i=(int)(rec_pos(gid,0)/DH-0.5)+FDOH;
+    int j=(int)(rec_pos(gid,1)/DH-0.5)+FDOH;
+    int k=(int)(rec_pos(gid,2)/DH-0.5)+FDOH;
     
-    if ( (i-offset)>=fdoh && (i-offset)<(NX-fdoh) ){
+    if ( (i-OFFSET)>=FDOH && (i-OFFSET)<(NX-FDOH) ){
         
 #if bcastvx==1
-        vx(k,j,i-offset) += rx(gid, nt)/rip(k,j,i-offset);
+        vx(k,j,i-OFFSET) += rx(gid, nt)/rip(k,j,i-OFFSET);
 #endif
 #if bcastvy==1
-        vy(k,j,i-offset) += ry(gid, nt)/rjp(k,j,i-offset);
+        vy(k,j,i-OFFSET) += ry(gid, nt)/rjp(k,j,i-OFFSET);
 #endif
 #if bcastvz==1
-        vz(k,j,i-offset) += rz(gid, nt)/rkp(k,j,i-offset);
+        vz(k,j,i-OFFSET) += rz(gid, nt)/rkp(k,j,i-OFFSET);
 #endif
         
 

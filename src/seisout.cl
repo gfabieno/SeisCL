@@ -21,27 +21,27 @@
 
 /*Define useful macros to be able to write a matrix formulation in 2D with OpenCl */
 #if ND==3
-#define vx(z,y,x)   vx[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vy(z,y,x)   vy[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vz(z,y,x)   vz[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxx(z,y,x) sxx[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define syy(z,y,x) syy[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define szz(z,y,x) szz[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxy(z,y,x) sxy[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define syz(z,y,x) syz[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxz(z,y,x) sxz[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
+#define vx(z,y,x)   vx[(x)*NY*(NZ)+(y)*(NZ)+(z)]
+#define vy(z,y,x)   vy[(x)*NY*(NZ)+(y)*(NZ)+(z)]
+#define vz(z,y,x)   vz[(x)*NY*(NZ)+(y)*(NZ)+(z)]
+#define sxx(z,y,x) sxx[(x)*NY*(NZ)+(y)*(NZ)+(z)]
+#define syy(z,y,x) syy[(x)*NY*(NZ)+(y)*(NZ)+(z)]
+#define szz(z,y,x) szz[(x)*NY*(NZ)+(y)*(NZ)+(z)]
+#define sxy(z,y,x) sxy[(x)*NY*(NZ)+(y)*(NZ)+(z)]
+#define syz(z,y,x) syz[(x)*NY*(NZ)+(y)*(NZ)+(z)]
+#define sxz(z,y,x) sxz[(x)*NY*(NZ)+(y)*(NZ)+(z)]
 #endif
 
 #if ND==2 || ND==21
-#define vx(z,y,x)  vx[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vy(z,y,x)  vy[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vz(z,y,x)  vz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxx(z,y,x) sxx[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define syy(z,y,x) syy[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define szz(z,y,x) szz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxy(z,y,x) sxy[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define syz(z,y,x) syz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxz(z,y,x) sxz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
+#define vx(z,y,x)  vx[(x)*(NZ)+(z)]
+#define vy(z,y,x)  vy[(x)*(NZ)+(z)]
+#define vz(z,y,x)  vz[(x)*(NZ)+(z)]
+#define sxx(z,y,x) sxx[(x)*(NZ)+(z)]
+#define syy(z,y,x) syy[(x)*(NZ)+(z)]
+#define szz(z,y,x) szz[(x)*(NZ)+(z)]
+#define sxy(z,y,x) sxy[(x)*(NZ)+(z)]
+#define syz(z,y,x) syz[(x)*(NZ)+(z)]
+#define sxz(z,y,x) sxz[(x)*(NZ)+(z)]
 #endif
 
 #define vxout(y,x) vxout[(y)*NT+(x)]
@@ -70,50 +70,48 @@ __kernel void seisout(__global float *vx,         __global float *vy,           
     
     int gid = get_global_id(0);
     
-    int i=(int)(rec_pos(gid,0)/DH-0.5)+fdoh;
-    int j=(int)(rec_pos(gid,1)/DH-0.5)+fdoh;
-    int k=(int)(rec_pos(gid,2)/DH-0.5)+fdoh;
+    int i=(int)(rec_pos(gid,0)/DH-0.5)+FDOH;
+    int j=(int)(rec_pos(gid,1)/DH-0.5)+FDOH;
+    int k=(int)(rec_pos(gid,2)/DH-0.5)+FDOH;
     
-    if ( (i-offset)>=fdoh && (i-offset)<(NX-fdoh) ){
+    if ( (i-OFFSET)>=FDOH && (i-OFFSET)<(NX-FDOH) ){
         
 #if bcastvx==1
-        vxout(gid, nt)= vx(k,j,i-offset);
+        vxout(gid, nt)= vx(k,j,i-OFFSET);
 #endif
 #if bcastvy==1
-        vyout(gid, nt)= vy(k,j,i-offset);
+        vyout(gid, nt)= vy(k,j,i-OFFSET);
 #endif
 #if bcastvz==1
-        vzout(gid, nt)= vz(k,j,i-offset);
+        vzout(gid, nt)= vz(k,j,i-OFFSET);
 #endif
 #if bcastsxx==1
-        sxxout(gid, nt)= sxx(k,j,i-offset);
+        sxxout(gid, nt)= sxx(k,j,i-OFFSET);
 #endif
 #if bcastsyy==1
-        syyout(gid, nt)= syy(k,j,i-offset);
+        syyout(gid, nt)= syy(k,j,i-OFFSET);
 #endif
 #if bcastszz==1
-        szzout(gid, nt)= szz(k,j,i-offset);
+        szzout(gid, nt)= szz(k,j,i-OFFSET);
 #endif
 #if bcastsxy==1
-        sxyout(gid, nt)= sxy(k,j,i-offset);
+        sxyout(gid, nt)= sxy(k,j,i-OFFSET);
 #endif
 #if bcastsxz==1
-        sxzout(gid, nt)= sxz(k,j,i-offset);
+        sxzout(gid, nt)= sxz(k,j,i-OFFSET);
 #endif
 #if bcastsyz==1
-        syzout(gid, nt)= syz(k,j,i-offset);
+        syzout(gid, nt)= syz(k,j,i-OFFSET);
 #endif
 #if bcastp==1
 #if ND==3
-        pout(gid, nt)= (sxx(k,j,i-offset)+syy(k,j,i-offset)+szz(k,j,i-offset) )/3.0;
+        pout(gid, nt)= (sxx(k,j,i-OFFSET)+syy(k,j,i-OFFSET)+szz(k,j,i-OFFSET) )/3.0;
 #endif
 #if ND==2
-        pout(gid, nt)= (sxx(k,j,i-offset)+szz(k,j,i-offset) )/2.0;
+        pout(gid, nt)= (sxx(k,j,i-OFFSET)+szz(k,j,i-OFFSET) )/2.0;
 #endif
 #endif
-        
-        
-        
+  
     }
     
 }

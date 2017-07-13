@@ -8,6 +8,33 @@
 
 #include "F.h"
 
+/*Loading files autmatically created by the makefile that contain the *.cl kernels in a c string.
+ This way, no .cl file need to be read and there is no need to be in the executable directory to execute SeisCL.*/
+#include "initialize.hcl"
+#include "residuals.hcl"
+#include "savebnd2D.hcl"
+#include "savebnd3D.hcl"
+#include "savefreqs.hcl"
+#include "surface2D.hcl"
+#include "surface2D_SH.hcl"
+#include "surface3D.hcl"
+#include "update_adjs2D.hcl"
+#include "update_adjs2D_SH.hcl"
+#include "update_adjs3D.hcl"
+#include "update_adjv2D.hcl"
+#include "update_adjv2D_SH.hcl"
+#include "update_adjv3D.hcl"
+#include "update_s2D.hcl"
+#include "update_s2D_SH.hcl"
+#include "update_s3D.hcl"
+#include "update_v2D.hcl"
+#include "update_v2D_SH.hcl"
+#include "update_v3D.hcl"
+#include "update_v_CPML.hcl"
+#include "seisout.hcl"
+#include "fill_transfer_buff_s.hcl"
+#include "fill_transfer_buff_v.hcl"
+
 
 //Assign parameters list depending on which case of modeling is desired
 int assign_modeling_case(struct modcsts * m){
@@ -18,342 +45,540 @@ int assign_modeling_case(struct modcsts * m){
     int sizeparams=1;
     int sizevars=1;
     int sizebnd[10];
-    for (i=0;i<m->numdim;i++){
+    for (i=0;i<m->NDIM;i++){
         sizeparams*=m->N[i];
         sizevars*=m->N[i]+m->FDORDER;
     }
-    for (i=0;i<m->numdim;i++){
+    for (i=0;i<m->NDIM;i++){
         sizebnd[i]=1;
-        for (j=0;j<m->numdim;j++){
+        for (j=0;j<m->NDIM;j++){
             if (i!=j)
                 sizebnd[i]*=m->N[j];
         }
     }
     
-    m->ncsts=23;
-    GMALLOC(m->csts, sizeof(struct constants)*m->ncsts)
-    m->csts[0].name="taper";   m->csts[0].num_ele=m->nab;
-    m->csts[1].name="K_z";      m->csts[1].num_ele=2*m->nab;
-    m->csts[2].name="a_z";      m->csts[2].num_ele=2*m->nab;
-    m->csts[3].name="b_z";      m->csts[3].num_ele=2*m->nab;
-    m->csts[4].name="K_z_half"; m->csts[4].num_ele=2*m->nab;
-    m->csts[5].name="a_z_half"; m->csts[5].num_ele=2*m->nab;
-    m->csts[6].name="b_z_half"; m->csts[6].num_ele=2*m->nab;
-    
-    m->csts[7].name="K_x";      m->csts[7].num_ele=2*m->nab;
-    m->csts[8].name="a_x";      m->csts[8].num_ele=2*m->nab;
-    m->csts[9].name="b_x";      m->csts[9].num_ele=2*m->nab;
-    m->csts[10].name="K_x_half"; m->csts[10].num_ele=2*m->nab;
-    m->csts[11].name="a_x_half"; m->csts[11].num_ele=2*m->nab;
-    m->csts[12].name="b_x_half"; m->csts[12].num_ele=2*m->nab;
-    
-    m->csts[13].name="K_y";      m->csts[13].num_ele=2*m->nab;
-    m->csts[14].name="a_y";      m->csts[14].num_ele=2*m->nab;
-    m->csts[15].name="b_y";      m->csts[15].num_ele=2*m->nab;
-    m->csts[16].name="K_y_half"; m->csts[16].num_ele=2*m->nab;
-    m->csts[17].name="a_y_half"; m->csts[17].num_ele=2*m->nab;
-    m->csts[18].name="b_y_half"; m->csts[18].num_ele=2*m->nab;
-    m->csts[19].name="FL"; m->csts[19].num_ele=m->L; m->csts[19].to_read="/FL";
-    m->csts[20].name="eta"; m->csts[20].num_ele=m->L;
-    m->csts[21].name="gradfreqs"; m->csts[21].num_ele=m->nfreqs; m->csts[21].to_read="/gradfreqs";
-    m->csts[22].name="gradfreqsn"; m->csts[22].num_ele=m->nfreqs;
-    
-    if (m->L>0){
-        m->csts[19].active=1;
-        m->csts[20].active=1;
-    }
-    if (m->gradout && m->back_prop_type==2){
-        m->csts[21].active=1;
-        m->csts[22].active=1;
-    }
-    if (m->abs_type==2){
-        m->csts[0].active=1;
-    }
-    else if (m->abs_type==1){
-        for (i=1;i<19;i++){
-            m->csts[i].active=1;
+    //Arrays of constants size on all devices
+    {
+        m->ncsts=23;
+        GMALLOC(m->csts, sizeof(struct constants)*m->ncsts);
+        m->csts[0].name="taper";   m->csts[0].num_ele=m->NAB;
+        m->csts[1].name="K_z";      m->csts[1].num_ele=2*m->NAB;
+        m->csts[2].name="a_z";      m->csts[2].num_ele=2*m->NAB;
+        m->csts[3].name="b_z";      m->csts[3].num_ele=2*m->NAB;
+        m->csts[4].name="K_z_half"; m->csts[4].num_ele=2*m->NAB;
+        m->csts[5].name="a_z_half"; m->csts[5].num_ele=2*m->NAB;
+        m->csts[6].name="b_z_half"; m->csts[6].num_ele=2*m->NAB;
+        
+        m->csts[7].name="K_x";      m->csts[7].num_ele=2*m->NAB;
+        m->csts[8].name="a_x";      m->csts[8].num_ele=2*m->NAB;
+        m->csts[9].name="b_x";      m->csts[9].num_ele=2*m->NAB;
+        m->csts[10].name="K_x_half"; m->csts[10].num_ele=2*m->NAB;
+        m->csts[11].name="a_x_half"; m->csts[11].num_ele=2*m->NAB;
+        m->csts[12].name="b_x_half"; m->csts[12].num_ele=2*m->NAB;
+        
+        m->csts[13].name="K_y";      m->csts[13].num_ele=2*m->NAB;
+        m->csts[14].name="a_y";      m->csts[14].num_ele=2*m->NAB;
+        m->csts[15].name="b_y";      m->csts[15].num_ele=2*m->NAB;
+        m->csts[16].name="K_y_half"; m->csts[16].num_ele=2*m->NAB;
+        m->csts[17].name="a_y_half"; m->csts[17].num_ele=2*m->NAB;
+        m->csts[18].name="b_y_half"; m->csts[18].num_ele=2*m->NAB;
+        m->csts[19].name="FL"; m->csts[19].num_ele=m->L; m->csts[19].to_read="/FL";
+        m->csts[20].name="eta"; m->csts[20].num_ele=m->L;
+        m->csts[21].name="gradfreqs"; m->csts[21].num_ele=m->NFREQS; m->csts[21].to_read="/gradfreqs";
+        m->csts[22].name="gradfreqsn"; m->csts[22].num_ele=m->NFREQS;
+        
+        if (m->L>0){
+            m->csts[19].active=1;
+            m->csts[20].active=1;
         }
-        if (m->ND!=3){
-            for (i=13;i<19;i++){
-                m->csts[i].active=0;
+        if (m->GRADOUT && m->BACK_PROP_TYPE==2){
+            m->csts[21].active=1;
+            m->csts[22].active=1;
+        }
+        if (m->ABS_TYPE==2){
+            m->csts[0].active=1;
+        }
+        else if (m->ABS_TYPE==1){
+            for (i=1;i<19;i++){
+                m->csts[i].active=1;
+            }
+            if (m->ND!=3){
+                for (i=13;i<19;i++){
+                    m->csts[i].active=0;
+                }
             }
         }
     }
-        
     
+    //Define the update kernels
+    m->nupdates=2;
+    GMALLOC(m->updates_f, m->nupdates*sizeof(struct update));
+    m->updates_f[0].name="update_v";
+    m->updates_f[1].name="update_s";
+
+    
+    if (m->GRADOUT){
+        GMALLOC(m->updates_adj, m->nupdates*sizeof(struct update));
+        m->updates_adj[0].name="update_adjv";
+        m->updates_adj[1].name="update_adjs";
+    }
+
+
+
+    
+
     //Define parameters and variables
     {
         if (m->ND==3 && m->L>0){
+
+            __GUARD assign_prog_source(&m->updates_f[0].center, "update_v", update_v3D_source);
+            __GUARD assign_prog_source(&m->updates_f[0].comm1, "update_v", update_v3D_source);
+            __GUARD assign_prog_source(&m->updates_f[0].comm2, "update_v", update_v3D_source);
+            __GUARD assign_prog_source(&m->updates_f[1].center, "update_s", update_s3D_source);
+            __GUARD assign_prog_source(&m->updates_f[1].comm1, "update_s", update_s3D_source);
+            __GUARD assign_prog_source(&m->updates_f[1].comm2, "update_s", update_s3D_source);
+            
+            
+            if (m->GRADOUT){
+                __GUARD assign_prog_source(&m->updates_adj[0].center, "update_adjv", update_adjv3D_source);
+                __GUARD assign_prog_source(&m->updates_adj[0].comm1, "update_adjv", update_adjv3D_source);
+                __GUARD assign_prog_source(&m->updates_adj[0].comm2, "update_adjv", update_adjv3D_source);
+                __GUARD assign_prog_source(&m->updates_adj[1].center, "update_adjs", update_adjs3D_source);
+                __GUARD assign_prog_source(&m->updates_adj[1].comm1, "update_adjs", update_adjs3D_source);
+                __GUARD assign_prog_source(&m->updates_adj[1].comm2, "update_adjs", update_adjs3D_source);
+            }
+            if (m->FREESURF){
+                __GUARD assign_prog_source(&m->bnd_cnds.surf, "surface", surface3D_source);
+            }
+            if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+                __GUARD assign_prog_source(&m->grads.savebnd, "savebnd", savebnd3D_source);
+            }
+            
             m->nparams=14;
             
-            GMALLOC(m->params, sizeof(struct parameter)*m->nparams)
+            GMALLOC(m->params, sizeof(struct parameter)*m->nparams);
+            if (!state){
             m->params[0].name="mu";        m->params[0].to_read="/mu";
             m->params[1].name="M";         m->params[1].to_read="/M";
             m->params[2].name="rho";       m->params[2].to_read="/rho";
             m->params[3].name="taup";      m->params[3].to_read="/taup";
             m->params[4].name="taus";      m->params[4].to_read="/taus";
-            m->params[5].name="rip";         
-            m->params[6].name="rjp";         
-            m->params[7].name="rkp";         
+            m->params[5].name="rip";
+            m->params[6].name="rjp";
+            m->params[7].name="rkp";
             m->params[8].name="muipjp";
             m->params[9].name="mujpkp";
             m->params[10].name="muipkp";
-            m->params[11].name="tausipjp";  
-            m->params[12].name="tausjpkp";  
-            m->params[13].name="tausipkp"; 
-
-
- 
-            m->nvars=15;
-            if (m->abs_type==2)
-                m->nparams+=18;
-            GMALLOC(m->vars, sizeof(struct variable)*m->nvars)
-            m->vars[0].name="vx";   m->vars[0].num_ele=sizevars;
-            m->vars[1].name="vy";   m->vars[1].num_ele=sizevars;
-            m->vars[2].name="vz";   m->vars[2].num_ele=sizevars;
-            m->vars[3].name="sxx";  m->vars[3].num_ele=sizevars;
-            m->vars[4].name="syy";  m->vars[4].num_ele=sizevars;
-            m->vars[5].name="szz";  m->vars[5].num_ele=sizevars;
-            m->vars[6].name="sxy";  m->vars[6].num_ele=sizevars;
-            m->vars[7].name="sxz";  m->vars[7].num_ele=sizevars;
-            m->vars[8].name="syz";  m->vars[8].num_ele=sizevars;
-            m->vars[9].name="rxx";  m->vars[9].num_ele=sizevars*m->L;
-            m->vars[10].name="ryy"; m->vars[10].num_ele=sizevars*m->L;
-            m->vars[11].name="rzz"; m->vars[11].num_ele=sizevars*m->L;
-            m->vars[12].name="rxy"; m->vars[12].num_ele=sizevars*m->L;
-            m->vars[13].name="rxz"; m->vars[13].num_ele=sizevars*m->L;
-            m->vars[14].name="ryz"; m->vars[14].num_ele=sizevars*m->L;
-            
-            if (m->abs_type==2){
-                m->vars[15].name="psi_sxx_x";   m->vars[15].num_ele=sizebnd[2];
-                m->vars[16].name="psi_sxy_x";   m->vars[16].num_ele=sizebnd[2];
-                m->vars[17].name="psi_sxz_x";   m->vars[17].num_ele=sizebnd[2];
-                m->vars[18].name="psi_szz_z";   m->vars[18].num_ele=sizebnd[0];
-                m->vars[19].name="psi_sxz_z";   m->vars[19].num_ele=sizebnd[0];
-                m->vars[20].name="psi_syz_z";   m->vars[20].num_ele=sizebnd[0];
-                m->vars[21].name="psi_vx_x";    m->vars[21].num_ele=sizebnd[2];
-                m->vars[22].name="psi_vy_x";    m->vars[22].num_ele=sizebnd[2];
-                m->vars[23].name="psi_vz_x";    m->vars[23].num_ele=sizebnd[2];
-                m->vars[24].name="psi_vx_y";    m->vars[24].num_ele=sizebnd[1];
-                m->vars[25].name="psi_vy_y";    m->vars[25].num_ele=sizebnd[1];
-                m->vars[26].name="psi_vz_y";    m->vars[26].num_ele=sizebnd[1];
-                m->vars[27].name="psi_vx_z";    m->vars[27].num_ele=sizebnd[0];
-                m->vars[28].name="psi_vy_z";    m->vars[28].num_ele=sizebnd[0];
-                m->vars[29].name="psi_vz_z";    m->vars[29].num_ele=sizebnd[0];
-
+            m->params[11].name="tausipjp";
+            m->params[12].name="tausjpkp";
+            m->params[13].name="tausipkp";
             }
             
+            m->nvars=15;
+            if (m->ABS_TYPE==1)
+                m->nvars+=18;
+            GMALLOC(m->vars, sizeof(struct variable)*m->nvars);
+            if (!state){
+            m->vars[0].name="vx"; m->vars[0].for_grad=1; m->vars[0].to_comm=1;
+            m->vars[1].name="vy"; m->vars[1].for_grad=1; m->vars[1].to_comm=1;
+            m->vars[2].name="vz"; m->vars[2].for_grad=1; m->vars[2].to_comm=1;
+            m->vars[3].name="sxx"; m->vars[3].for_grad=1; m->vars[3].to_comm=1;
+            m->vars[4].name="syy"; m->vars[4].for_grad=1; m->vars[4].to_comm=1;
+            m->vars[5].name="szz"; m->vars[5].for_grad=1; m->vars[5].to_comm=1;
+            m->vars[6].name="sxy"; m->vars[6].for_grad=1; m->vars[6].to_comm=1;
+            m->vars[7].name="sxz"; m->vars[7].for_grad=1; m->vars[7].to_comm=1;
+            m->vars[8].name="syz"; m->vars[8].for_grad=1; m->vars[8].to_comm=1;
+            m->vars[9].name="rxx"; m->vars[9].for_grad=1; m->vars[9].to_comm=0;
+            m->vars[10].name="ryy"; m->vars[10].for_grad=1; m->vars[10].to_comm=0;
+            m->vars[11].name="rzz"; m->vars[11].for_grad=1; m->vars[11].to_comm=0;
+            m->vars[12].name="rxy"; m->vars[12].for_grad=1; m->vars[12].to_comm=0;
+            m->vars[13].name="rxz"; m->vars[13].for_grad=1; m->vars[13].to_comm=0;
+            m->vars[14].name="ryz"; m->vars[14].for_grad=1; m->vars[14].to_comm=0;
+            
+            if (m->ABS_TYPE==1){
+                m->vars[15].name="psi_sxx_x"; m->vars[15].for_grad=0; m->vars[15].to_comm=0;
+                m->vars[16].name="psi_sxy_x"; m->vars[16].for_grad=0; m->vars[16].to_comm=0;
+                m->vars[17].name="psi_sxz_x"; m->vars[17].for_grad=0; m->vars[17].to_comm=0;
+                m->vars[18].name="psi_syy_y"; m->vars[18].for_grad=0; m->vars[18].to_comm=0;
+                m->vars[19].name="psi_sxy_y"; m->vars[19].for_grad=0; m->vars[19].to_comm=0;
+                m->vars[20].name="psi_syz_y"; m->vars[20].for_grad=0; m->vars[20].to_comm=0;
+                m->vars[21].name="psi_szz_z"; m->vars[21].for_grad=0; m->vars[21].to_comm=0;
+                m->vars[22].name="psi_sxz_z"; m->vars[22].for_grad=0; m->vars[22].to_comm=0;
+                m->vars[23].name="psi_syz_z"; m->vars[23].for_grad=0; m->vars[23].to_comm=0;
+                m->vars[24].name="psi_vx_x"; m->vars[24].for_grad=0; m->vars[24].to_comm=0;
+                m->vars[25].name="psi_vy_x"; m->vars[25].for_grad=0; m->vars[25].to_comm=0;
+                m->vars[26].name="psi_vz_x"; m->vars[26].for_grad=0; m->vars[26].to_comm=0;
+                m->vars[27].name="psi_vx_y"; m->vars[27].for_grad=0; m->vars[27].to_comm=0;
+                m->vars[28].name="psi_vy_y"; m->vars[28].for_grad=0; m->vars[28].to_comm=0;
+                m->vars[29].name="psi_vz_y"; m->vars[29].for_grad=0; m->vars[29].to_comm=0;
+                m->vars[30].name="psi_vx_z"; m->vars[30].for_grad=0; m->vars[30].to_comm=0;
+                m->vars[31].name="psi_vy_z"; m->vars[31].for_grad=0; m->vars[31].to_comm=0;
+                m->vars[32].name="psi_vz_z"; m->vars[32].for_grad=0; m->vars[32].to_comm=0;
+                
+            }}
+            
             m->ntvars=1;
-            GMALLOC(m->trans_vars, sizeof(struct variable)*m->ntvars)
-            m->trans_vars[0].name="p"; m->vars[0].num_ele=sizevars;
+            GMALLOC(m->trans_vars, sizeof(struct variable)*m->ntvars);
+            m->trans_vars[0].name="p";
             
         }
         else if (m->ND==3 && m->L==0){
+            
+            __GUARD assign_prog_source(&m->updates_f[0].center, "update_v", update_v3D_source);
+            __GUARD assign_prog_source(&m->updates_f[0].comm1, "update_v", update_v3D_source);
+            __GUARD assign_prog_source(&m->updates_f[0].comm2, "update_v", update_v3D_source);
+            __GUARD assign_prog_source(&m->updates_f[1].center, "update_s", update_s3D_source);
+            __GUARD assign_prog_source(&m->updates_f[1].comm1, "update_s", update_s3D_source);
+            __GUARD assign_prog_source(&m->updates_f[1].comm2, "update_s", update_s3D_source);
+            if (m->GRADOUT){
+                __GUARD assign_prog_source(&m->updates_adj[0].center, "update_adjv", update_adjv3D_source);
+                __GUARD assign_prog_source(&m->updates_adj[0].comm1, "update_adjv", update_adjv3D_source);
+                __GUARD assign_prog_source(&m->updates_adj[0].comm2, "update_adjv", update_adjv3D_source);
+                __GUARD assign_prog_source(&m->updates_adj[1].center, "update_adjs", update_adjs3D_source);
+                __GUARD assign_prog_source(&m->updates_adj[1].comm1, "update_adjs", update_adjs3D_source);
+                __GUARD assign_prog_source(&m->updates_adj[1].comm2, "update_adjs", update_adjs3D_source);
+            }
+            if (m->FREESURF){
+                __GUARD assign_prog_source(&m->bnd_cnds.surf, "surface", surface3D_source);
+            }
+            if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+                __GUARD assign_prog_source(&m->grads.savebnd, "savebnd", savebnd3D_source);
+            }
+            
+            
             m->nparams=9;
-            GMALLOC(m->params, sizeof(struct parameter)*m->nparams)
+            GMALLOC(m->params, sizeof(struct parameter)*m->nparams);
+            if (!state){
             m->params[0].name="mu";    m->params[0].to_read="/mu";
             m->params[1].name="M";     m->params[1].to_read="/M";
             m->params[2].name="rho";   m->params[2].to_read="/rho";
-            m->params[3].name="rip";    
-            m->params[4].name="rjp";    
-            m->params[5].name="rkp";    
-            m->params[6].name="uipjp";  
-            m->params[7].name="ujpkp";  
-            m->params[8].name="uipkp";  
-            
-            m->nvars=9;
-            if (m->abs_type==2)
-                m->nparams+=18;
-            GMALLOC(m->vars, sizeof(struct variable)*m->nvars)
-            m->vars[0].name="vx";   m->vars[0].num_ele=sizevars;
-            m->vars[1].name="vy";   m->vars[1].num_ele=sizevars;
-            m->vars[2].name="vz";   m->vars[2].num_ele=sizevars;
-            m->vars[3].name="sxx";  m->vars[3].num_ele=sizevars;
-            m->vars[4].name="syy";  m->vars[4].num_ele=sizevars;
-            m->vars[5].name="szz";  m->vars[5].num_ele=sizevars;
-            m->vars[6].name="sxy";  m->vars[6].num_ele=sizevars;
-            m->vars[7].name="sxz";  m->vars[7].num_ele=sizevars;
-            m->vars[8].name="syz";  m->vars[8].num_ele=sizevars;
-            
-            if (m->abs_type==2){
-                m->vars[9].name="psi_sxx_x";   m->vars[9].num_ele=sizebnd[2];
-                m->vars[10].name="psi_sxy_x";   m->vars[10].num_ele=sizebnd[2];
-                m->vars[11].name="psi_sxz_x";   m->vars[11].num_ele=sizebnd[2];
-                m->vars[12].name="psi_syy_y";   m->vars[12].num_ele=sizebnd[1];
-                m->vars[13].name="psi_sxy_y";   m->vars[13].num_ele=sizebnd[1];
-                m->vars[14].name="psi_syz_y";   m->vars[14].num_ele=sizebnd[1];
-                m->vars[15].name="psi_szz_z";   m->vars[15].num_ele=sizebnd[0];
-                m->vars[16].name="psi_sxz_z";   m->vars[16].num_ele=sizebnd[0];
-                m->vars[17].name="psi_syz_z";   m->vars[17].num_ele=sizebnd[0];
-                m->vars[18].name="psi_vx_x";    m->vars[18].num_ele=sizebnd[2];
-                m->vars[19].name="psi_vy_x";    m->vars[19].num_ele=sizebnd[2];
-                m->vars[20].name="psi_vz_x";    m->vars[20].num_ele=sizebnd[2];
-                m->vars[21].name="psi_vx_y";    m->vars[21].num_ele=sizebnd[1];
-                m->vars[22].name="psi_vy_y";    m->vars[22].num_ele=sizebnd[1];
-                m->vars[23].name="psi_vz_y";    m->vars[23].num_ele=sizebnd[1];
-                m->vars[24].name="psi_vx_z";    m->vars[24].num_ele=sizebnd[0];
-                m->vars[25].name="psi_vy_z";    m->vars[25].num_ele=sizebnd[0];
-                m->vars[26].name="psi_vz_z";    m->vars[26].num_ele=sizebnd[0];
-                
+            m->params[3].name="rip";
+            m->params[4].name="rjp";
+            m->params[5].name="rkp";
+            m->params[6].name="muipjp";
+            m->params[7].name="mujpkp";
+            m->params[8].name="muipkp";
             }
             
+            m->nvars=9;
+            if (m->ABS_TYPE==1)
+                m->nvars+=18;
+            GMALLOC(m->vars, sizeof(struct variable)*m->nvars);
+            if (!state){
+            m->vars[0].name="vx"; m->vars[0].for_grad=1; m->vars[0].to_comm=1;
+            m->vars[1].name="vy"; m->vars[1].for_grad=1; m->vars[1].to_comm=1;
+            m->vars[2].name="vz"; m->vars[2].for_grad=1; m->vars[2].to_comm=1;
+            m->vars[3].name="sxx"; m->vars[3].for_grad=1; m->vars[3].to_comm=1;
+            m->vars[4].name="syy"; m->vars[4].for_grad=1; m->vars[4].to_comm=1;
+            m->vars[5].name="szz"; m->vars[5].for_grad=1; m->vars[5].to_comm=1;
+            m->vars[6].name="sxy"; m->vars[6].for_grad=1; m->vars[6].to_comm=1;
+            m->vars[7].name="sxz"; m->vars[7].for_grad=1; m->vars[7].to_comm=1;
+            m->vars[8].name="syz"; m->vars[8].for_grad=1; m->vars[8].to_comm=1;
+            
+            if (m->ABS_TYPE==1){
+                m->vars[9].name="psi_sxx_x"; m->vars[9].for_grad=0; m->vars[9].to_comm=0;
+                m->vars[10].name="psi_sxy_x"; m->vars[10].for_grad=0; m->vars[10].to_comm=0;
+                m->vars[11].name="psi_sxz_x"; m->vars[11].for_grad=0; m->vars[11].to_comm=0;
+                m->vars[12].name="psi_syy_y"; m->vars[12].for_grad=0; m->vars[12].to_comm=0;
+                m->vars[13].name="psi_sxy_y"; m->vars[13].for_grad=0; m->vars[13].to_comm=0;
+                m->vars[14].name="psi_syz_y"; m->vars[14].for_grad=0; m->vars[14].to_comm=0;
+                m->vars[15].name="psi_szz_z"; m->vars[15].for_grad=0; m->vars[15].to_comm=0;
+                m->vars[16].name="psi_sxz_z"; m->vars[16].for_grad=0; m->vars[16].to_comm=0;
+                m->vars[17].name="psi_syz_z"; m->vars[17].for_grad=0; m->vars[17].to_comm=0;
+                m->vars[18].name="psi_vx_x"; m->vars[18].for_grad=0; m->vars[18].to_comm=0;
+                m->vars[19].name="psi_vy_x"; m->vars[19].for_grad=0; m->vars[19].to_comm=0;
+                m->vars[20].name="psi_vz_x"; m->vars[20].for_grad=0; m->vars[20].to_comm=0;
+                m->vars[21].name="psi_vx_y"; m->vars[21].for_grad=0; m->vars[21].to_comm=0;
+                m->vars[22].name="psi_vy_y"; m->vars[22].for_grad=0; m->vars[22].to_comm=0;
+                m->vars[23].name="psi_vz_y"; m->vars[23].for_grad=0; m->vars[23].to_comm=0;
+                m->vars[24].name="psi_vx_z"; m->vars[24].for_grad=0; m->vars[24].to_comm=0;
+                m->vars[25].name="psi_vy_z"; m->vars[25].for_grad=0; m->vars[25].to_comm=0;
+                m->vars[26].name="psi_vz_z"; m->vars[26].for_grad=0; m->vars[26].to_comm=0;
+                
+            }}
+            
             m->ntvars=1;
-            GMALLOC(m->trans_vars, sizeof(struct variable)*m->ntvars)
-            m->trans_vars[0].name="p"; m->vars[0].num_ele=sizevars;
+            GMALLOC(m->trans_vars, sizeof(struct variable)*m->ntvars);
+            m->trans_vars[0].name="p";
         }
         else if (m->ND==2 && m->L>0){
+            
+            __GUARD assign_prog_source(&m->updates_f[0].center, "update_v", update_v2D_source);
+            __GUARD assign_prog_source(&m->updates_f[0].comm1, "update_v", update_v2D_source);
+            __GUARD assign_prog_source(&m->updates_f[0].comm2, "update_v", update_v2D_source);
+            __GUARD assign_prog_source(&m->updates_f[1].center, "update_s", update_s2D_source);
+            __GUARD assign_prog_source(&m->updates_f[1].comm1, "update_s", update_s2D_source);
+            __GUARD assign_prog_source(&m->updates_f[1].comm2, "update_s", update_s2D_source);
+            if (m->GRADOUT){
+                __GUARD assign_prog_source(&m->updates_adj[0].center, "update_adjv", update_adjv2D_source);
+                __GUARD assign_prog_source(&m->updates_adj[0].comm1, "update_adjv", update_adjv2D_source);
+                __GUARD assign_prog_source(&m->updates_adj[0].comm2, "update_adjv", update_adjv2D_source);
+                __GUARD assign_prog_source(&m->updates_adj[1].center, "update_adjs", update_adjs2D_source);
+                __GUARD assign_prog_source(&m->updates_adj[1].comm1, "update_adjs", update_adjs2D_source);
+                __GUARD assign_prog_source(&m->updates_adj[1].comm2, "update_adjs", update_adjs2D_source);
+            }
+            if (m->FREESURF){
+                __GUARD assign_prog_source(&m->bnd_cnds.surf, "surface", surface2D_source);
+            }
+            if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+                __GUARD assign_prog_source(&m->grads.savebnd, "savebnd", savebnd2D_source);
+            }
+            
             m->nparams=9;
-            GMALLOC(m->params, sizeof(struct parameter)*m->nparams)
+            GMALLOC(m->params, sizeof(struct parameter)*m->nparams);
+            if (!state){
             m->params[0].name="mu";       m->params[0].to_read="/mu";
             m->params[1].name="M";        m->params[1].to_read="/M";
             m->params[2].name="rho";      m->params[2].to_read="/rho";
             m->params[3].name="taup";     m->params[3].to_read="/taup";
             m->params[4].name="taus";     m->params[4].to_read="/taus";
-            m->params[5].name="rip";       
-            m->params[6].name="rkp";       
-            m->params[7].name="uipkp";     
-            m->params[8].name="tausipkp";  
-
- 
-            m->nvars=8;
-            if (m->abs_type==2)
-                m->nparams+=8;
-            GMALLOC(m->vars, sizeof(struct variable)*m->nvars)
-            m->vars[0].name="vx";   m->vars[0].num_ele=sizevars;
-            m->vars[1].name="vz";   m->vars[1].num_ele=sizevars;
-            m->vars[2].name="sxx";  m->vars[2].num_ele=sizevars;
-            m->vars[3].name="szz";  m->vars[3].num_ele=sizevars;
-            m->vars[4].name="sxz";  m->vars[4].num_ele=sizevars;
-            m->vars[5].name="rxx";  m->vars[5].num_ele=sizevars*m->L;
-            m->vars[6].name="rzz";  m->vars[6].num_ele=sizevars*m->L;
-            m->vars[7].name="rxz";  m->vars[7].num_ele=sizevars*m->L;
-            
-            if (m->abs_type==2){
-                m->vars[8].name="psi_sxx_x";   m->vars[8].num_ele=sizebnd[1];
-                m->vars[9].name="psi_sxz_x";   m->vars[9].num_ele=sizebnd[1];
-                m->vars[10].name="psi_szz_z";   m->vars[10].num_ele=sizebnd[0];
-                m->vars[11].name="psi_sxz_z";   m->vars[11].num_ele=sizebnd[0];
-                m->vars[12].name="psi_vx_x";    m->vars[12].num_ele=sizebnd[1];
-                m->vars[13].name="psi_vz_x";    m->vars[13].num_ele=sizebnd[1];
-                m->vars[14].name="psi_vx_z";    m->vars[14].num_ele=sizebnd[0];
-                m->vars[15].name="psi_vz_z";    m->vars[15].num_ele=sizebnd[0];
-                
+            m->params[5].name="rip";
+            m->params[6].name="rkp";
+            m->params[7].name="muipkp";
+            m->params[8].name="tausipkp";
             }
             
+            m->nvars=8;
+            if (m->ABS_TYPE==1)
+                m->nvars+=8;
+            GMALLOC(m->vars, sizeof(struct variable)*m->nvars);
+            if (!state){
+            m->vars[0].name="vx"; m->vars[0].for_grad=1; m->vars[0].to_comm=1;
+            m->vars[1].name="vz"; m->vars[1].for_grad=1; m->vars[1].to_comm=1;
+            m->vars[2].name="sxx"; m->vars[2].for_grad=1; m->vars[2].to_comm=1;
+            m->vars[3].name="szz"; m->vars[3].for_grad=1; m->vars[3].to_comm=1;
+            m->vars[4].name="sxz"; m->vars[4].for_grad=1; m->vars[4].to_comm=1;
+            m->vars[5].name="rxx"; m->vars[5].for_grad=1; m->vars[5].to_comm=0;
+            m->vars[6].name="rzz"; m->vars[6].for_grad=1; m->vars[6].to_comm=0;
+            m->vars[7].name="rxz"; m->vars[7].for_grad=1; m->vars[7].to_comm=0;
+            
+            if (m->ABS_TYPE==1){
+                m->vars[8].name="psi_sxx_x"; m->vars[8].for_grad=0; m->vars[8].to_comm=0;
+                m->vars[9].name="psi_sxz_x"; m->vars[9].for_grad=0; m->vars[9].to_comm=0;
+                m->vars[10].name="psi_szz_z"; m->vars[10].for_grad=0; m->vars[10].to_comm=0;
+                m->vars[11].name="psi_sxz_z"; m->vars[11].for_grad=0; m->vars[11].to_comm=0;
+                m->vars[12].name="psi_vx_x"; m->vars[12].for_grad=0; m->vars[12].to_comm=0;
+                m->vars[13].name="psi_vz_x"; m->vars[13].for_grad=0; m->vars[13].to_comm=0;
+                m->vars[14].name="psi_vx_z"; m->vars[14].for_grad=0; m->vars[14].to_comm=0;
+                m->vars[15].name="psi_vz_z"; m->vars[15].for_grad=0; m->vars[15].to_comm=0;
+                
+            }}
+            
             m->ntvars=1;
-            GMALLOC(m->trans_vars, sizeof(struct variable)*m->ntvars)
-            m->trans_vars[0].name="p"; m->vars[0].num_ele=sizevars;
+            GMALLOC(m->trans_vars, sizeof(struct variable)*m->ntvars);
+            if (!state){m->trans_vars[0].name="p";}
         }
         else if (m->ND==2 && m->L==0){
+            
+            __GUARD assign_prog_source(&m->updates_f[0].center, "update_v", update_v2D_source);
+            __GUARD assign_prog_source(&m->updates_f[0].comm1, "update_v", update_v2D_source);
+            __GUARD assign_prog_source(&m->updates_f[0].comm2, "update_v", update_v2D_source);
+            __GUARD assign_prog_source(&m->updates_f[1].center, "update_s", update_s2D_source);
+            __GUARD assign_prog_source(&m->updates_f[1].comm1, "update_s", update_s2D_source);
+            __GUARD assign_prog_source(&m->updates_f[1].comm2, "update_s", update_s2D_source);
+            if (m->GRADOUT){
+                __GUARD assign_prog_source(&m->updates_adj[0].center, "update_adjv", update_adjv2D_source);
+                __GUARD assign_prog_source(&m->updates_adj[0].comm1, "update_adjv", update_adjv2D_source);
+                __GUARD assign_prog_source(&m->updates_adj[0].comm2, "update_adjv", update_adjv2D_source);
+                __GUARD assign_prog_source(&m->updates_adj[1].center, "update_adjs", update_adjs2D_source);
+                __GUARD assign_prog_source(&m->updates_adj[1].comm1, "update_adjs", update_adjs2D_source);
+                __GUARD assign_prog_source(&m->updates_adj[1].comm2, "update_adjs", update_adjs2D_source);
+            }
+            if (m->FREESURF){
+                __GUARD assign_prog_source(&m->bnd_cnds.surf, "surface", surface2D_source);
+            }
+            if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+                __GUARD assign_prog_source(&m->grads.savebnd, "savebnd", savebnd2D_source);
+            }
+            
             m->nparams=6;
-
-            GMALLOC(m->params, sizeof(struct parameter)*m->nparams)
+            
+            GMALLOC(m->params, sizeof(struct parameter)*m->nparams);
+            if (!state){
             m->params[0].name="mu";    m->params[0].to_read="/mu";
             m->params[1].name="M";     m->params[1].to_read="/M";
             m->params[2].name="rho";   m->params[2].to_read="/rho";
-            m->params[3].name="rip";    
-            m->params[4].name="rkp";    
-            m->params[5].name="uipkp";  
-            
-            m->nvars=5;
-            if (m->abs_type==2)
-                m->nparams+=8;
-            GMALLOC(m->vars, sizeof(struct variable)*m->nvars)
-            m->vars[0].name="vx";   m->vars[0].num_ele=sizevars;
-            m->vars[1].name="vz";   m->vars[1].num_ele=sizevars;
-            m->vars[2].name="sxx";  m->vars[2].num_ele=sizevars;
-            m->vars[3].name="szz";  m->vars[3].num_ele=sizevars;
-            m->vars[4].name="sxz";  m->vars[4].num_ele=sizevars;
-            
-
-            if (m->abs_type==2){
-                m->vars[5].name="psi_sxx_x";   m->vars[5].num_ele=sizebnd[1];
-                m->vars[6].name="psi_sxz_x";   m->vars[6].num_ele=sizebnd[1];
-                m->vars[7].name="psi_szz_z";   m->vars[7].num_ele=sizebnd[0];
-                m->vars[8].name="psi_sxz_z";   m->vars[8].num_ele=sizebnd[0];
-                m->vars[9].name="psi_vx_x";    m->vars[9].num_ele=sizebnd[1];
-                m->vars[10].name="psi_vz_x";    m->vars[10].num_ele=sizebnd[1];
-                m->vars[11].name="psi_vx_z";    m->vars[11].num_ele=sizebnd[0];
-                m->vars[12].name="psi_vz_z";    m->vars[12].num_ele=sizebnd[0];
-                
+            m->params[3].name="rip";
+            m->params[4].name="rkp";
+            m->params[5].name="muipkp";
             }
             
+            m->nvars=5;
+            if (m->ABS_TYPE==1)
+                m->nvars+=8;
+            GMALLOC(m->vars, sizeof(struct variable)*m->nvars);
+            if (!state){
+            m->vars[0].name="vx"; m->vars[0].for_grad=1; m->vars[0].to_comm=1;
+            m->vars[1].name="vz"; m->vars[1].for_grad=1; m->vars[1].to_comm=1;
+            m->vars[2].name="sxx"; m->vars[2].for_grad=1; m->vars[2].to_comm=1;
+            m->vars[3].name="szz"; m->vars[3].for_grad=1; m->vars[3].to_comm=1;
+            m->vars[4].name="sxz"; m->vars[4].for_grad=1; m->vars[4].to_comm=1;
+            
+            
+            if (m->ABS_TYPE==1){
+                m->vars[5].name="psi_sxx_x"; m->vars[5].for_grad=0; m->vars[5].to_comm=0;
+                m->vars[6].name="psi_sxz_x"; m->vars[6].for_grad=0; m->vars[6].to_comm=0;
+                m->vars[7].name="psi_szz_z"; m->vars[7].for_grad=0; m->vars[7].to_comm=0;
+                m->vars[8].name="psi_sxz_z"; m->vars[8].for_grad=0; m->vars[8].to_comm=0;
+                m->vars[9].name="psi_vx_x"; m->vars[9].for_grad=0; m->vars[9].to_comm=0;
+                m->vars[10].name="psi_vz_x"; m->vars[10].for_grad=0; m->vars[10].to_comm=0;
+                m->vars[11].name="psi_vx_z"; m->vars[11].for_grad=0; m->vars[11].to_comm=0;
+                m->vars[12].name="psi_vz_z"; m->vars[12].for_grad=0; m->vars[12].to_comm=0;
+                
+            }}
+            
             m->ntvars=1;
-            GMALLOC(m->trans_vars, sizeof(struct variable)*m->ntvars)
-            m->trans_vars[0].name="p"; m->vars[0].num_ele=sizevars;
+            GMALLOC(m->trans_vars, sizeof(struct variable)*m->ntvars);
+            m->trans_vars[0].name="p";
         }
         else if (m->ND==21 && m->L>0){
+            
+            __GUARD assign_prog_source(&m->updates_f[0].center, "update_v", update_v2D_SH_source);
+            __GUARD assign_prog_source(&m->updates_f[0].comm1, "update_v", update_v2D_SH_source);
+            __GUARD assign_prog_source(&m->updates_f[0].comm2, "update_v", update_v2D_SH_source);
+            __GUARD assign_prog_source(&m->updates_f[1].center, "update_s", update_s2D_SH_source);
+            __GUARD assign_prog_source(&m->updates_f[1].comm1, "update_s", update_s2D_SH_source);
+            __GUARD assign_prog_source(&m->updates_f[1].comm2, "update_s", update_s2D_SH_source);
+            if (m->GRADOUT){
+                __GUARD assign_prog_source(&m->updates_adj[0].center, "update_adjv", update_adjv2D_SH_source);
+                __GUARD assign_prog_source(&m->updates_adj[0].comm1, "update_adjv", update_adjv2D_SH_source);
+                __GUARD assign_prog_source(&m->updates_adj[0].comm2, "update_adjv", update_adjv2D_SH_source);
+                __GUARD assign_prog_source(&m->updates_adj[1].center, "update_adjs", update_adjs2D_SH_source);
+                __GUARD assign_prog_source(&m->updates_adj[1].comm1, "update_adjs", update_adjs2D_SH_source);
+                __GUARD assign_prog_source(&m->updates_adj[1].comm2, "update_adjs", update_adjs2D_SH_source);
+            }
+            if (m->FREESURF){
+                __GUARD assign_prog_source(&m->bnd_cnds.surf, "surface", surface2D_source);
+            }
+            if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+                __GUARD assign_prog_source(&m->grads.savebnd, "savebnd", savebnd2D_source);
+            }
+            
             m->nparams=7;
-
-            GMALLOC(m->params, sizeof(struct parameter)*m->nparams)
+            
+            GMALLOC(m->params, sizeof(struct parameter)*m->nparams);
+            if (!state){
             m->params[0].name="mu";        m->params[0].to_read="/mu";
             m->params[1].name="rho";      m->params[1].to_read="/rho";
             m->params[2].name="taus";     m->params[2].to_read="/taus";
-            m->params[3].name="rip";       
-            m->params[4].name="rkp";       
-            m->params[5].name="uipkp";     
-            m->params[6].name="tausipkp";  
-
-            
-            m->nvars=5;
-            if (m->abs_type==2)
-                m->nparams+=4;
-            GMALLOC(m->vars, sizeof(struct variable)*m->nvars)
-            m->vars[0].name="vy";   m->vars[0].num_ele=sizevars;
-            m->vars[1].name="sxy";  m->vars[1].num_ele=sizevars;
-            m->vars[2].name="syz";  m->vars[2].num_ele=sizevars;
-            m->vars[3].name="rxy";  m->vars[3].num_ele=sizevars*m->L;
-            m->vars[4].name="ryz";  m->vars[4].num_ele=sizevars*m->L;
-            
-            if (m->abs_type==2){
-                m->vars[5].name="psi_sxy_x";   m->vars[5].num_ele=sizebnd[1];
-                m->vars[6].name="psi_sxy_z";   m->vars[6].num_ele=sizebnd[0];
-                m->vars[7].name="psi_vy_x";    m->vars[7].num_ele=sizebnd[1];
-                m->vars[8].name="psi_vy_z";    m->vars[8].num_ele=sizebnd[0];
-               
+            m->params[3].name="rip";
+            m->params[4].name="rkp";
+            m->params[5].name="muipkp";
+            m->params[6].name="tausipkp";
             }
             
+            m->nvars=5;
+            if (m->ABS_TYPE==1)
+                m->vars+=4;
+            GMALLOC(m->vars, sizeof(struct variable)*m->nvars);
+            if (!state){
+            m->vars[0].name="vy"; m->vars[0].for_grad=1; m->vars[0].to_comm=1;
+            m->vars[1].name="sxy"; m->vars[1].for_grad=1; m->vars[1].to_comm=1;
+            m->vars[2].name="syz"; m->vars[2].for_grad=1; m->vars[2].to_comm=1;
+            m->vars[3].name="rxy"; m->vars[3].for_grad=1; m->vars[3].to_comm=0;
+            m->vars[4].name="ryz"; m->vars[4].for_grad=1; m->vars[4].to_comm=0;
+            
+            if (m->ABS_TYPE==1){
+                m->vars[5].name="psi_sxy_x"; m->vars[5].for_grad=0; m->vars[5].to_comm=0;
+                m->vars[6].name="psi_sxy_z"; m->vars[6].for_grad=0; m->vars[6].to_comm=0;
+                m->vars[7].name="psi_vy_x"; m->vars[7].for_grad=0; m->vars[7].to_comm=0;
+                m->vars[8].name="psi_vy_z"; m->vars[8].for_grad=0; m->vars[8].to_comm=0;
+                
+            }}
+            
             m->ntvars=1;
-            GMALLOC(m->trans_vars, sizeof(struct variable)*m->ntvars)
-            m->trans_vars[0].name="p"; m->vars[0].num_ele=sizevars;
+            GMALLOC(m->trans_vars, sizeof(struct variable)*m->ntvars);
+            m->trans_vars[0].name="p";
             
         }
         else if (m->ND==21 && m->L==0){
-            m->nparams=5;
+            
+            __GUARD assign_prog_source(&m->updates_f[0].center, "update_v", update_v2D_SH_source);
+            __GUARD assign_prog_source(&m->updates_f[0].comm1, "update_v", update_v2D_SH_source);
+            __GUARD assign_prog_source(&m->updates_f[0].comm2, "update_v", update_v2D_SH_source);
+            __GUARD assign_prog_source(&m->updates_f[1].center, "update_s", update_s2D_SH_source);
+            __GUARD assign_prog_source(&m->updates_f[1].comm1, "update_s", update_s2D_SH_source);
+            __GUARD assign_prog_source(&m->updates_f[1].comm2, "update_s", update_s2D_SH_source);
 
-            GMALLOC(m->params, sizeof(struct parameter)*m->nparams)
+            if (m->GRADOUT){
+                __GUARD assign_prog_source(&m->updates_adj[0].center, "update_adjv", update_adjv2D_SH_source);
+                __GUARD assign_prog_source(&m->updates_adj[0].comm1, "update_adjv", update_adjv2D_SH_source);
+                __GUARD assign_prog_source(&m->updates_adj[0].comm2, "update_adjv", update_adjv2D_SH_source);
+                __GUARD assign_prog_source(&m->updates_adj[1].center, "update_adjs", update_adjs2D_SH_source);
+                __GUARD assign_prog_source(&m->updates_adj[1].comm1, "update_adjs", update_adjs2D_SH_source);
+                __GUARD assign_prog_source(&m->updates_adj[1].comm2, "update_adjs", update_adjs2D_SH_source);
+
+            }
+            if (m->FREESURF){
+                __GUARD assign_prog_source(&m->bnd_cnds.surf, "surface", surface2D_source);
+            }
+            if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+                __GUARD assign_prog_source(&m->grads.savebnd, "savebnd", savebnd2D_source);
+            }
+            
+            m->nparams=5;
+            
+            GMALLOC(m->params, sizeof(struct parameter)*m->nparams);
+            if (!state){
             m->params[0].name="mu";     m->params[0].to_read="/mu";
             m->params[1].name="rho";   m->params[1].to_read="/rho";
-            m->params[2].name="rip";    
-            m->params[3].name="rkp";    
-            m->params[4].name="uipkp";  
-
-            m->nvars=3;
-            if (m->abs_type==2)
-                m->nparams+=4;
-            GMALLOC(m->vars, sizeof(struct variable)*m->nvars)
-            m->vars[0].name="vy";   m->vars[0].num_ele=sizevars;
-            m->vars[1].name="sxy";  m->vars[1].num_ele=sizevars;
-            m->vars[2].name="syz";  m->vars[2].num_ele=sizevars;
-
-            if (m->abs_type==2){
-                m->vars[3].name="psi_sxy_x";   m->vars[3].num_ele=sizebnd[1];
-                m->vars[4].name="psi_sxy_z";   m->vars[4].num_ele=sizebnd[0];
-                m->vars[5].name="psi_vy_x";    m->vars[5].num_ele=sizebnd[1];
-                m->vars[6].name="psi_vy_z";    m->vars[6].num_ele=sizebnd[0];
-                
+            m->params[2].name="rip";
+            m->params[3].name="rkp";
+            m->params[4].name="muipkp";
             }
+            
+            m->nvars=3;
+            if (m->ABS_TYPE==1)
+                m->nvars+=4;
+            GMALLOC(m->vars, sizeof(struct variable)*m->nvars);
+            if (!state){
+            m->vars[0].name="vy"; m->vars[0].for_grad=1; m->vars[0].to_comm=1;
+            m->vars[1].name="sxy"; m->vars[1].for_grad=1; m->vars[1].to_comm=1;
+            m->vars[2].name="syz"; m->vars[2].for_grad=1; m->vars[2].to_comm=1;
+            
+            if (m->ABS_TYPE==1){
+                m->vars[3].name="psi_sxy_x"; m->vars[3].for_grad=0; m->vars[3].to_comm=0;
+                m->vars[4].name="psi_sxy_z"; m->vars[4].for_grad=0; m->vars[4].to_comm=0;    
+                m->vars[5].name="psi_vy_x"; m->vars[5].for_grad=0; m->vars[5].to_comm=0;     
+                m->vars[6].name="psi_vy_z"; m->vars[6].for_grad=0; m->vars[6].to_comm=0;     
+                
+            }}
+                
             
         }
     }
+    
+
+
+    
+    //Create adjoint variables if necessary
+    if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+        GMALLOC(m->vars_adj, sizeof(struct variable)*m->nvars);
+        for (i=0;i<m->nvars;i++){
+            m->vars_adj[i]=m->vars[i];
+        }
+    }
+
+    //Assign dimensions name
+    if (m->ND==3){
+        m->N_names[0]="Z";
+        m->N_names[1]="Y";
+        m->N_names[2]="X";
+    }
+    else{
+        m->N_names[0]="Z";
+        m->N_names[1]="X";
+    }
 
     //Assign the number of elements of the parameters
+    if (!state){
     for (i=0;i<m->nparams;i++){
         m->params[i].num_ele=sizeparams;
-    }
+    }}
+    __GUARD assign_var_size(m->N, m->NDIM, m->FDORDER, m->nvars, m->L, m->vars);
     
     //Check to name of variable to be read depending on the chosen parametrization
-    {
+    if (!state){
 
         if (m->param_type==2){
             for (i=0;i<m->nparams;i++){
@@ -388,8 +613,8 @@ int assign_modeling_case(struct modcsts * m){
     }
     
     //Flags variables to output
-    {
-        if (m->seisout==1){
+    if (!state){
+        if (m->SEISOUT==1){
             for (i=0;i<m->nvars;i++){
                 if (strcmp(m->vars[i].name,"vx")==0)
                     m->vars[i].to_output=1;
@@ -399,13 +624,13 @@ int assign_modeling_case(struct modcsts * m){
                     m->vars[i].to_output=1;
             }
         }
-        if (m->seisout==2){
+        if (m->SEISOUT==2){
             for (i=0;i<m->ntvars;i++){
                 if (strcmp(m->trans_vars[i].name,"p")==0)
                     m->trans_vars[i].to_output=1;
             }
         }
-        if (m->seisout==3){
+        if (m->SEISOUT==3){
             for (i=0;i<m->nvars;i++){
                 if (strcmp(m->vars[i].name,"sxx")==0)
                     m->vars[i].to_output=1;
@@ -421,7 +646,7 @@ int assign_modeling_case(struct modcsts * m){
                     m->vars[i].to_output=1;
             }
         }
-        if (m->seisout==4){
+        if (m->SEISOUT==4){
             for (i=0;i<m->nvars;i++){
                 if (strcmp(m->vars[i].name,"vx")==0)
                     m->vars[i].to_output=1;
@@ -449,31 +674,20 @@ int assign_modeling_case(struct modcsts * m){
         }
     }
 
-    //Define the update kernels
-    m->nupdates=2;
-    GMALLOC(m->update_names, m->nupdates=2*sizeof(char *))
-    m->update_names[0]="v";
-    m->update_names[0]="s";
-    
-    
-    
     //Allocate memory of constants
     for (i=0;i<m->ncsts;i++){
         if (m->csts[i].active)
-            GMALLOC(m->csts[i].gl_cst, sizeof(float)*m->csts[i].num_ele)
-            }
-    
+            GMALLOC(m->csts[i].gl_cst, sizeof(float)*m->csts[i].num_ele);
+    }
     
     //Allocate memory of parameters
     for (i=0;i<m->nparams;i++){
-        GMALLOC(m->params[i].gl_param, sizeof(float)*m->params[i].num_ele)
-        if (m->gradout && m->params[i].to_read){
+        GMALLOC(m->params[i].gl_param, sizeof(float)*m->params[i].num_ele);
+        if (m->GRADOUT && m->params[i].to_read){
             m->params[i].to_grad=1;
-            GMALLOC(m->params[i].gl_grad, sizeof(double)*m->params[i].num_ele)
-            memset((void*)m->params[i].gl_grad, 0, sizeof(double)*m->params[i].num_ele);
-            if (m->Hout){
-                GMALLOC(m->params[i].gl_H, sizeof(double)*m->params[i].num_ele)
-                memset((void*)m->params[i].gl_H, 0, sizeof(double)*m->params[i].num_ele);
+            GMALLOC(m->params[i].gl_grad, sizeof(double)*m->params[i].num_ele);
+            if (m->HOUT){
+                GMALLOC(m->params[i].gl_H, sizeof(double)*m->params[i].num_ele);
             }
         }
     }
@@ -482,25 +696,96 @@ int assign_modeling_case(struct modcsts * m){
     for (i=0;i<m->nvars;i++){
         if (m->vars[i].to_output){
             alloc_seismo(&m->vars[i].gl_varout, m->ns, m->allng, m->NT, m->src_recs.nrec);
-            if (m->movout>0){
-                GMALLOC(m->vars[i].gl_mov,sizeof(float)*m->ns*m->vars[i].num_ele*m->NT/m->movout);
-                memset((void*)m->vars[i].gl_mov, 0, sizeof(float)*m->ns*m->vars[i].num_ele*m->NT/m->movout);
+            if (m->MOVOUT>0){
+                GMALLOC(m->vars[i].gl_mov,sizeof(float)*m->ns*m->vars[i].num_ele*m->NT/m->MOVOUT);
             }
-            if (m->gradout && m->back_prop_type==2){
-                GMALLOC(m->vars[i].gl_fvar, sizeof(cl_float2)*m->vars[i].num_ele)
-                memset((void*)m->vars[i].gl_fvar, 0, sizeof(cl_float2)*m->vars[i].num_ele);
+            if (m->GRADOUT && m->BACK_PROP_TYPE==2){
+                GMALLOC(m->vars[i].gl_fvar, sizeof(cl_float2)*m->vars[i].num_ele);
             }
         }
     }
     
-    if (m->gradsrcout==1){
-        GMALLOC(m->src_recs.gradsrc,sizeof(float*)*m->ns)
-        if (!state) memset((void*)m->src_recs.gradsrc, 0, sizeof(float*)*m->ns);
-        GMALLOC(m->src_recs.gradsrc[0],sizeof(float)*m->allns*m->NT)
+    if (m->GRADSRCOUT==1){
+        GMALLOC(m->src_recs.gradsrc,sizeof(float*)*m->ns);
+        GMALLOC(m->src_recs.gradsrc[0],sizeof(float)*m->allns*m->NT);
         for (i=1;i<m->ns;i++){
             m->src_recs.gradsrc[i]=m->src_recs.gradsrc[i-1]+m->src_recs.nsrc[i-1]*m->NT;
         }
     }
     
+    
+
+    
     return state;
+}
+
+int assign_var_size(int* N, int NDIM, int FDORDER, int numvar, int L, struct variable * vars){
+    int i,j;
+    int sizevars=1;
+    int sizebnd[10];
+    for (i=0;i<NDIM;i++){
+       sizevars*=N[i]+FDORDER;
+    }
+    for (i=0;i<NDIM;i++){
+        sizebnd[i]=1;
+        for (j=0;j<NDIM;j++){
+            if (i!=j)
+                sizebnd[i]*=N[j];
+        }
+    }
+    
+    for (i=0;i<numvar;i++){
+        
+        if (strcmp(vars[i].name,"vx")==0 ||
+            strcmp(vars[i].name,"vy")==0 ||
+            strcmp(vars[i].name,"vz")==0 ||
+            strcmp(vars[i].name,"sxx")==0 ||
+            strcmp(vars[i].name,"syy")==0 ||
+            strcmp(vars[i].name,"szz")==0 ||
+            strcmp(vars[i].name,"sxy")==0 ||
+            strcmp(vars[i].name,"sxz")==0 ||
+            strcmp(vars[i].name,"syz")==0 ){
+            vars[i].num_ele=sizevars;
+        }
+        else if(strcmp(vars[i].name,"rxx")==0 ||
+                strcmp(vars[i].name,"ryy")==0 ||
+                strcmp(vars[i].name,"rzz")==0 ||
+                strcmp(vars[i].name,"rxy")==0 ||
+                strcmp(vars[i].name,"rxz")==0 ||
+                strcmp(vars[i].name,"ryz")==0 )
+        {
+            vars[i].num_ele=sizevars*L;
+        }
+        else if(strcmp(vars[i].name,"psi_szz_z")==0 ||
+                strcmp(vars[i].name,"psi_sxz_z")==0 ||
+                strcmp(vars[i].name,"psi_syz_z")==0 ||
+                strcmp(vars[i].name,"psi_vx_z")==0 ||
+                strcmp(vars[i].name,"psi_vy_z")==0 ||
+                strcmp(vars[i].name,"psi_vz_z")==0 ){
+            vars[i].num_ele=sizebnd[0];
+        }
+        else if(strcmp(vars[i].name,"psi_syy_y")==0 ||
+                strcmp(vars[i].name,"psi_sxy_y")==0 ||
+                strcmp(vars[i].name,"psi_syz_y")==0 ||
+                strcmp(vars[i].name,"psi_vx_y")==0 ||
+                strcmp(vars[i].name,"psi_vy_y")==0 ||
+                strcmp(vars[i].name,"psi_vz_y")==0 ){
+            vars[i].num_ele=sizebnd[1];
+        }
+        else if(strcmp(vars[i].name,"psi_sxx_x")==0 ||
+                strcmp(vars[i].name,"psi_sxy_x")==0 ||
+                strcmp(vars[i].name,"psi_sxz_x")==0 ||
+                strcmp(vars[i].name,"psi_vx_x")==0 ||
+                strcmp(vars[i].name,"psi_vy_x")==0 ||
+                strcmp(vars[i].name,"psi_vz_x")==0 ){
+            vars[i].num_ele=sizebnd[2];
+        }
+
+        
+
+    }
+    
+    return 0;
+
+    
 }

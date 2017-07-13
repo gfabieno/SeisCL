@@ -89,80 +89,80 @@
 
 #define PI (3.141592653589793238462643383279502884197169)
 
-#define f_vx3(z,y,x,f)   f_vx[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_vy3(z,y,x,f)   f_vy[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_vz3(z,y,x,f)   f_vz[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_sxx3(z,y,x,f) f_sxx[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_syy3(z,y,x,f) f_syy[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_szz3(z,y,x,f) f_szz[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_sxy3(z,y,x,f) f_sxy[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_syz3(z,y,x,f) f_syz[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_sxz3(z,y,x,f) f_sxz[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
+#define f_vx3(z,y,x,f)   f_vx[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_vy3(z,y,x,f)   f_vy[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_vz3(z,y,x,f)   f_vz[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_sxx3(z,y,x,f) f_sxx[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_syy3(z,y,x,f) f_syy[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_szz3(z,y,x,f) f_szz[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_sxy3(z,y,x,f) f_sxy[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_syz3(z,y,x,f) f_syz[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_sxz3(z,y,x,f) f_sxz[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
 
-#define f_rxx3(z,y,x,l,f) f_rxx[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_ryy3(z,y,x,l,f) f_ryy[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_rzz3(z,y,x,l,f) f_rzz[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_rxy3(z,y,x,l,f) f_rxy[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_ryz3(z,y,x,l,f) f_ryz[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_rxz3(z,y,x,l,f) f_rxz[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
+#define f_rxx3(z,y,x,l,f) f_rxx[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_ryy3(z,y,x,l,f) f_ryy[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_rzz3(z,y,x,l,f) f_rzz[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_rxy3(z,y,x,l,f) f_rxy[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_ryz3(z,y,x,l,f) f_ryz[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_rxz3(z,y,x,l,f) f_rxz[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
 
-#define f_vxr3(z,y,x,f)   f_vxr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_vyr3(z,y,x,f)   f_vyr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_vzr3(z,y,x,f)   f_vzr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_sxxr3(z,y,x,f) f_sxxr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_syyr3(z,y,x,f) f_syyr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_szzr3(z,y,x,f) f_szzr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_sxyr3(z,y,x,f) f_sxyr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_syzr3(z,y,x,f) f_syzr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_sxzr3(z,y,x,f) f_sxzr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
+#define f_vxr3(z,y,x,f)   f_vxr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_vyr3(z,y,x,f)   f_vyr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_vzr3(z,y,x,f)   f_vzr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_sxxr3(z,y,x,f) f_sxxr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_syyr3(z,y,x,f) f_syyr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_szzr3(z,y,x,f) f_szzr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_sxyr3(z,y,x,f) f_sxyr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_syzr3(z,y,x,f) f_syzr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_sxzr3(z,y,x,f) f_sxzr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
 
-#define f_rxxr3(z,y,x,l,f) f_rxxr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_ryyr3(z,y,x,l,f) f_ryyr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_rzzr3(z,y,x,l,f) f_rzzr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_rxyr3(z,y,x,l,f) f_rxyr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_ryzr3(z,y,x,l,f) f_ryzr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_rxzr3(z,y,x,l,f) f_rxzr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-
-
+#define f_rxxr3(z,y,x,l,f) f_rxxr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_ryyr3(z,y,x,l,f) f_ryyr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_rzzr3(z,y,x,l,f) f_rzzr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_rxyr3(z,y,x,l,f) f_rxyr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_ryzr3(z,y,x,l,f) f_ryzr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_rxzr3(z,y,x,l,f) f_rxzr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
 
 
 
 
 
 
-#define f_vx2(z,x,f)   f_vx[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_vy2(z,x,f)   f_vy[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_vz2(z,x,f)   f_vz[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_sxx2(z,x,f) f_sxx[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_syy2(z,x,f) f_syy[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_szz2(z,x,f) f_szz[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_sxy2(z,x,f) f_sxy[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_syz2(z,x,f) f_syz[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_sxz2(z,x,f) f_sxz[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
 
-#define f_rxx2(z,x,l,f) f_rxx[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_ryy2(z,x,l,f) f_ryy[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_rzz2(z,x,l,f) f_rzz[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_rxy2(z,x,l,f) f_rxy[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_ryz2(z,x,l,f) f_ryz[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_rxz2(z,x,l,f) f_rxz[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
 
-#define f_vxr2(z,x,f)   f_vxr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_vyr2(z,x,f)   f_vyr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_vzr2(z,x,f)   f_vzr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_sxxr2(z,x,f) f_sxxr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_syyr2(z,x,f) f_syyr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_szzr2(z,x,f) f_szzr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_sxyr2(z,x,f) f_sxyr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_syzr2(z,x,f) f_syzr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_sxzr2(z,x,f) f_sxzr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
+#define f_vx2(z,x,f)   f_vx[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_vy2(z,x,f)   f_vy[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_vz2(z,x,f)   f_vz[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_sxx2(z,x,f) f_sxx[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_syy2(z,x,f) f_syy[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_szz2(z,x,f) f_szz[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_sxy2(z,x,f) f_sxy[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_syz2(z,x,f) f_syz[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_sxz2(z,x,f) f_sxz[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
 
-#define f_rxxr2(z,x,l,f) f_rxxr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_ryyr2(z,x,l,f) f_ryyr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_rzzr2(z,x,l,f) f_rzzr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_rxyr2(z,x,l,f) f_rxyr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_ryzr2(z,x,l,f) f_ryzr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_rxzr2(z,x,l,f) f_rxzr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
+#define f_rxx2(z,x,l,f) f_rxx[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_ryy2(z,x,l,f) f_ryy[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_rzz2(z,x,l,f) f_rzz[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_rxy2(z,x,l,f) f_rxy[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_ryz2(z,x,l,f) f_ryz[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_rxz2(z,x,l,f) f_rxz[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+
+#define f_vxr2(z,x,f)   f_vxr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_vyr2(z,x,f)   f_vyr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_vzr2(z,x,f)   f_vzr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_sxxr2(z,x,f) f_sxxr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_syyr2(z,x,f) f_syyr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_szzr2(z,x,f) f_szzr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_sxyr2(z,x,f) f_sxyr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_syzr2(z,x,f) f_syzr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_sxzr2(z,x,f) f_sxzr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+
+#define f_rxxr2(z,x,l,f) f_rxxr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_ryyr2(z,x,l,f) f_ryyr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_rzzr2(z,x,l,f) f_rzzr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_rxyr2(z,x,l,f) f_rxyr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_ryzr2(z,x,l,f) f_ryzr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
+#define f_rxzr2(z,x,l,f) f_rxzr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->FDOH)*(m->NZ+mglob->FDORDER)+((z)+mglob->FDOH)]
 
 //Some functions to perfom complex operations with OpenCl vectors
 
@@ -522,7 +522,7 @@ int calc_grad(struct modcsts* mglob, struct modcstsloc * m)  {
     int (*c_calc)(double (*c)[24],float M, float mu, float taup, float taus, float rho, float ND, float L, float al)=NULL;
     
     ND=(float)mglob->ND;
-    df=1.0/mglob->NTnyq/mglob->dt/mglob->dtnyq;
+    df=1.0/mglob->NTNYQ/mglob->dt/mglob->DTNYQ;
     
     w0=2.0*PI*mglob->f0;
     al=0;
@@ -595,7 +595,7 @@ int calc_grad(struct modcsts* mglob, struct modcstsloc * m)  {
         for (i=0;i<m->NX;i++){
             for (j=0;j<m->NY;j++){
                 for (k=0;k<m->NZ;k++){
-                    for (f=0;f<mglob->nfreqs;f++){
+                    for (f=0;f<mglob->NFREQS;f++){
                         
                         freq=2.0*PI*df* (float)mglob->gradfreqsn[f];
                         
@@ -626,15 +626,15 @@ int calc_grad(struct modcsts* mglob, struct modcstsloc * m)  {
                             rxx_myyzz= cl_diff(m->f_rxx3(k,j,i,f,l), m->f_ryy3(k,j,i,f,l), m->f_rzz3(k,j,i,f,l));
                             ryy_mxxzz= cl_diff(m->f_rxx3(k,j,i,f,l), m->f_ryy3(k,j,i,f,l), m->f_rzz3(k,j,i,f,l));
                             rzz_mxxyy= cl_diff(m->f_rxx3(k,j,i,f,l), m->f_ryy3(k,j,i,f,l), m->f_rzz3(k,j,i,f,l));
-                            dot[1]+=cl_rm( rxxyyzzr, rxxyyzz, tausigl[l],freq )/mglob->NTnyq;
+                            dot[1]+=cl_rm( rxxyyzzr, rxxyyzz, tausigl[l],freq )/mglob->NTNYQ;
                             
                             dot[5]+=(+cl_rm( m->f_rxyr3(k,j,i,f,l), m->f_rxy3(k,j,i,f,l) , tausigl[l],freq)
                                      +cl_rm( m->f_rxzr3(k,j,i,f,l), m->f_rxz3(k,j,i,f,l) , tausigl[l],freq)
-                                     +cl_rm( m->f_ryzr3(k,j,i,f,l), m->f_ryz3(k,j,i,f,l) , tausigl[l],freq))/mglob->NTnyq;
+                                     +cl_rm( m->f_ryzr3(k,j,i,f,l), m->f_ryz3(k,j,i,f,l) , tausigl[l],freq))/mglob->NTNYQ;
                             dot[6]=dot[1];
                             dot[7]+=(+cl_rm( m->f_rxxr3(k,j,i,f,l), rxx_myyzz , tausigl[l],freq)
                                      +cl_rm( m->f_ryyr3(k,j,i,f,l), ryy_mxxzz , tausigl[l],freq)
-                                     +cl_rm( m->f_rzzr3(k,j,i,f,l), rzz_mxxyy , tausigl[l],freq))/mglob->NTnyq;
+                                     +cl_rm( m->f_rzzr3(k,j,i,f,l), rzz_mxxyy , tausigl[l],freq))/mglob->NTNYQ;
                         }
                         
                         sxxyyzz=    cl_add(m->f_sxx3(k,j,i,f), m->f_syy3(k,j,i,f), m->f_szz3(k,j,i,f));
@@ -643,21 +643,21 @@ int calc_grad(struct modcsts* mglob, struct modcstsloc * m)  {
                         syy_mxxzz= cl_diff(m->f_syy3(k,j,i,f), m->f_sxx3(k,j,i,f), m->f_szz3(k,j,i,f));
                         szz_mxxyy= cl_diff(m->f_szz3(k,j,i,f), m->f_sxx3(k,j,i,f), m->f_syy3(k,j,i,f));
 
-                        dot[0]=freq*cl_itreal( sxxyyzzr, sxxyyzz )/mglob->NTnyq;
+                        dot[0]=freq*cl_itreal( sxxyyzzr, sxxyyzz )/mglob->NTNYQ;
                         dot[2]=freq*(+cl_itreal( m->f_sxyr3(k,j,i,f), m->f_sxy3(k,j,i,f) )
                                      +cl_itreal( m->f_sxzr3(k,j,i,f), m->f_sxz3(k,j,i,f) )
-                                     +cl_itreal( m->f_syzr3(k,j,i,f), m->f_syz3(k,j,i,f) ))/mglob->NTnyq;
+                                     +cl_itreal( m->f_syzr3(k,j,i,f), m->f_syz3(k,j,i,f) ))/mglob->NTNYQ;
                         dot[3]=dot[0];
                         dot[4]=freq*(+cl_itreal( m->f_sxxr3(k,j,i,f), sxx_myyzz )
                                      +cl_itreal( m->f_syyr3(k,j,i,f), syy_mxxzz )
-                                     +cl_itreal( m->f_szzr3(k,j,i,f), szz_mxxyy ))/mglob->NTnyq;
+                                     +cl_itreal( m->f_szzr3(k,j,i,f), szz_mxxyy ))/mglob->NTNYQ;
 
                         
                         dot[8]=freq*(
                                      cl_itreal( m->f_vxr3(k,j,i,f), m->f_vx3(k,j,i,f) ) +
                                      cl_itreal( m->f_vyr3(k,j,i,f), m->f_vy3(k,j,i,f) ) +
                                      cl_itreal( m->f_vzr3(k,j,i,f), m->f_vz3(k,j,i,f) )
-                                     )/mglob->NTnyq;
+                                     )/mglob->NTNYQ;
                         
                         m->gradM(k,j,i)+=c[0]*dot[0]-c[1]*dot[1];
                         m->gradmu(k,j,i)+=c[2]*dot[2]-c[3]*dot[3]+c[4]*dot[4]-c[5]*dot[5]+c[6]*dot[6]-c[7]*dot[7];
@@ -680,7 +680,7 @@ int calc_grad(struct modcsts* mglob, struct modcstsloc * m)  {
         
         for (i=0;i<m->NX;i++){
             for (k=0;k<m->NZ;k++){
-                for (f=0;f<mglob->nfreqs;f++){
+                for (f=0;f<mglob->NFREQS;f++){
                     
                     freq=2.0*PI*df* (float)mglob->gradfreqsn[f];
                     
@@ -703,12 +703,12 @@ int calc_grad(struct modcsts* mglob, struct modcstsloc * m)  {
                         rxx_mzz= cl_diff2(m->f_rxx2(k,i,f,l), m->f_rzz2(k,i,f,l));
                         rzz_mxx= cl_diff2(m->f_rzz2(k,i,f,l), m->f_rxx2(k,i,f,l));
                         
-                        dot[1]+=cl_rm( rxxzzr, rxxzz, tausigl[l],freq )/mglob->NTnyq;
+                        dot[1]+=cl_rm( rxxzzr, rxxzz, tausigl[l],freq )/mglob->NTNYQ;
                         
-                        dot[5]+=(cl_rm( m->f_rxzr2(k,i,f,l), m->f_rxz2(k,i,f,l) , tausigl[l],freq) )/mglob->NTnyq;
+                        dot[5]+=(cl_rm( m->f_rxzr2(k,i,f,l), m->f_rxz2(k,i,f,l) , tausigl[l],freq) )/mglob->NTNYQ;
                         dot[6]=dot[1];
                         dot[7]+=(+cl_rm( m->f_rxxr2(k,i,f,l), rxx_mzz , tausigl[l],freq)
-                                 +cl_rm( m->f_rzzr2(k,i,f,l), rzz_mxx , tausigl[l],freq))/mglob->NTnyq;
+                                 +cl_rm( m->f_rzzr2(k,i,f,l), rzz_mxx , tausigl[l],freq))/mglob->NTNYQ;
                         
                     }
                     sxxzz=    cl_add2(m->f_sxx2(k,i,f), m->f_szz2(k,i,f));
@@ -718,13 +718,13 @@ int calc_grad(struct modcsts* mglob, struct modcstsloc * m)  {
                     
 
                     
-                    dot[0]=freq*cl_itreal( sxxzzr, sxxzz )/mglob->NTnyq;
-                    dot[2]=freq* ( cl_itreal( m->f_sxzr2(k,i,f), m->f_sxz2(k,i,f))  )/mglob->NTnyq;
+                    dot[0]=freq*cl_itreal( sxxzzr, sxxzz )/mglob->NTNYQ;
+                    dot[2]=freq* ( cl_itreal( m->f_sxzr2(k,i,f), m->f_sxz2(k,i,f))  )/mglob->NTNYQ;
                     dot[3]=dot[0];
                     dot[4]=freq*(+cl_itreal( m->f_sxxr2(k,i,f), sxx_mzz )
-                                 +cl_itreal( m->f_szzr2(k,i,f), szz_mxx ))/mglob->NTnyq;
+                                 +cl_itreal( m->f_szzr2(k,i,f), szz_mxx ))/mglob->NTNYQ;
 
-                    dot[8]=freq*(cl_itreal( m->f_vxr2(k,i,f), m->f_vx2(k,i,f) ) + cl_itreal( m->f_vzr2(k,i,f), m->f_vz2(k,i,f) ))/mglob->NTnyq;
+                    dot[8]=freq*(cl_itreal( m->f_vxr2(k,i,f), m->f_vx2(k,i,f) ) + cl_itreal( m->f_vzr2(k,i,f), m->f_vz2(k,i,f) ))/mglob->NTNYQ;
                     
                     
                     m->gradM(k,0,i)+=c[0]*dot[0]-c[1]*dot[1];
@@ -737,18 +737,18 @@ int calc_grad(struct modcsts* mglob, struct modcstsloc * m)  {
                     
                     m->gradrho(k,0,i)+=dot[8] +c[16]*dot[0]-c[17]*dot[1]+c[18]*dot[2]-c[19]*dot[3]+c[20]*dot[4]-c[21]*dot[5]+c[22]*dot[6]-c[23]*dot[7];
                     
-                    if(mglob->Hout){
+                    if(mglob->HOUT){
                         dot[1]=0;dot[5]=0;dot[6]=0;dot[7]=0;
                         for (l=0;l<mglob->L;l++){
                             rxxzz=    cl_add2(m->f_rxx2(k,i,f,l), m->f_rzz2(k,i,f,l));
                             rxx_mzz= cl_diff2(m->f_rxx2(k,i,f,l), m->f_rzz2(k,i,f,l));
                             rzz_mxx= cl_diff2(m->f_rzz2(k,i,f,l), m->f_rxx2(k,i,f,l));
                             
-                            dot[1]+=cl_norm(cl_add2( rxxzz, cl_derivative(rxxzz, freq*tausigl[l])) )/mglob->NTnyq;
-                            dot[5]+=cl_norm(cl_add2( m->f_rxz2(k,i,f,l), cl_derivative(m->f_rxz2(k,i,f,l), freq*tausigl[l])) )/mglob->NTnyq;
+                            dot[1]+=cl_norm(cl_add2( rxxzz, cl_derivative(rxxzz, freq*tausigl[l])) )/mglob->NTNYQ;
+                            dot[5]+=cl_norm(cl_add2( m->f_rxz2(k,i,f,l), cl_derivative(m->f_rxz2(k,i,f,l), freq*tausigl[l])) )/mglob->NTNYQ;
                             dot[6]=dot[1];
                             dot[7]+=(cl_norm(cl_add2( rxx_mzz, cl_derivative(rxx_mzz, freq*tausigl[l])) )
-                                    +cl_norm(cl_add2( rzz_mxx, cl_derivative(rzz_mxx, freq*tausigl[l])) ))/mglob->NTnyq;
+                                    +cl_norm(cl_add2( rzz_mxx, cl_derivative(rzz_mxx, freq*tausigl[l])) ))/mglob->NTNYQ;
                             
                         }
                         sxxzz=    cl_add2(m->f_sxx2(k,i,f), m->f_szz2(k,i,f));
@@ -756,13 +756,13 @@ int calc_grad(struct modcsts* mglob, struct modcstsloc * m)  {
                         szz_mxx= cl_diff2(m->f_szz2(k,i,f), m->f_sxx2(k,i,f));
                         
                         
-                        dot[0]=cl_norm(cl_derivative(sxxzz, freq))/mglob->NTnyq;
-                        dot[2]=cl_norm(cl_derivative(m->f_sxz2(k,i,f), freq))/mglob->NTnyq;
+                        dot[0]=cl_norm(cl_derivative(sxxzz, freq))/mglob->NTNYQ;
+                        dot[2]=cl_norm(cl_derivative(m->f_sxz2(k,i,f), freq))/mglob->NTNYQ;
                         dot[3]=dot[0];
                         dot[4]=(cl_norm(cl_derivative(sxx_mzz, freq))
-                                    +cl_norm(cl_derivative(szz_mxx, freq)))/mglob->NTnyq;
+                                    +cl_norm(cl_derivative(szz_mxx, freq)))/mglob->NTNYQ;
                         dot[8]=(cl_norm(cl_derivative(m->f_vx2(k,i,f), freq))
-                                +cl_norm(cl_derivative(m->f_vz2(k,i,f), freq)))/mglob->NTnyq;
+                                +cl_norm(cl_derivative(m->f_vz2(k,i,f), freq)))/mglob->NTNYQ;
                         
                         m->HM(k,0,i)+=c[0]*dot[0]-c[1]*dot[1];
                         m->Hmu(k,0,i)+=c[2]*dot[2]-c[3]*dot[3]+c[4]*dot[4]-c[5]*dot[5]+c[6]*dot[6]-c[7]*dot[7];
@@ -786,7 +786,7 @@ int calc_grad(struct modcsts* mglob, struct modcstsloc * m)  {
         
         for (i=0;i<m->NX;i++){
             for (k=0;k<m->NZ;k++){
-                for (f=0;f<mglob->nfreqs;f++){
+                for (f=0;f<mglob->NFREQS;f++){
                     
                     freq=2.0*PI*df* (float)mglob->gradfreqsn[f];
                     
@@ -796,13 +796,13 @@ int calc_grad(struct modcsts* mglob, struct modcstsloc * m)  {
                         c_calc(&c,0, m->u(k,0,i), 0, 0, m->rho(k,0,i), ND, mglob->L, al);
                     
                     
-                    dot[0]=freq*(cl_itreal(m->f_sxyr2(k,i,f),m->f_sxy2(k,i,f))+ cl_itreal(m->f_syzr2(k,i,f),m->f_syz2(k,i,f)) )/mglob->NTnyq;
+                    dot[0]=freq*(cl_itreal(m->f_sxyr2(k,i,f),m->f_sxy2(k,i,f))+ cl_itreal(m->f_syzr2(k,i,f),m->f_syz2(k,i,f)) )/mglob->NTNYQ;
 
                     for (l=0;l<mglob->L;l++){
-                        dot[1]=(cl_rm( m->f_rxyr2(k,i,l,f), m->f_rxy2(k,i,l,f),tausigl[l],freq )+cl_rm( m->f_ryzr2(k,i,l,f), m->f_ryz2(k,i,l,f),tausigl[l],freq ))/mglob->NTnyq;
+                        dot[1]=(cl_rm( m->f_rxyr2(k,i,l,f), m->f_rxy2(k,i,l,f),tausigl[l],freq )+cl_rm( m->f_ryzr2(k,i,l,f), m->f_ryz2(k,i,l,f),tausigl[l],freq ))/mglob->NTNYQ;
                     }
                     
-                    dot[2]=freq*(cl_itreal( m->f_vyr2(k,i,f), m->f_vy2(k,i,f) ))/mglob->NTnyq;
+                    dot[2]=freq*(cl_itreal( m->f_vyr2(k,i,f), m->f_vy2(k,i,f) ))/mglob->NTNYQ;
                     
 
                     m->gradmu(k,0,i)+=c[0]*dot[0]-c[1]*dot[1];

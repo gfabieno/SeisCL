@@ -20,32 +20,32 @@
 /*This is the kernel that implement the free surface condition in 2D*/
 
 /*Define useful macros to be able to write a matrix formulation in 2D with OpenCl */
-#define rho(z,x)    rho[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define rip(z,x)    rip[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define rkp(z,x)    rkp[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define uipkp(z,x) uipkp[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define u(z,x)        u[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define pi(z,x)      pi[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define grad(z,x)  grad[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define grads(z,x) grads[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define amp1(z,x)  amp1[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define amp2(z,x)  amp2[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
+#define rho(z,x)    rho[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define rip(z,x)    rip[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define rkp(z,x)    rkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define uipkp(z,x) uipkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define u(z,x)        u[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define pi(z,x)      pi[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define grad(z,x)  grad[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define grads(z,x) grads[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define amp1(z,x)  amp1[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define amp2(z,x)  amp2[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 
-#define taus(z,x)        taus[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define tausipkp(z,x) tausipkp[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define taup(z,x)        taup[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
+#define taus(z,x)        taus[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define tausipkp(z,x) tausipkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define taup(z,x)        taup[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 
-#define vx(z,x)  vx[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vz(z,x)  vz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxx(z,x) sxx[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define szz(z,x) szz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxz(z,x) sxz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
+#define vx(z,x)  vx[(x)*(NZ)+(z)]
+#define vz(z,x)  vz[(x)*(NZ)+(z)]
+#define sxx(z,x) sxx[(x)*(NZ)+(z)]
+#define szz(z,x) szz[(x)*(NZ)+(z)]
+#define sxz(z,x) sxz[(x)*(NZ)+(z)]
 
 #define rxx(z,x,l) rxx[(l)*NX*NZ+(x)*NZ+(z)]
 #define rzz(z,x,l) rzz[(l)*NX*NZ+(x)*NZ+(z)]
 #define rxz(z,x,l) rxz[(l)*NX*NZ+(x)*NZ+(z)]
 
-#if local_off==0
+#if LOCAL_OFF==0
 
 #define lvx(z,x)  lvx[(x)*lsizez+(z)]
 #define lvz(z,x)  lvz[(x)*lsizez+(z)]
@@ -76,11 +76,11 @@ __kernel void surface(        __global float *vx,         __global float *vz,
                               __global float *eta)
 {
     /*Indice definition */
-    int gidx = get_global_id(0) + fdoh;
-    int gidz=fdoh;
+    int gidx = get_global_id(0) + FDOH;
+    int gidz=FDOH;
     
     /* Global work size is padded to be a multiple of local work size. The padding elements must not be updated */
-    if ( gidx>(NX-fdoh-1) ){
+    if ( gidx>(NX-FDOH-1) ){
         return;
     }
     
@@ -91,91 +91,91 @@ __kernel void surface(        __global float *vx,         __global float *vz,
     /*Mirroring the components of the stress tensor to make
      a stress free surface (method of imaging, Levander, 1988)*/
     szz(gidz, gidx)=0.0;
-#if Lve>0
+#if LVE>0
     rzz(gidz, gidx)=0.0;
 #endif
     
-    for (m=1; m<=fdoh; m++) {
+    for (m=1; m<=FDOH; m++) {
         szz(gidz-m,  gidx)=-szz(gidz+m,  gidx);
         sxz(gidz-m,  gidx)=-sxz(gidz+m-1, gidx);
     }
 				
     
-#if   fdoh==1
+#if   FDOH==1
     {
         vxx = (vx(gidz,gidx)-vx(gidz,gidx-1))/DH;
         vzz = (vz(gidz,gidx)-vz(gidz-1,gidx))/DH;
     }
-#elif fdoh==2
+#elif FDOH==2
     {
-        vxx = (hc1*(vx(gidz,gidx)  -vx(gidz,gidx-1))+
-               hc2*(vx(gidz,gidx+1)-vx(gidz,gidx-2)))/DH;
+        vxx = (HC1*(vx(gidz,gidx)  -vx(gidz,gidx-1))+
+               HC2*(vx(gidz,gidx+1)-vx(gidz,gidx-2)))/DH;
         
         
-        vzz = (hc1*(vz(gidz,gidx)  -vz(gidz-1,gidx))+
-               hc2*(vz(gidz+1,gidx)-vz(gidz-2,gidx)))/DH;
+        vzz = (HC1*(vz(gidz,gidx)  -vz(gidz-1,gidx))+
+               HC2*(vz(gidz+1,gidx)-vz(gidz-2,gidx)))/DH;
     }
-#elif fdoh==3
+#elif FDOH==3
     {
-        vxx = (hc1*(vx(gidz,gidx)  -vx(gidz,gidx-1))+
-               hc2*(vx(gidz,gidx+1)-vx(gidz,gidx-2))+
-               hc3*(vx(gidz,gidx+2)-vx(gidz,gidx-3)))/DH;
+        vxx = (HC1*(vx(gidz,gidx)  -vx(gidz,gidx-1))+
+               HC2*(vx(gidz,gidx+1)-vx(gidz,gidx-2))+
+               HC3*(vx(gidz,gidx+2)-vx(gidz,gidx-3)))/DH;
         
-        vzz = (hc1*(vz(gidz,gidx)-vz(gidz-1,gidx))+
-               hc2*(vz(gidz+1,gidx)-vz(gidz-2,gidx))+
-               hc3*(vz(gidz+2,gidx)-vz(gidz-3,gidx)))/DH;
-        
-    }
-#elif fdoh==4
-    {
-        vxx = (hc1*(vx(gidz,gidx)  -vx(gidz,gidx-1))+
-               hc2*(vx(gidz,gidx+1)-vx(gidz,gidx-2))+
-               hc3*(vx(gidz,gidx+2)-vx(gidz,gidx-3))+
-               hc4*(vx(gidz,gidx+3)-vx(gidz,gidx-4)))/DH;
-        
-        vzz = (hc1*(vz(gidz,gidx)  -vz(gidz-1,gidx))+
-               hc2*(vz(gidz+1,gidx)-vz(gidz-2,gidx))+
-               hc3*(vz(gidz+2,gidx)-vz(gidz-3,gidx))+
-               hc4*(vz(gidz+3,gidx)-vz(gidz-4,gidx)))/DH;
-    }
-#elif fdoh==5
-    {
-        vxx = (hc1*(vx(gidz,gidx)  -vx(gidz,gidx-1))+
-               hc2*(vx(gidz,gidx+1)-vx(gidz,gidx-2))+
-               hc3*(vx(gidz,gidx+2)-vx(gidz,gidx-3))+
-               hc4*(vx(gidz,gidx+3)-vx(gidz,gidx-4))+
-               hc5*(vx(gidz,gidx+4)-vx(gidz,gidx-5)))/DH;
-        
-        
-        vzz = (hc1*(vz(gidz,gidx)  -vz(gidz-1,gidx))+
-               hc2*(vz(gidz+1,gidx)-vz(gidz-2,gidx))+
-               hc3*(vz(gidz+2,gidx)-vz(gidz-3,gidx))+
-               hc4*(vz(gidz+3,gidx)-vz(gidz-4,gidx))+
-               hc5*(vz(gidz+4,gidx)-vz(gidz-5,gidx)))/DH;
-        
+        vzz = (HC1*(vz(gidz,gidx)-vz(gidz-1,gidx))+
+               HC2*(vz(gidz+1,gidx)-vz(gidz-2,gidx))+
+               HC3*(vz(gidz+2,gidx)-vz(gidz-3,gidx)))/DH;
         
     }
-#elif fdoh==6
+#elif FDOH==4
     {
-        vxx = (hc1*(vx(gidz,gidx)  -vx(gidz,gidx-1))+
-               hc2*(vx(gidz,gidx+1)-vx(gidz,gidx-2))+
-               hc3*(vx(gidz,gidx+2)-vx(gidz,gidx-3))+
-               hc4*(vx(gidz,gidx+3)-vx(gidz,gidx-4))+
-               hc5*(vx(gidz,gidx+4)-vx(gidz,gidx-5))+
-               hc6*(vx(gidz,gidx+5)-vx(gidz,gidx-6)))/DH;
+        vxx = (HC1*(vx(gidz,gidx)  -vx(gidz,gidx-1))+
+               HC2*(vx(gidz,gidx+1)-vx(gidz,gidx-2))+
+               HC3*(vx(gidz,gidx+2)-vx(gidz,gidx-3))+
+               HC4*(vx(gidz,gidx+3)-vx(gidz,gidx-4)))/DH;
+        
+        vzz = (HC1*(vz(gidz,gidx)  -vz(gidz-1,gidx))+
+               HC2*(vz(gidz+1,gidx)-vz(gidz-2,gidx))+
+               HC3*(vz(gidz+2,gidx)-vz(gidz-3,gidx))+
+               HC4*(vz(gidz+3,gidx)-vz(gidz-4,gidx)))/DH;
+    }
+#elif FDOH==5
+    {
+        vxx = (HC1*(vx(gidz,gidx)  -vx(gidz,gidx-1))+
+               HC2*(vx(gidz,gidx+1)-vx(gidz,gidx-2))+
+               HC3*(vx(gidz,gidx+2)-vx(gidz,gidx-3))+
+               HC4*(vx(gidz,gidx+3)-vx(gidz,gidx-4))+
+               HC5*(vx(gidz,gidx+4)-vx(gidz,gidx-5)))/DH;
         
         
-        vzz = (hc1*(vz(gidz,gidx)  -vz(gidz-1,gidx))+
-               hc2*(vz(gidz+1,gidx)-vz(gidz-2,gidx))+
-               hc3*(vz(gidz+2,gidx)-vz(gidz-3,gidx))+
-               hc4*(vz(gidz+3,gidx)-vz(gidz-4,gidx))+
-               hc5*(vz(gidz+4,gidx)-vz(gidz-5,gidx))+
-               hc6*(vz(gidz+5,gidx)-vz(gidz-6,gidx)))/DH;
+        vzz = (HC1*(vz(gidz,gidx)  -vz(gidz-1,gidx))+
+               HC2*(vz(gidz+1,gidx)-vz(gidz-2,gidx))+
+               HC3*(vz(gidz+2,gidx)-vz(gidz-3,gidx))+
+               HC4*(vz(gidz+3,gidx)-vz(gidz-4,gidx))+
+               HC5*(vz(gidz+4,gidx)-vz(gidz-5,gidx)))/DH;
+        
+        
+    }
+#elif FDOH==6
+    {
+        vxx = (HC1*(vx(gidz,gidx)  -vx(gidz,gidx-1))+
+               HC2*(vx(gidz,gidx+1)-vx(gidz,gidx-2))+
+               HC3*(vx(gidz,gidx+2)-vx(gidz,gidx-3))+
+               HC4*(vx(gidz,gidx+3)-vx(gidz,gidx-4))+
+               HC5*(vx(gidz,gidx+4)-vx(gidz,gidx-5))+
+               HC6*(vx(gidz,gidx+5)-vx(gidz,gidx-6)))/DH;
+        
+        
+        vzz = (HC1*(vz(gidz,gidx)  -vz(gidz-1,gidx))+
+               HC2*(vz(gidz+1,gidx)-vz(gidz-2,gidx))+
+               HC3*(vz(gidz+2,gidx)-vz(gidz-3,gidx))+
+               HC4*(vz(gidz+3,gidx)-vz(gidz-4,gidx))+
+               HC5*(vz(gidz+4,gidx)-vz(gidz-5,gidx))+
+               HC6*(vz(gidz+5,gidx)-vz(gidz-6,gidx)))/DH;
     }
 #endif
     
 
-#if Lve==0
+#if LVE==0
 				f=u(gidz,  gidx)*2.0;
 				g=pi(gidz,  gidx);
 				h=-(DT*(g-f)*(g-f)*(vxx)/g)-(DT*(g-f)*vzz);
@@ -192,7 +192,7 @@ __kernel void surface(        __global float *vx,         __global float *vz,
     
     d=2.0*u(gidz,  gidx)*taus(gidz,  gidx);
     e=pi(gidz,  gidx)*taup(gidz,  gidx);
-    for (m=0;m<Lve;m++){
+    for (m=0;m<LVE;m++){
         b=eta[m]/(1.0+(eta[m]*0.5));
         h=b*(((d-e)*((f/g)-1.0)*(vxx+vyy))-((d-e)*vzz));
         rxx(gidz,  gidx)+=h;

@@ -58,10 +58,10 @@ __kernel void savefreqs(__global float *vx,         __global float *vy,         
     lsyy=syy[gid];
 #endif
     
-#if Lve>0
-    float lrxx[Lve], lryy[Lve], lrzz[Lve], lrxy[Lve], lryz[Lve], lrxz[Lve];
+#if LVE>0
+    float lrxx[LVE], lryy[LVE], lrzz[LVE], lrxy[LVE], lryz[LVE], lrxz[LVE];
 #pragma unroll    
-    for (l=0;l<Lve;l++){
+    for (l=0;l<LVE;l++){
 #if ND!=21
         lrxx[l]=rxx[gid+l*gsize];
         lrzz[l]=rzz[gid+l*gsize];
@@ -80,9 +80,9 @@ __kernel void savefreqs(__global float *vx,         __global float *vy,         
     
     
 #pragma unroll
-    for (freq=0;freq<nfreqs;freq++){
-        fact.x =  dtnyq*DT*cospi(2.0*freqs[freq]*nt/NTnyq);
-        fact.y = -dtnyq*DT*sinpi(2.0*freqs[freq]*nt/NTnyq);
+    for (freq=0;freq<NFREQS;freq++){
+        fact.x =  DTNYQ*DT*cospi(2.0*freqs[freq]*nt/NTNYQ);
+        fact.y = -DTNYQ*DT*sinpi(2.0*freqs[freq]*nt/NTNYQ);
         
 #if ND!=21
         fvx[gid+freq*gsize]+=fact*lvx;
@@ -102,29 +102,29 @@ __kernel void savefreqs(__global float *vx,         __global float *vy,         
 
 
         
-#if Lve>0
+#if LVE>0
 //for crosscorrelation, stresses and memory variables must sampled at the same time step
-#if dirprop==0
-        fact.x = 0.5*( fact.x+ dtnyq*DT*cospi(2.0*freqs[freq]*(nt+1.0)/NTnyq) );
-        fact.y = 0.5*( fact.y- dtnyq*DT*sinpi(2.0*freqs[freq]*(nt+1.0)/NTnyq) );
+#if DIRPROP==0
+        fact.x = 0.5*( fact.x+ DTNYQ*DT*cospi(2.0*freqs[freq]*(nt+1.0)/NTNYQ) );
+        fact.y = 0.5*( fact.y- DTNYQ*DT*sinpi(2.0*freqs[freq]*(nt+1.0)/NTNYQ) );
 #endif
-#if dirprop==1
-        fact.x = 0.5*( fact.x+ dtnyq*DT*cospi(2.0*freqs[freq]*(nt-1.0)/NTnyq) );
-        fact.y = 0.5*( fact.y- dtnyq*DT*sinpi(2.0*freqs[freq]*(nt-1.0)/NTnyq) );
+#if DIRPROP==1
+        fact.x = 0.5*( fact.x+ DTNYQ*DT*cospi(2.0*freqs[freq]*(nt-1.0)/NTNYQ) );
+        fact.y = 0.5*( fact.y- DTNYQ*DT*sinpi(2.0*freqs[freq]*(nt-1.0)/NTNYQ) );
 #endif
 #pragma unroll
-        for (l=0;l<Lve;l++){
+        for (l=0;l<LVE;l++){
 #if ND!=21
-            frxx[gid+l*gsize+freq*gsize*Lve]+=fact*lrxx[l];
-            frzz[gid+l*gsize+freq*gsize*Lve]+=fact*lrzz[l];
-            frxz[gid+l*gsize+freq*gsize*Lve]+=fact*lrxz[l];
+            frxx[gid+l*gsize+freq*gsize*LVE]+=fact*lrxx[l];
+            frzz[gid+l*gsize+freq*gsize*LVE]+=fact*lrzz[l];
+            frxz[gid+l*gsize+freq*gsize*LVE]+=fact*lrxz[l];
 #endif
 #if ND==3 || ND==21
-            frxy[gid+l*gsize+freq*gsize*Lve]+=fact*lrxy[l];
-            fryz[gid+l*gsize+freq*gsize*Lve]+=fact*lryz[l];
+            frxy[gid+l*gsize+freq*gsize*LVE]+=fact*lrxy[l];
+            fryz[gid+l*gsize+freq*gsize*LVE]+=fact*lryz[l];
 #endif
 #if ND==3
-            fryy[gid+l*gsize+freq*gsize*Lve]+=fact*lryy[l];
+            fryy[gid+l*gsize+freq*gsize*LVE]+=fact*lryy[l];
 #endif
         }
 #endif

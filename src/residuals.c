@@ -65,7 +65,7 @@
 
 #define norm(x) sqrt( pow( (x).r,2) + pow( (x).i,2) )
 
-static void ampdiff(float * data, float * data0, float *res, kiss_fft_cpx *trace, kiss_fft_cpx * trace0,  kiss_fft_cpx * Trace, kiss_fft_cpx * Trace0, int tmax, float dt, int nfft, int nfmax, int nfmin, kiss_fft_cfg *stf, kiss_fft_cfg *sti, int back_prop_type, float * rms, float * rmsnorm, int nfreqs, float *gradfreqs){
+static void ampdiff(float * data, float * data0, float *res, kiss_fft_cpx *trace, kiss_fft_cpx * trace0,  kiss_fft_cpx * Trace, kiss_fft_cpx * Trace0, int tmax, float dt, int nfft, int nfmax, int nfmin, kiss_fft_cfg *stf, kiss_fft_cfg *sti, int BACK_PROP_TYPE, float * rms, float * rmsnorm, int NFREQS, float *gradfreqs){
     int t,n, freqn;
     float normT, normT0;
     
@@ -109,14 +109,14 @@ static void ampdiff(float * data, float * data0, float *res, kiss_fft_cpx *trace
     //    }
     
     
-    if (back_prop_type==1){
+    if (BACK_PROP_TYPE==1){
         for (n=nfmin;n<nfmax;n++){
             *rms+=0.5*pow(norm(Trace[n])-norm(Trace0[n]),2);
             *rmsnorm+=0.5*pow(norm(Trace0[n]),2);
         }
     }
-    else if (back_prop_type==2){
-        for (n=0;n<nfreqs;n++){
+    else if (BACK_PROP_TYPE==2){
+        for (n=0;n<NFREQS;n++){
             freqn=gradfreqs[n]*nfft*dt;
             *rms+=0.5*pow(norm(Trace[freqn])-norm(Trace0[freqn]),2);
             *rmsnorm+=0.5*pow(norm(Trace0[freqn]),2);
@@ -125,7 +125,7 @@ static void ampdiff(float * data, float * data0, float *res, kiss_fft_cpx *trace
     
 }
 
-static void crossvar(float * data, float * data0, float *res, float *trace, float * trace0,  kiss_fft_cpx * Trace, kiss_fft_cpx * Trace0, int tmax, float dt, int nfft, int nfmax, int nfmin, kiss_fftr_cfg *stf, int back_prop_type, float * rms, float * rmsnorm, int nfreqs, float *gradfreqs){
+static void crossvar(float * data, float * data0, float *res, float *trace, float * trace0,  kiss_fft_cpx * Trace, kiss_fft_cpx * Trace0, int tmax, float dt, int nfft, int nfmax, int nfmin, kiss_fftr_cfg *stf, int BACK_PROP_TYPE, float * rms, float * rmsnorm, int NFREQS, float *gradfreqs){
     int t;
     
 //    for (t=0;t<tmax;t++){
@@ -144,15 +144,15 @@ static void crossvar(float * data, float * data0, float *res, float *trace, floa
         res[t]=2.0*data[t]-data0[t];
     }
     
-//    if (back_prop_type==1){
+//    if (BACK_PROP_TYPE==1){
 //        for (n=nfmin;n<nfmax;n++){
 //            *rms+=0.5*pow(norm(Trace[n])-norm(Trace0[n]),2);
 //            *rmsnorm+=0.5*pow(norm(Trace0[n]),2);
 //            
 //        }
 //    }
-//    else if (back_prop_type==2){
-//        for (n=0;n<nfreqs;n++){
+//    else if (BACK_PROP_TYPE==2){
+//        for (n=0;n<NFREQS;n++){
 //            freqn=gradfreqs[n]*nfft*dt;
 //            *rms+=0.5*pow(norm(Trace[freqn])-norm(Trace0[freqn]),2);
 //            *rmsnorm+=0.5*pow(norm(Trace0[freqn]),2);
@@ -356,37 +356,28 @@ int res_raw(struct modcsts * mptr, int s)
     }
     
     // Define some intermediate buffers needed we use frequency domain gradient
-    if (mptr->back_prop_type==2 )  {
+    if (mptr->BACK_PROP_TYPE==2 )  {
         nfft=kiss_fft_next_fast_size(mptr->tmax);
         if (vx0){
             GMALLOC(temp_vx,sizeof(float)*nfft*2);
             GMALLOC(temp_vx_out,sizeof(float)*nfft*2);
             GMALLOC(temp_vx0,sizeof(float)*nfft*2);
             GMALLOC(temp_vx0_out,sizeof(float)*nfft*2);
-            memset(temp_vx,0,sizeof(float)*nfft*2);
-            memset(temp_vx0,0,sizeof(float)*nfft*2);
-            memset(temp_vx_out,0,sizeof(float)*nfft*2);
-            memset(temp_vx0_out,0,sizeof(float)*nfft*2);
+
         }
         if (vy0){
             GMALLOC(temp_vy,sizeof(float)*nfft*2);
             GMALLOC(temp_vy_out,sizeof(float)*nfft*2);
             GMALLOC(temp_vy0,sizeof(float)*nfft*2);
             GMALLOC(temp_vy0_out,sizeof(float)*nfft*2);
-            memset(temp_vy,0,sizeof(float)*nfft*2);
-            memset(temp_vy0,0,sizeof(float)*nfft*2);
-            memset(temp_vy_out,0,sizeof(float)*nfft*2);
-            memset(temp_vy0_out,0,sizeof(float)*nfft*2);
+
         }
         if (vz0){
             GMALLOC(temp_vz,sizeof(float)*nfft*2);
             GMALLOC(temp_vz_out,sizeof(float)*nfft*2);
             GMALLOC(temp_vz0,sizeof(float)*nfft*2);
             GMALLOC(temp_vz0_out,sizeof(float)*nfft*2);
-            memset(temp_vz,0,sizeof(float)*nfft*2);
-            memset(temp_vz0,0,sizeof(float)*nfft*2);
-            memset(temp_vz_out,0,sizeof(float)*nfft*2);
-            memset(temp_vz0_out,0,sizeof(float)*nfft*2);
+
         }
 
         stf = kiss_fftr_alloc( nfft ,0 ,0,0);
@@ -402,7 +393,7 @@ int res_raw(struct modcsts * mptr, int s)
            
             
             // Calculate the rms value
-            if (mptr->back_prop_type==1){
+            if (mptr->BACK_PROP_TYPE==1){
                 if (vx0){
                     mptr->rms+=pow(-vxout(g,t)+vx0(g,t),2);
                     mptr->rmsnorm+=pow(vx0(g,t),2);
@@ -416,7 +407,7 @@ int res_raw(struct modcsts * mptr, int s)
                     mptr->rmsnorm+=pow(vz0(g,t),2);
                 }
             }
-            else if (mptr->back_prop_type==2){
+            else if (mptr->BACK_PROP_TYPE==2){
                 if (vx0){
                     temp_vx[t]=(-vxout(g,t)+vx0(g,t));
                     temp_vx0[t]=vx0(g,t);
@@ -452,7 +443,7 @@ int res_raw(struct modcsts * mptr, int s)
         }
         
         //Calculate the rms for the selected frequencies only for frequency gradient
-        if (mptr->back_prop_type==2){
+        if (mptr->BACK_PROP_TYPE==2){
             if (vx0){
                 kiss_fftr( stf , temp_vx, (kiss_fft_cpx*)temp_vx_out );
                 kiss_fftr( stf , temp_vx0, (kiss_fft_cpx*)temp_vx0_out );
@@ -466,7 +457,7 @@ int res_raw(struct modcsts * mptr, int s)
                 kiss_fftr( stf , temp_vz0, (kiss_fft_cpx*)temp_vz0_out );
             }
 
-            for (n=0;n<mptr->nfreqs;n++){
+            for (n=0;n<mptr->NFREQS;n++){
                 thisfreq=mptr->csts[21].gl_cst[n]*nfft*mptr->dt+1;
                 if (vx0){
                     mptr->rms+=powf(temp_vx_out[thisfreq].i ,2)+powf(temp_vx_out[thisfreq].r, 2);
@@ -487,7 +478,7 @@ int res_raw(struct modcsts * mptr, int s)
         
     }
     
-    if (mptr->back_prop_type==2){
+    if (mptr->BACK_PROP_TYPE==2){
         free(stf);
         if (temp_vx) free(temp_vx);
         if (temp_vx0) free(temp_vx0);
@@ -559,8 +550,6 @@ int res_amp(struct modcsts * m, int s){
     GMALLOC(trace0,sizeof(kiss_fft_cpx)*nfft);
     GMALLOC(Trace,sizeof(kiss_fft_cpx)*nfft);
     GMALLOC(Trace0,sizeof(kiss_fft_cpx)*nfft);
-    memset(trace,0,sizeof(kiss_fft_cpx)*nfft);
-    memset(trace0,0,sizeof(kiss_fft_cpx)*nfft);
     if (!(stf = kiss_fft_alloc( nfft ,0 ,0,0))) {state=1;fprintf(stderr,"residual failed\n");};
     if (!(sti = kiss_fft_alloc( nfft ,1 ,0,0))) {state=1;fprintf(stderr,"residual failed\n");};
     nfmin=m->fmin/(nfft*m->dt);
@@ -570,10 +559,10 @@ int res_amp(struct modcsts * m, int s){
     for (g=0;g<nrec;g++){
         
         
-        ampdiff( &vxout(g,0), &vx0(g,0), &rx(g,0), trace, trace0,  Trace, Trace0, tmax, dt, nfft, nfmax, nfmin, &stf, &sti, m->back_prop_type, &m->rms, &m->rmsnorm, m->nfreqs, m->csts[21].gl_cst);
-        ampdiff( &vzout(g,0), &vz0(g,0), &rz(g,0), trace, trace0,  Trace, Trace0, tmax, dt, nfft, nfmax, nfmin, &stf, &sti, m->back_prop_type, &m->rms, &m->rmsnorm, m->nfreqs, m->csts[21].gl_cst);
+        ampdiff( &vxout(g,0), &vx0(g,0), &rx(g,0), trace, trace0,  Trace, Trace0, tmax, dt, nfft, nfmax, nfmin, &stf, &sti, m->BACK_PROP_TYPE, &m->rms, &m->rmsnorm, m->NFREQS, m->csts[21].gl_cst);
+        ampdiff( &vzout(g,0), &vz0(g,0), &rz(g,0), trace, trace0,  Trace, Trace0, tmax, dt, nfft, nfmax, nfmin, &stf, &sti, m->BACK_PROP_TYPE, &m->rms, &m->rmsnorm, m->NFREQS, m->csts[21].gl_cst);
         if (m->ND==3){
-            ampdiff( &vyout(g,0), &vy0(g,0), &ry(g,0), trace, trace0,  Trace, Trace0, tmax, dt, nfft, nfmax, nfmin, &stf, &sti, m->back_prop_type, &m->rms, &m->rmsnorm, m->nfreqs, m->csts[21].gl_cst);
+            ampdiff( &vyout(g,0), &vy0(g,0), &ry(g,0), trace, trace0,  Trace, Trace0, tmax, dt, nfft, nfmax, nfmin, &stf, &sti, m->BACK_PROP_TYPE, &m->rms, &m->rmsnorm, m->NFREQS, m->csts[21].gl_cst);
         }
 
         

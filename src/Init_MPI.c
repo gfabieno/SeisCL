@@ -22,10 +22,8 @@
 int alloc_seismo(float *** var, int ns, int allng, int NT, int * nrec ){
     int state=0;
     
-    GMALLOC(*var,sizeof(float*)*ns)
-    if (!state) memset((void*)*var, 0, sizeof(float*)*ns);
-    GMALLOC((*var)[0],sizeof(float)*allng*NT)
-    if (!state) memset((void*)(*var)[0], 0, sizeof(float)*allng*NT);
+    GMALLOC(*var,sizeof(float*)*ns);
+    GMALLOC((*var)[0],sizeof(float)*allng*NT);
     if (!state){
         for (int i=1; i<ns; i++){
             (*var)[i]=(*var)[i-1]+nrec[i-1]*NT;
@@ -45,15 +43,15 @@ int Init_MPI(struct modcsts * m) {
     //Communicate constants
     if (!state){
         MPI_Barrier(MPI_COMM_WORLD);
-        MPI_Bcast( &m->numdim, 1, MPI_INT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->NDIM, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Barrier(MPI_COMM_WORLD);
-        MPI_Bcast( m->N, m->numdim, MPI_INT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( m->N, m->NDIM, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->NT, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->FDORDER, 1, MPI_INT, 0, MPI_COMM_WORLD );
-        MPI_Bcast( &m->fdoh, 1, MPI_INT, 0, MPI_COMM_WORLD );
-        MPI_Bcast( &m->nab, 1, MPI_INT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->FDOH, 1, MPI_INT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->NAB, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->MAXRELERROR, 1, MPI_INT, 0, MPI_COMM_WORLD );
-        MPI_Bcast( &m->gradout, 1, MPI_INT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->GRADOUT, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->ns, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->L, 1, MPI_INT, 0, MPI_COMM_WORLD );
         
@@ -67,9 +65,9 @@ int Init_MPI(struct modcsts * m) {
         MPI_Bcast( &m->n_no_use_GPUs, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->MPI_NPROC_SHOT, 1, MPI_INT, 0, MPI_COMM_WORLD );
         
-        MPI_Bcast( &m->freesurf, 1, MPI_INT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->FREESURF, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->ND, 1, MPI_INT, 0, MPI_COMM_WORLD );
-        MPI_Bcast( &m->abs_type, 1, MPI_INT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->ABS_TYPE, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->VPPML, 1, MPI_FLOAT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->FPML, 1, MPI_FLOAT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->NPOWER, 1, MPI_FLOAT, 0, MPI_COMM_WORLD );
@@ -78,13 +76,13 @@ int Init_MPI(struct modcsts * m) {
         MPI_Bcast( &m->allng, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->allns, 1, MPI_INT, 0, MPI_COMM_WORLD );
 
-        MPI_Bcast( &m->gradsrcout, 1, MPI_INT, 0, MPI_COMM_WORLD );
-        MPI_Bcast( &m->Hout, 1, MPI_INT, 0, MPI_COMM_WORLD );
-        MPI_Bcast( &m->seisout, 1, MPI_INT, 0, MPI_COMM_WORLD );
-        MPI_Bcast( &m->movout, 1, MPI_INT, 0, MPI_COMM_WORLD );
-        MPI_Bcast( &m->resout, 1, MPI_INT, 0, MPI_COMM_WORLD );
-        MPI_Bcast( &m->rmsout, 1, MPI_INT, 0, MPI_COMM_WORLD );
-        MPI_Bcast( &m->Hout, 1, MPI_INT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->GRADSRCOUT, 1, MPI_INT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->HOUT, 1, MPI_INT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->SEISOUT, 1, MPI_INT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->MOVOUT, 1, MPI_INT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->RESOUT, 1, MPI_INT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->RMSOUT, 1, MPI_INT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->HOUT, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->tmin, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->tmax, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->param_type, 1, MPI_INT, 0, MPI_COMM_WORLD );
@@ -94,8 +92,8 @@ int Init_MPI(struct modcsts * m) {
         MPI_Bcast( &m->scalerms, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->scaleshot, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->scalermsnorm, 1, MPI_INT, 0, MPI_COMM_WORLD );
-        MPI_Bcast( &m->back_prop_type, 1, MPI_INT, 0, MPI_COMM_WORLD );
-        MPI_Bcast( &m->nfreqs, 1, MPI_INT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->BACK_PROP_TYPE, 1, MPI_INT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->NFREQS, 1, MPI_INT, 0, MPI_COMM_WORLD );
         
         MPI_Barrier(MPI_COMM_WORLD);
     }
@@ -104,7 +102,7 @@ int Init_MPI(struct modcsts * m) {
     {
         if (m->n_no_use_GPUs>0){
             if (m->MYID!=0){
-                GMALLOC(m->no_use_GPUs,sizeof(int)*m->n_no_use_GPUs)
+                GMALLOC(m->no_use_GPUs,sizeof(int)*m->n_no_use_GPUs);
             }
             
             if (!state){
@@ -115,19 +113,16 @@ int Init_MPI(struct modcsts * m) {
         
         
         if (m->MYID!=0){
-            GMALLOC(m->src_recs.nsrc,sizeof(int)*m->ns)
-            GMALLOC(m->src_recs.src_pos,sizeof(float*)*m->ns)
-            if (!state) memset((void*)m->src_recs.src_pos, 0, sizeof(float*)*m->ns);
-            GMALLOC(m->src_recs.src_pos[0],sizeof(float)*m->allns*5)
+            GMALLOC(m->src_recs.nsrc,sizeof(int)*m->ns);
+            GMALLOC(m->src_recs.src_pos,sizeof(float*)*m->ns);
+            GMALLOC(m->src_recs.src_pos[0],sizeof(float)*m->allns*5);
             
-            GMALLOC(m->src_recs.src,sizeof(float*)*m->ns)
-            if (!state) memset((void*)m->src_recs.src, 0, sizeof(float*)*m->ns);
-            GMALLOC(m->src_recs.src[0],sizeof(float)*m->allns*m->NT)
+            GMALLOC(m->src_recs.src,sizeof(float*)*m->ns);
+            GMALLOC(m->src_recs.src[0],sizeof(float)*m->allns*m->NT);
             
-            GMALLOC(m->src_recs.nrec,sizeof(int)*m->ns)
-            GMALLOC(m->src_recs.rec_pos,sizeof(float*)*m->ns)
-            if (!state) memset((void*)m->src_recs.rec_pos, 0, sizeof(float*)*m->ns);
-            GMALLOC(m->src_recs.rec_pos[0],sizeof(float)*m->allng*8)
+            GMALLOC(m->src_recs.nrec,sizeof(int)*m->ns);
+            GMALLOC(m->src_recs.rec_pos,sizeof(float*)*m->ns);
+            GMALLOC(m->src_recs.rec_pos[0],sizeof(float)*m->allng*8);
         }
         
         if (!state){
@@ -177,7 +172,7 @@ int Init_MPI(struct modcsts * m) {
     
 
     //Allocate and broadcast the data in
-    if (m->rmsout==1 || m->resout==1 || m->gradout==1){
+    if (m->RMSOUT==1 || m->RESOUT==1 || m->GRADOUT==1){
         for (i=0;i<m->nvars;i++){
             if (m->vars[i].to_output){
                 alloc_seismo(&m->vars[i].gl_var_res, m->ns, m->allng, m->NT, m->src_recs.nrec);

@@ -20,53 +20,53 @@
 /*Adjoint update of the stresses in 2D SV*/
 
 /*Define useful macros to be able to write a matrix formulation in 2D with OpenCl */
-#define lbnd (fdoh+nab)
+#define lbnd (FDOH+NAB)
 
-#define rho(z,x)    rho[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define rip(z,x)    rip[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define rkp(z,x)    rkp[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define uipkp(z,x) uipkp[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define u(z,x)        u[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define pi(z,x)      pi[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define gradrho(z,x)  gradrho[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define gradM(z,x)  gradM[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define gradmu(z,x)  gradmu[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define gradtaup(z,x)  gradtaup[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define gradtaus(z,x)  gradtaus[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
+#define rho(z,x)    rho[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define rip(z,x)    rip[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define rkp(z,x)    rkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define uipkp(z,x) uipkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define u(z,x)        u[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define pi(z,x)      pi[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define gradrho(z,x)  gradrho[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define gradM(z,x)  gradM[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define gradmu(z,x)  gradmu[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define gradtaup(z,x)  gradtaup[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define gradtaus(z,x)  gradtaus[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 
-#define taus(z,x)        taus[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define tausipkp(z,x) tausipkp[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define taup(z,x)        taup[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
+#define taus(z,x)        taus[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define tausipkp(z,x) tausipkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define taup(z,x)        taup[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 
-#define vx(z,x)  vx[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vz(z,x)  vz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxx(z,x) sxx[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define szz(z,x) szz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxz(z,x) sxz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
+#define vx(z,x)  vx[(x)*(NZ)+(z)]
+#define vz(z,x)  vz[(x)*(NZ)+(z)]
+#define sxx(z,x) sxx[(x)*(NZ)+(z)]
+#define szz(z,x) szz[(x)*(NZ)+(z)]
+#define sxz(z,x) sxz[(x)*(NZ)+(z)]
 
 #define rxx(z,x,l) rxx[(l)*NX*NZ+(x)*NZ+(z)]
 #define rzz(z,x,l) rzz[(l)*NX*NZ+(x)*NZ+(z)]
 #define rxz(z,x,l) rxz[(l)*NX*NZ+(x)*NZ+(z)]
 
-#define vx_r(z,x)  vx_r[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vz_r(z,x)  vz_r[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxx_r(z,x) sxx_r[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define szz_r(z,x) szz_r[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxz_r(z,x) sxz_r[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
+#define vx_r(z,x)  vx_r[(x)*(NZ)+(z)]
+#define vz_r(z,x)  vz_r[(x)*(NZ)+(z)]
+#define sxx_r(z,x) sxx_r[(x)*(NZ)+(z)]
+#define szz_r(z,x) szz_r[(x)*(NZ)+(z)]
+#define sxz_r(z,x) sxz_r[(x)*(NZ)+(z)]
 
 
 #define rxx_r(z,x,l) rxx_r[(l)*NX*NZ+(x)*NZ+(z)]
 #define rzz_r(z,x,l) rzz_r[(l)*NX*NZ+(x)*NZ+(z)]
 #define rxz_r(z,x,l) rxz_r[(l)*NX*NZ+(x)*NZ+(z)]
 
-#define psi_vxx(z,x) psi_vxx[(x)*(NZ-2*fdoh)+(z)]
-#define psi_vzx(z,x) psi_vzx[(x)*(NZ-2*fdoh)+(z)]
+#define psi_vxx(z,x) psi_vxx[(x)*(NZ-2*FDOH)+(z)]
+#define psi_vzx(z,x) psi_vzx[(x)*(NZ-2*FDOH)+(z)]
 
-#define psi_vxz(z,x) psi_vxz[(x)*(2*nab)+(z)]
-#define psi_vzz(z,x) psi_vzz[(x)*(2*nab)+(z)]
+#define psi_vxz(z,x) psi_vxz[(x)*(2*NAB)+(z)]
+#define psi_vzz(z,x) psi_vzz[(x)*(2*NAB)+(z)]
 
 
-#if local_off==0
+#if LOCAL_OFF==0
 
 #define lvar(z,x)  lvar[(x)*lsizez+(z)]
 
@@ -96,8 +96,8 @@ float psource(int gidz, int gidx,  int nsrc, __global float *srcpos_loc, __globa
             int SOURCE_TYPE= (int)srcpos_loc(4,srci);
             
             if (SOURCE_TYPE==1){
-                int i=(int)(srcpos_loc(0,srci)/DH-0.5)+fdoh;
-                int k=(int)(srcpos_loc(2,srci)/DH-0.5)+fdoh;
+                int i=(int)(srcpos_loc(0,srci)/DH-0.5)+FDOH;
+                int k=(int)(srcpos_loc(2,srci)/DH-0.5)+FDOH;
                 
                 
                 if (i==gidx && k==gidz){
@@ -123,107 +123,107 @@ float psource(int gidz, int gidx,  int nsrc, __global float *srcpos_loc, __globa
 int evarm( int k, int i){
     
     
-#if num_devices==1 & NLOCALP==1
+#if NUM_DEVICES==1 & NLOCALP==1
     
-    int NXbnd = (NX-2*fdoh-2*nab);
-    int NZbnd = (NZ-2*fdoh-2*nab);
-    
-    int m=-1;
-    i-=lbnd;
-    k-=lbnd;
-    
-    if ( (k>fdoh-1 && k<NZbnd-fdoh)  && (i>fdoh-1 && i<NXbnd-fdoh) )
-        m=-1;
-    else if (k<0 || k>NZbnd-1 || i<0 || i>NXbnd-1 )
-        m=-1;
-    else if (i<fdoh){//front
-        m=i*NZbnd+k;
-    }
-    else if (i>NXbnd-1-fdoh){//back
-        i=i-NXbnd+fdoh;
-        m=NZbnd*fdoh+i*NZbnd+k;
-    }
-    else if (k<fdoh){//up
-        i=i-fdoh;
-        m=NZbnd*fdoh*2+i+k*(NXbnd-2.0*fdoh);
-    }
-    else {//down
-        i=i-fdoh;
-        k=k-NZbnd+fdoh;
-        m=NZbnd*fdoh*2+(NXbnd-2*fdoh)*fdoh+i+k*(NXbnd-2.0*fdoh);
-    }
-    
-    
-    
-#elif dev==0 & MYGROUPID==0
-    
-    int NXbnd = (NX-2*fdoh-nab);
-    int NZbnd = (NZ-2*fdoh-2*nab);
+    int NXbnd = (NX-2*FDOH-2*NAB);
+    int NZbnd = (NZ-2*FDOH-2*NAB);
     
     int m=-1;
     i-=lbnd;
     k-=lbnd;
     
-    if ( (k>fdoh-1 && k<NZbnd-fdoh)  && i>fdoh-1  )
+    if ( (k>FDOH-1 && k<NZbnd-FDOH)  && (i>FDOH-1 && i<NXbnd-FDOH) )
         m=-1;
     else if (k<0 || k>NZbnd-1 || i<0 || i>NXbnd-1 )
         m=-1;
-    else if (i<fdoh){//front
+    else if (i<FDOH){//front
         m=i*NZbnd+k;
     }
-    else if (k<fdoh){//up
-        i=i-fdoh;
-        m=NZbnd*fdoh+i+k*(NXbnd-fdoh);
+    else if (i>NXbnd-1-FDOH){//back
+        i=i-NXbnd+FDOH;
+        m=NZbnd*FDOH+i*NZbnd+k;
+    }
+    else if (k<FDOH){//up
+        i=i-FDOH;
+        m=NZbnd*FDOH*2+i+k*(NXbnd-2.0*FDOH);
     }
     else {//down
-        i=i-fdoh;
-        k=k-NZbnd+fdoh;
-        m=NZbnd*fdoh+(NXbnd-fdoh)*fdoh+i+k*(NXbnd-fdoh);
+        i=i-FDOH;
+        k=k-NZbnd+FDOH;
+        m=NZbnd*FDOH*2+(NXbnd-2*FDOH)*FDOH+i+k*(NXbnd-2.0*FDOH);
     }
     
-#elif dev==num_devices-1 & MYGROUPID==NLOCALP-1
-    int NXbnd = (NX-2*fdoh-nab);
-    int NZbnd = (NZ-2*fdoh-2*nab);
+    
+    
+#elif DEV==0 & MYGROUPID==0
+    
+    int NXbnd = (NX-2*FDOH-NAB);
+    int NZbnd = (NZ-2*FDOH-2*NAB);
     
     int m=-1;
-    i-=fdoh;
+    i-=lbnd;
     k-=lbnd;
     
-    if ( (k>fdoh-1 && k<NZbnd-fdoh) && i<NXbnd-fdoh )
+    if ( (k>FDOH-1 && k<NZbnd-FDOH)  && i>FDOH-1  )
+        m=-1;
+    else if (k<0 || k>NZbnd-1 || i<0 || i>NXbnd-1 )
+        m=-1;
+    else if (i<FDOH){//front
+        m=i*NZbnd+k;
+    }
+    else if (k<FDOH){//up
+        i=i-FDOH;
+        m=NZbnd*FDOH+i+k*(NXbnd-FDOH);
+    }
+    else {//down
+        i=i-FDOH;
+        k=k-NZbnd+FDOH;
+        m=NZbnd*FDOH+(NXbnd-FDOH)*FDOH+i+k*(NXbnd-FDOH);
+    }
+    
+#elif DEV==NUM_DEVICES-1 & MYGROUPID==NLOCALP-1
+    int NXbnd = (NX-2*FDOH-NAB);
+    int NZbnd = (NZ-2*FDOH-2*NAB);
+    
+    int m=-1;
+    i-=FDOH;
+    k-=lbnd;
+    
+    if ( (k>FDOH-1 && k<NZbnd-FDOH) && i<NXbnd-FDOH )
         m=-1;
     else if (k<0 || k>NZbnd-1 || i>NXbnd-1 )
         m=-1;
-    else if (i>NXbnd-1-fdoh){
-        i=i-NXbnd+fdoh;
+    else if (i>NXbnd-1-FDOH){
+        i=i-NXbnd+FDOH;
         m=i*NZbnd+k;
     }
-    else if (k<fdoh){//up
-        m=NZbnd*fdoh+i+k*(NXbnd-fdoh);
+    else if (k<FDOH){//up
+        m=NZbnd*FDOH+i+k*(NXbnd-FDOH);
     }
     else {//down
-        k=k-NZbnd+fdoh;
-        m=NZbnd*fdoh+(NXbnd-fdoh)*fdoh+i+k*(NXbnd-fdoh);
+        k=k-NZbnd+FDOH;
+        m=NZbnd*FDOH+(NXbnd-FDOH)*FDOH+i+k*(NXbnd-FDOH);
     }
     
 #else
     
-    int NXbnd = (NX-2*fdoh);
-    int NZbnd = (NZ-2*fdoh-2*nab);
+    int NXbnd = (NX-2*FDOH);
+    int NZbnd = (NZ-2*FDOH-2*NAB);
     
     int m=-1;
-    i-=fdoh;;
+    i-=FDOH;;
     k-=lbnd;
     
-    if ( (k>fdoh-1 && k<NZbnd-fdoh) )
+    if ( (k>FDOH-1 && k<NZbnd-FDOH) )
         m=-1;
     else if (k<0 || k>NZbnd-1 || i<0 || i>NXbnd-1 )
         m=-1;
-    else if (k<fdoh){//up
+    else if (k<FDOH){//up
         m=i+k*(NXbnd);
     }
     else {//down
-        k=k-NZbnd+fdoh;
-        m=(NXbnd)*fdoh+i+k*(NXbnd);
+        k=k-NZbnd+FDOH;
+        m=(NXbnd)*FDOH+i+k*(NXbnd);
     }
     
     
@@ -267,17 +267,17 @@ __kernel void update_adjs(int offcomm, int nsrc,  int nt,
     float sumrxz, sumrxx, sumrzz;
     float b,c,e,d,dipkp;
     int l;
-    float leta[Lve];
+    float leta[LVE];
     float lpi, lu, luipkp, ltaup, ltaus, ltausipkp;
     
 // If we use local memory
-#if local_off==0
-    int lsizez = get_local_size(0)+2*fdoh;
-    int lsizex = get_local_size(1)+2*fdoh;
-    int lidz = get_local_id(0)+fdoh;
-    int lidx = get_local_id(1)+fdoh;
-    int gidz = get_global_id(0)+fdoh;
-    int gidx = get_global_id(1)+fdoh+offcomm;
+#if LOCAL_OFF==0
+    int lsizez = get_local_size(0)+2*FDOH;
+    int lsizex = get_local_size(1)+2*FDOH;
+    int lidz = get_local_id(0)+FDOH;
+    int lidx = get_local_id(1)+FDOH;
+    int gidz = get_global_id(0)+FDOH;
+    int gidx = get_global_id(1)+FDOH+offcomm;
     
 #define lvx lvar
 #define lvz lvar
@@ -285,12 +285,12 @@ __kernel void update_adjs(int offcomm, int nsrc,  int nt,
 #define lvz_r lvar
 
 // If local memory is turned off
-#elif local_off==1
+#elif LOCAL_OFF==1
     
     int gid = get_global_id(0);
-    int glsizez = (NZ-2*fdoh);
-    int gidz = gid%glsizez+fdoh;
-    int gidx = (gid/glsizez)+fdoh+offcomm;
+    int glsizez = (NZ-2*FDOH);
+    int gidz = gid%glsizez+FDOH;
+    int gidx = (gid/glsizez)+FDOH+offcomm;
     
 #define lvx_r vx_r
 #define lvz_r vz_r
@@ -305,157 +305,157 @@ __kernel void update_adjs(int offcomm, int nsrc,  int nt,
 #endif
     
 // Calculation of the velocity spatial derivatives of the forward wavefield if backpropagation is used
-#if back_prop_type==1
+#if BACK_PROP_TYPE==1
     {
-#if local_off==0
+#if LOCAL_OFF==0
         lvx(lidz,lidx)=vx(gidz, gidx);
-        if (lidx<2*fdoh)
-            lvx(lidz,lidx-fdoh)=vx(gidz,gidx-fdoh);
-        if (lidx+lsizex-3*fdoh<fdoh)
-            lvx(lidz,lidx+lsizex-3*fdoh)=vx(gidz,gidx+lsizex-3*fdoh);
-        if (lidx>(lsizex-2*fdoh-1))
-            lvx(lidz,lidx+fdoh)=vx(gidz,gidx+fdoh);
-        if (lidx-lsizex+3*fdoh>(lsizex-fdoh-1))
-            lvx(lidz,lidx-lsizex+3*fdoh)=vx(gidz,gidx-lsizex+3*fdoh);
-        if (lidz<2*fdoh)
-            lvx(lidz-fdoh,lidx)=vx(gidz-fdoh,gidx);
-        if (lidz>(lsizez-2*fdoh-1))
-            lvx(lidz+fdoh,lidx)=vx(gidz+fdoh,gidx);
+        if (lidx<2*FDOH)
+            lvx(lidz,lidx-FDOH)=vx(gidz,gidx-FDOH);
+        if (lidx+lsizex-3*FDOH<FDOH)
+            lvx(lidz,lidx+lsizex-3*FDOH)=vx(gidz,gidx+lsizex-3*FDOH);
+        if (lidx>(lsizex-2*FDOH-1))
+            lvx(lidz,lidx+FDOH)=vx(gidz,gidx+FDOH);
+        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
+            lvx(lidz,lidx-lsizex+3*FDOH)=vx(gidz,gidx-lsizex+3*FDOH);
+        if (lidz<2*FDOH)
+            lvx(lidz-FDOH,lidx)=vx(gidz-FDOH,gidx);
+        if (lidz>(lsizez-2*FDOH-1))
+            lvx(lidz+FDOH,lidx)=vx(gidz+FDOH,gidx);
         barrier(CLK_LOCAL_MEM_FENCE);
 #endif
         
-#if   fdoh==1
-        vxx = hc1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))/DH;
-        vxz = hc1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))/DH;
-#elif fdoh==2
-        vxx = (  hc1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))
-               + hc2*(lvx(lidz, lidx+1)-lvx(lidz, lidx-2))
+#if   FDOH==1
+        vxx = HC1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))/DH;
+        vxz = HC1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))/DH;
+#elif FDOH==2
+        vxx = (  HC1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))
+               + HC2*(lvx(lidz, lidx+1)-lvx(lidz, lidx-2))
                )/DH;
-        vxz = (  hc1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))
-               + hc2*(lvx(lidz+2, lidx)-lvx(lidz-1, lidx))
+        vxz = (  HC1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))
+               + HC2*(lvx(lidz+2, lidx)-lvx(lidz-1, lidx))
                )/DH;
-#elif fdoh==3
-        vxx = (  hc1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))
-               + hc2*(lvx(lidz, lidx+1)-lvx(lidz, lidx-2))
-               + hc3*(lvx(lidz, lidx+2)-lvx(lidz, lidx-3))
+#elif FDOH==3
+        vxx = (  HC1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))
+               + HC2*(lvx(lidz, lidx+1)-lvx(lidz, lidx-2))
+               + HC3*(lvx(lidz, lidx+2)-lvx(lidz, lidx-3))
                )/DH;
-        vxz = (  hc1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))
-               + hc2*(lvx(lidz+2, lidx)-lvx(lidz-1, lidx))
-               + hc3*(lvx(lidz+3, lidx)-lvx(lidz-2, lidx))
+        vxz = (  HC1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))
+               + HC2*(lvx(lidz+2, lidx)-lvx(lidz-1, lidx))
+               + HC3*(lvx(lidz+3, lidx)-lvx(lidz-2, lidx))
                )/DH;
-#elif fdoh==4
-        vxx = (   hc1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))
-               + hc2*(lvx(lidz, lidx+1)-lvx(lidz, lidx-2))
-               + hc3*(lvx(lidz, lidx+2)-lvx(lidz, lidx-3))
-               + hc4*(lvx(lidz, lidx+3)-lvx(lidz, lidx-4))
+#elif FDOH==4
+        vxx = (   HC1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))
+               + HC2*(lvx(lidz, lidx+1)-lvx(lidz, lidx-2))
+               + HC3*(lvx(lidz, lidx+2)-lvx(lidz, lidx-3))
+               + HC4*(lvx(lidz, lidx+3)-lvx(lidz, lidx-4))
                )/DH;
-        vxz = (  hc1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))
-               + hc2*(lvx(lidz+2, lidx)-lvx(lidz-1, lidx))
-               + hc3*(lvx(lidz+3, lidx)-lvx(lidz-2, lidx))
-               + hc4*(lvx(lidz+4, lidx)-lvx(lidz-3, lidx))
+        vxz = (  HC1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))
+               + HC2*(lvx(lidz+2, lidx)-lvx(lidz-1, lidx))
+               + HC3*(lvx(lidz+3, lidx)-lvx(lidz-2, lidx))
+               + HC4*(lvx(lidz+4, lidx)-lvx(lidz-3, lidx))
                )/DH;
-#elif fdoh==5
-        vxx = (  hc1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))
-               + hc2*(lvx(lidz, lidx+1)-lvx(lidz, lidx-2))
-               + hc3*(lvx(lidz, lidx+2)-lvx(lidz, lidx-3))
-               + hc4*(lvx(lidz, lidx+3)-lvx(lidz, lidx-4))
-               + hc5*(lvx(lidz, lidx+4)-lvx(lidz, lidx-5))
+#elif FDOH==5
+        vxx = (  HC1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))
+               + HC2*(lvx(lidz, lidx+1)-lvx(lidz, lidx-2))
+               + HC3*(lvx(lidz, lidx+2)-lvx(lidz, lidx-3))
+               + HC4*(lvx(lidz, lidx+3)-lvx(lidz, lidx-4))
+               + HC5*(lvx(lidz, lidx+4)-lvx(lidz, lidx-5))
                )/DH;
-        vxz = (  hc1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))
-               + hc2*(lvx(lidz+2, lidx)-lvx(lidz-1, lidx))
-               + hc3*(lvx(lidz+3, lidx)-lvx(lidz-2, lidx))
-               + hc4*(lvx(lidz+4, lidx)-lvx(lidz-3, lidx))
-               + hc5*(lvx(lidz+5, lidx)-lvx(lidz-4, lidx))
+        vxz = (  HC1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))
+               + HC2*(lvx(lidz+2, lidx)-lvx(lidz-1, lidx))
+               + HC3*(lvx(lidz+3, lidx)-lvx(lidz-2, lidx))
+               + HC4*(lvx(lidz+4, lidx)-lvx(lidz-3, lidx))
+               + HC5*(lvx(lidz+5, lidx)-lvx(lidz-4, lidx))
                )/DH;
-#elif fdoh==6
-        vxx = (  hc1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))
-               + hc2*(lvx(lidz, lidx+1)-lvx(lidz, lidx-2))
-               + hc3*(lvx(lidz, lidx+2)-lvx(lidz, lidx-3))
-               + hc4*(lvx(lidz, lidx+3)-lvx(lidz, lidx-4))
-               + hc5*(lvx(lidz, lidx+4)-lvx(lidz, lidx-5))
-               + hc6*(lvx(lidz, lidx+5)-lvx(lidz, lidx-6))
+#elif FDOH==6
+        vxx = (  HC1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))
+               + HC2*(lvx(lidz, lidx+1)-lvx(lidz, lidx-2))
+               + HC3*(lvx(lidz, lidx+2)-lvx(lidz, lidx-3))
+               + HC4*(lvx(lidz, lidx+3)-lvx(lidz, lidx-4))
+               + HC5*(lvx(lidz, lidx+4)-lvx(lidz, lidx-5))
+               + HC6*(lvx(lidz, lidx+5)-lvx(lidz, lidx-6))
                )/DH;
-        vxz = (  hc1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))
-               + hc2*(lvx(lidz+2, lidx)-lvx(lidz-1, lidx))
-               + hc3*(lvx(lidz+3, lidx)-lvx(lidz-2, lidx))
-               + hc4*(lvx(lidz+4, lidx)-lvx(lidz-3, lidx))
-               + hc5*(lvx(lidz+5, lidx)-lvx(lidz-4, lidx))
-               + hc6*(lvx(lidz+6, lidx)-lvx(lidz-5, lidx))
+        vxz = (  HC1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))
+               + HC2*(lvx(lidz+2, lidx)-lvx(lidz-1, lidx))
+               + HC3*(lvx(lidz+3, lidx)-lvx(lidz-2, lidx))
+               + HC4*(lvx(lidz+4, lidx)-lvx(lidz-3, lidx))
+               + HC5*(lvx(lidz+5, lidx)-lvx(lidz-4, lidx))
+               + HC6*(lvx(lidz+6, lidx)-lvx(lidz-5, lidx))
                )/DH;
 #endif
         
         
-#if local_off==0
+#if LOCAL_OFF==0
         barrier(CLK_LOCAL_MEM_FENCE);
         lvz(lidz,lidx)=vz(gidz, gidx);
-        if (lidx<2*fdoh)
-            lvz(lidz,lidx-fdoh)=vz(gidz,gidx-fdoh);
-        if (lidx>(lsizex-2*fdoh-1))
-            lvz(lidz,lidx+fdoh)=vz(gidz,gidx+fdoh);
-        if (lidz<2*fdoh)
-            lvz(lidz-fdoh,lidx)=vz(gidz-fdoh,gidx);
-        if (lidz>(lsizez-2*fdoh-1))
-            lvz(lidz+fdoh,lidx)=vz(gidz+fdoh,gidx);
+        if (lidx<2*FDOH)
+            lvz(lidz,lidx-FDOH)=vz(gidz,gidx-FDOH);
+        if (lidx>(lsizex-2*FDOH-1))
+            lvz(lidz,lidx+FDOH)=vz(gidz,gidx+FDOH);
+        if (lidz<2*FDOH)
+            lvz(lidz-FDOH,lidx)=vz(gidz-FDOH,gidx);
+        if (lidz>(lsizez-2*FDOH-1))
+            lvz(lidz+FDOH,lidx)=vz(gidz+FDOH,gidx);
         barrier(CLK_LOCAL_MEM_FENCE);
 #endif
         
-#if   fdoh==1
-        vzz = hc1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))/DH;
-        vzx = hc1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))/DH;
-#elif fdoh==2
-        vzz = (  hc1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))
-               + hc2*(lvz(lidz+1, lidx)-lvz(lidz-2, lidx))
+#if   FDOH==1
+        vzz = HC1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))/DH;
+        vzx = HC1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))/DH;
+#elif FDOH==2
+        vzz = (  HC1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))
+               + HC2*(lvz(lidz+1, lidx)-lvz(lidz-2, lidx))
                )/DH;
-        vzx = (  hc1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))
-               + hc2*(lvz(lidz, lidx+2)-lvz(lidz, lidx-1))
+        vzx = (  HC1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))
+               + HC2*(lvz(lidz, lidx+2)-lvz(lidz, lidx-1))
                )/DH;
-#elif fdoh==3
-        vzz = (  hc1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))
-               + hc2*(lvz(lidz+1, lidx)-lvz(lidz-2, lidx))
-               + hc3*(lvz(lidz+2, lidx)-lvz(lidz-3, lidx))
+#elif FDOH==3
+        vzz = (  HC1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))
+               + HC2*(lvz(lidz+1, lidx)-lvz(lidz-2, lidx))
+               + HC3*(lvz(lidz+2, lidx)-lvz(lidz-3, lidx))
                )/DH;
-        vzx = (  hc1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))
-               + hc2*(lvz(lidz, lidx+2)-lvz(lidz, lidx-1))
-               + hc3*(lvz(lidz, lidx+3)-lvz(lidz, lidx-2))
+        vzx = (  HC1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))
+               + HC2*(lvz(lidz, lidx+2)-lvz(lidz, lidx-1))
+               + HC3*(lvz(lidz, lidx+3)-lvz(lidz, lidx-2))
                )/DH;
-#elif fdoh==4
-        vzz = (  hc1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))
-               + hc2*(lvz(lidz+1, lidx)-lvz(lidz-2, lidx))
-               + hc3*(lvz(lidz+2, lidx)-lvz(lidz-3, lidx))
-               + hc4*(lvz(lidz+3, lidx)-lvz(lidz-4, lidx))
+#elif FDOH==4
+        vzz = (  HC1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))
+               + HC2*(lvz(lidz+1, lidx)-lvz(lidz-2, lidx))
+               + HC3*(lvz(lidz+2, lidx)-lvz(lidz-3, lidx))
+               + HC4*(lvz(lidz+3, lidx)-lvz(lidz-4, lidx))
                )/DH;
-        vzx = (  hc1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))
-               + hc2*(lvz(lidz, lidx+2)-lvz(lidz, lidx-1))
-               + hc3*(lvz(lidz, lidx+3)-lvz(lidz, lidx-2))
-               + hc4*(lvz(lidz, lidx+4)-lvz(lidz, lidx-3))
+        vzx = (  HC1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))
+               + HC2*(lvz(lidz, lidx+2)-lvz(lidz, lidx-1))
+               + HC3*(lvz(lidz, lidx+3)-lvz(lidz, lidx-2))
+               + HC4*(lvz(lidz, lidx+4)-lvz(lidz, lidx-3))
                )/DH;
-#elif fdoh==5
-        vzz = (  hc1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))
-               + hc2*(lvz(lidz+1, lidx)-lvz(lidz-2, lidx))
-               + hc3*(lvz(lidz+2, lidx)-lvz(lidz-3, lidx))
-               + hc4*(lvz(lidz+3, lidx)-lvz(lidz-4, lidx))
-               + hc5*(lvz(lidz+4, lidx)-lvz(lidz-5, lidx))
+#elif FDOH==5
+        vzz = (  HC1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))
+               + HC2*(lvz(lidz+1, lidx)-lvz(lidz-2, lidx))
+               + HC3*(lvz(lidz+2, lidx)-lvz(lidz-3, lidx))
+               + HC4*(lvz(lidz+3, lidx)-lvz(lidz-4, lidx))
+               + HC5*(lvz(lidz+4, lidx)-lvz(lidz-5, lidx))
                )/DH;
-        vzx = (  hc1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))
-               + hc2*(lvz(lidz, lidx+2)-lvz(lidz, lidx-1))
-               + hc3*(lvz(lidz, lidx+3)-lvz(lidz, lidx-2))
-               + hc4*(lvz(lidz, lidx+4)-lvz(lidz, lidx-3))
-               + hc5*(lvz(lidz, lidx+5)-lvz(lidz, lidx-4))
+        vzx = (  HC1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))
+               + HC2*(lvz(lidz, lidx+2)-lvz(lidz, lidx-1))
+               + HC3*(lvz(lidz, lidx+3)-lvz(lidz, lidx-2))
+               + HC4*(lvz(lidz, lidx+4)-lvz(lidz, lidx-3))
+               + HC5*(lvz(lidz, lidx+5)-lvz(lidz, lidx-4))
                )/DH;
-#elif fdoh==6
-        vzz = (  hc1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))
-               + hc2*(lvz(lidz+1, lidx)-lvz(lidz-2, lidx))
-               + hc3*(lvz(lidz+2, lidx)-lvz(lidz-3, lidx))
-               + hc4*(lvz(lidz+3, lidx)-lvz(lidz-4, lidx))
-               + hc5*(lvz(lidz+4, lidx)-lvz(lidz-5, lidx))
-               + hc6*(lvz(lidz+5, lidx)-lvz(lidz-6, lidx))
+#elif FDOH==6
+        vzz = (  HC1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))
+               + HC2*(lvz(lidz+1, lidx)-lvz(lidz-2, lidx))
+               + HC3*(lvz(lidz+2, lidx)-lvz(lidz-3, lidx))
+               + HC4*(lvz(lidz+3, lidx)-lvz(lidz-4, lidx))
+               + HC5*(lvz(lidz+4, lidx)-lvz(lidz-5, lidx))
+               + HC6*(lvz(lidz+5, lidx)-lvz(lidz-6, lidx))
                )/DH;
-        vzx = (  hc1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))
-               + hc2*(lvz(lidz, lidx+2)-lvz(lidz, lidx-1))
-               + hc3*(lvz(lidz, lidx+3)-lvz(lidz, lidx-2))
-               + hc4*(lvz(lidz, lidx+4)-lvz(lidz, lidx-3))
-               + hc5*(lvz(lidz, lidx+5)-lvz(lidz, lidx-4))
-               + hc6*(lvz(lidz, lidx+6)-lvz(lidz, lidx-5))
+        vzx = (  HC1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))
+               + HC2*(lvz(lidz, lidx+2)-lvz(lidz, lidx-1))
+               + HC3*(lvz(lidz, lidx+3)-lvz(lidz, lidx-2))
+               + HC4*(lvz(lidz, lidx+4)-lvz(lidz, lidx-3))
+               + HC5*(lvz(lidz, lidx+5)-lvz(lidz, lidx-4))
+               + HC6*(lvz(lidz, lidx+6)-lvz(lidz, lidx-5))
                )/DH;
 #endif
         
@@ -465,169 +465,169 @@ __kernel void update_adjs(int offcomm, int nsrc,  int nt,
     
 // Calculation of the velocity spatial derivatives of the adjoint wavefield
     {
-#if local_off==0
+#if LOCAL_OFF==0
         lvx_r(lidz,lidx)=vx_r(gidz, gidx);
-        if (lidx<2*fdoh)
-            lvx_r(lidz,lidx-fdoh)=vx_r(gidz,gidx-fdoh);
-        if (lidx+lsizex-3*fdoh<fdoh)
-            lvx_r(lidz,lidx+lsizex-3*fdoh)=vx_r(gidz,gidx+lsizex-3*fdoh);
-        if (lidx>(lsizex-2*fdoh-1))
-            lvx_r(lidz,lidx+fdoh)=vx_r(gidz,gidx+fdoh);
-        if (lidx-lsizex+3*fdoh>(lsizex-fdoh-1))
-            lvx_r(lidz,lidx-lsizex+3*fdoh)=vx_r(gidz,gidx-lsizex+3*fdoh);
-        if (lidz<2*fdoh)
-            lvx_r(lidz-fdoh,lidx)=vx_r(gidz-fdoh,gidx);
-        if (lidz>(lsizez-2*fdoh-1))
-            lvx_r(lidz+fdoh,lidx)=vx_r(gidz+fdoh,gidx);
+        if (lidx<2*FDOH)
+            lvx_r(lidz,lidx-FDOH)=vx_r(gidz,gidx-FDOH);
+        if (lidx+lsizex-3*FDOH<FDOH)
+            lvx_r(lidz,lidx+lsizex-3*FDOH)=vx_r(gidz,gidx+lsizex-3*FDOH);
+        if (lidx>(lsizex-2*FDOH-1))
+            lvx_r(lidz,lidx+FDOH)=vx_r(gidz,gidx+FDOH);
+        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
+            lvx_r(lidz,lidx-lsizex+3*FDOH)=vx_r(gidz,gidx-lsizex+3*FDOH);
+        if (lidz<2*FDOH)
+            lvx_r(lidz-FDOH,lidx)=vx_r(gidz-FDOH,gidx);
+        if (lidz>(lsizez-2*FDOH-1))
+            lvx_r(lidz+FDOH,lidx)=vx_r(gidz+FDOH,gidx);
         barrier(CLK_LOCAL_MEM_FENCE);
 #endif
     
-#if   fdoh==1
-    vxx_r = hc1*(lvx_r(lidz, lidx)  -lvx_r(lidz, lidx-1))/DH;
-    vxz_r = hc1*(lvx_r(lidz+1, lidx)-lvx_r(lidz, lidx))/DH;
-#elif fdoh==2
-    vxx_r = (  hc1*(lvx_r(lidz, lidx)  -lvx_r(lidz, lidx-1))
-           + hc2*(lvx_r(lidz, lidx+1)-lvx_r(lidz, lidx-2))
+#if   FDOH==1
+    vxx_r = HC1*(lvx_r(lidz, lidx)  -lvx_r(lidz, lidx-1))/DH;
+    vxz_r = HC1*(lvx_r(lidz+1, lidx)-lvx_r(lidz, lidx))/DH;
+#elif FDOH==2
+    vxx_r = (  HC1*(lvx_r(lidz, lidx)  -lvx_r(lidz, lidx-1))
+           + HC2*(lvx_r(lidz, lidx+1)-lvx_r(lidz, lidx-2))
            )/DH;
-    vxz_r = (  hc1*(lvx_r(lidz+1, lidx)-lvx_r(lidz, lidx))
-           + hc2*(lvx_r(lidz+2, lidx)-lvx_r(lidz-1, lidx))
+    vxz_r = (  HC1*(lvx_r(lidz+1, lidx)-lvx_r(lidz, lidx))
+           + HC2*(lvx_r(lidz+2, lidx)-lvx_r(lidz-1, lidx))
            )/DH;
-#elif fdoh==3
-    vxx_r = (  hc1*(lvx_r(lidz, lidx)  -lvx_r(lidz, lidx-1))
-           + hc2*(lvx_r(lidz, lidx+1)-lvx_r(lidz, lidx-2))
-           + hc3*(lvx_r(lidz, lidx+2)-lvx_r(lidz, lidx-3))
+#elif FDOH==3
+    vxx_r = (  HC1*(lvx_r(lidz, lidx)  -lvx_r(lidz, lidx-1))
+           + HC2*(lvx_r(lidz, lidx+1)-lvx_r(lidz, lidx-2))
+           + HC3*(lvx_r(lidz, lidx+2)-lvx_r(lidz, lidx-3))
            )/DH;
-    vxz_r = (  hc1*(lvx_r(lidz+1, lidx)-lvx_r(lidz, lidx))
-           + hc2*(lvx_r(lidz+2, lidx)-lvx_r(lidz-1, lidx))
-           + hc3*(lvx_r(lidz+3, lidx)-lvx_r(lidz-2, lidx))
+    vxz_r = (  HC1*(lvx_r(lidz+1, lidx)-lvx_r(lidz, lidx))
+           + HC2*(lvx_r(lidz+2, lidx)-lvx_r(lidz-1, lidx))
+           + HC3*(lvx_r(lidz+3, lidx)-lvx_r(lidz-2, lidx))
            )/DH;
-#elif fdoh==4
-    vxx_r = (   hc1*(lvx_r(lidz, lidx)  -lvx_r(lidz, lidx-1))
-           + hc2*(lvx_r(lidz, lidx+1)-lvx_r(lidz, lidx-2))
-           + hc3*(lvx_r(lidz, lidx+2)-lvx_r(lidz, lidx-3))
-           + hc4*(lvx_r(lidz, lidx+3)-lvx_r(lidz, lidx-4))
+#elif FDOH==4
+    vxx_r = (   HC1*(lvx_r(lidz, lidx)  -lvx_r(lidz, lidx-1))
+           + HC2*(lvx_r(lidz, lidx+1)-lvx_r(lidz, lidx-2))
+           + HC3*(lvx_r(lidz, lidx+2)-lvx_r(lidz, lidx-3))
+           + HC4*(lvx_r(lidz, lidx+3)-lvx_r(lidz, lidx-4))
            )/DH;
-    vxz_r = (  hc1*(lvx_r(lidz+1, lidx)-lvx_r(lidz, lidx))
-           + hc2*(lvx_r(lidz+2, lidx)-lvx_r(lidz-1, lidx))
-           + hc3*(lvx_r(lidz+3, lidx)-lvx_r(lidz-2, lidx))
-           + hc4*(lvx_r(lidz+4, lidx)-lvx_r(lidz-3, lidx))
+    vxz_r = (  HC1*(lvx_r(lidz+1, lidx)-lvx_r(lidz, lidx))
+           + HC2*(lvx_r(lidz+2, lidx)-lvx_r(lidz-1, lidx))
+           + HC3*(lvx_r(lidz+3, lidx)-lvx_r(lidz-2, lidx))
+           + HC4*(lvx_r(lidz+4, lidx)-lvx_r(lidz-3, lidx))
            )/DH;
-#elif fdoh==5
-    vxx_r = (  hc1*(lvx_r(lidz, lidx)  -lvx_r(lidz, lidx-1))
-           + hc2*(lvx_r(lidz, lidx+1)-lvx_r(lidz, lidx-2))
-           + hc3*(lvx_r(lidz, lidx+2)-lvx_r(lidz, lidx-3))
-           + hc4*(lvx_r(lidz, lidx+3)-lvx_r(lidz, lidx-4))
-           + hc5*(lvx_r(lidz, lidx+4)-lvx_r(lidz, lidx-5))
+#elif FDOH==5
+    vxx_r = (  HC1*(lvx_r(lidz, lidx)  -lvx_r(lidz, lidx-1))
+           + HC2*(lvx_r(lidz, lidx+1)-lvx_r(lidz, lidx-2))
+           + HC3*(lvx_r(lidz, lidx+2)-lvx_r(lidz, lidx-3))
+           + HC4*(lvx_r(lidz, lidx+3)-lvx_r(lidz, lidx-4))
+           + HC5*(lvx_r(lidz, lidx+4)-lvx_r(lidz, lidx-5))
            )/DH;
-    vxz_r = (  hc1*(lvx_r(lidz+1, lidx)-lvx_r(lidz, lidx))
-           + hc2*(lvx_r(lidz+2, lidx)-lvx_r(lidz-1, lidx))
-           + hc3*(lvx_r(lidz+3, lidx)-lvx_r(lidz-2, lidx))
-           + hc4*(lvx_r(lidz+4, lidx)-lvx_r(lidz-3, lidx))
-           + hc5*(lvx_r(lidz+5, lidx)-lvx_r(lidz-4, lidx))
+    vxz_r = (  HC1*(lvx_r(lidz+1, lidx)-lvx_r(lidz, lidx))
+           + HC2*(lvx_r(lidz+2, lidx)-lvx_r(lidz-1, lidx))
+           + HC3*(lvx_r(lidz+3, lidx)-lvx_r(lidz-2, lidx))
+           + HC4*(lvx_r(lidz+4, lidx)-lvx_r(lidz-3, lidx))
+           + HC5*(lvx_r(lidz+5, lidx)-lvx_r(lidz-4, lidx))
            )/DH;
-#elif fdoh==6
-    vxx_r = (  hc1*(lvx_r(lidz, lidx)  -lvx_r(lidz, lidx-1))
-           + hc2*(lvx_r(lidz, lidx+1)-lvx_r(lidz, lidx-2))
-           + hc3*(lvx_r(lidz, lidx+2)-lvx_r(lidz, lidx-3))
-           + hc4*(lvx_r(lidz, lidx+3)-lvx_r(lidz, lidx-4))
-           + hc5*(lvx_r(lidz, lidx+4)-lvx_r(lidz, lidx-5))
-           + hc6*(lvx_r(lidz, lidx+5)-lvx_r(lidz, lidx-6))
+#elif FDOH==6
+    vxx_r = (  HC1*(lvx_r(lidz, lidx)  -lvx_r(lidz, lidx-1))
+           + HC2*(lvx_r(lidz, lidx+1)-lvx_r(lidz, lidx-2))
+           + HC3*(lvx_r(lidz, lidx+2)-lvx_r(lidz, lidx-3))
+           + HC4*(lvx_r(lidz, lidx+3)-lvx_r(lidz, lidx-4))
+           + HC5*(lvx_r(lidz, lidx+4)-lvx_r(lidz, lidx-5))
+           + HC6*(lvx_r(lidz, lidx+5)-lvx_r(lidz, lidx-6))
            )/DH;
-    vxz_r = (  hc1*(lvx_r(lidz+1, lidx)-lvx_r(lidz, lidx))
-           + hc2*(lvx_r(lidz+2, lidx)-lvx_r(lidz-1, lidx))
-           + hc3*(lvx_r(lidz+3, lidx)-lvx_r(lidz-2, lidx))
-           + hc4*(lvx_r(lidz+4, lidx)-lvx_r(lidz-3, lidx))
-           + hc5*(lvx_r(lidz+5, lidx)-lvx_r(lidz-4, lidx))
-           + hc6*(lvx_r(lidz+6, lidx)-lvx_r(lidz-5, lidx))
+    vxz_r = (  HC1*(lvx_r(lidz+1, lidx)-lvx_r(lidz, lidx))
+           + HC2*(lvx_r(lidz+2, lidx)-lvx_r(lidz-1, lidx))
+           + HC3*(lvx_r(lidz+3, lidx)-lvx_r(lidz-2, lidx))
+           + HC4*(lvx_r(lidz+4, lidx)-lvx_r(lidz-3, lidx))
+           + HC5*(lvx_r(lidz+5, lidx)-lvx_r(lidz-4, lidx))
+           + HC6*(lvx_r(lidz+6, lidx)-lvx_r(lidz-5, lidx))
            )/DH;
 #endif
     
     
-#if local_off==0
+#if LOCAL_OFF==0
     barrier(CLK_LOCAL_MEM_FENCE);
     lvz_r(lidz,lidx)=vz_r(gidz, gidx);
-    if (lidx<2*fdoh)
-        lvz_r(lidz,lidx-fdoh)=vz_r(gidz,gidx-fdoh);
-    if (lidx>(lsizex-2*fdoh-1))
-        lvz_r(lidz,lidx+fdoh)=vz_r(gidz,gidx+fdoh);
-    if (lidz<2*fdoh)
-        lvz_r(lidz-fdoh,lidx)=vz_r(gidz-fdoh,gidx);
-    if (lidz>(lsizez-2*fdoh-1))
-        lvz_r(lidz+fdoh,lidx)=vz_r(gidz+fdoh,gidx);
+    if (lidx<2*FDOH)
+        lvz_r(lidz,lidx-FDOH)=vz_r(gidz,gidx-FDOH);
+    if (lidx>(lsizex-2*FDOH-1))
+        lvz_r(lidz,lidx+FDOH)=vz_r(gidz,gidx+FDOH);
+    if (lidz<2*FDOH)
+        lvz_r(lidz-FDOH,lidx)=vz_r(gidz-FDOH,gidx);
+    if (lidz>(lsizez-2*FDOH-1))
+        lvz_r(lidz+FDOH,lidx)=vz_r(gidz+FDOH,gidx);
     barrier(CLK_LOCAL_MEM_FENCE);
 #endif
     
-#if   fdoh==1
-    vzz_r = hc1*(lvz_r(lidz, lidx)  -lvz_r(lidz-1, lidx))/DH;
-    vzx_r = hc1*(lvz_r(lidz, lidx+1)-lvz_r(lidz, lidx))/DH;
-#elif fdoh==2
-    vzz_r = (  hc1*(lvz_r(lidz, lidx)  -lvz_r(lidz-1, lidx))
-           + hc2*(lvz_r(lidz+1, lidx)-lvz_r(lidz-2, lidx))
+#if   FDOH==1
+    vzz_r = HC1*(lvz_r(lidz, lidx)  -lvz_r(lidz-1, lidx))/DH;
+    vzx_r = HC1*(lvz_r(lidz, lidx+1)-lvz_r(lidz, lidx))/DH;
+#elif FDOH==2
+    vzz_r = (  HC1*(lvz_r(lidz, lidx)  -lvz_r(lidz-1, lidx))
+           + HC2*(lvz_r(lidz+1, lidx)-lvz_r(lidz-2, lidx))
            )/DH;
-    vzx_r = (  hc1*(lvz_r(lidz, lidx+1)-lvz_r(lidz, lidx))
-           + hc2*(lvz_r(lidz, lidx+2)-lvz_r(lidz, lidx-1))
+    vzx_r = (  HC1*(lvz_r(lidz, lidx+1)-lvz_r(lidz, lidx))
+           + HC2*(lvz_r(lidz, lidx+2)-lvz_r(lidz, lidx-1))
            )/DH;
-#elif fdoh==3
-    vzz_r = (  hc1*(lvz_r(lidz, lidx)  -lvz_r(lidz-1, lidx))
-           + hc2*(lvz_r(lidz+1, lidx)-lvz_r(lidz-2, lidx))
-           + hc3*(lvz_r(lidz+2, lidx)-lvz_r(lidz-3, lidx))
+#elif FDOH==3
+    vzz_r = (  HC1*(lvz_r(lidz, lidx)  -lvz_r(lidz-1, lidx))
+           + HC2*(lvz_r(lidz+1, lidx)-lvz_r(lidz-2, lidx))
+           + HC3*(lvz_r(lidz+2, lidx)-lvz_r(lidz-3, lidx))
            )/DH;
-    vzx_r = (  hc1*(lvz_r(lidz, lidx+1)-lvz_r(lidz, lidx))
-           + hc2*(lvz_r(lidz, lidx+2)-lvz_r(lidz, lidx-1))
-           + hc3*(lvz_r(lidz, lidx+3)-lvz_r(lidz, lidx-2))
+    vzx_r = (  HC1*(lvz_r(lidz, lidx+1)-lvz_r(lidz, lidx))
+           + HC2*(lvz_r(lidz, lidx+2)-lvz_r(lidz, lidx-1))
+           + HC3*(lvz_r(lidz, lidx+3)-lvz_r(lidz, lidx-2))
            )/DH;
-#elif fdoh==4
-    vzz_r = (  hc1*(lvz_r(lidz, lidx)  -lvz_r(lidz-1, lidx))
-           + hc2*(lvz_r(lidz+1, lidx)-lvz_r(lidz-2, lidx))
-           + hc3*(lvz_r(lidz+2, lidx)-lvz_r(lidz-3, lidx))
-           + hc4*(lvz_r(lidz+3, lidx)-lvz_r(lidz-4, lidx))
+#elif FDOH==4
+    vzz_r = (  HC1*(lvz_r(lidz, lidx)  -lvz_r(lidz-1, lidx))
+           + HC2*(lvz_r(lidz+1, lidx)-lvz_r(lidz-2, lidx))
+           + HC3*(lvz_r(lidz+2, lidx)-lvz_r(lidz-3, lidx))
+           + HC4*(lvz_r(lidz+3, lidx)-lvz_r(lidz-4, lidx))
            )/DH;
-    vzx_r = (  hc1*(lvz_r(lidz, lidx+1)-lvz_r(lidz, lidx))
-           + hc2*(lvz_r(lidz, lidx+2)-lvz_r(lidz, lidx-1))
-           + hc3*(lvz_r(lidz, lidx+3)-lvz_r(lidz, lidx-2))
-           + hc4*(lvz_r(lidz, lidx+4)-lvz_r(lidz, lidx-3))
+    vzx_r = (  HC1*(lvz_r(lidz, lidx+1)-lvz_r(lidz, lidx))
+           + HC2*(lvz_r(lidz, lidx+2)-lvz_r(lidz, lidx-1))
+           + HC3*(lvz_r(lidz, lidx+3)-lvz_r(lidz, lidx-2))
+           + HC4*(lvz_r(lidz, lidx+4)-lvz_r(lidz, lidx-3))
            )/DH;
-#elif fdoh==5
-    vzz_r = (  hc1*(lvz_r(lidz, lidx)  -lvz_r(lidz-1, lidx))
-           + hc2*(lvz_r(lidz+1, lidx)-lvz_r(lidz-2, lidx))
-           + hc3*(lvz_r(lidz+2, lidx)-lvz_r(lidz-3, lidx))
-           + hc4*(lvz_r(lidz+3, lidx)-lvz_r(lidz-4, lidx))
-           + hc5*(lvz_r(lidz+4, lidx)-lvz_r(lidz-5, lidx))
+#elif FDOH==5
+    vzz_r = (  HC1*(lvz_r(lidz, lidx)  -lvz_r(lidz-1, lidx))
+           + HC2*(lvz_r(lidz+1, lidx)-lvz_r(lidz-2, lidx))
+           + HC3*(lvz_r(lidz+2, lidx)-lvz_r(lidz-3, lidx))
+           + HC4*(lvz_r(lidz+3, lidx)-lvz_r(lidz-4, lidx))
+           + HC5*(lvz_r(lidz+4, lidx)-lvz_r(lidz-5, lidx))
            )/DH;
-    vzx_r = (  hc1*(lvz_r(lidz, lidx+1)-lvz_r(lidz, lidx))
-           + hc2*(lvz_r(lidz, lidx+2)-lvz_r(lidz, lidx-1))
-           + hc3*(lvz_r(lidz, lidx+3)-lvz_r(lidz, lidx-2))
-           + hc4*(lvz_r(lidz, lidx+4)-lvz_r(lidz, lidx-3))
-           + hc5*(lvz_r(lidz, lidx+5)-lvz_r(lidz, lidx-4))
+    vzx_r = (  HC1*(lvz_r(lidz, lidx+1)-lvz_r(lidz, lidx))
+           + HC2*(lvz_r(lidz, lidx+2)-lvz_r(lidz, lidx-1))
+           + HC3*(lvz_r(lidz, lidx+3)-lvz_r(lidz, lidx-2))
+           + HC4*(lvz_r(lidz, lidx+4)-lvz_r(lidz, lidx-3))
+           + HC5*(lvz_r(lidz, lidx+5)-lvz_r(lidz, lidx-4))
            )/DH;
-#elif fdoh==6
-    vzz_r = (  hc1*(lvz_r(lidz, lidx)  -lvz_r(lidz-1, lidx))
-           + hc2*(lvz_r(lidz+1, lidx)-lvz_r(lidz-2, lidx))
-           + hc3*(lvz_r(lidz+2, lidx)-lvz_r(lidz-3, lidx))
-           + hc4*(lvz_r(lidz+3, lidx)-lvz_r(lidz-4, lidx))
-           + hc5*(lvz_r(lidz+4, lidx)-lvz_r(lidz-5, lidx))
-           + hc6*(lvz_r(lidz+5, lidx)-lvz_r(lidz-6, lidx))
+#elif FDOH==6
+    vzz_r = (  HC1*(lvz_r(lidz, lidx)  -lvz_r(lidz-1, lidx))
+           + HC2*(lvz_r(lidz+1, lidx)-lvz_r(lidz-2, lidx))
+           + HC3*(lvz_r(lidz+2, lidx)-lvz_r(lidz-3, lidx))
+           + HC4*(lvz_r(lidz+3, lidx)-lvz_r(lidz-4, lidx))
+           + HC5*(lvz_r(lidz+4, lidx)-lvz_r(lidz-5, lidx))
+           + HC6*(lvz_r(lidz+5, lidx)-lvz_r(lidz-6, lidx))
            )/DH;
-    vzx_r = (  hc1*(lvz_r(lidz, lidx+1)-lvz_r(lidz, lidx))
-           + hc2*(lvz_r(lidz, lidx+2)-lvz_r(lidz, lidx-1))
-           + hc3*(lvz_r(lidz, lidx+3)-lvz_r(lidz, lidx-2))
-           + hc4*(lvz_r(lidz, lidx+4)-lvz_r(lidz, lidx-3))
-           + hc5*(lvz_r(lidz, lidx+5)-lvz_r(lidz, lidx-4))
-           + hc6*(lvz_r(lidz, lidx+6)-lvz_r(lidz, lidx-5))
+    vzx_r = (  HC1*(lvz_r(lidz, lidx+1)-lvz_r(lidz, lidx))
+           + HC2*(lvz_r(lidz, lidx+2)-lvz_r(lidz, lidx-1))
+           + HC3*(lvz_r(lidz, lidx+3)-lvz_r(lidz, lidx-2))
+           + HC4*(lvz_r(lidz, lidx+4)-lvz_r(lidz, lidx-3))
+           + HC5*(lvz_r(lidz, lidx+5)-lvz_r(lidz, lidx-4))
+           + HC6*(lvz_r(lidz, lidx+6)-lvz_r(lidz, lidx-5))
            )/DH;
 #endif
     
     }
     
 // To stop updating if we are outside the model (global id must be a multiple of local id in OpenCL, hence we stop if we have a global id outside the grid)
-#if local_off==0
-#if comm12==0
-    if (gidz>(NZ-fdoh-1) || (gidx-offcomm)>(NX-fdoh-1-lcomm) ){
+#if LOCAL_OFF==0
+#if COMM12==0
+    if (gidz>(NZ-FDOH-1) || (gidx-offcomm)>(NX-FDOH-1-LCOMM) ){
         return;
     }
     
 #else
-    if (gidz>(NZ-fdoh-1) ){
+    if (gidz>(NZ-FDOH-1) ){
         return;
     }
 #endif
@@ -635,7 +635,7 @@ __kernel void update_adjs(int offcomm, int nsrc,  int nt,
 
     
 // Read model parameters into local memory
-#if Lve==0
+#if LVE==0
     fipkp=uipkp(gidz, gidx)*DT;
     lu=u(gidz, gidx);
     lpi=pi(gidz, gidx);
@@ -651,13 +651,13 @@ __kernel void update_adjs(int offcomm, int nsrc,  int nt,
     ltaus=taus(gidz,gidx);
     ltausipkp=tausipkp(gidz,gidx);
     
-    for (l=0;l<Lve;l++){
+    for (l=0;l<LVE;l++){
         leta[l]=eta[l];
     }
     
-    fipkp=luipkp*DT*(1.0+ (float)Lve*ltausipkp);
-    g=lpi*(1.0+(float)Lve*ltaup)*DT;
-    f=2.0*lu*(1.0+(float)Lve*ltaus)*DT;
+    fipkp=luipkp*DT*(1.0+ (float)LVE*ltausipkp);
+    g=lpi*(1.0+(float)LVE*ltaup)*DT;
+    f=2.0*lu*(1.0+(float)LVE*ltaus)*DT;
     dipkp=luipkp*ltausipkp;
     d=2.0*lu*ltaus;
     e=lpi*ltaup;
@@ -666,11 +666,11 @@ __kernel void update_adjs(int offcomm, int nsrc,  int nt,
     
     
 // Backpropagate the forward stresses
-#if back_prop_type==1
+#if BACK_PROP_TYPE==1
     {
-#if Lve==0
+#if LVE==0
 
-    float amp = psource(gidz, gidx+offset, nsrc, srcpos_loc, signals, nt);
+    float amp = psource(gidz, gidx+OFFSET, nsrc, srcpos_loc, signals, nt);
     
     sxz(gidz, gidx)-=(fipkp*(vxz+vzx));
     sxx(gidz, gidx)-=(g*(vxx+vzz))-(f*vzz) + amp;
@@ -680,21 +680,21 @@ __kernel void update_adjs(int offcomm, int nsrc,  int nt,
 #else
     /* computing sums of the old memory variables */
     sumrxz=sumrxx=sumrzz=0;
-    for (l=0;l<Lve;l++){
+    for (l=0;l<LVE;l++){
         sumrxz+=rxz(gidz,gidx,l);
         sumrxx+=rxx(gidz,gidx,l);
         sumrzz+=rzz(gidz,gidx,l);
     }
     
     /* updating components of the stress tensor, partially */
-    lsxz=(fipkp*(vxz+vzx))+(dt2*sumrxz);
-    lsxx=((g*(vxx+vzz))-(f*vzz))+(dt2*sumrxx);
-    lszz=((g*(vxx+vzz))-(f*vxx))+(dt2*sumrzz);
+    lsxz=(fipkp*(vxz+vzx))+(DT2*sumrxz);
+    lsxx=((g*(vxx+vzz))-(f*vzz))+(DT2*sumrxx);
+    lszz=((g*(vxx+vzz))-(f*vxx))+(DT2*sumrzz);
     
     
     /* now updating the memory-variables and sum them up*/
     sumrxz=sumrxx=sumrzz=0;
-    for (l=0;l<Lve;l++){
+    for (l=0;l<LVE;l++){
 
         b=1.0/(1.0-(leta[l]*0.5));
         c=1.0+(leta[l]*0.5);
@@ -708,13 +708,13 @@ __kernel void update_adjs(int offcomm, int nsrc,  int nt,
         sumrzz+=rzz(gidz,gidx,l);
     }
     
-    float amp = psource(gidz, gidx+offset, nsrc, srcpos_loc, signals, nt);
+    float amp = psource(gidz, gidx+OFFSET, nsrc, srcpos_loc, signals, nt);
     
     /* and now the components of the stress tensor are
      completely updated */
-    sxz(gidz, gidx)-= lsxz + (dt2*sumrxz);
-    sxx(gidz, gidx)-= lsxx + (dt2*sumrxx) + amp;
-    szz(gidz, gidx)-= lszz + (dt2*sumrzz) + amp;
+    sxz(gidz, gidx)-= lsxz + (DT2*sumrxz);
+    sxx(gidz, gidx)-= lsxx + (DT2*sumrxx) + amp;
+    szz(gidz, gidx)-= lszz + (DT2*sumrzz) + amp;
 
     
 #endif
@@ -731,15 +731,15 @@ __kernel void update_adjs(int offcomm, int nsrc,  int nt,
 #endif
 
 // Correct adjoint spatial derivatives to implement CPML
-#if abs_type==1
+#if ABS_TYPE==1
     {
     int ind;
     
-    if (gidz>NZ-nab-fdoh-1){
+    if (gidz>NZ-NAB-FDOH-1){
         
-        i =gidx-fdoh;
-        k =gidz - NZ+nab+fdoh+nab;
-        ind=2*nab-1-k;
+        i =gidx-FDOH;
+        k =gidz - NZ+NAB+FDOH+NAB;
+        ind=2*NAB-1-k;
         
         psi_vxz(k,i) = b_z_half[ind] * psi_vxz(k,i) + a_z_half[ind] * vxz_r;
         vxz_r = vxz_r / K_z_half[ind] + psi_vxz(k,i);
@@ -748,11 +748,11 @@ __kernel void update_adjs(int offcomm, int nsrc,  int nt,
         
     }
     
-#if freesurf==0
-    else if (gidz-fdoh<nab){
+#if FREESURF==0
+    else if (gidz-FDOH<NAB){
         
-        i =gidx-fdoh;
-        k =gidz-fdoh;
+        i =gidx-FDOH;
+        k =gidz-FDOH;
         
         
         psi_vxz(k,i) = b_z_half[k] * psi_vxz(k,i) + a_z_half[k] * vxz_r;
@@ -764,11 +764,11 @@ __kernel void update_adjs(int offcomm, int nsrc,  int nt,
     }
 #endif
     
-#if dev==0 & MYLOCALID==0
-    if (gidx-fdoh<nab){
+#if DEV==0 & MYLOCALID==0
+    if (gidx-FDOH<NAB){
         
-        i =gidx-fdoh;
-        k =gidz-fdoh;
+        i =gidx-FDOH;
+        k =gidz-FDOH;
         
         psi_vxx(k,i) = b_x[i] * psi_vxx(k,i) + a_x[i] * vxx_r;
         vxx_r = vxx_r / K_x[i] + psi_vxx(k,i);
@@ -778,12 +778,12 @@ __kernel void update_adjs(int offcomm, int nsrc,  int nt,
     }
 #endif
     
-#if dev==num_devices-1 & MYLOCALID==NLOCALP-1
-    if (gidx>NX-nab-fdoh-1){
+#if DEV==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+    if (gidx>NX-NAB-FDOH-1){
         
-        i =gidx - NX+nab+fdoh+nab;
-        k =gidz-fdoh;
-        ind=2*nab-1-i;
+        i =gidx - NX+NAB+FDOH+NAB;
+        k =gidz-FDOH;
+        ind=2*NAB-1-i;
         
         
         psi_vxx(k,i) = b_x[ind+1] * psi_vxx(k,i) + a_x[ind+1] * vxx_r;
@@ -799,7 +799,7 @@ __kernel void update_adjs(int offcomm, int nsrc,  int nt,
     
 // Update adjoint stresses
     {
-#if Lve==0
+#if LVE==0
     
         lsxz=(fipkp*(vxz_r+vzx_r));
         lsxx=((g*(vxx_r+vzz_r))-(f*vzz_r));
@@ -813,21 +813,21 @@ __kernel void update_adjs(int offcomm, int nsrc,  int nt,
 
     /* computing sums of the old memory variables */
     sumrxz=sumrxx=sumrzz=0;
-    for (l=0;l<Lve;l++){
+    for (l=0;l<LVE;l++){
         sumrxz+=rxz_r(gidz,gidx,l);
         sumrxx+=rxx_r(gidz,gidx,l);
         sumrzz+=rzz_r(gidz,gidx,l);
     }
    
     /* updating components of the stress tensor, partially */
-    lsxz=(fipkp*(vxz_r+vzx_r))+(dt2*sumrxz);
-    lsxx=((g*(vxx_r+vzz_r))-(f*vzz_r))+(dt2*sumrxx);
-    lszz=((g*(vxx_r+vzz_r))-(f*vxx_r))+(dt2*sumrzz);
+    lsxz=(fipkp*(vxz_r+vzx_r))+(DT2*sumrxz);
+    lsxx=((g*(vxx_r+vzz_r))-(f*vzz_r))+(DT2*sumrxx);
+    lszz=((g*(vxx_r+vzz_r))-(f*vxx_r))+(DT2*sumrzz);
     
     
     /* now updating the memory-variables and sum them up*/
     sumrxz=sumrxx=sumrzz=0;
-    for (l=0;l<Lve;l++){
+    for (l=0;l<LVE;l++){
         //those variables change sign in reverse time
         b=1.0/(1.0+(leta[l]*0.5));
         c=1.0-(leta[l]*0.5);
@@ -844,50 +844,50 @@ __kernel void update_adjs(int offcomm, int nsrc,  int nt,
     
     /* and now the components of the stress tensor are
      completely updated */
-    sxz_r(gidz, gidx)+=lsxz + (dt2*sumrxz);
-    sxx_r(gidz, gidx)+= lsxx + (dt2*sumrxx) ;
-    szz_r(gidz, gidx)+= lszz + (dt2*sumrzz) ;
+    sxz_r(gidz, gidx)+=lsxz + (DT2*sumrxz);
+    sxx_r(gidz, gidx)+= lsxx + (DT2*sumrxx) ;
+    szz_r(gidz, gidx)+= lszz + (DT2*sumrzz) ;
     
     
 #endif
     }
 
 // Absorbing boundary
-#if abs_type==2
+#if ABS_TYPE==2
     {
-    if (gidz-fdoh<nab){
-        sxz_r(gidz,gidx)*=taper[gidz-fdoh];
-        sxx_r(gidz,gidx)*=taper[gidz-fdoh];
-        szz_r(gidz,gidx)*=taper[gidz-fdoh];
+    if (gidz-FDOH<NAB){
+        sxz_r(gidz,gidx)*=taper[gidz-FDOH];
+        sxx_r(gidz,gidx)*=taper[gidz-FDOH];
+        szz_r(gidz,gidx)*=taper[gidz-FDOH];
     }
     
-    if (gidz>NZ-nab-fdoh-1){
-        sxz_r(gidz,gidx)*=taper[NZ-fdoh-gidz-1];
-        sxx_r(gidz,gidx)*=taper[NZ-fdoh-gidz-1];
-        szz_r(gidz,gidx)*=taper[NZ-fdoh-gidz-1];
+    if (gidz>NZ-NAB-FDOH-1){
+        sxz_r(gidz,gidx)*=taper[NZ-FDOH-gidz-1];
+        sxx_r(gidz,gidx)*=taper[NZ-FDOH-gidz-1];
+        szz_r(gidz,gidx)*=taper[NZ-FDOH-gidz-1];
     }
 
     
-#if dev==0 & MYLOCALID==0
-    if (gidx-fdoh<nab){
-        sxz_r(gidz,gidx)*=taper[gidx-fdoh];
-        sxx_r(gidz,gidx)*=taper[gidx-fdoh];
-        szz_r(gidz,gidx)*=taper[gidx-fdoh];
+#if DEV==0 & MYLOCALID==0
+    if (gidx-FDOH<NAB){
+        sxz_r(gidz,gidx)*=taper[gidx-FDOH];
+        sxx_r(gidz,gidx)*=taper[gidx-FDOH];
+        szz_r(gidz,gidx)*=taper[gidx-FDOH];
     }
 #endif
     
-#if dev==num_devices-1 & MYLOCALID==NLOCALP-1
-    if (gidx>NX-nab-fdoh-1){
-        sxz_r(gidz,gidx)*=taper[NX-fdoh-gidx-1];
-        sxx_r(gidz,gidx)*=taper[NX-fdoh-gidx-1];
-        szz_r(gidz,gidx)*=taper[NX-fdoh-gidx-1];
+#if DEV==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+    if (gidx>NX-NAB-FDOH-1){
+        sxz_r(gidz,gidx)*=taper[NX-FDOH-gidx-1];
+        sxx_r(gidz,gidx)*=taper[NX-FDOH-gidx-1];
+        szz_r(gidz,gidx)*=taper[NX-FDOH-gidx-1];
     }
 #endif
     }
 #endif
     
 // Shear wave modulus and P-wave modulus gradient calculation on the fly
-#if back_prop_type==1
+#if BACK_PROP_TYPE==1
     float c1=1.0/pown(2.0*lpi-2.0*lu,2);
     float c3=1.0/pown(lu,2);
     float c5=0.25*c3;
@@ -898,7 +898,7 @@ __kernel void update_adjs(int offcomm, int nsrc,  int nt,
     gradmu(gidz,gidx)+=c3*(sxz(gidz,gidx)*lsxz)-dM+c5*(  (sxx(gidz,gidx)-szz(gidz,gidx))*(lsxx-lszz)  );
 #endif
 
-#if gradsrcout==1
+#if GRADSRCOUT==1
     float pressure;
     if (nsrc>0){
         
@@ -907,8 +907,8 @@ __kernel void update_adjs(int offcomm, int nsrc,  int nt,
             int SOURCE_TYPE= (int)srcpos_loc(4,srci);
             
             if (SOURCE_TYPE==1){
-                int i=(int)(srcpos_loc(0,srci)/DH-0.5)+fdoh;
-                int k=(int)(srcpos_loc(2,srci)/DH-0.5)+fdoh;
+                int i=(int)(srcpos_loc(0,srci)/DH-0.5)+FDOH;
+                int k=(int)(srcpos_loc(2,srci)/DH-0.5)+FDOH;
                 
                 
                 if (i==gidx && k==gidz){

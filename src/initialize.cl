@@ -54,10 +54,10 @@ __kernel void initialize_seis(__global float *vx,         __global float *vy,   
 #endif
 
     
-#if Lve>0
+#if LVE>0
     int gsize=get_global_size(0);
 #if ND==3
-    for (int l=0;l<Lve;l++){
+    for (int l=0;l<LVE;l++){
         
         rxx[gid+l*gsize]=0.0;
         rzz[gid+l*gsize]=0.0;
@@ -70,7 +70,7 @@ __kernel void initialize_seis(__global float *vx,         __global float *vy,   
     }
 #endif
 #if ND==2
-    for (int l=0;l<Lve;l++){
+    for (int l=0;l<LVE;l++){
         
         rxx[gid+l*gsize]=0.0;
         rzz[gid+l*gsize]=0.0;
@@ -80,7 +80,7 @@ __kernel void initialize_seis(__global float *vx,         __global float *vy,   
     }
 #endif
 #if ND==21
-    for (int l=0;l<Lve;l++){
+    for (int l=0;l<LVE;l++){
         rxy[gid+l*gsize]=0.0;
         ryz[gid+l*gsize]=0.0;
  
@@ -90,10 +90,10 @@ __kernel void initialize_seis(__global float *vx,         __global float *vy,   
 #endif
     
 
-#if abs_type==1
+#if ABS_TYPE==1
     
 #if ND==3
-    if (gid<(NX-2*fdoh)*(NY-2*fdoh)*2*nab){
+    if (gid<(NX-2*FDOH)*(NY-2*FDOH)*2*NAB){
         psi_sxz_z[gid]=0.0;
         psi_syz_z[gid]=0.0;
         psi_szz_z[gid]=0.0;
@@ -101,7 +101,7 @@ __kernel void initialize_seis(__global float *vx,         __global float *vy,   
         psi_vyz[gid]=0.0;
         psi_vzz[gid]=0.0;
     }
-    if (gid<(NX-2*fdoh)*(NZ-2*fdoh)*2*nab){
+    if (gid<(NX-2*FDOH)*(NZ-2*FDOH)*2*NAB){
         psi_sxy_y[gid]=0.0;
         psi_syz_y[gid]=0.0;
         psi_syy_y[gid]=0.0;
@@ -109,7 +109,7 @@ __kernel void initialize_seis(__global float *vx,         __global float *vy,   
         psi_vyy[gid]=0.0;
         psi_vzy[gid]=0.0;
     }
-    if (gid<(NY-2*fdoh)*(NZ-2*fdoh)*2*nab){
+    if (gid<(NY-2*FDOH)*(NZ-2*FDOH)*2*NAB){
         psi_sxx_x[gid]=0.0;
         psi_sxy_x[gid]=0.0;
         psi_sxz_x[gid]=0.0;
@@ -120,14 +120,14 @@ __kernel void initialize_seis(__global float *vx,         __global float *vy,   
 #endif
  
 #if ND==2
-    if (gid<(NX-2*fdoh)*2*nab){
+    if (gid<(NX-2*FDOH)*2*NAB){
         psi_sxz_z[gid]=0.0;
         psi_szz_z[gid]=0.0;
         psi_vxz[gid]=0.0;
         psi_vzz[gid]=0.0;
     }
 
-    if (gid<(NZ-2*fdoh)*2*nab){
+    if (gid<(NZ-2*FDOH)*2*NAB){
         psi_sxx_x[gid]=0.0;
         psi_sxz_x[gid]=0.0;
         psi_vxx[gid]=0.0;
@@ -136,11 +136,11 @@ __kernel void initialize_seis(__global float *vx,         __global float *vy,   
 #endif
     
 #if ND==21
-    if (gid<(NX-2*fdoh)*2*nab){
+    if (gid<(NX-2*FDOH)*2*NAB){
         psi_syz_z[gid]=0.0;
         psi_vyz[gid]=0.0;
     }
-    if (gid<(NZ-2*fdoh)*2*nab){
+    if (gid<(NZ-2*FDOH)*2*NAB){
         psi_sxy_x[gid]=0.0;
         psi_vyx[gid]=0.0;
     }
@@ -154,6 +154,142 @@ __kernel void initialize_seis(__global float *vx,         __global float *vy,   
 
 
 
+}
+
+__kernel void initialize_seis_r(__global float *vx_r,         __global float *vy_r,       __global float *vz_r,
+                              __global float *sxx_r,        __global float *syy_r,      __global float *szz_r,
+                              __global float *sxy_r,        __global float *syz_r,      __global float *sxz_r,
+                              __global float *rxx_r,        __global float *ryy_r,      __global float *rzz_r,
+                              __global float *rxy_r,        __global float *ryz_r,      __global float *rxz_r,
+                              __global float *psi_sxx_x_r,  __global float *psi_sxy_x_r,     __global float *psi_sxy_y_r,
+                              __global float *psi_sxz_x_r,  __global float *psi_sxz_z_r,     __global float *psi_syy_y_r,
+                              __global float *psi_syz_y_r,  __global float *psi_syz_z_r,     __global float *psi_szz_z_r,
+                              __global float *psi_vxx_r,    __global float *psi_vxy_r_r,       __global float *psi_vxz_r,
+                              __global float *psi_vyx_r,    __global float *psi_vyy_r_r,       __global float *psi_vyz_r,
+                              __global float *psi_vzx_r,    __global float *psi_vzy_r_r,       __global float *psi_vzz_r
+                              )
+{
+    
+    
+    int gid = get_global_id(0);
+    
+#if ND!=21
+    sxx_r[gid]=0.0;
+    szz_r[gid]=0.0;
+    sxz_r[gid]=0.0;
+    vx_r[gid]=0.0;
+    vz_r[gid]=0.0;
+#endif
+#if ND==3 || ND==21
+    sxy_r[gid]=0.0;
+    syz_r[gid]=0.0;
+    vy_r[gid]=0.0;
+#endif
+#if ND==3
+    syy_r[gid]=0.0;
+#endif
+    
+    
+#if LVE>0
+    int gsize=get_global_size(0);
+#if ND==3
+    for (int l=0;l<LVE;l++){
+        
+        rxx_r[gid+l*gsize]=0.0;
+        rzz_r[gid+l*gsize]=0.0;
+        rxz_r[gid+l*gsize]=0.0;
+        
+        ryy_r[gid+l*gsize]=0.0;
+        rxy_r[gid+l*gsize]=0.0;
+        ryz_r[gid+l*gsize]=0.0;
+        
+    }
+#endif
+#if ND==2
+    for (int l=0;l<LVE;l++){
+        
+        rxx_r[gid+l*gsize]=0.0;
+        rzz_r[gid+l*gsize]=0.0;
+        rxz_r[gid+l*gsize]=0.0;
+        
+        
+    }
+#endif
+#if ND==21
+    for (int l=0;l<LVE;l++){
+        rxy_r[gid+l*gsize]=0.0;
+        ryz_r[gid+l*gsize]=0.0;
+        
+    }
+#endif
+    
+#endif
+    
+    
+#if ABS_TYPE==1
+    
+#if ND==3
+    if (gid<(NX-2*FDOH)*(NY-2*FDOH)*2*NAB){
+        psi_sxz_z_r[gid]=0.0;
+        psi_syz_z_r[gid]=0.0;
+        psi_szz_z_r[gid]=0.0;
+        psi_vxz_r[gid]=0.0;
+        psi_vyz_r[gid]=0.0;
+        psi_vzz_r[gid]=0.0;
+    }
+    if (gid<(NX-2*FDOH)*(NZ-2*FDOH)*2*NAB){
+        psi_sxy_y_r[gid]=0.0;
+        psi_syz_y_r[gid]=0.0;
+        psi_syy_y_r[gid]=0.0;
+        psi_vxy_r[gid]=0.0;
+        psi_vyy_r[gid]=0.0;
+        psi_vzy_r[gid]=0.0;
+    }
+    if (gid<(NY-2*FDOH)*(NZ-2*FDOH)*2*NAB){
+        psi_sxx_x_r[gid]=0.0;
+        psi_sxy_x_r[gid]=0.0;
+        psi_sxz_x_r[gid]=0.0;
+        psi_vxx_r[gid]=0.0;
+        psi_vyx_r[gid]=0.0;
+        psi_vzx_r[gid]=0.0;
+    }
+#endif
+    
+#if ND==2
+    if (gid<(NX-2*FDOH)*2*NAB){
+        psi_sxz_z_r[gid]=0.0;
+        psi_szz_z_r[gid]=0.0;
+        psi_vxz_r[gid]=0.0;
+        psi_vzz_r[gid]=0.0;
+    }
+    
+    if (gid<(NZ-2*FDOH)*2*NAB){
+        psi_sxx_x_r[gid]=0.0;
+        psi_sxz_x_r[gid]=0.0;
+        psi_vxx_r[gid]=0.0;
+        psi_vzx_r[gid]=0.0;
+    }
+#endif
+    
+#if ND==21
+    if (gid<(NX-2*FDOH)*2*NAB){
+        psi_syz_z_r[gid]=0.0;
+        psi_vyz_r[gid]=0.0;
+    }
+    if (gid<(NZ-2*FDOH)*2*NAB){
+        psi_sxy_x_r[gid]=0.0;
+        psi_vyx_r[gid]=0.0;
+    }
+#endif
+    
+    
+#endif
+    
+    
+    
+    
+    
+    
 }
 
 __kernel void initialize_grad(__global float *gradrho,       __global float *gradM,     __global float *gradmu,
@@ -182,7 +318,7 @@ __kernel void initialize_savefreqs(
     int gid = get_global_id(0);
     int freq,l;
     int gsize=get_global_size(0);
-    for (freq=0;freq<nfreqs;freq++){
+    for (freq=0;freq<NFREQS;freq++){
         
 #if ND!=21
         fvx[gid +freq*gsize]=0.0;
@@ -201,19 +337,19 @@ __kernel void initialize_savefreqs(
         fsyy[gid +freq*gsize]=0.0;
 #endif
 
-#if Lve>0
-        for (l=0;l<Lve;l++){
+#if LVE>0
+        for (l=0;l<LVE;l++){
 #if ND!=21
-            frxx[gid + l*gsize + freq*Lve*gsize]=0.0;
-            frzz[gid + l*gsize + freq*Lve*gsize]=0.0;
-            frxz[gid + l*gsize + freq*Lve*gsize]=0.0;
+            frxx[gid + l*gsize + freq*LVE*gsize]=0.0;
+            frzz[gid + l*gsize + freq*LVE*gsize]=0.0;
+            frxz[gid + l*gsize + freq*LVE*gsize]=0.0;
 #endif
 #if ND==3 || ND==21
-            frxy[gid + l*gsize + freq*Lve*gsize]=0.0;
-            fryz[gid + l*gsize + freq*Lve*gsize]=0.0;
+            frxy[gid + l*gsize + freq*LVE*gsize]=0.0;
+            fryz[gid + l*gsize + freq*LVE*gsize]=0.0;
 #endif
 #if ND==3
-            fryy[gid + l*gsize + freq*Lve*gsize]=0.0;
+            fryy[gid + l*gsize + freq*LVE*gsize]=0.0;
 #endif
         }
 #endif

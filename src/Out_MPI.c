@@ -97,7 +97,7 @@ int Out_MPI(struct filenames file, struct modcsts * m)  {
     int state=0;
 
     // Gather the seismograms from all processing elements
-    if (!state && m->seisout){
+    if (!state && m->SEISOUT){
         if (m->MYID==0){
             if (m->bcastvx)  MPI_Reduce(MPI_IN_PLACE, m->vxout[0],  m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
             if (m->bcastvy)  MPI_Reduce(MPI_IN_PLACE, m->vyout[0],  m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
@@ -125,7 +125,7 @@ int Out_MPI(struct filenames file, struct modcsts * m)  {
         }
     }
     // Add the rms value of all processing elements
-    if (m->rmsout){
+    if (m->RMSOUT){
         if (m->MYID==0){
             if (!state) MPI_Reduce(MPI_IN_PLACE, &m->rms, 1, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
             if (!state) MPI_Reduce(MPI_IN_PLACE, &m->rmsnorm, 1, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
@@ -137,7 +137,7 @@ int Out_MPI(struct filenames file, struct modcsts * m)  {
     }
     
     // Gather the residuals from all processing elements
-    if (m->resout){
+    if (m->RESOUT){
         
         if (m->MYID==0){
             if (m->bcastvx) if (!state) MPI_Reduce(MPI_IN_PLACE, m->rx[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
@@ -153,31 +153,31 @@ int Out_MPI(struct filenames file, struct modcsts * m)  {
     }
 
     // Gather the movie from all processing elements
-    if (m->movout){
+    if (m->MOVOUT){
         
         if (m->MYID==0){
             if (m->ND!=21){
-                if (!state) MPI_Reduce(MPI_IN_PLACE, m->movvx, m->ns*m->NT/m->movout*m->NX*m->NY*m->NZ, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-                if (!state) MPI_Reduce(MPI_IN_PLACE, m->movvz, m->ns*m->NT/m->movout*m->NX*m->NY*m->NZ, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+                if (!state) MPI_Reduce(MPI_IN_PLACE, m->movvx, m->ns*m->NT/m->MOVOUT*m->NX*m->NY*m->NZ, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+                if (!state) MPI_Reduce(MPI_IN_PLACE, m->movvz, m->ns*m->NT/m->MOVOUT*m->NX*m->NY*m->NZ, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
             }
             if (m->ND==3 || m->ND==21){
-                if (!state) MPI_Reduce(MPI_IN_PLACE, m->movvy, m->ns*m->NT/m->movout*m->NX*m->NY*m->NZ, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+                if (!state) MPI_Reduce(MPI_IN_PLACE, m->movvy, m->ns*m->NT/m->MOVOUT*m->NX*m->NY*m->NZ, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
             }
         }
         else{
             if (m->ND!=21){
-                if (!state) MPI_Reduce(m->movvx, m->movvx, m->ns*m->NT/m->movout*m->NX*m->NY*m->NZ, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-                if (!state) MPI_Reduce(m->movvz, m->movvz, m->ns*m->NT/m->movout*m->NX*m->NY*m->NZ, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+                if (!state) MPI_Reduce(m->movvx, m->movvx, m->ns*m->NT/m->MOVOUT*m->NX*m->NY*m->NZ, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+                if (!state) MPI_Reduce(m->movvz, m->movvz, m->ns*m->NT/m->MOVOUT*m->NX*m->NY*m->NZ, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
             }
             if (m->ND==3 || m->ND==21){
-                if (!state) MPI_Reduce(m->movvy, m->movvy, m->ns*m->NT/m->movout*m->NX*m->NY*m->NZ, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+                if (!state) MPI_Reduce(m->movvy, m->movvy, m->ns*m->NT/m->MOVOUT*m->NX*m->NY*m->NZ, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
             }
         }
         
     }
     
     // Gather the gradient from all processing elements
-    if (m->gradout==1){
+    if (m->GRADOUT==1){
         
 
         if (m->MYID==0){
@@ -203,7 +203,7 @@ int Out_MPI(struct filenames file, struct modcsts * m)  {
             }
         }
         
-        if (m->gradsrcout==1){
+        if (m->GRADSRCOUT==1){
             if (m->MYID==0){
                 if (!state) MPI_Reduce(MPI_IN_PLACE, m->gradsrc[0], m->allns*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
             }
@@ -212,7 +212,7 @@ int Out_MPI(struct filenames file, struct modcsts * m)  {
             }
         }
         
-        if (m->Hout==1){
+        if (m->HOUT==1){
             
             
             if (m->MYID==0){

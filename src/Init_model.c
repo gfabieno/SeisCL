@@ -167,7 +167,7 @@ int Init_model(struct modcsts * m) {
     if (m->L>0){
 
         /* vector for maxwellbodies */
-        GMALLOC(pts,m->L*sizeof(float))
+        GMALLOC(pts,m->L*sizeof(float));
 
         for (l=0;l<m->L;l++) {
             pts[l]=m->dt/m->csts[20].gl_cst[l];
@@ -181,7 +181,8 @@ int Init_model(struct modcsts * m) {
             for (i=0;i<num_ele;i++){
                 sumpi=0.0;
                 for (l=0;l<m->L;l++){
-                    sumpi+= ((ws*ws*pts[l]*pts[l]*taup[i])/(1.0+ws*ws*pts[l]*pts[l]));
+                    sumpi+= ((ws*ws*pts[l]*pts[l]*taup[i])
+                               /(1.0+ws*ws*pts[l]*pts[l]));
                 }
                 M[i]=M[i]/(1.0+sumpi);
             }
@@ -190,7 +191,8 @@ int Init_model(struct modcsts * m) {
             for (i=0;i<num_ele;i++){
                 sumu=0.0;
                 for (l=0;l<m->L;l++){
-                    sumu+= ((ws*ws*pts[l]*pts[l]*taus[i])/(1.0+ws*ws*pts[l]*pts[l]));
+                    sumu+= ((ws*ws*pts[l]*pts[l]*taus[i])
+                              /(1.0+ws*ws*pts[l]*pts[l]));
                 }
                 mu[i]=mu[i]/(1.0+sumu);
             }
@@ -247,9 +249,10 @@ int Init_model(struct modcsts * m) {
         default: g=0;
         break;
     }
-    if ((m->dh>(vmin/m->fmax/g)))
-        fprintf(stdout,"Warning: Grid spacing too large, dispersion will affect the solution\n");
-    
+    if ((m->dh>(vmin/m->fmax/g))){
+        fprintf(stdout,"Warning: Grid spacing too large, ");
+        fprintf(stdout,"dispersion will affect the solution\n");
+    }
     /*  gamma for stability estimation (Holberg) */
     switch (m->FDORDER){
         case 2: gamma=1.0;
@@ -274,11 +277,12 @@ int Init_model(struct modcsts * m) {
     
     if (m->dt>dtstable){
         state=1;
-        fprintf(stderr, "Error: Time step too large, to be stable, set dt<%f\n", dtstable);
+        fprintf(stderr, "Error: Time step too large, to be stable, ");
+        fprintf(stderr, "set dt<%f\n", dtstable);
     }
     
     //Create averaged properties
-    if (m->numdim==3){
+    if (m->NDIM==3){
         NX=m->N[2];
         NY=m->N[1];
         NZ=m->N[0];
@@ -296,7 +300,10 @@ int Init_model(struct modcsts * m) {
             for (j=0;j<NY;j++){
                 for (i=0;i<NX;i++){
                     if (i<NX-1 && j<NY-1)
-                        muipjp(k,j,i)=4.0/((1.0/mu(k,j,i))+(1.0/mu(k,j,i+1))+(1.0/mu(k,j+1,i+1))+(1.0/mu(k,j+1,i)));
+                        muipjp(k,j,i)=4.0/( (1.0/mu(k,j,i))
+                                           +(1.0/mu(k,j,i+1))
+                                           +(1.0/mu(k,j+1,i+1))
+                                           +(1.0/mu(k,j+1,i)));
                     else
                         muipjp(k,j,i)=mu(k,j,i);
                 }
@@ -308,7 +315,10 @@ int Init_model(struct modcsts * m) {
             for (j=0;j<NY;j++){
                 for (i=0;i<NX;i++){
                     if (k<NZ-1 && j<NY-1)
-                        mujpkp(k,j,i)=4.0/((1.0/mu(k,j,i))+(1.0/mu(k+1,j,i))+(1.0/mu(k+1,j+1,i))+(1.0/mu(k,j+1,i)));
+                        mujpkp(k,j,i)=4.0/( (1.0/mu(k,j,i))
+                                           +(1.0/mu(k+1,j,i))
+                                           +(1.0/mu(k+1,j+1,i))
+                                           +(1.0/mu(k,j+1,i)));
                     else
                         mujpkp(k,j,i)=mu(k,j,i);
                 }
@@ -320,7 +330,10 @@ int Init_model(struct modcsts * m) {
             for (j=0;j<NY;j++){
                 for (i=0;i<NX;i++){
                     if (k<NZ-1 && i<NX-1)
-                        muipkp(k,j,i)=4.0/((1.0/mu(k,j,i))+(1.0/mu(k+1,j,i))+(1.0/mu(k+1,j,i+1))+(1.0/mu(k,j,i+1)));
+                        muipkp(k,j,i)=4.0/( (1.0/mu(k,j,i))
+                                           +(1.0/mu(k+1,j,i))
+                                           +(1.0/mu(k+1,j,i+1))
+                                           +(1.0/mu(k,j,i+1)));
                     else
                         muipkp(k,j,i)=mu(k,j,i);
                      }
@@ -333,9 +346,13 @@ int Init_model(struct modcsts * m) {
             for (j=0;j<NY;j++){
                 for (i=0;i<NX;i++){
                     if (i<NX-1 && j<NY-1)
-                        tausipjp(k,j,i)=0.25*(taus(k,j,i)+taus(k,j,i+1)+taus(k,j+1,i+1)+taus(k,j+1,i));
+                        tausipjp(k,j,i)=0.25*( taus(k,j,i)
+                                              +taus(k,j,i+1)
+                                              +taus(k,j+1,i+1)
+                                              +taus(k,j+1,i));
                     else
-                        tausipjp(k,j,i)=taus(k,j,i);                }
+                        tausipjp(k,j,i)=taus(k,j,i);
+                }
             }
         }
     }
@@ -345,7 +362,10 @@ int Init_model(struct modcsts * m) {
             for (j=0;j<NY;j++){
                 for (i=0;i<NX;i++){
                     if (k<NZ-1 && j<NY-1)
-                        tausjpkp(k,j,i)=0.25*(taus(k,j,i)+taus(k,j+1,i)+taus(k+1,j+1,i)+taus(k+1,j,i));
+                        tausjpkp(k,j,i)=0.25*( taus(k,j,i)
+                                              +taus(k,j+1,i)
+                                              +taus(k+1,j+1,i)
+                                              +taus(k+1,j,i));
                     else
                         tausjpkp(k,j,i)=taus(k,j,i);
                 }
@@ -358,7 +378,10 @@ int Init_model(struct modcsts * m) {
             for (j=0;j<NY;j++){
                 for (i=0;i<NX;i++){
                     if (k<NZ-1 && i<NX-1)
-                        tausipkp(k,j,i)=0.25*(taus(k,j,i)+taus(k,j,i+1)+taus(k+1,j,i+1)+taus(k+1,j,i));
+                        tausipkp(k,j,i)=0.25*( taus(k,j,i)
+                                              +taus(k,j,i+1)
+                                              +taus(k+1,j,i+1)
+                                              +taus(k+1,j,i));
                     else
                         tausipkp(k,j,i)=taus(k,j,i);
 
@@ -405,7 +428,8 @@ int Init_model(struct modcsts * m) {
     }
 
     
-    if (state && m->MPI_INIT==1) MPI_Bcast( &state, 1, MPI_INT, m->MYID, MPI_COMM_WORLD );
+    if (state && m->MPI_INIT==1)
+        MPI_Bcast( &state, 1, MPI_INT, m->MYID, MPI_COMM_WORLD );
     
     return state;
     

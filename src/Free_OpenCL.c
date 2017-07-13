@@ -26,7 +26,7 @@ int Free_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
     
     int d;
     // Memory freeing for GPU buffers and host memory
-    for (d=0;d<m->num_devices;d++){
+    for (d=0;d<m->NUM_DEVICES;d++){
         
         if ((*mloc)){
             

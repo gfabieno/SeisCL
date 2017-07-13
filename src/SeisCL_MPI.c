@@ -46,8 +46,8 @@ int main(int argc, char **argv) {
     snprintf(file.csts, sizeof(file.csts), "%s%s", filein, "_csts.mat");
     snprintf(file.dout, sizeof(file.dout), "%s%s", filein, "_dout.mat");
     snprintf(file.gout, sizeof(file.gout), "%s%s", filein, "_gout.mat");
-    snprintf(file.rmsout, sizeof(file.rmsout), "%s%s", filein, "_rms.mat");
-    snprintf(file.movout, sizeof(file.movout), "%s%s", filein, "_movie.mat");
+    snprintf(file.RMSOUT, sizeof(file.RMSOUT), "%s%s", filein, "_rms.mat");
+    snprintf(file.MOVOUT, sizeof(file.MOVOUT), "%s%s", filein, "_movie.mat");
     
     if (argc>2){
         filedata=argv[2];
@@ -87,10 +87,8 @@ int main(int argc, char **argv) {
     
     time3=MPI_Wtime();
     
-    __GUARD Init_OpenCL(&m, &vcl, &mloc);
+    __GUARD Init_OpenCL(&m, &vcl);
 
-    
-    
     
 //
 //    

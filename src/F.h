@@ -29,6 +29,7 @@
 
 //#include <libc.h>
 #include <string.h>
+#include <ctype.h>
 #include <assert.h>
 #include <sys/sysctl.h>
 #include <sys/stat.h>
@@ -46,16 +47,23 @@
 #include <mpi.h>
 #include <hdf5.h>
 
+
 #define STRING_SIZE 256
 #define PI (3.141592653589793238462643383279502884197169)
 
-#define GMALLOC(x,y) if (!state) if (!((x)=malloc((y)))) {state=1;fprintf(stderr,"malloc failed at line %d in %s()\n",__LINE__,__func__);};
+#define GMALLOC(x,y) ({\
+            if (!state) if (!((x)=malloc((y)))) {state=1;fprintf(stderr,"malloc failed at line %d in %s()\n",__LINE__,__func__);};\
+            if (!state) memset((x),0,(y));\
+            })
+
 #define GFree(x) if ((x)) free( (x) );(x)=NULL;
 
 #define __GUARD if (!state) state=
 #define CLGUARD(x) if (!state) if (!(state = (x) )) {fprintf(stderr,"OpenCL function failed at line %d in %s()\n",__LINE__,__func__);};
 
 #define MAX_DIMS 10
+#define MAX_KERNELS 100
+#define MAX_KERN_STR 10000
 
 struct filenames {
     char model[1024];
@@ -63,8 +71,8 @@ struct filenames {
     char dout[1024];
     char din[1024];
     char gout[1024];
-    char rmsout[1024];
-    char movout[1024];
+    char RMSOUT[1024];
+    char MOVOUT[1024];
 };
 
 
@@ -75,6 +83,23 @@ struct clbuf {
     
 };
 
+
+struct clprogram {
+    
+    const char * name;
+    const char * src;
+    cl_program prog;
+    cl_kernel kernel;
+    char ** input_list;
+    int ninputs;
+    size_t lsize[MAX_DIMS];
+    size_t gsize[MAX_DIMS];
+    int local;
+    int NDIM;
+    
+    cl_event event;
+    
+};
 
 struct variable{
     
@@ -97,6 +122,8 @@ struct variable{
     float   *   gl_mov;
     float **    gl_var_res;
     int       to_output;
+    int       for_grad;
+    int       to_comm;
     int num_ele;
     
     float** de_varout;
@@ -113,9 +140,9 @@ struct parameter{
     
     const char * name;
     
-    cl_mem   cl_param;
-    cl_mem   cl_grad;
-    cl_mem   cl_H;
+    struct clbuf   cl_param;
+    struct clbuf   cl_grad;
+    struct clbuf   cl_H;
     float  * gl_param;
     double * gl_grad;
     double * gl_H;
@@ -134,7 +161,7 @@ struct constants{
     
     const char * name;
     
-    cl_mem   cl_cst;
+    struct clbuf   cl_cst;
     float  * gl_cst;
     int num_ele;
     const char * to_read;
@@ -147,22 +174,18 @@ struct constants{
 
 struct sources_records{
 
-    cl_mem cl_src;
-    cl_mem cl_src_pos;
-    cl_mem cl_rec_pos;
+    struct clbuf cl_src;
+    struct clbuf cl_src_pos;
+    struct clbuf cl_rec_pos;
+    struct clbuf cl_grad_src;;
     
-    cl_kernel kernel_seisout;
-    cl_kernel kernel_seisoutinit;
-    cl_kernel kernel_residuals;
-    cl_kernel kernel_initialize_gradsrc;
-    
-    cl_program program_seisout;
-    cl_program program_seisoutinit;
-    cl_program program_residuals;
-    cl_program program_initialize_gradsrc;
+    struct clprogram seisout;
+    struct clprogram seisoutinit;
+    struct clprogram residuals;
+    struct clprogram init_gradsrc;
 
-    size_t global_work_size_gradsrc;
-    
+    int nsmax;
+    int ngmax;
     int *nsrc;
     int *nrec;
     float **src;
@@ -175,25 +198,14 @@ struct sources_records{
 struct update{
 
     const char * name;
-    
-    cl_kernel kernel_int;
-    cl_kernel kernel_comm1;
-    cl_kernel kernel_comm2;
-    cl_kernel kernel_fill_buff1_out;
-    cl_kernel kernel_fill_buff2_out;
-    cl_kernel kernel_fill_buff1_in;
-    cl_kernel kernel_fill_buff2_in;
-    
-    cl_program program_int;
-    cl_program program_comm1;
-    cl_program program_comm2;
-    cl_program program_fill_buff;
-    
-    size_t local_work_size[MAX_DIMS];
-    size_t global_work_size[MAX_DIMS];
-    size_t global_work_sizecomm2[MAX_DIMS];
-    size_t global_work_sizecomm1[MAX_DIMS];
-    size_t global_work_size_fillcomm[MAX_DIMS];
+
+    struct clprogram center;
+    struct clprogram comm1;
+    struct clprogram comm2;
+    struct clprogram fill_buff1_out;
+    struct clprogram fill_buff2_out;
+    struct clprogram fill_buff1_in;
+    struct clprogram fill_buff2_in;
     
     cl_event event_readMPI1[6];
     cl_event event_readMPI2[6];
@@ -209,35 +221,18 @@ struct update{
 
 struct boundary_conditions{
     
-    size_t global_work_size_surf[MAX_DIMS];
-    size_t global_work_size_initfd;
+    struct clprogram surf;
+    struct clprogram init_f;
+    struct clprogram init_adj;
 
-    cl_kernel kernel_surf;
-    cl_program program_surf;
-    
-    cl_kernel kernel_initseis;
-    cl_kernel kernel_initseis_r;
-    
-    cl_program program_initseis;
-    cl_program program_initseis_r;
-    
 };
 
 struct gradients {
-    
-    size_t global_work_size_f;
-    size_t global_work_size_bnd;
-    size_t global_work_size_init;
-    
-    cl_kernel kernel_initgrad;
-    cl_kernel kernel_savefreqs;
-    cl_kernel kernel_initsavefreqs;
-    cl_kernel kernel_bnd;
-    
-    cl_program program_initgrad;
-    cl_program program_savefreqs;
-    cl_program program_initsavefreqs;
-    cl_program program_bnd;
+
+    struct clprogram init;
+    struct clprogram savefreqs;
+    struct clprogram initsavefreqs;
+    struct clprogram savebnd;
     
     cl_event event_bndsave;
     cl_event event_bndtransf;
@@ -251,31 +246,30 @@ struct varcl {
     cl_command_queue cmd_queue;
     cl_command_queue cmd_queuecomm;
 
-    int numdim;
+    int NDIM;
     int N[MAX_DIMS];
     int NX0;
-    int offset;
-    int offsetfd;
-    int dev;
-    int Nbnd;
-    int NZ_al16;
-    int NZ_al0;
+    int OFFSET;
+    int OFFSETfd;
+    int DEV;
+    int NBND;
     
-    int local_off;
+    int LOCAL_OFF;
 
 
     struct variable * vars;
-    struct variable * vars_r;
+    struct variable * vars_adj;
     struct parameter * params;
+    struct constants * csts;
 
     struct update * updates_f;
     struct update * updates_adj;
-    
 
-    
     struct sources_records src_recs;
     struct gradients grads;
     struct boundary_conditions bnd_cnds;
+    
+    
 
 };
 
@@ -284,32 +278,36 @@ struct varcl {
 struct modcsts {
     
     struct variable * vars;
+    struct variable * vars_adj;
     int nvars;
     struct parameter * params;
     int nparams;
     struct constants * csts;
     int ncsts;
     
-    struct sources_records src_recs;
-    
     struct variable * trans_vars;
     int ntvars;
     
-    char ** update_names;
+    struct update * updates_f;
+    struct update * updates_adj;
     int nupdates;
+    
+    struct sources_records src_recs;
+    struct gradients grads;
+    struct boundary_conditions bnd_cnds;
 
     int NXP;
     int NT;
     int FDORDER;
-    int fdoh;
+    int FDOH;
     int MAXRELERROR;
-    int gradout;
-    int gradsrcout;
-    int Hout;
-    int seisout;
-    int movout;
-    int resout;
-    int rmsout;
+    int GRADOUT;
+    int GRADSRCOUT;
+    int HOUT;
+    int SEISOUT;
+    int MOVOUT;
+    int RESOUT;
+    int RMSOUT;
     int ns;
     int L;
     int MYID;
@@ -322,9 +320,9 @@ struct modcsts {
     int ND;
     int tmax;
     int tmin;
-    int NTnyq;
-    int dtnyq;
-    int numdim;
+    int NTNYQ;
+    int DTNYQ;
+    int NDIM;
     
     int NGROUP;
     int MYGROUPID;
@@ -333,9 +331,9 @@ struct modcsts {
     int NLOCALP;
     int MPI_INIT;
     
-    int back_prop_type;
+    int BACK_PROP_TYPE;
     int param_type;
-    int nfreqs;
+    int NFREQS;
 
     float rms;
     float rmsnorm;
@@ -354,9 +352,9 @@ struct modcsts {
     float dt;
     float dh;
 
-    int nab;
-    int freesurf;
-    int abs_type;
+    int NAB;
+    int FREESURF;
+    int ABS_TYPE;
     float VPPML;
     float FPML;
     float NPOWER;
@@ -368,6 +366,7 @@ struct modcsts {
     int restype;
     
     int N[MAX_DIMS];
+    char * N_names[MAX_DIMS];
    
     
     int nmax_dev;
@@ -375,7 +374,7 @@ struct modcsts {
     int n_no_use_GPUs;
     cl_device_type pref_device_type;
     cl_device_type device_type;
-    cl_uint num_devices;
+    cl_uint NUM_DEVICES;
     cl_context context;
     size_t buffer_size_comm;
 
@@ -413,12 +412,14 @@ int Out_MPI(struct filenames file, struct modcsts * m);
 
 int assign_modeling_case(struct modcsts * m);
 
+int assign_var_size(int* N, int NDIM, int FDORDER, int numvar, int L, struct variable * vars);
+
 
 cl_int GetPlatformID( cl_device_type * pref_device_type, cl_device_type * device_type, cl_platform_id* clsel_plat_id, cl_uint  *outnum_devices, int n_no_use_GPUs, int * no_use_GPUs);
 
 cl_int connect_allgpus(struct varcl ** vcl, cl_context *incontext, cl_device_type * device_type, cl_platform_id* clsel_plat_id, int n_no_use_GPUs, int * no_use_GPUs, int nmax_dev);
 
-cl_int get_device_num(cl_uint * num_devices);
+cl_int get_device_num(cl_uint * NUM_DEVICES);
 
 cl_int create_gpu_kernel(const char * filename, cl_program *program, cl_context *context, cl_kernel *kernel, const char * program_name, const char * build_options);
 
@@ -436,7 +437,7 @@ cl_int create_pinned_memory_buffer(cl_context *incontext, cl_command_queue *inqu
 
 cl_int create_gpu_subbuffer(cl_mem *var_mem, cl_mem *sub_mem, cl_buffer_region * region);
 
-cl_int launch_gpu_kernel( cl_command_queue *inqueue, cl_kernel *kernel, int ndim, size_t global_work_size[2], size_t local_work_size[2], int numevent, cl_event * waitlist, cl_event * eventout);
+cl_int launch_gpu_kernel( cl_command_queue *inqueue, cl_kernel *kernel, int NDIM, size_t global_work_size[2], size_t local_work_size[2], int numevent, cl_event * waitlist, cl_event * eventout);
 
 double machcore(uint64_t endTime, uint64_t startTime);
 
@@ -447,19 +448,19 @@ int gpu_intialize_seis(cl_context  * pcontext, cl_program  * program, cl_kernel 
 int gpu_intialize_seis_r(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm  );
 int gpu_intialize_grad(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm  );
 
-int gpu_initialize_update_v(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, int bndoff, int lcomm, int comm);
-int gpu_initialize_update_s(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, int bndoff, int lcomm , int comm);
+int gpu_initialize_update_v(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, int bndoff, int LCOMM, int comm);
+int gpu_initialize_update_s(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, int bndoff, int LCOMM , int comm);
 int gpu_initialize_surface(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm );
 
 int gpu_intialize_seisout(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm );
 int gpu_intialize_seisoutinit(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm );
 int gpu_intialize_residuals(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm );
 
-int gpu_initialize_update_adjv(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm , int bndoff, int lcomm, int comm );
-int gpu_initialize_update_adjs(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm , int bndoff , int lcomm, int comm);
+int gpu_initialize_update_adjv(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm , int bndoff, int LCOMM, int comm );
+int gpu_initialize_update_adjs(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm , int bndoff , int LCOMM, int comm);
 int gpu_initialize_savebnd(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm  );
 int holbergcoeff(struct modcsts *inm);
-int gpu_initialize_savefreqs(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, int dirprop );
+int gpu_initialize_savefreqs(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, int DIRPROP );
 int gpu_initialize_initsavefreqs(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm );
 int gpu_initialize_gradsrc(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm );
 
@@ -478,3 +479,17 @@ int res_raw(struct modcsts * mptr, int s);
 int res_amp(struct modcsts * mptr, int s);
 
 int alloc_seismo(float *** var, int ns, int allng, int NT, int * nrec );
+
+int split (const char *str, char c, char ***arr);
+
+int extract_args(const char *str, char *name, char *** argnames, int * ninputs);
+
+int gpu_initialize_kernel(struct modcsts * m, struct varcl * vcl,  struct clprogram * prog, int offcomm, int LCOMM, int comm, int DIRPROP);
+
+int assign_prog_source(struct clprogram * prog, char* name, const char * source);
+
+int kernel_varout(int NDIM, int nvars, struct variable * vars, const char ** source);
+
+int kernel_varoutinit(int NDIM, int nvars, struct variable * vars, const char ** source);
+
+int kernel_varinit(int NDIM, int nvars, struct variable * vars, const char ** source);

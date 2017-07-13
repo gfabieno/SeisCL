@@ -20,15 +20,15 @@
 /*Kernels to save boundary wavefield in 2D if backpropagation is used in the computation of the gradient */
 
 /*Define useful macros to be able to write a matrix formulation in 2D with OpenCl */
-#define vx(z,x)  vx[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vy(z,x)  vy[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vz(z,x)  vz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxx(z,x) sxx[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define szz(z,x) szz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxz(z,x) sxz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxy(z,x) sxy[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define syz(z,x) syz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define lbnd (fdoh+nab)
+#define vx(z,x)  vx[(x)*(NZ)+(z)]
+#define vy(z,x)  vy[(x)*(NZ)+(z)]
+#define vz(z,x)  vz[(x)*(NZ)+(z)]
+#define sxx(z,x) sxx[(x)*(NZ)+(z)]
+#define szz(z,x) szz[(x)*(NZ)+(z)]
+#define sxz(z,x) sxz[(x)*(NZ)+(z)]
+#define sxy(z,x) sxy[(x)*(NZ)+(z)]
+#define syz(z,x) syz[(x)*(NZ)+(z)]
+#define lbnd (FDOH+NAB)
 
 
 
@@ -40,32 +40,32 @@ __kernel void savebnd(__global float *vx,         __global float *vy,      __glo
                       __global float *sxybnd,     __global float *syzbnd,  __global float *sxzbnd)
 {
     
-#if num_devices==1 & NLOCALP==1
+#if NUM_DEVICES==1 & NLOCALP==1
     int gid = get_global_id(0);
-    int NXbnd = (NX- 2*fdoh- 2*nab);
-    int NZbnd = (NZ- 2*fdoh- 2*nab);
+    int NXbnd = (NX- 2*FDOH- 2*NAB);
+    int NZbnd = (NZ- 2*FDOH- 2*NAB);
     int i=0,k=0;
     int gidf;
     
-    if (gid<NZbnd*fdoh){//front
+    if (gid<NZbnd*FDOH){//front
         gidf=gid;
         i=gidf/NZbnd+lbnd;
         k=gidf%NZbnd+lbnd;
     }
-    else if (gid<NZbnd*2*fdoh){//back
-        gidf=gid-NZbnd*fdoh;
-        i=gidf/(NZbnd)+NXbnd+nab;
+    else if (gid<NZbnd*2*FDOH){//back
+        gidf=gid-NZbnd*FDOH;
+        i=gidf/(NZbnd)+NXbnd+NAB;
         k=gidf%NZbnd+lbnd;
     }
-    else if (gid<NZbnd*2*fdoh+(NXbnd - 2*fdoh)*fdoh){//up
-        gidf=gid-NZbnd*2*fdoh;
-        i=gidf%(NXbnd - 2*fdoh)+lbnd+fdoh;
-        k=gidf/(NXbnd- 2*fdoh)+lbnd;
+    else if (gid<NZbnd*2*FDOH+(NXbnd - 2*FDOH)*FDOH){//up
+        gidf=gid-NZbnd*2*FDOH;
+        i=gidf%(NXbnd - 2*FDOH)+lbnd+FDOH;
+        k=gidf/(NXbnd- 2*FDOH)+lbnd;
     }
-    else if (gid<NZbnd*2*fdoh+(NXbnd- 2*fdoh)*2*fdoh){//bottom
-        gidf=gid-NZbnd*2*fdoh-(NXbnd- 2*fdoh)*fdoh;
-        i=gidf%(NXbnd- 2*fdoh)+lbnd+fdoh;
-        k=gidf/(NXbnd- 2*fdoh)+NZbnd+nab;
+    else if (gid<NZbnd*2*FDOH+(NXbnd- 2*FDOH)*2*FDOH){//bottom
+        gidf=gid-NZbnd*2*FDOH-(NXbnd- 2*FDOH)*FDOH;
+        i=gidf%(NXbnd- 2*FDOH)+lbnd+FDOH;
+        k=gidf/(NXbnd- 2*FDOH)+NZbnd+NAB;
     }
 
     else{
@@ -73,58 +73,58 @@ __kernel void savebnd(__global float *vx,         __global float *vy,      __glo
     }
     
 
-#elif dev==0 & MYGROUPID==0
+#elif DEV==0 & MYGROUPID==0
     
     int gid = get_global_id(0);
-    int NXbnd = (NX- 2*fdoh- nab);
-    int NZbnd = (NZ- 2*fdoh-2*nab);
+    int NXbnd = (NX- 2*FDOH- NAB);
+    int NZbnd = (NZ- 2*FDOH-2*NAB);
     int i,k;
     int gidf;
     
-    if (gid<NZbnd*fdoh){//front
+    if (gid<NZbnd*FDOH){//front
         gidf=gid;
         i=gidf/NZbnd+lbnd;
         k=gidf%NZbnd+lbnd;
     }
 
-    else if (gid<NZbnd*fdoh+(NXbnd-fdoh)*fdoh){//up
-        gidf=gid-NZbnd*fdoh;
-        i=gidf%(NXbnd-fdoh)+lbnd+fdoh;
-        k=gidf/(NXbnd-fdoh)+lbnd;
+    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*FDOH){//up
+        gidf=gid-NZbnd*FDOH;
+        i=gidf%(NXbnd-FDOH)+lbnd+FDOH;
+        k=gidf/(NXbnd-FDOH)+lbnd;
     }
-    else if (gid<NZbnd*fdoh+(NXbnd-fdoh)*2*fdoh){//bottom
-        gidf=gid-NZbnd*fdoh-(NXbnd-fdoh)*fdoh;
-        i=gidf%(NXbnd-fdoh)+lbnd+fdoh;
-        k=gidf/(NXbnd-fdoh)+NZbnd+nab;
+    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*2*FDOH){//bottom
+        gidf=gid-NZbnd*FDOH-(NXbnd-FDOH)*FDOH;
+        i=gidf%(NXbnd-FDOH)+lbnd+FDOH;
+        k=gidf/(NXbnd-FDOH)+NZbnd+NAB;
     }
     
     else{
         return;
     }
 
-#elif dev==num_devices-1 & MYGROUPID==NLOCALP-1
+#elif DEV==NUM_DEVICES-1 & MYGROUPID==NLOCALP-1
     
     int gid = get_global_id(0);
-    int NXbnd = (NX- 2*fdoh- nab);
-    int NZbnd = (NZ- 2*fdoh-2*nab);
+    int NXbnd = (NX- 2*FDOH- NAB);
+    int NZbnd = (NZ- 2*FDOH-2*NAB);
     int i,k;
     int gidf;
     
-    if (gid<NZbnd*fdoh){//back
+    if (gid<NZbnd*FDOH){//back
         gidf=gid;
-        i=gidf/(NZbnd)+NXbnd;//+nab;
+        i=gidf/(NZbnd)+NXbnd;//+NAB;
         k=gidf%NZbnd+lbnd;
     }
     
-    else if (gid<NZbnd*fdoh+(NXbnd-fdoh)*fdoh){//up
-        gidf=gid-NZbnd*fdoh;
-        i=gidf%(NXbnd-fdoh)+fdoh;
-        k=gidf/(NXbnd-fdoh)+lbnd;
+    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*FDOH){//up
+        gidf=gid-NZbnd*FDOH;
+        i=gidf%(NXbnd-FDOH)+FDOH;
+        k=gidf/(NXbnd-FDOH)+lbnd;
     }
-    else if (gid<NZbnd*fdoh+(NXbnd-fdoh)*2*fdoh){//bottom
-        gidf=gid-NZbnd*fdoh-(NXbnd-fdoh)*fdoh;
-        i=gidf%(NXbnd-fdoh)+fdoh;
-        k=gidf/(NXbnd-fdoh)+NZbnd+nab;
+    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*2*FDOH){//bottom
+        gidf=gid-NZbnd*FDOH-(NXbnd-FDOH)*FDOH;
+        i=gidf%(NXbnd-FDOH)+FDOH;
+        k=gidf/(NXbnd-FDOH)+NZbnd+NAB;
     }
     
     else{
@@ -135,21 +135,21 @@ __kernel void savebnd(__global float *vx,         __global float *vy,      __glo
 #else 
     
     int gid = get_global_id(0);
-    int NXbnd = (NX- 2*fdoh);
-    int NZbnd = (NZ- 2*fdoh-2*nab);
+    int NXbnd = (NX- 2*FDOH);
+    int NZbnd = (NZ- 2*FDOH-2*NAB);
     int i,k;
     int gidf;
     
 
-    if (gid<(NXbnd)*fdoh){//up
+    if (gid<(NXbnd)*FDOH){//up
         gidf=gid;
-        i=gidf%(NXbnd)+fdoh;
+        i=gidf%(NXbnd)+FDOH;
         k=gidf/(NXbnd)+lbnd;
     }
-    else if (gid<NZbnd*fdoh+(NXbnd)*2*fdoh){//bottom
-        gidf=gid-(NXbnd)*fdoh;
-        i=gidf%(NXbnd)+fdoh;
-        k=gidf/(NXbnd)+NZbnd+nab;
+    else if (gid<NZbnd*FDOH+(NXbnd)*2*FDOH){//bottom
+        gidf=gid-(NXbnd)*FDOH;
+        i=gidf%(NXbnd)+FDOH;
+        k=gidf/(NXbnd)+NZbnd+NAB;
     }
     
     else{

@@ -29,7 +29,7 @@ cl_int GetPlatformID( cl_device_type * pref_device_type, cl_device_type * device
     cl_uint num_platforms;
     cl_platform_id* clPlatformIDs=NULL;
     cl_int cl_err=0;
-    cl_uint num_devices=0;
+    cl_uint NUM_DEVICES=0;
     int i,j,k;
     cl_int device_found;
     
@@ -63,28 +63,28 @@ cl_int GetPlatformID( cl_device_type * pref_device_type, cl_device_type * device
             if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
             if (!cl_err){
                 for(i = 0; i < num_platforms; ++i){
-                    device_found = clGetDeviceIDs(clPlatformIDs[i], *pref_device_type, 0, NULL, &num_devices);
+                    device_found = clGetDeviceIDs(clPlatformIDs[i], *pref_device_type, 0, NULL, &NUM_DEVICES);
 
                     if(device_found == CL_SUCCESS){
-                        if(num_devices>0){
+                        if(NUM_DEVICES>0){
                             cl_err = clGetPlatformInfo (clPlatformIDs[i], CL_PLATFORM_NAME, 1024, &chBuffer, NULL);
                             if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
                             fprintf(stdout,"Connection to platform %d: %s\n", i, chBuffer);
                             *clsel_plat_id = clPlatformIDs[i];
                             *device_type=*pref_device_type;
                             
-                            for (j=0;j<num_devices;j++){
+                            for (j=0;j<NUM_DEVICES;j++){
                                 for (k=0;k<n_no_use_GPUs;k++){
                                     if (no_use_GPUs[k]==j)
-                                    num_devices-=1;
+                                    NUM_DEVICES-=1;
                                 }
                             }
                             
-                            if (num_devices<1){
+                            if (NUM_DEVICES<1){
                                 printf ("no allowed devices could be found\n");
                                 return 1;
                             }
-                            *outnum_devices=num_devices;
+                            *outnum_devices=NUM_DEVICES;
                         }
                     }
                 }
@@ -92,14 +92,14 @@ cl_int GetPlatformID( cl_device_type * pref_device_type, cl_device_type * device
                 // default to the first platform with a GPU otherwise
                 if(*clsel_plat_id == NULL){
                     for(i = 0; i < num_platforms; ++i){
-                        device_found = clGetDeviceIDs(clPlatformIDs[i], CL_DEVICE_TYPE_GPU, 0, NULL, &num_devices);
+                        device_found = clGetDeviceIDs(clPlatformIDs[i], CL_DEVICE_TYPE_GPU, 0, NULL, &NUM_DEVICES);
                         if(device_found == CL_SUCCESS){
-                            if(num_devices>0){
+                            if(NUM_DEVICES>0){
                                 cl_err = clGetPlatformInfo (clPlatformIDs[i], CL_PLATFORM_NAME, 1024, &chBuffer, NULL);
                                 fprintf(stdout,"Connection to platform %d: %s\n", i, chBuffer);
                                 *clsel_plat_id = clPlatformIDs[i];
                                 *device_type=CL_DEVICE_TYPE_GPU;
-                                *outnum_devices=num_devices;
+                                *outnum_devices=NUM_DEVICES;
                             }
                         }
                     }
@@ -108,14 +108,14 @@ cl_int GetPlatformID( cl_device_type * pref_device_type, cl_device_type * device
                 // default to the first platform with an accelerator otherwise
                 if(*clsel_plat_id == NULL){
                     for(i = 0; i < num_platforms; ++i){
-                        device_found = clGetDeviceIDs(clPlatformIDs[i], CL_DEVICE_TYPE_ACCELERATOR, 0, NULL, &num_devices);
+                        device_found = clGetDeviceIDs(clPlatformIDs[i], CL_DEVICE_TYPE_ACCELERATOR, 0, NULL, &NUM_DEVICES);
                         if(device_found == CL_SUCCESS){
-                            if(num_devices>0){
+                            if(NUM_DEVICES>0){
                                 cl_err = clGetPlatformInfo (clPlatformIDs[i], CL_PLATFORM_NAME, 1024, &chBuffer, NULL);
                                 fprintf(stdout,"Connection to platform %d: %s\n", i, chBuffer);
                                 *clsel_plat_id = clPlatformIDs[i];
                                 *device_type=CL_DEVICE_TYPE_ACCELERATOR;
-                                *outnum_devices=num_devices;
+                                *outnum_devices=NUM_DEVICES;
                             }
                         }
                     }
@@ -124,14 +124,14 @@ cl_int GetPlatformID( cl_device_type * pref_device_type, cl_device_type * device
                 // default to the first platform with a CPU otherwise
                 if(*clsel_plat_id == NULL){
                     for(i = 0; i < num_platforms; ++i){
-                        device_found = clGetDeviceIDs(clPlatformIDs[i], CL_DEVICE_TYPE_CPU, 0, NULL, &num_devices);
+                        device_found = clGetDeviceIDs(clPlatformIDs[i], CL_DEVICE_TYPE_CPU, 0, NULL, &NUM_DEVICES);
                         if(device_found == CL_SUCCESS){
-                            if(num_devices>0){
+                            if(NUM_DEVICES>0){
                                 cl_err = clGetPlatformInfo (clPlatformIDs[i], CL_PLATFORM_NAME, 1024, &chBuffer, NULL);
                                 fprintf(stdout,"Connection to platform %d: %s\n", i, chBuffer);
                                 *clsel_plat_id = clPlatformIDs[i];
                                 *device_type=CL_DEVICE_TYPE_CPU;
-                                *outnum_devices=num_devices;
+                                *outnum_devices=NUM_DEVICES;
                             }
                         }
                     }
@@ -157,7 +157,7 @@ cl_int connect_allgpus(struct varcl ** vcl, cl_context *incontext, cl_device_typ
     /*Routine to connect all found computing devices, create the context and the command queues*/
 
     cl_int cl_err = 0;
-    cl_uint num_devices=0;
+    cl_uint NUM_DEVICES=0;
     cl_uint num_allowed_devices=0;
     cl_device_id *devices=NULL;
     int *allowed_devices=NULL;
@@ -170,43 +170,43 @@ cl_int connect_allgpus(struct varcl ** vcl, cl_context *incontext, cl_device_typ
     }
     
     // Find the number of prefered devices
-    cl_err = clGetDeviceIDs(*clsel_plat_id, *device_type, 0, NULL, &num_devices);
+    cl_err = clGetDeviceIDs(*clsel_plat_id, *device_type, 0, NULL, &NUM_DEVICES);
     if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
 
-    if (!cl_err && num_devices>0){
+    if (!cl_err && NUM_DEVICES>0){
         
-        devices=malloc(sizeof(cl_device_id)*num_devices);
+        devices=malloc(sizeof(cl_device_id)*NUM_DEVICES);
         if (*device_type==CL_DEVICE_TYPE_GPU)
-            fprintf(stdout,"Found %d GPU, ", num_devices);
+            fprintf(stdout,"Found %d GPU, ", NUM_DEVICES);
         else if (*device_type==CL_DEVICE_TYPE_ACCELERATOR)
-            fprintf(stdout,"Found %d Accelerator, ", num_devices);
+            fprintf(stdout,"Found %d Accelerator, ", NUM_DEVICES);
         else if (*device_type==CL_DEVICE_TYPE_CPU)
-            fprintf(stdout,"Found %d CPU, ", num_devices);
-        cl_err = clGetDeviceIDs(*clsel_plat_id, *device_type, num_devices, devices, NULL);
+            fprintf(stdout,"Found %d CPU, ", NUM_DEVICES);
+        cl_err = clGetDeviceIDs(*clsel_plat_id, *device_type, NUM_DEVICES, devices, NULL);
         if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
         
         if (!cl_err){
-            num_allowed_devices=num_devices;
-            for (i=0;i<num_devices;i++){
+            num_allowed_devices=NUM_DEVICES;
+            for (i=0;i<NUM_DEVICES;i++){
                 for (j=0;j<n_no_use_GPUs;j++){
                     if (no_use_GPUs[j]==i)
                     num_allowed_devices-=1;
                 }
             }
-            if (num_devices<1){
+            if (NUM_DEVICES<1){
                 printf ("no allowed devices could be found");
                 return 1;
             }
             
             allowed_devices=malloc(sizeof(int)*num_allowed_devices);
-            if (num_allowed_devices==num_devices){
-                for (i=0;i<num_devices;i++){
+            if (num_allowed_devices==NUM_DEVICES){
+                for (i=0;i<NUM_DEVICES;i++){
                     allowed_devices[i]=i;
                 }
             }
             else{
                 int n=0;
-                for (i=0;i<num_devices;i++){
+                for (i=0;i<NUM_DEVICES;i++){
                     for (j=0;j<n_no_use_GPUs;j++){
                         if (no_use_GPUs[j]!=i){
                             allowed_devices[n]=i;
@@ -235,7 +235,7 @@ cl_int connect_allgpus(struct varcl ** vcl, cl_context *incontext, cl_device_typ
     // Now create a context to perform our calculation with the
     // specified devices
     
-    if (!cl_err) *incontext = clCreateContext(NULL, num_devices, devices, NULL, NULL, &cl_err);
+    if (!cl_err) *incontext = clCreateContext(NULL, NUM_DEVICES, devices, NULL, NULL, &cl_err);
     if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
     // And also a command queue for the context
     for (i=0;i<num_allowed_devices;i++){
@@ -261,15 +261,15 @@ cl_int connect_allgpus(struct varcl ** vcl, cl_context *incontext, cl_device_typ
     
 }
 
-cl_int get_device_num(cl_uint * num_devices){
+cl_int get_device_num(cl_uint * NUM_DEVICES){
     
     // Find the GPU CL device
     // If there is no GPU device is CL capable, fall back to CPU
     cl_int cl_err = 0;
-    cl_err = clGetDeviceIDs(NULL, CL_DEVICE_TYPE_GPU, 0, NULL, num_devices);
+    cl_err = clGetDeviceIDs(NULL, CL_DEVICE_TYPE_GPU, 0, NULL, NUM_DEVICES);
     if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
-    if (*num_devices==0){
-        cl_err = clGetDeviceIDs(NULL, CL_DEVICE_TYPE_CPU, 0, NULL, num_devices);
+    if (*NUM_DEVICES==0){
+        cl_err = clGetDeviceIDs(NULL, CL_DEVICE_TYPE_CPU, 0, NULL, NUM_DEVICES);
         if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
     }
     return cl_err;
@@ -335,11 +335,11 @@ cl_int create_gpu_kernel_from_string(const char *program_source, cl_program *pro
         *program = clCreateProgramWithSource(*context, 1, &program_source,NULL, &cl_err);
         if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
         
-        cl_err = clBuildProgram(program[0], 0, NULL, build_options, NULL, NULL);
+        cl_err = clBuildProgram(*program, 0, NULL, build_options, NULL, NULL);
         if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
     }
     // Now create the kernel "objects"
-    *kernel = clCreateKernel(program[0], program_name, &cl_err);
+    *kernel = clCreateKernel(*program, program_name, &cl_err);
     if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
     
     
@@ -420,11 +420,11 @@ cl_int create_gpu_subbuffer(cl_mem *var_mem, cl_mem *sub_mem, cl_buffer_region *
     
 }
 
-cl_int launch_gpu_kernel( cl_command_queue *inqueue, cl_kernel *kernel, int ndim, size_t global_work_size[2], size_t local_work_size[2], int numevent, cl_event * waitlist, cl_event * eventout){
+cl_int launch_gpu_kernel( cl_command_queue *inqueue, cl_kernel *kernel, int NDIM, size_t global_work_size[2], size_t local_work_size[2], int numevent, cl_event * waitlist, cl_event * eventout){
     
     /*Launch a kernel a check for errors */
     cl_int cl_err = 0;
-    cl_err = clEnqueueNDRangeKernel(*inqueue, *kernel, ndim, NULL, global_work_size, local_work_size, numevent, waitlist, eventout);
+    cl_err = clEnqueueNDRangeKernel(*inqueue, *kernel, NDIM, NULL, global_work_size, local_work_size, numevent, waitlist, eventout);
     if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
     
     return cl_err;

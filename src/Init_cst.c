@@ -20,7 +20,7 @@
 #include "F.h"
 
 
-int CPML_coeff(float NPOWER, float k_max_CPML, float FPML, float VPPML, float dh, float dt, int nab, float * K_i, float * b_i, float * a_i, float * K_i_half, float * b_i_half, float * a_i_half)
+int CPML_coeff(float NPOWER, float k_max_CPML, float FPML, float VPPML, float dh, float dt, int NAB, float * K_i, float * b_i, float * a_i, float * K_i_half, float * b_i_half, float * a_i_half)
 {
     /*------------------------------------------------------------------------
      * Copyright (C) 2016 For the list of authors, see file AUTHORS.
@@ -143,27 +143,27 @@ int CPML_coeff(float NPOWER, float k_max_CPML, float FPML, float VPPML, float dh
     float d0_i, position_norm, position_in_PML;
     
     
-    d_i = malloc(sizeof(float)*2*nab);
-    d_i_half = malloc(sizeof(float)*2*nab);
+    d_i = malloc(sizeof(float)*2*NAB);
+    d_i_half = malloc(sizeof(float)*2*NAB);
     
-    alpha_prime_i = malloc(sizeof(float)*2*nab);
-    alpha_prime_i_half = malloc(sizeof(float)*2*nab);
+    alpha_prime_i = malloc(sizeof(float)*2*NAB);
+    alpha_prime_i_half = malloc(sizeof(float)*2*NAB);
     
     
     
     /* compute d0 from INRIA report section 6.1 */
-    d0_i = - (npower + 1) * VPPML * log(Rcoef) / (2.0 * nab*dh);
+    d0_i = - (npower + 1) * VPPML * log(Rcoef) / (2.0 * NAB*dh);
     
     /* damping in the X direction */
     /* -------------------------- */
     
-   	for (i=0;i<=nab;i++){
+   	for (i=0;i<=NAB;i++){
         
         K_i[i] = 1.0;
         
         /* define damping profile at the grid points */
-        position_in_PML = (nab-i)*dh; /*distance to boundary in meter */
-        position_norm = position_in_PML / (nab*dh); /*normalised by PML thickness*/
+        position_in_PML = (NAB-i)*dh; /*distance to boundary in meter */
+        position_norm = position_in_PML / (NAB*dh); /*normalised by PML thickness*/
         
         d_i[i] = d0_i *(a*position_norm+b*pow(position_norm,npower)+c*pow(position_norm,(4)));
         
@@ -179,11 +179,11 @@ int CPML_coeff(float NPOWER, float k_max_CPML, float FPML, float VPPML, float dh
         if(fabsf(d_i[i]) > 1.0e-6){ a_i[i] = d_i[i] * (b_i[i] - 1.0) / (K_i[i] * (d_i[i] + K_i[i] * alpha_prime_i[i]));}
         else a_i[i]=0.0;
         
-        if(i<=nab-1){
+        if(i<=NAB-1){
             
             /* define damping profile at half the grid points (half a grid point in -x)*/
-            position_in_PML = (nab-i+0.5-1.0) *dh;
-            position_norm = position_in_PML / (nab*dh);
+            position_in_PML = (NAB-i+0.5-1.0) *dh;
+            position_norm = position_in_PML / (NAB*dh);
             
             i1=i;
             
@@ -205,7 +205,7 @@ int CPML_coeff(float NPOWER, float k_max_CPML, float FPML, float VPPML, float dh
             
             /* right boundary --> mirroring left boundary*/
             
-            l = 2* nab -i-1;
+            l = 2* NAB -i-1;
             
             if(i>0){
                 K_i[l+1]=K_i[i];
@@ -325,7 +325,7 @@ int holbergcoeff(struct modcsts *inm) {
     }
     
     for (i=0; i<=6; i++) {
-        (*inm).hc[i] = hcall[(*inm).MAXRELERROR][(*inm).fdoh-1][i];
+        (*inm).hc[i] = hcall[(*inm).MAXRELERROR][(*inm).FDOH-1][i];
         //fprintf(stderr,"hc[%i]= %5.5f \n ",i,hc[i]);
     }
     
@@ -350,22 +350,22 @@ int Init_cst(struct modcsts * m) {
     
     //Create the taper zone for absorbing boundary
     float * taper= m->csts[0].gl_cst;
-    if (m->abs_type==2){
+    if (m->ABS_TYPE==2){
         float amp=1-m->abpc/100;
-        float a=sqrt(-log(amp)/((m->nab-1)*(m->nab-1)));
-        for (i=1; i<=m->nab; i++) {
-            taper[i-1]=exp(-(a*a*(m->nab-i)*(m->nab-i)));
+        float a=sqrt(-log(amp)/((m->NAB-1)*(m->NAB-1)));
+        for (i=1; i<=m->NAB; i++) {
+            taper[i-1]=exp(-(a*a*(m->NAB-i)*(m->NAB-i)));
         }
     }
-    else if (m->abs_type==1){
-        for (i=0;i<m->numdim;i++){
+    else if (m->ABS_TYPE==1){
+        for (i=0;i<m->NDIM;i++){
             K_i=m->csts[1+i*6].gl_cst;
             a_i=m->csts[2+i*6].gl_cst;
             b_i=m->csts[3+i*6].gl_cst;
             K_i_half=m->csts[4+i*6].gl_cst;
             a_i_half=m->csts[5+i*6].gl_cst;
             b_i_half=m->csts[6+i*6].gl_cst;
-            CPML_coeff(m->NPOWER, m->K_MAX_CPML, m->FPML, m->VPPML, m->dh, m->dt, m->nab, K_i, b_i, a_i, K_i_half, b_i_half, a_i_half);
+            CPML_coeff(m->NPOWER, m->K_MAX_CPML, m->FPML, m->VPPML, m->dh, m->dt, m->NAB, K_i, b_i, a_i, K_i_half, b_i_half, a_i_half);
         }
     }
     
@@ -379,19 +379,19 @@ int Init_cst(struct modcsts * m) {
     }
     
     //Initialize the gradient
-    if (m->gradout==1 && m->back_prop_type==2){
+    if (m->GRADOUT==1 && m->BACK_PROP_TYPE==2){
         float * gradfreqs = m->csts[21].gl_cst;
         float * gradfreqsn = m->csts[22].gl_cst;
         float fmaxout=0;
-        for (j=0;j<m->nfreqs;j++){
+        for (j=0;j<m->NFREQS;j++){
             if (gradfreqs[j]>fmaxout)
                 fmaxout=gradfreqs[j];
         }
         float df;
-        m->dtnyq=ceil(0.0156/fmaxout/m->dt);
-        m->NTnyq=(m->tmax-m->tmin)/m->dtnyq+1;
-        df=1.0/m->NTnyq/m->dt/m->dtnyq;
-        for (j=0;j<m->nfreqs;j++){
+        m->DTNYQ=ceil(0.0156/fmaxout/m->dt);
+        m->NTNYQ=(m->tmax-m->tmin)/m->DTNYQ+1;
+        df=1.0/m->NTNYQ/m->dt/m->DTNYQ;
+        for (j=0;j<m->NFREQS;j++){
            gradfreqsn[j]=floor(gradfreqs[j]/df);
         }
     }

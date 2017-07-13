@@ -22,140 +22,109 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
 
     int state=0;
     int dimbool;
-    int i,j,s,d;
-    int nsmax=0;
-    int ngmax=0;
-    int paramsize;
-    int fdsize;
-    size_t buffer_size_s=0;
-    size_t buffer_size_ns=0;
-    size_t buffer_size_ng=0;
-    size_t buffer_size_taper=0;
-    size_t buffer_size_seisout=0;
-    size_t buffer_size_L=0;
-    size_t thissize=0;
+    int i,j,d;
+    int paramsize=0;
+    int fdsize=0;
+    int slicesize=0;
+    int slicesizefd=0;
     cl_platform_id sel_plat_id=0;
-    
     cl_device_id device=0;
-    cl_ulong global_mem_size=0;
     cl_ulong local_mem_size=0;
     cl_ulong required_local_mem_size=0;
-    int required_work_size;
+    int required_work_size=0;
     size_t workitem_size[MAX_DIMS];
     size_t workgroup_size=0;
     int lsize[MAX_DIMS];
-    int lcomm=0;
+    int gsize[MAX_DIMS];
+    int gsize_comm1[MAX_DIMS];
+    int gsize_comm2[MAX_DIMS];
+    int gsize_fillcomm[MAX_DIMS];
+    int LCOMM=0;
     int offcomm1=0;
     int offcomm2=0;
     
     // Find a platform where the prefered device type can be found
-    __GUARD GetPlatformID( &m->pref_device_type, &m->device_type, &sel_plat_id, &m->num_devices, m->n_no_use_GPUs, m->no_use_GPUs);
-    if (m->num_devices>m->nmax_dev)
-        m->num_devices=m->nmax_dev;
+    __GUARD GetPlatformID( &m->pref_device_type, &m->device_type, &sel_plat_id,
+                           &m->NUM_DEVICES, m->n_no_use_GPUs, m->no_use_GPUs);
+    if (m->NUM_DEVICES>m->nmax_dev)
+        m->NUM_DEVICES=m->nmax_dev;
 
     //For each GPU, allocate the memory structures
-    GMALLOC((*vcl),sizeof(struct varcl)*m->num_devices)
-    if (!state) memset ((void*)(*vcl), 0, sizeof(struct varcl)*m->num_devices);
- 
+    GMALLOC((*vcl),sizeof(struct varcl)*m->NUM_DEVICES);
+
     //Connect all GPUs
-    __GUARD connect_allgpus( vcl, &m->context, &m->device_type, &sel_plat_id, m->n_no_use_GPUs, m->no_use_GPUs,m->nmax_dev);
+    __GUARD connect_allgpus(vcl, &m->context, &m->device_type, &sel_plat_id,
+                            m->n_no_use_GPUs, m->no_use_GPUs,m->nmax_dev);
     
     
     //For each device, create the memory buffers and programs on the GPU
-    for (d=0; d<m->num_devices; d++) {
+    for (d=0; d<m->NUM_DEVICES; d++) {
         
-        //The domain of the seismic simulation is decomposed between the devices
-        //along the X direction.
+
+        /* The domain of the FD simulation is decomposed between the devices and
+        *  MPI processes along the X direction. We must compute the subdomain 
+        *  size, and its location in the domain*/
         if (!state){
-            (*vcl)[d].dev=d;
-            for (i=0;i<m->numdim-1;i++){
+            (*vcl)[d].DEV=d;
+            //Only the last dimensions changes due to domain decomposition
+            for (i=0;i<m->NDIM-1;i++){
                 (*vcl)[d].N[i]=m->N[i];
             }
-
-            if (m->MYLOCALID<m->N[m->numdim-1]%m->NLOCALP){
-                (*vcl)[d].N[m->numdim-1]=m->N[m->numdim-1]/m->NLOCALP+1;
-                m->NXP=m->N[m->numdim-1]/m->NLOCALP+1;
+            //We first decompose between MPI processess
+            if (m->MYLOCALID<m->N[m->NDIM-1]%m->NLOCALP){
+                (*vcl)[d].N[m->NDIM-1]=m->N[m->NDIM-1]/m->NLOCALP+1;
+                m->NXP=m->N[m->NDIM-1]/m->NLOCALP+1;
             }
             else{
-                (*vcl)[d].N[m->numdim-1]=m->N[m->numdim-1]/m->NLOCALP;
-                m->NXP=m->N[m->numdim-1]/m->NLOCALP;
+                (*vcl)[d].N[m->NDIM-1]=m->N[m->NDIM-1]/m->NLOCALP;
+                m->NXP=m->N[m->NDIM-1]/m->NLOCALP;
             }
-            if (d<(*vcl)[d].N[m->numdim-1]%m->num_devices)
-                (*vcl)[d].N[m->numdim-1]= (*vcl)[d].N[m->numdim-1]/m->num_devices+1;
+            //Then decompose between devices
+            if (d<(*vcl)[d].N[m->NDIM-1]%m->NUM_DEVICES)
+                (*vcl)[d].N[m->NDIM-1]= (*vcl)[d].N[m->NDIM-1]/m->NUM_DEVICES+1;
             else
-                (*vcl)[d].N[m->numdim-1]= (*vcl)[d].N[m->numdim-1]/m->num_devices;
+                (*vcl)[d].N[m->NDIM-1]= (*vcl)[d].N[m->NDIM-1]/m->NUM_DEVICES;
 
-            (*vcl)[d].offset=0;
+            (*vcl)[d].OFFSET=0;
             (*vcl)[d].NX0=0;
-            (*vcl)[d].offsetfd=0;
-            int sizedims=1;
-            int sizedimsfd=1;
-            for (i=0;i<m->numdim-1;i++){
-                sizedims*=m->N[i];
-                sizedimsfd*=m->N[i];
-            }
-            
-            for (i=0;i<m->MYLOCALID;i++){
-                if (i<m->N[m->numdim-1]%m->NLOCALP){
-                    (*vcl)[d].offset+=(m->N[m->numdim-1]/m->NLOCALP+1)*sizedims;
-                    (*vcl)[d].NX0+=(m->N[m->numdim-1]/m->NLOCALP+1);
-                }
-                else{
-                    (*vcl)[d].offset+=(m->N[m->numdim-1]/m->NLOCALP)*sizedims;
-                    (*vcl)[d].NX0+=(m->N[m->numdim-1]/m->NLOCALP);
-                }
-                
-            }
+            (*vcl)[d].OFFSETfd=0;
 
-            for (i=0;i<d;i++){
-                (*vcl)[d].NX0+=(*vcl)[i].N[m->numdim-1];
-                (*vcl)[d].offset+=(*vcl)[i].N[m->numdim-1]*sizedims;
-                (*vcl)[d].offsetfd+=((*vcl)[i].N[m->numdim-1]+m->FDORDER)*sizedimsfd;
-            }
-        }
-
-        // Create a pointer at the right position (offset) of the decomposed model
-        // and assign memory buffers on the host side for each device
-        if (!state){
+            //Some useful sizes can now be computed for this device
             paramsize=1;
             fdsize=1;
-            for (i=0;i<m->numdim;i++){
+            slicesize=1;
+            slicesizefd=1;
+            for (i=0;i<m->NDIM;i++){
                 fdsize*=(*vcl)[d].N[i]+m->FDORDER;
                 paramsize*=(*vcl)[d].N[i];
             }
-            
-            for (i=0;i<m->nparams;i++){
-                (*vcl)[d].params[i].gl_param=&m->params[i].gl_param[(*vcl)[d].offset];
-                (*vcl)[d].params[i].num_ele=paramsize;
-                if (m->params[i].to_grad){
-                    (*vcl)[d].params[i].gl_grad=&m->params[i].gl_grad[(*vcl)[d].offset];
-                    if (m->params[i].gl_H)
-                        (*vcl)[d].params[i].gl_H=&m->params[i].gl_H[(*vcl)[d].offset];
-                }
-            }
-            for (i=0;i<m->nvars;i++){
-                (*vcl)[d].vars[i].num_ele=fdsize;
-                if ((*vcl)[d].vars[i].to_output){
-                    alloc_seismo(&(*vcl)[d].vars[i].de_varout, m->ns, m->allng, m->NT, m->src_recs.nrec);
-                }
-                if (m->movout){
-                    if (m->vars[i].to_output){
-                        (*vcl)[d].vars[i].gl_mov=&m->vars[i].gl_mov[(*vcl)[d].offset];
-                        GMALLOC((*vcl)[d].vars[i].de_mov,(*vcl)[d].vars[i].num_ele*sizeof(cl_float));
-                    }
-                }
-                if (m->back_prop_type==2){
-                    GMALLOC( (*vcl)[d].vars[i].de_fvar, m->nfreqs*(*vcl)[d].vars[i].num_ele*sizeof(cl_float2));
-                }
-                
-                
-                
+            for (i=0;i<m->NDIM-1;i++){
+                slicesizefd*=(*vcl)[d].N[i]+m->FDORDER;
+                slicesize*=(*vcl)[d].N[i];
             }
             
-
+            //Offset is the location in the model for this device from address 0
+            // NX0 is the x location of the first element for this device
+            for (i=0;i<m->MYLOCALID;i++){
+                if (i<m->N[m->NDIM-1]%m->NLOCALP){
+                    (*vcl)[d].OFFSET+=(m->N[m->NDIM-1]/m->NLOCALP+1)*slicesize;
+                    (*vcl)[d].NX0+=(m->N[m->NDIM-1]/m->NLOCALP+1);
+                }
+                else{
+                    (*vcl)[d].OFFSET+=(m->N[m->NDIM-1]/m->NLOCALP)*slicesize;
+                    (*vcl)[d].NX0+=(m->N[m->NDIM-1]/m->NLOCALP);
+                }
+                
+            }
+            for (i=0;i<d;i++){
+                (*vcl)[d].NX0+=(*vcl)[i].N[m->NDIM-1];
+                (*vcl)[d].OFFSET+=(*vcl)[i].N[m->NDIM-1]*slicesize;
+                (*vcl)[d].OFFSETfd+=((*vcl)[i].N[m->NDIM-1]+m->FDORDER)*slicesizefd;
+            }
+            
         }
 
-        // Get some properties of the device
+        // Get some properties of the device, to define the work sizes
         {
             __GUARD clGetCommandQueueInfo(	(*vcl)[d].cmd_queue, CL_QUEUE_DEVICE, sizeof(cl_device_id), &device, NULL);
             __GUARD clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(workitem_size), &workitem_size, NULL);
@@ -167,45 +136,52 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
             if (!state && m->pref_device_type==CL_DEVICE_TYPE_CPU) workgroup_size= workgroup_size>1024 ? 1024:workgroup_size;
             if (!state && m->pref_device_type==CL_DEVICE_TYPE_ACCELERATOR) workgroup_size= workgroup_size>1024 ? 1024:workgroup_size;
         }
-        // Define the local work size and global work size for the update kernels.
+        
+        // Define the local work size of the update kernels.
+        //By default, it is 32 elements long to have coalesced memory in cuda
+        //Local memory usage must fit with the size of local memory of the device
         if (!state){
             dimbool=0;
-            for (i=0;i<m->numdim;i++){
+            for (i=0;i<m->NDIM;i++){
                 if (workitem_size[i]<2)
                     dimbool=1;
             }
             if (workitem_size[0]<m->FDORDER || dimbool){
                 fprintf(stdout,"Maximum device work item size of device %d doesn't support 3D local memory\n", d);
                 fprintf(stdout,"Switching off local memory optimization\n");
-                (*vcl)[d].local_off = 1;
+                (*vcl)[d].LOCAL_OFF = 1;
                 
             }
             else {
 
                 lsize[0]=32;
-                for (i=1;i<m->numdim;i++){
+                for (i=1;i<m->NDIM;i++){
                     lsize[i]=16;
                 }
                 required_local_mem_size =sizeof(float);
-                for (i=0;i<m->numdim;i++){
+                for (i=0;i<m->NDIM;i++){
                     required_local_mem_size *= (lsize[i]+m->FDORDER);
                 }
-                while ( (lsize[1]>(m->FDORDER)/2 &&  required_local_mem_size>local_mem_size) || required_work_size>workgroup_size ){
+                while ( (lsize[1]>(m->FDORDER)/2
+                         &&  required_local_mem_size>local_mem_size)
+                         || required_work_size>workgroup_size ){
                     required_local_mem_size =sizeof(float);
                     required_work_size=1;
-                    for (i=0;i<m->numdim;i++){
+                    for (i=0;i<m->NDIM;i++){
                         if (i>0)
                             lsize[i]-=2;
                         required_local_mem_size *= (lsize[i]+m->FDORDER);
                         required_work_size*=lsize[i];
                     }
                 }
-                for (j=0;j<m->numdim;j++){
+                for (j=0;j<m->NDIM;j++){
                     if (required_local_mem_size>local_mem_size){
-                        while ( (lsize[j]>(m->FDORDER)/4 &&  required_local_mem_size>local_mem_size) || required_work_size>workgroup_size ){
+                        while ( (lsize[j]>(m->FDORDER)/4
+                                 &&  required_local_mem_size>local_mem_size)
+                                 || required_work_size>workgroup_size ){
                             required_local_mem_size =sizeof(float);
                             required_work_size=1;
-                            for (i=0;i<m->numdim;i++){
+                            for (i=0;i<m->NDIM;i++){
                                 lsize[j]-=2;
                                 required_local_mem_size *= (lsize[i]+m->FDORDER);
                                 required_work_size*=lsize[i];
@@ -214,766 +190,534 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
                     }
                 }
                 
+                //Check if too many GPUS are used in the domain decomposition
+                if  ((*vcl)[d].N[m->NDIM-1]<3*lsize[m->NDIM-1]){
+                    (*vcl)[d].LOCAL_OFF = 1;
+                    fprintf(stderr,"Too many GPUs for domain decompositon, Switching off local memory optimization\n");
+                }
+                //Check if the local memory is big enough, else turn off local memory usage
                 if (required_local_mem_size>local_mem_size){
                     fprintf(stderr,"Local memory needed to perform seismic modeling (%llu bits) exceeds the local memory capacity of device %d (%llu bits)\n", required_local_mem_size, d, local_mem_size );
                     fprintf(stderr,"Switching off local memory optimization\n");
-                    (*vcl)[d].local_off = 1;
+                    (*vcl)[d].LOCAL_OFF = 1;
                 }
                 
             }
 
-
+            if ((*vcl)[d].LOCAL_OFF==1)
+                lsize[0] = 1;
             
 
         }
+        
+        // Define the global work size of the update kernels.
+        // To overlap computations and communications, we have 3 kernels:
+        // One for the interior (no communications) and 2 for the front and back boundaries in x
+        // We define here de sizes of those region (offcomm1, offcomm2)
         if (!state){
-
-            /* Global sizes for the kernels */
-            if ((*mloc)[d].local_off==1){
-                (*mloc)[d].local_work_size[0] = 1;
-                
-                lcomm=0;
+            if ((*vcl)[d].LOCAL_OFF==1){
+                // If we turn off local memory usage, we only use a work size with one dimension.
+                LCOMM=0;
                 offcomm1=0;
                 offcomm2=0;
                 if (d>0 || m->MYLOCALID>0){
-                    (*mloc)[d].global_work_sizecomm1[0] = (*mloc)[d].NY*m->fdoh*(*mloc)[d].NZ;
-                    lcomm+=m->fdoh;
-                    offcomm1=m->fdoh;
+                    gsize_comm1[0] = slicesize*m->FDOH;
+                    LCOMM+=m->FDOH;
+                    offcomm1=m->FDOH;
                     
                 }
-                if (d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-                    (*mloc)[d].global_work_sizecomm2[0] = (*mloc)[d].NY*m->fdoh*(*mloc)[d].NZ;
-                    lcomm+=m->fdoh;
-                    offcomm2=(*mloc)[d].NX-m->fdoh;
+                if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
+                    gsize_comm2[0] = slicesize*m->FDOH;
+                    LCOMM+=m->FDOH;
+                    offcomm2=(*vcl)[d].N[m->NDIM-1]-m->FDOH;
                 }
-                if (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-                    (*mloc)[d].global_work_size_fillcomm[0] = (*mloc)[d].NY*m->fdoh*(*mloc)[d].NZ;
+                if (d>0 || m->MYLOCALID>0 || d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
+                    gsize_fillcomm[0] = slicesize*m->FDOH;
                 }
                 
-                (*mloc)[d].global_work_size[0] = ((*mloc)[d].NX-lcomm)*(*mloc)[d].NY*(*mloc)[d].NZ;
+                gsize[0] = ((*vcl)[d].N[m->NDIM-1]-LCOMM)*slicesize;
                 
-                (*vcl)[d].numdim=1;
+                (*vcl)[d].NDIM=1;
                 
             }
             else{
-                //Check if too many GPUS are used in the domain decomposition
-                if  ((*mloc)[d].NX<3*(*mloc)[d].local_work_size[1]){
-                    state=1;
-                    fprintf(stderr,"Too many GPUs for domain decompositon\n");
-                }
-                
-                
-                //Global work size must be a multiple of local work size
-                if (m->ND==3){// For 3D
-                    
-                    (*mloc)[d].global_work_size[0] = (*mloc)[d].NZ
-                    + ((*mloc)[d].local_work_size[0]-(*mloc)[d].NZ%(*mloc)[d].local_work_size[0])%(*mloc)[d].local_work_size[0];
-                    (*mloc)[d].global_work_size[1] = (*mloc)[d].NY
-                    + ((*mloc)[d].local_work_size[1]-(*mloc)[d].NY%(*mloc)[d].local_work_size[1])%(*mloc)[d].local_work_size[1];
-                    
-                    lcomm=0;
-                    offcomm1=0;
-                    offcomm2=0;
-                    if (d>0 || m->MYLOCALID>0){
-                        (*mloc)[d].global_work_sizecomm1[0] = (*mloc)[d].global_work_size[0];
-                        (*mloc)[d].global_work_sizecomm1[1] = (*mloc)[d].global_work_size[1];
-                        (*mloc)[d].global_work_sizecomm1[2] = (*mloc)[d].local_work_size[2];
-                        lcomm+=(*mloc)[d].local_work_size[2];
-                        offcomm1=(int)(*mloc)[d].local_work_size[2];
-                        
-                    }
-                    if (d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-                        (*mloc)[d].global_work_sizecomm2[0] = (*mloc)[d].global_work_size[0];
-                        (*mloc)[d].global_work_sizecomm2[1] = (*mloc)[d].global_work_size[1];
-                        (*mloc)[d].global_work_sizecomm2[2] = (*mloc)[d].local_work_size[2];
-                        lcomm+=(*mloc)[d].local_work_size[2];
-                        offcomm2=(*mloc)[d].NX-(int)(*mloc)[d].local_work_size[2];
-                    }
-                    if (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-                        (*mloc)[d].global_work_size_fillcomm[0] = (*mloc)[d].NZ;
-                        (*mloc)[d].global_work_size_fillcomm[1] = (*mloc)[d].NY;
-                        (*mloc)[d].global_work_size_fillcomm[2] = m->fdoh;
-                    }
-                    
-                    
-                    (*mloc)[d].global_work_size[2] = (*mloc)[d].NX-lcomm
-                    + ((*mloc)[d].local_work_size[2]-((*mloc)[d].NX-lcomm)%(*mloc)[d].local_work_size[2])%(*mloc)[d].local_work_size[2];
-                    
-                    (*vcl)[d].numdim=3;
-                    
-                }
-                else{
-                    (*mloc)[d].global_work_size[0] = (*mloc)[d].NZ
-                    + ((*mloc)[d].local_work_size[0]-(*mloc)[d].NZ%(*mloc)[d].local_work_size[0])%(*mloc)[d].local_work_size[0];
-                    
-                    lcomm=0;
-                    offcomm1=0;
-                    offcomm2=0;
-                    if (d>0 || m->MYLOCALID>0){
-                        (*mloc)[d].global_work_sizecomm1[0] = (*mloc)[d].global_work_size[0];
-                        (*mloc)[d].global_work_sizecomm1[1] = (*mloc)[d].local_work_size[1];
-                        lcomm+=(*mloc)[d].local_work_size[1];
-                        offcomm1=(int)(*mloc)[d].local_work_size[1];
-                    }
-                    if (d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-                        (*mloc)[d].global_work_sizecomm2[0] = (*mloc)[d].global_work_size[0];
-                        (*mloc)[d].global_work_sizecomm2[1] = (*mloc)[d].local_work_size[1];
-                        lcomm+=(*mloc)[d].local_work_size[1];
-                        offcomm2=(*mloc)[d].NX-(int)(*mloc)[d].local_work_size[1];
-                    }
-                    if (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-                        (*mloc)[d].global_work_size_fillcomm[0] = (*mloc)[d].NZ;
-                        (*mloc)[d].global_work_size_fillcomm[1] = m->fdoh;
-                    }
-                    
-                    (*mloc)[d].global_work_size[1] = (*mloc)[d].NX-lcomm
-                    + ((*mloc)[d].local_work_size[1]-((*mloc)[d].NX-lcomm)%(*mloc)[d].local_work_size[1])%(*mloc)[d].local_work_size[1];
-                    
-                    (*vcl)[d].numdim=2;
-                    
-                }
-            }
-            
 
+                //When using local work sizes in Opecn, global work size must be a multiple of local work size
+                for (i=0;i<m->NDIM-1;i++){
+                    gsize[i]=(*vcl)[d].N[i]+ (lsize[i]-(*vcl)[d].N[i]%lsize[i])%lsize[i];
+                }
+                LCOMM=0;
+                offcomm1=0;
+                offcomm2=0;
+                if (d>0 || m->MYLOCALID>0){
+                    for (i=0;i<m->NDIM-1;i++){
+                        gsize_comm1[i] = gsize[i];
+                    }
+                    gsize_comm1[m->NDIM-1] = lsize[m->NDIM-1];
+                    LCOMM+=lsize[m->NDIM-1];
+                    offcomm1=(int)lsize[m->NDIM-1];
+                    
+                }
+                if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
+                    for (i=0;i<m->NDIM-1;i++){
+                        gsize_comm2[i] = gsize[i];
+                    }
+                    gsize_comm2[m->NDIM-1] = lsize[m->NDIM-1];
+                    LCOMM+=lsize[m->NDIM-1];
+                    offcomm2=(*vcl)[d].N[m->NDIM-1]-(int)lsize[m->NDIM-1];
+                }
+                if (d>0 || m->MYLOCALID>0 || d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
+                    for (i=0;i<m->NDIM-1;i++){
+                        gsize_fillcomm[i] = (*vcl)[d].N[i];
+                    }
+                    gsize_fillcomm[m->NDIM-1] = m->FDOH;
+                    
+                }
+
+                gsize[m->NDIM-1] = (*vcl)[d].N[m->NDIM-1]-LCOMM
+                +(lsize[m->NDIM-1]-((*vcl)[d].N[m->NDIM-1]-LCOMM)%lsize[m->NDIM-1])%lsize[m->NDIM-1];
+                
+                (*vcl)[d].NDIM=m->NDIM;
+
+            }
         }
         
-        GMALLOC((*vcl)[d].updates_f, m->nupdates*sizeof(struct update))
-        for (i=0;i<m->nupdates;i++){
-            (*vcl)[d].updates_f[i].name=m->update_names[i];
-        }
-        if (m->gradout){
-            GMALLOC((*vcl)[d].updates_adj, m->nupdates*sizeof(struct update))
+        //Create the required updates struct and assign the working size
+        {
+            //Struct for the forward modeling
+            GMALLOC((*vcl)[d].updates_f, m->nupdates*sizeof(struct update));
             for (i=0;i<m->nupdates;i++){
-                (*vcl)[d].updates_adj[i].name=m->update_names[i];
+                (*vcl)[d].updates_f[i]=m->updates_f[i];
             }
-        }
-        (*vcl)[d].local_work_size[0] = lsizez;
-        (*mloc)[d].local_work_size[1] = lsizex;
-        (*mloc)[d].local_work_size[2] = lsizey;
-        if ((*mloc)[d].local_off==1)
-            (*mloc)[d].local_work_size[0] = 1;
-        
-        
-        // Calculate the dimension of the buffers needed to transfer memory from/to the GPU
-        if (!state){
-            
-            if (m->ND==3){// For 3D
-                (*vcl)[d].buffer_size_fd    = sizeof(float)
-                * ((*mloc)[d].NX+m->FDORDER)
-                * ((*mloc)[d].NY+m->FDORDER)
-                * ((*mloc)[d].NZ+m->FDORDER);
-            }
-            else{// For 2D
-                (*vcl)[d].buffer_size_fd    = sizeof(float)
-                * ((*mloc)[d].NX+m->FDORDER)
-                * ((*mloc)[d].NZ+m->FDORDER);
-            }
-
-            (*vcl)[d].buffer_size_model = sizeof(float) * (*mloc)[d].NX * (*mloc)[d].NY * (*mloc)[d].NZ;
-            if (m->ND==3){
-                (*vcl)[d].buffer_size_modelc = sizeof(cl_float2)*( (*mloc)[d].NX+m->FDORDER ) *( (*mloc)[d].NY+m->FDORDER )*( (*mloc)[d].NZ+m->FDORDER )* m->nfreqs;
-            }
-            else{
-                (*vcl)[d].buffer_size_modelc = sizeof(cl_float2)*( (*mloc)[d].NX+m->FDORDER )*( (*mloc)[d].NZ+m->FDORDER )* m->nfreqs;
-            }
-
-            for (i=0;i<m->ns; i++){
-                nsmax = fmax(nsmax, m->nsrc[i]);
-                ngmax = fmax(ngmax, m->nrec[i]);
-            }
-            buffer_size_s        = sizeof(float) * m->NT * nsmax;
-            buffer_size_ns       = sizeof(float) * 5 * nsmax;
-            buffer_size_ng       = sizeof(float) * 8 * ngmax;
-            buffer_size_taper    = sizeof(float) * m->nab;
-            buffer_size_seisout     = sizeof(float) * m->NT * ngmax;
-            buffer_size_L        = sizeof(float) * m->L;
-            m->buffer_size_comm     = sizeof(float) * m->fdoh*(*mloc)[d].NY*(*mloc)[d].NZ;
-            
-            if (m->abs_type==1){
-                (*vcl)[d].buffer_size_CPML_NX=sizeof(float) * 2*m->nab * (*mloc)[d].NY * (*mloc)[d].NZ;
-                if (m->ND==3){// For 3D
-                    (*vcl)[d].buffer_size_CPML_NY=sizeof(float) * 2*m->nab * (*mloc)[d].NX * (*mloc)[d].NZ;
+            for (i=0;i<m->nupdates;i++){
+                for (j=0;j<(*vcl)[d].NDIM;j++){
+                    (*vcl)[d].updates_f[i].center.gsize[j]=gsize[j];
+                    (*vcl)[d].updates_f[i].center.lsize[j]=lsize[j];
+                    (*vcl)[d].updates_f[i].comm1.gsize[j]=gsize_comm1[j];
+                    (*vcl)[d].updates_f[i].comm1.lsize[j]=lsize[j];
+                    (*vcl)[d].updates_f[i].comm2.gsize[j]=gsize_comm2[j];
+                    (*vcl)[d].updates_f[i].comm1.lsize[j]=lsize[j];
+                    (*vcl)[d].updates_f[i].fill_buff1_in.gsize[j]=gsize_fillcomm[j];
+                    (*vcl)[d].updates_f[i].fill_buff2_in.gsize[j]=gsize_fillcomm[j];
+                    (*vcl)[d].updates_f[i].fill_buff1_out.gsize[j]=gsize_fillcomm[j];
+                    (*vcl)[d].updates_f[i].fill_buff2_out.gsize[j]=gsize_fillcomm[j];
                 }
-                (*vcl)[d].buffer_size_CPML_NZ=sizeof(float) * 2*m->nab * (*mloc)[d].NY * (*mloc)[d].NX;
+            }
+            //Struct for the adjoint modeling
+            if (m->GRADOUT){
+                GMALLOC((*vcl)[d].updates_adj, m->nupdates*sizeof(struct update));
+                for (i=0;i<m->nupdates;i++){
+                    (*vcl)[d].updates_adj[i]=m->updates_adj[i];
+                }
+                for (i=0;i<m->nupdates;i++){
+                    for (j=0;j<(*vcl)[d].NDIM;j++){
+                        (*vcl)[d].updates_adj[i].center.gsize[j]=gsize[j];
+                        (*vcl)[d].updates_adj[i].center.lsize[j]=lsize[j];
+                        (*vcl)[d].updates_adj[i].comm1.gsize[j]=gsize_comm1[j];
+                        (*vcl)[d].updates_adj[i].comm1.lsize[j]=lsize[j];
+                        (*vcl)[d].updates_adj[i].comm2.gsize[j]=gsize_comm2[j];
+                        (*vcl)[d].updates_adj[i].comm1.lsize[j]=lsize[j];
+                        (*vcl)[d].updates_adj[i].fill_buff1_in.gsize[j]=gsize_fillcomm[j];
+                        (*vcl)[d].updates_adj[i].fill_buff2_in.gsize[j]=gsize_fillcomm[j];
+                        (*vcl)[d].updates_adj[i].fill_buff1_out.gsize[j]=gsize_fillcomm[j];
+                        (*vcl)[d].updates_adj[i].fill_buff2_out.gsize[j]=gsize_fillcomm[j];
+                    }
+                }
+            }
+        }
+
+        //Allocate the parameter structure for this device, create OpenCL buffers, transfer to device
+        {
+            GMALLOC((*vcl)[d].params, sizeof(struct parameter)*m->nparams);
+
+            // Create a pointer at the right position (OFFSET) of the decomposed model
+            // and assign memory buffers on the host side for each device
+            if (!state){
+                for (i=0;i<m->nparams;i++){
+                    (*vcl)[d].params[i].gl_param=&m->params[i].gl_param[(*vcl)[d].OFFSET];
+                    (*vcl)[d].params[i].num_ele=paramsize;
+                    if (m->params[i].to_grad){
+                        (*vcl)[d].params[i].gl_grad=&m->params[i].gl_grad[(*vcl)[d].OFFSET];
+                        if (m->params[i].gl_H)
+                            (*vcl)[d].params[i].gl_H=&m->params[i].gl_H[(*vcl)[d].OFFSET];
+                    }
+                }
+                
             }
             
-            // Determine the size of the outside boundary used for the back propagation of the seismic wavefield
-            if (m->back_prop_type==1){
-            if (m->ND==3){// For 3D
-                if (m->num_devices==1 && m->NLOCALP==1)
-                    (*mloc)[d].Nbnd=((*mloc)[d].NX-2*m->nab)*((*mloc)[d].NY-2*m->nab)*2*m->fdoh+
-                    ((*mloc)[d].NX-2*m->nab)*((*mloc)[d].NZ-2*m->nab-2*m->fdoh)*2*m->fdoh+
-                    ((*mloc)[d].NY-2*m->nab-2*m->fdoh)*((*mloc)[d].NZ-2*m->nab-2*m->fdoh)*2*m->fdoh;
+            //Create the OpenCL buffers for all parameters and their gradient, and transfer to device parameters
+            if (!state){
+                for (i=0;i<m->nparams;i++){
+                    (*vcl)[d].params[i]=m->params[i];
+                    (*vcl)[d].params[i].num_ele=paramsize;
+                    (*vcl)[d].params[i].cl_param.size=sizeof(float)*paramsize;
+                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].params[i].cl_param.size,    &(*vcl)[d].params[i].cl_param.mem);
+                    __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].params[i].cl_param.size,    &(*vcl)[d].params[i].cl_param.mem, (*vcl)[d].params[i].gl_param);
+                    if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+                        (*vcl)[d].params[i].cl_grad.size=sizeof(float)*paramsize;
+                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].params[i].cl_grad.size,    &(*vcl)[d].params[i].cl_grad.mem);
+                    }
+                    if (m->HOUT && m->BACK_PROP_TYPE==1){
+                        (*vcl)[d].params[i].cl_H.size=sizeof(float)*paramsize;
+                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].params[i].cl_H.size,    &(*vcl)[d].params[i].cl_H.mem);
+                    }
+                    
+                }
+            }
+            
+        }
+        
+        //Allocate the variables structure for this device and create OpenCL buffers
+        {
+            GMALLOC((*vcl)[d].vars, sizeof(struct variable)*m->nvars);
+            for (i=0;i<m->nvars;i++){
+                (*vcl)[d].vars[i]=m->vars[i];
+            }
+            //TODO: This is model specific, find a better way
+            assign_var_size( (*vcl)[d].N, m->NDIM, m->FDORDER, m->nvars, m->L, (*vcl)[d].vars);
+            
+            //Create OpenCL buffers with the right size
+            for (i=0;i<m->nvars;i++){
                 
-                else if ( (d==0 && m->MYGROUPID==0) || (d==m->num_devices-1 && m->MYGROUPID==m->NLOCALP-1) )
-                    (*mloc)[d].Nbnd=((*mloc)[d].NX-m->nab)*((*mloc)[d].NY-2*m->nab)*2*m->fdoh+
-                    ((*mloc)[d].NX-m->nab)*((*mloc)[d].NZ-2*m->nab-2*m->fdoh)*2*m->fdoh+
-                    ((*mloc)[d].NY-2*m->nab-2*m->fdoh)*((*mloc)[d].NZ-2*m->nab-2*m->fdoh)*m->fdoh;
+                //Number of elements for variables on this device
+                (*vcl)[d].vars[i].num_ele=fdsize;
+                //Create variable buffers for the interior domain
+                (*vcl)[d].vars[i].cl_var.size=sizeof(float)*(*vcl)[d].vars[i].num_ele;
+                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].vars[i].cl_var.size,    &(*vcl)[d].vars[i].cl_var.mem);
+                
+                //Create variable buffers for the boundary of the domain
+                if ((*vcl)[d].vars[i].to_comm && (d>0 || m->MYLOCALID>0 || d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1)){
+                    //On the device side
+                    (*vcl)[d].vars[i].cl_var_sub1.size=sizeof(float) * m->FDOH*slicesize;
+                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, (*vcl)[d].vars[i].cl_var_sub1.size, &(*vcl)[d].vars[i].cl_var_sub1.mem, &(*vcl)[d].vars[i].de_var_sub1);
+                    (*vcl)[d].vars[i].cl_var_sub2.size=sizeof(float) * m->FDOH*slicesize;
+                    
+                    //On the host side, memory should be pinned for overlapped transfers
+                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, (*vcl)[d].vars[i].cl_var_sub2.size, &(*vcl)[d].vars[i].cl_var_sub2.mem, &(*vcl)[d].vars[i].de_var_sub2);
+                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].vars[i].cl_var_sub1_dev.size,    &(*vcl)[d].vars[i].cl_var_sub1_dev.mem);
+                    (*vcl)[d].vars[i].cl_var_sub2_dev.size=sizeof(float) * m->FDOH*slicesize;
+                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].vars[i].cl_var_sub2_dev.size,    &(*vcl)[d].vars[i].cl_var_sub2_dev.mem);
+                }
+                
+                // Create the buffers to output variables at receivers locations
+                if ((*vcl)[d].vars[i].to_output){
+                    
+                    //Memory to hold all the shots records for this device on host side
+                    alloc_seismo(&(*vcl)[d].vars[i].de_varout, m->ns, m->allng, m->NT, m->src_recs.nrec);
+                    
+                    (*vcl)[d].vars[i].cl_varout.size=sizeof(float) * m->NT * m->src_recs.ngmax;
+                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].vars[i].cl_varout.size, &(*vcl)[d].vars[i].cl_varout.mem);
+                    
+                    //Create also a buffer for the residuals
+                    if (m->vars[i].gl_var_res){
+                        (*vcl)[d].vars[i].cl_var_res.size=sizeof(float) * m->NT * m->src_recs.ngmax;
+                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].vars[i].cl_var_res.size, &(*vcl)[d].vars[i].cl_var_res.mem);
+                    }
+                }
+                
+                // If we use the DFT for gradient computation, we create the buffers to hold each frequency
+                if (m->GRADOUT && m->BACK_PROP_TYPE==2 && (*vcl)[d].vars[i].for_grad){
+                    GMALLOC( (*vcl)[d].vars[i].de_fvar, sizeof(cl_float2)*(*vcl)[d].vars[i].num_ele* m->NFREQS);
+                    (*vcl)[d].vars[i].cl_fvar.size=sizeof(cl_float2)*(*vcl)[d].vars[i].num_ele* m->NFREQS;
+                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].vars[i].cl_fvar.size, &(*vcl)[d].vars[i].cl_fvar.mem);
+                }
+                
+                // If we want the movie, allocate memory for variables for this device on host
+                if (m->MOVOUT){
+                    if (m->vars[i].to_output){
+                        (*vcl)[d].vars[i].gl_mov=&m->vars[i].gl_mov[(*vcl)[d].OFFSET];
+                        GMALLOC((*vcl)[d].vars[i].de_mov,(*vcl)[d].vars[i].num_ele*sizeof(cl_float));
+                    }
+                }
+                
+            }
+        }
+
+        //Allocate the constants structure for this device, create OpenCL buffers, transfer to device
+        {
+            GMALLOC((*vcl)[d].csts, sizeof(struct constants)*m->ncsts);
+            for (i=0;i<m->ncsts;i++){
+                (*vcl)[d].csts[i]=m->csts[i];
+                //Size of constants does not depend of domain decomposition (fixed across all devices)
+                if ((*vcl)[d].csts[i].active){
+                    (*vcl)[d].csts[i].cl_cst.size=sizeof(float)*(*vcl)[d].csts[i].num_ele;
+                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].csts[i].cl_cst.size,    &(*vcl)[d].csts[i].cl_cst.mem);
+                    __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].csts[i].cl_cst.size,    &(*vcl)[d].csts[i].cl_cst.mem, m->csts[i].gl_cst);
+                }
+                
+            }
+        }
+        
+        //Set the sources and receivers structure for this device and create OpenCL buffers
+        {
+            (*vcl)[d].src_recs=m->src_recs;
+            (*vcl)[d].src_recs.cl_src_pos.size=sizeof(float) * 5 * m->src_recs.nsmax;
+            (*vcl)[d].src_recs.cl_rec_pos.size=sizeof(float) * 8 * m->src_recs.ngmax;
+            (*vcl)[d].src_recs.cl_src.size=sizeof(float) * m->NT * m->src_recs.nsmax;
+            __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].src_recs.cl_src_pos.size,     &(*vcl)[d].src_recs.cl_src_pos.mem);
+            __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].src_recs.cl_rec_pos.size,     &(*vcl)[d].src_recs.cl_rec_pos.mem);
+            __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].src_recs.cl_src.size, &(*vcl)[d].src_recs.cl_src.mem);
+            if (m->GRADSRCOUT){
+                (*vcl)[d].src_recs.cl_grad_src.size=sizeof(float) * m->NT * m->src_recs.nsmax;
+                __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].src_recs.cl_grad_src.size, &(*vcl)[d].src_recs.cl_grad_src.mem);
+            }
+        }
+        
+        // Determine the size of the outside boundary used for the back propagation of the seismic wavefield
+        // TODO: this is ugly and model specific, find a better way
+        if (m->BACK_PROP_TYPE==1 && m->GRADOUT){
+            if (m->ND==3){// For 3D
+                if (m->NUM_DEVICES==1 && m->NLOCALP==1)
+                    (*vcl)[d].NBND=((*vcl)[d].N[2]-2*m->NAB)*((*vcl)[d].N[1]-2*m->NAB)*2*m->FDOH+
+                    ((*vcl)[d].N[2]-2*m->NAB)*((*vcl)[d].N[0]-2*m->NAB-2*m->FDOH)*2*m->FDOH+
+                    ((*vcl)[d].N[1]-2*m->NAB-2*m->FDOH)*((*vcl)[d].N[0]-2*m->NAB-2*m->FDOH)*2*m->FDOH;
+                
+                else if ( (d==0 && m->MYGROUPID==0) || (d==m->NUM_DEVICES-1 && m->MYGROUPID==m->NLOCALP-1) )
+                    (*vcl)[d].NBND=((*vcl)[d].N[2]-m->NAB)*((*vcl)[d].N[1]-2*m->NAB)*2*m->FDOH+
+                    ((*vcl)[d].N[2]-m->NAB)*((*vcl)[d].N[0]-2*m->NAB-2*m->FDOH)*2*m->FDOH+
+                    ((*vcl)[d].N[1]-2*m->NAB-2*m->FDOH)*((*vcl)[d].N[0]-2*m->NAB-2*m->FDOH)*m->FDOH;
                 
                 else
-                    (*mloc)[d].Nbnd=(*mloc)[d].NX*((*mloc)[d].NY-2*m->nab)*2*m->fdoh+
-                    (*mloc)[d].NX*((*mloc)[d].NZ-2*m->nab-2*m->fdoh)*2*m->fdoh;
+                    (*vcl)[d].NBND=(*vcl)[d].N[2]*((*vcl)[d].N[1]-2*m->NAB)*2*m->FDOH+
+                    (*vcl)[d].N[2]*((*vcl)[d].N[0]-2*m->NAB-2*m->FDOH)*2*m->FDOH;
             }
             else{
-                if (m->num_devices==1 && m->NLOCALP==1)
-                    (*mloc)[d].Nbnd=((*mloc)[d].NX-2*m->nab)*2*m->fdoh+
-                    ((*mloc)[d].NZ-2*m->nab-2*m->fdoh)*2*m->fdoh;
+                if (m->NUM_DEVICES==1 && m->NLOCALP==1)
+                    (*vcl)[d].NBND=((*vcl)[d].N[1]-2*m->NAB)*2*m->FDOH+
+                    ((*vcl)[d].N[0]-2*m->NAB-2*m->FDOH)*2*m->FDOH;
                 
-                else if ( (d==0 && m->MYGROUPID==0) || (d==m->num_devices-1 && m->MYGROUPID==m->NLOCALP-1) )
-                    (*mloc)[d].Nbnd=((*mloc)[d].NX-m->nab)*m->fdoh+
-                    ((*mloc)[d].NZ-2*m->nab-m->fdoh)*2*m->fdoh;
+                else if ( (d==0 && m->MYGROUPID==0) || (d==m->NUM_DEVICES-1 && m->MYGROUPID==m->NLOCALP-1) )
+                    (*vcl)[d].NBND=((*vcl)[d].N[1]-m->NAB)*m->FDOH+
+                    ((*vcl)[d].N[0]-2*m->NAB-m->FDOH)*2*m->FDOH;
                 
                 else
-                    (*mloc)[d].Nbnd= ((*mloc)[d].NX)*2*m->fdoh;
+                    (*vcl)[d].NBND= ((*vcl)[d].N[1])*2*m->FDOH;
             }
             
-            (*mloc)[d].global_work_size_bnd =(*mloc)[d].Nbnd ;
-                
-            
-            
-            //During backpropagation of the seismic field, we inject at the positions given by the absorbing boundary
-                (*vcl)[d].buffer_size_bnd = sizeof(float)*(*mloc)[d].Nbnd;
+            (*vcl)[d].grads.savebnd.gsize[0]=(*vcl)[d].NBND;
+
+            for (i=0;i<m->nvars;i++){
+                if ((*vcl)[d].vars[i].to_comm){
+                    (*vcl)[d].vars[i].cl_varbnd.size=sizeof(float) * (*vcl)[d].NBND;
+                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].vars[i].cl_varbnd.size,    &(*vcl)[d].vars[i].cl_varbnd.mem);
+                    (*vcl)[d].vars[i].cl_varbnd_pinned.size=sizeof(float) * (*vcl)[d].NBND;
+                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, (*vcl)[d].vars[i].cl_varbnd_pinned.size, &(*vcl)[d].vars[i].cl_varbnd_pinned.mem, &(*vcl)[d].vars[i].de_varbnd);
+                }
             }
             
-            if (m->ND==3){// For 3D
-                (*mloc)[d].global_work_size_surf[0] = (*mloc)[d].NY;
-                (*mloc)[d].global_work_size_surf[1] = (*mloc)[d].NX;
-                (*mloc)[d].global_work_size_initfd=  (*vcl)[d].buffer_size_fd/sizeof(float);
-                (*mloc)[d].global_work_size_f = ((*mloc)[d].NY+2*m->fdoh)*((*mloc)[d].NX+2*m->fdoh)*((*mloc)[d].NZ+2*m->fdoh);
-
-                
-            }
-            else{
-                (*mloc)[d].global_work_size_surf[0] = (*mloc)[d].NX;
-                (*mloc)[d].global_work_size_initfd= (*vcl)[d].buffer_size_fd/sizeof(float);
-                (*mloc)[d].global_work_size_f = ((*mloc)[d].NX+2*m->fdoh)*((*mloc)[d].NZ+2*m->fdoh);
-
-                
-            }
-            (*mloc)[d].global_work_size_init=  (*mloc)[d].NX*(*mloc)[d].NY*(*mloc)[d].NZ;
-            (*mloc)[d].global_work_size_gradsrc = m->NT*nsmax ;
             
-        }
-
-
-        // Create the memory buffers for the seismic variables of the GPU
-        __GUARD create_gpu_memory_buffer_cst( &m->context, buffer_size_ns,              &(*vcl)[d].src_pos);
-        __GUARD create_gpu_memory_buffer_cst( &m->context, buffer_size_ng,              &(*vcl)[d].rec_pos);
-        __GUARD create_gpu_memory_buffer_cst( &m->context, buffer_size_s,               &(*vcl)[d].src);
-        // Allocate memory for the seismograms
-        if ( m->bcastvx){
-            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].vxout);
-        }
-        if ( m->bcastvy){
-            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].vyout);
-        }
-        if ( m->bcastvz){
-            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].vzout);
-        }
-        if ( m->bcastp){
-            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].pout);
-        }
-        if ( m->bcastsxx){
-            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].sxxout);
-        }
-        if ( m->bcastsyy){
-            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].syyout);
-        }
-        if ( m->bcastszz){
-            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].szzout);
-        }
-        if ( m->bcastsxy){
-            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].sxyout);
-        }
-        if ( m->bcastsxz){
-            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].sxzout);
-        }
-        if ( m->bcastsyz){
-            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].syzout);
-        }
-
-        if (m->ND!=21){
-            __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].sxx);
-            __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].szz);
-            __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].sxz);
-            __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].vx);
-            __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].vz);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].rip);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].rkp);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].u);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].pi);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].uipkp);
+            GMALLOC((*vcl)[d].vars_adj, sizeof(struct variable)*m->nvars);
+            for (i=0;i<m->nvars;i++){
+                (*vcl)[d].vars_adj[i]=(*vcl)[d].vars[i];
+            }
+            
+            for (i=0;i<m->nvars;i++){
+                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].vars_adj[i].cl_var.size,    &(*vcl)[d].vars_adj[i].cl_var.mem);
+                if ((*vcl)[d].vars[i].to_comm && (d>0 || m->MYLOCALID>0 || d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1)){
+                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, (*vcl)[d].vars_adj[i].cl_var_sub1.size, &(*vcl)[d].vars_adj[i].cl_var_sub1.mem, &(*vcl)[d].vars_adj[i].de_var_sub1);
+                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, (*vcl)[d].vars_adj[i].cl_var_sub2.size, &(*vcl)[d].vars_adj[i].cl_var_sub2.mem, &(*vcl)[d].vars_adj[i].de_var_sub2);
+                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].vars_adj[i].cl_var_sub1_dev.size,    &(*vcl)[d].vars_adj[i].cl_var_sub1_dev.mem);
+                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].vars_adj[i].cl_var_sub2_dev.size,    &(*vcl)[d].vars_adj[i].cl_var_sub2_dev.mem);
+                }
+            }
 
         }
-        if (m->ND==3 || m->ND==21){
-            __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].syy);
-            __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].sxy);
-            __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].syz);
-            __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].vy);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].rjp);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].uipjp);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].ujpkp);
-        }
-        if (m->ND==3){// For 3D
-            __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].syy);
-        }
-        // Create the visco-elastic variables if visco-elastic is demanded
-        if (m->L>0){
-            __GUARD create_gpu_memory_buffer_cst( &m->context, buffer_size_L,                 &(*vcl)[d].eta);
-            if (m->ND!=21){
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd*m->L, &(*vcl)[d].rxx);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd*m->L, &(*vcl)[d].rzz);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd*m->L, &(*vcl)[d].rxz);
-                __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model,   &(*vcl)[d].taup);
-                __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model,   &(*vcl)[d].taus);
-                __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model,   &(*vcl)[d].tausipkp);
-            }
-            if (m->ND==3 || m->ND==21){
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd*m->L, &(*vcl)[d].ryy);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd*m->L, &(*vcl)[d].rxy);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd*m->L, &(*vcl)[d].ryz);
-                __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model,   &(*vcl)[d].tausipjp);
-                __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model,   &(*vcl)[d].tausjpkp);
-            }
-            if (m->ND==3){// For 3D
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd*m->L, &(*vcl)[d].ryy);
-            }
-        }
-        if (m->abs_type==1){
-            if (m->ND!=21){
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NX,    &(*vcl)[d].psi_sxx_x);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NX,    &(*vcl)[d].psi_sxz_x);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NZ,    &(*vcl)[d].psi_szz_z);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NZ,    &(*vcl)[d].psi_sxz_z);
-                
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NX,    &(*vcl)[d].psi_vxx);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NZ,    &(*vcl)[d].psi_vzz);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NZ,    &(*vcl)[d].psi_vxz);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NX,    &(*vcl)[d].psi_vzx);
-            }
-            
-            __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].K_x);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].a_x);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].b_x);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].K_x_half);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].a_x_half);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].b_x_half);
-            
-            __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].K_z);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].a_z);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].b_z);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].K_z_half);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].a_z_half);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].b_z_half);
-
-            if (m->ND==3 || m->ND==21){
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NX,    &(*vcl)[d].psi_sxy_x);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NZ,    &(*vcl)[d].psi_syz_z);
-                
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NX,    &(*vcl)[d].psi_vyx);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NZ,    &(*vcl)[d].psi_vyz);
-
-            }
-            if (m->ND==3 ){// For 3D
-                
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NY,    &(*vcl)[d].psi_syy_y);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NY,    &(*vcl)[d].psi_sxy_y);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NY,    &(*vcl)[d].psi_syz_y);
-                
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NY,    &(*vcl)[d].psi_vyy);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NY,    &(*vcl)[d].psi_vxy);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NY,    &(*vcl)[d].psi_vzy);
-                
-                __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].K_y);
-                __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].a_y);
-                __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].b_y);
-                __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].K_y_half);
-                __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].a_y_half);
-                __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].b_y_half);
-            }
-            
-        }
-        else if (m->abs_type==2) {
-            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_taper, &(*vcl)[d].taper);
-        }
-        if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(state));
-        // Create the sub-buffers that will transfer seismic variables between the GPUs at each time step
-        if (m->ND!=21){
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxx_sub1, &(*mloc)[d].sxx_sub1);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].szz_sub1, &(*mloc)[d].szz_sub1);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxz_sub1, &(*mloc)[d].sxz_sub1);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vx_sub1, &(*mloc)[d].vx_sub1);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vz_sub1, &(*mloc)[d].vz_sub1);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxx_sub2, &(*mloc)[d].sxx_sub2);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].szz_sub2, &(*mloc)[d].szz_sub2);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxz_sub2, &(*mloc)[d].sxz_sub2);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vx_sub2, &(*mloc)[d].vx_sub2);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vz_sub2, &(*mloc)[d].vz_sub2);
-            
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxx_sub1_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].szz_sub1_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxz_sub1_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vx_sub1_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vz_sub1_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxx_sub2_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].szz_sub2_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxz_sub2_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vx_sub2_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vz_sub2_dev);
-        }
-        if (m->ND==3 || m->ND==21){
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxy_sub1, &(*mloc)[d].sxy_sub1);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].syz_sub1, &(*mloc)[d].syz_sub1);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vy_sub1, &(*mloc)[d].vy_sub1);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxy_sub2, &(*mloc)[d].sxy_sub2);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].syz_sub2, &(*mloc)[d].syz_sub2);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vy_sub2, &(*mloc)[d].vy_sub2);
-            
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxy_sub1_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].syz_sub1_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vy_sub1_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxy_sub2_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].syz_sub2_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vy_sub2_dev);
-            
-        }
-        if (m->ND==3){// For 3D
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].syy_sub1, &(*mloc)[d].syy_sub1);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].syy_sub2, &(*mloc)[d].syy_sub2);
-            
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].syy_sub1_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].syy_sub2_dev);
-        }
-
+        
         // Create the kernels of the devices
-        __GUARD gpu_initialize_update_v(&m->context, &(*vcl)[d].program_v, &(*vcl)[d].kernel_v, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm1, lcomm, 0 );
-        __GUARD gpu_initialize_update_s(&m->context, &(*vcl)[d].program_s, &(*vcl)[d].kernel_s, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm1, lcomm, 0  );
-        __GUARD gpu_intialize_seis(&m->context, &(*vcl)[d].program_initseis, &(*vcl)[d].kernel_initseis, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d]);
-        __GUARD gpu_intialize_seisout(&m->context, &(*vcl)[d].program_seisout, &(*vcl)[d].kernel_seisout, NULL, &(*vcl)[d], m, &(*mloc)[d]);
-        __GUARD gpu_intialize_seisoutinit(&m->context, &(*vcl)[d].program_seisoutinit, &(*vcl)[d].kernel_seisoutinit, NULL, &(*vcl)[d], m, &(*mloc)[d]);
-        if (m->freesurf==1){
-            __GUARD gpu_initialize_surface(&m->context, &(*vcl)[d].program_surf, &(*vcl)[d].kernel_surf, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d] );
-        }
-        
-        if (d>0 || m->MYLOCALID>0){
-            __GUARD gpu_initialize_update_v(&m->context, &(*vcl)[d].program_vcomm1, &(*vcl)[d].kernel_vcomm1, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], 0 , lcomm, 1);
-            __GUARD gpu_initialize_update_s(&m->context, &(*vcl)[d].program_scomm1, &(*vcl)[d].kernel_scomm1, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], 0 , lcomm, 1);
-        }
-        if (d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-            __GUARD gpu_initialize_update_v(&m->context, &(*vcl)[d].program_vcomm2, &(*vcl)[d].kernel_vcomm2, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm2, lcomm, 1 );
-            __GUARD gpu_initialize_update_s(&m->context, &(*vcl)[d].program_scomm2, &(*vcl)[d].kernel_scomm2, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm2, lcomm, 1 );
-        }
-        if (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-            __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_fill_transfer_buff1_v_in, &(*vcl)[d], m, &(*mloc)[d],0,1,0);
-            __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_fill_transfer_buff2_v_in, &(*vcl)[d], m, &(*mloc)[d],0,2,0);
-            __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_fill_transfer_buff1_v_out, &(*vcl)[d], m, &(*mloc)[d],1,1,0);
-            __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_fill_transfer_buff2_v_out, &(*vcl)[d], m, &(*mloc)[d],1,2,0);
-            __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_fill_transfer_buff1_s_in, &(*vcl)[d], m, &(*mloc)[d],0,1,0);
-            __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_fill_transfer_buff2_s_in, &(*vcl)[d], m, &(*mloc)[d],0,2,0);
-            __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_fill_transfer_buff1_s_out, &(*vcl)[d], m, &(*mloc)[d],1,1,0);
-            __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_fill_transfer_buff2_s_out, &(*vcl)[d], m, &(*mloc)[d],1,2,0);
-        }
-        
-        
-        
-        
-        if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(state));
-
-
-        //If we want the gradient by the adjoint model method, we create the variables
-        if (m->gradout==1 ){
-            
-            //Residual back propgation memory allocation whith direct field backpropagation
-            if (m->back_prop_type==1){
-                
-
-                
-                //Allocate memory for the varibales that keeps the seismic wavefiled at the boundary. We keep a band of the width of fd order
-                if (m->ND!=21){
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_bnd,    &(*vcl)[d].sxxbnd);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_bnd,    &(*vcl)[d].szzbnd);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_bnd,    &(*vcl)[d].sxzbnd);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_bnd,    &(*vcl)[d].vxbnd);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_bnd,    &(*vcl)[d].vzbnd);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, (*vcl)[d].buffer_size_bnd*m->NT, &(*vcl)[d].sxxbnd_pin, &(*mloc)[d].sxxbnd);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, (*vcl)[d].buffer_size_bnd*m->NT, &(*vcl)[d].szzbnd_pin, &(*mloc)[d].szzbnd);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, (*vcl)[d].buffer_size_bnd*m->NT, &(*vcl)[d].sxzbnd_pin, &(*mloc)[d].sxzbnd);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, (*vcl)[d].buffer_size_bnd*m->NT, &(*vcl)[d].vxbnd_pin, &(*mloc)[d].vxbnd);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, (*vcl)[d].buffer_size_bnd*m->NT, &(*vcl)[d].vzbnd_pin, &(*mloc)[d].vzbnd);
-                }
-                if (m->ND==3 || m->ND==21){// For 3D
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_bnd,    &(*vcl)[d].sxybnd);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_bnd,    &(*vcl)[d].syzbnd);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_bnd,    &(*vcl)[d].vybnd);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, (*vcl)[d].buffer_size_bnd*m->NT, &(*vcl)[d].sxybnd_pin, &(*mloc)[d].sxybnd);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, (*vcl)[d].buffer_size_bnd*m->NT, &(*vcl)[d].syzbnd_pin, &(*mloc)[d].syzbnd);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, (*vcl)[d].buffer_size_bnd*m->NT, &(*vcl)[d].vybnd_pin, &(*mloc)[d].vybnd);
-                }
-                if (m->ND==3){// For 3D
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_bnd,    &(*vcl)[d].syybnd);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, (*vcl)[d].buffer_size_bnd*m->NT, &(*vcl)[d].syybnd_pin, &(*mloc)[d].syybnd);
-                }
-
-                
-                
-                //Allocate the memory for the variables for the residual wavefield
-                if (m->ND!=21){
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].sxx_r);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].szz_r);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].sxz_r);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].vx_r);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].vz_r);
-                    if (m->L>0){
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd*m->L,    &(*vcl)[d].rxx_r);
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd*m->L,    &(*vcl)[d].rzz_r);
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd*m->L,    &(*vcl)[d].rxz_r);
-                    }
-                }
-                if (m->ND==3 || m->ND==21){
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].sxy_r);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].syz_r);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].vy_r);
-                    if (m->L>0){
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd*m->L,    &(*vcl)[d].rxy_r);
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd*m->L,    &(*vcl)[d].ryz_r);
-                    }
-                }
-                if (m->ND==3){// For 3D
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].syy_r);
-                    if (m->L>0){
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd*m->L,    &(*vcl)[d].ryy_r);
-                    }
-                }
-
-                
-                //Allocate the gradient output
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradrho);
-                if (m->ND!=21){
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradM);
-                }
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradmu);
-                if (m->L>0){
-                    if (m->ND!=21){
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradtaup);
-                    }
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradtaus);
-                }
-                
-                
-                //Allocate H output
-                if (m->Hout==1){
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].Hrho);
-                    if (m->ND!=21){
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].HM);
-                    }
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].Hmu);
-                    if (m->L>0){
-                        if (m->ND!=21){
-                            __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].Htaup);
-                        }
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].Htaus);
-                    }
-                }
-                
-                if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(state));
-                
-                //Create buffers and memory for GPU communication of the residual wavefield
-                if (m->ND!=21){
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxx_r_sub1, &(*mloc)[d].sxx_r_sub1);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].szz_r_sub1, &(*mloc)[d].szz_r_sub1);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxz_r_sub1, &(*mloc)[d].sxz_r_sub1);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vx_r_sub1, &(*mloc)[d].vx_r_sub1);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vz_r_sub1, &(*mloc)[d].vz_r_sub1);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxx_r_sub2, &(*mloc)[d].sxx_r_sub2);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].szz_r_sub2, &(*mloc)[d].szz_r_sub2);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxz_r_sub2, &(*mloc)[d].sxz_r_sub2);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vx_r_sub2, &(*mloc)[d].vx_r_sub2);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vz_r_sub2, &(*mloc)[d].vz_r_sub2);
-                    
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxx_r_sub1_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].szz_r_sub1_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxz_r_sub1_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vx_r_sub1_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vz_r_sub1_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxx_r_sub2_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].szz_r_sub2_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxz_r_sub2_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vx_r_sub2_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vz_r_sub2_dev);
-                }
-                if (m->ND==3 || m->ND==21){
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxy_r_sub1, &(*mloc)[d].sxy_r_sub1);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].syz_r_sub1, &(*mloc)[d].syz_r_sub1);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vy_r_sub1, &(*mloc)[d].vy_r_sub1);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxy_r_sub2, &(*mloc)[d].sxy_r_sub2);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].syz_r_sub2, &(*mloc)[d].syz_r_sub2);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vy_r_sub2, &(*mloc)[d].vy_r_sub2);
-                    
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxy_r_sub1_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].syz_r_sub1_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vy_r_sub1_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxy_r_sub2_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].syz_r_sub2_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vy_r_sub2_dev);
-                    
-                }
-                if (m->ND==3){// For 3D
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].syy_r_sub1, &(*mloc)[d].syy_r_sub1);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].syy_r_sub2, &(*mloc)[d].syy_r_sub2);
-                    
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].syy_r_sub1_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].syy_r_sub2_dev);
-                }
-                
-
-            }
-            
-            else if (m->back_prop_type==2){
-                
-                __GUARD create_gpu_memory_buffer( &m->context, sizeof(float)*m->nfreqs, &(*vcl)[d].gradfreqsn);
-                if (m->ND!=21){
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_vx);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_vz);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_sxx);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_szz);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_sxz);
-                    if (m->L>0){
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_rxx);
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_rzz);
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_rxz);
-                    }
-                }
-
-                if (m->ND==3 || m->ND==21){
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_vy);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_sxy);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_syz);
-                    if (m->L>0){
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_rxy);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_ryz);
-                    }
-                }
-                if (m->ND==3){// For 3D
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_syy);
-                    if (m->L>0){
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_ryy);
-                    }
-                }
-                if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(state));
-   
-            }
-            
-            if (m->gradsrcout ){
-                __GUARD create_gpu_memory_buffer( &m->context, buffer_size_s, &(*vcl)[d].gradsrc);
-            }
-            
-            
-            //Create the kernels for the backpropagation and gradient computation
-            __GUARD gpu_initialize_update_adjv(&m->context, &(*vcl)[d].program_adjv, &(*vcl)[d].kernel_adjv, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm1, lcomm, 0  );
-            __GUARD gpu_initialize_update_adjs(&m->context, &(*vcl)[d].program_adjs, &(*vcl)[d].kernel_adjs, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm1, lcomm, 0 );
-            
+        for (i=0;i<m->nupdates;i++){
+            __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].updates_f[i].center, offcomm1, LCOMM, 0, 0);
             if (d>0 || m->MYLOCALID>0){
-                __GUARD gpu_initialize_update_adjv(&m->context, &(*vcl)[d].program_adjvcomm1, &(*vcl)[d].kernel_adjvcomm1, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], 0 , lcomm, 1);
-                __GUARD gpu_initialize_update_adjs(&m->context, &(*vcl)[d].program_adjscomm1, &(*vcl)[d].kernel_adjscomm1, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], 0 , lcomm, 1);
+                __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].updates_f[i].comm1, 0, LCOMM, 1, 0 );
+                __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].updates_f[i].fill_buff1_in, 0, 0, 0, 0 );
+                __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].updates_f[i].fill_buff1_out, 0, 0, 0, 0 );
             }
-            if (d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1 ){
-                __GUARD gpu_initialize_update_adjv(&m->context, &(*vcl)[d].program_adjvcomm2, &(*vcl)[d].kernel_adjvcomm2, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm2, lcomm, 1 );
-                __GUARD gpu_initialize_update_adjs(&m->context, &(*vcl)[d].program_adjscomm2, &(*vcl)[d].kernel_adjscomm2, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm2, lcomm, 1 );
+            if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
+                __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].updates_f[i].comm1, offcomm2, LCOMM, 1, 0 );
+                __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].updates_f[i].fill_buff2_in, 0, 0, 0, 0 );
+                __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].updates_f[i].fill_buff2_out, 0, 0, 0, 0 );
             }
-            if ( (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1) && m->back_prop_type==1 ){
-                __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_adj_fill_transfer_buff1_v_in, &(*vcl)[d], m, &(*mloc)[d],0,1,1);
-                __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_adj_fill_transfer_buff2_v_in, &(*vcl)[d], m, &(*mloc)[d],0,1,1);
-                __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_adj_fill_transfer_buff1_v_out, &(*vcl)[d], m, &(*mloc)[d],1,1,1);
-                __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_adj_fill_transfer_buff2_v_out, &(*vcl)[d], m, &(*mloc)[d],1,1,1);
-                __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_adj_fill_transfer_buff1_s_in, &(*vcl)[d], m, &(*mloc)[d],0,1,1);
-                __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_adj_fill_transfer_buff2_s_in, &(*vcl)[d], m, &(*mloc)[d],0,1,1);
-                __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_adj_fill_transfer_buff1_s_out, &(*vcl)[d], m, &(*mloc)[d],1,1,1);
-                __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_adj_fill_transfer_buff2_s_out, &(*vcl)[d], m, &(*mloc)[d],1,1,1);
-            }
-
-            __GUARD gpu_intialize_residuals(&m->context, &(*vcl)[d].program_residuals, &(*vcl)[d].kernel_residuals, NULL, &(*vcl)[d], m, &(*mloc)[d]);
-            __GUARD gpu_intialize_grad(&m->context, &(*vcl)[d].program_initgrad, &(*vcl)[d].kernel_initgrad, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d]);
-            __GUARD gpu_intialize_seis_r(&m->context, &(*vcl)[d].program_initseis_r, &(*vcl)[d].kernel_initseis_r, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d]);
-
-            
-            if (m->back_prop_type==1){
-                __GUARD gpu_initialize_savebnd(&m->context, &(*vcl)[d].program_bnd, &(*vcl)[d].kernel_bnd, NULL, &(*vcl)[d], m, &(*mloc)[d]);
-            }
-            if (m->back_prop_type==2){
-                __GUARD gpu_initialize_savefreqs(&m->context, &(*vcl)[d].program_savefreqs, &(*vcl)[d].kernel_savefreqs, NULL, &(*vcl)[d], m, &(*mloc)[d], 0);
-                __GUARD gpu_initialize_initsavefreqs(&m->context, &(*vcl)[d].program_initsavefreqs, &(*vcl)[d].kernel_initsavefreqs, NULL, &(*vcl)[d], m, &(*mloc)[d]);
-            }
-            if (m->gradsrcout==1){
-                __GUARD gpu_initialize_gradsrc(&m->context, &(*vcl)[d].program_initialize_gradsrc, &(*vcl)[d].kernel_initialize_gradsrc, NULL, &(*vcl)[d], m, &(*mloc)[d]);
-                
-            }
-            if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(state));
         }
 
-        /*Transfer memory from host to the device*/
-        if ((*m).abs_type==1){
-            
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].K_x, m->K_x );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].a_x, m->a_x );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].b_x, m->b_x );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].K_x_half, m->K_x_half );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].a_x_half, m->a_x_half );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].b_x_half, m->b_x_half );
-            
-            if (m->ND==3){// For 3D
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].K_y, m->K_y );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].a_y, m->a_y );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].b_y, m->b_y );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].K_y_half, m->K_y_half );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].a_y_half, m->a_y_half );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].b_y_half, m->b_y_half );
-            }
-            
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].K_z, m->K_z );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].a_z, m->a_z );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].b_z, m->b_z );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].K_z_half, m->K_z_half );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].a_z_half, m->a_z_half );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].b_z_half, m->b_z_half );
-            
-            
-        }
-        else if ((*m).abs_type==2){
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, buffer_size_taper,    &(*vcl)[d].taper, m->taper );
-        }
         
-        if (m->ND!=21){
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].rip,   (*mloc)[d].rip );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].rkp,   (*mloc)[d].rkp );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].uipkp, (*mloc)[d].uipkp );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].u,     (*mloc)[d].u );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].pi,    (*mloc)[d].pi );
-            if (m->L>0){
-                __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].taup, (*mloc)[d].taup );
-                __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].taus, (*mloc)[d].taus );
-                __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].tausipkp, (*mloc)[d].tausipkp );
-            }
-        }
         
-        if (m->ND==3 || m->ND==21){
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].rjp,   (*mloc)[d].rjp );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].uipjp, (*mloc)[d].uipjp );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].ujpkp, (*mloc)[d].ujpkp );
-            if (m->L>0){
-                    __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].tausipjp, (*mloc)[d].tausipjp );
-                    __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].tausjpkp, (*mloc)[d].tausjpkp );
-            }
-        }
         
-        if (m->L>0){
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, sizeof(float)*m->L,        &(*vcl)[d].eta,  m->eta );
-        }
+        kernel_varout(m->NDIM, m->nvars, (*vcl)[d].vars, &(*vcl)[d].src_recs.seisout.src);
+        __GUARD assign_prog_source(&(*vcl)[d].src_recs.seisout, "seisout", (*vcl)[d].src_recs.seisout.src);
+        __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].src_recs.seisout, 0, 0, 0, 0);
+        kernel_varoutinit(m->NDIM, m->nvars, (*vcl)[d].vars, &(*vcl)[d].src_recs.seisoutinit.src);
+        __GUARD assign_prog_source(&(*vcl)[d].src_recs.seisoutinit, "seisoutinit", (*vcl)[d].src_recs.seisoutinit.src);
+        __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].src_recs.seisoutinit, 0, 0, 0, 0);
         
-        if (m->gradout==1 && m->back_prop_type==2 ){
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, sizeof(float)*m->nfreqs, &(*vcl)[d].gradfreqsn,   m->gradfreqsn );
-        }
+         kernel_varinit(m->NDIM, m->nvars, (*vcl)[d].vars, &(*vcl)[d].bnd_cnds.init_f.src);
+//        __GUARD assign_prog_source(&(*vcl)[d].bnd_cnds.init_f, "vars_init", (*vcl)[d].src_recs.seisoutinit.src);
         
+        
+        
+
+        
+        //Define other kernels
+        //TODO Most of these kernel could be automatically generated
+        //    __GUARD assign_prog_source(&m->updates_f[0].fill_buff1_in, "fill_transfer_buff_v_in", fill_transfer_buff_v_source);
+        //    __GUARD assign_prog_source(&m->updates_f[0].fill_buff1_out, "fill_transfer_buff_v_out", fill_transfer_buff_v_source);
+        //    __GUARD assign_prog_source(&m->updates_f[0].fill_buff2_in, "fill_transfer_buff_v_in", fill_transfer_buff_v_source);
+        //    __GUARD assign_prog_source(&m->updates_f[0].fill_buff2_out, "fill_transfer_buff_v_out", fill_transfer_buff_v_source);
+        //    __GUARD assign_prog_source(&m->updates_f[1].fill_buff1_in, "fill_transfer_buff_s_in", fill_transfer_buff_s_source);
+        //    __GUARD assign_prog_source(&m->updates_f[1].fill_buff1_out, "fill_transfer_buff_s_out", fill_transfer_buff_s_source);
+        //    __GUARD assign_prog_source(&m->updates_f[1].fill_buff2_in, "fill_transfer_buff_s_in", fill_transfer_buff_s_source);
+        //    __GUARD assign_prog_source(&m->updates_f[1].fill_buff2_out, "fill_transfer_buff_s_out", fill_transfer_buff_s_source);
+        //
+        //    __GUARD assign_prog_source(&m->src_recs.seisout, "seisout", seisout_source);
+        //    __GUARD assign_prog_source(&m->src_recs.seisoutinit, "seisoutinit", initialize_source);
+        //    __GUARD assign_prog_source(&m->bnd_cnds.init_f, "initialize_seis", initialize_source);
+        //
+        //
+        //    if (m->GRADOUT){
+        //
+        //        __GUARD assign_prog_source(&m->src_recs.residuals, "residuals", residuals_source);
+        //        if (m->GRADSRCOUT){
+        //            __GUARD assign_prog_source(&m->src_recs.init_gradsrc, "initialize_gradsrc", initialize_source);
+        //        }
+        //        if (m->BACK_PROP_TYPE==1){
+        //            __GUARD assign_prog_source(&m->bnd_cnds.init_adj, "initialize_seis_r", initialize_source);
+        //            __GUARD assign_prog_source(&m->grads.init, "initialize_grad", initialize_source);
+        //        }
+        //        else if(m->BACK_PROP_TYPE==2){
+        //            __GUARD assign_prog_source(&m->grads.savefreqs, "savefreqs", savefreqs_source);
+        //            __GUARD assign_prog_source(&m->grads.initsavefreqs, "initialize_savefreqs", initialize_source);
+        //        }
+        //        
+        //    }
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+//        __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].bnd_cnds.init_f, 0, 0, 0, 0);
+//        
+//      
+//        
+//        if (m->GRADOUT){
+//            for (i=0;i<m->nupdates;i++){
+//                __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].updates_adj[i].center, offcomm1, LCOMM, 0, 0);
+//                if (d>0 || m->MYLOCALID>0){
+//                    __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].updates_adj[i].comm1, 0, LCOMM, 1, 0 );
+//                }
+//                if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
+//                    __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].updates_adj[i].comm1, offcomm2, LCOMM, 1, 0 );
+//                }
+//            }
+//            
+//            __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].src_recs.residuals, 0, 0, 0, 0);
+//            
+//            if (m->FREESURF){
+//                __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].bnd_cnds.surf, 0, 0, 0, 0);
+//            }
+//
+//            if (m->GRADSRCOUT){
+//                __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].src_recs.init_gradsrc, 0, 0, 0, 0);
+//            }
+//            if (m->BACK_PROP_TYPE==1){
+//                __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].grads.savebnd, 0, 0, 0, 0);
+//                __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].bnd_cnds.init_adj, 0, 0, 0, 0);
+//                __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].grads.init, 0, 0, 0, 0);
+//            }
+//            else if(m->BACK_PROP_TYPE==2){
+//                __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].grads.savefreqs, 0, 0, 0, 0);
+//                __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].grads.initsavefreqs, 0, 0, 0, 0);
+//            }
+//
+//        }
+        
+        
+
+//
+//
+//        if (d>0 || m->MYLOCALID>0 || d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
+//            __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_fill_transfer_buff1_v_in, &(*vcl)[d], m, &(*mloc)[d],0,1,0);
+//            __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_fill_transfer_buff2_v_in, &(*vcl)[d], m, &(*mloc)[d],0,2,0);
+//            __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_fill_transfer_buff1_v_out, &(*vcl)[d], m, &(*mloc)[d],1,1,0);
+//            __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_fill_transfer_buff2_v_out, &(*vcl)[d], m, &(*mloc)[d],1,2,0);
+//            __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_fill_transfer_buff1_s_in, &(*vcl)[d], m, &(*mloc)[d],0,1,0);
+//            __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_fill_transfer_buff2_s_in, &(*vcl)[d], m, &(*mloc)[d],0,2,0);
+//            __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_fill_transfer_buff1_s_out, &(*vcl)[d], m, &(*mloc)[d],1,1,0);
+//            __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_fill_transfer_buff2_s_out, &(*vcl)[d], m, &(*mloc)[d],1,2,0);
+//        }
+
         if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(state));
+//
+//
+//        //If we want the gradient by the adjoint model method, we create the variables
+//        if (m->GRADOUT==1 ){
+//
+//            //Create the kernels for the backpropagation and gradient computation
+//            __GUARD gpu_initialize_update_adjv(&m->context, &(*vcl)[d].program_adjv, &(*vcl)[d].kernel_adjv, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm1, LCOMM, 0  );
+//            __GUARD gpu_initialize_update_adjs(&m->context, &(*vcl)[d].program_adjs, &(*vcl)[d].kernel_adjs, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm1, LCOMM, 0 );
+//            
+//            if (d>0 || m->MYLOCALID>0){
+//                __GUARD gpu_initialize_update_adjv(&m->context, &(*vcl)[d].program_adjvcomm1, &(*vcl)[d].kernel_adjvcomm1, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], 0 , LCOMM, 1);
+//                __GUARD gpu_initialize_update_adjs(&m->context, &(*vcl)[d].program_adjscomm1, &(*vcl)[d].kernel_adjscomm1, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], 0 , LCOMM, 1);
+//            }
+//            if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1 ){
+//                __GUARD gpu_initialize_update_adjv(&m->context, &(*vcl)[d].program_adjvcomm2, &(*vcl)[d].kernel_adjvcomm2, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm2, LCOMM, 1 );
+//                __GUARD gpu_initialize_update_adjs(&m->context, &(*vcl)[d].program_adjscomm2, &(*vcl)[d].kernel_adjscomm2, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm2, LCOMM, 1 );
+//            }
+//            if ( (d>0 || m->MYLOCALID>0 || d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1) && m->BACK_PROP_TYPE==1 ){
+//                __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_adj_fill_transfer_buff1_v_in, &(*vcl)[d], m, &(*mloc)[d],0,1,1);
+//                __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_adj_fill_transfer_buff2_v_in, &(*vcl)[d], m, &(*mloc)[d],0,1,1);
+//                __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_adj_fill_transfer_buff1_v_out, &(*vcl)[d], m, &(*mloc)[d],1,1,1);
+//                __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_adj_fill_transfer_buff2_v_out, &(*vcl)[d], m, &(*mloc)[d],1,1,1);
+//                __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_adj_fill_transfer_buff1_s_in, &(*vcl)[d], m, &(*mloc)[d],0,1,1);
+//                __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_adj_fill_transfer_buff2_s_in, &(*vcl)[d], m, &(*mloc)[d],0,1,1);
+//                __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_adj_fill_transfer_buff1_s_out, &(*vcl)[d], m, &(*mloc)[d],1,1,1);
+//                __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_adj_fill_transfer_buff2_s_out, &(*vcl)[d], m, &(*mloc)[d],1,1,1);
+//            }
+//
+//            __GUARD gpu_intialize_residuals(&m->context, &(*vcl)[d].program_residuals, &(*vcl)[d].kernel_residuals, NULL, &(*vcl)[d], m, &(*mloc)[d]);
+//            __GUARD gpu_intialize_grad(&m->context, &(*vcl)[d].program_initgrad, &(*vcl)[d].kernel_initgrad, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d]);
+//            __GUARD gpu_intialize_seis_r(&m->context, &(*vcl)[d].program_initseis_r, &(*vcl)[d].kernel_initseis_r, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d]);
+//
+//            
+//            if (m->BACK_PROP_TYPE==1){
+//                __GUARD gpu_initialize_savebnd(&m->context, &(*vcl)[d].program_bnd, &(*vcl)[d].kernel_bnd, NULL, &(*vcl)[d], m, &(*mloc)[d]);
+//            }
+//            if (m->BACK_PROP_TYPE==2){
+//                __GUARD gpu_initialize_savefreqs(&m->context, &(*vcl)[d].program_savefreqs, &(*vcl)[d].kernel_savefreqs, NULL, &(*vcl)[d], m, &(*mloc)[d], 0);
+//                __GUARD gpu_initialize_initsavefreqs(&m->context, &(*vcl)[d].program_initsavefreqs, &(*vcl)[d].kernel_initsavefreqs, NULL, &(*vcl)[d], m, &(*mloc)[d]);
+//            }
+//            if (m->GRADSRCOUT==1){
+//                __GUARD gpu_initialize_gradsrc(&m->context, &(*vcl)[d].program_initialize_gradsrc, &(*vcl)[d].kernel_initialize_gradsrc, NULL, &(*vcl)[d], m, &(*mloc)[d]);
+//                
+//            }
+//            if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(state));
+//        }
+
         
     }
 
