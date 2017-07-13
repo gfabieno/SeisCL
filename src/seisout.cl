@@ -21,27 +21,27 @@
 
 /*Define useful macros to be able to write a matrix formulation in 2D with OpenCl */
 #if ND==3
-#define vx(z,y,x)   vx[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vy(z,y,x)   vy[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vz(z,y,x)   vz[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxx(z,y,x) sxx[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define syy(z,y,x) syy[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define szz(z,y,x) szz[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxy(z,y,x) sxy[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define syz(z,y,x) syz[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxz(z,y,x) sxz[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
+#define vx(z,y,x)   vx[(x)*NY*NZ+(y)*NZ+(z)]
+#define vy(z,y,x)   vy[(x)*NY*NZ+(y)*NZ+(z)]
+#define vz(z,y,x)   vz[(x)*NY*NZ+(y)*NZ+(z)]
+#define sxx(z,y,x) sxx[(x)*NY*NZ+(y)*NZ+(z)]
+#define syy(z,y,x) syy[(x)*NY*NZ+(y)*NZ+(z)]
+#define szz(z,y,x) szz[(x)*NY*NZ+(y)*NZ+(z)]
+#define sxy(z,y,x) sxy[(x)*NY*NZ+(y)*NZ+(z)]
+#define syz(z,y,x) syz[(x)*NY*NZ+(y)*NZ+(z)]
+#define sxz(z,y,x) sxz[(x)*NY*NZ+(y)*NZ+(z)]
 #endif
 
 #if ND==2 || ND==21
-#define vx(z,y,x)  vx[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vy(z,y,x)  vy[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vz(z,y,x)  vz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxx(z,y,x) sxx[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define syy(z,y,x) syy[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define szz(z,y,x) szz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxy(z,y,x) sxy[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define syz(z,y,x) syz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxz(z,y,x) sxz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
+#define vx(z,y,x)  vx[(x)*NZ+(z)]
+#define vy(z,y,x)  vy[(x)*NZ+(z)]
+#define vz(z,y,x)  vz[(x)*NZ+(z)]
+#define sxx(z,y,x) sxx[(x)*NZ+(z)]
+#define syy(z,y,x) syy[(x)*NZ+(z)]
+#define szz(z,y,x) szz[(x)*NZ+(z)]
+#define sxy(z,y,x) sxy[(x)*NZ+(z)]
+#define syz(z,y,x) syz[(x)*NZ+(z)]
+#define sxz(z,y,x) sxz[(x)*NZ+(z)]
 #endif
 
 #define vxout(y,x) vxout[(y)*NT+(x)]

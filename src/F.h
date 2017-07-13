@@ -373,6 +373,7 @@ struct varcl {
     cl_kernel kernel_initialize_gradsrc;
     cl_kernel kernel_surfgrid_coarse2fine;
     cl_kernel kernel_surfgrid_fine2coarse;
+    cl_kernel kernel_sources;
     
     cl_program program_v;
     cl_program program_s;
@@ -401,6 +402,7 @@ struct varcl {
     cl_program program_initialize_gradsrc;
     cl_program program_surfgrid_coarse2fine;
     cl_program program_surfgrid_fine2coarse;
+    cl_program program_sources;
     
     cl_event event_readMPI1[6];
     cl_event event_readMPI2[6];
@@ -668,6 +670,7 @@ struct modcstsloc {
     size_t global_work_size_bnd;
     size_t global_work_size_gradsrc;
     size_t global_work_size_surfgrid[3];
+    size_t global_work_size_sources;
     
     int local_off;
     cl_ulong required_global_mem_size;
@@ -885,6 +888,7 @@ int gpu_intialize_surfgrid_fine2coarse(cl_context  * pcontext, cl_program  * pro
 int gpu_intialize_fill_transfer_buff_s(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc, int out, int comm, int adj );
 int gpu_intialize_fill_transfer_buff_v(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc, int out, int comm, int adj );
 
+int gpu_intialize_sources(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc );
 
 void CPML_coeff(struct modcsts * m);
 
@@ -900,3 +904,5 @@ int res_amp(struct modcsts * mptr, int s);
 int Init_surfgrid(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc, struct modcsts * m_s, struct varcl ** vcl_s, struct modcstsloc ** mloc_s);
 
 int alloc_seismo(float *** var, int ns, int allng, int NT, int * nrec );
+
+

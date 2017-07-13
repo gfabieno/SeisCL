@@ -40,7 +40,8 @@ SeisCL_CL= \
 	update_v_CPML.cl \
 	seisout.cl \
 	fill_transfer_buff_s.cl \
-	fill_transfer_buff_v.cl
+	fill_transfer_buff_v.cl \
+    sources.cl
 
 SeisCL_CL_Headers = $(SeisCL_CL:%.cl=%.hcl)
 

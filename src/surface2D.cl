@@ -35,11 +35,11 @@
 #define tausipkp(z,x) tausipkp[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
 #define taup(z,x)        taup[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
 
-#define vx(z,x)  vx[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vz(z,x)  vz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxx(z,x) sxx[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define szz(z,x) szz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxz(z,x) sxz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
+#define vx(z,x)  vx[(x)*NZ+(z)]
+#define vz(z,x)  vz[(x)*NZ+(z)]
+#define sxx(z,x) sxx[(x)*NZ+(z)]
+#define szz(z,x) szz[(x)*NZ+(z)]
+#define sxz(z,x) sxz[(x)*NZ+(z)]
 
 #define rxx(z,x,l) rxx[(l)*NX*NZ+(x)*NZ+(z)]
 #define rzz(z,x,l) rzz[(l)*NX*NZ+(x)*NZ+(z)]

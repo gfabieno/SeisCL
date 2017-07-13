@@ -21,18 +21,18 @@
 
 /*Define useful macros to be able to write a matrix formulation in 2D with OpenCl */
 #if ND==3
-#define vx(z,y,x)   vx[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vy(z,y,x)   vy[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vz(z,y,x)   vz[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
+#define vx(z,y,x)   vx[(x)*NY*NZ+(y)*NZ+(z)]
+#define vy(z,y,x)   vy[(x)*NY*NZ+(y)*NZ+(z)]
+#define vz(z,y,x)   vz[(x)*NY*NZ+(y)*NZ+(z)]
 #define rip(z,y,x)     rip[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
 #define rjp(z,y,x)     rjp[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
 #define rkp(z,y,x)     rkp[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
 #endif
 
 #if ND==2 || ND==21
-#define vx(z,y,x)  vx[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vy(z,y,x)  vy[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vz(z,y,x)  vz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
+#define vx(z,y,x)  vx[(x)*NZ+(z)]
+#define vy(z,y,x)  vy[(x)*NZ+(z)]
+#define vz(z,y,x)  vz[(x)*NZ+(z)]
 #define rip(z,y,x)    rip[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
 #define rjp(z,y,x)    rjp[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
 #define rkp(z,y,x)    rkp[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]

@@ -47,6 +47,7 @@ This way, no .cl file need to be read and there is no need to be in the executab
 #include "seisout.hcl"
 #include "fill_transfer_buff_s.hcl"
 #include "fill_transfer_buff_v.hcl"
+#include "sources.hcl"
 
 char *get_build_options(struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc, int lcomm, int comm, int dirprop)
 {
@@ -1649,4 +1650,42 @@ int gpu_intialize_fill_transfer_buff_s(cl_context  * pcontext, cl_program  * pro
     return cl_err;
     
 }
+
+int gpu_intialize_sources(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc )
+{
+    
+    cl_int cl_err = 0;
+    
+    /* Pass some constant arguments as build options */
+    const char * build_options=get_build_options(inmem, inm, inmloc, 0, 0, 0);
+    
+    /*Create the kernel*/
+    const char * program_name = "sources";
+    cl_err = create_gpu_kernel_from_string( sources_source, program, pcontext, pkernel, program_name, build_options);
+    
+    
+    /*Define the arguments for this kernel */
+    cl_err = clSetKernelArg(*pkernel,  0,  sizeof(cl_mem), &inmem->vx);
+    cl_err = clSetKernelArg(*pkernel,  1,  sizeof(cl_mem), &inmem->vy);
+    cl_err = clSetKernelArg(*pkernel,  2,  sizeof(cl_mem), &inmem->vz);
+    cl_err = clSetKernelArg(*pkernel,  3,  sizeof(cl_mem), &inmem->sxx);
+    cl_err = clSetKernelArg(*pkernel,  4,  sizeof(cl_mem), &inmem->syy);
+    cl_err = clSetKernelArg(*pkernel,  5,  sizeof(cl_mem), &inmem->szz);
+    cl_err = clSetKernelArg(*pkernel,  6,  sizeof(cl_mem), &inmem->sxy);
+    cl_err = clSetKernelArg(*pkernel,  7,  sizeof(cl_mem), &inmem->syz);
+    cl_err = clSetKernelArg(*pkernel,  8,  sizeof(cl_mem), &inmem->sxz);
+    cl_err = clSetKernelArg(*pkernel,  9,  sizeof(cl_mem), &inmem->rip);
+    cl_err = clSetKernelArg(*pkernel,  10,  sizeof(cl_mem), &inmem->rjp);
+    cl_err = clSetKernelArg(*pkernel,  11,  sizeof(cl_mem), &inmem->rkp);
+    cl_err = clSetKernelArg(*pkernel,  12,  sizeof(cl_mem), &inmem->src_pos);
+    cl_err = clSetKernelArg(*pkernel,  13,  sizeof(cl_mem), &inmem->src);
+    
+    
+    
+    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
+    
+    return cl_err;
+    
+}
+
 

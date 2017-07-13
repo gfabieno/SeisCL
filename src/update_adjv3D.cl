@@ -43,25 +43,25 @@
 #define tausipkp(z,y,x) tausipkp[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
 #define taup(z,y,x)         taup[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
 
-#define vx(z,y,x)   vx[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vy(z,y,x)   vy[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vz(z,y,x)   vz[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxx(z,y,x) sxx[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define syy(z,y,x) syy[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define szz(z,y,x) szz[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxy(z,y,x) sxy[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define syz(z,y,x) syz[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxz(z,y,x) sxz[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
+#define vx(z,y,x)   vx[(x)*NY*NZ+(y)*NZ+(z)]
+#define vy(z,y,x)   vy[(x)*NY*NZ+(y)*NZ+(z)]
+#define vz(z,y,x)   vz[(x)*NY*NZ+(y)*NZ+(z)]
+#define sxx(z,y,x) sxx[(x)*NY*NZ+(y)*NZ+(z)]
+#define syy(z,y,x) syy[(x)*NY*NZ+(y)*NZ+(z)]
+#define szz(z,y,x) szz[(x)*NY*NZ+(y)*NZ+(z)]
+#define sxy(z,y,x) sxy[(x)*NY*NZ+(y)*NZ+(z)]
+#define syz(z,y,x) syz[(x)*NY*NZ+(y)*NZ+(z)]
+#define sxz(z,y,x) sxz[(x)*NY*NZ+(y)*NZ+(z)]
 
-#define vx_r(z,y,x)   vx_r[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vy_r(z,y,x)   vy_r[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vz_r(z,y,x)   vz_r[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxx_r(z,y,x) sxx_r[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define syy_r(z,y,x) syy_r[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define szz_r(z,y,x) szz_r[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxy_r(z,y,x) sxy_r[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define syz_r(z,y,x) syz_r[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxz_r(z,y,x) sxz_r[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
+#define vx_r(z,y,x)   vx_r[(x)*NY*NZ+(y)*NZ+(z)]
+#define vy_r(z,y,x)   vy_r[(x)*NY*NZ+(y)*NZ+(z)]
+#define vz_r(z,y,x)   vz_r[(x)*NY*NZ+(y)*NZ+(z)]
+#define sxx_r(z,y,x) sxx_r[(x)*NY*NZ+(y)*NZ+(z)]
+#define syy_r(z,y,x) syy_r[(x)*NY*NZ+(y)*NZ+(z)]
+#define szz_r(z,y,x) szz_r[(x)*NY*NZ+(y)*NZ+(z)]
+#define sxy_r(z,y,x) sxy_r[(x)*NY*NZ+(y)*NZ+(z)]
+#define syz_r(z,y,x) syz_r[(x)*NY*NZ+(y)*NZ+(z)]
+#define sxz_r(z,y,x) sxz_r[(x)*NY*NZ+(y)*NZ+(z)]
 
 #define psi_sxx_x(z,y,x) psi_sxx_x[(x)*(NY-2*fdoh)*(NZ-2*fdoh)+(y)*(NZ-2*fdoh)+(z)]
 #define psi_sxy_x(z,y,x) psi_sxy_x[(x)*(NY-2*fdoh)*(NZ-2*fdoh)+(y)*(NZ-2*fdoh)+(z)]
@@ -98,51 +98,6 @@
 #define gradsrc(y,x) gradsrc[(y)*NT+(x)]
 
 
-float3 ssource(int gidz, int gidy, int gidx,  int nsrc, __global float *srcpos_loc, __global float *signals, int nt, __global float * rip, __global float * rjp, __global float * rkp){
-    
-    float3 ampv={0.0,0.0,0.0};
-    if (nsrc>0){
-        
-        
-        for (int srci=0; srci<nsrc; srci++){
-            
-            
-            int i=(int)(srcpos_loc(0,srci)/DH-0.5)+fdoh;
-            int j=(int)(srcpos_loc(1,srci)/DH-0.5)+fdoh;
-            int k=(int)(srcpos_loc(2,srci)/DH-0.5)+fdoh;
-            
-            if (i==gidx && j==gidy && k==gidz){
-                //                float azi_rad=srcpos_loc(6,srci) * PI / 180;
-                
-                
-                float amp=(DT*signals(srci,nt))/(DH*DH*DH); // scaled force amplitude with F= 1N
-                
-                int SOURCE_TYPE= (int)srcpos_loc(4,srci);
-                
-                if (SOURCE_TYPE==2){
-                    /* single force in x */
-                    ampv.x  +=  amp/rip(k,j,i-offset);
-                }
-                else if (SOURCE_TYPE==3){
-                    /* single force in y */
-                    
-                    ampv.y  +=  amp/rjp(k,j,i-offset);
-                }
-                else if (SOURCE_TYPE==4){
-                    /* single force in z */
-                    
-                    ampv.z  +=  amp/rkp(k,j,i-offset);
-                }
-                
-            }
-        }
-        
-        
-    }
-    
-    return ampv;
-    
-}
 
 // Find boundary indice for boundary injection in backpropagation
 int evarm( int k, int j, int i){
@@ -1128,10 +1083,9 @@ __kernel void update_adjv(int offcomm, int nsrc,  int ng, int nt,
 // Backpropagate the forward velocity
 #if back_prop_type==1
     {
-        float3 amp = ssource(gidz, gidy, gidx+offset, nsrc, srcpos_loc, signals, nt, rip, rjp, rkp);
-        lvx=((sxx_x + sxy_y + sxz_z)/rip(gidz,gidy,gidx))+amp.x;
-        lvy=((syy_y + sxy_x + syz_z)/rjp(gidz,gidy,gidx))+amp.y;
-        lvz=((szz_z + sxz_x + syz_y)/rkp(gidz,gidy,gidx))+amp.z;
+        lvx=((sxx_x + sxy_y + sxz_z)/rip(gidz,gidy,gidx));
+        lvy=((syy_y + sxy_x + syz_z)/rjp(gidz,gidy,gidx));
+        lvz=((szz_z + sxz_x + syz_y)/rkp(gidz,gidy,gidx));
         
         vx(gidz,gidy,gidx)-= lvx;
         vy(gidz,gidy,gidx)-= lvy;

@@ -41,15 +41,15 @@
 #define tausipkp(z,y,x) tausipkp[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
 #define taup(z,y,x)         taup[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
 
-#define vx(z,y,x)   vx[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vy(z,y,x)   vy[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vz(z,y,x)   vz[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxx(z,y,x) sxx[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define syy(z,y,x) syy[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define szz(z,y,x) szz[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxy(z,y,x) sxy[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define syz(z,y,x) syz[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxz(z,y,x) sxz[(x)*NY*(NZ+NZ_al16)+(y)*(NZ+NZ_al16)+(z)+NZ_al0]
+#define vx(z,y,x)   vx[(x)*NY*NZ+(y)*NZ+(z)]
+#define vy(z,y,x)   vy[(x)*NY*NZ+(y)*NZ+(z)]
+#define vz(z,y,x)   vz[(x)*NY*NZ+(y)*NZ+(z)]
+#define sxx(z,y,x) sxx[(x)*NY*NZ+(y)*NZ+(z)]
+#define syy(z,y,x) syy[(x)*NY*NZ+(y)*NZ+(z)]
+#define szz(z,y,x) szz[(x)*NY*NZ+(y)*NZ+(z)]
+#define sxy(z,y,x) sxy[(x)*NY*NZ+(y)*NZ+(z)]
+#define syz(z,y,x) syz[(x)*NY*NZ+(y)*NZ+(z)]
+#define sxz(z,y,x) sxz[(x)*NY*NZ+(y)*NZ+(z)]
 
 #define rxx(z,y,x,l) rxx[(l)*NX*NY*NZ+(x)*NY*NZ+(y)*NZ+(z)]
 #define ryy(z,y,x,l) ryy[(l)*NX*NY*NZ+(x)*NY*NZ+(y)*NZ+(z)]
@@ -85,40 +85,6 @@
 #define signals(y,x) signals[(y)*NT+(x)]
 
 
-float psource(int gidz, int gidy, int gidx,  int nsrc, __global float *srcpos_loc, __global float *signals, int nt){
-    
-    float amp=0.0;
-    if (nsrc>0){
-        
-        for (int srci=0; srci<nsrc; srci++){
-        
-            int SOURCE_TYPE= (int)srcpos_loc(4,srci);
-            
-            if (SOURCE_TYPE==1){
-                int i=(int)(srcpos_loc(0,srci)/DH-0.5)+fdoh;
-                int j=(int)(srcpos_loc(1,srci)/DH-0.5)+fdoh;
-                int k=(int)(srcpos_loc(2,srci)/DH-0.5)+fdoh;
-         
-                
-                if (i==gidx && j==gidy && k==gidz){
-                    
-                    //amp+=signals(srci,nt)/(DH*DH*DH);
-                    
-//                    if ( (nt>0) && (nt< NT ) ){
-                        amp+=(signals(srci,nt+1)-signals(srci,nt-1) )/(2.0*DH*DH*DH);
-//                    }
-//                    else if (nt==0)
-//                        amp+=signals(srci,nt+1) /(2.0*DH*DH*DH);
-//                    else if (nt==NT)
-//                        amp+=signals(srci,nt-1) /(2.0*DH*DH*DH);
-                }
-            }
-        }
-    }
-    
-    return amp;
-    
-}
 
 
 __kernel void update_s(int offcomm, int nsrc,  int nt,
@@ -700,15 +666,14 @@ __kernel void update_s(int offcomm, int nsrc,  int nt,
         vyyzz=vyy+vzz;
         vxxzz=vxx+vzz;
         vxxyy=vxx+vyy;
-        
-        float amp = psource(gidz, gidy, gidx+offset, nsrc, srcpos_loc, signals, nt);
+
         
         sxy(gidz,gidy,gidx)+=(fipjp*vxyyx);
         syz(gidz,gidy,gidx)+=(fjpkp*vyzzy);
         sxz(gidz,gidy,gidx)+=(fipkp*vxzzx);
-        sxx(gidz,gidy,gidx)+=((g*vxxyyzz)-(f*vyyzz)) + amp;
-        syy(gidz,gidy,gidx)+=((g*vxxyyzz)-(f*vxxzz)) + amp;
-        szz(gidz,gidy,gidx)+=((g*vxxyyzz)-(f*vxxyy)) + amp;
+        sxx(gidz,gidy,gidx)+=((g*vxxyyzz)-(f*vyyzz)) ;
+        syy(gidz,gidy,gidx)+=((g*vxxyyzz)-(f*vxxzz)) ;
+        szz(gidz,gidy,gidx)+=((g*vxxyyzz)-(f*vxxyy)) ;
         
         
 #else
@@ -763,16 +728,15 @@ __kernel void update_s(int offcomm, int nsrc,  int nt,
             sumryy+=ryy(gidz,gidy,gidx,l);
             sumrzz+=rzz(gidz,gidy,gidx,l);
         }
-        
-        float amp = psource(gidz, gidy, gidx+offset, nsrc, srcpos_loc, signals, nt);
+
         /* and now the components of the stress tensor are
          completely updated */
         sxy(gidz,gidy,gidx)+=lsxy+(dt2*sumrxy);
         syz(gidz,gidy,gidx)+=lsyz+(dt2*sumryz);
         sxz(gidz,gidy,gidx)+=lsxz+(dt2*sumrxz);
-        sxx(gidz,gidy,gidx)+=lsxx+(dt2*sumrxx)+amp;
-        syy(gidz,gidy,gidx)+=lsyy+(dt2*sumryy)+amp;
-        szz(gidz,gidy,gidx)+=lszz+(dt2*sumrzz)+amp;
+        sxx(gidz,gidy,gidx)+=lsxx+(dt2*sumrxx);
+        syy(gidz,gidy,gidx)+=lsyy+(dt2*sumryy);
+        szz(gidz,gidy,gidx)+=lszz+(dt2*sumrzz);
         
         
 #endif

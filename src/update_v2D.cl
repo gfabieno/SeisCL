@@ -39,14 +39,14 @@
 #define tausipkp(z,x) tausipkp[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
 #define taup(z,x)        taup[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
 
-#define vx(z,x)  vx[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vy(z,x)  vy[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define vz(z,x)  vz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxx(z,x) sxx[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define szz(z,x) szz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxz(z,x) sxz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define sxy(z,x) sxy[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
-#define syz(z,x) syz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
+#define vx(z,x)  vx[(x)*NZ+(z)]
+#define vy(z,x)  vy[(x)*NZ+(z)]
+#define vz(z,x)  vz[(x)*NZ+(z)]
+#define sxx(z,x) sxx[(x)*NZ+(z)]
+#define szz(z,x) szz[(x)*NZ+(z)]
+#define sxz(z,x) sxz[(x)*NZ+(z)]
+#define sxy(z,x) sxy[(x)*NZ+(z)]
+#define syz(z,x) syz[(x)*NZ+(z)]
 
 #define rxx(z,x,l) rxx[(l)*NX*NZ+(x)*NZ+(z)]
 #define rzz(z,x,l) rzz[(l)*NX*NZ+(x)*NZ+(z)]
@@ -87,52 +87,7 @@
 
 
 
-float2 ssource(int gidz, int gidx,  int nsrc, __global float *srcpos_loc, __global float *signals, int nt, __global float * rip, __global float * rkp){
-    
-    float2 ampv={0.0,0.0};
-    int i,k;
-    if (nsrc>0){
 
-        for (int srci=0; srci<nsrc; srci++){
-
-            i=(int)(srcpos_loc(0,srci)/DH-0.5)+fdoh;
-            k=(int)(srcpos_loc(2,srci)/DH-0.5)+fdoh;
-            
-            if (i==gidx && k==gidz){
-                
-                float amp=(DT*signals(srci,nt))/(DH*DH); // scaled force amplitude with F= 1N
-                
-                int SOURCE_TYPE= (int)srcpos_loc(4,srci);
-                
-                if (SOURCE_TYPE==2){
-                    /* single force in x */
-                    ampv.x  +=  amp/rip(k,i-offset);
-                }
-                else if (SOURCE_TYPE==4){
-                    /* single force in z */
-                    
-                    ampv.y  +=  amp/rkp(k,i-offset);
-                }
-                
-                if (SOURCE_TYPE==2){
-                    /* single force in x */
-                    ampv.x  +=  amp;
-                }
-                else if (SOURCE_TYPE==4){
-                    /* single force in z */
-                    
-                    ampv.y  +=  amp;
-                }
-                
-            }
-        }
-    
-        
-    }
-    
-    return ampv;
-    
-}
 
 
 __kernel void update_v(int offcomm,int nsrc,  int nt,
@@ -424,9 +379,9 @@ __kernel void update_v(int offcomm,int nsrc,  int nt,
 
 // Update the velocities
     {
-        float2 amp = ssource(gidz, gidx+offset, nsrc, srcpos_loc, signals, nt, rip, rkp);
-        vx(gidz,gidx)+= ((sxx_x + sxz_z)/rip(gidz,gidx))+amp.x;
-        vz(gidz,gidx)+= ((szz_z + sxz_x)/rkp(gidz,gidx))+amp.y;
+
+        vx(gidz,gidx)+= ((sxx_x + sxz_z)/rip(gidz,gidx));
+        vz(gidz,gidx)+= ((szz_z + sxz_x)/rkp(gidz,gidx));
     }
 
 // Absorbing boundary

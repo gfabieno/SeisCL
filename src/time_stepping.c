@@ -85,6 +85,7 @@ int update_grid(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
     for (d=0;d<m->num_devices;d++){
         __GUARD clSetKernelArg((*vcl)[d].kernel_s,  2, sizeof(int), &t);
         __GUARD clSetKernelArg((*vcl)[d].kernel_v,  2, sizeof(int), &t);
+        __GUARD clSetKernelArg((*vcl)[d].kernel_sources,  14, sizeof(int), &t);
         if (d>0 || m->MYLOCALID>0){
             __GUARD clSetKernelArg((*vcl)[d].kernel_scomm1,  2, sizeof(int), &t);
             __GUARD clSetKernelArg((*vcl)[d].kernel_vcomm1,  2, sizeof(int), &t);
@@ -127,6 +128,11 @@ int update_grid(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_fill_transfer_buff2_v_in, (*vcl)[d].numdim, (*mloc)[d].global_work_size_fillcomm, NULL, 1, &(*vcl)[d].event_writev2, NULL);
             __GUARD clReleaseEvent((*vcl)[d].event_writev2);
         }
+    }
+    
+    //Inject sources
+    for (d=0;d<m->num_devices;d++){
+        __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_sources, 1, &(*mloc)[d].global_work_size_sources, NULL, 0, NULL, NULL);
     }
     
     //Save the boundary if the gradient output is required
@@ -333,7 +339,12 @@ int update_grid_adj(struct modcsts * m, struct varcl ** vcl, struct modcstsloc *
         }
     }
     
-    
+    //Inject sources
+    if (m->back_prop_type==1){
+        for (d=0;d<m->num_devices;d++){
+            __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_sources, 1, &(*mloc)[d].global_work_size_sources, NULL, 0, NULL, NULL);
+        }
+    }
     // Adjoint time stepping of the velocity variables
     for (d=0;d<m->num_devices;d++){
         
@@ -426,6 +437,9 @@ int initialize_grid(struct modcsts * m, struct varcl ** vcl, struct modcstsloc *
         __GUARD transfer_gpu_memory(&(*vcl)[d].cmd_queue,  buffer_size_thisns, &(*vcl)[d].src_pos, m->src_pos[s]);
         __GUARD transfer_gpu_memory(&(*vcl)[d].cmd_queue,  buffer_size_nrec, &(*vcl)[d].rec_pos,   m->rec_pos[s]);
         
+        (*mloc)[d].global_work_size_sources=m->nsrc[s];
+        int dirprop=1;
+        __GUARD clSetKernelArg((*vcl)[d].kernel_sources,  15, sizeof(int), &dirprop);
         
         __GUARD clSetKernelArg((*vcl)[d].kernel_s,  1, sizeof(int), &m->nsrc[s]);
         __GUARD clSetKernelArg((*vcl)[d].kernel_v,  1, sizeof(int), &m->nsrc[s]);
@@ -463,7 +477,7 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
     
     int t,s,i,d,j, thist,k;
     int posx;
-    
+    int dirprop;
 
     // Calculate what shots belong to the group this processing element belongs to
     if (!state){
@@ -728,7 +742,9 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
                     __GUARD clSetKernelArg((*vcl)[d].kernel_adjvcomm2,  1, sizeof(int), &m->nsrc[s]);
                     __GUARD clSetKernelArg((*vcl)[d].kernel_adjvcomm2,  2, sizeof(int), &m->nrec[s]);
                 }
-                
+                (*mloc)[d].global_work_size_sources=m->nsrc[s];
+                dirprop=-1;
+                __GUARD clSetKernelArg((*vcl)[d].kernel_sources,  15, sizeof(int), &dirprop);
                 
                 __GUARD launch_gpu_kernel( &(*vcl)[d].cmd_queue, &(*vcl)[d].kernel_initseis_r, 1, &(*mloc)[d].global_work_size_initfd, NULL, 0, NULL, NULL);
                 

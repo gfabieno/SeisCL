@@ -444,7 +444,7 @@ int Free_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             if ((*vcl)[d].kernel_savefreqs) clReleaseKernel((*vcl)[d].kernel_savefreqs);
             if ((*vcl)[d].kernel_initsavefreqs) clReleaseKernel((*vcl)[d].kernel_initsavefreqs);
             if ((*vcl)[d].kernel_initialize_gradsrc) clReleaseKernel((*vcl)[d].kernel_initialize_gradsrc);
-            
+            if ((*vcl)[d].kernel_sources) clReleaseKernel((*vcl)[d].kernel_sources);
             
             if ((*vcl)[d].program_v) clReleaseProgram((*vcl)[d].program_v);
             if ((*vcl)[d].program_s) clReleaseProgram((*vcl)[d].program_s);
@@ -471,7 +471,7 @@ int Free_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             if ((*vcl)[d].program_savefreqs) clReleaseProgram((*vcl)[d].program_savefreqs);
             if ((*vcl)[d].program_initsavefreqs) clReleaseProgram((*vcl)[d].program_initsavefreqs);
             if ((*vcl)[d].program_initialize_gradsrc) clReleaseProgram((*vcl)[d].program_initialize_gradsrc);
-            
+            if ((*vcl)[d].program_sources) clReleaseProgram((*vcl)[d].program_sources);
 
             
             if ((*vcl)[d].cmd_queue) clReleaseCommandQueue((*vcl)[d].cmd_queue);

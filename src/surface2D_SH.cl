@@ -19,7 +19,7 @@
 
 /*This is the kernel that implement the free surface condition for SH waves*/
 
-#define syz(z,x) syz[(x)*(NZ+NZ_al16)+(z)+NZ_al0]
+#define syz(z,x) syz[(x)*NZ+(z)]
 
 __kernel void surface(        __global float *syz)
 {

@@ -898,7 +898,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_fill_transfer_buff2_s_out, &(*vcl)[d], m, &(*mloc)[d],1,2,0);
         }
         
-        
+        __GUARD gpu_intialize_sources(&m->context, &(*vcl)[d].program_sources, &(*vcl)[d].kernel_sources, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d]);
         
         
         if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(state));
