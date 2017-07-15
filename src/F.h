@@ -123,7 +123,7 @@ struct variable{
     float **    gl_var_res;
     int       to_output;
     int       for_grad;
-    int       to_comm;
+    int  to_comm;
     int num_ele;
     
     float** de_varout;
@@ -493,3 +493,15 @@ int kernel_varout(int NDIM, int nvars, struct variable * vars, const char ** sou
 int kernel_varoutinit(int NDIM, int nvars, struct variable * vars, const char ** source);
 
 int kernel_varinit(int NDIM, int nvars, struct variable * vars, const char ** source);
+
+int kernel_residuals(int NDIM, int nvars, struct variable * vars, const char ** source);
+
+int kernel_gradinit(int NDIM, int nparams, struct parameter * params, const char ** source);
+
+int kernel_initsavefreqs(int NDIM, int nvars, struct variable * vars, const char ** source);
+
+int kernel_savefreqs(int NDIM, int nvars, struct variable * vars, const char ** source);
+
+int kernel_init_gradsrc(int NDIM, const char ** source);
+
+int kernel_fillbuff(int NDIM, char ** N_names, int local_off, int nvars, struct variable * vars, const char ** source, int upid, int in_out, int buff12);

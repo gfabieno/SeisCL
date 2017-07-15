@@ -379,8 +379,6 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
             //Create OpenCL buffers with the right size
             for (i=0;i<m->nvars;i++){
                 
-                //Number of elements for variables on this device
-                (*vcl)[d].vars[i].num_ele=fdsize;
                 //Create variable buffers for the interior domain
                 (*vcl)[d].vars[i].cl_var.size=sizeof(float)*(*vcl)[d].vars[i].num_ele;
                 __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].vars[i].cl_var.size,    &(*vcl)[d].vars[i].cl_var.mem);
@@ -523,7 +521,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
 
         }
         
-        // Create the kernels of the devices
+        // Create the update kernels
         for (i=0;i<m->nupdates;i++){
             __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].updates_f[i].center, offcomm1, LCOMM, 0, 0);
             if (d>0 || m->MYLOCALID>0){
@@ -549,11 +547,43 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
         __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].src_recs.seisoutinit, 0, 0, 0, 0);
         
          kernel_varinit(m->NDIM, m->nvars, (*vcl)[d].vars, &(*vcl)[d].bnd_cnds.init_f.src);
-//        __GUARD assign_prog_source(&(*vcl)[d].bnd_cnds.init_f, "vars_init", (*vcl)[d].src_recs.seisoutinit.src);
+        __GUARD assign_prog_source(&(*vcl)[d].bnd_cnds.init_f, "vars_init", (*vcl)[d].bnd_cnds.init_f.src);
+        __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].bnd_cnds.init_f, 0, 0, 0, 0);
         
         
+        if (m->GRADOUT){
+            kernel_residuals(m->NDIM, m->nvars, (*vcl)[d].vars, &(*vcl)[d].src_recs.residuals.src);
+            __GUARD assign_prog_source(&(*vcl)[d].src_recs.residuals, "residuals", (*vcl)[d].src_recs.residuals.src);
+            __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].src_recs.residuals, 0, 0, 0, 0);
+            
+            if (m->BACK_PROP_TYPE==1){
+                kernel_varinit(m->NDIM, m->nvars, (*vcl)[d].vars_adj, &(*vcl)[d].bnd_cnds.init_adj.src);
+                __GUARD assign_prog_source(&(*vcl)[d].bnd_cnds.init_adj, "vars_init", (*vcl)[d].bnd_cnds.init_adj.src);
+                __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].bnd_cnds.init_adj, 0, 0, 0, 0);
+                
+                kernel_gradinit(m->NDIM, m->nparams, (*vcl)[d].params, &(*vcl)[d].grads.init.src);
+                __GUARD assign_prog_source(&(*vcl)[d].grads.init, "gradinit", (*vcl)[d].grads.init.src);
+                __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].grads.init, 0, 0, 0, 0);
+            }
+            else if(m->BACK_PROP_TYPE==2){
+                kernel_initsavefreqs(m->NDIM, m->nvars, (*vcl)[d].vars, &(*vcl)[d].grads.initsavefreqs.src);
+                __GUARD assign_prog_source(&(*vcl)[d].grads.initsavefreqs, "initsavefreqs", (*vcl)[d].grads.initsavefreqs.src);
+                __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].grads.initsavefreqs, 0, 0, 0, 0);
+                
+                kernel_savefreqs(m->NDIM, m->nvars, (*vcl)[d].vars, &(*vcl)[d].grads.savefreqs.src);
+                __GUARD assign_prog_source(&(*vcl)[d].grads.savefreqs, "savefreqs", (*vcl)[d].grads.savefreqs.src);
+                __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].grads.savefreqs, 0, 0, 0, 0);
+            }
+            
+            if (m->GRADSRCOUT){
+                kernel_init_gradsrc(m->NDIM, &(*vcl)[d].src_recs.init_gradsrc.src);
+                __GUARD assign_prog_source(&(*vcl)[d].src_recs.init_gradsrc, "init_gradsrc", (*vcl)[d].src_recs.init_gradsrc.src);
+                __GUARD gpu_initialize_kernel(m, &(*vcl)[d],  &(*vcl)[d].src_recs.init_gradsrc, 0, 0, 0, 0);
+            }
+        }
         
 
+        kernel_fillbuff( m->NDIM, m->N_names, (*vcl)[d].LOCAL_OFF, m->nvars ,(*vcl)[d].vars,&(*vcl)[d].updates_f[0].fill_buff1_in.src, 1, 0, 1);
         
         //Define other kernels
         //TODO Most of these kernel could be automatically generated
@@ -566,27 +596,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
         //    __GUARD assign_prog_source(&m->updates_f[1].fill_buff2_in, "fill_transfer_buff_s_in", fill_transfer_buff_s_source);
         //    __GUARD assign_prog_source(&m->updates_f[1].fill_buff2_out, "fill_transfer_buff_s_out", fill_transfer_buff_s_source);
         //
-        //    __GUARD assign_prog_source(&m->src_recs.seisout, "seisout", seisout_source);
-        //    __GUARD assign_prog_source(&m->src_recs.seisoutinit, "seisoutinit", initialize_source);
-        //    __GUARD assign_prog_source(&m->bnd_cnds.init_f, "initialize_seis", initialize_source);
-        //
-        //
-        //    if (m->GRADOUT){
-        //
-        //        __GUARD assign_prog_source(&m->src_recs.residuals, "residuals", residuals_source);
-        //        if (m->GRADSRCOUT){
-        //            __GUARD assign_prog_source(&m->src_recs.init_gradsrc, "initialize_gradsrc", initialize_source);
-        //        }
-        //        if (m->BACK_PROP_TYPE==1){
-        //            __GUARD assign_prog_source(&m->bnd_cnds.init_adj, "initialize_seis_r", initialize_source);
-        //            __GUARD assign_prog_source(&m->grads.init, "initialize_grad", initialize_source);
-        //        }
-        //        else if(m->BACK_PROP_TYPE==2){
-        //            __GUARD assign_prog_source(&m->grads.savefreqs, "savefreqs", savefreqs_source);
-        //            __GUARD assign_prog_source(&m->grads.initsavefreqs, "initialize_savefreqs", initialize_source);
-        //        }
-        //        
-        //    }
+
         
         
         
@@ -657,8 +667,8 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
         
         
 
-//
-//
+
+
 //        if (d>0 || m->MYLOCALID>0 || d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
 //            __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_fill_transfer_buff1_v_in, &(*vcl)[d], m, &(*mloc)[d],0,1,0);
 //            __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_fill_transfer_buff2_v_in, &(*vcl)[d], m, &(*mloc)[d],0,2,0);

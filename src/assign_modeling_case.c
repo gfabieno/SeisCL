@@ -178,42 +178,44 @@ int assign_modeling_case(struct modcsts * m){
             if (m->ABS_TYPE==1)
                 m->nvars+=18;
             GMALLOC(m->vars, sizeof(struct variable)*m->nvars);
+            
+            
             if (!state){
             m->vars[0].name="vx"; m->vars[0].for_grad=1; m->vars[0].to_comm=1;
             m->vars[1].name="vy"; m->vars[1].for_grad=1; m->vars[1].to_comm=1;
             m->vars[2].name="vz"; m->vars[2].for_grad=1; m->vars[2].to_comm=1;
-            m->vars[3].name="sxx"; m->vars[3].for_grad=1; m->vars[3].to_comm=1;
-            m->vars[4].name="syy"; m->vars[4].for_grad=1; m->vars[4].to_comm=1;
-            m->vars[5].name="szz"; m->vars[5].for_grad=1; m->vars[5].to_comm=1;
-            m->vars[6].name="sxy"; m->vars[6].for_grad=1; m->vars[6].to_comm=1;
-            m->vars[7].name="sxz"; m->vars[7].for_grad=1; m->vars[7].to_comm=1;
-            m->vars[8].name="syz"; m->vars[8].for_grad=1; m->vars[8].to_comm=1;
-            m->vars[9].name="rxx"; m->vars[9].for_grad=1; m->vars[9].to_comm=0;
-            m->vars[10].name="ryy"; m->vars[10].for_grad=1; m->vars[10].to_comm=0;
-            m->vars[11].name="rzz"; m->vars[11].for_grad=1; m->vars[11].to_comm=0;
-            m->vars[12].name="rxy"; m->vars[12].for_grad=1; m->vars[12].to_comm=0;
-            m->vars[13].name="rxz"; m->vars[13].for_grad=1; m->vars[13].to_comm=0;
-            m->vars[14].name="ryz"; m->vars[14].for_grad=1; m->vars[14].to_comm=0;
+            m->vars[3].name="sxx"; m->vars[3].for_grad=1; m->vars[3].to_comm=2;
+            m->vars[4].name="syy"; m->vars[4].for_grad=1; m->vars[4].to_comm=2;
+            m->vars[5].name="szz"; m->vars[5].for_grad=1; m->vars[5].to_comm=2;
+            m->vars[6].name="sxy"; m->vars[6].for_grad=1; m->vars[6].to_comm=2;
+            m->vars[7].name="sxz"; m->vars[7].for_grad=1; m->vars[7].to_comm=2;
+            m->vars[8].name="syz"; m->vars[8].for_grad=1; m->vars[8].to_comm=2;
+            m->vars[9].name="rxx"; m->vars[9].for_grad=1; 
+            m->vars[10].name="ryy"; m->vars[10].for_grad=1; 
+            m->vars[11].name="rzz"; m->vars[11].for_grad=1; 
+            m->vars[12].name="rxy"; m->vars[12].for_grad=1; 
+            m->vars[13].name="rxz"; m->vars[13].for_grad=1; 
+            m->vars[14].name="ryz"; m->vars[14].for_grad=1; 
             
             if (m->ABS_TYPE==1){
-                m->vars[15].name="psi_sxx_x"; m->vars[15].for_grad=0; m->vars[15].to_comm=0;
-                m->vars[16].name="psi_sxy_x"; m->vars[16].for_grad=0; m->vars[16].to_comm=0;
-                m->vars[17].name="psi_sxz_x"; m->vars[17].for_grad=0; m->vars[17].to_comm=0;
-                m->vars[18].name="psi_syy_y"; m->vars[18].for_grad=0; m->vars[18].to_comm=0;
-                m->vars[19].name="psi_sxy_y"; m->vars[19].for_grad=0; m->vars[19].to_comm=0;
-                m->vars[20].name="psi_syz_y"; m->vars[20].for_grad=0; m->vars[20].to_comm=0;
-                m->vars[21].name="psi_szz_z"; m->vars[21].for_grad=0; m->vars[21].to_comm=0;
-                m->vars[22].name="psi_sxz_z"; m->vars[22].for_grad=0; m->vars[22].to_comm=0;
-                m->vars[23].name="psi_syz_z"; m->vars[23].for_grad=0; m->vars[23].to_comm=0;
-                m->vars[24].name="psi_vx_x"; m->vars[24].for_grad=0; m->vars[24].to_comm=0;
-                m->vars[25].name="psi_vy_x"; m->vars[25].for_grad=0; m->vars[25].to_comm=0;
-                m->vars[26].name="psi_vz_x"; m->vars[26].for_grad=0; m->vars[26].to_comm=0;
-                m->vars[27].name="psi_vx_y"; m->vars[27].for_grad=0; m->vars[27].to_comm=0;
-                m->vars[28].name="psi_vy_y"; m->vars[28].for_grad=0; m->vars[28].to_comm=0;
-                m->vars[29].name="psi_vz_y"; m->vars[29].for_grad=0; m->vars[29].to_comm=0;
-                m->vars[30].name="psi_vx_z"; m->vars[30].for_grad=0; m->vars[30].to_comm=0;
-                m->vars[31].name="psi_vy_z"; m->vars[31].for_grad=0; m->vars[31].to_comm=0;
-                m->vars[32].name="psi_vz_z"; m->vars[32].for_grad=0; m->vars[32].to_comm=0;
+                m->vars[15].name="psi_sxx_x"; m->vars[15].for_grad=0; 
+                m->vars[16].name="psi_sxy_x"; m->vars[16].for_grad=0; 
+                m->vars[17].name="psi_sxz_x"; m->vars[17].for_grad=0; 
+                m->vars[18].name="psi_syy_y"; m->vars[18].for_grad=0; 
+                m->vars[19].name="psi_sxy_y"; m->vars[19].for_grad=0; 
+                m->vars[20].name="psi_syz_y"; m->vars[20].for_grad=0; 
+                m->vars[21].name="psi_szz_z"; m->vars[21].for_grad=0; 
+                m->vars[22].name="psi_sxz_z"; m->vars[22].for_grad=0; 
+                m->vars[23].name="psi_syz_z"; m->vars[23].for_grad=0; 
+                m->vars[24].name="psi_vx_x"; m->vars[24].for_grad=0; 
+                m->vars[25].name="psi_vy_x"; m->vars[25].for_grad=0; 
+                m->vars[26].name="psi_vz_x"; m->vars[26].for_grad=0; 
+                m->vars[27].name="psi_vx_y"; m->vars[27].for_grad=0; 
+                m->vars[28].name="psi_vy_y"; m->vars[28].for_grad=0; 
+                m->vars[29].name="psi_vz_y"; m->vars[29].for_grad=0; 
+                m->vars[30].name="psi_vx_z"; m->vars[30].for_grad=0; 
+                m->vars[31].name="psi_vy_z"; m->vars[31].for_grad=0; 
+                m->vars[32].name="psi_vz_z"; m->vars[32].for_grad=0; 
                 
             }}
             
@@ -268,32 +270,32 @@ int assign_modeling_case(struct modcsts * m){
             m->vars[0].name="vx"; m->vars[0].for_grad=1; m->vars[0].to_comm=1;
             m->vars[1].name="vy"; m->vars[1].for_grad=1; m->vars[1].to_comm=1;
             m->vars[2].name="vz"; m->vars[2].for_grad=1; m->vars[2].to_comm=1;
-            m->vars[3].name="sxx"; m->vars[3].for_grad=1; m->vars[3].to_comm=1;
-            m->vars[4].name="syy"; m->vars[4].for_grad=1; m->vars[4].to_comm=1;
-            m->vars[5].name="szz"; m->vars[5].for_grad=1; m->vars[5].to_comm=1;
-            m->vars[6].name="sxy"; m->vars[6].for_grad=1; m->vars[6].to_comm=1;
-            m->vars[7].name="sxz"; m->vars[7].for_grad=1; m->vars[7].to_comm=1;
-            m->vars[8].name="syz"; m->vars[8].for_grad=1; m->vars[8].to_comm=1;
+            m->vars[3].name="sxx"; m->vars[3].for_grad=1; m->vars[3].to_comm=2;
+            m->vars[4].name="syy"; m->vars[4].for_grad=1; m->vars[4].to_comm=2;
+            m->vars[5].name="szz"; m->vars[5].for_grad=1; m->vars[5].to_comm=2;
+            m->vars[6].name="sxy"; m->vars[6].for_grad=1; m->vars[6].to_comm=2;
+            m->vars[7].name="sxz"; m->vars[7].for_grad=1; m->vars[7].to_comm=2;
+            m->vars[8].name="syz"; m->vars[8].for_grad=1; m->vars[8].to_comm=2;
             
             if (m->ABS_TYPE==1){
-                m->vars[9].name="psi_sxx_x"; m->vars[9].for_grad=0; m->vars[9].to_comm=0;
-                m->vars[10].name="psi_sxy_x"; m->vars[10].for_grad=0; m->vars[10].to_comm=0;
-                m->vars[11].name="psi_sxz_x"; m->vars[11].for_grad=0; m->vars[11].to_comm=0;
-                m->vars[12].name="psi_syy_y"; m->vars[12].for_grad=0; m->vars[12].to_comm=0;
-                m->vars[13].name="psi_sxy_y"; m->vars[13].for_grad=0; m->vars[13].to_comm=0;
-                m->vars[14].name="psi_syz_y"; m->vars[14].for_grad=0; m->vars[14].to_comm=0;
-                m->vars[15].name="psi_szz_z"; m->vars[15].for_grad=0; m->vars[15].to_comm=0;
-                m->vars[16].name="psi_sxz_z"; m->vars[16].for_grad=0; m->vars[16].to_comm=0;
-                m->vars[17].name="psi_syz_z"; m->vars[17].for_grad=0; m->vars[17].to_comm=0;
-                m->vars[18].name="psi_vx_x"; m->vars[18].for_grad=0; m->vars[18].to_comm=0;
-                m->vars[19].name="psi_vy_x"; m->vars[19].for_grad=0; m->vars[19].to_comm=0;
-                m->vars[20].name="psi_vz_x"; m->vars[20].for_grad=0; m->vars[20].to_comm=0;
-                m->vars[21].name="psi_vx_y"; m->vars[21].for_grad=0; m->vars[21].to_comm=0;
-                m->vars[22].name="psi_vy_y"; m->vars[22].for_grad=0; m->vars[22].to_comm=0;
-                m->vars[23].name="psi_vz_y"; m->vars[23].for_grad=0; m->vars[23].to_comm=0;
-                m->vars[24].name="psi_vx_z"; m->vars[24].for_grad=0; m->vars[24].to_comm=0;
-                m->vars[25].name="psi_vy_z"; m->vars[25].for_grad=0; m->vars[25].to_comm=0;
-                m->vars[26].name="psi_vz_z"; m->vars[26].for_grad=0; m->vars[26].to_comm=0;
+                m->vars[9].name="psi_sxx_x"; m->vars[9].for_grad=0; 
+                m->vars[10].name="psi_sxy_x"; m->vars[10].for_grad=0; 
+                m->vars[11].name="psi_sxz_x"; m->vars[11].for_grad=0; 
+                m->vars[12].name="psi_syy_y"; m->vars[12].for_grad=0; 
+                m->vars[13].name="psi_sxy_y"; m->vars[13].for_grad=0; 
+                m->vars[14].name="psi_syz_y"; m->vars[14].for_grad=0; 
+                m->vars[15].name="psi_szz_z"; m->vars[15].for_grad=0; 
+                m->vars[16].name="psi_sxz_z"; m->vars[16].for_grad=0; 
+                m->vars[17].name="psi_syz_z"; m->vars[17].for_grad=0; 
+                m->vars[18].name="psi_vx_x"; m->vars[18].for_grad=0; 
+                m->vars[19].name="psi_vy_x"; m->vars[19].for_grad=0; 
+                m->vars[20].name="psi_vz_x"; m->vars[20].for_grad=0; 
+                m->vars[21].name="psi_vx_y"; m->vars[21].for_grad=0; 
+                m->vars[22].name="psi_vy_y"; m->vars[22].for_grad=0; 
+                m->vars[23].name="psi_vz_y"; m->vars[23].for_grad=0; 
+                m->vars[24].name="psi_vx_z"; m->vars[24].for_grad=0; 
+                m->vars[25].name="psi_vy_z"; m->vars[25].for_grad=0; 
+                m->vars[26].name="psi_vz_z"; m->vars[26].for_grad=0; 
                 
             }}
             
@@ -345,22 +347,22 @@ int assign_modeling_case(struct modcsts * m){
             if (!state){
             m->vars[0].name="vx"; m->vars[0].for_grad=1; m->vars[0].to_comm=1;
             m->vars[1].name="vz"; m->vars[1].for_grad=1; m->vars[1].to_comm=1;
-            m->vars[2].name="sxx"; m->vars[2].for_grad=1; m->vars[2].to_comm=1;
-            m->vars[3].name="szz"; m->vars[3].for_grad=1; m->vars[3].to_comm=1;
-            m->vars[4].name="sxz"; m->vars[4].for_grad=1; m->vars[4].to_comm=1;
-            m->vars[5].name="rxx"; m->vars[5].for_grad=1; m->vars[5].to_comm=0;
-            m->vars[6].name="rzz"; m->vars[6].for_grad=1; m->vars[6].to_comm=0;
-            m->vars[7].name="rxz"; m->vars[7].for_grad=1; m->vars[7].to_comm=0;
+            m->vars[2].name="sxx"; m->vars[2].for_grad=1; m->vars[2].to_comm=2;
+            m->vars[3].name="szz"; m->vars[3].for_grad=1; m->vars[3].to_comm=2;
+            m->vars[4].name="sxz"; m->vars[4].for_grad=1; m->vars[4].to_comm=2;
+            m->vars[5].name="rxx"; m->vars[5].for_grad=1; 
+            m->vars[6].name="rzz"; m->vars[6].for_grad=1; 
+            m->vars[7].name="rxz"; m->vars[7].for_grad=1; 
             
             if (m->ABS_TYPE==1){
-                m->vars[8].name="psi_sxx_x"; m->vars[8].for_grad=0; m->vars[8].to_comm=0;
-                m->vars[9].name="psi_sxz_x"; m->vars[9].for_grad=0; m->vars[9].to_comm=0;
-                m->vars[10].name="psi_szz_z"; m->vars[10].for_grad=0; m->vars[10].to_comm=0;
-                m->vars[11].name="psi_sxz_z"; m->vars[11].for_grad=0; m->vars[11].to_comm=0;
-                m->vars[12].name="psi_vx_x"; m->vars[12].for_grad=0; m->vars[12].to_comm=0;
-                m->vars[13].name="psi_vz_x"; m->vars[13].for_grad=0; m->vars[13].to_comm=0;
-                m->vars[14].name="psi_vx_z"; m->vars[14].for_grad=0; m->vars[14].to_comm=0;
-                m->vars[15].name="psi_vz_z"; m->vars[15].for_grad=0; m->vars[15].to_comm=0;
+                m->vars[8].name="psi_sxx_x"; m->vars[8].for_grad=0; 
+                m->vars[9].name="psi_sxz_x"; m->vars[9].for_grad=0; 
+                m->vars[10].name="psi_szz_z"; m->vars[10].for_grad=0; 
+                m->vars[11].name="psi_sxz_z"; m->vars[11].for_grad=0; 
+                m->vars[12].name="psi_vx_x"; m->vars[12].for_grad=0; 
+                m->vars[13].name="psi_vz_x"; m->vars[13].for_grad=0; 
+                m->vars[14].name="psi_vx_z"; m->vars[14].for_grad=0; 
+                m->vars[15].name="psi_vz_z"; m->vars[15].for_grad=0; 
                 
             }}
             
@@ -410,20 +412,20 @@ int assign_modeling_case(struct modcsts * m){
             if (!state){
             m->vars[0].name="vx"; m->vars[0].for_grad=1; m->vars[0].to_comm=1;
             m->vars[1].name="vz"; m->vars[1].for_grad=1; m->vars[1].to_comm=1;
-            m->vars[2].name="sxx"; m->vars[2].for_grad=1; m->vars[2].to_comm=1;
-            m->vars[3].name="szz"; m->vars[3].for_grad=1; m->vars[3].to_comm=1;
-            m->vars[4].name="sxz"; m->vars[4].for_grad=1; m->vars[4].to_comm=1;
+            m->vars[2].name="sxx"; m->vars[2].for_grad=1; m->vars[2].to_comm=2;
+            m->vars[3].name="szz"; m->vars[3].for_grad=1; m->vars[3].to_comm=2;
+            m->vars[4].name="sxz"; m->vars[4].for_grad=1; m->vars[4].to_comm=2;
             
             
             if (m->ABS_TYPE==1){
-                m->vars[5].name="psi_sxx_x"; m->vars[5].for_grad=0; m->vars[5].to_comm=0;
-                m->vars[6].name="psi_sxz_x"; m->vars[6].for_grad=0; m->vars[6].to_comm=0;
-                m->vars[7].name="psi_szz_z"; m->vars[7].for_grad=0; m->vars[7].to_comm=0;
-                m->vars[8].name="psi_sxz_z"; m->vars[8].for_grad=0; m->vars[8].to_comm=0;
-                m->vars[9].name="psi_vx_x"; m->vars[9].for_grad=0; m->vars[9].to_comm=0;
-                m->vars[10].name="psi_vz_x"; m->vars[10].for_grad=0; m->vars[10].to_comm=0;
-                m->vars[11].name="psi_vx_z"; m->vars[11].for_grad=0; m->vars[11].to_comm=0;
-                m->vars[12].name="psi_vz_z"; m->vars[12].for_grad=0; m->vars[12].to_comm=0;
+                m->vars[5].name="psi_sxx_x"; m->vars[5].for_grad=0; 
+                m->vars[6].name="psi_sxz_x"; m->vars[6].for_grad=0; 
+                m->vars[7].name="psi_szz_z"; m->vars[7].for_grad=0; 
+                m->vars[8].name="psi_sxz_z"; m->vars[8].for_grad=0; 
+                m->vars[9].name="psi_vx_x"; m->vars[9].for_grad=0; 
+                m->vars[10].name="psi_vz_x"; m->vars[10].for_grad=0; 
+                m->vars[11].name="psi_vx_z"; m->vars[11].for_grad=0; 
+                m->vars[12].name="psi_vz_z"; m->vars[12].for_grad=0; 
                 
             }}
             
@@ -473,16 +475,16 @@ int assign_modeling_case(struct modcsts * m){
             GMALLOC(m->vars, sizeof(struct variable)*m->nvars);
             if (!state){
             m->vars[0].name="vy"; m->vars[0].for_grad=1; m->vars[0].to_comm=1;
-            m->vars[1].name="sxy"; m->vars[1].for_grad=1; m->vars[1].to_comm=1;
-            m->vars[2].name="syz"; m->vars[2].for_grad=1; m->vars[2].to_comm=1;
-            m->vars[3].name="rxy"; m->vars[3].for_grad=1; m->vars[3].to_comm=0;
-            m->vars[4].name="ryz"; m->vars[4].for_grad=1; m->vars[4].to_comm=0;
+            m->vars[1].name="sxy"; m->vars[1].for_grad=1; m->vars[1].to_comm=2;
+            m->vars[2].name="syz"; m->vars[2].for_grad=1; m->vars[2].to_comm=2;
+            m->vars[3].name="rxy"; m->vars[3].for_grad=1; 
+            m->vars[4].name="ryz"; m->vars[4].for_grad=1; 
             
             if (m->ABS_TYPE==1){
-                m->vars[5].name="psi_sxy_x"; m->vars[5].for_grad=0; m->vars[5].to_comm=0;
-                m->vars[6].name="psi_sxy_z"; m->vars[6].for_grad=0; m->vars[6].to_comm=0;
-                m->vars[7].name="psi_vy_x"; m->vars[7].for_grad=0; m->vars[7].to_comm=0;
-                m->vars[8].name="psi_vy_z"; m->vars[8].for_grad=0; m->vars[8].to_comm=0;
+                m->vars[5].name="psi_sxy_x"; m->vars[5].for_grad=0; 
+                m->vars[6].name="psi_sxy_z"; m->vars[6].for_grad=0; 
+                m->vars[7].name="psi_vy_x"; m->vars[7].for_grad=0; 
+                m->vars[8].name="psi_vy_z"; m->vars[8].for_grad=0; 
                 
             }}
             
@@ -533,14 +535,14 @@ int assign_modeling_case(struct modcsts * m){
             GMALLOC(m->vars, sizeof(struct variable)*m->nvars);
             if (!state){
             m->vars[0].name="vy"; m->vars[0].for_grad=1; m->vars[0].to_comm=1;
-            m->vars[1].name="sxy"; m->vars[1].for_grad=1; m->vars[1].to_comm=1;
-            m->vars[2].name="syz"; m->vars[2].for_grad=1; m->vars[2].to_comm=1;
+            m->vars[1].name="sxy"; m->vars[1].for_grad=1; m->vars[1].to_comm=2;
+            m->vars[2].name="syz"; m->vars[2].for_grad=1; m->vars[2].to_comm=2;
             
             if (m->ABS_TYPE==1){
-                m->vars[3].name="psi_sxy_x"; m->vars[3].for_grad=0; m->vars[3].to_comm=0;
-                m->vars[4].name="psi_sxy_z"; m->vars[4].for_grad=0; m->vars[4].to_comm=0;    
-                m->vars[5].name="psi_vy_x"; m->vars[5].for_grad=0; m->vars[5].to_comm=0;     
-                m->vars[6].name="psi_vy_z"; m->vars[6].for_grad=0; m->vars[6].to_comm=0;     
+                m->vars[3].name="psi_sxy_x"; m->vars[3].for_grad=0; 
+                m->vars[4].name="psi_sxy_z"; m->vars[4].for_grad=0;     
+                m->vars[5].name="psi_vy_x"; m->vars[5].for_grad=0;      
+                m->vars[6].name="psi_vy_z"; m->vars[6].for_grad=0;      
                 
             }}
                 
@@ -778,7 +780,7 @@ int assign_var_size(int* N, int NDIM, int FDORDER, int numvar, int L, struct var
                 strcmp(vars[i].name,"psi_vx_x")==0 ||
                 strcmp(vars[i].name,"psi_vy_x")==0 ||
                 strcmp(vars[i].name,"psi_vz_x")==0 ){
-            vars[i].num_ele=sizebnd[2];
+            vars[i].num_ele=sizebnd[NDIM-1];
         }
 
         

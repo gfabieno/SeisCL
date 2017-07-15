@@ -88,8 +88,8 @@ int main(int argc, char **argv) {
     time3=MPI_Wtime();
     
     __GUARD Init_OpenCL(&m, &vcl);
-
-    
+//
+//    
 //
 //    
 //    time4=MPI_Wtime();
