@@ -84,11 +84,11 @@ __kernel void fill_transfer_buff_v_out( int gidx0, __global float *vx, __global 
 #endif
 #endif
     //gidx0=fdoh for comm1 and NX-2*fdoh for comm2
-    vx_buf(gidz-fdoh,gidy,gidx)=vx(gidz,gidy,gidx+gidx0);
-    vz_buf(gidz-fdoh,gidy,gidx)=vz(gidz,gidy,gidx+gidx0);
+    vx_buf(gidz-fdoh,gidy-fdoh,gidx)=vx(gidz,gidy,gidx+gidx0);
+    vz_buf(gidz-fdoh,gidy-fdoh,gidx)=vz(gidz,gidy,gidx+gidx0);
 
 #if ND==3
-    vy_buf(gidz-fdoh,gidy,gidx)=vy(gidz,gidy,gidx+gidx0);
+    vy_buf(gidz-fdoh,gidy-fdoh,gidx)=vy(gidz,gidy,gidx+gidx0);
 #endif
 
 
@@ -135,12 +135,12 @@ __kernel void fill_transfer_buff_v_in( int gidx0, __global float *vx, __global f
 #endif
 #endif
     //gidx0=0 for comm1 and NX-fdoh for comm2
-    vx(gidz,gidy,gidx+gidx0)=vx_buf(gidz-fdoh,gidy,gidx);
-    vz(gidz,gidy,gidx+gidx0)=vz_buf(gidz-fdoh,gidy,gidx);
+    vx(gidz,gidy,gidx+gidx0)=vx_buf(gidz-fdoh,gidy-fdoh,gidx);
+    vz(gidz,gidy,gidx+gidx0)=vz_buf(gidz-fdoh,gidy-fdoh,gidx);
     
     
 #if ND==3
-    vy(gidz,gidy,gidx+gidx0)=vy_buf(gidz-fdoh,gidy,gidx);
+    vy(gidz,gidy,gidx+gidx0)=vy_buf(gidz-fdoh,gidy-fdoh,gidx);
 #endif
     
 }

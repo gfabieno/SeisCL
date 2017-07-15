@@ -101,14 +101,14 @@ __kernel void fill_transfer_buff_s_out(int gidx0,
 #endif
 
 
-    sxx_buf(gidz-fdoh,gidy,gidx)=sxx(gidz,gidy,gidx+gidx0);
-    szz_buf(gidz-fdoh,gidy,gidx)=szz(gidz,gidy,gidx+gidx0);
-    sxz_buf(gidz-fdoh,gidy,gidx)=sxz(gidz,gidy,gidx+gidx0);
+    sxx_buf(gidz-fdoh,gidy-fdoh,gidx)=sxx(gidz,gidy,gidx+gidx0);
+    szz_buf(gidz-fdoh,gidy-fdoh,gidx)=szz(gidz,gidy,gidx+gidx0);
+    sxz_buf(gidz-fdoh,gidy-fdoh,gidx)=sxz(gidz,gidy,gidx+gidx0);
     
 #if ND==3
-    syy_buf(gidz-fdoh,gidy,gidx)=syy(gidz,gidy,gidx+gidx0);
-    sxy_buf(gidz-fdoh,gidy,gidx)=sxy(gidz,gidy,gidx+gidx0);
-    syz_buf(gidz-fdoh,gidy,gidx)=syz(gidz,gidy,gidx+gidx0);
+    syy_buf(gidz-fdoh,gidy-fdoh,gidx)=syy(gidz,gidy,gidx+gidx0);
+    sxy_buf(gidz-fdoh,gidy-fdoh,gidx)=sxy(gidz,gidy,gidx+gidx0);
+    syz_buf(gidz-fdoh,gidy-fdoh,gidx)=syz(gidz,gidy,gidx+gidx0);
 #endif
     
 
@@ -159,14 +159,14 @@ __kernel void fill_transfer_buff_s_in(int gidx0,
 #endif
 #endif
 
-    sxx(gidz,gidy,gidx+gidx0)=sxx_buf(gidz-fdoh,gidy,gidx);
-    szz(gidz,gidy,gidx+gidx0)=szz_buf(gidz-fdoh,gidy,gidx);
-    sxz(gidz,gidy,gidx+gidx0)=sxz_buf(gidz-fdoh,gidy,gidx);
+    sxx(gidz,gidy,gidx+gidx0)=sxx_buf(gidz-fdoh,gidy-fdoh,gidx);
+    szz(gidz,gidy,gidx+gidx0)=szz_buf(gidz-fdoh,gidy-fdoh,gidx);
+    sxz(gidz,gidy,gidx+gidx0)=sxz_buf(gidz-fdoh,gidy-fdoh,gidx);
 
 #if ND==3
-    syy(gidz,gidy,gidx+gidx0)=syy_buf(gidz-fdoh,gidy,gidx);
-    sxy(gidz,gidy,gidx+gidx0)=sxy_buf(gidz-fdoh,gidy,gidx);
-    syz(gidz,gidy,gidx+gidx0)=syz_buf(gidz-fdoh,gidy,gidx);
+    syy(gidz,gidy,gidx+gidx0)=syy_buf(gidz-fdoh,gidy-fdoh,gidx);
+    sxy(gidz,gidy,gidx+gidx0)=sxy_buf(gidz-fdoh,gidy-fdoh,gidx);
+    syz(gidz,gidy,gidx+gidx0)=syz_buf(gidz-fdoh,gidy-fdoh,gidx);
 #endif
     
 }
