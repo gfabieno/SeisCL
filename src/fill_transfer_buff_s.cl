@@ -74,6 +74,8 @@ __kernel void fill_transfer_buff_s_out(int gidx0,
 #elif local_off==1
     
     int gid = get_global_id(0);
+    int glsizez = (NZ-2*fdoh);
+    int glsizey = (NY-2*fdoh);
     int gidz = gid%glsizez+fdoh;
     int gidy = (gid/glsizez)%glsizey+fdoh;
     int gidx = gid/(glsizez*glsizey);
@@ -91,6 +93,7 @@ __kernel void fill_transfer_buff_s_out(int gidx0,
     // If local memory is turned off
 #elif local_off==1
     int gid = get_global_id(0);
+    int glsizez = (NZ-2*fdoh);
     int gidz = gid%glsizez+fdoh;
     int gidx = (gid/glsizez);
     int gidy = 0;
@@ -130,6 +133,8 @@ __kernel void fill_transfer_buff_s_in(int gidx0,
 #elif local_off==1
     
     int gid = get_global_id(0);
+    int glsizez = (NZ-2*fdoh);
+    int glsizey = (NY-2*fdoh);
     int gidz = gid%glsizez+fdoh;
     int gidy = (gid/glsizez)%glsizey+fdoh;
     int gidx = gid/(glsizez*glsizey);
@@ -147,6 +152,7 @@ __kernel void fill_transfer_buff_s_in(int gidx0,
     // If local memory is turned off
 #elif local_off==1
     int gid = get_global_id(0);
+    int glsizez = (NZ-2*fdoh);
     int gidz = gid%glsizez+fdoh;
     int gidx = (gid/glsizez);
     int gidy = 0;
