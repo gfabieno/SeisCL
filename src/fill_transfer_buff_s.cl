@@ -74,6 +74,8 @@ __kernel void fill_transfer_buff1_s_out(int gidx0,
 #elif LOCAL_OFF==1
     
     int gid = get_global_id(0);
+    int glsizez = (NZ-2*fdoh);
+    int glsizey = (NY-2*fdoh);
     int gidz = gid%glsizez+FDOH;
     int gidy = (gid/glsizez)%glsizey+FDOH;
     int gidx = gid/(glsizez*glsizey);
@@ -91,6 +93,7 @@ __kernel void fill_transfer_buff1_s_out(int gidx0,
     // If local memory is turned off
 #elif LOCAL_OFF==1
     int gid = get_global_id(0);
+    int glsizez = (NZ-2*fdoh);
     int gidz = gid%glsizez+FDOH;
     int gidx = (gid/glsizez);
     int gidy = 0;
@@ -98,14 +101,14 @@ __kernel void fill_transfer_buff1_s_out(int gidx0,
 #endif
 
 
-    sxx_buf1(gidz-FDOH,gidy,gidx)=sxx(gidz,gidy,gidx+gidx0);
-    szz_buf1(gidz-FDOH,gidy,gidx)=szz(gidz,gidy,gidx+gidx0);
-    sxz_buf1(gidz-FDOH,gidy,gidx)=sxz(gidz,gidy,gidx+gidx0);
+    sxx_buf1(gidz-FDOH,gidy-FDOH,gidx)=sxx(gidz,gidy,gidx+gidx0);
+    szz_buf1(gidz-FDOH,gidy-FDOH,gidx)=szz(gidz,gidy,gidx+gidx0);
+    sxz_buf1(gidz-FDOH,gidy-FDOH,gidx)=sxz(gidz,gidy,gidx+gidx0);
     
 #if ND==3
-    syy_buf1(gidz-FDOH,gidy,gidx)=syy(gidz,gidy,gidx+gidx0);
-    sxy_buf1(gidz-FDOH,gidy,gidx)=sxy(gidz,gidy,gidx+gidx0);
-    syz_buf1(gidz-FDOH,gidy,gidx)=syz(gidz,gidy,gidx+gidx0);
+    syy_buf1(gidz-FDOH,gidy-FDOH,gidx)=syy(gidz,gidy,gidx+gidx0);
+    sxy_buf1(gidz-FDOH,gidy-FDOH,gidx)=sxy(gidz,gidy,gidx+gidx0);
+    syz_buf1(gidz-FDOH,gidy-FDOH,gidx)=syz(gidz,gidy,gidx+gidx0);
 #endif
     
 
@@ -130,6 +133,8 @@ __kernel void fill_transfer_buff_s_in(int gidx0,
 #elif LOCAL_OFF==1
     
     int gid = get_global_id(0);
+    int glsizez = (NZ-2*fdoh);
+    int glsizey = (NY-2*fdoh);
     int gidz = gid%glsizez+FDOH;
     int gidy = (gid/glsizez)%glsizey+FDOH;
     int gidx = gid/(glsizez*glsizey);
@@ -147,20 +152,21 @@ __kernel void fill_transfer_buff_s_in(int gidx0,
     // If local memory is turned off
 #elif LOCAL_OFF==1
     int gid = get_global_id(0);
+    int glsizez = (NZ-2*fdoh);
     int gidz = gid%glsizez+FDOH;
     int gidx = (gid/glsizez);
     int gidy = 0;
 #endif
 #endif
 
-    sxx(gidz,gidy,gidx+gidx0)=sxx_buf(gidz-FDOH,gidy,gidx);
-    szz(gidz,gidy,gidx+gidx0)=szz_buf(gidz-FDOH,gidy,gidx);
-    sxz(gidz,gidy,gidx+gidx0)=sxz_buf(gidz-FDOH,gidy,gidx);
+    sxx(gidz,gidy,gidx+gidx0)=sxx_buf(gidz-FDOH,gidy-FDOH,gidx);
+    szz(gidz,gidy,gidx+gidx0)=szz_buf(gidz-FDOH,gidy-FDOH,gidx);
+    sxz(gidz,gidy,gidx+gidx0)=sxz_buf(gidz-FDOH,gidy-FDOH,gidx);
 
 #if ND==3
-    syy(gidz,gidy,gidx+gidx0)=syy_buf(gidz-FDOH,gidy,gidx);
-    sxy(gidz,gidy,gidx+gidx0)=sxy_buf(gidz-FDOH,gidy,gidx);
-    syz(gidz,gidy,gidx+gidx0)=syz_buf(gidz-FDOH,gidy,gidx);
+    syy(gidz,gidy,gidx+gidx0)=syy_buf(gidz-FDOH,gidy-FDOH,gidx);
+    sxy(gidz,gidy,gidx+gidx0)=sxy_buf(gidz-FDOH,gidy-FDOH,gidx);
+    syz(gidz,gidy,gidx+gidx0)=syz_buf(gidz-FDOH,gidy-FDOH,gidx);
 #endif
     
 }

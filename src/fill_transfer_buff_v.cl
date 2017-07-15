@@ -58,6 +58,8 @@ __kernel void fill_transfer_buff_v_out( int gidx0, __global float *vx, __global 
 #elif LOCAL_OFF==1
     
     int gid = get_global_id(0);
+    int glsizez = (NZ-2*fdoh);
+    int glsizey = (NY-2*fdoh);
     int gidz = gid%glsizez+FDOH;
     int gidy = (gid/glsizez)%glsizey+FDOH;
     int gidx = gid/(glsizez*glsizey);
@@ -75,17 +77,18 @@ __kernel void fill_transfer_buff_v_out( int gidx0, __global float *vx, __global 
     // If local memory is turned off
 #elif LOCAL_OFF==1
     int gid = get_global_id(0);
+    int glsizez = (NZ-2*fdoh);
     int gidz = gid%glsizez+FDOH;
     int gidx = (gid/glsizez);
     int gidy = 0;
 #endif
 #endif
     //gidx0=FDOH for comm1 and NX-2*FDOH for comm2
-    vx_buf(gidz-FDOH,gidy,gidx)=vx(gidz,gidy,gidx+gidx0);
-    vz_buf(gidz-FDOH,gidy,gidx)=vz(gidz,gidy,gidx+gidx0);
+    vx_buf(gidz-FDOH,gidy-FDOH,gidx)=vx(gidz,gidy,gidx+gidx0);
+    vz_buf(gidz-FDOH,gidy-FDOH,gidx)=vz(gidz,gidy,gidx+gidx0);
 
 #if ND==3
-    vy_buf(gidz-FDOH,gidy,gidx)=vy(gidz,gidy,gidx+gidx0);
+    vy_buf(gidz-FDOH,gidy-FDOH,gidx)=vy(gidz,gidy,gidx+gidx0);
 #endif
 
 
@@ -107,6 +110,8 @@ __kernel void fill_transfer_buff_v_in( int gidx0, __global float *vx, __global f
     
     int gid = get_global_id(0);
     int gidz = gid%glsizez+FDOH;
+    int glsizez = (NZ-2*fdoh);
+    int glsizey = (NY-2*fdoh);
     int gidy = (gid/glsizez)%glsizey+FDOH;
     int gidx = gid/(glsizez*glsizey);
     
@@ -123,18 +128,19 @@ __kernel void fill_transfer_buff_v_in( int gidx0, __global float *vx, __global f
     // If local memory is turned off
 #elif LOCAL_OFF==1
     int gid = get_global_id(0);
+    int glsizez = (NZ-2*fdoh);
     int gidz = gid%glsizez+FDOH;
     int gidx = (gid/glsizez);
     int gidy = 0;
 #endif
 #endif
     //gidx0=0 for comm1 and NX-FDOH for comm2
-    vx(gidz,gidy,gidx+gidx0)=vx_buf(gidz-FDOH,gidy,gidx);
-    vz(gidz,gidy,gidx+gidx0)=vz_buf(gidz-FDOH,gidy,gidx);
+    vx(gidz,gidy,gidx+gidx0)=vx_buf(gidz-FDOH,gidy-FDOH,gidx);
+    vz(gidz,gidy,gidx+gidx0)=vz_buf(gidz-FDOH,gidy-FDOH,gidx);
     
     
 #if ND==3
-    vy(gidz,gidy,gidx+gidx0)=vy_buf(gidz-FDOH,gidy,gidx);
+    vy(gidz,gidy,gidx+gidx0)=vy_buf(gidz-FDOH,gidy-FDOH,gidx);
 #endif
     
 }

@@ -475,12 +475,12 @@ int kernel_init_gradsrc(int NDIM, const char ** source){
 int kernel_fillbuff(int NDIM, char ** N_names, int local_off, int nvars, struct variable * vars, const char ** source, int upid, int in_out, int buff12){
     
     int state=0;
-    int i;
+    int i,j;
     
     char * temp=NULL;
     GMALLOC(temp, sizeof(char)*MAX_KERN_STR);
     char * p=(char*)temp;
-    char ptemp[50];
+    char ptemp[200];
     
     int maxsize=0;
     for (i=0;i<nvars;i++){
@@ -524,29 +524,61 @@ int kernel_fillbuff(int NDIM, char ** N_names, int local_off, int nvars, struct 
     //if we use directly global memory, with 1 working dim
     else{
         strcat(temp,"    int gid = get_global_id(0);\n");
-        sprintf(ptemp,"    int gid%s=get_global_id(%d)+FDOH;\n",N_names[i],i );
+
+        sprintf(ptemp,"    int gid%s=gid%%(N%s-2*FDOH)+FDOH;\n",N_names[0],N_names[0]);
         strcat(temp, ptemp);
         
-        for (i=0;i<NDIM;i++){
-            if (i==0){
-
+        for (i=1;i<NDIM;i++){
+            sprintf(ptemp,"    int gid%s=(gid",N_names[i]);
+            strcat(temp, ptemp);
+            for (j=0;j<i;j++){
+                sprintf(ptemp,"/(N%s-2*FDOH)",N_names[j]);
+                strcat(temp, ptemp);
             }
+            if (i<NDIM-1){
+                sprintf(ptemp,")%%(N%s-2*fdoh)+FDOH;\n",N_names[i]);
+                strcat(temp, ptemp);
+            }
+            else
+                strcat(temp,");\n");
+        }
+        
+        
+    }
+    strcat(temp,"\n");
+    
+    strcat(temp,"    int idbuf=");
+    for (i=0;i<NDIM;i++){
+        sprintf(ptemp,"gid%s",N_names[i]);
+        strcat(temp, ptemp);
+        for (j=0;j<i;j++){
+            sprintf(ptemp,"*(N%s-2*FDOH)",N_names[j]);
+            strcat(temp, ptemp);
+        }
+        if (i!=NDIM-1){
+            strcat(temp, "+");
         }
     }
+    strcat(temp,";\n");
+    strcat(temp,"    int idvar=");
+    for (i=0;i<NDIM;i++){
+        sprintf(ptemp,"gid%s",N_names[i]);
+        strcat(temp, ptemp);
+        for (j=0;j<i;j++){
+            sprintf(ptemp,"*N%s",N_names[j]);
+            strcat(temp, ptemp);
+        }
+        if (i!=NDIM-1){
+            strcat(temp, "+");
+        }
+    }
+    strcat(temp,";\n\n");
     
-//    strcat(temp,"    int gid = get_global_id(0);\n\n");
-//    
-//    
-//    for (i=0;i<nvars;i++){
-//        if (vars[i].num_ele<maxsize){
-//            sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
-//            strcat(temp,ptemp);
-//            strcat(temp, "    ");
-//        }
-//        strcat(temp, "    ");
-//        strcat(temp, vars[i].name);
-//        strcat(temp, "[gid]=0;\n");
-//    }
+    for (i=0;i<nvars;i++){
+        strcat(temp, "    ");
+        strcat(temp, vars[i].name);
+        strcat(temp, "[gid]=0;\n");
+    }
     
     strcat(temp, "\n}");
     
