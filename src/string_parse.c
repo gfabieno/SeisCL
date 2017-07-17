@@ -18,7 +18,7 @@ int split (const char *str, char c, char ***arr)
     char *p;
     char *t;
     
-    p = str;
+    p = (char*)str;
     while (*p != '\0')
     {
         if (*p == c)
@@ -30,7 +30,7 @@ int split (const char *str, char c, char ***arr)
     if (*arr == NULL)
         exit(1);
     
-    p = str;
+    p = (char*)str;
     while (*p != '\0')
     {
         if (*p == c)
@@ -50,7 +50,7 @@ int split (const char *str, char c, char ***arr)
         exit(1);
     
     i = 0;
-    p = str;
+    p = (char*)str;
     t = ((*arr)[i]);
     while (*p != '\0')
     {
@@ -67,6 +67,7 @@ int split (const char *str, char c, char ***arr)
         }
         p++;
     }
+    *t='\0';
     
     return count;
 }
@@ -79,17 +80,24 @@ char * extract_name(const char *str){
     
     int len=(int)strlen(str);
     
-    char *p=str+len-1;
+    char *p1=(char*)str+len-1;
     
-    while (  (isalnum(*p) || *p=='_') && p>=str){
+    while (  !(isalnum(*p1) || *p1=='_') && p1>=str){
         
-        p--;
+        p1--;
     }
-    p++;
     
-    output = malloc(sizeof(str)*(str+len -p));
+    char *p2=p1;
     
-    sprintf(output,"%s", p);
+    while (  (isalnum(*p2) || *p2=='_') && p2>=str){
+        
+        p2--;
+    }
+    p2++;
+    
+    output = malloc(sizeof(str)*(p1-p2+1));
+    
+    sprintf(output,"%.*s", (int)(p1-p2+1), p2);
     
     return output;
 }
@@ -101,10 +109,9 @@ int extract_args(const char *str, char *name, char *** argnames, int * ninputs){
     char **arr = NULL;
     char * args = NULL;
     char del2[2] = ")";
-    char * del1=NULL;
     
     
-    del1 = malloc(sizeof(char)*(strlen(name)+15));
+    char del1[100];
     
     sprintf(del1,"__kernel void %s(", name);
 
@@ -125,7 +132,7 @@ int extract_args(const char *str, char *name, char *** argnames, int * ninputs){
     }
 
     
-    args = malloc(sizeof(str)*(strend- strbeg-strlen(del1) ));
+    args = malloc(sizeof(str)*(strend- strbeg-strlen(del1)+1 ));
     
     sprintf(args,"%.*s", (int)(strend- strbeg-strlen(del1)), strbeg + strlen(del1));
 
@@ -140,10 +147,8 @@ int extract_args(const char *str, char *name, char *** argnames, int * ninputs){
         (*argnames)[i]=extract_name(arr[i]);
         free(arr[i]);
     }
-    
     *ninputs=c;
     free(arr);
-    free(del1);
     free(args);
 
     return 0;

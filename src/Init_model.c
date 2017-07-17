@@ -67,55 +67,55 @@ int Init_model(struct modcsts * m) {
     
     int num_ele=0;
 
-    for (i=0;i<m->nparams;i++){
-        if (strcmp(m->params[i].name,"rho")==0){
-            rho= m->params[i].gl_param;
-            num_ele=m->params[i].num_ele;
+    for (i=0;i<m->npars;i++){
+        if (strcmp(m->pars[i].name,"rho")==0){
+            rho= m->pars[i].gl_par;
+            num_ele=m->pars[i].num_ele;
         }
-        else if (strcmp(m->params[i].name,"M")==0){
-            M= m->params[i].gl_param;            
+        else if (strcmp(m->pars[i].name,"M")==0){
+            M= m->pars[i].gl_par;            
         }
-        else if (strcmp(m->params[i].name,"mu")==0){
-            mu= m->params[i].gl_param;
+        else if (strcmp(m->pars[i].name,"mu")==0){
+            mu= m->pars[i].gl_par;
         }
-        else if (strcmp(m->params[i].name,"taup")==0){
-            taup= m->params[i].gl_param;
+        else if (strcmp(m->pars[i].name,"taup")==0){
+            taup= m->pars[i].gl_par;
         }
-        else if (strcmp(m->params[i].name,"taus")==0){
-            taus= m->params[i].gl_param;
+        else if (strcmp(m->pars[i].name,"taus")==0){
+            taus= m->pars[i].gl_par;
         }
-        else if (strcmp(m->params[i].name,"rip")==0){
-            rip= m->params[i].gl_param;
+        else if (strcmp(m->pars[i].name,"rip")==0){
+            rip= m->pars[i].gl_par;
         }
-        else if (strcmp(m->params[i].name,"rjp")==0){
-            rjp= m->params[i].gl_param;
+        else if (strcmp(m->pars[i].name,"rjp")==0){
+            rjp= m->pars[i].gl_par;
         }
-        else if (strcmp(m->params[i].name,"rkp")==0){
-            rkp= m->params[i].gl_param;
+        else if (strcmp(m->pars[i].name,"rkp")==0){
+            rkp= m->pars[i].gl_par;
         }
-        else if (strcmp(m->params[i].name,"muipjp")==0){
-            muipjp= m->params[i].gl_param;
+        else if (strcmp(m->pars[i].name,"muipjp")==0){
+            muipjp= m->pars[i].gl_par;
         }
-        else if (strcmp(m->params[i].name,"mujpkp")==0){
-            mujpkp= m->params[i].gl_param;
+        else if (strcmp(m->pars[i].name,"mujpkp")==0){
+            mujpkp= m->pars[i].gl_par;
         }
-        else if (strcmp(m->params[i].name,"muipkp")==0){
-            muipkp= m->params[i].gl_param;
+        else if (strcmp(m->pars[i].name,"muipkp")==0){
+            muipkp= m->pars[i].gl_par;
         }
-        else if (strcmp(m->params[i].name,"tausipjp")==0){
-            tausipjp= m->params[i].gl_param;
+        else if (strcmp(m->pars[i].name,"tausipjp")==0){
+            tausipjp= m->pars[i].gl_par;
         }
-        else if (strcmp(m->params[i].name,"tausjpkp")==0){
-            tausjpkp= m->params[i].gl_param;
+        else if (strcmp(m->pars[i].name,"tausjpkp")==0){
+            tausjpkp= m->pars[i].gl_par;
         }
-        else if (strcmp(m->params[i].name,"tausipkp")==0){
-            tausipkp= m->params[i].gl_param;
+        else if (strcmp(m->pars[i].name,"tausipkp")==0){
+            tausipkp= m->pars[i].gl_par;
         }
     }
     
     //Transform variables into modulus
     if (!state){
-        if (m->param_type==0){
+        if (m->par_type==0){
             if (M){
                 for (i=0;i<num_ele;i++){
                     M[i]=powf(M[i],2)*rho[i];
@@ -127,7 +127,7 @@ int Init_model(struct modcsts * m) {
                 }
             }
         }
-        else if (m->param_type==2){
+        else if (m->par_type==2){
             if (M){
                 for (i=0;i<num_ele;i++){
                     M[i]=powf(M[i]/rho[i],2)*rho[i];
@@ -139,7 +139,7 @@ int Init_model(struct modcsts * m) {
                 }
             }
         }
-        if (m->param_type==3){
+        if (m->par_type==3){
             if (M && mu && taup && taus){
                 for (i=0;i<num_ele;i++){
                     

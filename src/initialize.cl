@@ -359,7 +359,7 @@ __kernel void initialize_savefreqs(
     
 }
 
-__kernel void seisoutinit(__global float *vxout,      __global float *vyout,         __global float *vzout,
+__kernel void varsoutinit(__global float *vxout,      __global float *vyout,         __global float *vzout,
                           __global float *sxxout,     __global float *syyout,        __global float *szzout,
                           __global float *sxyout,     __global float *syzout,        __global float *sxzout,
                           __global float *pout)

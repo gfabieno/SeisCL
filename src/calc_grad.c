@@ -537,49 +537,49 @@ int calc_grad(struct modcsts* mglob, struct modcstsloc * m)  {
     
     // Choose the right parameters depending on the dimensions
     if (mglob->ND!=21){
-        if (mglob->param_type==0){
+        if (mglob->par_type==0){
             if (mglob->L>0)
                 c_calc=&grad_coefvisc_0;
             else
                 c_calc=&grad_coefelast_0;
         }
-        else if (mglob->param_type==1){
+        else if (mglob->par_type==1){
             if (mglob->L>0)
                 c_calc=&grad_coefvisc_1;
             else
                 c_calc=&grad_coefelast_1;
         }
-        else if (mglob->param_type==2){
+        else if (mglob->par_type==2){
             if (mglob->L>0)
                 c_calc=&grad_coefvisc_2;
             else
                 c_calc=&grad_coefelast_2;
         }
-        else if (mglob->param_type==3){
+        else if (mglob->par_type==3){
             c_calc=&grad_coefvisc_3;
             
         }
     }
     else if (mglob->ND==21){
-        if (mglob->param_type==0){
+        if (mglob->par_type==0){
             if (mglob->L>0)
                 c_calc=&grad_coefvisc_0_SH;
             else
                 c_calc=&grad_coefelast_0_SH;
         }
-        else if (mglob->param_type==1){
+        else if (mglob->par_type==1){
             if (mglob->L>0)
                 c_calc=&grad_coefvisc_1_SH;
             else
                 c_calc=&grad_coefelast_1_SH;
         }
-        else if (mglob->param_type==2){
+        else if (mglob->par_type==2){
             if (mglob->L>0)
                 c_calc=&grad_coefvisc_2_SH;
             else
                 c_calc=&grad_coefelast_2_SH;
         }
-        else if (mglob->param_type==3){
+        else if (mglob->par_type==3){
             c_calc=&grad_coefvisc_3_SH;
             
         }

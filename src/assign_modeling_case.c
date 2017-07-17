@@ -31,9 +31,9 @@
 #include "update_v2D_SH.hcl"
 #include "update_v3D.hcl"
 #include "update_v_CPML.hcl"
-#include "seisout.hcl"
-#include "fill_transfer_buff_s.hcl"
-#include "fill_transfer_buff_v.hcl"
+//#include "varsout.hcl"
+//#include "fill_transfer_buff_s.hcl"
+//#include "fill_transfer_buff_v.hcl"
 
 
 //Assign parameters list depending on which case of modeling is desired
@@ -42,11 +42,11 @@ int assign_modeling_case(struct modcsts * m){
     int i,j;
     int state =0;
     
-    int sizeparams=1;
+    int sizepars=1;
     int sizevars=1;
     int sizebnd[10];
     for (i=0;i<m->NDIM;i++){
-        sizeparams*=m->N[i];
+        sizepars*=m->N[i];
         sizevars*=m->N[i]+m->FDORDER;
     }
     for (i=0;i<m->NDIM;i++){
@@ -112,15 +112,15 @@ int assign_modeling_case(struct modcsts * m){
     
     //Define the update kernels
     m->nupdates=2;
-    GMALLOC(m->updates_f, m->nupdates*sizeof(struct update));
-    m->updates_f[0].name="update_v";
-    m->updates_f[1].name="update_s";
+    GMALLOC(m->ups_f, m->nupdates*sizeof(struct update));
+    m->ups_f[0].name="update_v";
+    m->ups_f[1].name="update_s";
 
     
     if (m->GRADOUT){
-        GMALLOC(m->updates_adj, m->nupdates*sizeof(struct update));
-        m->updates_adj[0].name="update_adjv";
-        m->updates_adj[1].name="update_adjs";
+        GMALLOC(m->ups_adj, m->nupdates*sizeof(struct update));
+        m->ups_adj[0].name="update_adjv";
+        m->ups_adj[1].name="update_adjs";
     }
 
 
@@ -131,21 +131,21 @@ int assign_modeling_case(struct modcsts * m){
     {
         if (m->ND==3 && m->L>0){
 
-            __GUARD assign_prog_source(&m->updates_f[0].center, "update_v", update_v3D_source);
-            __GUARD assign_prog_source(&m->updates_f[0].comm1, "update_v", update_v3D_source);
-            __GUARD assign_prog_source(&m->updates_f[0].comm2, "update_v", update_v3D_source);
-            __GUARD assign_prog_source(&m->updates_f[1].center, "update_s", update_s3D_source);
-            __GUARD assign_prog_source(&m->updates_f[1].comm1, "update_s", update_s3D_source);
-            __GUARD assign_prog_source(&m->updates_f[1].comm2, "update_s", update_s3D_source);
+            __GUARD assign_prog_source(&m->ups_f[0].center, "update_v", update_v3D_source);
+            __GUARD assign_prog_source(&m->ups_f[0].com1, "update_v", update_v3D_source);
+            __GUARD assign_prog_source(&m->ups_f[0].com2, "update_v", update_v3D_source);
+            __GUARD assign_prog_source(&m->ups_f[1].center, "update_s", update_s3D_source);
+            __GUARD assign_prog_source(&m->ups_f[1].com1, "update_s", update_s3D_source);
+            __GUARD assign_prog_source(&m->ups_f[1].com2, "update_s", update_s3D_source);
             
             
             if (m->GRADOUT){
-                __GUARD assign_prog_source(&m->updates_adj[0].center, "update_adjv", update_adjv3D_source);
-                __GUARD assign_prog_source(&m->updates_adj[0].comm1, "update_adjv", update_adjv3D_source);
-                __GUARD assign_prog_source(&m->updates_adj[0].comm2, "update_adjv", update_adjv3D_source);
-                __GUARD assign_prog_source(&m->updates_adj[1].center, "update_adjs", update_adjs3D_source);
-                __GUARD assign_prog_source(&m->updates_adj[1].comm1, "update_adjs", update_adjs3D_source);
-                __GUARD assign_prog_source(&m->updates_adj[1].comm2, "update_adjs", update_adjs3D_source);
+                __GUARD assign_prog_source(&m->ups_adj[0].center, "update_adjv", update_adjv3D_source);
+                __GUARD assign_prog_source(&m->ups_adj[0].com1, "update_adjv", update_adjv3D_source);
+                __GUARD assign_prog_source(&m->ups_adj[0].com2, "update_adjv", update_adjv3D_source);
+                __GUARD assign_prog_source(&m->ups_adj[1].center, "update_adjs", update_adjs3D_source);
+                __GUARD assign_prog_source(&m->ups_adj[1].com1, "update_adjs", update_adjs3D_source);
+                __GUARD assign_prog_source(&m->ups_adj[1].com2, "update_adjs", update_adjs3D_source);
             }
             if (m->FREESURF){
                 __GUARD assign_prog_source(&m->bnd_cnds.surf, "surface", surface3D_source);
@@ -154,24 +154,24 @@ int assign_modeling_case(struct modcsts * m){
                 __GUARD assign_prog_source(&m->grads.savebnd, "savebnd", savebnd3D_source);
             }
             
-            m->nparams=14;
+            m->npars=14;
             
-            GMALLOC(m->params, sizeof(struct parameter)*m->nparams);
+            GMALLOC(m->pars, sizeof(struct parameter)*m->npars);
             if (!state){
-            m->params[0].name="mu";        m->params[0].to_read="/mu";
-            m->params[1].name="M";         m->params[1].to_read="/M";
-            m->params[2].name="rho";       m->params[2].to_read="/rho";
-            m->params[3].name="taup";      m->params[3].to_read="/taup";
-            m->params[4].name="taus";      m->params[4].to_read="/taus";
-            m->params[5].name="rip";
-            m->params[6].name="rjp";
-            m->params[7].name="rkp";
-            m->params[8].name="muipjp";
-            m->params[9].name="mujpkp";
-            m->params[10].name="muipkp";
-            m->params[11].name="tausipjp";
-            m->params[12].name="tausjpkp";
-            m->params[13].name="tausipkp";
+            m->pars[0].name="mu";        m->pars[0].to_read="/mu";
+            m->pars[1].name="M";         m->pars[1].to_read="/M";
+            m->pars[2].name="rho";       m->pars[2].to_read="/rho";
+            m->pars[3].name="taup";      m->pars[3].to_read="/taup";
+            m->pars[4].name="taus";      m->pars[4].to_read="/taus";
+            m->pars[5].name="rip";
+            m->pars[6].name="rjp";
+            m->pars[7].name="rkp";
+            m->pars[8].name="muipjp";
+            m->pars[9].name="mujpkp";
+            m->pars[10].name="muipkp";
+            m->pars[11].name="tausipjp";
+            m->pars[12].name="tausjpkp";
+            m->pars[13].name="tausipkp";
             }
             
             m->nvars=15;
@@ -226,19 +226,19 @@ int assign_modeling_case(struct modcsts * m){
         }
         else if (m->ND==3 && m->L==0){
             
-            __GUARD assign_prog_source(&m->updates_f[0].center, "update_v", update_v3D_source);
-            __GUARD assign_prog_source(&m->updates_f[0].comm1, "update_v", update_v3D_source);
-            __GUARD assign_prog_source(&m->updates_f[0].comm2, "update_v", update_v3D_source);
-            __GUARD assign_prog_source(&m->updates_f[1].center, "update_s", update_s3D_source);
-            __GUARD assign_prog_source(&m->updates_f[1].comm1, "update_s", update_s3D_source);
-            __GUARD assign_prog_source(&m->updates_f[1].comm2, "update_s", update_s3D_source);
+            __GUARD assign_prog_source(&m->ups_f[0].center, "update_v", update_v3D_source);
+            __GUARD assign_prog_source(&m->ups_f[0].com1, "update_v", update_v3D_source);
+            __GUARD assign_prog_source(&m->ups_f[0].com2, "update_v", update_v3D_source);
+            __GUARD assign_prog_source(&m->ups_f[1].center, "update_s", update_s3D_source);
+            __GUARD assign_prog_source(&m->ups_f[1].com1, "update_s", update_s3D_source);
+            __GUARD assign_prog_source(&m->ups_f[1].com2, "update_s", update_s3D_source);
             if (m->GRADOUT){
-                __GUARD assign_prog_source(&m->updates_adj[0].center, "update_adjv", update_adjv3D_source);
-                __GUARD assign_prog_source(&m->updates_adj[0].comm1, "update_adjv", update_adjv3D_source);
-                __GUARD assign_prog_source(&m->updates_adj[0].comm2, "update_adjv", update_adjv3D_source);
-                __GUARD assign_prog_source(&m->updates_adj[1].center, "update_adjs", update_adjs3D_source);
-                __GUARD assign_prog_source(&m->updates_adj[1].comm1, "update_adjs", update_adjs3D_source);
-                __GUARD assign_prog_source(&m->updates_adj[1].comm2, "update_adjs", update_adjs3D_source);
+                __GUARD assign_prog_source(&m->ups_adj[0].center, "update_adjv", update_adjv3D_source);
+                __GUARD assign_prog_source(&m->ups_adj[0].com1, "update_adjv", update_adjv3D_source);
+                __GUARD assign_prog_source(&m->ups_adj[0].com2, "update_adjv", update_adjv3D_source);
+                __GUARD assign_prog_source(&m->ups_adj[1].center, "update_adjs", update_adjs3D_source);
+                __GUARD assign_prog_source(&m->ups_adj[1].com1, "update_adjs", update_adjs3D_source);
+                __GUARD assign_prog_source(&m->ups_adj[1].com2, "update_adjs", update_adjs3D_source);
             }
             if (m->FREESURF){
                 __GUARD assign_prog_source(&m->bnd_cnds.surf, "surface", surface3D_source);
@@ -248,18 +248,18 @@ int assign_modeling_case(struct modcsts * m){
             }
             
             
-            m->nparams=9;
-            GMALLOC(m->params, sizeof(struct parameter)*m->nparams);
+            m->npars=9;
+            GMALLOC(m->pars, sizeof(struct parameter)*m->npars);
             if (!state){
-            m->params[0].name="mu";    m->params[0].to_read="/mu";
-            m->params[1].name="M";     m->params[1].to_read="/M";
-            m->params[2].name="rho";   m->params[2].to_read="/rho";
-            m->params[3].name="rip";
-            m->params[4].name="rjp";
-            m->params[5].name="rkp";
-            m->params[6].name="muipjp";
-            m->params[7].name="mujpkp";
-            m->params[8].name="muipkp";
+            m->pars[0].name="mu";    m->pars[0].to_read="/mu";
+            m->pars[1].name="M";     m->pars[1].to_read="/M";
+            m->pars[2].name="rho";   m->pars[2].to_read="/rho";
+            m->pars[3].name="rip";
+            m->pars[4].name="rjp";
+            m->pars[5].name="rkp";
+            m->pars[6].name="muipjp";
+            m->pars[7].name="mujpkp";
+            m->pars[8].name="muipkp";
             }
             
             m->nvars=9;
@@ -305,19 +305,19 @@ int assign_modeling_case(struct modcsts * m){
         }
         else if (m->ND==2 && m->L>0){
             
-            __GUARD assign_prog_source(&m->updates_f[0].center, "update_v", update_v2D_source);
-            __GUARD assign_prog_source(&m->updates_f[0].comm1, "update_v", update_v2D_source);
-            __GUARD assign_prog_source(&m->updates_f[0].comm2, "update_v", update_v2D_source);
-            __GUARD assign_prog_source(&m->updates_f[1].center, "update_s", update_s2D_source);
-            __GUARD assign_prog_source(&m->updates_f[1].comm1, "update_s", update_s2D_source);
-            __GUARD assign_prog_source(&m->updates_f[1].comm2, "update_s", update_s2D_source);
+            __GUARD assign_prog_source(&m->ups_f[0].center, "update_v", update_v2D_source);
+            __GUARD assign_prog_source(&m->ups_f[0].com1, "update_v", update_v2D_source);
+            __GUARD assign_prog_source(&m->ups_f[0].com2, "update_v", update_v2D_source);
+            __GUARD assign_prog_source(&m->ups_f[1].center, "update_s", update_s2D_source);
+            __GUARD assign_prog_source(&m->ups_f[1].com1, "update_s", update_s2D_source);
+            __GUARD assign_prog_source(&m->ups_f[1].com2, "update_s", update_s2D_source);
             if (m->GRADOUT){
-                __GUARD assign_prog_source(&m->updates_adj[0].center, "update_adjv", update_adjv2D_source);
-                __GUARD assign_prog_source(&m->updates_adj[0].comm1, "update_adjv", update_adjv2D_source);
-                __GUARD assign_prog_source(&m->updates_adj[0].comm2, "update_adjv", update_adjv2D_source);
-                __GUARD assign_prog_source(&m->updates_adj[1].center, "update_adjs", update_adjs2D_source);
-                __GUARD assign_prog_source(&m->updates_adj[1].comm1, "update_adjs", update_adjs2D_source);
-                __GUARD assign_prog_source(&m->updates_adj[1].comm2, "update_adjs", update_adjs2D_source);
+                __GUARD assign_prog_source(&m->ups_adj[0].center, "update_adjv", update_adjv2D_source);
+                __GUARD assign_prog_source(&m->ups_adj[0].com1, "update_adjv", update_adjv2D_source);
+                __GUARD assign_prog_source(&m->ups_adj[0].com2, "update_adjv", update_adjv2D_source);
+                __GUARD assign_prog_source(&m->ups_adj[1].center, "update_adjs", update_adjs2D_source);
+                __GUARD assign_prog_source(&m->ups_adj[1].com1, "update_adjs", update_adjs2D_source);
+                __GUARD assign_prog_source(&m->ups_adj[1].com2, "update_adjs", update_adjs2D_source);
             }
             if (m->FREESURF){
                 __GUARD assign_prog_source(&m->bnd_cnds.surf, "surface", surface2D_source);
@@ -326,18 +326,18 @@ int assign_modeling_case(struct modcsts * m){
                 __GUARD assign_prog_source(&m->grads.savebnd, "savebnd", savebnd2D_source);
             }
             
-            m->nparams=9;
-            GMALLOC(m->params, sizeof(struct parameter)*m->nparams);
+            m->npars=9;
+            GMALLOC(m->pars, sizeof(struct parameter)*m->npars);
             if (!state){
-            m->params[0].name="mu";       m->params[0].to_read="/mu";
-            m->params[1].name="M";        m->params[1].to_read="/M";
-            m->params[2].name="rho";      m->params[2].to_read="/rho";
-            m->params[3].name="taup";     m->params[3].to_read="/taup";
-            m->params[4].name="taus";     m->params[4].to_read="/taus";
-            m->params[5].name="rip";
-            m->params[6].name="rkp";
-            m->params[7].name="muipkp";
-            m->params[8].name="tausipkp";
+            m->pars[0].name="mu";       m->pars[0].to_read="/mu";
+            m->pars[1].name="M";        m->pars[1].to_read="/M";
+            m->pars[2].name="rho";      m->pars[2].to_read="/rho";
+            m->pars[3].name="taup";     m->pars[3].to_read="/taup";
+            m->pars[4].name="taus";     m->pars[4].to_read="/taus";
+            m->pars[5].name="rip";
+            m->pars[6].name="rkp";
+            m->pars[7].name="muipkp";
+            m->pars[8].name="tausipkp";
             }
             
             m->nvars=8;
@@ -372,19 +372,19 @@ int assign_modeling_case(struct modcsts * m){
         }
         else if (m->ND==2 && m->L==0){
             
-            __GUARD assign_prog_source(&m->updates_f[0].center, "update_v", update_v2D_source);
-            __GUARD assign_prog_source(&m->updates_f[0].comm1, "update_v", update_v2D_source);
-            __GUARD assign_prog_source(&m->updates_f[0].comm2, "update_v", update_v2D_source);
-            __GUARD assign_prog_source(&m->updates_f[1].center, "update_s", update_s2D_source);
-            __GUARD assign_prog_source(&m->updates_f[1].comm1, "update_s", update_s2D_source);
-            __GUARD assign_prog_source(&m->updates_f[1].comm2, "update_s", update_s2D_source);
+            __GUARD assign_prog_source(&m->ups_f[0].center, "update_v", update_v2D_source);
+            __GUARD assign_prog_source(&m->ups_f[0].com1, "update_v", update_v2D_source);
+            __GUARD assign_prog_source(&m->ups_f[0].com2, "update_v", update_v2D_source);
+            __GUARD assign_prog_source(&m->ups_f[1].center, "update_s", update_s2D_source);
+            __GUARD assign_prog_source(&m->ups_f[1].com1, "update_s", update_s2D_source);
+            __GUARD assign_prog_source(&m->ups_f[1].com2, "update_s", update_s2D_source);
             if (m->GRADOUT){
-                __GUARD assign_prog_source(&m->updates_adj[0].center, "update_adjv", update_adjv2D_source);
-                __GUARD assign_prog_source(&m->updates_adj[0].comm1, "update_adjv", update_adjv2D_source);
-                __GUARD assign_prog_source(&m->updates_adj[0].comm2, "update_adjv", update_adjv2D_source);
-                __GUARD assign_prog_source(&m->updates_adj[1].center, "update_adjs", update_adjs2D_source);
-                __GUARD assign_prog_source(&m->updates_adj[1].comm1, "update_adjs", update_adjs2D_source);
-                __GUARD assign_prog_source(&m->updates_adj[1].comm2, "update_adjs", update_adjs2D_source);
+                __GUARD assign_prog_source(&m->ups_adj[0].center, "update_adjv", update_adjv2D_source);
+                __GUARD assign_prog_source(&m->ups_adj[0].com1, "update_adjv", update_adjv2D_source);
+                __GUARD assign_prog_source(&m->ups_adj[0].com2, "update_adjv", update_adjv2D_source);
+                __GUARD assign_prog_source(&m->ups_adj[1].center, "update_adjs", update_adjs2D_source);
+                __GUARD assign_prog_source(&m->ups_adj[1].com1, "update_adjs", update_adjs2D_source);
+                __GUARD assign_prog_source(&m->ups_adj[1].com2, "update_adjs", update_adjs2D_source);
             }
             if (m->FREESURF){
                 __GUARD assign_prog_source(&m->bnd_cnds.surf, "surface", surface2D_source);
@@ -393,16 +393,16 @@ int assign_modeling_case(struct modcsts * m){
                 __GUARD assign_prog_source(&m->grads.savebnd, "savebnd", savebnd2D_source);
             }
             
-            m->nparams=6;
+            m->npars=6;
             
-            GMALLOC(m->params, sizeof(struct parameter)*m->nparams);
+            GMALLOC(m->pars, sizeof(struct parameter)*m->npars);
             if (!state){
-            m->params[0].name="mu";    m->params[0].to_read="/mu";
-            m->params[1].name="M";     m->params[1].to_read="/M";
-            m->params[2].name="rho";   m->params[2].to_read="/rho";
-            m->params[3].name="rip";
-            m->params[4].name="rkp";
-            m->params[5].name="muipkp";
+            m->pars[0].name="mu";    m->pars[0].to_read="/mu";
+            m->pars[1].name="M";     m->pars[1].to_read="/M";
+            m->pars[2].name="rho";   m->pars[2].to_read="/rho";
+            m->pars[3].name="rip";
+            m->pars[4].name="rkp";
+            m->pars[5].name="muipkp";
             }
             
             m->nvars=5;
@@ -435,19 +435,19 @@ int assign_modeling_case(struct modcsts * m){
         }
         else if (m->ND==21 && m->L>0){
             
-            __GUARD assign_prog_source(&m->updates_f[0].center, "update_v", update_v2D_SH_source);
-            __GUARD assign_prog_source(&m->updates_f[0].comm1, "update_v", update_v2D_SH_source);
-            __GUARD assign_prog_source(&m->updates_f[0].comm2, "update_v", update_v2D_SH_source);
-            __GUARD assign_prog_source(&m->updates_f[1].center, "update_s", update_s2D_SH_source);
-            __GUARD assign_prog_source(&m->updates_f[1].comm1, "update_s", update_s2D_SH_source);
-            __GUARD assign_prog_source(&m->updates_f[1].comm2, "update_s", update_s2D_SH_source);
+            __GUARD assign_prog_source(&m->ups_f[0].center, "update_v", update_v2D_SH_source);
+            __GUARD assign_prog_source(&m->ups_f[0].com1, "update_v", update_v2D_SH_source);
+            __GUARD assign_prog_source(&m->ups_f[0].com2, "update_v", update_v2D_SH_source);
+            __GUARD assign_prog_source(&m->ups_f[1].center, "update_s", update_s2D_SH_source);
+            __GUARD assign_prog_source(&m->ups_f[1].com1, "update_s", update_s2D_SH_source);
+            __GUARD assign_prog_source(&m->ups_f[1].com2, "update_s", update_s2D_SH_source);
             if (m->GRADOUT){
-                __GUARD assign_prog_source(&m->updates_adj[0].center, "update_adjv", update_adjv2D_SH_source);
-                __GUARD assign_prog_source(&m->updates_adj[0].comm1, "update_adjv", update_adjv2D_SH_source);
-                __GUARD assign_prog_source(&m->updates_adj[0].comm2, "update_adjv", update_adjv2D_SH_source);
-                __GUARD assign_prog_source(&m->updates_adj[1].center, "update_adjs", update_adjs2D_SH_source);
-                __GUARD assign_prog_source(&m->updates_adj[1].comm1, "update_adjs", update_adjs2D_SH_source);
-                __GUARD assign_prog_source(&m->updates_adj[1].comm2, "update_adjs", update_adjs2D_SH_source);
+                __GUARD assign_prog_source(&m->ups_adj[0].center, "update_adjv", update_adjv2D_SH_source);
+                __GUARD assign_prog_source(&m->ups_adj[0].com1, "update_adjv", update_adjv2D_SH_source);
+                __GUARD assign_prog_source(&m->ups_adj[0].com2, "update_adjv", update_adjv2D_SH_source);
+                __GUARD assign_prog_source(&m->ups_adj[1].center, "update_adjs", update_adjs2D_SH_source);
+                __GUARD assign_prog_source(&m->ups_adj[1].com1, "update_adjs", update_adjs2D_SH_source);
+                __GUARD assign_prog_source(&m->ups_adj[1].com2, "update_adjs", update_adjs2D_SH_source);
             }
             if (m->FREESURF){
                 __GUARD assign_prog_source(&m->bnd_cnds.surf, "surface", surface2D_source);
@@ -456,17 +456,17 @@ int assign_modeling_case(struct modcsts * m){
                 __GUARD assign_prog_source(&m->grads.savebnd, "savebnd", savebnd2D_source);
             }
             
-            m->nparams=7;
+            m->npars=7;
             
-            GMALLOC(m->params, sizeof(struct parameter)*m->nparams);
+            GMALLOC(m->pars, sizeof(struct parameter)*m->npars);
             if (!state){
-            m->params[0].name="mu";        m->params[0].to_read="/mu";
-            m->params[1].name="rho";      m->params[1].to_read="/rho";
-            m->params[2].name="taus";     m->params[2].to_read="/taus";
-            m->params[3].name="rip";
-            m->params[4].name="rkp";
-            m->params[5].name="muipkp";
-            m->params[6].name="tausipkp";
+            m->pars[0].name="mu";        m->pars[0].to_read="/mu";
+            m->pars[1].name="rho";      m->pars[1].to_read="/rho";
+            m->pars[2].name="taus";     m->pars[2].to_read="/taus";
+            m->pars[3].name="rip";
+            m->pars[4].name="rkp";
+            m->pars[5].name="muipkp";
+            m->pars[6].name="tausipkp";
             }
             
             m->nvars=5;
@@ -495,20 +495,20 @@ int assign_modeling_case(struct modcsts * m){
         }
         else if (m->ND==21 && m->L==0){
             
-            __GUARD assign_prog_source(&m->updates_f[0].center, "update_v", update_v2D_SH_source);
-            __GUARD assign_prog_source(&m->updates_f[0].comm1, "update_v", update_v2D_SH_source);
-            __GUARD assign_prog_source(&m->updates_f[0].comm2, "update_v", update_v2D_SH_source);
-            __GUARD assign_prog_source(&m->updates_f[1].center, "update_s", update_s2D_SH_source);
-            __GUARD assign_prog_source(&m->updates_f[1].comm1, "update_s", update_s2D_SH_source);
-            __GUARD assign_prog_source(&m->updates_f[1].comm2, "update_s", update_s2D_SH_source);
+            __GUARD assign_prog_source(&m->ups_f[0].center, "update_v", update_v2D_SH_source);
+            __GUARD assign_prog_source(&m->ups_f[0].com1, "update_v", update_v2D_SH_source);
+            __GUARD assign_prog_source(&m->ups_f[0].com2, "update_v", update_v2D_SH_source);
+            __GUARD assign_prog_source(&m->ups_f[1].center, "update_s", update_s2D_SH_source);
+            __GUARD assign_prog_source(&m->ups_f[1].com1, "update_s", update_s2D_SH_source);
+            __GUARD assign_prog_source(&m->ups_f[1].com2, "update_s", update_s2D_SH_source);
 
             if (m->GRADOUT){
-                __GUARD assign_prog_source(&m->updates_adj[0].center, "update_adjv", update_adjv2D_SH_source);
-                __GUARD assign_prog_source(&m->updates_adj[0].comm1, "update_adjv", update_adjv2D_SH_source);
-                __GUARD assign_prog_source(&m->updates_adj[0].comm2, "update_adjv", update_adjv2D_SH_source);
-                __GUARD assign_prog_source(&m->updates_adj[1].center, "update_adjs", update_adjs2D_SH_source);
-                __GUARD assign_prog_source(&m->updates_adj[1].comm1, "update_adjs", update_adjs2D_SH_source);
-                __GUARD assign_prog_source(&m->updates_adj[1].comm2, "update_adjs", update_adjs2D_SH_source);
+                __GUARD assign_prog_source(&m->ups_adj[0].center, "update_adjv", update_adjv2D_SH_source);
+                __GUARD assign_prog_source(&m->ups_adj[0].com1, "update_adjv", update_adjv2D_SH_source);
+                __GUARD assign_prog_source(&m->ups_adj[0].com2, "update_adjv", update_adjv2D_SH_source);
+                __GUARD assign_prog_source(&m->ups_adj[1].center, "update_adjs", update_adjs2D_SH_source);
+                __GUARD assign_prog_source(&m->ups_adj[1].com1, "update_adjs", update_adjs2D_SH_source);
+                __GUARD assign_prog_source(&m->ups_adj[1].com2, "update_adjs", update_adjs2D_SH_source);
 
             }
             if (m->FREESURF){
@@ -518,15 +518,15 @@ int assign_modeling_case(struct modcsts * m){
                 __GUARD assign_prog_source(&m->grads.savebnd, "savebnd", savebnd2D_source);
             }
             
-            m->nparams=5;
+            m->npars=5;
             
-            GMALLOC(m->params, sizeof(struct parameter)*m->nparams);
+            GMALLOC(m->pars, sizeof(struct parameter)*m->npars);
             if (!state){
-            m->params[0].name="mu";     m->params[0].to_read="/mu";
-            m->params[1].name="rho";   m->params[1].to_read="/rho";
-            m->params[2].name="rip";
-            m->params[3].name="rkp";
-            m->params[4].name="muipkp";
+            m->pars[0].name="mu";     m->pars[0].to_read="/mu";
+            m->pars[1].name="rho";   m->pars[1].to_read="/rho";
+            m->pars[2].name="rip";
+            m->pars[3].name="rkp";
+            m->pars[4].name="muipkp";
             }
             
             m->nvars=3;
@@ -574,49 +574,49 @@ int assign_modeling_case(struct modcsts * m){
 
     //Assign the number of elements of the parameters
     if (!state){
-    for (i=0;i<m->nparams;i++){
-        m->params[i].num_ele=sizeparams;
+    for (i=0;i<m->npars;i++){
+        m->pars[i].num_ele=sizepars;
     }}
     __GUARD assign_var_size(m->N, m->NDIM, m->FDORDER, m->nvars, m->L, m->vars);
     
-    //Check to name of variable to be read depending on the chosen parametrization
+    //Check to name of variable to be read depending on the chosen paretrization
     if (!state){
 
-        if (m->param_type==2){
-            for (i=0;i<m->nparams;i++){
-                if (strcmp(m->params[i].name,"M")==0)
-                    m->params[i].to_read="/Ip";
-                if (strcmp(m->params[i].name,"mu")==0)
-                    m->params[i].to_read="/Is";
+        if (m->par_type==2){
+            for (i=0;i<m->npars;i++){
+                if (strcmp(m->pars[i].name,"M")==0)
+                    m->pars[i].to_read="/Ip";
+                if (strcmp(m->pars[i].name,"mu")==0)
+                    m->pars[i].to_read="/Is";
             }
         }
-        else if (m->param_type==3){
-            if (m->L==0) {state=1;fprintf(stderr, "Viscoelastic modeling is required for param_type 3\n");};
-            for (i=0;i<m->nparams;i++){
-                if (strcmp(m->params[i].name,"M")==0)
-                    m->params[i].to_read="/vpR";
-                if (strcmp(m->params[i].name,"mu")==0)
-                    m->params[i].to_read="/vsR";
-                if (strcmp(m->params[i].name,"taup")==0)
-                    m->params[i].to_read="/vpI";
-                if (strcmp(m->params[i].name,"taus")==0)
-                    m->params[i].to_read="/vsI";
+        else if (m->par_type==3){
+            if (m->L==0) {state=1;fprintf(stderr, "Viscoelastic modeling is required for par_type 3\n");};
+            for (i=0;i<m->npars;i++){
+                if (strcmp(m->pars[i].name,"M")==0)
+                    m->pars[i].to_read="/vpR";
+                if (strcmp(m->pars[i].name,"mu")==0)
+                    m->pars[i].to_read="/vsR";
+                if (strcmp(m->pars[i].name,"taup")==0)
+                    m->pars[i].to_read="/vpI";
+                if (strcmp(m->pars[i].name,"taus")==0)
+                    m->pars[i].to_read="/vsI";
             }
         }
         else {
-            m->param_type=0;
-            for (i=0;i<m->nparams;i++){
-                if (strcmp(m->params[i].name,"M")==0)
-                    m->params[i].to_read="/vp";
-                if (strcmp(m->params[i].name,"mu")==0)
-                    m->params[i].to_read="/vs";
+            m->par_type=0;
+            for (i=0;i<m->npars;i++){
+                if (strcmp(m->pars[i].name,"M")==0)
+                    m->pars[i].to_read="/vp";
+                if (strcmp(m->pars[i].name,"mu")==0)
+                    m->pars[i].to_read="/vs";
             }
         }
     }
     
     //Flags variables to output
     if (!state){
-        if (m->SEISOUT==1){
+        if (m->VARSOUT==1){
             for (i=0;i<m->nvars;i++){
                 if (strcmp(m->vars[i].name,"vx")==0)
                     m->vars[i].to_output=1;
@@ -626,13 +626,13 @@ int assign_modeling_case(struct modcsts * m){
                     m->vars[i].to_output=1;
             }
         }
-        if (m->SEISOUT==2){
+        if (m->VARSOUT==2){
             for (i=0;i<m->ntvars;i++){
                 if (strcmp(m->trans_vars[i].name,"p")==0)
                     m->trans_vars[i].to_output=1;
             }
         }
-        if (m->SEISOUT==3){
+        if (m->VARSOUT==3){
             for (i=0;i<m->nvars;i++){
                 if (strcmp(m->vars[i].name,"sxx")==0)
                     m->vars[i].to_output=1;
@@ -648,7 +648,7 @@ int assign_modeling_case(struct modcsts * m){
                     m->vars[i].to_output=1;
             }
         }
-        if (m->SEISOUT==4){
+        if (m->VARSOUT==4){
             for (i=0;i<m->nvars;i++){
                 if (strcmp(m->vars[i].name,"vx")==0)
                     m->vars[i].to_output=1;
@@ -683,13 +683,13 @@ int assign_modeling_case(struct modcsts * m){
     }
     
     //Allocate memory of parameters
-    for (i=0;i<m->nparams;i++){
-        GMALLOC(m->params[i].gl_param, sizeof(float)*m->params[i].num_ele);
-        if (m->GRADOUT && m->params[i].to_read){
-            m->params[i].to_grad=1;
-            GMALLOC(m->params[i].gl_grad, sizeof(double)*m->params[i].num_ele);
+    for (i=0;i<m->npars;i++){
+        GMALLOC(m->pars[i].gl_par, sizeof(float)*m->pars[i].num_ele);
+        if (m->GRADOUT && m->pars[i].to_read){
+            m->pars[i].to_grad=1;
+            GMALLOC(m->pars[i].gl_grad, sizeof(double)*m->pars[i].num_ele);
             if (m->HOUT){
-                GMALLOC(m->params[i].gl_H, sizeof(double)*m->params[i].num_ele);
+                GMALLOC(m->pars[i].gl_H, sizeof(double)*m->pars[i].num_ele);
             }
         }
     }
@@ -697,7 +697,7 @@ int assign_modeling_case(struct modcsts * m){
     //Allocate memory of variables
     for (i=0;i<m->nvars;i++){
         if (m->vars[i].to_output){
-            alloc_seismo(&m->vars[i].gl_varout, m->ns, m->allng, m->NT, m->src_recs.nrec);
+            alloc_seismo(&m->vars[i].gl_varout, m);
             if (m->MOVOUT>0){
                 GMALLOC(m->vars[i].gl_mov,sizeof(float)*m->ns*m->vars[i].num_ele*m->NT/m->MOVOUT);
             }

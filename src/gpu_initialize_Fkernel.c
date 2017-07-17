@@ -54,13 +54,13 @@ char *get_build_options(struct varcl *vcl, struct modcsts *m, int LCOMM, int com
         strcat(build_options,src);
     }
     char src2[2000];
-    sprintf(src2, "-D NDIM=%d -D OFFSET=%d -D FDOH=%d -D DTDH=%9.9f -D DH=%9.9f -D DT=%9.9f -D DT2=%9.9f -D NT=%d -D NAB=%d -D NBND=%d -D LOCAL_OFF=%d -D LVE=%d -D DEV=%d -D NUM_DEVICES=%d -D ND=%d -D ABS_TYPE=%d -D FREESURF=%d -D LCOMM=%d -D MYLOCALID=%d -D NLOCALP=%d -D NFREQS=%d -D BACK_PROP_TYPE=%d -D COMM12=%d -D NTNYQ=%d -D DTNYQ=%d -D SEISOUT=%d -D RESOUT=%d  -D RMSOUT=%d -D MOVOUT=%d -D GRADOUT=%d -D HOUT=%d -D GRADSRCOUT=%d -D DIRPROP=%d", (*m).NDIM, (*vcl).NX0, (*m).FDOH, (*m).dt/(*m).dh, (*m).dh, (*m).dt, (*m).dt/2.0, (*m).NT, (*m).NAB, (*vcl).NBND, (*vcl).LOCAL_OFF, (*m).L, (*vcl).DEV, (*m).NUM_DEVICES,(*m).ND, (*m).ABS_TYPE, (*m).FREESURF, LCOMM, (*m).MYLOCALID, (*m).NLOCALP, (*m).NFREQS, (*m).BACK_PROP_TYPE, comm, (*m).NTNYQ, (*m).DTNYQ, (*m).SEISOUT, (*m).RESOUT, (*m).RMSOUT, (*m).MOVOUT, (*m).GRADOUT, (*m).HOUT, (*m).GRADSRCOUT, DIRPROP  );
+    sprintf(src2, "-D NDIM=%d -D OFFSET=%d -D FDOH=%d -D DTDH=%9.9f -D DH=%9.9f -D DT=%9.9f -D DT2=%9.9f -D NT=%d -D NAB=%d -D NBND=%d -D LOCAL_OFF=%d -D LVE=%d -D DEV=%d -D NUM_DEVICES=%d -D ND=%d -D ABS_TYPE=%d -D FREESURF=%d -D LCOMM=%d -D MYLOCALID=%d -D NLOCALP=%d -D NFREQS=%d -D BACK_PROP_TYPE=%d -D COMM12=%d -D NTNYQ=%d -D DTNYQ=%d -D VARSOUT=%d -D RESOUT=%d  -D RMSOUT=%d -D MOVOUT=%d -D GRADOUT=%d -D HOUT=%d -D GRADSRCOUT=%d -D DIRPROP=%d", (*m).NDIM, (*vcl).NX0, (*m).FDOH, (*m).dt/(*m).dh, (*m).dh, (*m).dt, (*m).dt/2.0, (*m).NT, (*m).NAB, (*vcl).NBND, (*vcl).LOCAL_OFF, (*m).L, (*vcl).DEV, (*m).NUM_DEVICES,(*m).ND, (*m).ABS_TYPE, (*m).FREESURF, LCOMM, (*m).MYLOCALID, (*m).NLOCALP, (*m).NFREQS, (*m).BACK_PROP_TYPE, comm, (*m).NTNYQ, (*m).DTNYQ, (*m).VARSOUT, (*m).RESOUT, (*m).RMSOUT, (*m).MOVOUT, (*m).GRADOUT, (*m).HOUT, (*m).GRADSRCOUT, DIRPROP  );
     strcat(build_options,src2);
 
     return build_options;
 }
 
-int gpu_initialize_kernel(cl_context  * context, cl_program  * program, cl_kernel * kernel, const char ** prog_source, char * prog_name, int nargs, char ** args, size_t *local_work_size, struct varcl *vcl, struct modcsts *m, int offcomm, int LCOMM, int comm, int DIRPROP){
+int create_kernel(cl_context  * context, cl_program  * program, cl_kernel * kernel, const char ** prog_source, char * prog_name, int nargs, char ** args, size_t *local_work_size, struct varcl *vcl, struct modcsts *m, int offcomm, int LCOMM, int comm, int DIRPROP){
     
     cl_int cl_err = 0;
     int i,j, argfound;
@@ -81,9 +81,9 @@ int gpu_initialize_kernel(cl_context  * context, cl_program  * program, cl_kerne
     for (i=0;i<nargs;i++){
         argfound=0;
 //        printf("%s\n",args[i]);
-        for (j=0;j<m->nparams;j++){
-            if (strcmp((*vcl).params[j].name,args[i])==0){
-                cl_err = clSetKernelArg(*kernel,  i, sizeof(cl_mem), &(*vcl).params[j].cl_param.mem);
+        for (j=0;j<m->npars;j++){
+            if (strcmp((*vcl).pars[j].name,args[i])==0){
+                cl_err = clSetKernelArg(*kernel,  i, sizeof(cl_mem), &(*vcl).pars[j].cl_par.mem);
                 argfound=1;
 //                printf("%s\n",args[i]);
                 break;
@@ -281,7 +281,7 @@ int gpu_initialize_kernel(cl_context  * context, cl_program  * program, cl_kerne
 //    }
 //
 //    
-//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
+//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",cl_err_code(cl_err));
 //    
 //	return cl_err;
 //}
@@ -479,7 +479,7 @@ int gpu_initialize_kernel(cl_context  * context, cl_program  * program, cl_kerne
 //        
 //    }
 //    
-//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
+//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",cl_err_code(cl_err));
 //    
 //	return cl_err;
 //}
@@ -548,7 +548,7 @@ int gpu_initialize_kernel(cl_context  * context, cl_program  * program, cl_kerne
 //        cl_err = clSetKernelArg(*pkernel,  0, sizeof(cl_mem), &inmem->syz);
 //    }
 // 
-//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
+//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",cl_err_code(cl_err));
 //    
 //    return cl_err;
 //}
@@ -604,7 +604,7 @@ int gpu_initialize_kernel(cl_context  * context, cl_program  * program, cl_kerne
 //    
 //    
 //    
-//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
+//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",cl_err_code(cl_err));
 //    
 //    return cl_err;
 //    
@@ -678,7 +678,7 @@ int gpu_initialize_kernel(cl_context  * context, cl_program  * program, cl_kerne
 //    cl_err = clSetKernelArg(*pkernel,  31, sizeof(cl_mem), &inmem->psi_vzy);
 //    cl_err = clSetKernelArg(*pkernel,  32, sizeof(cl_mem), &inmem->psi_vzz);
 //    
-//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
+//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",cl_err_code(cl_err));
 //    
 //    return cl_err;
 //    
@@ -705,13 +705,13 @@ int gpu_initialize_kernel(cl_context  * context, cl_program  * program, cl_kerne
 //    cl_err = clSetKernelArg(*pkernel,  4, sizeof(cl_mem), &inmem->gradtaus);
 //    
 //
-//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
+//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",cl_err_code(cl_err));
 //    
 //    return cl_err;
 //    
 //}
 //
-//int gpu_intialize_seisout(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc )
+//int gpu_intialize_varsout(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc )
 //{
 //
 //	cl_int cl_err = 0;
@@ -720,8 +720,8 @@ int gpu_initialize_kernel(cl_context  * context, cl_program  * program, cl_kerne
 //    const char * build_options=get_build_options(inmem, inm, inmloc, 0, 0, 0);
 //
 //    /*Create the kernel, ther kernel version depends on the finite difference order*/
-//    const char * program_name = "seisout";
-//    cl_err = create_gpu_kernel_from_string( seisout_source, program, pcontext, pkernel, program_name, build_options);
+//    const char * program_name = "varsout";
+//    cl_err = create_gpu_kernel_from_string( varsout_source, program, pcontext, pkernel, program_name, build_options);
 //
 //    /*Define the arguments for this kernel */
 //    cl_err = clSetKernelArg(*pkernel,  0, sizeof(cl_mem), &inmem->vx);
@@ -745,13 +745,13 @@ int gpu_initialize_kernel(cl_context  * context, cl_program  * program, cl_kerne
 //    cl_err = clSetKernelArg(*pkernel,  18, sizeof(cl_mem), &inmem->pout);
 //    cl_err = clSetKernelArg(*pkernel,  19, sizeof(cl_mem), &inmem->rec_pos);
 //    
-//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
+//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",cl_err_code(cl_err));
 //    
 //    return cl_err;
 //    
 //}
 //
-//int gpu_intialize_seisoutinit(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc )
+//int gpu_intialize_varsoutinit(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc )
 //{
 //    
 //    
@@ -761,7 +761,7 @@ int gpu_initialize_kernel(cl_context  * context, cl_program  * program, cl_kerne
 //    const char * build_options=get_build_options(inmem, inm, inmloc, 0, 0, 0);
 //
 //    /*Create the kernel, ther kernel version depends on the finite difference order*/
-//    const char * program_name = "seisoutinit";
+//    const char * program_name = "varsoutinit";
 //    cl_err = create_gpu_kernel_from_string( initialize_source, program, pcontext, pkernel, program_name, build_options);
 //    
 //    
@@ -777,7 +777,7 @@ int gpu_initialize_kernel(cl_context  * context, cl_program  * program, cl_kerne
 //    cl_err = clSetKernelArg(*pkernel,  8, sizeof(cl_mem), &inmem->syzout);
 //    cl_err = clSetKernelArg(*pkernel,  9, sizeof(cl_mem), &inmem->pout);
 //    
-//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
+//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",cl_err_code(cl_err));
 //    
 //    return cl_err;
 //    
@@ -817,7 +817,7 @@ int gpu_initialize_kernel(cl_context  * context, cl_program  * program, cl_kerne
 //    cl_err = clSetKernelArg(*pkernel,  8, sizeof(cl_mem), &inmem->rkp);
 //    cl_err = clSetKernelArg(*pkernel,  9, sizeof(cl_mem), &inmem->rec_pos);
 //    
-//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
+//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",cl_err_code(cl_err));
 //    
 //    return cl_err;
 //    
@@ -1066,7 +1066,7 @@ int gpu_initialize_kernel(cl_context  * context, cl_program  * program, cl_kerne
 //        
 //    }
 //    
-//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
+//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",cl_err_code(cl_err));
 //    
 //	return cl_err;
 //}
@@ -1388,7 +1388,7 @@ int gpu_initialize_kernel(cl_context  * context, cl_program  * program, cl_kerne
 //        cl_err = clSetKernelArg(*pkernel,  41, shared_size, NULL);
 //        
 //    }
-//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
+//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",cl_err_code(cl_err));
 //    
 //	return cl_err;
 //}
@@ -1433,7 +1433,7 @@ int gpu_initialize_kernel(cl_context  * context, cl_program  * program, cl_kerne
 //        
 //
 //    
-//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
+//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",cl_err_code(cl_err));
 //    
 //	return cl_err;
 //}
@@ -1489,7 +1489,7 @@ int gpu_initialize_kernel(cl_context  * context, cl_program  * program, cl_kerne
 //        cl_err = clSetKernelArg(*pkernel,  30,  sizeof(cl_mem), &inmem->gradfreqsn);
 //    
 //    
-//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
+//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",cl_err_code(cl_err));
 //    
 //    return cl_err;
 //}
@@ -1524,7 +1524,7 @@ int gpu_initialize_kernel(cl_context  * context, cl_program  * program, cl_kerne
 //    cl_err = clSetKernelArg(*pkernel,  13,  sizeof(cl_mem), &inmem->f_ryz);
 //    cl_err = clSetKernelArg(*pkernel,  14,  sizeof(cl_mem), &inmem->f_rxz);
 //    
-//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
+//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",cl_err_code(cl_err));
 //    
 //    return cl_err;
 //}
@@ -1544,7 +1544,7 @@ int gpu_initialize_kernel(cl_context  * context, cl_program  * program, cl_kerne
 //    /*Define the arguments for this kernel */
 //    cl_err = clSetKernelArg(*pkernel,  0,  sizeof(cl_mem), &inmem->gradsrc);
 //    
-//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
+//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",cl_err_code(cl_err));
 //    
 //    return cl_err;
 //}
@@ -1615,7 +1615,7 @@ int gpu_initialize_kernel(cl_context  * context, cl_program  * program, cl_kerne
 //        }
 //    }
 //    
-//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
+//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",cl_err_code(cl_err));
 //    
 //    return cl_err;
 //    
@@ -1709,7 +1709,7 @@ int gpu_initialize_kernel(cl_context  * context, cl_program  * program, cl_kerne
 //    }
 //
 //    
-//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
+//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",cl_err_code(cl_err));
 //    
 //    return cl_err;
 //    

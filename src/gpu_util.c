@@ -44,7 +44,7 @@ cl_int GetPlatformID( cl_device_type * pref_device_type, cl_device_type * device
     
     // Get OpenCL platform count
     cl_err = clGetPlatformIDs (0, NULL, &num_platforms);
-    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
     else{
         if(num_platforms == 0){
             fprintf(stderr,"No OpenCL platform found!\n\n");
@@ -60,7 +60,7 @@ cl_int GetPlatformID( cl_device_type * pref_device_type, cl_device_type * device
                 
             // get platform info for each platform and the platform containing the prefred device type if found
             cl_err = clGetPlatformIDs (num_platforms, clPlatformIDs, NULL);
-            if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+            if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
             if (!cl_err){
                 for(i = 0; i < num_platforms; ++i){
                     device_found = clGetDeviceIDs(clPlatformIDs[i], *pref_device_type, 0, NULL, &NUM_DEVICES);
@@ -68,7 +68,7 @@ cl_int GetPlatformID( cl_device_type * pref_device_type, cl_device_type * device
                     if(device_found == CL_SUCCESS){
                         if(NUM_DEVICES>0){
                             cl_err = clGetPlatformInfo (clPlatformIDs[i], CL_PLATFORM_NAME, 1024, &chBuffer, NULL);
-                            if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+                            if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
                             fprintf(stdout,"Connection to platform %d: %s\n", i, chBuffer);
                             *clsel_plat_id = clPlatformIDs[i];
                             *device_type=*pref_device_type;
@@ -171,7 +171,7 @@ cl_int connect_allgpus(struct varcl ** vcl, cl_context *incontext, cl_device_typ
     
     // Find the number of prefered devices
     cl_err = clGetDeviceIDs(*clsel_plat_id, *device_type, 0, NULL, &NUM_DEVICES);
-    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
 
     if (!cl_err && NUM_DEVICES>0){
         
@@ -183,7 +183,7 @@ cl_int connect_allgpus(struct varcl ** vcl, cl_context *incontext, cl_device_typ
         else if (*device_type==CL_DEVICE_TYPE_CPU)
             fprintf(stdout,"Found %d CPU, ", NUM_DEVICES);
         cl_err = clGetDeviceIDs(*clsel_plat_id, *device_type, NUM_DEVICES, devices, NULL);
-        if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+        if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
         
         if (!cl_err){
             num_allowed_devices=NUM_DEVICES;
@@ -236,24 +236,24 @@ cl_int connect_allgpus(struct varcl ** vcl, cl_context *incontext, cl_device_typ
     // specified devices
     
     if (!cl_err) *incontext = clCreateContext(NULL, NUM_DEVICES, devices, NULL, NULL, &cl_err);
-    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
     // And also a command queue for the context
     for (i=0;i<num_allowed_devices;i++){
-        if (!cl_err) (*vcl)[i].cmd_queue = clCreateCommandQueue(*incontext, devices[allowed_devices[i]], 0 , &cl_err);
-        if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
-        if (!cl_err) (*vcl)[i].cmd_queuecomm = clCreateCommandQueue(*incontext, devices[allowed_devices[i]], 0 , &cl_err);
-        if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+        if (!cl_err) (*vcl)[i].queue = clCreateCommandQueue(*incontext, devices[allowed_devices[i]], 0 , &cl_err);
+        if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
+        if (!cl_err) (*vcl)[i].queuecomm = clCreateCommandQueue(*incontext, devices[allowed_devices[i]], 0 , &cl_err);
+        if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
     }
 
 //    for (i=0;i<3;i++){
-//        (*vcl)[i].cmd_queue = clCreateCommandQueue(*incontext, devices[0], 0 , &cl_err);
-//        if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
-//        (*vcl)[i].cmd_queuecomm = clCreateCommandQueue(*incontext, devices[0], 0 , &cl_err);
-//        if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+//        (*vcl)[i].queue = clCreateCommandQueue(*incontext, devices[0], 0 , &cl_err);
+//        if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
+//        (*vcl)[i].queuecomm = clCreateCommandQueue(*incontext, devices[0], 0 , &cl_err);
+//        if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
 //    }
     
     
-    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
     if (devices) free(devices);
     if (allowed_devices) free(allowed_devices);
     
@@ -267,10 +267,10 @@ cl_int get_device_num(cl_uint * NUM_DEVICES){
     // If there is no GPU device is CL capable, fall back to CPU
     cl_int cl_err = 0;
     cl_err = clGetDeviceIDs(NULL, CL_DEVICE_TYPE_GPU, 0, NULL, NUM_DEVICES);
-    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
     if (*NUM_DEVICES==0){
         cl_err = clGetDeviceIDs(NULL, CL_DEVICE_TYPE_CPU, 0, NULL, NUM_DEVICES);
-        if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+        if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
     }
     return cl_err;
     
@@ -306,10 +306,10 @@ cl_int create_gpu_kernel(const char * filename, cl_program *program, cl_context 
             
             
             *program = clCreateProgramWithSource(*context, 1, (const char**)&program_source,NULL, &cl_err);
-            if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+            if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
             
             cl_err = clBuildProgram(program[0], 0, NULL, build_options, NULL, NULL);
-            if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+            if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
             
             free(program_source);
             program_source=NULL;
@@ -318,7 +318,7 @@ cl_int create_gpu_kernel(const char * filename, cl_program *program, cl_context 
     
     // Now create the kernel "objects"
     *kernel = clCreateKernel(program[0], program_name, &cl_err);
-    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
         
     
     return cl_err;
@@ -333,29 +333,29 @@ cl_int create_gpu_kernel_from_string(const char *program_source, cl_program *pro
     
     if (!*program){
         *program = clCreateProgramWithSource(*context, 1, &program_source,NULL, &cl_err);
-        if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+        if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
         
         cl_err = clBuildProgram(*program, 0, NULL, build_options, NULL, NULL);
-        if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+        if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
     }
     // Now create the kernel "objects"
     *kernel = clCreateKernel(*program, program_name, &cl_err);
-    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
     
     
     return cl_err;
     
 }
 
-cl_int transfer_gpu_memory( cl_command_queue *inqueue, size_t buffer_size, cl_mem *var_mem, float *var)
+cl_int transf_clbuf( cl_command_queue *inqueue, struct clbuf * buf, float *var)
 {
     /*Routine to allocate memory buffers to the device*/
     
     cl_int cl_err = 0;
         /*Transfer memory from host to the device*/
-    cl_err = clEnqueueWriteBuffer(*inqueue, *var_mem, CL_TRUE, 0, buffer_size,
+    cl_err = clEnqueueWriteBuffer(*inqueue, (*buf).mem, CL_TRUE, 0, (*buf).size,
                                   (void*)var, 0, NULL, NULL);
-    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
     
     return cl_err;
 }
@@ -367,41 +367,41 @@ cl_int read_gpu_memory( cl_command_queue *inqueue, size_t buffer_size, cl_mem *v
     cl_int cl_err = 0;
     /*Read memory from device to the host*/
     cl_err = clEnqueueReadBuffer(*inqueue, *var_mem, CL_FALSE, 0, buffer_size, var, 0, NULL, NULL);
-    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
     
     return cl_err;
 }
 
-cl_int create_gpu_memory_buffer(cl_context *incontext, size_t buffer_size, cl_mem *var_mem)
+cl_int create_clbuf(cl_context *incontext, struct clbuf * buf)
 {
     /*Create the buffer on the device */
     cl_int cl_err = 0;
-    *var_mem = clCreateBuffer(*incontext, CL_MEM_READ_WRITE, buffer_size, NULL, &cl_err);
-    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+    (*buf).mem = clCreateBuffer(*incontext, CL_MEM_READ_WRITE, (*buf).size, NULL, &cl_err);
+    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
     
     return cl_err;
     
 }
 
-cl_int create_pinned_memory_buffer(cl_context *incontext, cl_command_queue *inqueue, size_t buffer_size, cl_mem *var_mem, float **var_buf)
+cl_int create_clbuf_pin(cl_context *incontext, cl_command_queue *inqueue, struct clbuf * buf, float **var_buf)
 {
     /*Create pinned memory */
     cl_int cl_err = 0;
-    *var_mem = clCreateBuffer(*incontext, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, buffer_size, NULL, &cl_err);
-    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
-    *var_buf = (float *)clEnqueueMapBuffer(*inqueue, *var_mem, CL_TRUE, CL_MAP_WRITE | CL_MAP_READ, 0, buffer_size, 0, NULL, NULL, &cl_err);
-    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+    (*buf).mem = clCreateBuffer(*incontext, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, (*buf).size, NULL, &cl_err);
+    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
+    *var_buf = (float *)clEnqueueMapBuffer(*inqueue, (*buf).mem, CL_TRUE, CL_MAP_WRITE | CL_MAP_READ, 0, (*buf).size, 0, NULL, NULL, &cl_err);
+    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
     
     return cl_err;
     
 }
 
-cl_int create_gpu_memory_buffer_cst(cl_context *incontext, size_t buffer_size, cl_mem *var_mem)
+cl_int create_clbuf_cst(cl_context *incontext, struct clbuf * buf)
 {
     /*Create read only memory */
     cl_int cl_err = 0;
-    *var_mem = clCreateBuffer(*incontext, CL_MEM_READ_ONLY, buffer_size, NULL, &cl_err);
-    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+    (*buf).mem = clCreateBuffer(*incontext, CL_MEM_READ_ONLY, (*buf).size, NULL, &cl_err);
+    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
     
     return cl_err;
     
@@ -413,7 +413,7 @@ cl_int create_gpu_subbuffer(cl_mem *var_mem, cl_mem *sub_mem, cl_buffer_region *
     cl_int cl_err = 0;
     
     *sub_mem =  clCreateSubBuffer (	*var_mem, CL_MEM_READ_WRITE, CL_BUFFER_CREATE_TYPE_REGION, region, &cl_err);
-    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
 
     
     return cl_err;
@@ -425,14 +425,14 @@ cl_int launch_gpu_kernel( cl_command_queue *inqueue, cl_kernel *kernel, int NDIM
     /*Launch a kernel a check for errors */
     cl_int cl_err = 0;
     cl_err = clEnqueueNDRangeKernel(*inqueue, *kernel, NDIM, NULL, global_work_size, local_work_size, numevent, waitlist, eventout);
-    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(cl_err));
+    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
     
     return cl_err;
     
 }
 
 
-char *gpu_error_code(cl_int err)
+char *cl_err_code(cl_int err)
 {
     /* Routine that return the OpenCL error in a string format */
     

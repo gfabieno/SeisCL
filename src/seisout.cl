@@ -59,7 +59,7 @@
 #define rec_pos(y,x) rec_pos[(y)*8+(x)]
 
 
-__kernel void seisout(__global float *vx,         __global float *vy,            __global float *vz,
+__kernel void varsout(__global float *vx,         __global float *vy,            __global float *vz,
                       __global float *sxx,        __global float *syy,           __global float *szz,
                       __global float *sxy,        __global float *syz,           __global float *sxz,
                       __global float *vxout,      __global float *vyout,         __global float *vzout,

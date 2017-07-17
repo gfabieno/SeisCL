@@ -140,7 +140,7 @@ int writehdf5(struct filenames file, struct modcsts * m) {
 
    
     // Write data output file
-    if (m->SEISOUT || m->RESOUT){
+    if (m->VARSOUT || m->RESOUT){
         
         file_id = create_file(file.dout);
         if (!state) if (file_id<0) {state=1;fprintf(stderr, "Could not open the input/output file %s", file.dout);};
@@ -194,10 +194,10 @@ int writehdf5(struct filenames file, struct modcsts * m) {
         
         dims3D[2]=m->NZ; dims3D[1]=m->NY, dims3D[0]=m->NX;
         
-        // Output name depends on the parametrization
+        // Output name depends on the paretrization
         const char *var1=NULL, *var2=NULL, *var3=NULL, *var4=NULL, *var5=NULL;
         const char *Hvar1=NULL, *Hvar2=NULL, *Hvar3=NULL, *Hvar4=NULL, *Hvar5=NULL;
-        if (m->param_type==1){
+        if (m->par_type==1){
             var1="/gradrho";
             var2="/gradM";
             var3="/gradmu";
@@ -209,7 +209,7 @@ int writehdf5(struct filenames file, struct modcsts * m) {
             Hvar4="/Htaup";
             Hvar5="/Htaus";
         }
-        else if (m->param_type==2){
+        else if (m->par_type==2){
             var1="/gradrho";
             var2="/gradIp";
             var3="/gradIs";
@@ -221,7 +221,7 @@ int writehdf5(struct filenames file, struct modcsts * m) {
             Hvar4="/Htaup";
             Hvar5="/Htaus";
         }
-        else if (m->param_type==3){
+        else if (m->par_type==3){
             var1="/gradrho";
             var2="/gradvpR";
             var3="/gradvsR";

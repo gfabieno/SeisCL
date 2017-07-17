@@ -17,7 +17,7 @@ import subprocess
 
 file="SeisCL"
 filenames={}
-filenames['model']=file+"_model.mat"    #File containing the model parameters
+filenames['model']=file+"_model.mat"    #File containing the model pareters
 filenames['csts']=file+"_csts.mat"      #File containing the simulation constants
 filenames['din']=file+"_din.mat"       #File containing the recorded data
 filenames['dout']=file+"_dout.mat"      #File containing the seismograms output
@@ -59,7 +59,7 @@ csts['no_use_GPUs']=np.empty( (1,0) )  #Array of device numbers that should not 
 csts['MPI_NPROC_SHOT']=1    #Maximum number of MPI process (nodes) per shot involved in domain decomposition
 
 csts['back_prop_type']=2    #Type of gradient calculation: 1: backpropagation (elastic only) 2: Discrete Fourier transform
-csts['param_type']=0        #Type of parametrization: 0:(rho,vp,vs,taup,taus), 1:(rho, M, mu, taup, taus), 2:(rho, Ip, Is, taup, taus)
+csts['par_type']=0        #Type of paretrization: 0:(rho,vp,vs,taup,taus), 1:(rho, M, mu, taup, taus), 2:(rho, Ip, Is, taup, taus)
 csts['gradfreqs']=np.empty((1,0)) #Array of frequencies in Hz to calculate the gradient with DFT
 csts['tmax']=csts['NT']*csts['dt']#Maximum time for which the gradient is to be computed
 csts['tmin']=0              #Minimum time for which the gradient is to be computed
@@ -84,7 +84,7 @@ h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_pyt
 
 #_________________Model File__________________
 model={}
-model['vp']=np.zeros( (csts['NZ'],csts['NY'],csts['NX']))+3500  #Must contain the variables names of the chosen parametrization
+model['vp']=np.zeros( (csts['NZ'],csts['NY'],csts['NX']))+3500  #Must contain the variables names of the chosen paretrization
 model['vs']=np.zeros( (csts['NZ'],csts['NY'],csts['NX']))+2000
 model['rho']=np.zeros( (csts['NZ'],csts['NY'],csts['NX']))+2000
 model['taup']=np.zeros( (csts['NZ'],csts['NY'],csts['NX']))+0.02

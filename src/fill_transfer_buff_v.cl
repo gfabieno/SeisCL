@@ -83,7 +83,7 @@ __kernel void fill_transfer_buff_v_out( int gidx0, __global float *vx, __global 
     int gidy = 0;
 #endif
 #endif
-    //gidx0=FDOH for comm1 and NX-2*FDOH for comm2
+    //gidx0=FDOH for com1 and NX-2*FDOH for com2
     vx_buf(gidz-FDOH,gidy-FDOH,gidx)=vx(gidz,gidy,gidx+gidx0);
     vz_buf(gidz-FDOH,gidy-FDOH,gidx)=vz(gidz,gidy,gidx+gidx0);
 
@@ -134,7 +134,7 @@ __kernel void fill_transfer_buff_v_in( int gidx0, __global float *vx, __global f
     int gidy = 0;
 #endif
 #endif
-    //gidx0=0 for comm1 and NX-FDOH for comm2
+    //gidx0=0 for com1 and NX-FDOH for com2
     vx(gidz,gidy,gidx+gidx0)=vx_buf(gidz-FDOH,gidy-FDOH,gidx);
     vz(gidz,gidy,gidx+gidx0)=vz_buf(gidz-FDOH,gidy-FDOH,gidx);
     

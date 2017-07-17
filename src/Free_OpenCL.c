@@ -110,55 +110,55 @@ int Free_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             GFree((*mloc)[d].buffermovvz);
             
             
-            if ((*mloc)[d].sxx_sub1) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].sxx_sub1, (*mloc)[d].sxx_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].syy_sub1) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].syy_sub1, (*mloc)[d].syy_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].szz_sub1) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].szz_sub1, (*mloc)[d].szz_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].sxy_sub1) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].sxy_sub1, (*mloc)[d].sxy_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].syz_sub1) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].syz_sub1, (*mloc)[d].syz_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].sxz_sub1) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].sxz_sub1, (*mloc)[d].sxz_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].vx_sub1) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].vx_sub1, (*mloc)[d].vx_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].vy_sub1) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].vy_sub1, (*mloc)[d].vy_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].vz_sub1) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].vz_sub1, (*mloc)[d].vz_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].sxx_sub2) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].sxx_sub2, (*mloc)[d].sxx_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].syy_sub2) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].syy_sub2, (*mloc)[d].syy_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].szz_sub2) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].szz_sub2, (*mloc)[d].szz_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].sxy_sub2) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].sxy_sub2, (*mloc)[d].sxy_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].syz_sub2) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].syz_sub2, (*mloc)[d].syz_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].sxz_sub2) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].sxz_sub2, (*mloc)[d].sxz_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].vx_sub2) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].vx_sub2, (*mloc)[d].vx_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].vy_sub2) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].vy_sub2, (*mloc)[d].vy_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].vz_sub2) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].vz_sub2, (*mloc)[d].vz_sub2, 0 , NULL , NULL );
+            if ((*mloc)[d].sxx_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxx_sub1, (*mloc)[d].sxx_sub1, 0 , NULL , NULL );
+            if ((*mloc)[d].syy_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].syy_sub1, (*mloc)[d].syy_sub1, 0 , NULL , NULL );
+            if ((*mloc)[d].szz_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].szz_sub1, (*mloc)[d].szz_sub1, 0 , NULL , NULL );
+            if ((*mloc)[d].sxy_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxy_sub1, (*mloc)[d].sxy_sub1, 0 , NULL , NULL );
+            if ((*mloc)[d].syz_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].syz_sub1, (*mloc)[d].syz_sub1, 0 , NULL , NULL );
+            if ((*mloc)[d].sxz_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxz_sub1, (*mloc)[d].sxz_sub1, 0 , NULL , NULL );
+            if ((*mloc)[d].vx_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vx_sub1, (*mloc)[d].vx_sub1, 0 , NULL , NULL );
+            if ((*mloc)[d].vy_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vy_sub1, (*mloc)[d].vy_sub1, 0 , NULL , NULL );
+            if ((*mloc)[d].vz_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vz_sub1, (*mloc)[d].vz_sub1, 0 , NULL , NULL );
+            if ((*mloc)[d].sxx_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxx_sub2, (*mloc)[d].sxx_sub2, 0 , NULL , NULL );
+            if ((*mloc)[d].syy_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].syy_sub2, (*mloc)[d].syy_sub2, 0 , NULL , NULL );
+            if ((*mloc)[d].szz_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].szz_sub2, (*mloc)[d].szz_sub2, 0 , NULL , NULL );
+            if ((*mloc)[d].sxy_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxy_sub2, (*mloc)[d].sxy_sub2, 0 , NULL , NULL );
+            if ((*mloc)[d].syz_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].syz_sub2, (*mloc)[d].syz_sub2, 0 , NULL , NULL );
+            if ((*mloc)[d].sxz_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxz_sub2, (*mloc)[d].sxz_sub2, 0 , NULL , NULL );
+            if ((*mloc)[d].vx_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vx_sub2, (*mloc)[d].vx_sub2, 0 , NULL , NULL );
+            if ((*mloc)[d].vy_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vy_sub2, (*mloc)[d].vy_sub2, 0 , NULL , NULL );
+            if ((*mloc)[d].vz_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vz_sub2, (*mloc)[d].vz_sub2, 0 , NULL , NULL );
             
-            if ((*mloc)[d].sxx_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].sxx_r_sub1, (*mloc)[d].sxx_r_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].syy_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].syy_r_sub1, (*mloc)[d].syy_r_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].szz_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].szz_r_sub1, (*mloc)[d].szz_r_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].sxy_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].sxy_r_sub1, (*mloc)[d].sxy_r_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].syz_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].syz_r_sub1, (*mloc)[d].syz_r_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].sxz_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].sxz_r_sub1, (*mloc)[d].sxz_r_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].vx_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].vx_r_sub1, (*mloc)[d].vx_r_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].vy_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].vy_r_sub1, (*mloc)[d].vy_r_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].vz_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].vz_r_sub1, (*mloc)[d].vz_r_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].sxx_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].sxx_r_sub2, (*mloc)[d].sxx_r_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].syy_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].syy_r_sub2, (*mloc)[d].syy_r_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].szz_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].szz_r_sub2, (*mloc)[d].szz_r_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].sxy_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].sxy_r_sub2, (*mloc)[d].sxy_r_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].syz_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].syz_r_sub2, (*mloc)[d].syz_r_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].sxz_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].sxz_r_sub2, (*mloc)[d].sxz_r_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].vx_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].vx_r_sub2, (*mloc)[d].vx_r_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].vy_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].vy_r_sub2, (*mloc)[d].vy_r_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].vz_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].vz_r_sub2, (*mloc)[d].vz_r_sub2, 0 , NULL , NULL );
+            if ((*mloc)[d].sxx_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxx_r_sub1, (*mloc)[d].sxx_r_sub1, 0 , NULL , NULL );
+            if ((*mloc)[d].syy_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].syy_r_sub1, (*mloc)[d].syy_r_sub1, 0 , NULL , NULL );
+            if ((*mloc)[d].szz_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].szz_r_sub1, (*mloc)[d].szz_r_sub1, 0 , NULL , NULL );
+            if ((*mloc)[d].sxy_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxy_r_sub1, (*mloc)[d].sxy_r_sub1, 0 , NULL , NULL );
+            if ((*mloc)[d].syz_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].syz_r_sub1, (*mloc)[d].syz_r_sub1, 0 , NULL , NULL );
+            if ((*mloc)[d].sxz_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxz_r_sub1, (*mloc)[d].sxz_r_sub1, 0 , NULL , NULL );
+            if ((*mloc)[d].vx_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vx_r_sub1, (*mloc)[d].vx_r_sub1, 0 , NULL , NULL );
+            if ((*mloc)[d].vy_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vy_r_sub1, (*mloc)[d].vy_r_sub1, 0 , NULL , NULL );
+            if ((*mloc)[d].vz_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vz_r_sub1, (*mloc)[d].vz_r_sub1, 0 , NULL , NULL );
+            if ((*mloc)[d].sxx_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxx_r_sub2, (*mloc)[d].sxx_r_sub2, 0 , NULL , NULL );
+            if ((*mloc)[d].syy_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].syy_r_sub2, (*mloc)[d].syy_r_sub2, 0 , NULL , NULL );
+            if ((*mloc)[d].szz_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].szz_r_sub2, (*mloc)[d].szz_r_sub2, 0 , NULL , NULL );
+            if ((*mloc)[d].sxy_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxy_r_sub2, (*mloc)[d].sxy_r_sub2, 0 , NULL , NULL );
+            if ((*mloc)[d].syz_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].syz_r_sub2, (*mloc)[d].syz_r_sub2, 0 , NULL , NULL );
+            if ((*mloc)[d].sxz_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxz_r_sub2, (*mloc)[d].sxz_r_sub2, 0 , NULL , NULL );
+            if ((*mloc)[d].vx_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vx_r_sub2, (*mloc)[d].vx_r_sub2, 0 , NULL , NULL );
+            if ((*mloc)[d].vy_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vy_r_sub2, (*mloc)[d].vy_r_sub2, 0 , NULL , NULL );
+            if ((*mloc)[d].vz_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vz_r_sub2, (*mloc)[d].vz_r_sub2, 0 , NULL , NULL );
             
             
             
-            if ((*mloc)[d].sxxbnd) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].sxxbnd_pin, (*mloc)[d].sxxbnd, 0 , NULL , NULL );
-            if ((*mloc)[d].syybnd) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].syybnd_pin, (*mloc)[d].syybnd, 0 , NULL , NULL );
-            if ((*mloc)[d].szzbnd) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].szzbnd_pin, (*mloc)[d].szzbnd, 0 , NULL , NULL );
-            if ((*mloc)[d].sxybnd) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].sxybnd_pin, (*mloc)[d].sxybnd, 0 , NULL , NULL );
-            if ((*mloc)[d].syzbnd) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].syzbnd_pin, (*mloc)[d].syzbnd, 0 , NULL , NULL );
-            if ((*mloc)[d].sxzbnd) clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].sxzbnd_pin, (*mloc)[d].sxzbnd, 0 , NULL , NULL );
-            if ((*mloc)[d].vxbnd)  clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].vxbnd_pin,  (*mloc)[d].vxbnd, 0 , NULL , NULL );
-            if ((*mloc)[d].vybnd)  clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].vybnd_pin,  (*mloc)[d].vybnd, 0 , NULL , NULL );
-            if ((*mloc)[d].vzbnd)  clEnqueueUnmapMemObject( (*vcl)[d].cmd_queuecomm, (*vcl)[d].vzbnd_pin,  (*mloc)[d].vzbnd, 0 , NULL , NULL );
+            if ((*mloc)[d].sxxbnd) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxxbnd_pin, (*mloc)[d].sxxbnd, 0 , NULL , NULL );
+            if ((*mloc)[d].syybnd) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].syybnd_pin, (*mloc)[d].syybnd, 0 , NULL , NULL );
+            if ((*mloc)[d].szzbnd) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].szzbnd_pin, (*mloc)[d].szzbnd, 0 , NULL , NULL );
+            if ((*mloc)[d].sxybnd) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxybnd_pin, (*mloc)[d].sxybnd, 0 , NULL , NULL );
+            if ((*mloc)[d].syzbnd) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].syzbnd_pin, (*mloc)[d].syzbnd, 0 , NULL , NULL );
+            if ((*mloc)[d].sxzbnd) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxzbnd_pin, (*mloc)[d].sxzbnd, 0 , NULL , NULL );
+            if ((*mloc)[d].vxbnd)  clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vxbnd_pin,  (*mloc)[d].vxbnd, 0 , NULL , NULL );
+            if ((*mloc)[d].vybnd)  clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vybnd_pin,  (*mloc)[d].vybnd, 0 , NULL , NULL );
+            if ((*mloc)[d].vzbnd)  clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vzbnd_pin,  (*mloc)[d].vzbnd, 0 , NULL , NULL );
             
             
         }
@@ -409,12 +409,12 @@ int Free_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             if ((*vcl)[d].kernel_s) clReleaseKernel((*vcl)[d].kernel_s);
             if ((*vcl)[d].kernel_surf) clReleaseKernel((*vcl)[d].kernel_surf);
             if ((*vcl)[d].kernel_initseis) clReleaseKernel((*vcl)[d].kernel_initseis);
-            if ((*vcl)[d].kernel_seisout) clReleaseKernel((*vcl)[d].kernel_seisout);
-            if ((*vcl)[d].kernel_seisoutinit) clReleaseKernel((*vcl)[d].kernel_seisoutinit);
-            if ((*vcl)[d].kernel_vcomm1) clReleaseKernel((*vcl)[d].kernel_vcomm1);
-            if ((*vcl)[d].kernel_scomm1) clReleaseKernel((*vcl)[d].kernel_scomm1);
-            if ((*vcl)[d].kernel_vcomm2) clReleaseKernel((*vcl)[d].kernel_vcomm2);
-            if ((*vcl)[d].kernel_scomm2) clReleaseKernel((*vcl)[d].kernel_scomm2);
+            if ((*vcl)[d].kernel_varsout) clReleaseKernel((*vcl)[d].kernel_varsout);
+            if ((*vcl)[d].kernel_varsoutinit) clReleaseKernel((*vcl)[d].kernel_varsoutinit);
+            if ((*vcl)[d].kernel_vcom) clReleaseKernel((*vcl)[d].kernel_vcom);
+            if ((*vcl)[d].kernel_scom) clReleaseKernel((*vcl)[d].kernel_scom);
+            if ((*vcl)[d].kernel_vcom) clReleaseKernel((*vcl)[d].kernel_vcom);
+            if ((*vcl)[d].kernel_scom) clReleaseKernel((*vcl)[d].kernel_scom);
             if ((*vcl)[d].kernel_fill_transfer_buff1_v_out) clReleaseKernel((*vcl)[d].kernel_fill_transfer_buff1_v_out);
             if ((*vcl)[d].kernel_fill_transfer_buff2_v_out) clReleaseKernel((*vcl)[d].kernel_fill_transfer_buff2_v_out);
             if ((*vcl)[d].kernel_fill_transfer_buff1_v_in) clReleaseKernel((*vcl)[d].kernel_fill_transfer_buff1_v_in);
@@ -433,10 +433,10 @@ int Free_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             if ((*vcl)[d].kernel_adj_fill_transfer_buff2_s_in) clReleaseKernel((*vcl)[d].kernel_adj_fill_transfer_buff2_s_in);
             if ((*vcl)[d].kernel_adjv) clReleaseKernel((*vcl)[d].kernel_adjv);
             if ((*vcl)[d].kernel_adjs) clReleaseKernel((*vcl)[d].kernel_adjs);
-            if ((*vcl)[d].kernel_adjvcomm1) clReleaseKernel((*vcl)[d].kernel_adjvcomm1);
-            if ((*vcl)[d].kernel_adjscomm1) clReleaseKernel((*vcl)[d].kernel_adjscomm1);
-            if ((*vcl)[d].kernel_adjvcomm2) clReleaseKernel((*vcl)[d].kernel_adjvcomm2);
-            if ((*vcl)[d].kernel_adjscomm2) clReleaseKernel((*vcl)[d].kernel_adjscomm2);
+            if ((*vcl)[d].kernel_adjvcom) clReleaseKernel((*vcl)[d].kernel_adjvcom);
+            if ((*vcl)[d].kernel_adjscom) clReleaseKernel((*vcl)[d].kernel_adjscom);
+            if ((*vcl)[d].kernel_adjvcom) clReleaseKernel((*vcl)[d].kernel_adjvcom);
+            if ((*vcl)[d].kernel_adjscom) clReleaseKernel((*vcl)[d].kernel_adjscom);
             if ((*vcl)[d].kernel_initseis_r) clReleaseKernel((*vcl)[d].kernel_initseis_r);
             if ((*vcl)[d].kernel_residuals ) clReleaseKernel((*vcl)[d].kernel_residuals );
             if ((*vcl)[d].kernel_initgrad) clReleaseKernel((*vcl)[d].kernel_initgrad);
@@ -448,20 +448,20 @@ int Free_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             
             if ((*vcl)[d].program_v) clReleaseProgram((*vcl)[d].program_v);
             if ((*vcl)[d].program_s) clReleaseProgram((*vcl)[d].program_s);
-            if ((*vcl)[d].program_vcomm1) clReleaseProgram((*vcl)[d].program_vcomm1);
-            if ((*vcl)[d].program_scomm1) clReleaseProgram((*vcl)[d].program_scomm1);
-            if ((*vcl)[d].program_vcomm2) clReleaseProgram((*vcl)[d].program_vcomm2);
-            if ((*vcl)[d].program_scomm2) clReleaseProgram((*vcl)[d].program_scomm2);
-            if ((*vcl)[d].program_adjvcomm1) clReleaseProgram((*vcl)[d].program_adjvcomm1);
-            if ((*vcl)[d].program_adjscomm1) clReleaseProgram((*vcl)[d].program_adjscomm1);
-            if ((*vcl)[d].program_adjvcomm2) clReleaseProgram((*vcl)[d].program_adjvcomm2);
-            if ((*vcl)[d].program_adjscomm2) clReleaseProgram((*vcl)[d].program_adjscomm2);
+            if ((*vcl)[d].program_vcom) clReleaseProgram((*vcl)[d].program_vcom);
+            if ((*vcl)[d].program_scom) clReleaseProgram((*vcl)[d].program_scom);
+            if ((*vcl)[d].program_vcom) clReleaseProgram((*vcl)[d].program_vcom);
+            if ((*vcl)[d].program_scom) clReleaseProgram((*vcl)[d].program_scom);
+            if ((*vcl)[d].program_adjvcom) clReleaseProgram((*vcl)[d].program_adjvcom);
+            if ((*vcl)[d].program_adjscom) clReleaseProgram((*vcl)[d].program_adjscom);
+            if ((*vcl)[d].program_adjvcom) clReleaseProgram((*vcl)[d].program_adjvcom);
+            if ((*vcl)[d].program_adjscom) clReleaseProgram((*vcl)[d].program_adjscom);
             if ((*vcl)[d].program_fill_transfer_buff_v) clReleaseProgram((*vcl)[d].program_fill_transfer_buff_v);
             if ((*vcl)[d].program_fill_transfer_buff_s) clReleaseProgram((*vcl)[d].program_fill_transfer_buff_s);
             if ((*vcl)[d].program_surf) clReleaseProgram((*vcl)[d].program_surf);
             if ((*vcl)[d].program_initseis) clReleaseProgram((*vcl)[d].program_initseis);
-            if ((*vcl)[d].program_seisout) clReleaseProgram((*vcl)[d].program_seisout);
-            if ((*vcl)[d].program_seisoutinit) clReleaseProgram((*vcl)[d].program_seisoutinit);
+            if ((*vcl)[d].program_varsout) clReleaseProgram((*vcl)[d].program_varsout);
+            if ((*vcl)[d].program_varsoutinit) clReleaseProgram((*vcl)[d].program_varsoutinit);
             if ((*vcl)[d].program_adjv) clReleaseProgram((*vcl)[d].program_adjv);
             if ((*vcl)[d].program_adjs) clReleaseProgram((*vcl)[d].program_adjs);
             if ((*vcl)[d].program_initseis_r) clReleaseProgram((*vcl)[d].program_initseis_r);
@@ -474,8 +474,8 @@ int Free_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             
 
             
-            if ((*vcl)[d].cmd_queue) clReleaseCommandQueue((*vcl)[d].cmd_queue);
-            if ((*vcl)[d].cmd_queuecomm) clReleaseCommandQueue((*vcl)[d].cmd_queuecomm);
+            if ((*vcl)[d].queue) clReleaseCommandQueue((*vcl)[d].queue);
+            if ((*vcl)[d].queuecomm) clReleaseCommandQueue((*vcl)[d].queuecomm);
         }
 
     }

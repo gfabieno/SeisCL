@@ -97,7 +97,7 @@ int Out_MPI(struct filenames file, struct modcsts * m)  {
     int state=0;
 
     // Gather the seismograms from all processing elements
-    if (!state && m->SEISOUT){
+    if (!state && m->VARSOUT){
         if (m->MYID==0){
             if (m->bcastvx)  MPI_Reduce(MPI_IN_PLACE, m->vxout[0],  m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
             if (m->bcastvy)  MPI_Reduce(MPI_IN_PLACE, m->vyout[0],  m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);

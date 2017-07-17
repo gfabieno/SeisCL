@@ -1,8 +1,8 @@
 # SeisCL
 
 SeisCL is a program to perform (visco)elastic full waveform inversion in 3D and 2D (SV and SH).
-As input, it takes model parameters and recorded data.
-It can ouput modelled seismograms, a movie of particle velocities, and the gradient for different parametrizations.
+As input, it takes model pareters and recorded data.
+It can ouput modelled seismograms, a movie of particle velocities, and the gradient for different paretrizations.
 
 
 Cite this publication if you use this software:
