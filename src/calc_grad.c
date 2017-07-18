@@ -169,7 +169,7 @@
 static inline float
 cl_itreal(cl_float2 a, cl_float2 b)
 {
-    float output =(a.y*b.x-a.x*b.y);
+    float output =(a.s[1]*b.s[0]-a.s[0]*b.s[1]);
     return output;
 }
 
@@ -177,16 +177,16 @@ static inline cl_float2
 cl_add(cl_float2 a, cl_float2 b, cl_float2 c)
 {
     cl_float2 output;
-    output.x=a.x+b.x+c.x;
-    output.y=a.y+b.y+c.y;
+    output.s[0]=a.s[0]+b.s[0]+c.s[0];
+    output.s[1]=a.s[1]+b.s[1]+c.s[1];
     return output;
 }
 static inline cl_float2
 cl_diff(cl_float2 a, cl_float2 b, cl_float2 c)
 {
     cl_float2 output;
-    output.x=a.x-b.x-c.x;
-    output.y=a.y-b.y-c.y;
+    output.s[0]=a.s[0]-b.s[0]-c.s[0];
+    output.s[1]=a.s[1]-b.s[1]-c.s[1];
     return output;
 }
 
@@ -194,16 +194,16 @@ static inline cl_float2
 cl_add2(cl_float2 a, cl_float2 b)
 {
     cl_float2 output;
-    output.x=a.x+b.x;
-    output.y=a.y+b.y;
+    output.s[0]=a.s[0]+b.s[0];
+    output.s[1]=a.s[1]+b.s[1];
     return output;
 }
 static inline cl_float2
 cl_diff2(cl_float2 a, cl_float2 b)
 {
     cl_float2 output;
-    output.x=a.x-b.x;
-    output.y=a.y-b.y;
+    output.s[0]=a.s[0]-b.s[0];
+    output.s[1]=a.s[1]-b.s[1];
     return output;
 }
 
@@ -211,7 +211,7 @@ static inline float
 cl_rm(cl_float2 a,cl_float2 b, float tausig, float w)
 {
 
-    return tausig*(a.x*b.x+a.y*b.y)+(a.x*b.y-a.y*b.x)/w;
+    return tausig*(a.s[0]*b.s[0]+a.s[1]*b.s[1])+(a.s[0]*b.s[1]-a.s[1]*b.s[0])/w;
 }
 
 static inline cl_float2
@@ -220,30 +220,30 @@ cl_stat(cl_float2 a, float dt, float nf, float Nt)
     float fcos=cosf(2*PI*dt*nf/Nt);
     float fsin=sinf(2*PI*dt*nf/Nt);
     cl_float2 output;
-    output.x=a.x*fcos-a.y*fsin;
-    output.y=a.x*fsin+a.y*fcos;
+    output.s[0]=a.s[0]*fcos-a.s[1]*fsin;
+    output.s[1]=a.s[0]*fsin+a.s[1]*fcos;
     return output;
 }
 static inline cl_float2
 cl_integral(cl_float2 a, float w)
 {
     cl_float2 output;
-    output.x=a.y/w;
-    output.y=-a.x/w;
+    output.s[0]=a.s[1]/w;
+    output.s[1]=-a.s[0]/w;
     return output;
 }
 static inline cl_float2
 cl_derivative(cl_float2 a, float w)
 {
     cl_float2 output;
-    output.x=-a.y*w;
-    output.y=a.x*w;
+    output.s[0]=-a.s[1]*w;
+    output.s[1]=a.s[0]*w;
     return output;
 }
 static inline float
 cl_norm(cl_float2 a)
 {
-    return pow(a.x,2)+pow(a.y,2);
+    return pow(a.s[0],2)+pow(a.s[1],2);
 }
 
 // Coefficient of the scalar products
