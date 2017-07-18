@@ -21,13 +21,14 @@
 
 int alloc_seismo(float *** var, int ns, int allng, int NT, int * nrec ){
     int state=0;
+    int i;
     
     GMALLOC(*var,sizeof(float*)*ns)
     if (!state) memset((void*)*var, 0, sizeof(float*)*ns);
     GMALLOC((*var)[0],sizeof(float)*allng*NT)
     if (!state) memset((void*)(*var)[0], 0, sizeof(float)*allng*NT);
     if (!state){
-        for (int i=1; i<ns; i++){
+        for ( i=1; i<ns; i++){
             (*var)[i]=(*var)[i-1]+nrec[i-1]*NT;
         }
     }
