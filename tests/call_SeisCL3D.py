@@ -133,7 +133,7 @@ h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_pyt
 h5mat.savemat(filenames['model'], model , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
 
 filepath=os.getcwd()
-cmdlaunch='cd ../src/; mpirun -np 1 ./SeisCL_MPI '+filepath+'/SeisCL > ../3D-test/out 2>../3D-test/err'
+cmdlaunch='cd ../src/; mpirun -np 1 ./SeisCL_MPI '+filepath+'/SeisCL > ../tests/out 2>../tests/err'
 print(cmdlaunch)
 pipes = subprocess.Popen(cmdlaunch,stdout=subprocess.PIPE, stderr=subprocess.PIPE,shell=True)
 while (pipes.poll() is None):
@@ -161,7 +161,7 @@ h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_pyt
 h5mat.savemat(filenames['model'], model , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
               
 filepath=os.getcwd()
-cmdlaunch='cd ../src/; mpirun -np 1 ./SeisCL_MPI '+filepath+'/SeisCL > ../3D-test/out 2>../3D-test/err'
+cmdlaunch='cd ../src/; mpirun -np 1 ./SeisCL_MPI '+filepath+'/SeisCL > ../tests/out 2>../tests/err'
 print(cmdlaunch)
 pipes = subprocess.Popen(cmdlaunch,stdout=subprocess.PIPE, stderr=subprocess.PIPE,shell=True)
 while (pipes.poll() is None):
