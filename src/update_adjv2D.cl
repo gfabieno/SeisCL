@@ -280,9 +280,9 @@ __kernel void update_adjv(int offcomm, int nsrc,  int ng, int nt,
     
 #endif
     
-//// Calculation of the stress spatial derivatives of the forward wavefield if backpropagation is used
-//#if back_prop_type==1
-//    {
+// Calculation of the stress spatial derivatives of the forward wavefield if backpropagation is used
+#if back_prop_type==1
+    {
 //#if local_off==0
 //        lsxx(lidz,lidx)=sxx(gidz, gidx);
 //        if (lidx<2*fdoh)
@@ -439,8 +439,8 @@ __kernel void update_adjv(int offcomm, int nsrc,  int ng, int nt,
 //                      hc6*(lsxz(lidz,lidx+5)-lsxz(lidz,lidx-6)));
 //#endif
 //        barrier(CLK_LOCAL_MEM_FENCE);
-//}
-//#endif
+}
+#endif
 //
 //// Calculation of the stress spatial derivatives of the adjoint wavefield
 //#if local_off==0
