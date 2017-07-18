@@ -131,27 +131,27 @@ int assign_modeling_case(struct modcsts * m){
     {
         if (m->ND==3 && m->L>0){
 
-            __GUARD assign_prog_source(&m->ups_f[0].center, "update_v", update_v3D_source);
-            __GUARD assign_prog_source(&m->ups_f[0].com1, "update_v", update_v3D_source);
-            __GUARD assign_prog_source(&m->ups_f[0].com2, "update_v", update_v3D_source);
-            __GUARD assign_prog_source(&m->ups_f[1].center, "update_s", update_s3D_source);
-            __GUARD assign_prog_source(&m->ups_f[1].com1, "update_s", update_s3D_source);
-            __GUARD assign_prog_source(&m->ups_f[1].com2, "update_s", update_s3D_source);
+            __GUARD prog_source(&m->ups_f[0].center, "update_v", update_v3D_source);
+            __GUARD prog_source(&m->ups_f[0].com1, "update_v", update_v3D_source);
+            __GUARD prog_source(&m->ups_f[0].com2, "update_v", update_v3D_source);
+            __GUARD prog_source(&m->ups_f[1].center, "update_s", update_s3D_source);
+            __GUARD prog_source(&m->ups_f[1].com1, "update_s", update_s3D_source);
+            __GUARD prog_source(&m->ups_f[1].com2, "update_s", update_s3D_source);
             
             
             if (m->GRADOUT){
-                __GUARD assign_prog_source(&m->ups_adj[0].center, "update_adjv", update_adjv3D_source);
-                __GUARD assign_prog_source(&m->ups_adj[0].com1, "update_adjv", update_adjv3D_source);
-                __GUARD assign_prog_source(&m->ups_adj[0].com2, "update_adjv", update_adjv3D_source);
-                __GUARD assign_prog_source(&m->ups_adj[1].center, "update_adjs", update_adjs3D_source);
-                __GUARD assign_prog_source(&m->ups_adj[1].com1, "update_adjs", update_adjs3D_source);
-                __GUARD assign_prog_source(&m->ups_adj[1].com2, "update_adjs", update_adjs3D_source);
+                __GUARD prog_source(&m->ups_adj[0].center, "update_adjv", update_adjv3D_source);
+                __GUARD prog_source(&m->ups_adj[0].com1, "update_adjv", update_adjv3D_source);
+                __GUARD prog_source(&m->ups_adj[0].com2, "update_adjv", update_adjv3D_source);
+                __GUARD prog_source(&m->ups_adj[1].center, "update_adjs", update_adjs3D_source);
+                __GUARD prog_source(&m->ups_adj[1].com1, "update_adjs", update_adjs3D_source);
+                __GUARD prog_source(&m->ups_adj[1].com2, "update_adjs", update_adjs3D_source);
             }
             if (m->FREESURF){
-                __GUARD assign_prog_source(&m->bnd_cnds.surf, "surface", surface3D_source);
+                __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface3D_source);
             }
             if (m->GRADOUT && m->BACK_PROP_TYPE==1){
-                __GUARD assign_prog_source(&m->grads.savebnd, "savebnd", savebnd3D_source);
+                __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd3D_source);
             }
             
             m->npars=14;
@@ -219,6 +219,9 @@ int assign_modeling_case(struct modcsts * m){
                 
             }}
             
+           
+            
+            
             m->ntvars=1;
             GMALLOC(m->trans_vars, sizeof(struct variable)*m->ntvars);
             m->trans_vars[0].name="p";
@@ -226,25 +229,25 @@ int assign_modeling_case(struct modcsts * m){
         }
         else if (m->ND==3 && m->L==0){
             
-            __GUARD assign_prog_source(&m->ups_f[0].center, "update_v", update_v3D_source);
-            __GUARD assign_prog_source(&m->ups_f[0].com1, "update_v", update_v3D_source);
-            __GUARD assign_prog_source(&m->ups_f[0].com2, "update_v", update_v3D_source);
-            __GUARD assign_prog_source(&m->ups_f[1].center, "update_s", update_s3D_source);
-            __GUARD assign_prog_source(&m->ups_f[1].com1, "update_s", update_s3D_source);
-            __GUARD assign_prog_source(&m->ups_f[1].com2, "update_s", update_s3D_source);
+            __GUARD prog_source(&m->ups_f[0].center, "update_v", update_v3D_source);
+            __GUARD prog_source(&m->ups_f[0].com1, "update_v", update_v3D_source);
+            __GUARD prog_source(&m->ups_f[0].com2, "update_v", update_v3D_source);
+            __GUARD prog_source(&m->ups_f[1].center, "update_s", update_s3D_source);
+            __GUARD prog_source(&m->ups_f[1].com1, "update_s", update_s3D_source);
+            __GUARD prog_source(&m->ups_f[1].com2, "update_s", update_s3D_source);
             if (m->GRADOUT){
-                __GUARD assign_prog_source(&m->ups_adj[0].center, "update_adjv", update_adjv3D_source);
-                __GUARD assign_prog_source(&m->ups_adj[0].com1, "update_adjv", update_adjv3D_source);
-                __GUARD assign_prog_source(&m->ups_adj[0].com2, "update_adjv", update_adjv3D_source);
-                __GUARD assign_prog_source(&m->ups_adj[1].center, "update_adjs", update_adjs3D_source);
-                __GUARD assign_prog_source(&m->ups_adj[1].com1, "update_adjs", update_adjs3D_source);
-                __GUARD assign_prog_source(&m->ups_adj[1].com2, "update_adjs", update_adjs3D_source);
+                __GUARD prog_source(&m->ups_adj[0].center, "update_adjv", update_adjv3D_source);
+                __GUARD prog_source(&m->ups_adj[0].com1, "update_adjv", update_adjv3D_source);
+                __GUARD prog_source(&m->ups_adj[0].com2, "update_adjv", update_adjv3D_source);
+                __GUARD prog_source(&m->ups_adj[1].center, "update_adjs", update_adjs3D_source);
+                __GUARD prog_source(&m->ups_adj[1].com1, "update_adjs", update_adjs3D_source);
+                __GUARD prog_source(&m->ups_adj[1].com2, "update_adjs", update_adjs3D_source);
             }
             if (m->FREESURF){
-                __GUARD assign_prog_source(&m->bnd_cnds.surf, "surface", surface3D_source);
+                __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface3D_source);
             }
             if (m->GRADOUT && m->BACK_PROP_TYPE==1){
-                __GUARD assign_prog_source(&m->grads.savebnd, "savebnd", savebnd3D_source);
+                __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd3D_source);
             }
             
             
@@ -299,31 +302,32 @@ int assign_modeling_case(struct modcsts * m){
                 
             }}
             
+            
             m->ntvars=1;
             GMALLOC(m->trans_vars, sizeof(struct variable)*m->ntvars);
             m->trans_vars[0].name="p";
         }
         else if (m->ND==2 && m->L>0){
             
-            __GUARD assign_prog_source(&m->ups_f[0].center, "update_v", update_v2D_source);
-            __GUARD assign_prog_source(&m->ups_f[0].com1, "update_v", update_v2D_source);
-            __GUARD assign_prog_source(&m->ups_f[0].com2, "update_v", update_v2D_source);
-            __GUARD assign_prog_source(&m->ups_f[1].center, "update_s", update_s2D_source);
-            __GUARD assign_prog_source(&m->ups_f[1].com1, "update_s", update_s2D_source);
-            __GUARD assign_prog_source(&m->ups_f[1].com2, "update_s", update_s2D_source);
+            __GUARD prog_source(&m->ups_f[0].center, "update_v", update_v2D_source);
+            __GUARD prog_source(&m->ups_f[0].com1, "update_v", update_v2D_source);
+            __GUARD prog_source(&m->ups_f[0].com2, "update_v", update_v2D_source);
+            __GUARD prog_source(&m->ups_f[1].center, "update_s", update_s2D_source);
+            __GUARD prog_source(&m->ups_f[1].com1, "update_s", update_s2D_source);
+            __GUARD prog_source(&m->ups_f[1].com2, "update_s", update_s2D_source);
             if (m->GRADOUT){
-                __GUARD assign_prog_source(&m->ups_adj[0].center, "update_adjv", update_adjv2D_source);
-                __GUARD assign_prog_source(&m->ups_adj[0].com1, "update_adjv", update_adjv2D_source);
-                __GUARD assign_prog_source(&m->ups_adj[0].com2, "update_adjv", update_adjv2D_source);
-                __GUARD assign_prog_source(&m->ups_adj[1].center, "update_adjs", update_adjs2D_source);
-                __GUARD assign_prog_source(&m->ups_adj[1].com1, "update_adjs", update_adjs2D_source);
-                __GUARD assign_prog_source(&m->ups_adj[1].com2, "update_adjs", update_adjs2D_source);
+                __GUARD prog_source(&m->ups_adj[0].center, "update_adjv", update_adjv2D_source);
+                __GUARD prog_source(&m->ups_adj[0].com1, "update_adjv", update_adjv2D_source);
+                __GUARD prog_source(&m->ups_adj[0].com2, "update_adjv", update_adjv2D_source);
+                __GUARD prog_source(&m->ups_adj[1].center, "update_adjs", update_adjs2D_source);
+                __GUARD prog_source(&m->ups_adj[1].com1, "update_adjs", update_adjs2D_source);
+                __GUARD prog_source(&m->ups_adj[1].com2, "update_adjs", update_adjs2D_source);
             }
             if (m->FREESURF){
-                __GUARD assign_prog_source(&m->bnd_cnds.surf, "surface", surface2D_source);
+                __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface2D_source);
             }
             if (m->GRADOUT && m->BACK_PROP_TYPE==1){
-                __GUARD assign_prog_source(&m->grads.savebnd, "savebnd", savebnd2D_source);
+                __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd2D_source);
             }
             
             m->npars=9;
@@ -372,25 +376,25 @@ int assign_modeling_case(struct modcsts * m){
         }
         else if (m->ND==2 && m->L==0){
             
-            __GUARD assign_prog_source(&m->ups_f[0].center, "update_v", update_v2D_source);
-            __GUARD assign_prog_source(&m->ups_f[0].com1, "update_v", update_v2D_source);
-            __GUARD assign_prog_source(&m->ups_f[0].com2, "update_v", update_v2D_source);
-            __GUARD assign_prog_source(&m->ups_f[1].center, "update_s", update_s2D_source);
-            __GUARD assign_prog_source(&m->ups_f[1].com1, "update_s", update_s2D_source);
-            __GUARD assign_prog_source(&m->ups_f[1].com2, "update_s", update_s2D_source);
+            __GUARD prog_source(&m->ups_f[0].center, "update_v", update_v2D_source);
+            __GUARD prog_source(&m->ups_f[0].com1, "update_v", update_v2D_source);
+            __GUARD prog_source(&m->ups_f[0].com2, "update_v", update_v2D_source);
+            __GUARD prog_source(&m->ups_f[1].center, "update_s", update_s2D_source);
+            __GUARD prog_source(&m->ups_f[1].com1, "update_s", update_s2D_source);
+            __GUARD prog_source(&m->ups_f[1].com2, "update_s", update_s2D_source);
             if (m->GRADOUT){
-                __GUARD assign_prog_source(&m->ups_adj[0].center, "update_adjv", update_adjv2D_source);
-                __GUARD assign_prog_source(&m->ups_adj[0].com1, "update_adjv", update_adjv2D_source);
-                __GUARD assign_prog_source(&m->ups_adj[0].com2, "update_adjv", update_adjv2D_source);
-                __GUARD assign_prog_source(&m->ups_adj[1].center, "update_adjs", update_adjs2D_source);
-                __GUARD assign_prog_source(&m->ups_adj[1].com1, "update_adjs", update_adjs2D_source);
-                __GUARD assign_prog_source(&m->ups_adj[1].com2, "update_adjs", update_adjs2D_source);
+                __GUARD prog_source(&m->ups_adj[0].center, "update_adjv", update_adjv2D_source);
+                __GUARD prog_source(&m->ups_adj[0].com1, "update_adjv", update_adjv2D_source);
+                __GUARD prog_source(&m->ups_adj[0].com2, "update_adjv", update_adjv2D_source);
+                __GUARD prog_source(&m->ups_adj[1].center, "update_adjs", update_adjs2D_source);
+                __GUARD prog_source(&m->ups_adj[1].com1, "update_adjs", update_adjs2D_source);
+                __GUARD prog_source(&m->ups_adj[1].com2, "update_adjs", update_adjs2D_source);
             }
             if (m->FREESURF){
-                __GUARD assign_prog_source(&m->bnd_cnds.surf, "surface", surface2D_source);
+                __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface2D_source);
             }
             if (m->GRADOUT && m->BACK_PROP_TYPE==1){
-                __GUARD assign_prog_source(&m->grads.savebnd, "savebnd", savebnd2D_source);
+                __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd2D_source);
             }
             
             m->npars=6;
@@ -435,25 +439,25 @@ int assign_modeling_case(struct modcsts * m){
         }
         else if (m->ND==21 && m->L>0){
             
-            __GUARD assign_prog_source(&m->ups_f[0].center, "update_v", update_v2D_SH_source);
-            __GUARD assign_prog_source(&m->ups_f[0].com1, "update_v", update_v2D_SH_source);
-            __GUARD assign_prog_source(&m->ups_f[0].com2, "update_v", update_v2D_SH_source);
-            __GUARD assign_prog_source(&m->ups_f[1].center, "update_s", update_s2D_SH_source);
-            __GUARD assign_prog_source(&m->ups_f[1].com1, "update_s", update_s2D_SH_source);
-            __GUARD assign_prog_source(&m->ups_f[1].com2, "update_s", update_s2D_SH_source);
+            __GUARD prog_source(&m->ups_f[0].center, "update_v", update_v2D_SH_source);
+            __GUARD prog_source(&m->ups_f[0].com1, "update_v", update_v2D_SH_source);
+            __GUARD prog_source(&m->ups_f[0].com2, "update_v", update_v2D_SH_source);
+            __GUARD prog_source(&m->ups_f[1].center, "update_s", update_s2D_SH_source);
+            __GUARD prog_source(&m->ups_f[1].com1, "update_s", update_s2D_SH_source);
+            __GUARD prog_source(&m->ups_f[1].com2, "update_s", update_s2D_SH_source);
             if (m->GRADOUT){
-                __GUARD assign_prog_source(&m->ups_adj[0].center, "update_adjv", update_adjv2D_SH_source);
-                __GUARD assign_prog_source(&m->ups_adj[0].com1, "update_adjv", update_adjv2D_SH_source);
-                __GUARD assign_prog_source(&m->ups_adj[0].com2, "update_adjv", update_adjv2D_SH_source);
-                __GUARD assign_prog_source(&m->ups_adj[1].center, "update_adjs", update_adjs2D_SH_source);
-                __GUARD assign_prog_source(&m->ups_adj[1].com1, "update_adjs", update_adjs2D_SH_source);
-                __GUARD assign_prog_source(&m->ups_adj[1].com2, "update_adjs", update_adjs2D_SH_source);
+                __GUARD prog_source(&m->ups_adj[0].center, "update_adjv", update_adjv2D_SH_source);
+                __GUARD prog_source(&m->ups_adj[0].com1, "update_adjv", update_adjv2D_SH_source);
+                __GUARD prog_source(&m->ups_adj[0].com2, "update_adjv", update_adjv2D_SH_source);
+                __GUARD prog_source(&m->ups_adj[1].center, "update_adjs", update_adjs2D_SH_source);
+                __GUARD prog_source(&m->ups_adj[1].com1, "update_adjs", update_adjs2D_SH_source);
+                __GUARD prog_source(&m->ups_adj[1].com2, "update_adjs", update_adjs2D_SH_source);
             }
             if (m->FREESURF){
-                __GUARD assign_prog_source(&m->bnd_cnds.surf, "surface", surface2D_source);
+                __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface2D_source);
             }
             if (m->GRADOUT && m->BACK_PROP_TYPE==1){
-                __GUARD assign_prog_source(&m->grads.savebnd, "savebnd", savebnd2D_source);
+                __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd2D_source);
             }
             
             m->npars=7;
@@ -495,27 +499,27 @@ int assign_modeling_case(struct modcsts * m){
         }
         else if (m->ND==21 && m->L==0){
             
-            __GUARD assign_prog_source(&m->ups_f[0].center, "update_v", update_v2D_SH_source);
-            __GUARD assign_prog_source(&m->ups_f[0].com1, "update_v", update_v2D_SH_source);
-            __GUARD assign_prog_source(&m->ups_f[0].com2, "update_v", update_v2D_SH_source);
-            __GUARD assign_prog_source(&m->ups_f[1].center, "update_s", update_s2D_SH_source);
-            __GUARD assign_prog_source(&m->ups_f[1].com1, "update_s", update_s2D_SH_source);
-            __GUARD assign_prog_source(&m->ups_f[1].com2, "update_s", update_s2D_SH_source);
+            __GUARD prog_source(&m->ups_f[0].center, "update_v", update_v2D_SH_source);
+            __GUARD prog_source(&m->ups_f[0].com1, "update_v", update_v2D_SH_source);
+            __GUARD prog_source(&m->ups_f[0].com2, "update_v", update_v2D_SH_source);
+            __GUARD prog_source(&m->ups_f[1].center, "update_s", update_s2D_SH_source);
+            __GUARD prog_source(&m->ups_f[1].com1, "update_s", update_s2D_SH_source);
+            __GUARD prog_source(&m->ups_f[1].com2, "update_s", update_s2D_SH_source);
 
             if (m->GRADOUT){
-                __GUARD assign_prog_source(&m->ups_adj[0].center, "update_adjv", update_adjv2D_SH_source);
-                __GUARD assign_prog_source(&m->ups_adj[0].com1, "update_adjv", update_adjv2D_SH_source);
-                __GUARD assign_prog_source(&m->ups_adj[0].com2, "update_adjv", update_adjv2D_SH_source);
-                __GUARD assign_prog_source(&m->ups_adj[1].center, "update_adjs", update_adjs2D_SH_source);
-                __GUARD assign_prog_source(&m->ups_adj[1].com1, "update_adjs", update_adjs2D_SH_source);
-                __GUARD assign_prog_source(&m->ups_adj[1].com2, "update_adjs", update_adjs2D_SH_source);
+                __GUARD prog_source(&m->ups_adj[0].center, "update_adjv", update_adjv2D_SH_source);
+                __GUARD prog_source(&m->ups_adj[0].com1, "update_adjv", update_adjv2D_SH_source);
+                __GUARD prog_source(&m->ups_adj[0].com2, "update_adjv", update_adjv2D_SH_source);
+                __GUARD prog_source(&m->ups_adj[1].center, "update_adjs", update_adjs2D_SH_source);
+                __GUARD prog_source(&m->ups_adj[1].com1, "update_adjs", update_adjs2D_SH_source);
+                __GUARD prog_source(&m->ups_adj[1].com2, "update_adjs", update_adjs2D_SH_source);
 
             }
             if (m->FREESURF){
-                __GUARD assign_prog_source(&m->bnd_cnds.surf, "surface", surface2D_source);
+                __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface2D_source);
             }
             if (m->GRADOUT && m->BACK_PROP_TYPE==1){
-                __GUARD assign_prog_source(&m->grads.savebnd, "savebnd", savebnd2D_source);
+                __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd2D_source);
             }
             
             m->npars=5;
@@ -709,7 +713,7 @@ int assign_modeling_case(struct modcsts * m){
     
     if (m->GRADSRCOUT==1){
         GMALLOC(m->src_recs.gradsrc,sizeof(float*)*m->ns);
-        GMALLOC(m->src_recs.gradsrc[0],sizeof(float)*m->allns*m->NT);
+        GMALLOC(m->src_recs.gradsrc[0],sizeof(float)*m->src_recs.allns*m->NT);
         for (i=1;i<m->ns;i++){
             m->src_recs.gradsrc[i]=m->src_recs.gradsrc[i-1]+m->src_recs.nsrc[i-1]*m->NT;
         }

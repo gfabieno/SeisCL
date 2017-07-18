@@ -145,7 +145,7 @@ int writehdf5(struct filenames file, struct modcsts * m) {
         file_id = create_file(file.dout);
         if (!state) if (file_id<0) {state=1;fprintf(stderr, "Could not open the input/output file %s", file.dout);};
         
-        dims2D[0]=m->allng; dims2D[1]=m->NT;
+        dims2D[0]=m->src_recs.allng; dims2D[1]=m->NT;
         
         if (m->bcastvx)  writetomat(&file_id, "/vxout",  m->vxout[0],  2, dims2D );
         if (m->bcastvy)  writetomat(&file_id, "/vyout",  m->vyout[0],  2, dims2D );
@@ -164,10 +164,10 @@ int writehdf5(struct filenames file, struct modcsts * m) {
             if (m->bcastvy) writetomat(&file_id, "/ry", m->ry[0], 2, dims2D );
         }
         
-        dims2D[0]=m->allns; dims2D[1]=5;
+        dims2D[0]=m->src_recs.allns; dims2D[1]=5;
         writetomat(&file_id, "/src_pos", m->src_pos[0], 2, dims2D );
         
-        dims2D[0]=m->allng; dims2D[1]=8;
+        dims2D[0]=m->src_recs.allng; dims2D[1]=8;
         writetomat(&file_id, "/rec_pos", m->rec_pos[0], 2, dims2D );
 
         if (file_id) H5Fclose(file_id);
@@ -258,7 +258,7 @@ int writehdf5(struct filenames file, struct modcsts * m) {
         }
         
         if (m->GRADSRCOUT==1){
-            dims2D[0]=m->allns; dims2D[1]=m->NT;
+            dims2D[0]=m->src_recs.allns; dims2D[1]=m->NT;
             writetomat(&file_id, "/gradsrc", m->gradsrc[0], 2, dims2D );
             
         }

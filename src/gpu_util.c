@@ -347,32 +347,78 @@ cl_int create_gpu_kernel_from_string(const char *program_source, cl_program *pro
     
 }
 
-cl_int transf_clbuf( cl_command_queue *inqueue, struct clbuf * buf, float *var)
+cl_int clbuf_send( cl_command_queue *inqueue, struct clbuf * buf)
 {
     /*Routine to allocate memory buffers to the device*/
     
     cl_int cl_err = 0;
-        /*Transfer memory from host to the device*/
-    cl_err = clEnqueueWriteBuffer(*inqueue, (*buf).mem, CL_TRUE, 0, (*buf).size,
-                                  (void*)var, 0, NULL, NULL);
+    /*Transfer memory from host to the device*/
+    cl_err = clEnqueueWriteBuffer(*inqueue, buf->mem,
+                                  CL_TRUE,
+                                  0,
+                                  buf->size,
+                                  (void*)buf->host,
+                                  0,
+                                  NULL,
+                                  NULL);
     if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
     
     return cl_err;
 }
 
-cl_int read_gpu_memory( cl_command_queue *inqueue, size_t buffer_size, cl_mem *var_mem, void *var)
+cl_int clbuf_read( cl_command_queue *inqueue, struct clbuf * buf)
 {
     /*Routine to read memory buffers from the device*/
     
     cl_int cl_err = 0;
+    cl_event * event=NULL;
+    if (buf->outevent)
+        event=&buf->event;
+
     /*Read memory from device to the host*/
-    cl_err = clEnqueueReadBuffer(*inqueue, *var_mem, CL_FALSE, 0, buffer_size, var, 0, NULL, NULL);
+    cl_err = clEnqueueReadBuffer(*inqueue,
+                                 buf->mem,
+                                 CL_FALSE,
+                                 0,
+                                 buf->size,
+                                 buf->host,
+                                 buf->nwait,
+                                 buf->waitlist,
+                                 event);
+    
     if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
     
     return cl_err;
 }
 
-cl_int create_clbuf(cl_context *incontext, struct clbuf * buf)
+cl_int clbuf_readpin( cl_command_queue *inqueue,
+                     struct clbuf * buf,
+                     struct clbuf * bufpin)
+{
+    /*Routine to read memory buffers from the device*/
+    
+    cl_int cl_err = 0;
+    cl_event * event=NULL;
+    if (buf->outevent)
+        event=&buf->event;
+    
+    /*Read memory from device to the host*/
+    cl_err = clEnqueueReadBuffer(*inqueue,
+                                 buf->mem,
+                                 CL_FALSE,
+                                 0,
+                                 buf->size,
+                                 bufpin->host,
+                                 buf->nwait,
+                                 buf->waitlist,
+                                 event);
+    
+    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
+    
+    return cl_err;
+}
+
+cl_int clbuf_create(cl_context *incontext, struct clbuf * buf)
 {
     /*Create the buffer on the device */
     cl_int cl_err = 0;
@@ -383,20 +429,35 @@ cl_int create_clbuf(cl_context *incontext, struct clbuf * buf)
     
 }
 
-cl_int create_clbuf_pin(cl_context *incontext, cl_command_queue *inqueue, struct clbuf * buf, float **var_buf)
+cl_int clbuf_create_pin(cl_context *incontext, cl_command_queue *inqueue,
+                                                             struct clbuf * buf)
 {
     /*Create pinned memory */
     cl_int cl_err = 0;
-    (*buf).mem = clCreateBuffer(*incontext, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, (*buf).size, NULL, &cl_err);
-    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
-    *var_buf = (float *)clEnqueueMapBuffer(*inqueue, (*buf).mem, CL_TRUE, CL_MAP_WRITE | CL_MAP_READ, 0, (*buf).size, 0, NULL, NULL, &cl_err);
+    (*buf).mem = clCreateBuffer(*incontext,
+                                CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR,
+                                (*buf).size,
+                                NULL,
+                                &cl_err);
+
+    (*buf).host = (float*)clEnqueueMapBuffer(*inqueue,
+                                             (*buf).mem,
+                                             CL_TRUE,
+                                             CL_MAP_WRITE | CL_MAP_READ,
+                                             0,
+                                             (*buf).size,
+                                             0,
+                                             NULL,
+                                             NULL,
+                                             &cl_err);
+    
     if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
     
     return cl_err;
     
 }
 
-cl_int create_clbuf_cst(cl_context *incontext, struct clbuf * buf)
+cl_int clbuf_create_cst(cl_context *incontext, struct clbuf * buf)
 {
     /*Create read only memory */
     cl_int cl_err = 0;
@@ -407,24 +468,26 @@ cl_int create_clbuf_cst(cl_context *incontext, struct clbuf * buf)
     
 }
 
-cl_int create_gpu_subbuffer(cl_mem *var_mem, cl_mem *sub_mem, cl_buffer_region * region)
-{
-    /*Create a subbuffer */
-    cl_int cl_err = 0;
-    
-    *sub_mem =  clCreateSubBuffer (	*var_mem, CL_MEM_READ_WRITE, CL_BUFFER_CREATE_TYPE_REGION, region, &cl_err);
-    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
 
+cl_int prog_launch( cl_command_queue *inqueue, struct clprogram * prog){
     
-    return cl_err;
-    
-}
-
-cl_int launch_gpu_kernel( cl_command_queue *inqueue, cl_kernel *kernel, int NDIM, size_t global_work_size[2], size_t local_work_size[2], int numevent, cl_event * waitlist, cl_event * eventout){
-    
-    /*Launch a kernel a check for errors */
+    /*Launch a kernel and check for errors */
     cl_int cl_err = 0;
-    cl_err = clEnqueueNDRangeKernel(*inqueue, *kernel, NDIM, NULL, global_work_size, local_work_size, numevent, waitlist, eventout);
+    cl_event * event=NULL;
+    size_t * lsize;
+    if (prog->outevent)
+        event=&prog->event;
+    if (prog->lsize[0]!=0)
+        lsize=prog->lsize;
+    
+    cl_err = clEnqueueNDRangeKernel(*inqueue, prog->kernel,
+                                              prog->NDIM, NULL,
+                                              prog->gsize,
+                                              lsize,
+                                              prog->nwait,
+                                              prog->waitlist,
+                                              event);
+    
     if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
     
     return cl_err;

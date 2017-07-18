@@ -81,6 +81,14 @@ struct clbuf {
     cl_mem mem;
     size_t size;
     
+    float * host;
+    
+    int outevent;
+    cl_event event;
+    
+    int nwait;
+    cl_event * waitlist;
+    
 };
 
 
@@ -92,6 +100,7 @@ struct clprogram {
     cl_kernel kernel;
     char ** input_list;
     int ninputs;
+    int tinput;
     size_t lsize[MAX_DIMS];
     size_t gsize[MAX_DIMS];
     int local;
@@ -102,7 +111,11 @@ struct clprogram {
     int COMM;
     int DIRPROP;
 
+    int outevent;
     cl_event event;
+    
+    int nwait;
+    cl_event * waitlist;
     
 };
 
@@ -116,10 +129,11 @@ struct variable{
     struct clbuf cl_varbnd_pin;
     struct clbuf cl_fvar;
     struct clbuf cl_buf1;
-    struct clbuf cl_buf1_dev;
+    struct clbuf cl_buf1_pin;
     struct clbuf cl_buf2;
-    struct clbuf cl_buf2_dev;
+    struct clbuf cl_buf2_pin;
     struct clbuf cl_var_res;
+    struct clbuf cl_mov;
 
     cl_float2 * gl_fvar;
     float **    gl_varout;
@@ -131,14 +145,6 @@ struct variable{
     int  to_comm;
     int num_ele;
     
-    float** de_varout;
-    float*  de_buf1;
-    float*  de_buf1_dev;
-    float*  de_buf2;
-    float*  de_buf2_dev;
-    float*  de_varbnd;
-    float*  de_fvar;
-    float*  de_mov;
 };
 
 struct parameter{
@@ -148,12 +154,9 @@ struct parameter{
     struct clbuf   cl_par;
     struct clbuf   cl_grad;
     struct clbuf   cl_H;
-    float  * gl_par;
-    double * gl_grad;
-    double * gl_H;
-    float  * de_par;
-    double * de_grad;
-    double * de_H;
+    float * gl_par;
+    float * gl_grad;
+    float * gl_H;
     int num_ele;
     
     const char * to_read;
@@ -184,6 +187,7 @@ struct sources_records{
     struct clbuf cl_rec_pos;
     struct clbuf cl_grad_src;;
     
+    struct clprogram sources;
     struct clprogram varsout;
     struct clprogram varsoutinit;
     struct clprogram residuals;
@@ -191,6 +195,10 @@ struct sources_records{
 
     int nsmax;
     int ngmax;
+    int allng;
+    int allns;
+    int smin;
+    int smax;
     int *nsrc;
     int *nrec;
     float **src;
@@ -211,6 +219,9 @@ struct update{
     struct clprogram fcom2_out;
     struct clprogram fcom1_in;
     struct clprogram fcom2_in;
+    
+    int nvcom;
+    struct variable ** v2com;
     
     cl_event event_readMPI1[6];
     cl_event event_readMPI2[6];
@@ -262,6 +273,9 @@ struct varcl {
     int NBND;
     
     int LOCAL_OFF;
+    
+    struct clprogram * progs[MAX_KERNELS];
+    int nprogs;
 
     struct variable * vars;
     struct variable * vars_adj;
@@ -323,10 +337,7 @@ struct modcsts {
     int L;
     int MYID;
     int NP;
-    int allng;
-    int allns;
-    int smin;
-    int smax;
+
 
     int ND;
     int tmax;
@@ -436,49 +447,26 @@ cl_int create_gpu_kernel(const char * filename, cl_program *program, cl_context 
 
 cl_int create_gpu_kernel_from_string(const char *program_source, cl_program *program, cl_context *context, cl_kernel *kernel, const char * program_name, const char * build_options);
 
-cl_int transf_clbuf( cl_command_queue *inqueue, struct clbuf * buf, float *var);
+cl_int clbuf_send(cl_command_queue *inqueue, struct clbuf * buf);
 
-cl_int read_gpu_memory( cl_command_queue *inqueue, size_t buffer_size, cl_mem *var_mem, void *var);
+cl_int clbuf_read(cl_command_queue *inqueue, struct clbuf * buf);
 
-cl_int create_clbuf(cl_context *incontext, struct clbuf * buf);
+cl_int clbuf_readpin( cl_command_queue *inqueue,
+                     struct clbuf * buf,
+                     struct clbuf * bufpin);
 
-cl_int create_clbuf_cst(cl_context *incontext, struct clbuf * buf);
+cl_int clbuf_create(cl_context *incontext, struct clbuf * buf);
 
-cl_int create_clbuf_pin(cl_context *incontext, cl_command_queue *inqueue, struct clbuf * buf, float **var_buf);
+cl_int clbuf_create_cst(cl_context *incontext, struct clbuf * buf);
 
-cl_int create_gpu_subbuffer(cl_mem *var_mem, cl_mem *sub_mem, cl_buffer_region * region);
+cl_int clbuf_create_pin(cl_context *incontext, cl_command_queue *inqueue,
+                        struct clbuf * buf);
 
-cl_int launch_gpu_kernel( cl_command_queue *inqueue, cl_kernel *kernel, int NDIM, size_t global_work_size[2], size_t local_work_size[2], int numevent, cl_event * waitlist, cl_event * eventout);
+cl_int prog_launch( cl_command_queue *inqueue, struct clprogram * prog);
 
 double machcore(uint64_t endTime, uint64_t startTime);
 
 char *cl_err_code(cl_int err);
-
-
-int gpu_intialize_seis(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm );
-int gpu_intialize_seis_r(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm  );
-int gpu_intialize_grad(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm  );
-
-int gpu_initialize_update_v(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, int bndoff, int LCOMM, int comm);
-int gpu_initialize_update_s(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, int bndoff, int LCOMM , int comm);
-int gpu_initialize_surface(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm );
-
-int gpu_intialize_varsout(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm );
-int gpu_intialize_varsoutinit(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm );
-int gpu_intialize_residuals(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm );
-
-int gpu_initialize_update_adjv(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm , int bndoff, int LCOMM, int comm );
-int gpu_initialize_update_adjs(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm , int bndoff , int LCOMM, int comm);
-int gpu_initialize_savebnd(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm  );
-int holbergcoeff(struct modcsts *inm);
-int gpu_initialize_savefreqs(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, int DIRPROP );
-int gpu_initialize_initsavefreqs(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm );
-int gpu_initialize_gradsrc(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm );
-
-
-int gpu_intialize_fill_transfer_buff_s(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, int out, int comm, int adj );
-int gpu_intialize_fill_transfer_buff_v(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, int out, int comm, int adj );
-
 
 int calc_grad(struct modcsts* m);
 
@@ -497,7 +485,7 @@ int extract_args(const char *str, char *name, char *** argnames, int * ninputs);
 
 int create_kernel(struct modcsts * m, struct varcl * vcl,  struct clprogram * prog);
 
-int assign_prog_source(struct clprogram * prog, char* name, const char * source);
+int prog_source(struct clprogram * prog, char* name, const char * source);
 
 int kernel_varout(struct varcl * vcl, struct variable * vars, struct clprogram * prog);
 
@@ -518,3 +506,7 @@ int kernel_init_gradsrc(struct clprogram * prog);
 int kernel_fcom_out(struct varcl * vcl, struct variable * vars, struct clprogram * prog, int upid, int buff12);
 
 int kernel_fcom_in(struct varcl * vcl, struct variable * vars, struct clprogram * prog, int upid, int buff12);
+
+int kernel_sources(struct varcl * vcl,
+                   struct variable * vars,
+                   struct clprogram * prog);

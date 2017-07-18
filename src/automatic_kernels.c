@@ -30,8 +30,8 @@ int kernel_varout(struct varcl * vcl,
     int state=0;
     int i;
     
-    char * temp=NULL;
-    GMALLOC(temp, sizeof(char)*MAX_KERN_STR);
+    char temp[MAX_KERN_STR]={0};;
+    char temp2[100]={0};
     char * p=(char*)temp;
     
     strcat(temp, "__kernel void varsout(int nt, __global float * rec_pos, ");
@@ -50,33 +50,41 @@ int kernel_varout(struct varcl * vcl,
     p[-2]='\0';
     strcat(temp, "){\n\n");
 
-    
+    //This only supports 3 dimensions (need for more ?)
     strcat(temp,"    int gid = get_global_id(0);\n"
-           "    int i=(int)(rec_pos[0*8+gid]/DH)+FDOH;\n"
-           "    int j=(int)(rec_pos[0*8+gid]/DH)+FDOH;\n"
-           "    int k=(int)(rec_pos[0*8+gid]/DH)+FDOH;\n"
-           "\n"
-           "    if ( (i-OFFSET)>=FDOH && (i-OFFSET)<(NX-FDOH) ){\n\n");
+           "    int i=(int)(rec_pos[0+8*gid]/DH)+FDOH;\n"
+           "    int j=(int)(rec_pos[1+8*gid]/DH)+FDOH;\n"
+           "    int k=(int)(rec_pos[2+8*gid]/DH)+FDOH;\n"
+           "\n");
     
-    char * posstr=NULL;
+    sprintf(temp2,"    if (i-OFFSET<FDOH || i-OFFSET>N%s-FDOH-1){\n",
+            vcl->N_names[vcl->NDIM-1] );
+    strcat(temp, temp2);
+    strcat(temp,
+           "        return;\n"
+           "    };\n\n");
+
+    
+    char posstr[100]={0};
+    
     if (vcl->NDIM==2){
-        posstr="[(i-OFFSET)*(NZ)+k];\n";
+        sprintf(posstr,"[(i-OFFSET)*N%s+k];\n",vcl->N_names[0]);
     }
-    else{
-        posstr="[(i-OFFSET)*NY*(NZ)+j*(NZ)+k];\n";
+    else if (vcl->NDIM==3){
+        sprintf(posstr,"[(i-OFFSET)*N%s*N%s+j*(N%s)+k];\n",
+                vcl->N_names[1], vcl->N_names[0], vcl->N_names[0]);
     }
     
     for (i=0;i<vcl->nvars;i++){
         if (vars[i].to_output){
-            strcat(temp, "        ");
+            strcat(temp, "    ");
             strcat(temp, vars[i].name);
-            strcat(temp, "out[nt*8+gid]=");
+            strcat(temp, "out[NT*gid+nt]=");
             strcat(temp, vars[i].name);
             strcat(temp, posstr);
         }
     }
-    
-    strcat(temp, "\n    }");
+
     strcat(temp, "\n}");
     
     
@@ -85,7 +93,7 @@ int kernel_varout(struct varcl * vcl,
     
     (*prog).src=temp;
     
-    __GUARD assign_prog_source(prog, "varsout", (*prog).src);
+    __GUARD prog_source(prog, "varsout", (*prog).src);
     
     return state;
 
@@ -99,8 +107,8 @@ int kernel_varoutinit(struct varcl * vcl,
     int state=0;
     int i;
     
-    char * temp=NULL;
-    GMALLOC(temp, sizeof(char)*MAX_KERN_STR);
+    char temp[MAX_KERN_STR]={0};;
+    
     char * p=(char*)temp;
     
     strcat(temp, "__kernel void varsoutinit(");
@@ -135,7 +143,7 @@ int kernel_varoutinit(struct varcl * vcl,
     
     (*prog).src=temp;
     
-    __GUARD assign_prog_source(prog, "varsoutinit", (*prog).src);
+    __GUARD prog_source(prog, "varsoutinit", (*prog).src);
     
     return state;
     
@@ -148,8 +156,8 @@ int kernel_varinit(struct varcl * vcl,
     int state=0;
     int i;
     
-    char * temp=NULL;
-    GMALLOC(temp, sizeof(char)*MAX_KERN_STR);
+    char temp[MAX_KERN_STR]={0};;
+    
     char * p=(char*)temp;
     char ptemp[50];
     
@@ -195,7 +203,117 @@ int kernel_varinit(struct varcl * vcl,
     
     (*prog).src=temp;
     
-    __GUARD assign_prog_source(prog, "vars_init", (*prog).src);
+    __GUARD prog_source(prog, "vars_init", (*prog).src);
+    
+    return state;
+    
+}
+
+int kernel_sources(struct varcl * vcl,
+                   struct variable * vars,
+                   struct clprogram * prog){
+    
+    int state=0;
+    int i,j;
+    
+    char temp[MAX_KERN_STR]={0};
+    char temp2[100]={0};
+//    
+    char * p=(char*)temp;
+    
+    
+    
+    int * tosources=NULL;
+    int ntypes=0;
+    int ind;
+    GMALLOC(tosources,vcl->nvars*sizeof(int));
+    for (i=0;i<vcl->src_recs.allns;i++){
+        ind =vcl->src_recs.src_pos[0][4+i*5];
+        if (ind<vcl->nvars)
+            tosources[ind]=1;
+    }
+    for (i=0;i<vcl->nvars;i++){
+        if (tosources[i]==1){
+            ntypes++;
+        }
+    }
+    if (ntypes==0){
+        state=1;
+        fprintf(stderr,"Error: No sources for variable list found\n");
+    }
+    
+    strcat(temp, "__kernel void sources(int nt, __global float * src_pos,"
+                 " __global float * src, ");
+    for (i=0;i<vcl->nvars;i++){
+        if (tosources[i]){
+            strcat(temp, "__global float * ");
+            strcat(temp, vars[i].name);
+            strcat(temp, ", ");
+        }
+    }
+    while (*p)
+        p++;
+    p[-2]='\0';
+    strcat(temp, "){\n\n");
+    
+    //This only supports 3 dimensions (need for more ?)
+    strcat(temp,"    int gid = get_global_id(0);\n"
+           "    int i=(int)(src_pos[0+5*gid]/DH)+FDOH;\n"
+           "    int j=(int)(src_pos[1+5*gid]/DH)+FDOH;\n"
+           "    int k=(int)(src_pos[2+5*gid]/DH)+FDOH;\n"
+           "\n");
+
+    sprintf(temp2,"    if (i-OFFSET<FDOH || i-OFFSET>N%s-FDOH-1){\n",
+            vcl->N_names[vcl->NDIM-1] );
+    strcat(temp, temp2);
+    strcat(temp,
+           "        return;\n"
+           "    }\n\n"
+           "    int source_type= src_pos[4+5*gid];\n"
+           "    float amp=DIRPROP*(DT*src[gid*NT+nt])/(DH*DH*DH);\n\n");
+
+    char posstr[100]={0};
+
+    
+    if (vcl->NDIM==2){
+        sprintf(posstr,"[(i-OFFSET)*N%s+k]",vcl->N_names[0]);
+    }
+    else if (vcl->NDIM==3){
+        sprintf(posstr,"[(i-OFFSET)*N%s*N%s+j*(N%s)+k]",
+                vcl->N_names[1], vcl->N_names[0], vcl->N_names[0]);
+    }
+    else{
+        state=1;
+        fprintf(stderr,"Error: Sources for a number of dimensions higher "
+                       "than 3 are not supported yet\n");
+    }
+    
+    
+    for (i=0;i<vcl->nvars;i++){
+        
+        if (tosources[i]){
+            if (ntypes>1){
+                sprintf(temp2,"    if (source_type==%d)\n", i);
+                strcat(temp, temp2);
+                strcat(temp, "    ");
+            }
+            strcat(temp, "    ");
+            strcat(temp, vars[i].name);
+            strcat(temp, posstr);
+            strcat(temp, "+=amp;\n");
+            
+        }
+    }
+    
+    strcat(temp, "\n}");
+    
+    (*prog).src=temp;
+    
+    __GUARD prog_source(prog, "sources", (*prog).src);
+    
+    printf("%s\n\n%lu\n",temp, strlen(temp));
+    
+    free(tosources);
     
     return state;
     
@@ -208,8 +326,8 @@ int kernel_residuals(struct varcl * vcl,
     int state=0;
     int i;
     
-    char * temp=NULL;
-    GMALLOC(temp, sizeof(char)*MAX_KERN_STR);
+    char temp[MAX_KERN_STR]={0};;
+    char temp2[100]={0};
     char * p=(char*)temp;
 
     
@@ -233,19 +351,28 @@ int kernel_residuals(struct varcl * vcl,
     
     
     strcat(temp,"    int gid = get_global_id(0);\n"
-           "    int i=(int)(rec_pos[0*8+gid]/DH)+FDOH;\n"
-           "    int j=(int)(rec_pos[0*8+gid]/DH)+FDOH;\n"
-           "    int k=(int)(rec_pos[0*8+gid]/DH)+FDOH;\n"
-           "\n"
-           "    if ( (i-OFFSET)>=FDOH && (i-OFFSET)<(NX-FDOH) ){\n\n");
+           "    int i=(int)(rec_pos[0+8*gid]/DH)+FDOH;\n"
+           "    int j=(int)(rec_pos[1+8*gid]/DH)+FDOH;\n"
+           "    int k=(int)(rec_pos[2+8*gid]/DH)+FDOH;\n\n");
     
-    char * posstr=NULL;
+    sprintf(temp2,"    if (i-OFFSET<FDOH || i-OFFSET>N%s-FDOH-1){\n",
+            vcl->N_names[vcl->NDIM-1] );
+    strcat(temp, temp2);
+    strcat(temp,
+           "        return;\n"
+           "    };\n\n");
+    
+    char posstr[100]={0};
+
     if (vcl->NDIM==2){
-        posstr="[(i-OFFSET)*NZ+k]";
+        sprintf(posstr,"[(i-OFFSET)*N%s+k]",vcl->N_names[0]);
     }
-    else{
-        posstr="[(i-OFFSET)*NY*NZ+j*(NZ)+k]";
+    else if (vcl->NDIM==3){
+        sprintf(posstr,"[(i-OFFSET)*N%s*N%s+j*(N%s)+k]",
+                vcl->N_names[1], vcl->N_names[0], vcl->N_names[0]);
     }
+
+    
     
     for (i=0;i<vcl->nvars;i++){
         if (vars[i].to_output){
@@ -254,23 +381,24 @@ int kernel_residuals(struct varcl * vcl,
             strcat(temp, posstr);
             strcat(temp, "+=");
             strcat(temp, vars[i].name);
-            strcat(temp, "out[nt*8+gid];\n");
+            strcat(temp, "out[NT*gid+nt];\n");
 
         }
     }
     
-    strcat(temp, "\n    }");
     strcat(temp, "\n}");
     
     (*prog).src=temp;
     
-    __GUARD assign_prog_source(prog, "residuals", (*prog).src);
+    __GUARD prog_source(prog, "residuals", (*prog).src);
 
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     return state;
     
 }
+
+
 
 int kernel_gradinit(struct varcl * vcl,
                     struct parameter * pars,
@@ -279,8 +407,8 @@ int kernel_gradinit(struct varcl * vcl,
     int state=0;
     int i;
     
-    char * temp=NULL;
-    GMALLOC(temp, sizeof(char)*MAX_KERN_STR);
+    char temp[MAX_KERN_STR]={0};;
+    
     char * p=(char*)temp;
     
 
@@ -313,7 +441,7 @@ int kernel_gradinit(struct varcl * vcl,
     
    (*prog).src=temp;
     
-    __GUARD assign_prog_source(prog, "gradinit", (*prog).src);
+    __GUARD prog_source(prog, "gradinit", (*prog).src);
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
     
@@ -328,8 +456,8 @@ int kernel_initsavefreqs(struct varcl * vcl,
     int state=0;
     int i;
     
-    char * temp=NULL;
-    GMALLOC(temp, sizeof(char)*MAX_KERN_STR);
+    char temp[MAX_KERN_STR]={0};;
+    
     char * p=(char*)temp;
     char ptemp[50];
     
@@ -374,7 +502,7 @@ int kernel_initsavefreqs(struct varcl * vcl,
     
     (*prog).src=temp;
     
-    __GUARD assign_prog_source(prog, "initsavefreqs", (*prog).src);
+    __GUARD prog_source(prog, "initsavefreqs", (*prog).src);
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
     
@@ -389,8 +517,8 @@ int kernel_savefreqs(struct varcl * vcl,
     int state=0;
     int i;
     
-    char * temp=NULL;
-    GMALLOC(temp, sizeof(char)*MAX_KERN_STR);
+    char temp[MAX_KERN_STR]={0};;
+    
     char * p=(char*)temp;
     char ptemp[50];
     
@@ -483,7 +611,7 @@ int kernel_savefreqs(struct varcl * vcl,
     strcat(temp, "\n}");
     
     (*prog).src=temp;
-    __GUARD assign_prog_source(prog, "savefreqs", (*prog).src);
+    __GUARD prog_source(prog, "savefreqs", (*prog).src);
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
     
@@ -495,8 +623,8 @@ int kernel_init_gradsrc(struct clprogram * prog){
     
     int state=0;
     
-    char * temp=NULL;
-    GMALLOC(temp, sizeof(char)*MAX_KERN_STR);
+    char temp[MAX_KERN_STR]={0};;
+    
     
     strcat(temp,
            "__kernel void init_gradsrc(__global float *gradsrc)\n"
@@ -509,7 +637,7 @@ int kernel_init_gradsrc(struct clprogram * prog){
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
     
-    __GUARD assign_prog_source(prog, "init_gradsrc", (*prog).src);
+    __GUARD prog_source(prog, "init_gradsrc", (*prog).src);
     
     return state;
     
@@ -523,8 +651,8 @@ int kernel_fcom_out(struct varcl * vcl,
     int state=0;
     int i,j;
     
-    char * temp=NULL;
-    GMALLOC(temp, sizeof(char)*MAX_KERN_STR);
+    char temp[MAX_KERN_STR]={0};;
+    
     char * p=(char*)temp;
     char ptemp[200];
     
@@ -641,7 +769,7 @@ int kernel_fcom_out(struct varcl * vcl,
     
     (*prog).src=temp;
     
-    __GUARD assign_prog_source(prog, "fill_transfer_buff_out", (*prog).src);
+    __GUARD prog_source(prog, "fill_transfer_buff_out", (*prog).src);
     
     return state;
     
@@ -655,8 +783,8 @@ int kernel_fcom_in(struct varcl * vcl,
     int state=0;
     int i,j;
     
-    char * temp=NULL;
-    GMALLOC(temp, sizeof(char)*MAX_KERN_STR);
+    char temp[MAX_KERN_STR]={0};;
+    
     char * p=(char*)temp;
     char ptemp[200];
     
@@ -773,9 +901,12 @@ int kernel_fcom_in(struct varcl * vcl,
     
     (*prog).src=temp;
     
-    __GUARD assign_prog_source(prog, "fill_transfer_buff_in", (*prog).src);
+    __GUARD prog_source(prog, "fill_transfer_buff_in", (*prog).src);
     
     
     return state;
     
 }
+
+
+

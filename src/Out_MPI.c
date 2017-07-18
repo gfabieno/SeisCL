@@ -99,29 +99,29 @@ int Out_MPI(struct filenames file, struct modcsts * m)  {
     // Gather the seismograms from all processing elements
     if (!state && m->VARSOUT){
         if (m->MYID==0){
-            if (m->bcastvx)  MPI_Reduce(MPI_IN_PLACE, m->vxout[0],  m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-            if (m->bcastvy)  MPI_Reduce(MPI_IN_PLACE, m->vyout[0],  m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-            if (m->bcastvz)  MPI_Reduce(MPI_IN_PLACE, m->vzout[0],  m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-            if (m->bcastsxx) MPI_Reduce(MPI_IN_PLACE, m->sxxout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-            if (m->bcastsyy) MPI_Reduce(MPI_IN_PLACE, m->syyout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-            if (m->bcastszz) MPI_Reduce(MPI_IN_PLACE, m->szzout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-            if (m->bcastsxy) MPI_Reduce(MPI_IN_PLACE, m->sxyout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-            if (m->bcastsxz) MPI_Reduce(MPI_IN_PLACE, m->sxzout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-            if (m->bcastsyz) MPI_Reduce(MPI_IN_PLACE, m->syzout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-            if (m->bcastp)   MPI_Reduce(MPI_IN_PLACE, m->pout[0],   m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastvx)  MPI_Reduce(MPI_IN_PLACE, m->vxout[0],  m->src_recs.allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastvy)  MPI_Reduce(MPI_IN_PLACE, m->vyout[0],  m->src_recs.allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastvz)  MPI_Reduce(MPI_IN_PLACE, m->vzout[0],  m->src_recs.allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastsxx) MPI_Reduce(MPI_IN_PLACE, m->sxxout[0], m->src_recs.allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastsyy) MPI_Reduce(MPI_IN_PLACE, m->syyout[0], m->src_recs.allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastszz) MPI_Reduce(MPI_IN_PLACE, m->szzout[0], m->src_recs.allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastsxy) MPI_Reduce(MPI_IN_PLACE, m->sxyout[0], m->src_recs.allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastsxz) MPI_Reduce(MPI_IN_PLACE, m->sxzout[0], m->src_recs.allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastsyz) MPI_Reduce(MPI_IN_PLACE, m->syzout[0], m->src_recs.allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastp)   MPI_Reduce(MPI_IN_PLACE, m->pout[0],   m->src_recs.allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
             
         }
         else{
-            if (m->bcastvx)  MPI_Reduce(m->vxout[0],  m->vxout[0],  m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-            if (m->bcastvy)  MPI_Reduce(m->vyout[0],  m->vyout[0],  m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-            if (m->bcastvz)  MPI_Reduce(m->vzout[0],  m->vzout[0],  m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-            if (m->bcastsxx) MPI_Reduce(m->sxxout[0], m->sxxout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-            if (m->bcastsyy) MPI_Reduce(m->syyout[0], m->syyout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-            if (m->bcastszz) MPI_Reduce(m->szzout[0], m->szzout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-            if (m->bcastsxy) MPI_Reduce(m->sxyout[0], m->sxyout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-            if (m->bcastsxz) MPI_Reduce(m->sxzout[0], m->sxzout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-            if (m->bcastsyz) MPI_Reduce(m->syzout[0], m->syzout[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-            if (m->bcastp)   MPI_Reduce(m->pout[0],   m->pout[0],   m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastvx)  MPI_Reduce(m->vxout[0],  m->vxout[0],  m->src_recs.allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastvy)  MPI_Reduce(m->vyout[0],  m->vyout[0],  m->src_recs.allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastvz)  MPI_Reduce(m->vzout[0],  m->vzout[0],  m->src_recs.allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastsxx) MPI_Reduce(m->sxxout[0], m->sxxout[0], m->src_recs.allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastsyy) MPI_Reduce(m->syyout[0], m->syyout[0], m->src_recs.allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastszz) MPI_Reduce(m->szzout[0], m->szzout[0], m->src_recs.allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastsxy) MPI_Reduce(m->sxyout[0], m->sxyout[0], m->src_recs.allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastsxz) MPI_Reduce(m->sxzout[0], m->sxzout[0], m->src_recs.allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastsyz) MPI_Reduce(m->syzout[0], m->syzout[0], m->src_recs.allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastp)   MPI_Reduce(m->pout[0],   m->pout[0],   m->src_recs.allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
         }
     }
     // Add the rms value of all processing elements
@@ -140,14 +140,14 @@ int Out_MPI(struct filenames file, struct modcsts * m)  {
     if (m->RESOUT){
         
         if (m->MYID==0){
-            if (m->bcastvx) if (!state) MPI_Reduce(MPI_IN_PLACE, m->rx[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-            if (m->bcastvy) if (!state) MPI_Reduce(MPI_IN_PLACE, m->ry[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-            if (m->bcastvz) if (!state) MPI_Reduce(MPI_IN_PLACE, m->rz[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastvx) if (!state) MPI_Reduce(MPI_IN_PLACE, m->rx[0], m->src_recs.allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastvy) if (!state) MPI_Reduce(MPI_IN_PLACE, m->ry[0], m->src_recs.allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastvz) if (!state) MPI_Reduce(MPI_IN_PLACE, m->rz[0], m->src_recs.allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
         }
         else{
-            if (m->bcastvx) if (!state) MPI_Reduce(m->rx[0], m->rx[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-            if (m->bcastvy) if (!state) MPI_Reduce(m->ry[0], m->ry[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
-            if (m->bcastvz) if (!state) MPI_Reduce(m->rz[0], m->rz[0], m->allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastvx) if (!state) MPI_Reduce(m->rx[0], m->rx[0], m->src_recs.allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastvy) if (!state) MPI_Reduce(m->ry[0], m->ry[0], m->src_recs.allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (m->bcastvz) if (!state) MPI_Reduce(m->rz[0], m->rz[0], m->src_recs.allng*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
         }
 
     }
@@ -205,10 +205,10 @@ int Out_MPI(struct filenames file, struct modcsts * m)  {
         
         if (m->GRADSRCOUT==1){
             if (m->MYID==0){
-                if (!state) MPI_Reduce(MPI_IN_PLACE, m->gradsrc[0], m->allns*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+                if (!state) MPI_Reduce(MPI_IN_PLACE, m->gradsrc[0], m->src_recs.allns*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
             }
             else{
-                if (!state) MPI_Reduce(m->gradsrc, m->gradsrc[0], m->allns*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
+                if (!state) MPI_Reduce(m->gradsrc, m->gradsrc[0], m->src_recs.allns*m->NT, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
             }
         }
         

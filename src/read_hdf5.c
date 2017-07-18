@@ -477,19 +477,19 @@ int readhdf5(struct filenames files, struct modcsts * m) {
     /* Check that the variables are in the required format */
     __GUARD getdimmat(file_id, "/src_pos", 2, dims2D);
     if (!state) if(dims2D[1]!=5) {state=1;fprintf(stderr, "src_pos dimension 1 must be 5\n");};
-    m->allns=(int)dims2D[0];
+    m->src_recs.allns=(int)dims2D[0];
     dims2D[1]=m->NT;
     if (!state) if ((state=checkmatNDIM(file_id, "/src",  2, dims2D)))  {state=1;fprintf(stderr, "Variable src must be nt x number of sources\n");};
     
     
     __GUARD getdimmat(file_id, "/rec_pos", 2, dims2D);
     if (!state) if(dims2D[1]!=8) {state=1;fprintf(stderr, "rec_pos dimension 1 must be 8\n");};
-    m->allng=(int)dims2D[0];
+    m->src_recs.allng=(int)dims2D[0];
     
     /* Assign the memory */
-    GMALLOC(src_pos0,sizeof(float)*m->allns*5);
-    GMALLOC(src0,sizeof(float)*m->allns*m->NT);
-    GMALLOC(rec_pos0,sizeof(float)*m->allng*8);
+    GMALLOC(src_pos0,sizeof(float)*m->src_recs.allns*5);
+    GMALLOC(src0,sizeof(float)*m->src_recs.allns*m->NT);
+    GMALLOC(rec_pos0,sizeof(float)*m->src_recs.allng*8);
     
     /* Read variables */
     __GUARD readvar(file_id, H5T_NATIVE_FLOAT, "/src_pos", src_pos0);
@@ -500,7 +500,7 @@ int readhdf5(struct filenames files, struct modcsts * m) {
     if (!state){
         m->ns=0;
         thisid=-9999;
-        for (i=0;i<m->allns;i++){
+        for (i=0;i<m->src_recs.allns;i++){
             if (thisid<src_pos0[3+i*5]){
                 thisid=src_pos0[3+i*5];
                 m->ns+=1;
@@ -515,7 +515,7 @@ int readhdf5(struct filenames files, struct modcsts * m) {
         nsg=0;
         thisid=-9999;
         maxrecid=0;
-        for (i=0;i<m->allng;i++){
+        for (i=0;i<m->src_recs.allng;i++){
             maxrecid=  (maxrecid > rec_pos0[4+i*8]) ? maxrecid : rec_pos0[4+i*8];
             if (thisid<rec_pos0[3+i*8]){
                 thisid=rec_pos0[3+i*8];
@@ -544,7 +544,7 @@ int readhdf5(struct filenames files, struct modcsts * m) {
         thisid=src_pos0[3];
         n=1;
         p=0;
-        for (i=1;i<m->allns;i++){
+        for (i=1;i<m->src_recs.allns;i++){
             if (thisid==src_pos0[3+i*5]){
                 n+=1;
             }
@@ -562,7 +562,7 @@ int readhdf5(struct filenames files, struct modcsts * m) {
         thisid=rec_pos0[3];
         n=1;
         p=0;
-        for (i=1;i<m->allng;i++){
+        for (i=1;i<m->src_recs.allng;i++){
             if (thisid==rec_pos0[3+i*8]){
                 n+=1;
             }
@@ -652,7 +652,7 @@ int readhdf5(struct filenames files, struct modcsts * m) {
         if (file_id>=0){
             
             
-            dims2D[0]=m->allng;dims2D[1]=m->NT;
+            dims2D[0]=m->src_recs.allng;dims2D[1]=m->NT;
             for (i=0;i<m->nvars;i++){
                 if (1==H5Lexists( file_id, m->vars[i].name, H5P_DEFAULT)){
                     m->vars[i].to_output=1;
@@ -661,7 +661,7 @@ int readhdf5(struct filenames files, struct modcsts * m) {
                     if (m->RESOUT){
                         alloc_seismo(&m->vars[i].gl_var_res, m);
                     }
-                    __GUARD read_seis(file_id, H5T_NATIVE_FLOAT, m->vars[i].name, m->vars[i].gl_varin[0], m->src_recs.rec_pos[0], m->allng, m->NT);
+                    __GUARD read_seis(file_id, H5T_NATIVE_FLOAT, m->vars[i].name, m->vars[i].gl_varin[0], m->src_recs.rec_pos[0], m->src_recs.allng, m->NT);
                     anyout=1;
                 }
             }
@@ -673,7 +673,7 @@ int readhdf5(struct filenames files, struct modcsts * m) {
                     if (m->RESOUT){
                         alloc_seismo(&m->trans_vars[i].gl_var_res, m);
                     }
-                    __GUARD read_seis(file_id, H5T_NATIVE_FLOAT, m->trans_vars[i].name, m->trans_vars[i].gl_varin[0], m->src_recs.rec_pos[0], m->allng, m->NT);
+                    __GUARD read_seis(file_id, H5T_NATIVE_FLOAT, m->trans_vars[i].name, m->trans_vars[i].gl_varin[0], m->src_recs.rec_pos[0], m->src_recs.allng, m->NT);
                     anyout=1;
                 }
             }

@@ -77,6 +77,8 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
             //Only the last dimensions changes due to domain decomposition
             for (i=0;i<m->NDIM-1;i++){
                 vd->N[i]=m->N[i];
+            }
+            for (i=0;i<m->NDIM;i++){
                 vd->N_names[i]=m->N_names[i];
             }
             //We first decompose between MPI processess
@@ -140,9 +142,9 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
             __GUARD clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_ITEM_SIZES,
                                     sizeof(workitem_size), &workitem_size,NULL);
             __GUARD clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE,
-                                    sizeof(workgroup_size),&workgroup_size,NULL);
+                                   sizeof(workgroup_size),&workgroup_size,NULL);
             __GUARD clGetDeviceInfo(device, CL_DEVICE_LOCAL_MEM_SIZE,
-                                    sizeof(local_mem_size),&local_mem_size,NULL);
+                                   sizeof(local_mem_size),&local_mem_size,NULL);
             if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(state));
             
             // Intel SDK doesn't give the right max work_group_size our kernels,
@@ -317,7 +319,9 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
             GMALLOC(vd->ups_f, m->nupdates*sizeof(struct update));
             for (i=0;i<m->nupdates;i++){
                 vd->ups_f[i]=m->ups_f[i];
+                GMALLOC(vd->ups_f[i].v2com,m->nvars*sizeof(struct variable*));
             }
+            
             for (i=0;i<m->nupdates;i++){
                 for (j=0;j<vd->workdim;j++){
                     vd->ups_f[i].center.gsize[j]=gsize[j];
@@ -337,6 +341,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
                 GMALLOC(vd->ups_adj, m->nupdates*sizeof(struct update));
                 for (i=0;i<m->nupdates;i++){
                     vd->ups_adj[i]=m->ups_adj[i];
+                    GMALLOC(vd->ups_adj[i].v2com,m->nvars*sizeof(struct variable*));
                 }
                 for (i=0;i<m->nupdates;i++){
                     for (j=0;j<vd->workdim;j++){
@@ -364,12 +369,13 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
             // model and assign memory buffers on the host side for each device
             if (!state){
                 for (i=0;i<m->npars;i++){
-                    vd->pars[i].gl_par=&m->pars[i].gl_par[vd->OFFSET];
+                    vd->pars[i]=m->pars[i];
+                    vd->pars[i].cl_par.host=&m->pars[i].gl_par[vd->OFFSET];
                     vd->pars[i].num_ele=parsize;
                     if (m->pars[i].to_grad){
-                        vd->pars[i].gl_grad=&m->pars[i].gl_grad[vd->OFFSET];
+                        vd->pars[i].cl_grad.host=&m->pars[i].gl_grad[vd->OFFSET];
                         if (m->pars[i].gl_H)
-                            vd->pars[i].gl_H=&m->pars[i].gl_H[vd->OFFSET];
+                            vd->pars[i].cl_H.host=&m->pars[i].gl_H[vd->OFFSET];
                     }
                 }
                 
@@ -379,25 +385,39 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
             // and transfer to device parameters
             if (!state){
                 for (i=0;i<m->npars;i++){
-                    vd->pars[i]=m->pars[i];
                     vd->pars[i].num_ele=parsize;
                     vd->pars[i].cl_par.size=sizeof(float)*parsize;
-                    __GUARD create_clbuf(&m->context,&vd->pars[i].cl_par);
-                    __GUARD transf_clbuf(&vd->queue,
-                                         &vd->pars[i].cl_par,
-                                          vd->pars[i].gl_par);
+                    __GUARD clbuf_create(&m->context,&vd->pars[i].cl_par);
+                    __GUARD clbuf_send(&vd->queue,
+                                         &vd->pars[i].cl_par);
                     if (m->GRADOUT && m->BACK_PROP_TYPE==1){
                         vd->pars[i].cl_grad.size=sizeof(float)*parsize;
-                        __GUARD create_clbuf(&m->context, &vd->pars[i].cl_grad);
+                        __GUARD clbuf_create(&m->context, &vd->pars[i].cl_grad);
                     }
                     if (m->HOUT && m->BACK_PROP_TYPE==1){
                         vd->pars[i].cl_H.size=sizeof(float)*parsize;
-                        __GUARD create_clbuf( &m->context, &vd->pars[i].cl_H);
+                        __GUARD clbuf_create( &m->context, &vd->pars[i].cl_H);
                     }
                     
                 }
             }
             
+        }
+        
+        //Set the sources and receivers structure for this device
+        {
+            vd->src_recs=m->src_recs;
+            vd->src_recs.cl_src_pos.size=sizeof(float) * 5 * m->src_recs.nsmax;
+            vd->src_recs.cl_rec_pos.size=sizeof(float) * 8 * m->src_recs.ngmax;
+            vd->src_recs.cl_src.size=sizeof(float) * m->NT * m->src_recs.nsmax;
+            __GUARD clbuf_create_cst( &m->context, &vd->src_recs.cl_src_pos);
+            __GUARD clbuf_create_cst( &m->context, &vd->src_recs.cl_rec_pos);
+            __GUARD clbuf_create_cst( &m->context, &vd->src_recs.cl_src);
+            if (m->GRADSRCOUT){
+                vd->src_recs.cl_grad_src.size=sizeof(float)
+                * m->NT * m->src_recs.nsmax;
+                __GUARD clbuf_create_cst(&m->context,&vd->src_recs.cl_grad_src);
+            }
         }
         
         //Allocate the variables structure for this device and create buffers
@@ -409,53 +429,58 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
         //TODO: This is model specific, find a better way
         assign_var_size(vd->N,m->NDIM,m->FDORDER, m->nvars, m->L, vd->vars);
         
+        
         //Create OpenCL buffers with the right size
         for (i=0;i<m->nvars;i++){
             
+            //Add the variable to variables to communicate during update
+            if (vd->vars[i].to_comm>0){
+                j=vd->vars[i].to_comm-1;
+                vd->ups_f[j].v2com[vd->ups_f[j].nvcom]=&vd->vars[i];
+                vd->ups_f[j].nvcom++;
+            }
+            
             //Create variable buffers for the interior domain
             vd->vars[i].cl_var.size=sizeof(float)*vd->vars[i].num_ele;
-            __GUARD create_clbuf( &m->context, &vd->vars[i].cl_var);
+            __GUARD clbuf_create( &m->context, &vd->vars[i].cl_var);
             
             //Create variable buffers for the boundary of the domain
             if ( vd->vars[i].to_comm
                 && (d>0 || m->MYLOCALID>0
-                    || d<m->NUM_DEVICES-1
-                    || m->MYLOCALID<m->NLOCALP-1)){
+                        || d<m->NUM_DEVICES-1
+                        || m->MYLOCALID<m->NLOCALP-1)){
                     
                     //On the device side
                     vd->vars[i].cl_buf1.size=sizeof(float)*m->FDOH*slicesize;
-                    __GUARD create_clbuf_pin(&m->context,
-                                             &vd->queuecomm,
-                                             &vd->vars[i].cl_buf1,
-                                             &vd->vars[i].de_buf1);
+                    __GUARD clbuf_create(&m->context, &vd->vars[i].cl_buf1);
                     vd->vars[i].cl_buf2.size=sizeof(float)*m->FDOH*slicesize;
+                    __GUARD clbuf_create(&m->context, &vd->vars[i].cl_buf2);
                     
                     //On the host, overlapped transfers need pinned memory
-                    __GUARD create_clbuf_pin(&m->context,
+                    vd->vars[i].cl_buf1_pin.size=sizeof(float)*m->FDOH*slicesize;
+                    __GUARD clbuf_create_pin(&m->context,
                                              &vd->queuecomm,
-                                             &vd->vars[i].cl_buf2,
-                                             &vd->vars[i].de_buf2);
-                    __GUARD create_clbuf(&m->context, &vd->vars[i].cl_buf1_dev);
-                    vd->vars[i].cl_buf2_dev.size=sizeof(float)
-                                                 * m->FDOH*slicesize;
-                    __GUARD create_clbuf(&m->context, &vd->vars[i].cl_buf2_dev);
+                                             &vd->vars[i].cl_buf1_pin);
+                    vd->vars[i].cl_buf2_pin.size=sizeof(float)* m->FDOH*slicesize;
+                    __GUARD clbuf_create_pin(&m->context,
+                                             &vd->queuecomm,
+                                             &vd->vars[i].cl_buf2_pin);
                 }
             
             // Create the buffers to output variables at receivers locations
             if (vd->vars[i].to_output){
                 
                 //Memory for recordings for this device on host side
-                alloc_seismo(&vd->vars[i].de_varout, m);
-                
                 vd->vars[i].cl_varout.size=sizeof(float)
                                           * m->NT * m->src_recs.ngmax;
-                __GUARD create_clbuf( &m->context, &vd->vars[i].cl_varout);
+                __GUARD clbuf_create( &m->context, &vd->vars[i].cl_varout);
+                GMALLOC(vd->vars[i].cl_varout.host, vd->vars[i].cl_varout.size);
                 
                 //Create also a buffer for the residuals
                 if (m->vars[i].gl_var_res){
                     vd->vars[i].cl_var_res.size=sizeof(float)
                                                * m->NT * m->src_recs.ngmax;
-                    __GUARD create_clbuf( &m->context, &vd->vars[i].cl_var_res);
+                    __GUARD clbuf_create( &m->context, &vd->vars[i].cl_var_res);
                 }
             }
             
@@ -465,18 +490,18 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
                 && m->BACK_PROP_TYPE==2
                 && vd->vars[i].for_grad){
                 
-                GMALLOC(vd->vars[i].de_fvar,
-                        sizeof(cl_float2)*vd->vars[i].num_ele * m->NFREQS);
+
                 vd->vars[i].cl_fvar.size=sizeof(cl_float2)
                                         * vd->vars[i].num_ele * m->NFREQS;
-                __GUARD create_clbuf(&m->context,&vd->vars[i].cl_fvar);
+                __GUARD clbuf_create(&m->context,&vd->vars[i].cl_fvar);
+                GMALLOC(vd->vars[i].cl_fvar.host,vd->vars[i].cl_fvar.size);
             }
             
             // If we want the movie, allocate memory for variables
             if (m->MOVOUT){
                 if (m->vars[i].to_output){
                     vd->vars[i].gl_mov=&m->vars[i].gl_mov[vd->OFFSET];
-                    GMALLOC(vd->vars[i].de_mov,
+                    GMALLOC(vd->vars[i].cl_mov.host,
                             vd->vars[i].num_ele*sizeof(cl_float));
                 }
             }
@@ -492,28 +517,13 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
             //Size of constants does not depend of domain decomposition
             if (vd->csts[i].active){
                 vd->csts[i].cl_cst.size=sizeof(float)*vd->csts[i].num_ele;
-                __GUARD create_clbuf( &m->context, &vd->csts[i].cl_cst);
-                __GUARD transf_clbuf( &vd->queue, &vd->csts[i].cl_cst,
-                                                    m->csts[i].gl_cst);
+                vd->csts[i].cl_cst.host=m->csts[i].gl_cst;
+                __GUARD clbuf_create( &m->context, &vd->csts[i].cl_cst);
+                __GUARD clbuf_send( &vd->queue, &vd->csts[i].cl_cst);
             }
             
         }
         
-        //Set the sources and receivers structure for this device
-        {
-            vd->src_recs=m->src_recs;
-            vd->src_recs.cl_src_pos.size=sizeof(float) * 5 * m->src_recs.nsmax;
-            vd->src_recs.cl_rec_pos.size=sizeof(float) * 8 * m->src_recs.ngmax;
-            vd->src_recs.cl_src.size=sizeof(float) * m->NT * m->src_recs.nsmax;
-            __GUARD create_clbuf_cst( &m->context, &vd->src_recs.cl_src_pos);
-            __GUARD create_clbuf_cst( &m->context, &vd->src_recs.cl_rec_pos);
-            __GUARD create_clbuf_cst( &m->context, &vd->src_recs.cl_src);
-            if (m->GRADSRCOUT){
-                vd->src_recs.cl_grad_src.size=sizeof(float)
-                                             * m->NT * m->src_recs.nsmax;
-                __GUARD create_clbuf_cst(&m->context,&vd->src_recs.cl_grad_src);
-            }
-        }
         
         // Determine the size of the outside boundary used for the back
         // propagation of the seismic wavefield
@@ -556,11 +566,10 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
             for (i=0;i<m->nvars;i++){
                 if (vd->vars[i].to_comm){
                     vd->vars[i].cl_varbnd.size=sizeof(float) * vd->NBND;
-                    __GUARD create_clbuf( &m->context, &vd->vars[i].cl_varbnd);
+                    __GUARD clbuf_create( &m->context, &vd->vars[i].cl_varbnd);
                     vd->vars[i].cl_varbnd_pin.size=sizeof(float) * vd->NBND;
-                    __GUARD create_clbuf_pin(&m->context, &vd->queuecomm,
-                                             &vd->vars[i].cl_varbnd_pin,
-                                             &vd->vars[i].de_varbnd);
+                    __GUARD clbuf_create_pin(&m->context, &vd->queuecomm,
+                                             &vd->vars[i].cl_varbnd_pin);
                 }
             }
             
@@ -571,22 +580,26 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
             }
             
             for (i=0;i<m->nvars;i++){
-                __GUARD create_clbuf( &m->context, &vd->vars_adj[i].cl_var);
+                //Add the variable to variables to communicate during update
+                if (vd->vars_adj[i].to_comm>0){
+                    j=vd->vars_adj[i].to_comm-1;
+                    vd->ups_adj[j].v2com[vd->ups_adj[j].nvcom]=&vd->vars_adj[i];
+                    vd->ups_adj[j].nvcom++;
+                }
+                __GUARD clbuf_create( &m->context, &vd->vars_adj[i].cl_var);
                 if (vd->vars[i].to_comm && (d>0
                                             || m->MYLOCALID>0
                                             || d<m->NUM_DEVICES-1
                                             || m->MYLOCALID<m->NLOCALP-1)){
                     
-                    __GUARD create_clbuf_pin(&m->context, &vd->queuecomm,
-                                             &vd->vars_adj[i].cl_buf1,
-                                             &vd->vars_adj[i].de_buf1);
-                    __GUARD create_clbuf_pin(&m->context, &vd->queuecomm,
-                                             &vd->vars_adj[i].cl_buf2,
-                                             &vd->vars_adj[i].de_buf2);
-                    __GUARD create_clbuf( &m->context,
-                                          &vd->vars_adj[i].cl_buf1_dev);
-                    __GUARD create_clbuf( &m->context,
-                                          &vd->vars_adj[i].cl_buf2_dev);
+                    __GUARD clbuf_create_pin(&m->context, &vd->queuecomm,
+                                             &vd->vars_adj[i].cl_buf1_pin);
+                    __GUARD clbuf_create_pin(&m->context, &vd->queuecomm,
+                                             &vd->vars_adj[i].cl_buf2_pin);
+                    __GUARD clbuf_create( &m->context,
+                                          &vd->vars_adj[i].cl_buf1);
+                    __GUARD clbuf_create( &m->context,
+                                          &vd->vars_adj[i].cl_buf2);
                 }
             }
 
@@ -630,6 +643,9 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
         
         
         //Create automaticly kernels for gradient, variable inti, sources ...
+        __GUARD kernel_sources(vd, vd->vars, &vd->src_recs.sources);
+        __GUARD create_kernel(m, vd,  &vd->src_recs.sources);
+        
         __GUARD kernel_varout(vd, vd->vars, &vd->src_recs.varsout);
         __GUARD create_kernel(m, vd,  &vd->src_recs.varsout);
         
@@ -680,6 +696,54 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
         
         
     }
+    
+    //Finally, we must set the event dependencies of the updates
+    int inevent=0;
+    int outevent=-1;
+    
+    
+    
+
+    
+        
+    //TODO revise, events should change between forward and adjoint modeling
+    for (d=0;d<m->NUM_DEVICES;d++){
+          for (i=0;i<m->nupdates;i++){
+              
+            if (d>0 || m->MYLOCALID>0){
+                (*vcl)[d].ups_f[i].fcom1_out.outevent=1;
+                (*vcl)[d].ups_f[i].fcom1_in.nwait=1;
+                (*vcl)[d].ups_f[i].fcom1_in.waitlist=
+                                               &(*vcl)[d].ups_f[i].event_write1;
+                (*vcl)[d].ups_f[i].v2com[0]->cl_buf1.nwait=1;
+                (*vcl)[d].ups_f[i].v2com[0]->cl_buf1.waitlist=
+                                            &(*vcl)[d].ups_f[i].fcom1_out.event;
+                if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+                    (*vcl)[d].ups_adj[i].v2com[0]->cl_buf1.nwait=1;
+                    (*vcl)[d].ups_adj[i].v2com[0]->cl_buf1.waitlist=
+                    &(*vcl)[d].ups_adj[i].fcom1_out.event;
+                }
+            }
+            if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
+                (*vcl)[d].ups_f[i].fcom2_out.outevent=1;
+                (*vcl)[d].ups_f[i].fcom2_in.nwait=1;
+                (*vcl)[d].ups_f[i].fcom2_in.waitlist=
+                &(*vcl)[d].ups_f[i].event_write2;
+                (*vcl)[d].ups_f[i].v2com[0]->cl_buf2.nwait=1;
+                (*vcl)[d].ups_f[i].v2com[0]->cl_buf2.waitlist=
+                &(*vcl)[d].ups_f[i].fcom2_out.event;
+                if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+                    (*vcl)[d].ups_adj[i].v2com[0]->cl_buf2.nwait=1;
+                    (*vcl)[d].ups_adj[i].v2com[0]->cl_buf2.waitlist=
+                    &(*vcl)[d].ups_adj[i].fcom2_out.event;
+                }
+            }
+        }
+        
+        
+    }
+    
+    
 
     if (state && m->MPI_INIT==1)
         MPI_Bcast( &state, 1, MPI_INT, m->MYID, MPI_COMM_WORLD );

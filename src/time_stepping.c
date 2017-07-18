@@ -76,325 +76,297 @@ void reduce_seis(float * varloc, float * varglob, int nrec, float * rec_pos, flo
     }
     
 }
-int update_grid(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc, int t){
+int update_grid(struct modcsts * m, struct varcl ** vcl){
     /*Update operations of one iteration */
     int state=0;
-    int d;
+    int d, i;
     
-    // Set kernel argument for this timestep
-    for (d=0;d<m->NUM_DEVICES;d++){
-        __GUARD clSetKernelArg((*vcl)[d].kernel_s,  2, sizeof(int), &t);
-        __GUARD clSetKernelArg((*vcl)[d].kernel_v,  2, sizeof(int), &t);
-        if (d>0 || m->MYLOCALID>0){
-            __GUARD clSetKernelArg((*vcl)[d].kernel_scom1,  2, sizeof(int), &t);
-            __GUARD clSetKernelArg((*vcl)[d].kernel_vcom1,  2, sizeof(int), &t);
-        }
+    
+    for (i=0;i<m->nupdates;i++){
         
-        if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
-            __GUARD clSetKernelArg((*vcl)[d].kernel_scom2,  2, sizeof(int), &t);
-            __GUARD clSetKernelArg((*vcl)[d].kernel_vcom2,  2, sizeof(int), &t);
-        }
-        __GUARD clSetKernelArg((*vcl)[d].kernel_varsout,  20, sizeof(int), &t);
-    }
-    
-    // Updating the velocity variables
-    for (d=0;d<m->NUM_DEVICES;d++){
-        {
-            // Launch the kernel on the outside grid needing communication only if a neighbouring device or processing elelement exist
+        // Updating the variables
+        for (d=0;d<m->NUM_DEVICES;d++){
+            // Launch the kernel on the outside grid needing communication only
+            // if a neighbouring device or processing elelement exist
             if (d>0 || m->MYLOCALID>0){
-                __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_vcom1, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_sizecom1, (*mloc)[d].local_work_size, 0, NULL, NULL);
-                __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_fill_transfer_buff1_v_out, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, &(*vcl)[d].event_updatev_com1);
+                __GUARD prog_launch( &(*vcl)[d].queue,
+                                       &(*vcl)[d].ups_f[i].com1);
+                __GUARD prog_launch( &(*vcl)[d].queue,
+                                       &(*vcl)[d].ups_f[i].fcom1_out);
             }
             if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
-                __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_vcom2, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_sizecom2, (*mloc)[d].local_work_size, 0, NULL, NULL);
-                __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_fill_transfer_buff2_v_out, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, &(*vcl)[d].event_updatev_com2);
+                __GUARD prog_launch( &(*vcl)[d].queue,
+                                      &(*vcl)[d].ups_f[i].com2);
+                __GUARD prog_launch( &(*vcl)[d].queue,
+                                      &(*vcl)[d].ups_f[i].fcom2_out);
             }
-
+            
             //Launch kernel on the interior elements
-            __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_v, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size, (*mloc)[d].local_work_size, 0, NULL, NULL);
+            __GUARD prog_launch( &(*vcl)[d].queue,
+                                  &(*vcl)[d].ups_f[i].center);
+
         }
-    }
-    
-    // Communication between GPUs of the velocity variable
-    if (m->NUM_DEVICES>1 || m->NLOCALP>1)
-        __GUARD comm_v(m, vcl, mloc, 0);
-    for (d=0;d<m->NUM_DEVICES;d++){
-        if (d>0 || m->MYLOCALID>0){
-            __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_fill_transfer_buff1_v_in, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 1, &(*vcl)[d].event_writev1, NULL);
-            __GUARD clReleaseEvent((*vcl)[d].event_writev1);
-        }
-        if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
-            __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_fill_transfer_buff2_v_in, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 1, &(*vcl)[d].event_writev2, NULL);
-            __GUARD clReleaseEvent((*vcl)[d].event_writev2);
-        }
-    }
-    
-    //Save the boundary if the gradient output is required
-    if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1){
+        
+        //            // Communication between devices and MPI processes
+        //            if (m->NUM_DEVICES>1 || m->NLOCALP>1)
+        //                __GUARD comm_v(m, vcl, mloc, 0);
+        
+        // Send the communcated buffers to the devices
         for (d=0;d<m->NUM_DEVICES;d++){
-            if (t==0){
-                __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_bnd, 1, &(*mloc)[d].global_work_size_bnd, NULL, 0, NULL, &(*vcl)[d].event_bndsave);
-            }
-            else{
-                __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_bnd, 1, &(*mloc)[d].global_work_size_bnd, NULL, 1, &(*vcl)[d].event_bndtransf, &(*vcl)[d].event_bndsave);
-                __GUARD clReleaseEvent((*vcl)[d].event_bndtransf);
-            }
             
-            if (m->ND==21){
-                __GUARD clEnqueueReadBuffer( (*vcl)[d].queuecomm, (*vcl)[d].sxybnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, &(*mloc)[d].sxybnd[(*mloc)[d].NBND*t], 1, &(*vcl)[d].event_bndsave, NULL);
-                __GUARD clEnqueueReadBuffer( (*vcl)[d].queuecomm, (*vcl)[d].syzbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, &(*mloc)[d].syzbnd[(*mloc)[d].NBND*t], 0, NULL, NULL);
-                __GUARD clEnqueueReadBuffer( (*vcl)[d].queuecomm, (*vcl)[d].vybnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, &(*mloc)[d].vybnd[(*mloc)[d].NBND*t], 0, NULL, &(*vcl)[d].event_bndtransf);
-                __GUARD clReleaseEvent((*vcl)[d].event_bndsave);
-                
+            if (d>0 || m->MYLOCALID>0){
+                __GUARD prog_launch( &(*vcl)[d].queue,
+                                      &(*vcl)[d].ups_f[i].fcom1_in);
+                __GUARD clReleaseEvent((*vcl)[d].ups_f[i].event_write1);
             }
-            else{
-                
-                __GUARD clEnqueueReadBuffer( (*vcl)[d].queuecomm, (*vcl)[d].sxxbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, &(*mloc)[d].sxxbnd[(*mloc)[d].NBND*t], 1, &(*vcl)[d].event_bndsave, NULL);
-                __GUARD clEnqueueReadBuffer( (*vcl)[d].queuecomm, (*vcl)[d].vxbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, &(*mloc)[d].vxbnd[(*mloc)[d].NBND*t], 0, NULL, NULL);
-                if (m->ND==3){// For 3D
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d].queuecomm, (*vcl)[d].syybnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, &(*mloc)[d].syybnd[(*mloc)[d].NBND*t], 0, NULL, NULL);
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d].queuecomm, (*vcl)[d].sxybnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, &(*mloc)[d].sxybnd[(*mloc)[d].NBND*t], 0, NULL, NULL);
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d].queuecomm, (*vcl)[d].syzbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, &(*mloc)[d].syzbnd[(*mloc)[d].NBND*t], 0, NULL, NULL);
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d].queuecomm, (*vcl)[d].vybnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, &(*mloc)[d].vybnd[(*mloc)[d].NBND*t], 0, NULL, NULL);
-                }
-                __GUARD clEnqueueReadBuffer( (*vcl)[d].queuecomm, (*vcl)[d].szzbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, &(*mloc)[d].szzbnd[(*mloc)[d].NBND*t], 0, NULL, NULL);
-                __GUARD clEnqueueReadBuffer( (*vcl)[d].queuecomm, (*vcl)[d].sxzbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, &(*mloc)[d].sxzbnd[(*mloc)[d].NBND*t], 0, NULL, NULL);
-                __GUARD clEnqueueReadBuffer( (*vcl)[d].queuecomm, (*vcl)[d].vzbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, &(*mloc)[d].vzbnd[(*mloc)[d].NBND*t], 0, NULL, &(*vcl)[d].event_bndtransf);
-                __GUARD clReleaseEvent((*vcl)[d].event_bndsave);
+            if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
+                __GUARD prog_launch( &(*vcl)[d].queue,
+                                      &(*vcl)[d].ups_f[i].fcom2_in);
+                __GUARD clReleaseEvent((*vcl)[d].ups_f[i].event_write2);
             }
-            
-        }
-    }
-    
-    // Updating the stress variables
-    for (d=0;d<m->NUM_DEVICES;d++){
-        
-        // Launch the kernel on the outside grid needing communication only if a neighbouring device or processing elelement exist
-        if (d>0 || m->MYLOCALID>0){
-            __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_scom1, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_sizecom1, (*mloc)[d].local_work_size, 0, NULL, NULL);
-            __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_fill_transfer_buff1_s_out, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, &(*vcl)[d].event_updates_com1);
-        }
-        if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
-            __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_scom2, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_sizecom2, (*mloc)[d].local_work_size, 0, NULL, NULL);
-            __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_fill_transfer_buff2_s_out, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, &(*vcl)[d].event_updates_com2);
         }
         
-        __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_s, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size, (*mloc)[d].local_work_size, 0, NULL, NULL);
     }
+
     
-    // Communicating the stress variables between GPUs
-    if (m->NUM_DEVICES>1 || m->NLOCALP>1)
-        __GUARD comm_s(m, vcl, mloc, 0);
-    for (d=0;d<m->NUM_DEVICES;d++){
-        if (d>0 || m->MYLOCALID>0){
-            __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_fill_transfer_buff1_s_in, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 1, &(*vcl)[d].event_writes1, NULL);
-            __GUARD clReleaseEvent((*vcl)[d].event_writes1);
-        }
-        if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
-            __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_fill_transfer_buff2_s_in, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 1, &(*vcl)[d].event_writes2, NULL);
-            __GUARD clReleaseEvent((*vcl)[d].event_writes2);
-        }
-    }
+//    //Save the boundary if the gradient output is required
+//    if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1){
+//        for (d=0;d<m->NUM_DEVICES;d++){
+//            if (t==0){
+//                __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_bnd, 1, &(*mloc)[d].global_work_size_bnd, NULL, 0, NULL, &(*vcl)[d].event_bndsave);
+//            }
+//            else{
+//                __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_bnd, 1, &(*mloc)[d].global_work_size_bnd, NULL, 1, &(*vcl)[d].event_bndtransf, &(*vcl)[d].event_bndsave);
+//                __GUARD clReleaseEvent((*vcl)[d].event_bndtransf);
+//            }
+//            
+//            if (m->ND==21){
+//                __GUARD clEnqueueReadBuffer( (*vcl)[d].queuecomm, (*vcl)[d].sxybnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, &(*mloc)[d].sxybnd[(*mloc)[d].NBND*t], 1, &(*vcl)[d].event_bndsave, NULL);
+//                __GUARD clEnqueueReadBuffer( (*vcl)[d].queuecomm, (*vcl)[d].syzbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, &(*mloc)[d].syzbnd[(*mloc)[d].NBND*t], 0, NULL, NULL);
+//                __GUARD clEnqueueReadBuffer( (*vcl)[d].queuecomm, (*vcl)[d].vybnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, &(*mloc)[d].vybnd[(*mloc)[d].NBND*t], 0, NULL, &(*vcl)[d].event_bndtransf);
+//                __GUARD clReleaseEvent((*vcl)[d].event_bndsave);
+//                
+//            }
+//            else{
+//                
+//                __GUARD clEnqueueReadBuffer( (*vcl)[d].queuecomm, (*vcl)[d].sxxbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, &(*mloc)[d].sxxbnd[(*mloc)[d].NBND*t], 1, &(*vcl)[d].event_bndsave, NULL);
+//                __GUARD clEnqueueReadBuffer( (*vcl)[d].queuecomm, (*vcl)[d].vxbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, &(*mloc)[d].vxbnd[(*mloc)[d].NBND*t], 0, NULL, NULL);
+//                if (m->ND==3){// For 3D
+//                    __GUARD clEnqueueReadBuffer( (*vcl)[d].queuecomm, (*vcl)[d].syybnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, &(*mloc)[d].syybnd[(*mloc)[d].NBND*t], 0, NULL, NULL);
+//                    __GUARD clEnqueueReadBuffer( (*vcl)[d].queuecomm, (*vcl)[d].sxybnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, &(*mloc)[d].sxybnd[(*mloc)[d].NBND*t], 0, NULL, NULL);
+//                    __GUARD clEnqueueReadBuffer( (*vcl)[d].queuecomm, (*vcl)[d].syzbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, &(*mloc)[d].syzbnd[(*mloc)[d].NBND*t], 0, NULL, NULL);
+//                    __GUARD clEnqueueReadBuffer( (*vcl)[d].queuecomm, (*vcl)[d].vybnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, &(*mloc)[d].vybnd[(*mloc)[d].NBND*t], 0, NULL, NULL);
+//                }
+//                __GUARD clEnqueueReadBuffer( (*vcl)[d].queuecomm, (*vcl)[d].szzbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, &(*mloc)[d].szzbnd[(*mloc)[d].NBND*t], 0, NULL, NULL);
+//                __GUARD clEnqueueReadBuffer( (*vcl)[d].queuecomm, (*vcl)[d].sxzbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, &(*mloc)[d].sxzbnd[(*mloc)[d].NBND*t], 0, NULL, NULL);
+//                __GUARD clEnqueueReadBuffer( (*vcl)[d].queuecomm, (*vcl)[d].vzbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, &(*mloc)[d].vzbnd[(*mloc)[d].NBND*t], 0, NULL, &(*vcl)[d].event_bndtransf);
+//                __GUARD clReleaseEvent((*vcl)[d].event_bndsave);
+//            }
+//            
+//        }
+//    }
+    
+
 
     return state;
 }
 
-int update_grid_adj(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc, int t, size_t global_work_size_varsout){
-    /*Update operations of one iteration */
-    int state=0;
-    int d, thist;
-    
-    //Adjoint time stepping of the stress variable
-    for (d=0;d<m->NUM_DEVICES;d++){
-        
-        //Set kernel arguments for this timestep
-        {
-            __GUARD clSetKernelArg((*vcl)[d].kernel_adjs,  2, sizeof(int), &t);
-            __GUARD clSetKernelArg((*vcl)[d].kernel_adjv,  3, sizeof(int), &t);
-            if (d>0 || m->MYLOCALID>0){
-                __GUARD clSetKernelArg((*vcl)[d].kernel_adjscom1,  2, sizeof(int), &t);
-                __GUARD clSetKernelArg((*vcl)[d].kernel_adjvcom1,  3, sizeof(int), &t);
-            }
-            
-            if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
-                __GUARD clSetKernelArg((*vcl)[d].kernel_adjscom2,  2, sizeof(int), &t);
-                __GUARD clSetKernelArg((*vcl)[d].kernel_adjvcom2,  3, sizeof(int), &t);
-            }
-            
-            __GUARD clSetKernelArg((*vcl)[d].kernel_residuals,  10, sizeof(int), &t);
-        }
-        
-        
-        //Update the stresses
-        {
-            if (d>0 || m->MYLOCALID>0){
-                __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_adjscom1, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_sizecom1, (*mloc)[d].local_work_size, 0, NULL, NULL);
-                if (m->BACK_PROP_TYPE==1){
-                    __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_adj_fill_transfer_buff1_s_out, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, NULL);
-                }
-                __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_fill_transfer_buff1_s_out, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, &(*vcl)[d].event_updates_com1);
-            }
-            if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
-                __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_adjscom2, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_sizecom2, (*mloc)[d].local_work_size, 0, NULL, NULL);
-                if (m->BACK_PROP_TYPE==1){
-                    __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_adj_fill_transfer_buff2_s_out, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, NULL);
-                }
-                __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_fill_transfer_buff2_s_out, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, &(*vcl)[d].event_updates_com1);
-            }
-            
-            if (m->BACK_PROP_TYPE==1){
-                if (t==m->tmax-1){
-                    __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_adjs, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size, (*mloc)[d].local_work_size, 0, NULL, &(*vcl)[d].event_bndsave);
-                }
-                else{
-                    __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_adjs, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size, (*mloc)[d].local_work_size, 1, &(*vcl)[d].event_bndtransf2, &(*vcl)[d].event_bndsave);
-                    if (!state) clReleaseEvent((*vcl)[d].event_bndtransf2);
-                }
-            }
-            else{
-                __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_adjs, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size, (*mloc)[d].local_work_size, 0, NULL, NULL);
-            }
-        }
-        
-    }
-    
-    //Transfer the boundary variables at time step t
-    if (m->BACK_PROP_TYPE==1){
-        for (d=0;d<m->NUM_DEVICES;d++){
-            
-            
-            if (m->ND==21){
-                if (t==m->tmax-1){
-                    __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].vybnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].vybnd[(*mloc)[d].NBND*(t-1)], 0, NULL, &(*vcl)[d].event_bndtransf);
-                }
-                else {
-                    __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].vybnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].vybnd[(*mloc)[d].NBND*(t-1)], 1, &(*vcl)[d].event_bndsave2, &(*vcl)[d].event_bndtransf);
-                }
-                if (t!=m->tmax-1){
-                    if (!state) clReleaseEvent((*vcl)[d].event_bndsave2);
-                }
-                
-                __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].sxybnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].sxybnd[(*mloc)[d].NBND*(t-1)], 1, &(*vcl)[d].event_bndsave, NULL);
-                __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].syzbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].syzbnd[(*mloc)[d].NBND*(t-1)], 0, NULL, &(*vcl)[d].event_bndtransf2);
-                if (!state) clReleaseEvent((*vcl)[d].event_bndsave);
-            }
-            else{
-                
-                
-                
-                if (t==m->tmax-1){
-                    __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].vxbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].vxbnd[(*mloc)[d].NBND*(t-1)], 0, NULL, NULL);
-                }
-                else {
-                    __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].vxbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].vxbnd[(*mloc)[d].NBND*(t-1)], 1, &(*vcl)[d].event_bndsave2, NULL);
-                }
-                if (m->ND==3){// For 3D
-                    __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].vybnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].vybnd[(*mloc)[d].NBND*(t-1)], 0, NULL, NULL);
-                }
-                __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].vzbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].vzbnd[(*mloc)[d].NBND*(t-1)], 0, NULL, &(*vcl)[d].event_bndtransf);
-                if (t!=m->tmax-1){
-                    if (!state) clReleaseEvent((*vcl)[d].event_bndsave2);
-                }
-                
-                __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].sxxbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].sxxbnd[(*mloc)[d].NBND*(t-1)], 1, &(*vcl)[d].event_bndsave, NULL);
-                if (m->ND==3){// For 3D
-                    __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].syybnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].syybnd[(*mloc)[d].NBND*(t-1)], 0, NULL, NULL);
-                    __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].sxybnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].sxybnd[(*mloc)[d].NBND*(t-1)], 0, NULL, NULL);
-                    __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].syzbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].syzbnd[(*mloc)[d].NBND*(t-1)], 0, NULL, NULL);
-                    
-                }
-                __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].szzbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].szzbnd[(*mloc)[d].NBND*(t-1)], 0, NULL, NULL);
-                __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].sxzbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].sxzbnd[(*mloc)[d].NBND*(t-1)], 0, NULL, &(*vcl)[d].event_bndtransf2);
-                if (!state) clReleaseEvent((*vcl)[d].event_bndsave);
-                
-            }
-            
-        }
-    }
-    
-    // Communicating the stress variables between GPUs
-    if (m->NUM_DEVICES>1 || m->NLOCALP>1)
-        __GUARD comm_s(m, vcl, mloc, 1);
-    
-    for (d=0;d<m->NUM_DEVICES;d++){
-        if (d>0 || m->MYLOCALID>0){
-            __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_fill_transfer_buff1_s_in, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 1, &(*vcl)[d].event_writes1, NULL);
-            __GUARD clReleaseEvent((*vcl)[d].event_writes1);
-            if (m->BACK_PROP_TYPE==1){
-                __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_adj_fill_transfer_buff1_s_in, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, NULL);
-            }
-        }
-        if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
-            __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_fill_transfer_buff2_s_in, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 1, &(*vcl)[d].event_writes2, NULL);
-            __GUARD clReleaseEvent((*vcl)[d].event_writes2);
-            if (m->BACK_PROP_TYPE==1){
-                __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_adj_fill_transfer_buff2_s_in, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, NULL);
-            }
-        }
-    }
-    
-    
-    // Adjoint time stepping of the velocity variables
-    for (d=0;d<m->NUM_DEVICES;d++){
-        
-        if (d>0 || m->MYLOCALID>0){
-            __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_adjvcom1, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_sizecom1, (*mloc)[d].local_work_size, 0, NULL, NULL);
-            if (m->BACK_PROP_TYPE==1){
-                __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_adj_fill_transfer_buff1_v_out, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, NULL);
-            }
-            __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_fill_transfer_buff1_v_out, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, &(*vcl)[d].event_updatev_com1);
-        }
-        if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
-            __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_adjvcom2, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_sizecom2, (*mloc)[d].local_work_size, 0, NULL, NULL);
-            if (m->BACK_PROP_TYPE==1){
-                __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_adj_fill_transfer_buff2_v_out, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, NULL);
-            }
-            __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_fill_transfer_buff2_v_out, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, &(*vcl)[d].event_updatev_com1);
-        }
-        
-        if (m->BACK_PROP_TYPE==1){
-            __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_adjv, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size, (*mloc)[d].local_work_size, 1, &(*vcl)[d].event_bndtransf, &(*vcl)[d].event_bndsave2);
-            if (!state) clReleaseEvent((*vcl)[d].event_bndtransf);
-            
-        }
-        else{
-            __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_adjv, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size, (*mloc)[d].local_work_size, 0, NULL, NULL);
-        }
-        __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_residuals, 1, &global_work_size_varsout, NULL, 0, NULL, NULL);
-    }
-    
-    // Communicating the velocity variables between GPUs
-    if (m->NUM_DEVICES>1 || m->NLOCALP>1)
-        __GUARD comm_v(m, vcl, mloc, 1);
-    for (d=0;d<m->NUM_DEVICES;d++){
-        if (d>0 || m->MYLOCALID>0){
-            __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_fill_transfer_buff1_v_in, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 1, &(*vcl)[d].event_writev1, NULL);
-            __GUARD clReleaseEvent((*vcl)[d].event_writev1);
-            if (m->BACK_PROP_TYPE==1){
-                __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_adj_fill_transfer_buff1_v_in, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, NULL);
-            }
-        }
-        if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
-            __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_fill_transfer_buff2_v_in, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 1, &(*vcl)[d].event_writev2, NULL);
-            __GUARD clReleaseEvent((*vcl)[d].event_writev2);
-            if (m->BACK_PROP_TYPE==1){
-                __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_adj_fill_transfer_buff2_v_in, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, NULL);
-            }
-        }
-    }
-    
-    //Save the selected residual wavefield frequencies
-    if (m->BACK_PROP_TYPE==2 && (t-m->tmin)%m->DTNYQ==0){
-        for (d=0;d<m->NUM_DEVICES;d++){
-            thist=(t-m->tmin)/m->DTNYQ;
-            __GUARD clSetKernelArg((*vcl)[d].kernel_savefreqs,  31, sizeof(int), &thist);
-            __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_savefreqs, 1, &(*mloc)[d].global_work_size_f, NULL, 0, NULL, NULL);
-        }
-    }
-
-    
-    return state;
-}
+//int update_grid_adj(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc, int t, size_t global_work_size_varsout){
+//    /*Update operations of one iteration */
+//    int state=0;
+//    int d, thist;
+//    
+//    //Adjoint time stepping of the stress variable
+//    for (d=0;d<m->NUM_DEVICES;d++){
+//        
+//        //Set kernel arguments for this timestep
+//        {
+//            __GUARD clSetKernelArg((*vcl)[d].kernel_adjs,  2, sizeof(int), &t);
+//            __GUARD clSetKernelArg((*vcl)[d].kernel_adjv,  3, sizeof(int), &t);
+//            if (d>0 || m->MYLOCALID>0){
+//                __GUARD clSetKernelArg((*vcl)[d].kernel_adjscom1,  2, sizeof(int), &t);
+//                __GUARD clSetKernelArg((*vcl)[d].kernel_adjvcom1,  3, sizeof(int), &t);
+//            }
+//            
+//            if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
+//                __GUARD clSetKernelArg((*vcl)[d].kernel_adjscom2,  2, sizeof(int), &t);
+//                __GUARD clSetKernelArg((*vcl)[d].kernel_adjvcom2,  3, sizeof(int), &t);
+//            }
+//            
+//            __GUARD clSetKernelArg((*vcl)[d].kernel_residuals,  10, sizeof(int), &t);
+//        }
+//        
+//        
+//        //Update the stresses
+//        {
+//            if (d>0 || m->MYLOCALID>0){
+//                __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_adjscom1, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_sizecom1, (*mloc)[d].local_work_size, 0, NULL, NULL);
+//                if (m->BACK_PROP_TYPE==1){
+//                    __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_adj_fill_transfer_buff1_s_out, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, NULL);
+//                }
+//                __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_fill_transfer_buff1_s_out, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, &(*vcl)[d].event_updates_com1);
+//            }
+//            if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
+//                __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_adjscom2, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_sizecom2, (*mloc)[d].local_work_size, 0, NULL, NULL);
+//                if (m->BACK_PROP_TYPE==1){
+//                    __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_adj_fill_transfer_buff2_s_out, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, NULL);
+//                }
+//                __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_fill_transfer_buff2_s_out, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, &(*vcl)[d].event_updates_com1);
+//            }
+//            
+//            if (m->BACK_PROP_TYPE==1){
+//                if (t==m->tmax-1){
+//                    __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_adjs, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size, (*mloc)[d].local_work_size, 0, NULL, &(*vcl)[d].event_bndsave);
+//                }
+//                else{
+//                    __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_adjs, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size, (*mloc)[d].local_work_size, 1, &(*vcl)[d].event_bndtransf2, &(*vcl)[d].event_bndsave);
+//                    if (!state) clReleaseEvent((*vcl)[d].event_bndtransf2);
+//                }
+//            }
+//            else{
+//                __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_adjs, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size, (*mloc)[d].local_work_size, 0, NULL, NULL);
+//            }
+//        }
+//        
+//    }
+//    
+//    //Transfer the boundary variables at time step t
+//    if (m->BACK_PROP_TYPE==1){
+//        for (d=0;d<m->NUM_DEVICES;d++){
+//            
+//            
+//            if (m->ND==21){
+//                if (t==m->tmax-1){
+//                    __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].vybnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].vybnd[(*mloc)[d].NBND*(t-1)], 0, NULL, &(*vcl)[d].event_bndtransf);
+//                }
+//                else {
+//                    __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].vybnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].vybnd[(*mloc)[d].NBND*(t-1)], 1, &(*vcl)[d].event_bndsave2, &(*vcl)[d].event_bndtransf);
+//                }
+//                if (t!=m->tmax-1){
+//                    if (!state) clReleaseEvent((*vcl)[d].event_bndsave2);
+//                }
+//                
+//                __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].sxybnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].sxybnd[(*mloc)[d].NBND*(t-1)], 1, &(*vcl)[d].event_bndsave, NULL);
+//                __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].syzbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].syzbnd[(*mloc)[d].NBND*(t-1)], 0, NULL, &(*vcl)[d].event_bndtransf2);
+//                if (!state) clReleaseEvent((*vcl)[d].event_bndsave);
+//            }
+//            else{
+//                
+//                
+//                
+//                if (t==m->tmax-1){
+//                    __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].vxbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].vxbnd[(*mloc)[d].NBND*(t-1)], 0, NULL, NULL);
+//                }
+//                else {
+//                    __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].vxbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].vxbnd[(*mloc)[d].NBND*(t-1)], 1, &(*vcl)[d].event_bndsave2, NULL);
+//                }
+//                if (m->ND==3){// For 3D
+//                    __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].vybnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].vybnd[(*mloc)[d].NBND*(t-1)], 0, NULL, NULL);
+//                }
+//                __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].vzbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].vzbnd[(*mloc)[d].NBND*(t-1)], 0, NULL, &(*vcl)[d].event_bndtransf);
+//                if (t!=m->tmax-1){
+//                    if (!state) clReleaseEvent((*vcl)[d].event_bndsave2);
+//                }
+//                
+//                __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].sxxbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].sxxbnd[(*mloc)[d].NBND*(t-1)], 1, &(*vcl)[d].event_bndsave, NULL);
+//                if (m->ND==3){// For 3D
+//                    __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].syybnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].syybnd[(*mloc)[d].NBND*(t-1)], 0, NULL, NULL);
+//                    __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].sxybnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].sxybnd[(*mloc)[d].NBND*(t-1)], 0, NULL, NULL);
+//                    __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].syzbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].syzbnd[(*mloc)[d].NBND*(t-1)], 0, NULL, NULL);
+//                    
+//                }
+//                __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].szzbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].szzbnd[(*mloc)[d].NBND*(t-1)], 0, NULL, NULL);
+//                __GUARD clEnqueueWriteBuffer( (*vcl)[d].queuecomm, (*vcl)[d].sxzbnd, CL_FALSE, 0, (*vcl)[d].buffer_size_bnd, (void*)&(*mloc)[d].sxzbnd[(*mloc)[d].NBND*(t-1)], 0, NULL, &(*vcl)[d].event_bndtransf2);
+//                if (!state) clReleaseEvent((*vcl)[d].event_bndsave);
+//                
+//            }
+//            
+//        }
+//    }
+//    
+//    // Communicating the stress variables between GPUs
+//    if (m->NUM_DEVICES>1 || m->NLOCALP>1)
+//        __GUARD comm_s(m, vcl, mloc, 1);
+//    
+//    for (d=0;d<m->NUM_DEVICES;d++){
+//        if (d>0 || m->MYLOCALID>0){
+//            __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_fill_transfer_buff1_s_in, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 1, &(*vcl)[d].event_writes1, NULL);
+//            __GUARD clReleaseEvent((*vcl)[d].event_writes1);
+//            if (m->BACK_PROP_TYPE==1){
+//                __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_adj_fill_transfer_buff1_s_in, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, NULL);
+//            }
+//        }
+//        if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
+//            __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_fill_transfer_buff2_s_in, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 1, &(*vcl)[d].event_writes2, NULL);
+//            __GUARD clReleaseEvent((*vcl)[d].event_writes2);
+//            if (m->BACK_PROP_TYPE==1){
+//                __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_adj_fill_transfer_buff2_s_in, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, NULL);
+//            }
+//        }
+//    }
+//    
+//    
+//    // Adjoint time stepping of the velocity variables
+//    for (d=0;d<m->NUM_DEVICES;d++){
+//        
+//        if (d>0 || m->MYLOCALID>0){
+//            __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_adjvcom1, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_sizecom1, (*mloc)[d].local_work_size, 0, NULL, NULL);
+//            if (m->BACK_PROP_TYPE==1){
+//                __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_adj_fill_transfer_buff1_v_out, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, NULL);
+//            }
+//            __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_fill_transfer_buff1_v_out, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, &(*vcl)[d].event_updatev_com1);
+//        }
+//        if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
+//            __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_adjvcom2, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_sizecom2, (*mloc)[d].local_work_size, 0, NULL, NULL);
+//            if (m->BACK_PROP_TYPE==1){
+//                __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_adj_fill_transfer_buff2_v_out, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, NULL);
+//            }
+//            __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_fill_transfer_buff2_v_out, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, &(*vcl)[d].event_updatev_com1);
+//        }
+//        
+//        if (m->BACK_PROP_TYPE==1){
+//            __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_adjv, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size, (*mloc)[d].local_work_size, 1, &(*vcl)[d].event_bndtransf, &(*vcl)[d].event_bndsave2);
+//            if (!state) clReleaseEvent((*vcl)[d].event_bndtransf);
+//            
+//        }
+//        else{
+//            __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_adjv, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size, (*mloc)[d].local_work_size, 0, NULL, NULL);
+//        }
+//        __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_residuals, 1, &global_work_size_varsout, NULL, 0, NULL, NULL);
+//    }
+//    
+//    // Communicating the velocity variables between GPUs
+//    if (m->NUM_DEVICES>1 || m->NLOCALP>1)
+//        __GUARD comm_v(m, vcl, mloc, 1);
+//    for (d=0;d<m->NUM_DEVICES;d++){
+//        if (d>0 || m->MYLOCALID>0){
+//            __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_fill_transfer_buff1_v_in, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 1, &(*vcl)[d].event_writev1, NULL);
+//            __GUARD clReleaseEvent((*vcl)[d].event_writev1);
+//            if (m->BACK_PROP_TYPE==1){
+//                __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_adj_fill_transfer_buff1_v_in, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, NULL);
+//            }
+//        }
+//        if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
+//            __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_fill_transfer_buff2_v_in, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 1, &(*vcl)[d].event_writev2, NULL);
+//            __GUARD clReleaseEvent((*vcl)[d].event_writev2);
+//            if (m->BACK_PROP_TYPE==1){
+//                __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_adj_fill_transfer_buff2_v_in, (*vcl)[d].dims.workdim, (*mloc)[d].global_work_size_fcom, NULL, 0, NULL, NULL);
+//            }
+//        }
+//    }
+//    
+//    //Save the selected residual wavefield frequencies
+//    if (m->BACK_PROP_TYPE==2 && (t-m->tmin)%m->DTNYQ==0){
+//        for (d=0;d<m->NUM_DEVICES;d++){
+//            thist=(t-m->tmin)/m->DTNYQ;
+//            __GUARD clSetKernelArg((*vcl)[d].kernel_savefreqs,  31, sizeof(int), &thist);
+//            __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_savefreqs, 1, &(*mloc)[d].global_work_size_f, NULL, 0, NULL, NULL);
+//        }
+//    }
+//
+//    
+//    return state;
+//}
 
 int initialize_grid(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc, int s){
     /*Initialize the buffers to 0 before the first time step of each shot*/
@@ -415,16 +387,16 @@ int initialize_grid(struct modcsts * m, struct varcl ** vcl, struct modcstsloc *
     for (d=0;d<m->NUM_DEVICES;d++){
         
         
-        __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_initseis, 1, &(*mloc)[d].global_work_size_initfd, NULL, 0, NULL, NULL);
+        __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_initseis, 1, &(*mloc)[d].global_work_size_initfd, NULL, 0, NULL, NULL);
         if (!state) global_work_size_varsout= m->NT*m->nrec[s];
-        __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_varsoutinit, 1, &global_work_size_varsout , NULL, 0, NULL, NULL);
+        __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_varsoutinit, 1, &global_work_size_varsout , NULL, 0, NULL, NULL);
         if (!state) global_work_size_varsout= m->nrec[s];
         /* Global size for the varsout kernel */
         
         //if (m->fmax || m->fmin) butterworth(m->src[s], m->fmin, m->fmax, m->dt, m->NT, 1, 6);
-        __GUARD transf_clbuf(&(*vcl)[d].queue,  buffer_size_thiss,  &(*vcl)[d].src,     m->src[s]);
-        __GUARD transf_clbuf(&(*vcl)[d].queue,  buffer_size_thisns, &(*vcl)[d].src_pos, m->src_pos[s]);
-        __GUARD transf_clbuf(&(*vcl)[d].queue,  buffer_size_nrec, &(*vcl)[d].rec_pos,   m->rec_pos[s]);
+        __GUARD clbuf_send(&(*vcl)[d].queue,  buffer_size_thiss,  &(*vcl)[d].src,     m->src[s]);
+        __GUARD clbuf_send(&(*vcl)[d].queue,  buffer_size_thisns, &(*vcl)[d].src_pos, m->src_pos[s]);
+        __GUARD clbuf_send(&(*vcl)[d].queue,  buffer_size_nrec, &(*vcl)[d].rec_pos,   m->rec_pos[s]);
         
         
         __GUARD clSetKernelArg((*vcl)[d].kernel_s,  1, sizeof(int), &m->nsrc[s]);
@@ -439,7 +411,7 @@ int initialize_grid(struct modcsts * m, struct varcl ** vcl, struct modcstsloc *
         }
         
         if (m->GRADOUT==1 && m->BACK_PROP_TYPE==2){
-            __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_initsavefreqs, 1, &(*mloc)[d].global_work_size_f, NULL, 0, NULL, NULL);
+            __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_initsavefreqs, 1, &(*mloc)[d].global_work_size_f, NULL, 0, NULL, NULL);
         }
         
         
@@ -490,7 +462,7 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
     // Initialize the gradient buffers before time stepping
     if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1){
         for (d=0;d<m->NUM_DEVICES;d++){
-            __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_initgrad, 1, &(*mloc)[d].global_work_size_init, NULL, 0, NULL, NULL);
+            __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_initgrad, 1, &(*mloc)[d].global_work_size_init, NULL, 0, NULL, NULL);
         }
     }
     
@@ -511,12 +483,22 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
         // Loop for seismic propagation
         for (t=0;t<m->tmax; t++){
             
+            //Assign the time step to kernels
+            for (d=0;d<m->NUM_DEVICES;d++){
+                for (i=0;i<(*vcl)[d].nprogs;i++){
+                    if ((*vcl)[d].progs[i].tinput>0)
+                        __GUARD clSetKernelArg((*vcl)[d].progs[i].kernel,
+                                               (*vcl)[d].progs[i].tinput-1,
+                                               sizeof(int), &t);
+                }
+            }
+            
             //Save the selected frequency if the gradient is to be obtained by DFT
             if (m->GRADOUT==1 && m->BACK_PROP_TYPE==2 && t>=m->tmin && (t-m->tmin)%m->DTNYQ==0){
                 for (d=0;d<m->NUM_DEVICES;d++){
                     thist=(t-m->tmin)/m->DTNYQ;
                     __GUARD clSetKernelArg((*vcl)[d].kernel_savefreqs,  31, sizeof(int), &(thist));
-                    __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_savefreqs, 1, &(*mloc)[d].global_work_size_f, NULL, 0, NULL, NULL);
+                    __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_savefreqs, 1, &(*mloc)[d].global_work_size_f, NULL, 0, NULL, NULL);
                 }
             }
             
@@ -526,28 +508,28 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
             if (m->FREESURF==1){
                 for (d=0;d<m->NUM_DEVICES;d++){
                     if (m->ND==3){// For 3D
-                        __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_surf, 2, (*mloc)[d].global_work_size_surf, NULL, 0, NULL, NULL);
+                        __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_surf, 2, (*mloc)[d].global_work_size_surf, NULL, 0, NULL, NULL);
                     }
                     else{
-                        __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_surf, 1, (*mloc)[d].global_work_size_surf, NULL, 0, NULL, NULL);
+                        __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_surf, 1, (*mloc)[d].global_work_size_surf, NULL, 0, NULL, NULL);
                     }
                 }
             }
             
             // Outputting seismograms
             for (d=0;d<m->NUM_DEVICES;d++){
-                __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_varsout, 1, &global_work_size_varsout, NULL, 0, NULL, NULL);
+                __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_varsout, 1, &global_work_size_varsout, NULL, 0, NULL, NULL);
             }
 
             // Outputting the movie
             if (m->MOVOUT>0 && (t+1)%m->MOVOUT==0 && state==0){
                 for (d=0;d<m->NUM_DEVICES;d++){
                     if (m->ND!=21){
-                        __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_fd, &(*vcl)[d].vx, (*mloc)[d].buffermovvx);
-                        __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_fd, &(*vcl)[d].vz, (*mloc)[d].buffermovvz);
+                        __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_fd, &(*vcl)[d].vx, (*mloc)[d].buffermovvx);
+                        __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_fd, &(*vcl)[d].vz, (*mloc)[d].buffermovvz);
                     }
                     if (m->ND==3 || m->ND==21){
-                        __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_fd, &(*vcl)[d].vy, (*mloc)[d].buffermovvy);
+                        __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_fd, &(*vcl)[d].vy, (*mloc)[d].buffermovvy);
                     }
                 }
                 
@@ -628,34 +610,34 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
         if (!state) buffer_size_thisvarsout = sizeof(float) * m->NT * m->nrec[s];
         for (d=0;d<m->NUM_DEVICES;d++){
             if (m->bcastvx) {
-                __GUARD read_gpu_memory( &(*vcl)[d].queue, buffer_size_thisvarsout, &(*vcl)[d].vxout, (*mloc)[d].vxout[s]);
+                __GUARD clbuf_read( &(*vcl)[d].queue, buffer_size_thisvarsout, &(*vcl)[d].vxout, (*mloc)[d].vxout[s]);
             }
             if (m->bcastvy) {
-                __GUARD read_gpu_memory( &(*vcl)[d].queue, buffer_size_thisvarsout, &(*vcl)[d].vyout, (*mloc)[d].vyout[s]);
+                __GUARD clbuf_read( &(*vcl)[d].queue, buffer_size_thisvarsout, &(*vcl)[d].vyout, (*mloc)[d].vyout[s]);
             }
             if (m->bcastvz) {
-                __GUARD read_gpu_memory( &(*vcl)[d].queue, buffer_size_thisvarsout, &(*vcl)[d].vzout, (*mloc)[d].vzout[s]);
+                __GUARD clbuf_read( &(*vcl)[d].queue, buffer_size_thisvarsout, &(*vcl)[d].vzout, (*mloc)[d].vzout[s]);
             }
             if (m->bcastsxx) {
-                __GUARD read_gpu_memory( &(*vcl)[d].queue, buffer_size_thisvarsout, &(*vcl)[d].sxxout, (*mloc)[d].sxxout[s]);
+                __GUARD clbuf_read( &(*vcl)[d].queue, buffer_size_thisvarsout, &(*vcl)[d].sxxout, (*mloc)[d].sxxout[s]);
             }
             if (m->bcastsyy) {
-                __GUARD read_gpu_memory( &(*vcl)[d].queue, buffer_size_thisvarsout, &(*vcl)[d].syyout, (*mloc)[d].syyout[s]);
+                __GUARD clbuf_read( &(*vcl)[d].queue, buffer_size_thisvarsout, &(*vcl)[d].syyout, (*mloc)[d].syyout[s]);
             }
             if (m->bcastszz) {
-                __GUARD read_gpu_memory( &(*vcl)[d].queue, buffer_size_thisvarsout, &(*vcl)[d].szzout, (*mloc)[d].szzout[s]);
+                __GUARD clbuf_read( &(*vcl)[d].queue, buffer_size_thisvarsout, &(*vcl)[d].szzout, (*mloc)[d].szzout[s]);
             }
             if (m->bcastsxy) {
-                __GUARD read_gpu_memory( &(*vcl)[d].queue, buffer_size_thisvarsout, &(*vcl)[d].sxyout, (*mloc)[d].sxyout[s]);
+                __GUARD clbuf_read( &(*vcl)[d].queue, buffer_size_thisvarsout, &(*vcl)[d].sxyout, (*mloc)[d].sxyout[s]);
             }
             if (m->bcastsxz) {
-                __GUARD read_gpu_memory( &(*vcl)[d].queue, buffer_size_thisvarsout, &(*vcl)[d].sxzout, (*mloc)[d].sxzout[s]);
+                __GUARD clbuf_read( &(*vcl)[d].queue, buffer_size_thisvarsout, &(*vcl)[d].sxzout, (*mloc)[d].sxzout[s]);
             }
             if (m->bcastsyz) {
-                __GUARD read_gpu_memory( &(*vcl)[d].queue, buffer_size_thisvarsout, &(*vcl)[d].syzout, (*mloc)[d].syzout[s]);
+                __GUARD clbuf_read( &(*vcl)[d].queue, buffer_size_thisvarsout, &(*vcl)[d].syzout, (*mloc)[d].syzout[s]);
             }
             if (m->bcastp) {
-                __GUARD read_gpu_memory( &(*vcl)[d].queue, buffer_size_thisvarsout, &(*vcl)[d].pout, (*mloc)[d].pout[s]);
+                __GUARD clbuf_read( &(*vcl)[d].queue, buffer_size_thisvarsout, &(*vcl)[d].pout, (*mloc)[d].pout[s]);
             }
         }
         
@@ -710,9 +692,9 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
             // Initialize the backpropagation and gradient. Transfer the residual to GPUs
             for (d=0;d<m->NUM_DEVICES;d++){
                
-                if (!state) if (m->vx0) state = transf_clbuf(&(*vcl)[d].queue,  buffer_size_thisvarsout, &(*vcl)[d].vxout, m->rx[s]);
-                if (!state) if (m->vz0) state = transf_clbuf(&(*vcl)[d].queue,  buffer_size_thisvarsout, &(*vcl)[d].vzout, m->rz[s]);
-                if (!state) if (m->vy0) state = transf_clbuf(&(*vcl)[d].queue,  buffer_size_thisvarsout, &(*vcl)[d].vyout, m->ry[s]);
+                if (!state) if (m->vx0) state = clbuf_send(&(*vcl)[d].queue,  buffer_size_thisvarsout, &(*vcl)[d].vxout, m->rx[s]);
+                if (!state) if (m->vz0) state = clbuf_send(&(*vcl)[d].queue,  buffer_size_thisvarsout, &(*vcl)[d].vzout, m->rz[s]);
+                if (!state) if (m->vy0) state = clbuf_send(&(*vcl)[d].queue,  buffer_size_thisvarsout, &(*vcl)[d].vyout, m->ry[s]);
                 
                 __GUARD clSetKernelArg((*vcl)[d].kernel_adjs,  1, sizeof(int), &m->nsrc[s]);
                 __GUARD clSetKernelArg((*vcl)[d].kernel_adjv,  1, sizeof(int), &m->nsrc[s]);
@@ -730,49 +712,49 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
                 }
                 
                 
-                __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_initseis_r, 1, &(*mloc)[d].global_work_size_initfd, NULL, 0, NULL, NULL);
+                __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_initseis_r, 1, &(*mloc)[d].global_work_size_initfd, NULL, 0, NULL, NULL);
                 
                 if (m->GRADSRCOUT==1){
-                    __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_initialize_gradsrc, 1, &(*mloc)[d].global_work_size_gradsrc, NULL, 0, NULL, NULL);
+                    __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_initialize_gradsrc, 1, &(*mloc)[d].global_work_size_gradsrc, NULL, 0, NULL, NULL);
                 }
                 
                 if (m->BACK_PROP_TYPE==2){
                     if (m->ND!=21){
-                        __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_vx, (*mloc)[d].f_vx);
-                        __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_vz, (*mloc)[d].f_vz);
-                        __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_sxx, (*mloc)[d].f_sxx);
-                        __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_szz, (*mloc)[d].f_szz);
-                        __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_sxz, (*mloc)[d].f_sxz);
+                        __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_vx, (*mloc)[d].f_vx);
+                        __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_vz, (*mloc)[d].f_vz);
+                        __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_sxx, (*mloc)[d].f_sxx);
+                        __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_szz, (*mloc)[d].f_szz);
+                        __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_sxz, (*mloc)[d].f_sxz);
                     }
                 
                     if (m->ND==3 || m->ND==21){
-                        __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_vy, (*mloc)[d].f_vy);
-                        __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_sxy, (*mloc)[d].f_sxy);
-                        __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_syz, (*mloc)[d].f_syz);
+                        __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_vy, (*mloc)[d].f_vy);
+                        __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_sxy, (*mloc)[d].f_sxy);
+                        __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_syz, (*mloc)[d].f_syz);
                     }
                     if (m->ND==3){
-                        __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_syy, (*mloc)[d].f_syy);
+                        __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_syy, (*mloc)[d].f_syy);
                     }
                     
                     if (m->L>0){
                         if (m->ND!=21){
-                            __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_rxx, (*mloc)[d].f_rxx);
-                            __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_rzz, (*mloc)[d].f_rzz);
-                            __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_rxz, (*mloc)[d].f_rxz);
+                            __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_rxx, (*mloc)[d].f_rxx);
+                            __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_rzz, (*mloc)[d].f_rzz);
+                            __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_rxz, (*mloc)[d].f_rxz);
                         }
                         
                         if (m->ND==3 || m->ND==21){
-                            __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_rxy, (*mloc)[d].f_rxy);
-                            __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_ryz, (*mloc)[d].f_ryz);
+                            __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_rxy, (*mloc)[d].f_rxy);
+                            __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_ryz, (*mloc)[d].f_ryz);
                         }
                         if (m->ND==3){
-                            __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_ryy, (*mloc)[d].f_ryy);
+                            __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_ryy, (*mloc)[d].f_ryy);
                         }
                         
                     }
                     
-                    __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_initsavefreqs, 1, &(*mloc)[d].global_work_size_f, NULL, 0, NULL, NULL);
-                    __GUARD launch_gpu_kernel( &(*vcl)[d].queue, &(*vcl)[d].kernel_initseis, 1, &(*mloc)[d].global_work_size_initfd, NULL, 0, NULL, NULL);
+                    __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_initsavefreqs, 1, &(*mloc)[d].global_work_size_f, NULL, 0, NULL, NULL);
+                    __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].kernel_initseis, 1, &(*mloc)[d].global_work_size_initfd, NULL, 0, NULL, NULL);
                 }
                 
                 
@@ -808,7 +790,7 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
             
             if (m->GRADSRCOUT==1){
                 for (d=0;d<m->NUM_DEVICES;d++){
-                    __GUARD read_gpu_memory( &(*vcl)[d].queue, buffer_size_thiss, &(*vcl)[d].gradsrc, m->gradsrc[s]);
+                    __GUARD clbuf_read( &(*vcl)[d].queue, buffer_size_thiss, &(*vcl)[d].gradsrc, m->gradsrc[s]);
                 }
             }
             // Transfer the gradient from GPUs to host
@@ -816,35 +798,35 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
                 for (d=0;d<m->NUM_DEVICES;d++){
                     
                     if (m->ND!=21){
-                        __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_vx, (*mloc)[d].f_vxr);
-                        __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_vz, (*mloc)[d].f_vzr);
-                        __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_sxx, (*mloc)[d].f_sxxr);
-                        __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_szz, (*mloc)[d].f_szzr);
-                        __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_sxz, (*mloc)[d].f_sxzr);
+                        __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_vx, (*mloc)[d].f_vxr);
+                        __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_vz, (*mloc)[d].f_vzr);
+                        __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_sxx, (*mloc)[d].f_sxxr);
+                        __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_szz, (*mloc)[d].f_szzr);
+                        __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_sxz, (*mloc)[d].f_sxzr);
                     }
                     
                     if (m->ND==3 || m->ND==21){
-                        __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_vy, (*mloc)[d].f_vyr);
-                        __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_sxy, (*mloc)[d].f_sxyr);
-                        __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_syz, (*mloc)[d].f_syzr);
+                        __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_vy, (*mloc)[d].f_vyr);
+                        __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_sxy, (*mloc)[d].f_sxyr);
+                        __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_syz, (*mloc)[d].f_syzr);
                     }
                     if (m->ND==3){
-                        __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_syy, (*mloc)[d].f_syyr);
+                        __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_syy, (*mloc)[d].f_syyr);
                     }
                     if (m->L>0){
                         if (m->ND!=21){
-                            __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_rxx, (*mloc)[d].f_rxxr);
-                            __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_rzz, (*mloc)[d].f_rzzr);
-                            __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_rxz, (*mloc)[d].f_rxzr);
+                            __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_rxx, (*mloc)[d].f_rxxr);
+                            __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_rzz, (*mloc)[d].f_rzzr);
+                            __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_rxz, (*mloc)[d].f_rxzr);
                         }
                         
                         if (m->ND==3 || m->ND==21){
-                            __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_rxy, (*mloc)[d].f_rxyr);
-                            __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_ryz, (*mloc)[d].f_ryzr);
+                            __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_rxy, (*mloc)[d].f_rxyr);
+                            __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_ryz, (*mloc)[d].f_ryzr);
                         }
                         
                         if (m->ND==3){
-                            __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_ryy, (*mloc)[d].f_ryyr);
+                            __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_ryy, (*mloc)[d].f_ryyr);
                         }
                     }
                 }
@@ -863,21 +845,21 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
     
     if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1){
         for (d=0;d<m->NUM_DEVICES;d++){
-            __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradrho, (*mloc)[d].gradrho);
+            __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradrho, (*mloc)[d].gradrho);
             if (m->ND!=21){
-                __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradM, (*mloc)[d].gradM);
+                __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradM, (*mloc)[d].gradM);
             }
-            __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradmu, (*mloc)[d].gradmu);
+            __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradmu, (*mloc)[d].gradmu);
             
         }
         
         if (m->HOUT==1){
             for (d=0;d<m->NUM_DEVICES;d++){
-                __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].Hrho, (*mloc)[d].Hrho);
+                __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].Hrho, (*mloc)[d].Hrho);
                 if (m->ND!=21){
-                    __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].HM, (*mloc)[d].HM);
+                    __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].HM, (*mloc)[d].HM);
                 }
-                __GUARD read_gpu_memory( &(*vcl)[d].queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].Hmu, (*mloc)[d].Hmu);
+                __GUARD clbuf_read( &(*vcl)[d].queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].Hmu, (*mloc)[d].Hmu);
                 
             }
         }

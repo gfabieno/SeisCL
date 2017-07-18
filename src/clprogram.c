@@ -9,7 +9,7 @@
 #include "clprogram.h"
 
 
-int assign_prog_source(struct clprogram * prog, char* name, const char * source){
+int prog_source(struct clprogram * prog, char* name, const char * source){
     int state =0;
     (*prog).src=source;
     (*prog).name=name;
@@ -182,6 +182,9 @@ int create_kernel(struct modcsts * m, struct varcl * vcl,  struct clprogram * pr
                 //                printf("%s\n",(*prog).input_list[i]);
             }
         }
+        if (strcmp("nt"  ,(*prog).input_list[i])==0)
+            prog->tinput=i+1;
+        
         if (!argfound
             && strcmp("lvar",(*prog).input_list[i])!=0
             && strcmp("nt"  ,(*prog).input_list[i])!=0){
@@ -195,8 +198,12 @@ int create_kernel(struct modcsts * m, struct varcl * vcl,  struct clprogram * pr
             cl_err=1;
             
         }
-        
+
     }
+    
+
+    vcl->progs[vcl->nprogs]=prog;
+    vcl->nprogs++;
     
     return cl_err;
 }

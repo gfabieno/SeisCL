@@ -23,7 +23,7 @@ int alloc_seismo(float *** var, struct modcsts *m ){
     int state=0;
     
     GMALLOC(*var,sizeof(float*)*m->ns);
-    GMALLOC((*var)[0],sizeof(float)*m->allng*m->NT);
+    GMALLOC((*var)[0],sizeof(float)*m->src_recs.allng*m->NT);
     if (!state){
         for (int i=1; i<m->ns; i++){
             (*var)[i]=(*var)[i-1]+m->src_recs.nrec[i-1]*m->NT;
@@ -73,8 +73,8 @@ int Init_MPI(struct modcsts * m) {
         MPI_Bcast( &m->NPOWER, 1, MPI_FLOAT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->K_MAX_CPML, 1, MPI_FLOAT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->f0, 1, MPI_FLOAT, 0, MPI_COMM_WORLD );
-        MPI_Bcast( &m->allng, 1, MPI_INT, 0, MPI_COMM_WORLD );
-        MPI_Bcast( &m->allns, 1, MPI_INT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->src_recs.allng, 1, MPI_INT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->src_recs.allns, 1, MPI_INT, 0, MPI_COMM_WORLD );
 
         MPI_Bcast( &m->GRADSRCOUT, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->HOUT, 1, MPI_INT, 0, MPI_COMM_WORLD );
@@ -115,23 +115,23 @@ int Init_MPI(struct modcsts * m) {
         if (m->MYID!=0){
             GMALLOC(m->src_recs.nsrc,sizeof(int)*m->ns);
             GMALLOC(m->src_recs.src_pos,sizeof(float*)*m->ns);
-            GMALLOC(m->src_recs.src_pos[0],sizeof(float)*m->allns*5);
+            GMALLOC(m->src_recs.src_pos[0],sizeof(float)*m->src_recs.allns*5);
             
             GMALLOC(m->src_recs.src,sizeof(float*)*m->ns);
-            GMALLOC(m->src_recs.src[0],sizeof(float)*m->allns*m->NT);
+            GMALLOC(m->src_recs.src[0],sizeof(float)*m->src_recs.allns*m->NT);
             
             GMALLOC(m->src_recs.nrec,sizeof(int)*m->ns);
             GMALLOC(m->src_recs.rec_pos,sizeof(float*)*m->ns);
-            GMALLOC(m->src_recs.rec_pos[0],sizeof(float)*m->allng*8);
+            GMALLOC(m->src_recs.rec_pos[0],sizeof(float)*m->src_recs.allng*8);
         }
         
         if (!state){
             MPI_Barrier(MPI_COMM_WORLD);
             MPI_Bcast( m->src_recs.nsrc, m->ns, MPI_INT, 0, MPI_COMM_WORLD );
-            MPI_Bcast( m->src_recs.src_pos[0], m->allns*5, MPI_FLOAT, 0, MPI_COMM_WORLD );
-            MPI_Bcast( m->src_recs.src[0], m->allns*m->NT,  MPI_FLOAT, 0, MPI_COMM_WORLD );
+            MPI_Bcast( m->src_recs.src_pos[0], m->src_recs.allns*5, MPI_FLOAT, 0, MPI_COMM_WORLD );
+            MPI_Bcast( m->src_recs.src[0], m->src_recs.allns*m->NT,  MPI_FLOAT, 0, MPI_COMM_WORLD );
             MPI_Bcast( m->src_recs.nrec, m->ns, MPI_INT, 0, MPI_COMM_WORLD );
-            MPI_Bcast( m->src_recs.rec_pos[0], m->allng*8,  MPI_FLOAT, 0, MPI_COMM_WORLD );
+            MPI_Bcast( m->src_recs.rec_pos[0], m->src_recs.allng*8,  MPI_FLOAT, 0, MPI_COMM_WORLD );
             MPI_Barrier(MPI_COMM_WORLD);
         }
         
@@ -180,7 +180,7 @@ int Init_MPI(struct modcsts * m) {
                     alloc_seismo(&m->vars[i].gl_varin, m);
                 }
                 if (!state){
-                    MPI_Bcast( m->vars[i].gl_varin[0], m->allng*m->NT, MPI_FLOAT, 0, MPI_COMM_WORLD );
+                    MPI_Bcast( m->vars[i].gl_varin[0], m->src_recs.allng*m->NT, MPI_FLOAT, 0, MPI_COMM_WORLD );
                 }
             }
         }
@@ -191,7 +191,7 @@ int Init_MPI(struct modcsts * m) {
                     alloc_seismo(&m->trans_vars[i].gl_varin, m);
                 }
                 if (!state){
-                    MPI_Bcast( m->trans_vars[i].gl_varin[0], m->allng*m->NT, MPI_FLOAT, 0, MPI_COMM_WORLD );
+                    MPI_Bcast( m->trans_vars[i].gl_varin[0], m->src_recs.allng*m->NT, MPI_FLOAT, 0, MPI_COMM_WORLD );
                 }
             }
         }
