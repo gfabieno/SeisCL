@@ -365,25 +365,25 @@ __kernel void update_adjv(int offcomm, int nsrc,  int ng, int nt,
                       hc6*(lszz(lidz+6,lidx)-lszz(lidz-5,lidx)));
 #endif
         
-//#if local_off==0
-//        barrier(CLK_LOCAL_MEM_FENCE);
-//        lsxz(lidz,lidx)=sxz(gidz, gidx);
-//        
-//        if (lidx<2*fdoh)
-//            lsxz(lidz,lidx-fdoh)=sxz(gidz,gidx-fdoh);
-//        if (lidx+lsizex-3*fdoh<fdoh)
-//            lsxz(lidz,lidx+lsizex-3*fdoh)=sxz(gidz,gidx+lsizex-3*fdoh);
-//        if (lidx>(lsizex-2*fdoh-1))
-//            lsxz(lidz,lidx+fdoh)=sxz(gidz,gidx+fdoh);
-//        if (lidx-lsizex+3*fdoh>(lsizex-fdoh-1))
-//            lsxz(lidz,lidx-lsizex+3*fdoh)=sxz(gidz,gidx-lsizex+3*fdoh);
-//        if (lidz<2*fdoh)
-//            lsxz(lidz-fdoh,lidx)=sxz(gidz-fdoh,gidx);
-//        if (lidz>(lsizez-2*fdoh-1))
-//            lsxz(lidz+fdoh,lidx)=sxz(gidz+fdoh,gidx);
-//        barrier(CLK_LOCAL_MEM_FENCE);
-//#endif
-//        
+#if local_off==0
+        barrier(CLK_LOCAL_MEM_FENCE);
+        lsxz(lidz,lidx)=sxz(gidz, gidx);
+        
+        if (lidx<2*fdoh)
+            lsxz(lidz,lidx-fdoh)=sxz(gidz,gidx-fdoh);
+        if (lidx+lsizex-3*fdoh<fdoh)
+            lsxz(lidz,lidx+lsizex-3*fdoh)=sxz(gidz,gidx+lsizex-3*fdoh);
+        if (lidx>(lsizex-2*fdoh-1))
+            lsxz(lidz,lidx+fdoh)=sxz(gidz,gidx+fdoh);
+        if (lidx-lsizex+3*fdoh>(lsizex-fdoh-1))
+            lsxz(lidz,lidx-lsizex+3*fdoh)=sxz(gidz,gidx-lsizex+3*fdoh);
+        if (lidz<2*fdoh)
+            lsxz(lidz-fdoh,lidx)=sxz(gidz-fdoh,gidx);
+        if (lidz>(lsizez-2*fdoh-1))
+            lsxz(lidz+fdoh,lidx)=sxz(gidz+fdoh,gidx);
+        barrier(CLK_LOCAL_MEM_FENCE);
+#endif
+        
 //#if   fdoh ==1
 //        sxz_z = dtdh*hc1*(lsxz(lidz,lidx)   - lsxz(lidz-1,lidx));
 //        sxz_x = dtdh*hc1*(lsxz(lidz,lidx)   - lsxz(lidz,lidx-1));
