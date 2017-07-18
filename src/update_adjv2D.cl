@@ -603,175 +603,175 @@ __kernel void update_adjv(int offcomm, int nsrc,  int ng, int nt,
 #endif
 
     
-//// To stop updating if we are outside the model (global id must be a multiple of local id in OpenCL, hence we stop if we have a global id outside the grid)
-//#if local_off==0
-//#if comm12==0
-//    if (gidz>(NZ-fdoh-1) || (gidx-offcomm)>(NX-fdoh-1-lcomm) ){
-//        return;
-//    }
-//    
-//#else
-//    if (gidz>(NZ-fdoh-1) ){
-//        return;
-//    }
-//#endif
-//#endif
-//
-//
-//// Backpropagate the forward velocity
-//#if back_prop_type==1
-//    {
-//        
-//        lvx=((sxx_x + sxz_z)/rip(gidz,gidx));
-//        lvz=((szz_z + sxz_x)/rkp(gidz,gidx));
-//        vx(gidz,gidx)-= lvx;
-//        vz(gidz,gidx)-= lvz;
-//        
-//        // Inject the boundary values
-//        m=evarm(gidz,  gidx);
-//        if (m!=-1){
-//            vx(gidz, gidx)= vxbnd[m];
-//            vz(gidz, gidx)= vzbnd[m];
-//        }
-//    }
-//#endif
-//
-//// Correct adjoint spatial derivatives to implement CPML
-//#if abs_type==1
-//    {
-//    int ind;
-//    
-//    if (gidz>NZ-nab-fdoh-1){
-//        
-//        i =gidx-fdoh;
-//        k =gidz - NZ+nab+fdoh+nab;
-//        ind=2*nab-1-k;
-//        
-//        psi_sxz_z(k,i) = b_z[ind+1] * psi_sxz_z(k,i) + a_z[ind+1] * sxz_z_r;
-//        sxz_z_r = sxz_z_r / K_z[ind+1] + psi_sxz_z(k,i);
-//        psi_szz_z(k,i) = b_z_half[ind] * psi_szz_z(k,i) + a_z_half[ind] * szz_z_r;
-//        szz_z_r = szz_z_r / K_z_half[ind] + psi_szz_z(k,i);
-//        
-//    }
-//    
-//#if freesurf==0
-//    else if (gidz-fdoh<nab){
-//        
-//        i =gidx-fdoh;
-//        k =gidz-fdoh;
-//        
-//        psi_sxz_z(k,i) = b_z[k] * psi_sxz_z(k,i) + a_z[k] * sxz_z_r;
-//        sxz_z_r = sxz_z_r / K_z[k] + psi_sxz_z(k,i);
-//        psi_szz_z(k,i) = b_z_half[k] * psi_szz_z(k,i) + a_z_half[k] * szz_z_r;
-//        szz_z_r = szz_z_r / K_z_half[k] + psi_szz_z(k,i);
-//        
-//    }
-//#endif
-//    
-//#if dev==0 & MYLOCALID==0
-//    if (gidx-fdoh<nab){
-//        
-//        i =gidx-fdoh;
-//        k =gidz-fdoh;
-//        
-//        psi_sxx_x(k,i) = b_x_half[i] * psi_sxx_x(k,i) + a_x_half[i] * sxx_x_r;
-//        sxx_x_r = sxx_x_r / K_x_half[i] + psi_sxx_x(k,i);
-//        psi_sxz_x(k,i) = b_x[i] * psi_sxz_x(k,i) + a_x[i] * sxz_x_r;
-//        sxz_x_r = sxz_x_r / K_x[i] + psi_sxz_x(k,i);
-//        
-//    }
-//#endif
-//    
-//#if dev==num_devices-1 & MYLOCALID==NLOCALP-1
-//    if (gidx>NX-nab-fdoh-1){
-//        
-//        i =gidx - NX+nab+fdoh+nab;
-//        k =gidz-fdoh;
-//        ind=2*nab-1-i;
-//        
-//        psi_sxx_x(k,i) = b_x_half[ind] * psi_sxx_x(k,i) + a_x_half[ind] * sxx_x_r;
-//        sxx_x_r = sxx_x_r / K_x_half[ind] + psi_sxx_x(k,i);
-//        psi_sxz_x(k,i) = b_x[ind+1] * psi_sxz_x(k,i) + a_x[ind+1] * sxz_x_r;
-//        sxz_x_r = sxz_x_r / K_x[ind+1] + psi_sxz_x(k,i);
-//        
-//    }
-//#endif
-//    }
-//#endif
-//    
-//    // Update adjoint velocities
-//    lvx=((sxx_x_r + sxz_z_r)/rip(gidz,gidx));
-//    lvz=((szz_z_r + sxz_x_r)/rkp(gidz,gidx));
-//    vx_r(gidz,gidx)+= lvx;
-//    vz_r(gidz,gidx)+= lvz;
-// 
-//    
-//
-//// Absorbing boundary
-//#if abs_type==2
-//    {
-//    if (gidz-fdoh<nab){
-//        vx_r(gidz,gidx)*=taper[gidz-fdoh];
-//        vz_r(gidz,gidx)*=taper[gidz-fdoh];
-//    }
-//    
-//    if (gidz>NZ-nab-fdoh-1){
-//        vx_r(gidz,gidx)*=taper[NZ-fdoh-gidz-1];
-//        vz_r(gidz,gidx)*=taper[NZ-fdoh-gidz-1];
-//    }
-//    
-//#if dev==0 & MYLOCALID==0
-//    if (gidx-fdoh<nab){
-//        vx_r(gidz,gidx)*=taper[gidx-fdoh];
-//        vz_r(gidz,gidx)*=taper[gidx-fdoh];
-//    }
-//#endif
-//    
-//#if dev==num_devices-1 & MYLOCALID==NLOCALP-1
-//    if (gidx>NX-nab-fdoh-1){
-//        vx_r(gidz,gidx)*=taper[NX-fdoh-gidx-1];
-//        vz_r(gidz,gidx)*=taper[NX-fdoh-gidx-1];
-//    }
-//#endif
-//    }
-//#endif
-//    
-//    
-//// Density gradient calculation on the fly
-//#if back_prop_type==1
-//    gradrho(gidz,gidx)+=vx(gidz,gidx)*lvx+vz(gidz,gidx)*lvz;
-//#endif
-//    
-//#if gradsrcout==1
-//    if (nsrc>0){
-//        
-//        
-//        for (int srci=0; srci<nsrc; srci++){
-//            
-//            
-//            int i=(int)(srcpos_loc(0,srci)/DH-0.5)+fdoh;
-//            int k=(int)(srcpos_loc(2,srci)/DH-0.5)+fdoh;
-//            
-//            if (i==gidx && k==gidz){
-//                
-//                int SOURCE_TYPE= (int)srcpos_loc(4,srci);
-//                
-//                if (SOURCE_TYPE==2){
-//                    /* single force in x */
-//                    gradsrc(srci,nt)+= vx_r(gidz,gidx)/rip(gidx,gidz)/(DH*DH);
-//                }
-//                else if (SOURCE_TYPE==4){
-//                    /* single force in z */
-//                    
-//                    gradsrc(srci,nt)+= vz_r(gidz,gidx)/rkp(gidx,gidz)/(DH*DH);
-//                }
-//                
-//            }
-//        }
-//        
-//        
-//    }
-//#endif
+// To stop updating if we are outside the model (global id must be a multiple of local id in OpenCL, hence we stop if we have a global id outside the grid)
+#if local_off==0
+#if comm12==0
+    if (gidz>(NZ-fdoh-1) || (gidx-offcomm)>(NX-fdoh-1-lcomm) ){
+        return;
+    }
+    
+#else
+    if (gidz>(NZ-fdoh-1) ){
+        return;
+    }
+#endif
+#endif
+
+
+// Backpropagate the forward velocity
+#if back_prop_type==1
+    {
+        
+        lvx=((sxx_x + sxz_z)/rip(gidz,gidx));
+        lvz=((szz_z + sxz_x)/rkp(gidz,gidx));
+        vx(gidz,gidx)-= lvx;
+        vz(gidz,gidx)-= lvz;
+        
+        // Inject the boundary values
+        m=evarm(gidz,  gidx);
+        if (m!=-1){
+            vx(gidz, gidx)= vxbnd[m];
+            vz(gidz, gidx)= vzbnd[m];
+        }
+    }
+#endif
+
+// Correct adjoint spatial derivatives to implement CPML
+#if abs_type==1
+    {
+    int ind;
+    
+    if (gidz>NZ-nab-fdoh-1){
+        
+        i =gidx-fdoh;
+        k =gidz - NZ+nab+fdoh+nab;
+        ind=2*nab-1-k;
+        
+        psi_sxz_z(k,i) = b_z[ind+1] * psi_sxz_z(k,i) + a_z[ind+1] * sxz_z_r;
+        sxz_z_r = sxz_z_r / K_z[ind+1] + psi_sxz_z(k,i);
+        psi_szz_z(k,i) = b_z_half[ind] * psi_szz_z(k,i) + a_z_half[ind] * szz_z_r;
+        szz_z_r = szz_z_r / K_z_half[ind] + psi_szz_z(k,i);
+        
+    }
+    
+#if freesurf==0
+    else if (gidz-fdoh<nab){
+        
+        i =gidx-fdoh;
+        k =gidz-fdoh;
+        
+        psi_sxz_z(k,i) = b_z[k] * psi_sxz_z(k,i) + a_z[k] * sxz_z_r;
+        sxz_z_r = sxz_z_r / K_z[k] + psi_sxz_z(k,i);
+        psi_szz_z(k,i) = b_z_half[k] * psi_szz_z(k,i) + a_z_half[k] * szz_z_r;
+        szz_z_r = szz_z_r / K_z_half[k] + psi_szz_z(k,i);
+        
+    }
+#endif
+    
+#if dev==0 & MYLOCALID==0
+    if (gidx-fdoh<nab){
+        
+        i =gidx-fdoh;
+        k =gidz-fdoh;
+        
+        psi_sxx_x(k,i) = b_x_half[i] * psi_sxx_x(k,i) + a_x_half[i] * sxx_x_r;
+        sxx_x_r = sxx_x_r / K_x_half[i] + psi_sxx_x(k,i);
+        psi_sxz_x(k,i) = b_x[i] * psi_sxz_x(k,i) + a_x[i] * sxz_x_r;
+        sxz_x_r = sxz_x_r / K_x[i] + psi_sxz_x(k,i);
+        
+    }
+#endif
+    
+#if dev==num_devices-1 & MYLOCALID==NLOCALP-1
+    if (gidx>NX-nab-fdoh-1){
+        
+        i =gidx - NX+nab+fdoh+nab;
+        k =gidz-fdoh;
+        ind=2*nab-1-i;
+        
+        psi_sxx_x(k,i) = b_x_half[ind] * psi_sxx_x(k,i) + a_x_half[ind] * sxx_x_r;
+        sxx_x_r = sxx_x_r / K_x_half[ind] + psi_sxx_x(k,i);
+        psi_sxz_x(k,i) = b_x[ind+1] * psi_sxz_x(k,i) + a_x[ind+1] * sxz_x_r;
+        sxz_x_r = sxz_x_r / K_x[ind+1] + psi_sxz_x(k,i);
+        
+    }
+#endif
+    }
+#endif
+    
+    // Update adjoint velocities
+    lvx=((sxx_x_r + sxz_z_r)/rip(gidz,gidx));
+    lvz=((szz_z_r + sxz_x_r)/rkp(gidz,gidx));
+    vx_r(gidz,gidx)+= lvx;
+    vz_r(gidz,gidx)+= lvz;
+ 
+    
+
+// Absorbing boundary
+#if abs_type==2
+    {
+    if (gidz-fdoh<nab){
+        vx_r(gidz,gidx)*=taper[gidz-fdoh];
+        vz_r(gidz,gidx)*=taper[gidz-fdoh];
+    }
+    
+    if (gidz>NZ-nab-fdoh-1){
+        vx_r(gidz,gidx)*=taper[NZ-fdoh-gidz-1];
+        vz_r(gidz,gidx)*=taper[NZ-fdoh-gidz-1];
+    }
+    
+#if dev==0 & MYLOCALID==0
+    if (gidx-fdoh<nab){
+        vx_r(gidz,gidx)*=taper[gidx-fdoh];
+        vz_r(gidz,gidx)*=taper[gidx-fdoh];
+    }
+#endif
+    
+#if dev==num_devices-1 & MYLOCALID==NLOCALP-1
+    if (gidx>NX-nab-fdoh-1){
+        vx_r(gidz,gidx)*=taper[NX-fdoh-gidx-1];
+        vz_r(gidz,gidx)*=taper[NX-fdoh-gidx-1];
+    }
+#endif
+    }
+#endif
+    
+    
+// Density gradient calculation on the fly
+#if back_prop_type==1
+    gradrho(gidz,gidx)+=vx(gidz,gidx)*lvx+vz(gidz,gidx)*lvz;
+#endif
+    
+#if gradsrcout==1
+    if (nsrc>0){
+        
+        
+        for (int srci=0; srci<nsrc; srci++){
+            
+            
+            int i=(int)(srcpos_loc(0,srci)/DH-0.5)+fdoh;
+            int k=(int)(srcpos_loc(2,srci)/DH-0.5)+fdoh;
+            
+            if (i==gidx && k==gidz){
+                
+                int SOURCE_TYPE= (int)srcpos_loc(4,srci);
+                
+                if (SOURCE_TYPE==2){
+                    /* single force in x */
+                    gradsrc(srci,nt)+= vx_r(gidz,gidx)/rip(gidx,gidz)/(DH*DH);
+                }
+                else if (SOURCE_TYPE==4){
+                    /* single force in z */
+                    
+                    gradsrc(srci,nt)+= vz_r(gidz,gidx)/rkp(gidx,gidz)/(DH*DH);
+                }
+                
+            }
+        }
+        
+        
+    }
+#endif
     
 }
 
