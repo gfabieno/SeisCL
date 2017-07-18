@@ -296,36 +296,36 @@ __kernel void update_adjv(int offcomm, int nsrc,  int ng, int nt,
         barrier(CLK_LOCAL_MEM_FENCE);
 #endif
         
-//#if   fdoh ==1
-//        sxx_x = dtdh*hc1*(lsxx(lidz,lidx+1) - lsxx(lidz,lidx));
-//#elif fdoh ==2
-//        sxx_x = dtdh*(hc1*(lsxx(lidz,lidx+1) - lsxx(lidz,lidx))
-//                      +hc2*(lsxx(lidz,lidx+2) - lsxx(lidz,lidx-1)));
-//#elif fdoh ==3
-//        sxx_x = dtdh*(hc1*(lsxx(lidz,lidx+1)-lsxx(lidz,lidx))+
-//                      hc2*(lsxx(lidz,lidx+2)-lsxx(lidz,lidx-1))+
-//                      hc3*(lsxx(lidz,lidx+3)-lsxx(lidz,lidx-2)));
-//#elif fdoh ==4
-//        sxx_x = dtdh*(hc1*(lsxx(lidz,lidx+1)-lsxx(lidz,lidx))+
-//                      hc2*(lsxx(lidz,lidx+2)-lsxx(lidz,lidx-1))+
-//                      hc3*(lsxx(lidz,lidx+3)-lsxx(lidz,lidx-2))+
-//                      hc4*(lsxx(lidz,lidx+4)-lsxx(lidz,lidx-3)));
-//#elif fdoh ==5
-//        sxx_x = dtdh*(hc1*(lsxx(lidz,lidx+1)-lsxx(lidz,lidx))+
-//                      hc2*(lsxx(lidz,lidx+2)-lsxx(lidz,lidx-1))+
-//                      hc3*(lsxx(lidz,lidx+3)-lsxx(lidz,lidx-2))+
-//                      hc4*(lsxx(lidz,lidx+4)-lsxx(lidz,lidx-3))+
-//                      hc5*(lsxx(lidz,lidx+5)-lsxx(lidz,lidx-4)));
-//#elif fdoh ==6
-//        sxx_x = dtdh*(hc1*(lsxx(lidz,lidx+1)-lsxx(lidz,lidx))+
-//                      hc2*(lsxx(lidz,lidx+2)-lsxx(lidz,lidx-1))+
-//                      hc3*(lsxx(lidz,lidx+3)-lsxx(lidz,lidx-2))+
-//                      hc4*(lsxx(lidz,lidx+4)-lsxx(lidz,lidx-3))+
-//                      hc5*(lsxx(lidz,lidx+5)-lsxx(lidz,lidx-4))+
-//                      hc6*(lsxx(lidz,lidx+6)-lsxx(lidz,lidx-5)));
-//#endif
-//        
-//        
+#if   fdoh ==1
+        sxx_x = dtdh*hc1*(lsxx(lidz,lidx+1) - lsxx(lidz,lidx));
+#elif fdoh ==2
+        sxx_x = dtdh*(hc1*(lsxx(lidz,lidx+1) - lsxx(lidz,lidx))
+                      +hc2*(lsxx(lidz,lidx+2) - lsxx(lidz,lidx-1)));
+#elif fdoh ==3
+        sxx_x = dtdh*(hc1*(lsxx(lidz,lidx+1)-lsxx(lidz,lidx))+
+                      hc2*(lsxx(lidz,lidx+2)-lsxx(lidz,lidx-1))+
+                      hc3*(lsxx(lidz,lidx+3)-lsxx(lidz,lidx-2)));
+#elif fdoh ==4
+        sxx_x = dtdh*(hc1*(lsxx(lidz,lidx+1)-lsxx(lidz,lidx))+
+                      hc2*(lsxx(lidz,lidx+2)-lsxx(lidz,lidx-1))+
+                      hc3*(lsxx(lidz,lidx+3)-lsxx(lidz,lidx-2))+
+                      hc4*(lsxx(lidz,lidx+4)-lsxx(lidz,lidx-3)));
+#elif fdoh ==5
+        sxx_x = dtdh*(hc1*(lsxx(lidz,lidx+1)-lsxx(lidz,lidx))+
+                      hc2*(lsxx(lidz,lidx+2)-lsxx(lidz,lidx-1))+
+                      hc3*(lsxx(lidz,lidx+3)-lsxx(lidz,lidx-2))+
+                      hc4*(lsxx(lidz,lidx+4)-lsxx(lidz,lidx-3))+
+                      hc5*(lsxx(lidz,lidx+5)-lsxx(lidz,lidx-4)));
+#elif fdoh ==6
+        sxx_x = dtdh*(hc1*(lsxx(lidz,lidx+1)-lsxx(lidz,lidx))+
+                      hc2*(lsxx(lidz,lidx+2)-lsxx(lidz,lidx-1))+
+                      hc3*(lsxx(lidz,lidx+3)-lsxx(lidz,lidx-2))+
+                      hc4*(lsxx(lidz,lidx+4)-lsxx(lidz,lidx-3))+
+                      hc5*(lsxx(lidz,lidx+5)-lsxx(lidz,lidx-4))+
+                      hc6*(lsxx(lidz,lidx+6)-lsxx(lidz,lidx-5)));
+#endif
+        
+        
 //#if local_off==0
 //        barrier(CLK_LOCAL_MEM_FENCE);
 //        lszz(lidz,lidx)=szz(gidz, gidx);
