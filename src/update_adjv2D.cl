@@ -444,51 +444,51 @@ __kernel void update_adjv(int offcomm, int nsrc,  int ng, int nt,
         
 }
 #endif
-//
-//// Calculation of the stress spatial derivatives of the adjoint wavefield
-//#if local_off==0
-//    lsxx_r(lidz,lidx)=sxx_r(gidz, gidx);
-//    if (lidx<2*fdoh)
-//        lsxx_r(lidz,lidx-fdoh)=sxx_r(gidz,gidx-fdoh);
-//    if (lidx+lsizex-3*fdoh<fdoh)
-//        lsxx_r(lidz,lidx+lsizex-3*fdoh)=sxx_r(gidz,gidx+lsizex-3*fdoh);
-//    if (lidx>(lsizex-2*fdoh-1))
-//        lsxx_r(lidz,lidx+fdoh)=sxx_r(gidz,gidx+fdoh);
-//    if (lidx-lsizex+3*fdoh>(lsizex-fdoh-1))
-//        lsxx_r(lidz,lidx-lsizex+3*fdoh)=sxx_r(gidz,gidx-lsizex+3*fdoh);
-//    barrier(CLK_LOCAL_MEM_FENCE);
-//#endif
-//    
-//#if   fdoh ==1
-//    sxx_x_r = dtdh*hc1*(lsxx_r(lidz,lidx+1) - lsxx_r(lidz,lidx));
-//#elif fdoh ==2
-//    sxx_x_r = dtdh*(hc1*(lsxx_r(lidz,lidx+1) - lsxx_r(lidz,lidx))
-//                  +hc2*(lsxx_r(lidz,lidx+2) - lsxx_r(lidz,lidx-1)));
-//#elif fdoh ==3
-//    sxx_x_r = dtdh*(hc1*(lsxx_r(lidz,lidx+1)-lsxx_r(lidz,lidx))+
-//                  hc2*(lsxx_r(lidz,lidx+2)-lsxx_r(lidz,lidx-1))+
-//                  hc3*(lsxx_r(lidz,lidx+3)-lsxx_r(lidz,lidx-2)));
-//#elif fdoh ==4
-//    sxx_x_r = dtdh*(hc1*(lsxx_r(lidz,lidx+1)-lsxx_r(lidz,lidx))+
-//                  hc2*(lsxx_r(lidz,lidx+2)-lsxx_r(lidz,lidx-1))+
-//                  hc3*(lsxx_r(lidz,lidx+3)-lsxx_r(lidz,lidx-2))+
-//                  hc4*(lsxx_r(lidz,lidx+4)-lsxx_r(lidz,lidx-3)));
-//#elif fdoh ==5
-//    sxx_x_r = dtdh*(hc1*(lsxx_r(lidz,lidx+1)-lsxx_r(lidz,lidx))+
-//                  hc2*(lsxx_r(lidz,lidx+2)-lsxx_r(lidz,lidx-1))+
-//                  hc3*(lsxx_r(lidz,lidx+3)-lsxx_r(lidz,lidx-2))+
-//                  hc4*(lsxx_r(lidz,lidx+4)-lsxx_r(lidz,lidx-3))+
-//                  hc5*(lsxx_r(lidz,lidx+5)-lsxx_r(lidz,lidx-4)));
-//#elif fdoh ==6
-//    sxx_x_r = dtdh*(hc1*(lsxx_r(lidz,lidx+1)-lsxx_r(lidz,lidx))+
-//                  hc2*(lsxx_r(lidz,lidx+2)-lsxx_r(lidz,lidx-1))+
-//                  hc3*(lsxx_r(lidz,lidx+3)-lsxx_r(lidz,lidx-2))+
-//                  hc4*(lsxx_r(lidz,lidx+4)-lsxx_r(lidz,lidx-3))+
-//                  hc5*(lsxx_r(lidz,lidx+5)-lsxx_r(lidz,lidx-4))+
-//                  hc6*(lsxx_r(lidz,lidx+6)-lsxx_r(lidz,lidx-5)));
-//#endif
-//    
-//    
+
+// Calculation of the stress spatial derivatives of the adjoint wavefield
+#if local_off==0
+    lsxx_r(lidz,lidx)=sxx_r(gidz, gidx);
+    if (lidx<2*fdoh)
+        lsxx_r(lidz,lidx-fdoh)=sxx_r(gidz,gidx-fdoh);
+    if (lidx+lsizex-3*fdoh<fdoh)
+        lsxx_r(lidz,lidx+lsizex-3*fdoh)=sxx_r(gidz,gidx+lsizex-3*fdoh);
+    if (lidx>(lsizex-2*fdoh-1))
+        lsxx_r(lidz,lidx+fdoh)=sxx_r(gidz,gidx+fdoh);
+    if (lidx-lsizex+3*fdoh>(lsizex-fdoh-1))
+        lsxx_r(lidz,lidx-lsizex+3*fdoh)=sxx_r(gidz,gidx-lsizex+3*fdoh);
+    barrier(CLK_LOCAL_MEM_FENCE);
+#endif
+    
+#if   fdoh ==1
+    sxx_x_r = dtdh*hc1*(lsxx_r(lidz,lidx+1) - lsxx_r(lidz,lidx));
+#elif fdoh ==2
+    sxx_x_r = dtdh*(hc1*(lsxx_r(lidz,lidx+1) - lsxx_r(lidz,lidx))
+                  +hc2*(lsxx_r(lidz,lidx+2) - lsxx_r(lidz,lidx-1)));
+#elif fdoh ==3
+    sxx_x_r = dtdh*(hc1*(lsxx_r(lidz,lidx+1)-lsxx_r(lidz,lidx))+
+                  hc2*(lsxx_r(lidz,lidx+2)-lsxx_r(lidz,lidx-1))+
+                  hc3*(lsxx_r(lidz,lidx+3)-lsxx_r(lidz,lidx-2)));
+#elif fdoh ==4
+    sxx_x_r = dtdh*(hc1*(lsxx_r(lidz,lidx+1)-lsxx_r(lidz,lidx))+
+                  hc2*(lsxx_r(lidz,lidx+2)-lsxx_r(lidz,lidx-1))+
+                  hc3*(lsxx_r(lidz,lidx+3)-lsxx_r(lidz,lidx-2))+
+                  hc4*(lsxx_r(lidz,lidx+4)-lsxx_r(lidz,lidx-3)));
+#elif fdoh ==5
+    sxx_x_r = dtdh*(hc1*(lsxx_r(lidz,lidx+1)-lsxx_r(lidz,lidx))+
+                  hc2*(lsxx_r(lidz,lidx+2)-lsxx_r(lidz,lidx-1))+
+                  hc3*(lsxx_r(lidz,lidx+3)-lsxx_r(lidz,lidx-2))+
+                  hc4*(lsxx_r(lidz,lidx+4)-lsxx_r(lidz,lidx-3))+
+                  hc5*(lsxx_r(lidz,lidx+5)-lsxx_r(lidz,lidx-4)));
+#elif fdoh ==6
+    sxx_x_r = dtdh*(hc1*(lsxx_r(lidz,lidx+1)-lsxx_r(lidz,lidx))+
+                  hc2*(lsxx_r(lidz,lidx+2)-lsxx_r(lidz,lidx-1))+
+                  hc3*(lsxx_r(lidz,lidx+3)-lsxx_r(lidz,lidx-2))+
+                  hc4*(lsxx_r(lidz,lidx+4)-lsxx_r(lidz,lidx-3))+
+                  hc5*(lsxx_r(lidz,lidx+5)-lsxx_r(lidz,lidx-4))+
+                  hc6*(lsxx_r(lidz,lidx+6)-lsxx_r(lidz,lidx-5)));
+#endif
+    
+    
 //#if local_off==0
 //    barrier(CLK_LOCAL_MEM_FENCE);
 //    lszz_r(lidz,lidx)=szz_r(gidz, gidx);
