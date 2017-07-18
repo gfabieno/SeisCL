@@ -283,19 +283,19 @@ __kernel void update_adjv(int offcomm, int nsrc,  int ng, int nt,
 // Calculation of the stress spatial derivatives of the forward wavefield if backpropagation is used
 #if back_prop_type==1
     {
-//#if local_off==0
-//        lsxx(lidz,lidx)=sxx(gidz, gidx);
-//        if (lidx<2*fdoh)
-//            lsxx(lidz,lidx-fdoh)=sxx(gidz,gidx-fdoh);
-//        if (lidx+lsizex-3*fdoh<fdoh)
-//            lsxx(lidz,lidx+lsizex-3*fdoh)=sxx(gidz,gidx+lsizex-3*fdoh);
-//        if (lidx>(lsizex-2*fdoh-1))
-//            lsxx(lidz,lidx+fdoh)=sxx(gidz,gidx+fdoh);
-//        if (lidx-lsizex+3*fdoh>(lsizex-fdoh-1))
-//            lsxx(lidz,lidx-lsizex+3*fdoh)=sxx(gidz,gidx-lsizex+3*fdoh);
-//        barrier(CLK_LOCAL_MEM_FENCE);
-//#endif
-//        
+#if local_off==0
+        lsxx(lidz,lidx)=sxx(gidz, gidx);
+        if (lidx<2*fdoh)
+            lsxx(lidz,lidx-fdoh)=sxx(gidz,gidx-fdoh);
+        if (lidx+lsizex-3*fdoh<fdoh)
+            lsxx(lidz,lidx+lsizex-3*fdoh)=sxx(gidz,gidx+lsizex-3*fdoh);
+        if (lidx>(lsizex-2*fdoh-1))
+            lsxx(lidz,lidx+fdoh)=sxx(gidz,gidx+fdoh);
+        if (lidx-lsizex+3*fdoh>(lsizex-fdoh-1))
+            lsxx(lidz,lidx-lsizex+3*fdoh)=sxx(gidz,gidx-lsizex+3*fdoh);
+        barrier(CLK_LOCAL_MEM_FENCE);
+#endif
+        
 //#if   fdoh ==1
 //        sxx_x = dtdh*hc1*(lsxx(lidz,lidx+1) - lsxx(lidz,lidx));
 //#elif fdoh ==2
