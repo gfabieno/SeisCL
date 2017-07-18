@@ -489,120 +489,120 @@ __kernel void update_adjv(int offcomm, int nsrc,  int ng, int nt,
 #endif
     
     
-//#if local_off==0
-//    barrier(CLK_LOCAL_MEM_FENCE);
-//    lszz_r(lidz,lidx)=szz_r(gidz, gidx);
-//    if (lidz<2*fdoh)
-//        lszz_r(lidz-fdoh,lidx)=szz_r(gidz-fdoh,gidx);
-//    if (lidz>(lsizez-2*fdoh-1))
-//        lszz_r(lidz+fdoh,lidx)=szz_r(gidz+fdoh,gidx);
-//    barrier(CLK_LOCAL_MEM_FENCE);
-//#endif
-//    
-//#if   fdoh ==1
-//    szz_z_r = dtdh*hc1*(lszz_r(lidz+1,lidx) - lszz_r(lidz,lidx));
-//#elif fdoh ==2
-//    szz_z_r = dtdh*(hc1*(lszz_r(lidz+1,lidx) - lszz_r(lidz,lidx))
-//                  +hc2*(lszz_r(lidz+2,lidx) - lszz_r(lidz-1,lidx)));
-//#elif fdoh ==3
-//    szz_z_r = dtdh*(hc1*(lszz_r(lidz+1,lidx)-lszz_r(lidz,lidx))+
-//                  hc2*(lszz_r(lidz+2,lidx)-lszz_r(lidz-1,lidx))+
-//                  hc3*(lszz_r(lidz+3,lidx)-lszz_r(lidz-2,lidx)));
-//#elif fdoh ==4
-//    szz_z_r = dtdh*(hc1*(lszz_r(lidz+1,lidx)-lszz_r(lidz,lidx))+
-//                  hc2*(lszz_r(lidz+2,lidx)-lszz_r(lidz-1,lidx))+
-//                  hc3*(lszz_r(lidz+3,lidx)-lszz_r(lidz-2,lidx))+
-//                  hc4*(lszz_r(lidz+4,lidx)-lszz_r(lidz-3,lidx)));
-//#elif fdoh ==5
-//    szz_z_r = dtdh*(hc1*(lszz_r(lidz+1,lidx)-lszz_r(lidz,lidx))+
-//                  hc2*(lszz_r(lidz+2,lidx)-lszz_r(lidz-1,lidx))+
-//                  hc3*(lszz_r(lidz+3,lidx)-lszz_r(lidz-2,lidx))+
-//                  hc4*(lszz_r(lidz+4,lidx)-lszz_r(lidz-3,lidx))+
-//                  hc5*(lszz_r(lidz+5,lidx)-lszz_r(lidz-4,lidx)));
-//#elif fdoh ==6
-//    szz_z_r = dtdh*(hc1*(lszz_r(lidz+1,lidx)-lszz_r(lidz,lidx))+
-//                  hc2*(lszz_r(lidz+2,lidx)-lszz_r(lidz-1,lidx))+
-//                  hc3*(lszz_r(lidz+3,lidx)-lszz_r(lidz-2,lidx))+
-//                  hc4*(lszz_r(lidz+4,lidx)-lszz_r(lidz-3,lidx))+
-//                  hc5*(lszz_r(lidz+5,lidx)-lszz_r(lidz-4,lidx))+
-//                  hc6*(lszz_r(lidz+6,lidx)-lszz_r(lidz-5,lidx)));
-//#endif
-//    
-//#if local_off==0
-//    barrier(CLK_LOCAL_MEM_FENCE);
-//    lsxz_r(lidz,lidx)=sxz_r(gidz, gidx);
-//    
-//    if (lidx<2*fdoh)
-//        lsxz_r(lidz,lidx-fdoh)=sxz_r(gidz,gidx-fdoh);
-//    if (lidx+lsizex-3*fdoh<fdoh)
-//        lsxz_r(lidz,lidx+lsizex-3*fdoh)=sxz_r(gidz,gidx+lsizex-3*fdoh);
-//    if (lidx>(lsizex-2*fdoh-1))
-//        lsxz_r(lidz,lidx+fdoh)=sxz_r(gidz,gidx+fdoh);
-//    if (lidx-lsizex+3*fdoh>(lsizex-fdoh-1))
-//        lsxz_r(lidz,lidx-lsizex+3*fdoh)=sxz_r(gidz,gidx-lsizex+3*fdoh);
-//    if (lidz<2*fdoh)
-//        lsxz_r(lidz-fdoh,lidx)=sxz_r(gidz-fdoh,gidx);
-//    if (lidz>(lsizez-2*fdoh-1))
-//        lsxz_r(lidz+fdoh,lidx)=sxz_r(gidz+fdoh,gidx);
-//    barrier(CLK_LOCAL_MEM_FENCE);
-//#endif
-//    
-//#if   fdoh ==1
-//    sxz_z_r = dtdh*hc1*(lsxz_r(lidz,lidx)   - lsxz_r(lidz-1,lidx));
-//    sxz_x_r = dtdh*hc1*(lsxz_r(lidz,lidx)   - lsxz_r(lidz,lidx-1));
-//#elif fdoh ==2
-//    sxz_z_r = dtdh*(hc1*(lsxz_r(lidz,lidx)   - lsxz_r(lidz-1,lidx))
-//                  +hc2*(lsxz_r(lidz+1,lidx) - lsxz_r(lidz-2,lidx)));
-//    sxz_x_r = dtdh*(hc1*(lsxz_r(lidz,lidx)   - lsxz_r(lidz,lidx-1))
-//                  +hc2*(lsxz_r(lidz,lidx+1) - lsxz_r(lidz,lidx-2)));
-//#elif fdoh ==3
-//    sxz_z_r = dtdh*(hc1*(lsxz_r(lidz,lidx)  -lsxz_r(lidz-1,lidx))+
-//                  hc2*(lsxz_r(lidz+1,lidx)-lsxz_r(lidz-2,lidx))+
-//                  hc3*(lsxz_r(lidz+2,lidx)-lsxz_r(lidz-3,lidx)));
-//    
-//    sxz_x_r = dtdh*(hc1*(lsxz_r(lidz,lidx)  -lsxz_r(lidz,lidx-1))+
-//                  hc2*(lsxz_r(lidz,lidx+1)-lsxz_r(lidz,lidx-2))+
-//                  hc3*(lsxz_r(lidz,lidx+2)-lsxz_r(lidz,lidx-3)));
-//#elif fdoh ==4
-//    sxz_z_r = dtdh*(hc1*(lsxz_r(lidz,lidx)  -lsxz_r(lidz-1,lidx))+
-//                  hc2*(lsxz_r(lidz+1,lidx)-lsxz_r(lidz-2,lidx))+
-//                  hc3*(lsxz_r(lidz+2,lidx)-lsxz_r(lidz-3,lidx))+
-//                  hc4*(lsxz_r(lidz+3,lidx)-lsxz_r(lidz-4,lidx)));
-//    
-//    sxz_x_r = dtdh*(hc1*(lsxz_r(lidz,lidx)  -lsxz_r(lidz,lidx-1))+
-//                  hc2*(lsxz_r(lidz,lidx+1)-lsxz_r(lidz,lidx-2))+
-//                  hc3*(lsxz_r(lidz,lidx+2)-lsxz_r(lidz,lidx-3))+
-//                  hc4*(lsxz_r(lidz,lidx+3)-lsxz_r(lidz,lidx-4)));
-//#elif fdoh ==5
-//    sxz_z_r = dtdh*(hc1*(lsxz_r(lidz,lidx)  -lsxz_r(lidz-1,lidx))+
-//                  hc2*(lsxz_r(lidz+1,lidx)-lsxz_r(lidz-2,lidx))+
-//                  hc3*(lsxz_r(lidz+2,lidx)-lsxz_r(lidz-3,lidx))+
-//                  hc4*(lsxz_r(lidz+3,lidx)-lsxz_r(lidz-4,lidx))+
-//                  hc5*(lsxz_r(lidz+4,lidx)-lsxz_r(lidz-5,lidx)));
-//    
-//    sxz_x_r = dtdh*(hc1*(lsxz_r(lidz,lidx)  -lsxz_r(lidz,lidx-1))+
-//                  hc2*(lsxz_r(lidz,lidx+1)-lsxz_r(lidz,lidx-2))+
-//                  hc3*(lsxz_r(lidz,lidx+2)-lsxz_r(lidz,lidx-3))+
-//                  hc4*(lsxz_r(lidz,lidx+3)-lsxz_r(lidz,lidx-4))+
-//                  hc5*(lsxz_r(lidz,lidx+4)-lsxz_r(lidz,lidx-5)));
-//#elif fdoh ==6
-//    
-//    sxz_z_r = dtdh*(hc1*(lsxz_r(lidz,lidx)  -lsxz_r(lidz-1,lidx))+
-//                  hc2*(lsxz_r(lidz+1,lidx)-lsxz_r(lidz-2,lidx))+
-//                  hc3*(lsxz_r(lidz+2,lidx)-lsxz_r(lidz-3,lidx))+
-//                  hc4*(lsxz_r(lidz+3,lidx)-lsxz_r(lidz-4,lidx))+
-//                  hc5*(lsxz_r(lidz+4,lidx)-lsxz_r(lidz-5,lidx))+
-//                  hc6*(lsxz_r(lidz+5,lidx)-lsxz_r(lidz-6,lidx)));
-//    
-//    sxz_x_r = dtdh*(hc1*(lsxz_r(lidz,lidx)  -lsxz_r(lidz,lidx-1))+
-//                  hc2*(lsxz_r(lidz,lidx+1)-lsxz_r(lidz,lidx-2))+
-//                  hc3*(lsxz_r(lidz,lidx+2)-lsxz_r(lidz,lidx-3))+
-//                  hc4*(lsxz_r(lidz,lidx+3)-lsxz_r(lidz,lidx-4))+
-//                  hc5*(lsxz_r(lidz,lidx+4)-lsxz_r(lidz,lidx-5))+
-//                  hc6*(lsxz_r(lidz,lidx+5)-lsxz_r(lidz,lidx-6)));
-//#endif
-//
-//    
+#if local_off==0
+    barrier(CLK_LOCAL_MEM_FENCE);
+    lszz_r(lidz,lidx)=szz_r(gidz, gidx);
+    if (lidz<2*fdoh)
+        lszz_r(lidz-fdoh,lidx)=szz_r(gidz-fdoh,gidx);
+    if (lidz>(lsizez-2*fdoh-1))
+        lszz_r(lidz+fdoh,lidx)=szz_r(gidz+fdoh,gidx);
+    barrier(CLK_LOCAL_MEM_FENCE);
+#endif
+    
+#if   fdoh ==1
+    szz_z_r = dtdh*hc1*(lszz_r(lidz+1,lidx) - lszz_r(lidz,lidx));
+#elif fdoh ==2
+    szz_z_r = dtdh*(hc1*(lszz_r(lidz+1,lidx) - lszz_r(lidz,lidx))
+                  +hc2*(lszz_r(lidz+2,lidx) - lszz_r(lidz-1,lidx)));
+#elif fdoh ==3
+    szz_z_r = dtdh*(hc1*(lszz_r(lidz+1,lidx)-lszz_r(lidz,lidx))+
+                  hc2*(lszz_r(lidz+2,lidx)-lszz_r(lidz-1,lidx))+
+                  hc3*(lszz_r(lidz+3,lidx)-lszz_r(lidz-2,lidx)));
+#elif fdoh ==4
+    szz_z_r = dtdh*(hc1*(lszz_r(lidz+1,lidx)-lszz_r(lidz,lidx))+
+                  hc2*(lszz_r(lidz+2,lidx)-lszz_r(lidz-1,lidx))+
+                  hc3*(lszz_r(lidz+3,lidx)-lszz_r(lidz-2,lidx))+
+                  hc4*(lszz_r(lidz+4,lidx)-lszz_r(lidz-3,lidx)));
+#elif fdoh ==5
+    szz_z_r = dtdh*(hc1*(lszz_r(lidz+1,lidx)-lszz_r(lidz,lidx))+
+                  hc2*(lszz_r(lidz+2,lidx)-lszz_r(lidz-1,lidx))+
+                  hc3*(lszz_r(lidz+3,lidx)-lszz_r(lidz-2,lidx))+
+                  hc4*(lszz_r(lidz+4,lidx)-lszz_r(lidz-3,lidx))+
+                  hc5*(lszz_r(lidz+5,lidx)-lszz_r(lidz-4,lidx)));
+#elif fdoh ==6
+    szz_z_r = dtdh*(hc1*(lszz_r(lidz+1,lidx)-lszz_r(lidz,lidx))+
+                  hc2*(lszz_r(lidz+2,lidx)-lszz_r(lidz-1,lidx))+
+                  hc3*(lszz_r(lidz+3,lidx)-lszz_r(lidz-2,lidx))+
+                  hc4*(lszz_r(lidz+4,lidx)-lszz_r(lidz-3,lidx))+
+                  hc5*(lszz_r(lidz+5,lidx)-lszz_r(lidz-4,lidx))+
+                  hc6*(lszz_r(lidz+6,lidx)-lszz_r(lidz-5,lidx)));
+#endif
+    
+#if local_off==0
+    barrier(CLK_LOCAL_MEM_FENCE);
+    lsxz_r(lidz,lidx)=sxz_r(gidz, gidx);
+    
+    if (lidx<2*fdoh)
+        lsxz_r(lidz,lidx-fdoh)=sxz_r(gidz,gidx-fdoh);
+    if (lidx+lsizex-3*fdoh<fdoh)
+        lsxz_r(lidz,lidx+lsizex-3*fdoh)=sxz_r(gidz,gidx+lsizex-3*fdoh);
+    if (lidx>(lsizex-2*fdoh-1))
+        lsxz_r(lidz,lidx+fdoh)=sxz_r(gidz,gidx+fdoh);
+    if (lidx-lsizex+3*fdoh>(lsizex-fdoh-1))
+        lsxz_r(lidz,lidx-lsizex+3*fdoh)=sxz_r(gidz,gidx-lsizex+3*fdoh);
+    if (lidz<2*fdoh)
+        lsxz_r(lidz-fdoh,lidx)=sxz_r(gidz-fdoh,gidx);
+    if (lidz>(lsizez-2*fdoh-1))
+        lsxz_r(lidz+fdoh,lidx)=sxz_r(gidz+fdoh,gidx);
+    barrier(CLK_LOCAL_MEM_FENCE);
+#endif
+    
+#if   fdoh ==1
+    sxz_z_r = dtdh*hc1*(lsxz_r(lidz,lidx)   - lsxz_r(lidz-1,lidx));
+    sxz_x_r = dtdh*hc1*(lsxz_r(lidz,lidx)   - lsxz_r(lidz,lidx-1));
+#elif fdoh ==2
+    sxz_z_r = dtdh*(hc1*(lsxz_r(lidz,lidx)   - lsxz_r(lidz-1,lidx))
+                  +hc2*(lsxz_r(lidz+1,lidx) - lsxz_r(lidz-2,lidx)));
+    sxz_x_r = dtdh*(hc1*(lsxz_r(lidz,lidx)   - lsxz_r(lidz,lidx-1))
+                  +hc2*(lsxz_r(lidz,lidx+1) - lsxz_r(lidz,lidx-2)));
+#elif fdoh ==3
+    sxz_z_r = dtdh*(hc1*(lsxz_r(lidz,lidx)  -lsxz_r(lidz-1,lidx))+
+                  hc2*(lsxz_r(lidz+1,lidx)-lsxz_r(lidz-2,lidx))+
+                  hc3*(lsxz_r(lidz+2,lidx)-lsxz_r(lidz-3,lidx)));
+    
+    sxz_x_r = dtdh*(hc1*(lsxz_r(lidz,lidx)  -lsxz_r(lidz,lidx-1))+
+                  hc2*(lsxz_r(lidz,lidx+1)-lsxz_r(lidz,lidx-2))+
+                  hc3*(lsxz_r(lidz,lidx+2)-lsxz_r(lidz,lidx-3)));
+#elif fdoh ==4
+    sxz_z_r = dtdh*(hc1*(lsxz_r(lidz,lidx)  -lsxz_r(lidz-1,lidx))+
+                  hc2*(lsxz_r(lidz+1,lidx)-lsxz_r(lidz-2,lidx))+
+                  hc3*(lsxz_r(lidz+2,lidx)-lsxz_r(lidz-3,lidx))+
+                  hc4*(lsxz_r(lidz+3,lidx)-lsxz_r(lidz-4,lidx)));
+    
+    sxz_x_r = dtdh*(hc1*(lsxz_r(lidz,lidx)  -lsxz_r(lidz,lidx-1))+
+                  hc2*(lsxz_r(lidz,lidx+1)-lsxz_r(lidz,lidx-2))+
+                  hc3*(lsxz_r(lidz,lidx+2)-lsxz_r(lidz,lidx-3))+
+                  hc4*(lsxz_r(lidz,lidx+3)-lsxz_r(lidz,lidx-4)));
+#elif fdoh ==5
+    sxz_z_r = dtdh*(hc1*(lsxz_r(lidz,lidx)  -lsxz_r(lidz-1,lidx))+
+                  hc2*(lsxz_r(lidz+1,lidx)-lsxz_r(lidz-2,lidx))+
+                  hc3*(lsxz_r(lidz+2,lidx)-lsxz_r(lidz-3,lidx))+
+                  hc4*(lsxz_r(lidz+3,lidx)-lsxz_r(lidz-4,lidx))+
+                  hc5*(lsxz_r(lidz+4,lidx)-lsxz_r(lidz-5,lidx)));
+    
+    sxz_x_r = dtdh*(hc1*(lsxz_r(lidz,lidx)  -lsxz_r(lidz,lidx-1))+
+                  hc2*(lsxz_r(lidz,lidx+1)-lsxz_r(lidz,lidx-2))+
+                  hc3*(lsxz_r(lidz,lidx+2)-lsxz_r(lidz,lidx-3))+
+                  hc4*(lsxz_r(lidz,lidx+3)-lsxz_r(lidz,lidx-4))+
+                  hc5*(lsxz_r(lidz,lidx+4)-lsxz_r(lidz,lidx-5)));
+#elif fdoh ==6
+    
+    sxz_z_r = dtdh*(hc1*(lsxz_r(lidz,lidx)  -lsxz_r(lidz-1,lidx))+
+                  hc2*(lsxz_r(lidz+1,lidx)-lsxz_r(lidz-2,lidx))+
+                  hc3*(lsxz_r(lidz+2,lidx)-lsxz_r(lidz-3,lidx))+
+                  hc4*(lsxz_r(lidz+3,lidx)-lsxz_r(lidz-4,lidx))+
+                  hc5*(lsxz_r(lidz+4,lidx)-lsxz_r(lidz-5,lidx))+
+                  hc6*(lsxz_r(lidz+5,lidx)-lsxz_r(lidz-6,lidx)));
+    
+    sxz_x_r = dtdh*(hc1*(lsxz_r(lidz,lidx)  -lsxz_r(lidz,lidx-1))+
+                  hc2*(lsxz_r(lidz,lidx+1)-lsxz_r(lidz,lidx-2))+
+                  hc3*(lsxz_r(lidz,lidx+2)-lsxz_r(lidz,lidx-3))+
+                  hc4*(lsxz_r(lidz,lidx+3)-lsxz_r(lidz,lidx-4))+
+                  hc5*(lsxz_r(lidz,lidx+4)-lsxz_r(lidz,lidx-5))+
+                  hc6*(lsxz_r(lidz,lidx+5)-lsxz_r(lidz,lidx-6)));
+#endif
+
+    
 //// To stop updating if we are outside the model (global id must be a multiple of local id in OpenCL, hence we stop if we have a global id outside the grid)
 //#if local_off==0
 //#if comm12==0
