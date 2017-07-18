@@ -439,8 +439,9 @@ __kernel void update_adjv(int offcomm, int nsrc,  int ng, int nt,
                       hc6*(lsxz(lidz,lidx+5)-lsxz(lidz,lidx-6)));
 #endif
         barrier(CLK_LOCAL_MEM_FENCE);
-        printf("%d\n", back_prop_type);
-        int a=1;
+
+        
+        
 }
 #endif
 //
