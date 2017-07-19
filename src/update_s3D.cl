@@ -506,25 +506,8 @@ __kernel void update_s(int offcomm, int nsrc,  int nt,
 // Correct spatial derivatives to implement CPML
 #if abs_type==1
     {
-        
-        if (gidz>NZ-nab-fdoh-1){
-            
-            i =gidx-fdoh;
-            j =gidy-fdoh;
-            k =gidz - NZ+nab+fdoh+nab;
-            ind=2*nab-1-k;
-            
-            psi_vxz(k,j,i) = b_z_half[ind] * psi_vxz(k,j,i) + a_z_half[ind] * vxz;
-            vxz = vxz / K_z_half[ind] + psi_vxz(k,j,i);
-            psi_vyz(k,j,i) = b_z_half[ind] * psi_vyz(k,j,i) + a_z_half[ind] * vyz;
-            vyz = vyz / K_z_half[ind] + psi_vyz(k,j,i);
-            psi_vzz(k,j,i) = b_z[ind+1] * psi_vzz(k,j,i) + a_z[ind+1] * vzz;
-            vzz = vzz / K_z[ind+1] + psi_vzz(k,j,i);
-            
-        }
-        
 #if freesurf==0
-        else if (gidz-fdoh<nab){
+        if (gidz-fdoh<nab){
             
             i =gidx-fdoh;
             j =gidy-fdoh;
@@ -541,6 +524,23 @@ __kernel void update_s(int offcomm, int nsrc,  int nt,
             
         }
 #endif
+        if (gidz>NZ-nab-fdoh-1){
+            
+            i =gidx-fdoh;
+            j =gidy-fdoh;
+            k =gidz - NZ+nab+fdoh+nab;
+            ind=2*nab-1-k;
+            
+            psi_vxz(k,j,i) = b_z_half[ind] * psi_vxz(k,j,i) + a_z_half[ind] * vxz;
+            vxz = vxz / K_z_half[ind] + psi_vxz(k,j,i);
+            psi_vyz(k,j,i) = b_z_half[ind] * psi_vyz(k,j,i) + a_z_half[ind] * vyz;
+            vyz = vyz / K_z_half[ind] + psi_vyz(k,j,i);
+            psi_vzz(k,j,i) = b_z[ind+1] * psi_vzz(k,j,i) + a_z[ind+1] * vzz;
+            vzz = vzz / K_z[ind+1] + psi_vzz(k,j,i);
+            
+        }
+        
+
         
         if (gidy-fdoh<nab){
             i =gidx-fdoh;

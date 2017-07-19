@@ -387,11 +387,12 @@ __kernel void update_v(int offcomm,int nsrc,  int nt,
 // Absorbing boundary
 #if abs_type==2
     {
+#if freesurf==0
         if (gidz-fdoh<nab){
             vx(gidz,gidx)*=taper[gidz-fdoh];
             vz(gidz,gidx)*=taper[gidz-fdoh];
         }
-        
+#endif
         if (gidz>NZ-nab-fdoh-1){
             vx(gidz,gidx)*=taper[NZ-fdoh-gidz-1];
             vz(gidz,gidx)*=taper[NZ-fdoh-gidz-1];

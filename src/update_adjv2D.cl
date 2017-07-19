@@ -710,10 +710,12 @@ __kernel void update_adjv(int offcomm, int nsrc,  int ng, int nt,
 // Absorbing boundary
 #if abs_type==2
     {
+#if freesurf==0
     if (gidz-fdoh<nab){
         vx_r(gidz,gidx)*=taper[gidz-fdoh];
         vz_r(gidz,gidx)*=taper[gidz-fdoh];
     }
+#endif
     
     if (gidz>NZ-nab-fdoh-1){
         vx_r(gidz,gidx)*=taper[NZ-fdoh-gidz-1];

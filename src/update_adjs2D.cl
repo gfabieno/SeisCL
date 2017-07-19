@@ -819,11 +819,13 @@ __kernel void update_adjs(int offcomm, int nsrc,  int nt,
 // Absorbing boundary
 #if abs_type==2
     {
+#if freesurf==0
     if (gidz-fdoh<nab){
         sxz_r(gidz,gidx)*=taper[gidz-fdoh];
         sxx_r(gidz,gidx)*=taper[gidz-fdoh];
         szz_r(gidz,gidx)*=taper[gidz-fdoh];
     }
+#endif
     
     if (gidz>NZ-nab-fdoh-1){
         sxz_r(gidz,gidx)*=taper[NZ-fdoh-gidz-1];

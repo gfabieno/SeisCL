@@ -457,11 +457,13 @@ __kernel void update_s(int offcomm, int nsrc,  int nt,
 // Absorbing boundary
 #if abs_type==2
     {
+#if freesurf==0
         if (gidz-fdoh<nab){
             sxx(gidz,gidx)*=taper[gidz-fdoh];
             szz(gidz,gidx)*=taper[gidz-fdoh];
             sxz(gidz,gidx)*=taper[gidz-fdoh];
         }
+#endif
         
         if (gidz>NZ-nab-fdoh-1){
             sxx(gidz,gidx)*=taper[NZ-fdoh-gidz-1];
