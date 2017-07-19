@@ -490,7 +490,7 @@ int gpu_initialize_surface(cl_context  * pcontext, cl_program  * program, cl_ker
         cl_err = clSetKernelArg(*pkernel,  0, sizeof(cl_mem), &inmem->syz);
     }
  
-    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s",gpu_error_code(cl_err));
+    if (cl_err !=CL_SUCCESS) fprintf(stderr,"surface kernel building:%s",gpu_error_code(cl_err));
     
     return cl_err;
 }
