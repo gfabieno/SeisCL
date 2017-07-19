@@ -63,6 +63,13 @@
 #define rx(y,x) rx[(y)*NT+(x)]
 #define rz(y,x) rz[(y)*NT+(x)]
 
+#define psi_vxx(z,x) psi_vxx[(x)*(NZ-2*fdoh)+(z)]
+#define psi_vzx(z,x) psi_vzx[(x)*(NZ-2*fdoh)+(z)]
+
+#define psi_vxz(z,x) psi_vxz[(x)*(2*nab)+(z)]
+#define psi_vzz(z,x) psi_vzz[(x)*(2*nab)+(z)]
+
+
 #define PI (3.141592653589793238462643383279502884197169)
 #define srcpos_loc(y,x) srcpos_loc[(y)*nsrc+(x)]
 #define signals(y,x) signals[(y)*NT+(x)]
@@ -73,7 +80,7 @@ __kernel void surface(        __global float *vx,         __global float *vz,
                               __global float *sxx,        __global float *szz,      __global float *sxz,
                               __global float *pi,         __global float *u,        __global float *rxx,
                               __global float *rzz,        __global float *taus,     __global float *taup,
-                              __global float *eta)
+                              __global float *eta, __global float *K_x, __global float *psi_vxx)
 {
     /*Indice definition */
     int gidx = get_global_id(0) + fdoh;
@@ -174,7 +181,52 @@ __kernel void surface(        __global float *vx,         __global float *vz,
     }
 #endif
     
+    // Absorbing boundary
+#if abstype==2
+    {
+        
+#if dev==0 & MYLOCALID==0
+        if (gidx-fdoh<nab){
+            sxx(gidz,gidy,gidx)*=1.0/taper[gidx-fdoh];
+        }
+#endif
+        
+#if dev==num_devices-1 & MYLOCALID==NLOCALP-1
+        if (gidx>NX-nab-fdoh-1){
+            sxx(gidz,gidy,gidx)*=1.0/taper[NX-fdoh-gidx-1];
+        }
+#endif
+    }
+#endif
+    
+    // Correct spatial derivatives to implement CPML
+#if abs_type==1
+    {
+#if dev==0 & MYLOCALID==0
+        if (gidx-fdoh<nab){
+            
+            i =gidx-fdoh;
+            k =gidz-fdoh;
+            
+            vxx = vxx / K_x[i] + psi_vxx(k,i);
+        }
+#endif
+        
+#if dev==num_devices-1 & MYLOCALID==NLOCALP-1
+        if (gidx>NX-nab-fdoh-1){
+            
+            i =gidx - NX+nab+fdoh+nab;
+            k =gidz-fdoh;
+            ind=2*nab-1-i;
+            vxx = vxx /K_x[ind+1] + psi_vxx(k,i);
+        }
+#endif
+    }
+#endif
+    
 
+    
+    
 #if Lve==0
 				f=u(gidz,  gidx)*2.0;
 				g=pi(gidz,  gidx);
@@ -201,6 +253,24 @@ __kernel void surface(        __global float *vx,         __global float *vz,
     /*completely updating the stresses sxx  */
     sxx(gidz,  gidx)+=(DT/2.0*rxx(gidz,  gidx));
     
+#endif
+    
+// Absorbing boundary
+#if abstype==2
+    {
+  
+#if dev==0 & MYLOCALID==0
+        if (gidx-fdoh<nab){
+            sxx(gidz,gidy,gidx)*=taper[gidx-fdoh];
+        }
+#endif
+        
+#if dev==num_devices-1 & MYLOCALID==NLOCALP-1
+        if (gidx>NX-nab-fdoh-1){
+            sxx(gidz,gidy,gidx)*=taper[NX-fdoh-gidx-1];
+        }
+#endif
+    }
 #endif
 
 }

@@ -1390,6 +1390,7 @@ __kernel void update_adjs(int offcomm, int nsrc,  int nt,
 // Absorbing boundary
 #if abs_type==2
     {
+#if freesurf==0
         if (gidz-fdoh<nab){
             sxy_r(gidz,gidy,gidx)*=taper[gidz-fdoh];
             syz_r(gidz,gidy,gidx)*=taper[gidz-fdoh];
@@ -1398,6 +1399,7 @@ __kernel void update_adjs(int offcomm, int nsrc,  int nt,
             syy_r(gidz,gidy,gidx)*=taper[gidz-fdoh];
             szz_r(gidz,gidy,gidx)*=taper[gidz-fdoh];
         }
+#endif
         
         if (gidz>NZ-nab-fdoh-1){
             sxy_r(gidz,gidy,gidx)*=taper[NZ-fdoh-gidz-1];

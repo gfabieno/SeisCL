@@ -461,6 +461,10 @@ int gpu_initialize_surface(cl_context  * pcontext, cl_program  * program, cl_ker
         cl_err = clSetKernelArg(*pkernel,  14, sizeof(cl_mem), &inmem->taus);
         cl_err = clSetKernelArg(*pkernel,  15, sizeof(cl_mem), &inmem->taup);
         cl_err = clSetKernelArg(*pkernel,  16, sizeof(cl_mem), &inmem->eta);
+        cl_err = clSetKernelArg(*pkernel,  17, sizeof(cl_mem), &inmem->K_x);
+        cl_err = clSetKernelArg(*pkernel,  18, sizeof(cl_mem), &inmem->psi_vxx);
+        cl_err = clSetKernelArg(*pkernel,  19, sizeof(cl_mem), &inmem->K_y);
+        cl_err = clSetKernelArg(*pkernel,  20, sizeof(cl_mem), &inmem->psi_vyy);
     }
     else if ((*inm).ND==2){
         cl_err = clSetKernelArg(*pkernel,  0, sizeof(cl_mem), &inmem->vx);
@@ -478,6 +482,8 @@ int gpu_initialize_surface(cl_context  * pcontext, cl_program  * program, cl_ker
         cl_err = clSetKernelArg(*pkernel,  9, sizeof(cl_mem), &inmem->taus);
         cl_err = clSetKernelArg(*pkernel,  10, sizeof(cl_mem), &inmem->taup);
         cl_err = clSetKernelArg(*pkernel,  11, sizeof(cl_mem), &inmem->eta);
+        cl_err = clSetKernelArg(*pkernel,  12, sizeof(cl_mem), &inmem->K_x);
+        cl_err = clSetKernelArg(*pkernel,  13, sizeof(cl_mem), &inmem->psi_vxx);
         
     }
     else if ((*inm).ND==21){
