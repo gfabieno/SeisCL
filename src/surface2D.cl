@@ -187,13 +187,13 @@ __kernel void surface(        __global float *vx,         __global float *vz,
         
 #if dev==0 & MYLOCALID==0
         if (gidx-fdoh<nab){
-            sxx(gidz,gidy,gidx)*=1.0/taper[gidx-fdoh];
+            sxx(gidz,gidx)*=1.0/taper[gidx-fdoh];
         }
 #endif
         
 #if dev==num_devices-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-nab-fdoh-1){
-            sxx(gidz,gidy,gidx)*=1.0/taper[NX-fdoh-gidx-1];
+            sxx(gidz,gidx)*=1.0/taper[NX-fdoh-gidx-1];
         }
 #endif
     }
@@ -261,13 +261,13 @@ __kernel void surface(        __global float *vx,         __global float *vz,
   
 #if dev==0 & MYLOCALID==0
         if (gidx-fdoh<nab){
-            sxx(gidz,gidy,gidx)*=taper[gidx-fdoh];
+            sxx(gidz,gidx)*=taper[gidx-fdoh];
         }
 #endif
         
 #if dev==num_devices-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-nab-fdoh-1){
-            sxx(gidz,gidy,gidx)*=taper[NX-fdoh-gidx-1];
+            sxx(gidz,gidx)*=taper[NX-fdoh-gidx-1];
         }
 #endif
     }
