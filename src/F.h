@@ -55,7 +55,7 @@
 #define __GUARD if (!state) state=
 #define CLGUARD(x) if (!state) if (!(state = (x) )) {fprintf(stderr,"OpenCL function failed at line %d in %s()\n",__LINE__,__func__);};
 
-#define CLPERR(err) fprintf(stderr,"Function %s at line %d: %s\n",gpu_error_code((err)), __LINE__,__func__)
+#define CLPERR(err) fprintf(stderr,"Function %s at line %d: %s\n",__func__, __LINE__,gpu_error_code((err)))
 
 
 struct filenames {

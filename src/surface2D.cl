@@ -86,6 +86,7 @@ __kernel void surface(        __global float *vx,         __global float *vz,
     int gidx = get_global_id(0) + fdoh;
     int gidz=fdoh;
     
+    
     /* Global work size is padded to be a multiple of local work size. The padding elements must not be updated */
     if ( gidx>(NX-fdoh-1) ){
         return;
@@ -202,6 +203,7 @@ __kernel void surface(        __global float *vx,         __global float *vz,
     // Correct spatial derivatives to implement CPML
 #if abs_type==1
     {
+        int i,k,ind;
 #if dev==0 & MYLOCALID==0
         if (gidx-fdoh<nab){
             
