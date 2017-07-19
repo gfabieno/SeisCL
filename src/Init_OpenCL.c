@@ -276,12 +276,12 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
         
         // Get some properties of the device
         __GUARD  clGetCommandQueueInfo(	(*vcl)[d].cmd_queue, CL_QUEUE_DEVICE, sizeof(cl_device_id), &device, NULL);
-        if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(state));
+        if (state !=CL_SUCCESS) CLPERR(state);
         
         __GUARD clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(workitem_size), &workitem_size, NULL);
         __GUARD clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(workgroup_size), &workgroup_size, NULL);
         __GUARD clGetDeviceInfo(device, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(local_mem_size), &local_mem_size, NULL);
-        if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(state));
+        if (state !=CL_SUCCESS) CLPERR(state);
         
         //Intel SDK does not give the right max work_group_size our kernels, we force it here!
         if (!state && m->pref_device_type==CL_DEVICE_TYPE_CPU) workgroup_size= workgroup_size>1024 ? 1024:workgroup_size;
@@ -563,7 +563,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
         
         // Check global memory is sufficient
         __GUARD clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(global_mem_size), &global_mem_size, NULL);
-        if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(state));
+        if (state !=CL_SUCCESS) CLPERR(state);
  
         if (!state){
             if (m->ND==3){// For 3D
@@ -820,7 +820,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
         else if (m->abs_type==2) {
             __GUARD create_gpu_memory_buffer( &m->context, buffer_size_taper, &(*vcl)[d].taper);
         }
-        if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(state));
+        if (state !=CL_SUCCESS) CLPERR(state);
         // Create the sub-buffers that will transfer seismic variables between the GPUs at each time step
         if (m->ND!=21){
             __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxx_sub1, &(*mloc)[d].sxx_sub1);
@@ -901,7 +901,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
         __GUARD gpu_intialize_sources(&m->context, &(*vcl)[d].program_sources, &(*vcl)[d].kernel_sources, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d]);
         
         
-        if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(state));
+        if (state !=CL_SUCCESS) CLPERR(state);
 
 
         //If we want the gradient by the adjoint model method, we create the variables
@@ -999,7 +999,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
                     }
                 }
                 
-                if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(state));
+                if (state !=CL_SUCCESS) CLPERR(state);
                 
                 //Create buffers and memory for GPU communication of the residual wavefield
                 if (m->ND!=21){
@@ -1083,7 +1083,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
                         __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_ryy);
                     }
                 }
-                if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(state));
+                if (state !=CL_SUCCESS) CLPERR(state);
    
             }
             
@@ -1131,7 +1131,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
                 __GUARD gpu_initialize_gradsrc(&m->context, &(*vcl)[d].program_initialize_gradsrc, &(*vcl)[d].kernel_initialize_gradsrc, NULL, &(*vcl)[d], m, &(*mloc)[d]);
                 
             }
-            if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(state));
+            if (state !=CL_SUCCESS) CLPERR(state);
         }
 
         /*Transfer memory from host to the device*/
@@ -1197,7 +1197,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** ml
             __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, sizeof(float)*m->nfreqs, &(*vcl)[d].gradfreqsn,   m->gradfreqsn );
         }
         
-        if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",gpu_error_code(state));
+        if (state !=CL_SUCCESS) CLPERR(state);
         
     }
 

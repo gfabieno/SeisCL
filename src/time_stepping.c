@@ -904,7 +904,7 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** 
     }
     
     
-    if (state) fprintf(stderr,"%s\n",gpu_error_code(state));
+    if (state) CLPERR(state);
     if (state && m->MPI_INIT==1) MPI_Bcast( &state, 1, MPI_INT, m->MYID, MPI_COMM_WORLD );
     
     
