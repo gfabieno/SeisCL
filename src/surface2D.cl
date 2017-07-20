@@ -182,6 +182,7 @@ __kernel void surface(        __global float *vx,         __global float *vz,
     }
 #endif
     
+    //TODO Solution is unstable that way, I don't know why
     // Absorbing boundary
 #if abstype==2
     {
