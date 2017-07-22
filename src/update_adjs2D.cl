@@ -81,43 +81,11 @@
 #define rz(y,x) rz[(y)*NT+(x)]
 
 #define PI (3.141592653589793238462643383279502884197169)
-#define srcpos_loc(y,x) srcpos_loc[(y)*nsrc+(x)]
 #define signals(y,x) signals[(y)*NT+(x)]
 #define gradsrc(y,x) gradsrc[(y)*NT+(x)]
 
 
-float psource(int gidz, int gidx,  int nsrc, __global float *srcpos_loc, __global float *signals, int nt){
-    
-    float amp=0.0;
-    if (nsrc>0){
-        
-        for (int srci=0; srci<nsrc; srci++){
-            
-            int SOURCE_TYPE= (int)srcpos_loc(4,srci);
-            
-            if (SOURCE_TYPE==1){
-                int i=(int)(srcpos_loc(0,srci)/DH-0.5)+FDOH;
-                int k=(int)(srcpos_loc(2,srci)/DH-0.5)+FDOH;
-                
-                
-                if (i==gidx && k==gidz){
-                    
-                    
-                    if ( (nt>0) && (nt< NT ) )
-                        amp+=(signals(srci,nt+1)-signals(srci,nt-1) )/(2.0*DH*DH);
-                    else if (nt==0)
-                        amp+=signals(srci,nt+1) /(2*DH*DH);
-                    else if (nt==NT)
-                        amp+=signals(srci,nt-1) /(2*DH*DH);
-                    
-                }
-            }
-        }
-    }
-    
-    return amp;
-    
-}
+
 
 // Find boundary indice for boundary injection in backpropagation
 int evarm( int k, int i){
@@ -234,7 +202,7 @@ int evarm( int k, int i){
     
 }
 
-__kernel void update_adjs(int offcomm, int nsrc,  int nt,
+__kernel void update_adjs(int offcomm, int nt,
                           __global float *vx,         __global float *vz,       __global float *sxx,
                           __global float *szz,        __global float *sxz,      __global float *vxbnd,
                           __global float *vzbnd,      __global float *sxxbnd,   __global float *szzbnd,
@@ -669,8 +637,6 @@ __kernel void update_adjs(int offcomm, int nsrc,  int nt,
 #if BACK_PROP_TYPE==1
     {
 #if LVE==0
-
-    float amp = psource(gidz, gidx+OFFSET, nsrc, srcpos_loc, signals, nt);
     
     sxz(gidz, gidx)-=(fipkp*(vxz+vzx));
     sxx(gidz, gidx)-=(g*(vxx+vzz))-(f*vzz) + amp;
@@ -707,8 +673,6 @@ __kernel void update_adjs(int offcomm, int nsrc,  int nt,
         sumrxx+=rxx(gidz,gidx,l);
         sumrzz+=rzz(gidz,gidx,l);
     }
-    
-    float amp = psource(gidz, gidx+OFFSET, nsrc, srcpos_loc, signals, nt);
     
     /* and now the components of the stress tensor are
      completely updated */
@@ -899,34 +863,35 @@ __kernel void update_adjs(int offcomm, int nsrc,  int nt,
 #endif
 
 #if GRADSRCOUT==1
-    float pressure;
-    if (nsrc>0){
-        
-        for (int srci=0; srci<nsrc; srci++){
-            
-            int SOURCE_TYPE= (int)srcpos_loc(4,srci);
-            
-            if (SOURCE_TYPE==1){
-                int i=(int)(srcpos_loc(0,srci)/DH-0.5)+FDOH;
-                int k=(int)(srcpos_loc(2,srci)/DH-0.5)+FDOH;
-                
-                
-                if (i==gidx && k==gidz){
-                    
-                    pressure=( sxx_r(gidz,gidx)+szz_r(gidz,gidx) )/(2.0*DH*DH);
-                    if ( (nt>0) && (nt< NT ) ){
-                        gradsrc(srci,nt+1)+=pressure;
-                        gradsrc(srci,nt-1)-=pressure;
-                    }
-                    else if (nt==0)
-                        gradsrc(srci,nt+1)+=pressure;
-                    else if (nt==NT)
-                        gradsrc(srci,nt-1)-=pressure;
-                    
-                }
-            }
-        }
-    }
+//TODO
+//    float pressure;
+//    if (nsrc>0){
+//        
+//        for (int srci=0; srci<nsrc; srci++){
+//            
+//            int SOURCE_TYPE= (int)srcpos_loc(4,srci);
+//            
+//            if (SOURCE_TYPE==1){
+//                int i=(int)(srcpos_loc(0,srci)/DH-0.5)+FDOH;
+//                int k=(int)(srcpos_loc(2,srci)/DH-0.5)+FDOH;
+//                
+//                
+//                if (i==gidx && k==gidz){
+//                    
+//                    pressure=( sxx_r(gidz,gidx)+szz_r(gidz,gidx) )/(2.0*DH*DH);
+//                    if ( (nt>0) && (nt< NT ) ){
+//                        gradsrc(srci,nt+1)+=pressure;
+//                        gradsrc(srci,nt-1)-=pressure;
+//                    }
+//                    else if (nt==0)
+//                        gradsrc(srci,nt+1)+=pressure;
+//                    else if (nt==NT)
+//                        gradsrc(srci,nt-1)-=pressure;
+//                    
+//                }
+//            }
+//        }
+//    }
     
 #endif
 

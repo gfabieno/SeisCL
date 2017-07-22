@@ -71,41 +71,8 @@
 #define rz(y,x) rz[(y)*NT+(x)]
 
 #define PI (3.141592653589793238462643383279502884197169)
-#define srcpos_loc(y,x) srcpos_loc[(y)*nsrc+(x)]
 #define signals(y,x) signals[(y)*NT+(x)]
 
-float psource(int gidz, int gidx,  int nsrc, __global float *srcpos_loc, __global float *signals, int nt){
-    
-    float amp=0.0;
-    if (nsrc>0){
-        
-        for (int srci=0; srci<nsrc; srci++){
-            
-            int SOURCE_TYPE= (int)srcpos_loc(4,srci);
-            
-            if (SOURCE_TYPE==1){
-                int i=(int)(srcpos_loc(0,srci)/DH-0.5)+FDOH;
-                int k=(int)(srcpos_loc(2,srci)/DH-0.5)+FDOH;
-                
-                
-                if (i==gidx && k==gidz){
-                    
-
-                    if ( (nt>0) && (nt< NT ) )
-                        amp+=(signals(srci,nt+1)-signals(srci,nt-1) )/(2.0*DH*DH);
-                    else if (nt==0)
-                        amp+=signals(srci,nt+1) /(2*DH*DH);
-                    else if (nt==NT)
-                        amp+=signals(srci,nt-1) /(2*DH*DH);
-
-                }
-            }
-        }
-    }
-    
-    return amp;
-    
-}
 
 
 __kernel void update_s(int offcomm,
@@ -436,10 +403,7 @@ __kernel void update_s(int offcomm,
 // Update the stresses
     {
 #if LVE==0
-        
-        
-//        float amp = psource(gidz, gidx+OFFSET, nsrc, srcpos_loc, signals, nt);
-        
+
         sxz(gidz, gidx)+=(fipkp*(vxz+vzx));
         sxx(gidz, gidx)+=(g*(vxx+vzz))-(f*vzz) ;
         szz(gidz, gidx)+=(g*(vxx+vzz))-(f*vxx) ;
@@ -477,8 +441,7 @@ __kernel void update_s(int offcomm,
             sumrxx+=rxx(gidz,gidx,l);
             sumrzz+=rzz(gidz,gidx,l);
         }
-        
-//        float amp = psource(gidz, gidx+OFFSET, nsrc, srcpos_loc, signals, nt);
+
         
         /* and now the components of the stress tensor are
          completely updated */

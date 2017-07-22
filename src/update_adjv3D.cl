@@ -92,57 +92,10 @@
 
 
 #define PI (3.141592653589793238462643383279502884197169)
-#define srcpos_loc(y,x) srcpos_loc[(y)*nsrc+(x)]
 #define signals(y,x) signals[(y)*NT+(x)]
 #define rec_pos(y,x) rec_pos[(y)*8+(x)]
 #define gradsrc(y,x) gradsrc[(y)*NT+(x)]
 
-
-float3 ssource(int gidz, int gidy, int gidx,  int nsrc, __global float *srcpos_loc, __global float *signals, int nt, __global float * rip, __global float * rjp, __global float * rkp){
-    
-    float3 ampv={0.0,0.0,0.0};
-    if (nsrc>0){
-        
-        
-        for (int srci=0; srci<nsrc; srci++){
-            
-            
-            int i=(int)(srcpos_loc(0,srci)/DH-0.5)+FDOH;
-            int j=(int)(srcpos_loc(1,srci)/DH-0.5)+FDOH;
-            int k=(int)(srcpos_loc(2,srci)/DH-0.5)+FDOH;
-            
-            if (i==gidx && j==gidy && k==gidz){
-                //                float azi_rad=srcpos_loc(6,srci) * PI / 180;
-                
-                
-                float amp=(DT*signals(srci,nt))/(DH*DH*DH); // scaled force amplitude with F= 1N
-                
-                int SOURCE_TYPE= (int)srcpos_loc(4,srci);
-                
-                if (SOURCE_TYPE==2){
-                    /* single force in x */
-                    ampv.x  +=  amp/rip(k,j,i-OFFSET);
-                }
-                else if (SOURCE_TYPE==3){
-                    /* single force in y */
-                    
-                    ampv.y  +=  amp/rjp(k,j,i-OFFSET);
-                }
-                else if (SOURCE_TYPE==4){
-                    /* single force in z */
-                    
-                    ampv.z  +=  amp/rkp(k,j,i-OFFSET);
-                }
-                
-            }
-        }
-        
-        
-    }
-    
-    return ampv;
-    
-}
 
 // Find boundary indice for boundary injection in backpropagation
 int evarm( int k, int j, int i){
@@ -304,7 +257,7 @@ int evarm( int k, int j, int i){
 }
 
 
-__kernel void update_adjv(int offcomm, int nsrc,  int ng, int nt,
+__kernel void update_adjv(int offcomm, int ng, int nt,
                           __global float *vx,         __global float *vy,      __global float *vz,
                           __global float *sxx,        __global float *syy,     __global float *szz,
                           __global float *sxy,        __global float *syz,     __global float *sxz,
@@ -1128,7 +1081,6 @@ __kernel void update_adjv(int offcomm, int nsrc,  int ng, int nt,
 // Backpropagate the forward velocity
 #if BACK_PROP_TYPE==1
     {
-        float3 amp = ssource(gidz, gidy, gidx+OFFSET, nsrc, srcpos_loc, signals, nt, rip, rjp, rkp);
         lvx=((sxx_x + sxy_y + sxz_z)/rip(gidz,gidy,gidx))+amp.x;
         lvy=((syy_y + sxy_x + syz_z)/rjp(gidz,gidy,gidx))+amp.y;
         lvz=((szz_z + sxz_x + syz_y)/rkp(gidz,gidy,gidx))+amp.z;
@@ -1313,40 +1265,41 @@ __kernel void update_adjv(int offcomm, int nsrc,  int ng, int nt,
 #endif
     
 #if GRADSRCOUT==1
-    if (nsrc>0){
-        
-        
-        for (int srci=0; srci<nsrc; srci++){
-            
-            
-            int i=(int)(srcpos_loc(0,srci)/DH-0.5)+FDOH;
-            int j=(int)(srcpos_loc(1,srci)/DH-0.5)+FDOH;
-            int k=(int)(srcpos_loc(2,srci)/DH-0.5)+FDOH;
-            
-            if (i==gidx && j==gidy && k==gidz){
-                
-                int SOURCE_TYPE= (int)srcpos_loc(4,srci);
-                
-                if (SOURCE_TYPE==2){
-                    /* single force in x */
-                    gradsrc(srci,nt)+= vx_r(gidz,gidy,gidx)/rip(gidx,gidy,gidz)/(DH*DH*DH);
-                }
-                else if (SOURCE_TYPE==3){
-                    /* single force in y */
-                    
-                    gradsrc(srci,nt)+= vy_r(gidz,gidy,gidx)/rip(gidx,gidy,gidz)/(DH*DH*DH);
-                }
-                else if (SOURCE_TYPE==4){
-                    /* single force in z */
-                    
-                    gradsrc(srci,nt)+= vz_r(gidz,gidy,gidx)/rip(gidx,gidy,gidz)/(DH*DH*DH);
-                }
-                
-            }
-        }
-        
-        
-    }
+    //TODO
+//    if (nsrc>0){
+//        
+//        
+//        for (int srci=0; srci<nsrc; srci++){
+//            
+//            
+//            int i=(int)(srcpos_loc(0,srci)/DH-0.5)+FDOH;
+//            int j=(int)(srcpos_loc(1,srci)/DH-0.5)+FDOH;
+//            int k=(int)(srcpos_loc(2,srci)/DH-0.5)+FDOH;
+//            
+//            if (i==gidx && j==gidy && k==gidz){
+//                
+//                int SOURCE_TYPE= (int)srcpos_loc(4,srci);
+//                
+//                if (SOURCE_TYPE==2){
+//                    /* single force in x */
+//                    gradsrc(srci,nt)+= vx_r(gidz,gidy,gidx)/rip(gidx,gidy,gidz)/(DH*DH*DH);
+//                }
+//                else if (SOURCE_TYPE==3){
+//                    /* single force in y */
+//                    
+//                    gradsrc(srci,nt)+= vy_r(gidz,gidy,gidx)/rip(gidx,gidy,gidz)/(DH*DH*DH);
+//                }
+//                else if (SOURCE_TYPE==4){
+//                    /* single force in z */
+//                    
+//                    gradsrc(srci,nt)+= vz_r(gidz,gidy,gidx)/rip(gidx,gidy,gidz)/(DH*DH*DH);
+//                }
+//                
+//            }
+//        }
+//        
+//        
+//    }
 #endif
     
 }

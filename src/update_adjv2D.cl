@@ -80,48 +80,10 @@
 #define rz(y,x) rz[(y)*NT+(x)]
 
 #define PI (3.141592653589793238462643383279502884197169)
-#define srcpos_loc(y,x) srcpos_loc[(y)*nsrc+(x)]
 #define signals(y,x) signals[(y)*NT+(x)]
 #define rec_pos(y,x) rec_pos[(y)*8+(x)]
 #define gradsrc(y,x) gradsrc[(y)*NT+(x)]
 
-float2 ssource(int gidz, int gidx,  int nsrc, __global float *srcpos_loc, __global float *signals, int nt, __global float * rip, __global float * rkp){
-    
-    float2 ampv={0.0,0.0};
-    if (nsrc>0){
-        
-        
-        for (int srci=0; srci<nsrc; srci++){
-            
-            
-            int i=(int)(srcpos_loc(0,srci)/DH-0.5)+FDOH;
-            int k=(int)(srcpos_loc(2,srci)/DH-0.5)+FDOH;
-            
-            if (i==gidx && k==gidz){
-                
-                float amp=(DT*signals(srci,nt))/(DH*DH); // scaled force amplitude with F= 1N
-                
-                int SOURCE_TYPE= (int)srcpos_loc(4,srci);
-                
-                if (SOURCE_TYPE==2){
-                    /* single force in x */
-                    ampv.x  +=  amp/rip(k,i-OFFSET);
-                }
-                else if (SOURCE_TYPE==4){
-                    /* single force in z */
-                    
-                    ampv.y  +=  amp/rkp(k,i-OFFSET);
-                }
-                
-            }
-        }
-        
-        
-    }
-    
-    return ampv;
-    
-}
 
 // Find boundary indice for boundary injection in backpropagation
 int evarm( int k, int i){
@@ -239,7 +201,7 @@ int evarm( int k, int i){
 }
 
 
-__kernel void update_adjv(int offcomm, int nsrc,  int ng, int nt,
+__kernel void update_adjv(int offcomm, int ng, int nt,
                           __global float *vx,         __global float *vz,
                           __global float *sxx,        __global float *szz,
                           __global float *sxz,
@@ -655,8 +617,7 @@ __kernel void update_adjv(int offcomm, int nsrc,  int ng, int nt,
 // Backpropagate the forward velocity
 #if BACK_PROP_TYPE==1
     {
-        amp = ssource(gidz, gidx+OFFSET, nsrc, srcpos_loc, signals, nt, rip, rkp);
-        
+
         lvx=((sxx_x + sxz_z)/rip(gidz,gidx))+amp.x;
         lvz=((szz_z + sxz_x)/rkp(gidz,gidx))+amp.y;
         vx(gidz,gidx)-= lvx;
@@ -778,34 +739,35 @@ __kernel void update_adjv(int offcomm, int nsrc,  int ng, int nt,
 #endif
     
 #if GRADSRCOUT==1
-    if (nsrc>0){
-        
-        
-        for (int srci=0; srci<nsrc; srci++){
-            
-            
-            int i=(int)(srcpos_loc(0,srci)/DH-0.5)+FDOH;
-            int k=(int)(srcpos_loc(2,srci)/DH-0.5)+FDOH;
-            
-            if (i==gidx && k==gidz){
-                
-                int SOURCE_TYPE= (int)srcpos_loc(4,srci);
-                
-                if (SOURCE_TYPE==2){
-                    /* single force in x */
-                    gradsrc(srci,nt)+= vx_r(gidz,gidx)/rip(gidx,gidz)/(DH*DH);
-                }
-                else if (SOURCE_TYPE==4){
-                    /* single force in z */
-                    
-                    gradsrc(srci,nt)+= vz_r(gidz,gidx)/rkp(gidx,gidz)/(DH*DH);
-                }
-                
-            }
-        }
-        
-        
-    }
+    //TODO
+//    if (nsrc>0){
+//        
+//        
+//        for (int srci=0; srci<nsrc; srci++){
+//            
+//            
+//            int i=(int)(srcpos_loc(0,srci)/DH-0.5)+FDOH;
+//            int k=(int)(srcpos_loc(2,srci)/DH-0.5)+FDOH;
+//            
+//            if (i==gidx && k==gidz){
+//                
+//                int SOURCE_TYPE= (int)srcpos_loc(4,srci);
+//                
+//                if (SOURCE_TYPE==2){
+//                    /* single force in x */
+//                    gradsrc(srci,nt)+= vx_r(gidz,gidx)/rip(gidx,gidz)/(DH*DH);
+//                }
+//                else if (SOURCE_TYPE==4){
+//                    /* single force in z */
+//                    
+//                    gradsrc(srci,nt)+= vz_r(gidz,gidx)/rkp(gidx,gidz)/(DH*DH);
+//                }
+//                
+//            }
+//        }
+//        
+//        
+//    }
 #endif
     
 }

@@ -81,13 +81,18 @@ struct clbuf {
     cl_mem mem;
     size_t size;
     
+    cl_mem pin;
     float * host;
     
-    int outevent;
-    cl_event event;
+    int outevent_r;
+    int outevent_s;
+    cl_event event_r;
+    cl_event event_s;
     
-    int nwait;
-    cl_event * waitlist;
+    int nwait_r;
+    cl_event * waits_r;
+    int nwait_s;
+    cl_event * waits_s;
     
 };
 
@@ -115,7 +120,7 @@ struct clprogram {
     cl_event event;
     
     int nwait;
-    cl_event * waitlist;
+    cl_event * waits;
     
 };
 
@@ -126,14 +131,10 @@ struct variable{
     struct clbuf cl_var;
     struct clbuf cl_varout;
     struct clbuf cl_varbnd;
-    struct clbuf cl_varbnd_pin;
     struct clbuf cl_fvar;
     struct clbuf cl_buf1;
-    struct clbuf cl_buf1_pin;
     struct clbuf cl_buf2;
-    struct clbuf cl_buf2_pin;
     struct clbuf cl_var_res;
-    struct clbuf cl_mov;
 
     cl_float2 * gl_fvar;
     float **    gl_varout;
@@ -193,6 +194,7 @@ struct sources_records{
     struct clprogram residuals;
     struct clprogram init_gradsrc;
 
+    int ns;
     int nsmax;
     int ngmax;
     int allng;
@@ -249,12 +251,7 @@ struct gradients {
     struct clprogram savefreqs;
     struct clprogram initsavefreqs;
     struct clprogram savebnd;
-    
-    cl_event event_bndsave;
-    cl_event event_bndtransf;
-    cl_event event_bndsave2;
-    cl_event event_bndtransf2;
-    
+
 };
 
 struct varcl {
@@ -333,7 +330,6 @@ struct modcsts {
     int MOVOUT;
     int RESOUT;
     int RMSOUT;
-    int ns;
     int L;
     int MYID;
     int NP;
@@ -418,10 +414,6 @@ int Free_OpenCL(struct modcsts * m, struct varcl ** vcl) ;
 
 int time_stepping(struct modcsts * m, struct varcl ** vcl);
 
-int comm_v(struct modcsts * m, struct varcl ** vcl, int bstep);
-
-int comm_s(struct modcsts * m, struct varcl ** vcl, int bstep);
-
 int readhdf5(struct filenames files, struct modcsts * m);
 
 int Init_MPI(struct modcsts * m);
@@ -449,11 +441,17 @@ cl_int create_gpu_kernel_from_string(const char *program_source, cl_program *pro
 
 cl_int clbuf_send(cl_command_queue *inqueue, struct clbuf * buf);
 
+cl_int clbuf_sendpin( cl_command_queue *inqueue,
+                     struct clbuf * buf,
+                     struct clbuf * bufpin,
+                     int offset);
+
 cl_int clbuf_read(cl_command_queue *inqueue, struct clbuf * buf);
 
 cl_int clbuf_readpin( cl_command_queue *inqueue,
                      struct clbuf * buf,
-                     struct clbuf * bufpin);
+                     struct clbuf * bufpin,
+                     int offset);
 
 cl_int clbuf_create(cl_context *incontext, struct clbuf * buf);
 
@@ -485,28 +483,56 @@ int extract_args(const char *str, char *name, char *** argnames, int * ninputs);
 
 int create_kernel(struct modcsts * m, struct varcl * vcl,  struct clprogram * prog);
 
-int prog_source(struct clprogram * prog, char* name, const char * source);
+int prog_source(struct clprogram * prog,
+                char* name,
+                const char * source);
 
-int kernel_varout(struct varcl * vcl, struct variable * vars, struct clprogram * prog);
+int kernel_varout(struct varcl * vcl,
+                  struct variable * vars,
+                  struct clprogram * prog);
 
-int kernel_varoutinit(struct varcl * vcl, struct variable * vars, struct clprogram * prog);
+int kernel_varoutinit(struct varcl * vcl,
+                      struct variable * vars,
+                      struct clprogram * prog);
 
-int kernel_varinit(struct varcl * vcl, struct variable * vars, struct clprogram * prog);
+int kernel_varinit(struct varcl * vcl,
+                   struct variable * vars,
+                   struct clprogram * prog);
 
-int kernel_residuals(struct varcl * vcl, struct variable * vars, struct clprogram * prog);
+int kernel_residuals(struct varcl * vcl,
+                     struct variable * vars,
+                     struct clprogram * prog);
 
-int kernel_gradinit(struct varcl * vcl, struct parameter * pars, struct clprogram * prog);
+int kernel_gradinit(struct varcl * vcl,
+                    struct parameter * pars,
+                    struct clprogram * prog);
 
-int kernel_initsavefreqs(struct varcl * vcl, struct variable * vars, struct clprogram * prog);
+int kernel_initsavefreqs(struct varcl * vcl,
+                         struct variable * vars,
+                         struct clprogram * prog);
 
-int kernel_savefreqs(struct varcl * vcl, struct variable * vars, struct clprogram * prog);
+int kernel_savefreqs(struct varcl * vcl,
+                     struct variable * vars,
+                     struct clprogram * prog);
 
 int kernel_init_gradsrc(struct clprogram * prog);
 
-int kernel_fcom_out(struct varcl * vcl, struct variable * vars, struct clprogram * prog, int upid, int buff12);
+int kernel_fcom_out(struct varcl * vcl,
+                    struct variable * vars,
+                    struct clprogram * prog,
+                    int upid,
+                    int buff12);
 
-int kernel_fcom_in(struct varcl * vcl, struct variable * vars, struct clprogram * prog, int upid, int buff12);
+int kernel_fcom_in(struct varcl * vcl,
+                   struct variable * vars,
+                   struct clprogram * prog,
+                   int upid,
+                   int buff12);
 
 int kernel_sources(struct varcl * vcl,
                    struct variable * vars,
                    struct clprogram * prog);
+
+int event_dependency( struct modcsts * m,  struct varcl ** vcl, int adj);
+
+int comm(struct modcsts * m, struct varcl ** vcl, int adj, int ui);

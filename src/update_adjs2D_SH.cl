@@ -101,7 +101,6 @@
 
 
 #define PI (3.141592653589793238462643383279502884197169)
-#define srcpos_loc(y,x) srcpos_loc[(y)*nsrc+(x)]
 #define signals(y,x) signals[(y)*NT+(x)]
 #define rec_pos(y,x) rec_pos[(y)*8+(x)]
 #define gradsrc(y,x) gradsrc[(y)*NT+(x)]
@@ -221,7 +220,7 @@ int evarm( int k, int i){
     
 }
 
-__kernel void update_adjs(int offcomm, int nsrc,  int nt,
+__kernel void update_adjs(int offcomm, int nt,
                           __global float *vy,
                           __global float *sxy,        __global float *syz,
                           __global float *vybnd,

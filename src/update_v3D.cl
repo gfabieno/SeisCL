@@ -90,72 +90,9 @@
 #define rz(y,x) rz[(y)*NT+(x)]
 
 #define PI (3.141592653589793238462643383279502884197169)
-#define srcpos_loc(y,x) srcpos_loc[(y)*nsrc+(x)]
 #define signals(y,x) signals[(y)*NT+(x)]
 
 
-
-
-float3 ssource(int gidz, int gidy, int gidx,  int nsrc, __global float *srcpos_loc, __global float *signals, int nt, __global float * rip, __global float * rjp, __global float * rkp){
-    
-    float3 ampv={0.0,0.0,0.0};
-    if (nsrc>0){
-        
-        
-        for (int srci=0; srci<nsrc; srci++){
-            
-            
-            int i=(int)(srcpos_loc(0,srci)/DH-0.5)+FDOH;
-            int j=(int)(srcpos_loc(1,srci)/DH-0.5)+FDOH;
-            int k=(int)(srcpos_loc(2,srci)/DH-0.5)+FDOH;
-            
-            if (i==gidx && j==gidy && k==gidz){
-//                float azi_rad=srcpos_loc(6,srci) * PI / 180;
-                
-
-                float amp=(DT*signals(srci,nt))/(DH*DH*DH); // scaled force amplitude with F= 1N
-                
-                int SOURCE_TYPE= (int)srcpos_loc(4,srci);
-                
-                if (SOURCE_TYPE==2){
-                    /* single force in x */
-                    ampv.x  +=  amp/rip(k,j,i-OFFSET);
-                }
-                else if (SOURCE_TYPE==3){
-                    /* single force in y */
-                    
-                    ampv.y  +=  amp/rjp(k,j,i-OFFSET);
-                }
-                else if (SOURCE_TYPE==4){
-                    /* single force in z */
-                    
-                    ampv.z  +=  amp/rkp(k,j,i-OFFSET);
-                }
-                
-//                if (SOURCE_TYPE==2){
-//                    /* single force in x */
-//                    ampv.x  +=  amp;
-//                }
-//                else if (SOURCE_TYPE==3){
-//                    /* single force in y */
-//                    
-//                    ampv.y  +=  amp;
-//                }
-//                else if (SOURCE_TYPE==4){
-//                    /* single force in z */
-//                    
-//                    ampv.z  +=  amp;
-//                }
-
-            }
-        }
-
-        
-    }
- 
-    return ampv;
-
-}
 
 __kernel void update_v(int offcomm,
                        __global float *vx,         __global float *vy,           __global float *vz,
@@ -710,7 +647,6 @@ __kernel void update_v(int offcomm,
 
 // Update the velocities
     {
-        float3 amp = ssource(gidz, gidy, gidx+OFFSET, nsrc, srcpos_loc, signals, nt, rip, rjp, rkp);
         vx(gidz,gidy,gidx)+= ((sxx_x + sxy_y + sxz_z)/rip(gidz,gidy,gidx))+amp.x;
         vy(gidz,gidy,gidx)+= ((syy_y + sxy_x + syz_z)/rjp(gidz,gidy,gidx))+amp.y;
         vz(gidz,gidy,gidx)+= ((szz_z + sxz_x + syz_y)/rkp(gidz,gidy,gidx))+amp.z;

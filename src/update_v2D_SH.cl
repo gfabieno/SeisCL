@@ -86,49 +86,12 @@
 #define rz(y,x) rz[(y)*NT+(x)]
 
 #define PI (3.141592653589793238462643383279502884197169)
-#define srcpos_loc(y,x) srcpos_loc[(y)*nsrc+(x)]
 #define signals(y,x) signals[(y)*NT+(x)]
 
 
 
 
-float ssource(int gidz,  int gidx,  int nsrc, __global float *srcpos_loc, __global float *signals, int nt, __global float * rjp){
-    
-    float amp=0;
-    if (nsrc>0){
-        
-        
-        for (int srci=0; srci<nsrc; srci++){
-            
-            
-            int i=(int)(srcpos_loc(0,srci)/DH-0.5)+FDOH;
-            int k=(int)(srcpos_loc(2,srci)/DH-0.5)+FDOH;
-            
-            
-            if (i==gidx  && k==gidz){
-                
-
-                float ampin=(DT*signals(srci,nt))/(DH*DH); // scaled force amplitude with F= 1N
-                
-                int SOURCE_TYPE= (int)srcpos_loc(4,srci);
-                
-                if (SOURCE_TYPE==3){
-                    /* single force in y */
-                    amp  +=  ampin/rjp(k,i-OFFSET);
-                }
-                
-                
-            }
-        }
-
-        
-    }
- 
-    return amp;
-
-}
-
-__kernel void update_v(int offcomm,int nsrc,  int nt,
+__kernel void update_v(int offcomm, int nt,
                        __global float *vy,         __global float *sxy,        __global float *syz,
                        __global float *rjp,
                        __global float *srcpos_loc, __global float *signals,      __global float *rec_pos,
@@ -329,7 +292,6 @@ __kernel void update_v(int offcomm,int nsrc,  int nt,
 
 // Update the velocities
     {
-        float amp = ssource(gidz, gidx+OFFSET, nsrc, srcpos_loc, signals, nt, rjp);
         vy(gidz,gidx)+= ((sxy_x + syz_z)/rjp(gidz,gidx))+amp;
     }
 

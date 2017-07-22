@@ -79,8 +79,6 @@
 
 
 #define PI (3.141592653589793238462643383279502884197169)
-#define srcpos_loc(y,x) srcpos_loc[(y)*nsrc+(x)]
-#define signals(y,x) signals[(y)*NT+(x)]
 
 
 __kernel void savebnd(__global float *vx,         __global float *vy,      __global float *vz,

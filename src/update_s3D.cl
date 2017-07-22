@@ -81,47 +81,11 @@
 
 
 #define PI (3.141592653589793238462643383279502884197169)
-#define srcpos_loc(y,x) srcpos_loc[(y)*nsrc+(x)]
 #define signals(y,x) signals[(y)*NT+(x)]
 
 
-float psource(int gidz, int gidy, int gidx,  int nsrc, __global float *srcpos_loc, __global float *signals, int nt){
-    
-    float amp=0.0;
-    if (nsrc>0){
-        
-        for (int srci=0; srci<nsrc; srci++){
-        
-            int SOURCE_TYPE= (int)srcpos_loc(4,srci);
-            
-            if (SOURCE_TYPE==1){
-                int i=(int)(srcpos_loc(0,srci)/DH-0.5)+FDOH;
-                int j=(int)(srcpos_loc(1,srci)/DH-0.5)+FDOH;
-                int k=(int)(srcpos_loc(2,srci)/DH-0.5)+FDOH;
-         
-                
-                if (i==gidx && j==gidy && k==gidz){
-                    
-                    //amp+=signals(srci,nt)/(DH*DH*DH);
-                    
-//                    if ( (nt>0) && (nt< NT ) ){
-                        amp+=(signals(srci,nt+1)-signals(srci,nt-1) )/(2.0*DH*DH*DH);
-//                    }
-//                    else if (nt==0)
-//                        amp+=signals(srci,nt+1) /(2.0*DH*DH*DH);
-//                    else if (nt==NT)
-//                        amp+=signals(srci,nt-1) /(2.0*DH*DH*DH);
-                }
-            }
-        }
-    }
-    
-    return amp;
-    
-}
 
-
-__kernel void update_s(int offcomm, int nsrc,  int nt,
+__kernel void update_s(int offcomm,  int nt,
                        __global float *vx,         __global float *vy,            __global float *vz,
                        __global float *sxx,        __global float *syy,           __global float *szz,
                        __global float *sxy,        __global float *syz,           __global float *sxz,
@@ -701,8 +665,6 @@ __kernel void update_s(int offcomm, int nsrc,  int nt,
         vxxzz=vxx+vzz;
         vxxyy=vxx+vyy;
         
-        float amp = psource(gidz, gidy, gidx+OFFSET, nsrc, srcpos_loc, signals, nt);
-        
         sxy(gidz,gidy,gidx)+=(fipjp*vxyyx);
         syz(gidz,gidy,gidx)+=(fjpkp*vyzzy);
         sxz(gidz,gidy,gidx)+=(fipkp*vxzzx);
@@ -763,8 +725,7 @@ __kernel void update_s(int offcomm, int nsrc,  int nt,
             sumryy+=ryy(gidz,gidy,gidx,l);
             sumrzz+=rzz(gidz,gidy,gidx,l);
         }
-        
-        float amp = psource(gidz, gidy, gidx+OFFSET, nsrc, srcpos_loc, signals, nt);
+
         /* and now the components of the stress tensor are
          completely updated */
         sxy(gidz,gidy,gidx)+=lsxy+(DT2*sumrxy);

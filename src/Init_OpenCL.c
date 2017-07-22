@@ -452,19 +452,13 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
                     
                     //On the device side
                     vd->vars[i].cl_buf1.size=sizeof(float)*m->FDOH*slicesize;
-                    __GUARD clbuf_create(&m->context, &vd->vars[i].cl_buf1);
+                    __GUARD clbuf_create_pin(&m->context,
+                                             &vd->queuecomm,
+                                             &vd->vars[i].cl_buf1);
                     vd->vars[i].cl_buf2.size=sizeof(float)*m->FDOH*slicesize;
-                    __GUARD clbuf_create(&m->context, &vd->vars[i].cl_buf2);
-                    
-                    //On the host, overlapped transfers need pinned memory
-                    vd->vars[i].cl_buf1_pin.size=sizeof(float)*m->FDOH*slicesize;
                     __GUARD clbuf_create_pin(&m->context,
                                              &vd->queuecomm,
-                                             &vd->vars[i].cl_buf1_pin);
-                    vd->vars[i].cl_buf2_pin.size=sizeof(float)* m->FDOH*slicesize;
-                    __GUARD clbuf_create_pin(&m->context,
-                                             &vd->queuecomm,
-                                             &vd->vars[i].cl_buf2_pin);
+                                             &vd->vars[i].cl_buf2);
                 }
             
             // Create the buffers to output variables at receivers locations
@@ -501,7 +495,7 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
             if (m->MOVOUT){
                 if (m->vars[i].to_output){
                     vd->vars[i].gl_mov=&m->vars[i].gl_mov[vd->OFFSET];
-                    GMALLOC(vd->vars[i].cl_mov.host,
+                    GMALLOC(vd->vars[i].cl_var.host,
                             vd->vars[i].num_ele*sizeof(cl_float));
                 }
             }
@@ -566,10 +560,9 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
             for (i=0;i<m->nvars;i++){
                 if (vd->vars[i].to_comm){
                     vd->vars[i].cl_varbnd.size=sizeof(float) * vd->NBND;
-                    __GUARD clbuf_create( &m->context, &vd->vars[i].cl_varbnd);
-                    vd->vars[i].cl_varbnd_pin.size=sizeof(float) * vd->NBND;
-                    __GUARD clbuf_create_pin(&m->context, &vd->queuecomm,
-                                             &vd->vars[i].cl_varbnd_pin);
+                    __GUARD clbuf_create_pin( &m->context,
+                                              &vd->queuecomm,
+                                              &vd->vars[i].cl_varbnd);
                 }
             }
             
@@ -592,14 +585,12 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
                                             || d<m->NUM_DEVICES-1
                                             || m->MYLOCALID<m->NLOCALP-1)){
                     
-                    __GUARD clbuf_create_pin(&m->context, &vd->queuecomm,
-                                             &vd->vars_adj[i].cl_buf1_pin);
-                    __GUARD clbuf_create_pin(&m->context, &vd->queuecomm,
-                                             &vd->vars_adj[i].cl_buf2_pin);
-                    __GUARD clbuf_create( &m->context,
-                                          &vd->vars_adj[i].cl_buf1);
-                    __GUARD clbuf_create( &m->context,
-                                          &vd->vars_adj[i].cl_buf2);
+                    __GUARD clbuf_create_pin(&m->context,
+                                             &vd->queuecomm,
+                                             &vd->vars_adj[i].cl_buf1);
+                    __GUARD clbuf_create_pin(&m->context,
+                                             &vd->queuecomm,
+                                             &vd->vars_adj[i].cl_buf2);
                 }
             }
 
@@ -668,7 +659,8 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
                 __GUARD create_kernel(m, vd,  &vd->grads.init);
             }
             else if(m->BACK_PROP_TYPE==2){
-                __GUARD kernel_initsavefreqs(vd, vd->vars, &vd->grads.initsavefreqs);
+                __GUARD kernel_initsavefreqs(vd, vd->vars,
+                                                      &vd->grads.initsavefreqs);
                 __GUARD create_kernel(m, vd,  &vd->grads.initsavefreqs);
                 
                 kernel_savefreqs(vd, vd->vars, &vd->grads.savefreqs);
@@ -697,51 +689,6 @@ int Init_OpenCL(struct modcsts * m, struct varcl ** vcl)  {
         
     }
     
-    //Finally, we must set the event dependencies of the updates
-    int inevent=0;
-    int outevent=-1;
-    
-    
-    
-
-    
-        
-    //TODO revise, events should change between forward and adjoint modeling
-    for (d=0;d<m->NUM_DEVICES;d++){
-          for (i=0;i<m->nupdates;i++){
-              
-            if (d>0 || m->MYLOCALID>0){
-                (*vcl)[d].ups_f[i].fcom1_out.outevent=1;
-                (*vcl)[d].ups_f[i].fcom1_in.nwait=1;
-                (*vcl)[d].ups_f[i].fcom1_in.waitlist=
-                                               &(*vcl)[d].ups_f[i].event_write1;
-                (*vcl)[d].ups_f[i].v2com[0]->cl_buf1.nwait=1;
-                (*vcl)[d].ups_f[i].v2com[0]->cl_buf1.waitlist=
-                                            &(*vcl)[d].ups_f[i].fcom1_out.event;
-                if (m->GRADOUT && m->BACK_PROP_TYPE==1){
-                    (*vcl)[d].ups_adj[i].v2com[0]->cl_buf1.nwait=1;
-                    (*vcl)[d].ups_adj[i].v2com[0]->cl_buf1.waitlist=
-                    &(*vcl)[d].ups_adj[i].fcom1_out.event;
-                }
-            }
-            if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
-                (*vcl)[d].ups_f[i].fcom2_out.outevent=1;
-                (*vcl)[d].ups_f[i].fcom2_in.nwait=1;
-                (*vcl)[d].ups_f[i].fcom2_in.waitlist=
-                &(*vcl)[d].ups_f[i].event_write2;
-                (*vcl)[d].ups_f[i].v2com[0]->cl_buf2.nwait=1;
-                (*vcl)[d].ups_f[i].v2com[0]->cl_buf2.waitlist=
-                &(*vcl)[d].ups_f[i].fcom2_out.event;
-                if (m->GRADOUT && m->BACK_PROP_TYPE==1){
-                    (*vcl)[d].ups_adj[i].v2com[0]->cl_buf2.nwait=1;
-                    (*vcl)[d].ups_adj[i].v2com[0]->cl_buf2.waitlist=
-                    &(*vcl)[d].ups_adj[i].fcom2_out.event;
-                }
-            }
-        }
-        
-        
-    }
     
     
 

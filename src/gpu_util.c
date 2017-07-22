@@ -352,19 +352,49 @@ cl_int clbuf_send( cl_command_queue *inqueue, struct clbuf * buf)
     /*Routine to allocate memory buffers to the device*/
     
     cl_int cl_err = 0;
+    cl_event * event=NULL;
+    if (buf->outevent_s)
+        event=&buf->event_s;
     /*Transfer memory from host to the device*/
     cl_err = clEnqueueWriteBuffer(*inqueue, buf->mem,
                                   CL_TRUE,
                                   0,
                                   buf->size,
                                   (void*)buf->host,
-                                  0,
-                                  NULL,
-                                  NULL);
+                                  buf->nwait_s,
+                                  buf->waits_s,
+                                  event);
     if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
     
     return cl_err;
 }
+
+cl_int clbuf_sendpin( cl_command_queue *inqueue,
+                     struct clbuf * buf,
+                     struct clbuf * bufpin,
+                     int offset)
+{
+    /*Routine to allocate memory buffers to the device*/
+    
+    cl_int cl_err = 0;
+    cl_event * event=NULL;
+    if (buf->outevent_s)
+    event=&buf->event_s;
+    /*Transfer memory from host to the device*/
+    cl_err = clEnqueueWriteBuffer(*inqueue, buf->mem,
+                                  CL_TRUE,
+                                  0,
+                                  buf->size,
+                                  (void*)&bufpin->host[offset],
+                                  buf->nwait_s,
+                                  buf->waits_s,
+                                  event);
+    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
+    
+    return cl_err;
+}
+
+
 
 cl_int clbuf_read( cl_command_queue *inqueue, struct clbuf * buf)
 {
@@ -372,8 +402,8 @@ cl_int clbuf_read( cl_command_queue *inqueue, struct clbuf * buf)
     
     cl_int cl_err = 0;
     cl_event * event=NULL;
-    if (buf->outevent)
-        event=&buf->event;
+    if (buf->outevent_r)
+        event=&buf->event_r;
 
     /*Read memory from device to the host*/
     cl_err = clEnqueueReadBuffer(*inqueue,
@@ -382,8 +412,8 @@ cl_int clbuf_read( cl_command_queue *inqueue, struct clbuf * buf)
                                  0,
                                  buf->size,
                                  buf->host,
-                                 buf->nwait,
-                                 buf->waitlist,
+                                 buf->nwait_r,
+                                 buf->waits_r,
                                  event);
     
     if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
@@ -393,14 +423,15 @@ cl_int clbuf_read( cl_command_queue *inqueue, struct clbuf * buf)
 
 cl_int clbuf_readpin( cl_command_queue *inqueue,
                      struct clbuf * buf,
-                     struct clbuf * bufpin)
+                     struct clbuf * bufpin,
+                     int offset)
 {
     /*Routine to read memory buffers from the device*/
     
     cl_int cl_err = 0;
     cl_event * event=NULL;
-    if (buf->outevent)
-        event=&buf->event;
+    if (buf->outevent_r)
+        event=&buf->event_r;
     
     /*Read memory from device to the host*/
     cl_err = clEnqueueReadBuffer(*inqueue,
@@ -408,9 +439,9 @@ cl_int clbuf_readpin( cl_command_queue *inqueue,
                                  CL_FALSE,
                                  0,
                                  buf->size,
-                                 bufpin->host,
-                                 buf->nwait,
-                                 buf->waitlist,
+                                 &bufpin->host[offset],
+                                 buf->nwait_r,
+                                 buf->waits_r,
                                  event);
     
     if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));
@@ -435,6 +466,11 @@ cl_int clbuf_create_pin(cl_context *incontext, cl_command_queue *inqueue,
     /*Create pinned memory */
     cl_int cl_err = 0;
     (*buf).mem = clCreateBuffer(*incontext,
+                                CL_MEM_READ_WRITE,
+                                (*buf).size,
+                                NULL,
+                                &cl_err);
+    (*buf).pin= clCreateBuffer(*incontext,
                                 CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR,
                                 (*buf).size,
                                 NULL,
@@ -485,7 +521,7 @@ cl_int prog_launch( cl_command_queue *inqueue, struct clprogram * prog){
                                               prog->gsize,
                                               lsize,
                                               prog->nwait,
-                                              prog->waitlist,
+                                              prog->waits,
                                               event);
     
     if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",cl_err_code(cl_err));

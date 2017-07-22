@@ -20,863 +20,328 @@
 #include "F.h"
 
 
-int comm(struct modcsts * m, struct varcl ** vcl, int adj, int upind){
+
+
+int comm1_MPI(struct modcsts * m, struct varcl ** vcl, int adj, int ui){
+    int state=0;
+    int i;
+
+    //For buffer to transmit, wait for the event telling that reading has
+    //occured, then release the event. We exchange the buffer with the previous
+    //processing element, sending buf1 et receiving buf2.
+    //Then send to device buf1. The last buf_1 in the list to transmit outputs
+    // an event for fcom1_in.
+    if (adj && m->BACK_PROP_TYPE==1){
+        for (i=0;i<m->ups_adj[ui].nvcom;i++){
+            __GUARD clWaitForEvents(1,
+                               &(*vcl)[0].ups_adj[i].v2com[i]->cl_buf1.event_r);
+            __GUARD clReleaseEvent(
+                                (*vcl)[0].ups_adj[i].v2com[i]->cl_buf1.event_r);
+            
+            MPI_Sendrecv_replace(
+             (void*)(*vcl)[0].ups_adj[i].v2com[i]->cl_buf1.host,
+             (int)(*vcl)[0].ups_adj[i].v2com[i]->cl_buf1.size/sizeof(float),
+                                 MPI_FLOAT,
+                                 m->MYID-1,
+                                 i,
+                                 m->MYID-1,
+                                 i,
+                                 MPI_COMM_WORLD,
+                                 NULL);
+            __GUARD clbuf_send(
+                               &(*vcl)[0].queuecomm,
+                               &(*vcl)[0].ups_adj[ui].v2com[i]->cl_buf1);
+        }
+    }
+    for (i=0;i<m->ups_f[ui].nvcom;i++){
+        __GUARD clWaitForEvents(1,
+                                &(*vcl)[0].ups_f[i].v2com[i]->cl_buf1.event_r);
+        __GUARD clReleaseEvent(  (*vcl)[0].ups_f[i].v2com[i]->cl_buf1.event_r);
+        
+        MPI_Sendrecv_replace(
+                    (void*)(*vcl)[0].ups_f[i].v2com[i]->cl_buf1.host,
+                    (int)(*vcl)[0].ups_f[i].v2com[i]->cl_buf1.size/sizeof(float),
+                    MPI_FLOAT,
+                    m->MYID-1,
+                    i,
+                    m->MYID-1,
+                    i,
+                    MPI_COMM_WORLD,
+                    NULL);
+        
+        __GUARD clbuf_send(
+                           &(*vcl)[0].queuecomm,
+                           &(*vcl)[0].ups_f[ui].v2com[i]->cl_buf1);
+    }
+
+    return state;
+    
+}
+
+int comm2_MPI(struct modcsts * m, struct varcl ** vcl, int adj, int ui){
+    int state=0;
+    int i, ld;
+    
+    ld=m->NUM_DEVICES-1;
+    
+    //For buffer to transmit, wait for the event telling that reading has
+    //occured, then release the event. We exchange the buffer with the next
+    //processing element, sending buf2 et receiving buf1.
+    //Then send to device buf2. The last buf_2 in the list to transmit outputs
+    // an event for fcom2_in.
+    if (adj && m->BACK_PROP_TYPE==1){
+        for (i=0;i<m->ups_adj[ui].nvcom;i++){
+            __GUARD clWaitForEvents(1,
+                              &(*vcl)[ld].ups_adj[i].v2com[i]->cl_buf2.event_r);
+            __GUARD clReleaseEvent(
+                               (*vcl)[ld].ups_adj[i].v2com[i]->cl_buf2.event_r);
+            
+            MPI_Sendrecv_replace(
+                (void*)(*vcl)[ld].ups_adj[i].v2com[i]->cl_buf2.host,
+                (int)(*vcl)[ld].ups_adj[i].v2com[i]->cl_buf2.size/sizeof(float),
+                MPI_FLOAT,
+                m->MYID-1,
+                i,
+                m->MYID-1,
+                i,
+                MPI_COMM_WORLD,
+                NULL);
+            __GUARD clbuf_send(&(*vcl)[ld].queuecomm,
+                               &(*vcl)[ld].ups_adj[ui].v2com[i]->cl_buf2);
+        }
+    }
+    for (i=0;i<m->ups_f[ui].nvcom;i++){
+        __GUARD clWaitForEvents(1,
+                                &(*vcl)[ld].ups_f[i].v2com[i]->cl_buf2.event_r);
+        __GUARD clReleaseEvent(  (*vcl)[ld].ups_f[i].v2com[i]->cl_buf2.event_r);
+        
+        MPI_Sendrecv_replace(
+                  (void*)(*vcl)[ld].ups_f[i].v2com[i]->cl_buf2.host,
+                  (int)(*vcl)[ld].ups_f[i].v2com[i]->cl_buf2.size/sizeof(float),
+                  MPI_FLOAT,
+                  m->MYID+1,
+                  m->ups_f[ui].nvcom+i,
+                  m->MYID+1,
+                  m->ups_f[ui].nvcom+i,
+                  MPI_COMM_WORLD,
+                  NULL);
+        __GUARD clbuf_send(&(*vcl)[ld].queuecomm,
+                           &(*vcl)[ld].ups_f[ui].v2com[i]->cl_buf2);
+    }
+    
+    return state;
+    
+}
+
+
+int comm(struct modcsts * m, struct varcl ** vcl, int adj, int ui){
     /* Communication for domain decompositon for MPI (between processes)
-       and OpenCL (between devices) */
+     and OpenCL (between devices) */
     
     int state = 0;
-    int d,i, lastd;
-
+    int d,i, ld;
     
+    //Read buffers for comunnication between MPI processes sharing this shot
+    if (m->MYLOCALID>0){
+        //For all MPI processes except the first, com1 must occur on the firt
+        //device
+        
+        
+        //The first buffer cl_buf1 in the list must wait on the kernel fcom1
+        //All buffers reading must output an event for MPI communications
+        if (adj && m->BACK_PROP_TYPE==1){
+            for (i=0;i<m->ups_adj[ui].nvcom;i++){
+                __GUARD clbuf_readpin(&(*vcl)[0].queuecomm,
+                                      &(*vcl)[0].ups_adj[ui].v2com[i]->cl_buf1,
+                                      &(*vcl)[0].ups_adj[ui].v2com[i]->cl_buf1,
+                                      0);
+            }
+        }
+        for (i=0;i<m->ups_f[ui].nvcom;i++){
+            __GUARD clbuf_readpin(&(*vcl)[0].queuecomm,
+                                  &(*vcl)[0].ups_f[ui].v2com[i]->cl_buf1,
+                                  &(*vcl)[0].ups_f[ui].v2com[i]->cl_buf1,
+                                  0);
+        }
+        //We can realease the fcom1 event, it is no longer needed.
+        if (adj){
+            __GUARD clReleaseEvent((*vcl)[0].ups_adj[i].fcom1_out.event);
+        }
+        else{
+            __GUARD clReleaseEvent((*vcl)[0].ups_f[i].fcom1_out.event);
+        }
+        
+    }
+    if (m->MYLOCALID<m->NLOCALP-1){
+        //For all MPI processes except the last, com2 must occur on the last
+        //device
+        
+        ld=m->NUM_DEVICES-1;
+        
+        //The first buffer cl_buf2 in the list must wait on the kernel fcom2
+        //All buffers reading must output an event for MPI communications
+        if (adj && m->BACK_PROP_TYPE==1){
+            for (i=0;i<m->ups_adj[ui].nvcom;i++){
+                __GUARD clbuf_readpin(&(*vcl)[ld].queuecomm,
+                                      &(*vcl)[ld].ups_adj[ui].v2com[i]->cl_buf2,
+                                      &(*vcl)[ld].ups_adj[ui].v2com[i]->cl_buf2,
+                                      0
+                                      );
+            }
+        }
+        for (i=0;i<m->ups_f[ui].nvcom;i++){
+            __GUARD clbuf_readpin( &(*vcl)[ld].queuecomm,
+                                  &(*vcl)[ld].ups_f[ui].v2com[i]->cl_buf2,
+                                  &(*vcl)[ld].ups_f[ui].v2com[i]->cl_buf2,
+                                  0);
+        }
+        //We can realease the fcom2 event, it is no longer needed.
+        if (adj){
+            __GUARD clReleaseEvent((*vcl)[ld].ups_adj[i].fcom2_out.event);
+        }
+        else{
+            __GUARD clReleaseEvent((*vcl)[ld].ups_f[i].fcom2_out.event);
+        }
+        
+    }
     
     //Read buffers for comunnication between devices
     for (d=0;d<m->NUM_DEVICES;d++){
-        
-        //TODO event dependance for adj
+
         if (d>0){
+            //For all devices except the first, com1 must occur
+            
+            //The first buffer cl_buf2 in the list must wait on the kernel
+            //fcom2 of the previous device
+            //The last buf2 in the list must output an event
             if (adj && m->BACK_PROP_TYPE==1){
-                for (i=0;i<m->nvars;i++){
-                    if (m->vars_adj[i].to_comm-1==upind){
-                        __GUARD clbuf_readpin(&(*vcl)[d-1].queuecomm,
-                                              &(*vcl)[d-1].vars_adj[i].cl_buf2,
-                                              &(*vcl)[d  ].vars_adj[i].cl_buf1_pin);
-                    }
+                for (i=0;i<m->ups_adj[ui].nvcom;i++){
+                    __GUARD clbuf_readpin(
+                                    &(*vcl)[d-1].queuecomm,
+                                    &(*vcl)[d-1].ups_adj[ui].v2com[i]->cl_buf2,
+                                          &(*vcl)[d  ].ups_adj[ui].v2com[i]->cl_buf1,
+                                          0);
                 }
             }
-            for (i=0;i<m->nvars;i++){
-                if (m->vars[i].to_comm-1==upind)
-                    __GUARD clbuf_readpin(&(*vcl)[d-1].queuecomm,
-                                          &(*vcl)[d-1].vars[i].cl_buf2,
-                                          &(*vcl)[d  ].vars[i].cl_buf1_pin);
+            for (i=0;i<m->ups_f[ui].nvcom;i++){
+                __GUARD clbuf_readpin(&(*vcl)[d-1].queuecomm,
+                                      &(*vcl)[d-1].ups_f[ui].v2com[i]->cl_buf2,
+                                      &(*vcl)[d  ].ups_f[ui].v2com[i]->cl_buf1,
+                                      0);
             }
+            //We can realease the fcom2 event, it is no longer needed.
             if (adj){
-                __GUARD clReleaseEvent((*vcl)[d-1].ups_adj[i].com2.event);
+                __GUARD clReleaseEvent((*vcl)[d-1].ups_adj[i].fcom2_out.event);
             }
             else{
-                __GUARD clReleaseEvent((*vcl)[d-1].ups_f[i].com2.event);
+                __GUARD clReleaseEvent((*vcl)[d-1].ups_f[i].fcom2_out.event);
             }
         }
-
+        
+        if (d<m->NUM_DEVICES-1){
+            //For all devices except the last, com2 must occur
+            
+            //The first buffer cl_buf1 in the list must wait on the kernel
+            //fcom1 of the next device
+            //The last buf1 in the list must output an event
+            
+            if (adj && m->BACK_PROP_TYPE==1){
+                for (i=0;i<m->ups_adj[ui].nvcom;i++){
+                    __GUARD clbuf_readpin(
+                                    &(*vcl)[d+1].queuecomm,
+                                    &(*vcl)[d+1].ups_adj[ui].v2com[i]->cl_buf1,
+                                    &(*vcl)[d  ].ups_adj[ui].v2com[i]->cl_buf2,
+                                    0);
+                }
+            }
+            for (i=0;i<m->ups_f[ui].nvcom;i++){
+                __GUARD clbuf_readpin(&(*vcl)[d+1].queuecomm,
+                                      &(*vcl)[d+1].ups_f[ui].v2com[i]->cl_buf1,
+                                      &(*vcl)[d  ].ups_f[ui].v2com[i]->cl_buf2,
+                                      0);
+            }
+            //We can realease the fcom1 event, it is no longer needed.
+            if (adj){
+                __GUARD clReleaseEvent((*vcl)[d+1].ups_adj[i].fcom1_out.event);
+            }
+            else{
+                __GUARD clReleaseEvent((*vcl)[d+1].ups_f[i].fcom1_out.event);
+            }
+            
+        }
+        
+    }
+    
+    //Write buffers for comunnication between devices
+    for (d=0;d<m->NUM_DEVICES;d++){
+        
+        if (d>0){
+            
+            //We must transfer buf1 from the host to the device. The first buf1
+            //transfer must wait on the buf2 receive of the previous device
+            //The last buf1 on the list must output an event for fcom1_in
+            if (adj && m->BACK_PROP_TYPE==1){
+                for (i=0;i<m->ups_adj[ui].nvcom;i++){
+                   __GUARD clbuf_send(&(*vcl)[d].queuecomm,
+                                      &(*vcl)[d].ups_adj[ui].v2com[i]->cl_buf1);
+                }
+            }
+            for (i=0;i<m->ups_f[ui].nvcom;i++){
+                __GUARD clbuf_send(
+                                   &(*vcl)[d].queuecomm,
+                                   &(*vcl)[d].ups_f[ui].v2com[i]->cl_buf1);
+            }
+            __GUARD clReleaseEvent(
+              (*vcl)[d-1].ups_f[i].v2com[m->ups_f[i].nvcom-1]->cl_buf2.event_r);
+            
+        }
+        
         if (d<m->NUM_DEVICES-1){
             
+            //We must transfer buf2 from the host to the device. The first buf2
+            //transfer must wait on the buf1 receive of the previous device
             if (adj && m->BACK_PROP_TYPE==1){
-                for (i=0;i<m->nvars;i++){
-                    if (m->vars_adj[i].to_comm-1==upind)
-                        __GUARD clbuf_readpin(&(*vcl)[d+1].queuecomm,
-                                              &(*vcl)[d+1].vars_adj[i].cl_buf1,
-                                              &(*vcl)[d  ].vars_adj[i].cl_buf2_pin);
+                for (i=0;i<m->ups_adj[ui].nvcom;i++){
+                   __GUARD clbuf_send(&(*vcl)[d].queuecomm,
+                                      &(*vcl)[d].ups_adj[ui].v2com[i]->cl_buf2);
                 }
             }
-            for (i=0;i<m->nvars;i++){
-                if (m->vars[i].to_comm-1==upind)
-                    __GUARD clbuf_readpin(&(*vcl)[d+1].queuecomm,
-                                          &(*vcl)[d+1].vars[i].cl_buf1,
-                                          &(*vcl)[d  ].vars[i].cl_buf2_pin);
+            for (i=0;i<m->ups_f[ui].nvcom;i++){
+                __GUARD clbuf_send(
+                                   &(*vcl)[d].queuecomm,
+                                   &(*vcl)[d].ups_f[ui].v2com[i]->cl_buf2);
             }
-            if (adj){
-                __GUARD clReleaseEvent((*vcl)[d-1].ups_adj[i].com1.event);
-            }
-            else{
-                __GUARD clReleaseEvent((*vcl)[d-1].ups_f[i].com1.event);
-            }
-            
-        }
-
-    }
-    
-    //Read buffers for comunnication between MPI processes sharing this shot
-    if (m->MYLOCALID>0){
-        if (adj && m->BACK_PROP_TYPE==1){
-            for (i=0;i<m->nvars;i++){
-                if (m->vars_adj[i].to_comm-1==upind){
-                    __GUARD clbuf_readpin(&(*vcl)[0].queuecomm,
-                                          &(*vcl)[0].vars_adj[i].cl_buf1,
-                                          &(*vcl)[0].vars_adj[i].cl_buf1_pin);
-                }
-            }
-        }
-        for (i=0;i<m->nvars;i++){
-            if (m->vars[i].to_comm-1==upind)
-                __GUARD clbuf_readpin(&(*vcl)[0].queuecomm,
-                                      &(*vcl)[0].vars[i].cl_buf1,
-                                      &(*vcl)[0].vars[i].cl_buf1_pin);
-        }
-        if (adj){
-            __GUARD clReleaseEvent((*vcl)[0].ups_adj[i].com1.event);
-        }
-        else{
-            __GUARD clReleaseEvent((*vcl)[0].ups_f[i].com1.event);
-        }
-    }
-    if (m->MYLOCALID<m->NLOCALP-1){
-        lastd=m->NUM_DEVICES-1;
-        if (adj && m->BACK_PROP_TYPE==1){
-            for (i=0;i<m->nvars;i++){
-                if (m->vars_adj[i].to_comm-1==upind){
-                    __GUARD clbuf_readpin(&(*vcl)[lastd].queuecomm,
-                                          &(*vcl)[lastd].vars_adj[i].cl_buf2,
-                                          &(*vcl)[lastd].vars_adj[i].cl_buf2_pin);
-                }
-            }
-        }
-        for (i=0;i<m->nvars;i++){
-            if (m->vars[i].to_comm-1==upind)
-                __GUARD clbuf_readpin(&(*vcl)[lastd].queuecomm,
-                                      &(*vcl)[lastd].vars[i].cl_buf2,
-                                      &(*vcl)[lastd].vars[i].cl_buf2_pin);
-        }
-        if (adj){
-            __GUARD clReleaseEvent((*vcl)[lastd].ups_adj[i].com2.event);
-        }
-        else{
-            __GUARD clReleaseEvent((*vcl)[lastd].ups_f[i].com2.event);
-        }
-    }
-
-
-
-int comm1_v_MPI(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc, int bstep){
-    int state=0;
-    if (m->ND==21){
-        __GUARD clWaitForEvents(	1, &(*vcl)[0].event_readMPI1[0]);
-        __GUARD clReleaseEvent((*vcl)[0].event_readMPI1[0]);
-        if (bstep && m->back_prop_type==1){
-            if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[0].vy_r_sub1, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID-1, 1, m->MYID-1, 1, MPI_COMM_WORLD, NULL);
-            __GUARD clEnqueueWriteBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].vy_r_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].vy_r_sub1, 0, NULL, NULL);
-        }
-        if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[0].vy_sub1, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID-1, 1, m->MYID-1, 1, MPI_COMM_WORLD, NULL);
-        __GUARD clEnqueueWriteBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].vy_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].vy_sub1, 0, NULL, &(*vcl)[0].event_writev1);
-    }
-    else{
-        __GUARD clWaitForEvents(	1, &(*vcl)[0].event_readMPI1[0]);
-        __GUARD clReleaseEvent((*vcl)[0].event_readMPI1[0]);
-        if (bstep && m->back_prop_type==1){
-            if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[0].vx_r_sub1, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID-1, 1, m->MYID-1, 1, MPI_COMM_WORLD, NULL);
-            __GUARD clEnqueueWriteBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].vx_r_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].vx_r_sub1, 0, NULL, NULL);
-        }
-        if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[0].vx_sub1, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID-1, 1, m->MYID-1, 1, MPI_COMM_WORLD, NULL);
-        __GUARD clEnqueueWriteBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].vx_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].vx_sub1, 0, NULL, NULL);
-        
-        if (m->ND==3){// For 3D
-            __GUARD clWaitForEvents(	1, &(*vcl)[0].event_readMPI1[1]);
-            __GUARD clReleaseEvent((*vcl)[0].event_readMPI1[1]);
-            if (bstep && m->back_prop_type==1){
-                if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[0].vy_r_sub1, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID-1, 2, m->MYID-1, 2, MPI_COMM_WORLD, NULL);
-                __GUARD clEnqueueWriteBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].vy_r_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].vy_r_sub1, 0, NULL, NULL);
-            }
-            if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[0].vy_sub1, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID-1, 2, m->MYID-1, 2, MPI_COMM_WORLD, NULL);
-            __GUARD clEnqueueWriteBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].vy_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].vy_sub1, 0, NULL, NULL);
-        }
-        
-        __GUARD clWaitForEvents(	1, &(*vcl)[0].event_readMPI1[2]);
-        __GUARD clReleaseEvent((*vcl)[0].event_readMPI1[2]);
-        if (bstep && m->back_prop_type==1){
-            if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[0].vz_r_sub1, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID-1, 3, m->MYID-1, 3, MPI_COMM_WORLD, NULL);
-            __GUARD clEnqueueWriteBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].vz_r_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].vz_r_sub1, 0, NULL, NULL);
-        }
-        if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[0].vz_sub1, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID-1, 3, m->MYID-1, 3, MPI_COMM_WORLD, NULL);
-        __GUARD clEnqueueWriteBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].vz_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].vz_sub1, 0, NULL, &(*vcl)[0].event_writev1);
-        
-    }
-    
-    return state;
-    
-}
-
-int comm2_v_MPI(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc, int bstep){
-    int state=0;
-    
-    if (m->ND==21){
-        __GUARD clWaitForEvents(	1, &(*vcl)[m->num_devices-1].event_readMPI2[0]);
-        __GUARD clReleaseEvent((*vcl)[m->num_devices-1].event_readMPI2[0]);
-        if (bstep && m->back_prop_type==1){
-            if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[m->num_devices-1].vy_r_sub2, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID+1, 1, m->MYID+1, 1, MPI_COMM_WORLD, NULL);
-            __GUARD clEnqueueWriteBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].vy_r_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].vy_r_sub2, 0, NULL, NULL);
-        }
-        if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[m->num_devices-1].vy_sub2, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID+1, 1, m->MYID+1, 1, MPI_COMM_WORLD, NULL);
-        __GUARD clEnqueueWriteBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].vy_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].vy_sub2, 0, NULL, &(*vcl)[m->num_devices-1].event_writev2);
-    }
-    else{
-        __GUARD clWaitForEvents(	1, &(*vcl)[m->num_devices-1].event_readMPI2[0]);
-        __GUARD clReleaseEvent((*vcl)[m->num_devices-1].event_readMPI2[0]);
-        if (bstep && m->back_prop_type==1){
-            if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[m->num_devices-1].vx_r_sub2, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID+1, 1, m->MYID+1, 1, MPI_COMM_WORLD, NULL);
-            __GUARD clEnqueueWriteBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].vx_r_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].vx_r_sub2, 0, NULL, NULL);
-        }
-        if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[m->num_devices-1].vx_sub2, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID+1, 1, m->MYID+1, 1, MPI_COMM_WORLD, NULL);
-        __GUARD clEnqueueWriteBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].vx_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].vx_sub2, 0, NULL, NULL);
-        
-        if (m->ND==3){// For 3D
-            __GUARD clWaitForEvents(	1, &(*vcl)[m->num_devices-1].event_readMPI2[1]);
-            __GUARD clReleaseEvent((*vcl)[m->num_devices-1].event_readMPI2[1]);
-            if (bstep && m->back_prop_type==1){
-                if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[m->num_devices-1].vy_r_sub2, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID+1, 2, m->MYID+1, 2, MPI_COMM_WORLD, NULL);
-                __GUARD clEnqueueWriteBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].vy_r_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].vy_r_sub2, 0, NULL, NULL);
-                
-            }
-            if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[m->num_devices-1].vy_sub2, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID+1, 2, m->MYID+1, 2, MPI_COMM_WORLD, NULL);
-            __GUARD clEnqueueWriteBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].vy_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].vy_sub2, 0, NULL, NULL);
-        }
-        
-        __GUARD clWaitForEvents(	1, &(*vcl)[m->num_devices-1].event_readMPI2[2]);
-        __GUARD clReleaseEvent((*vcl)[m->num_devices-1].event_readMPI2[2]);
-        if (bstep && m->back_prop_type==1){
-            if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[m->num_devices-1].vz_r_sub2, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID+1, 3, m->MYID+1, 3, MPI_COMM_WORLD, NULL);
-            __GUARD clEnqueueWriteBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].vz_r_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].vz_r_sub2, 0, NULL, NULL);
-        }
-        if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[m->num_devices-1].vz_sub2, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID+1, 3, m->MYID+1, 3, MPI_COMM_WORLD, NULL);
-        __GUARD clEnqueueWriteBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].vz_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].vz_sub2, 0, NULL, &(*vcl)[m->num_devices-1].event_writev2);
-        
-    }
-    
-    return state;
-    
-}
-
-int comm1_s_MPI(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc, int bstep){
-    int state=0;
-    
-    if (m->ND==21){
-        
-        __GUARD clWaitForEvents(	1, &(*vcl)[0].event_readMPI1[0]);
-        __GUARD clReleaseEvent((*vcl)[0].event_readMPI1[0]);
-        if (bstep && m->back_prop_type==1){
-            if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[0].sxy_r_sub1, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID-1, 1, m->MYID-1, 1, MPI_COMM_WORLD, NULL);
-            __GUARD clEnqueueWriteBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].sxy_r_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].sxy_r_sub1, 0, NULL, NULL);
-        }
-        if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[0].sxy_sub1, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID-1, 1, m->MYID-1, 1, MPI_COMM_WORLD, NULL);
-        __GUARD clEnqueueWriteBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].sxy_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].sxy_sub1, 0, NULL, NULL);
-        
-        __GUARD clWaitForEvents(	1, &(*vcl)[0].event_readMPI1[1]);
-        __GUARD clReleaseEvent((*vcl)[0].event_readMPI1[1]);
-        if (bstep && m->back_prop_type==1){
-            if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[0].syz_r_sub1, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID-1, 6, m->MYID-1, 6, MPI_COMM_WORLD, NULL);
-            __GUARD clEnqueueWriteBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].syz_r_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].syz_r_sub1, 0, NULL, NULL);
-        }
-        if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[0].syz_sub1, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID-1, 6, m->MYID-1, 6, MPI_COMM_WORLD, NULL);
-        __GUARD clEnqueueWriteBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].syz_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].syz_sub1, 0, NULL, &(*vcl)[0].event_writes1);
-    }
-    else{
-        __GUARD clWaitForEvents(	1, &(*vcl)[0].event_readMPI1[0]);
-        __GUARD clReleaseEvent((*vcl)[0].event_readMPI1[0]);
-        if (bstep && m->back_prop_type==1){
-            if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[0].sxx_r_sub1, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID-1, 1, m->MYID-1, 1, MPI_COMM_WORLD, NULL);
-            __GUARD clEnqueueWriteBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].sxx_r_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].sxx_r_sub1, 0, NULL, NULL);
-        }
-        if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[0].sxx_sub1, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID-1, 1, m->MYID-1, 1, MPI_COMM_WORLD, NULL);
-        __GUARD clEnqueueWriteBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].sxx_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].sxx_sub1, 0, NULL, NULL);
-        
-        if (m->ND==3){// For 3D
-            __GUARD clWaitForEvents(	1, &(*vcl)[0].event_readMPI1[1]);
-            __GUARD clReleaseEvent((*vcl)[0].event_readMPI1[1]);
-            if (bstep && m->back_prop_type==1){
-                if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[0].syy_r_sub1, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID-1, 2, m->MYID-1, 2, MPI_COMM_WORLD, NULL);
-                __GUARD clEnqueueWriteBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].syy_r_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].syy_r_sub1, 0, NULL, NULL);
-            }
-            if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[0].syy_sub1, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID-1, 2, m->MYID-1, 2, MPI_COMM_WORLD, NULL);
-            __GUARD clEnqueueWriteBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].syy_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].syy_sub1, 0, NULL, NULL);
-            
-            __GUARD clWaitForEvents(	1, &(*vcl)[0].event_readMPI1[2]);
-            __GUARD clReleaseEvent((*vcl)[0].event_readMPI1[2]);
-            if (bstep && m->back_prop_type==1){
-                if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[0].sxy_r_sub1, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID-1, 3, m->MYID-1, 3, MPI_COMM_WORLD, NULL);
-                __GUARD clEnqueueWriteBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].sxy_r_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].sxy_r_sub1, 0, NULL, NULL);
-            }
-            if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[0].sxy_sub1, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID-1, 3, m->MYID-1, 3, MPI_COMM_WORLD, NULL);
-            __GUARD clEnqueueWriteBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].sxy_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].sxy_sub1, 0, NULL, NULL);
-            
-            __GUARD clWaitForEvents(	1, &(*vcl)[0].event_readMPI1[3]);
-            __GUARD clReleaseEvent((*vcl)[0].event_readMPI1[3]);
-            if (bstep && m->back_prop_type==1){
-                if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[0].syz_r_sub1, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID-1, 4, m->MYID-1, 4, MPI_COMM_WORLD, NULL);
-                __GUARD clEnqueueWriteBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].syz_r_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].syz_r_sub1, 0, NULL, NULL);
-            }
-            if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[0].syz_sub1, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID-1, 4, m->MYID-1, 4, MPI_COMM_WORLD, NULL);
-            __GUARD clEnqueueWriteBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].syz_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].syz_sub1, 0, NULL, NULL);
-            
-        }
-        
-        __GUARD clWaitForEvents(	1, &(*vcl)[0].event_readMPI1[4]);
-        __GUARD clReleaseEvent((*vcl)[0].event_readMPI1[4]);
-        if (bstep && m->back_prop_type==1){
-            if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[0].szz_r_sub1, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID-1, 5, m->MYID-1, 5, MPI_COMM_WORLD, NULL);
-            __GUARD clEnqueueWriteBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].szz_r_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].szz_r_sub1, 0, NULL, NULL);
-        }
-        if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[0].szz_sub1, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID-1, 5, m->MYID-1, 5, MPI_COMM_WORLD, NULL);
-        __GUARD clEnqueueWriteBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].szz_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].szz_sub1, 0, NULL, NULL);
-        
-        __GUARD clWaitForEvents(	1, &(*vcl)[0].event_readMPI1[5]);
-        __GUARD clReleaseEvent((*vcl)[0].event_readMPI1[5]);
-        if (bstep && m->back_prop_type==1){
-            if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[0].sxz_r_sub1, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID-1, 6, m->MYID-1, 6, MPI_COMM_WORLD, NULL);
-            __GUARD clEnqueueWriteBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].sxz_r_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].sxz_r_sub1, 0, NULL, NULL);
-        }
-        if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[0].sxz_sub1, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID-1, 6, m->MYID-1, 6, MPI_COMM_WORLD, NULL);
-        __GUARD clEnqueueWriteBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].sxz_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].sxz_sub1, 0, NULL, &(*vcl)[0].event_writes1);
-    }
-    
-    return state;
-    
-}
-
-int comm2_s_MPI(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc, int bstep){
-    int state=0;
-    
-    if (m->ND==21){
-        __GUARD clWaitForEvents(	1, &(*vcl)[m->num_devices-1].event_readMPI2[0]);
-        __GUARD clReleaseEvent((*vcl)[m->num_devices-1].event_readMPI2[0]);
-        if (bstep && m->back_prop_type==1){
-            if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[m->num_devices-1].sxy_r_sub2, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID+1, 1, m->MYID+1, 1, MPI_COMM_WORLD, NULL);
-            __GUARD clEnqueueWriteBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].sxy_r_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].sxy_r_sub2, 0, NULL, NULL);
-        }
-        if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[m->num_devices-1].sxy_sub2, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID+1, 1, m->MYID+1, 1, MPI_COMM_WORLD, NULL);
-        __GUARD clEnqueueWriteBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].sxy_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].sxy_sub2, 0, NULL, NULL);
-        
-        
-        __GUARD clWaitForEvents(	1, &(*vcl)[m->num_devices-1].event_readMPI2[1]);
-        __GUARD clReleaseEvent((*vcl)[m->num_devices-1].event_readMPI2[1]);
-        if (bstep && m->back_prop_type==1){
-            if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[m->num_devices-1].syz_r_sub2, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID+1, 6, m->MYID+1, 6, MPI_COMM_WORLD, NULL);
-            __GUARD clEnqueueWriteBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].syz_r_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].syz_r_sub2, 0, NULL, NULL);
-        }
-        if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[m->num_devices-1].syz_sub2, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID+1, 6, m->MYID+1, 6, MPI_COMM_WORLD, NULL);
-        __GUARD clEnqueueWriteBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].syz_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].syz_sub2, 0, NULL, &(*vcl)[m->num_devices-1].event_writes2);
-        
-    }
-    else{
-        __GUARD clWaitForEvents(	1, &(*vcl)[m->num_devices-1].event_readMPI2[0]);
-        __GUARD clReleaseEvent((*vcl)[m->num_devices-1].event_readMPI2[0]);
-        if (bstep && m->back_prop_type==1){
-            if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[m->num_devices-1].sxx_r_sub2, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID+1, 1, m->MYID+1, 1, MPI_COMM_WORLD, NULL);
-            __GUARD clEnqueueWriteBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].sxx_r_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].sxx_r_sub2, 0, NULL, NULL);
-        }
-        if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[m->num_devices-1].sxx_sub2, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID+1, 1, m->MYID+1, 1, MPI_COMM_WORLD, NULL);
-        __GUARD clEnqueueWriteBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].sxx_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].sxx_sub2, 0, NULL, NULL);
-        
-        if (m->ND==3){// For 3D
-            __GUARD clWaitForEvents(	1, &(*vcl)[m->num_devices-1].event_readMPI2[1]);
-            __GUARD clReleaseEvent((*vcl)[m->num_devices-1].event_readMPI2[1]);
-            if (bstep && m->back_prop_type==1){
-                if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[m->num_devices-1].syy_r_sub2, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID+1, 2, m->MYID+1, 2, MPI_COMM_WORLD, NULL);
-                __GUARD clEnqueueWriteBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].syy_r_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].syy_r_sub2, 0, NULL, NULL);
-            }
-            if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[m->num_devices-1].syy_sub2, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID+1, 2, m->MYID+1, 2, MPI_COMM_WORLD, NULL);
-            __GUARD clEnqueueWriteBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].syy_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].syy_sub2, 0, NULL, NULL);
-            
-            __GUARD clWaitForEvents(	1, &(*vcl)[m->num_devices-1].event_readMPI2[2]);
-            __GUARD clReleaseEvent((*vcl)[m->num_devices-1].event_readMPI2[2]);
-            if (bstep && m->back_prop_type==1){
-                if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[m->num_devices-1].sxy_r_sub2, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID+1, 3, m->MYID+1, 3, MPI_COMM_WORLD, NULL);
-                __GUARD clEnqueueWriteBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].sxy_r_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].sxy_r_sub2, 0, NULL, NULL);
-            }
-            if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[m->num_devices-1].sxy_sub2, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID+1, 3, m->MYID+1, 3, MPI_COMM_WORLD, NULL);
-            __GUARD clEnqueueWriteBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].sxy_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].sxy_sub2, 0, NULL, NULL);
-            
-            __GUARD clWaitForEvents(	1, &(*vcl)[m->num_devices-1].event_readMPI2[3]);
-            __GUARD clReleaseEvent((*vcl)[m->num_devices-1].event_readMPI2[3]);
-            if (bstep && m->back_prop_type==1){
-                if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[m->num_devices-1].syz_r_sub2, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID+1, 4, m->MYID+1, 4, MPI_COMM_WORLD, NULL);
-                __GUARD clEnqueueWriteBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].syz_r_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].syz_r_sub2, 0, NULL, NULL);
-            }
-            if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[m->num_devices-1].syz_sub2, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID+1, 4, m->MYID+1, 4, MPI_COMM_WORLD, NULL);
-            __GUARD clEnqueueWriteBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].syz_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].syz_sub2, 0, NULL, NULL);
-        }
-        
-        __GUARD clWaitForEvents(	1, &(*vcl)[m->num_devices-1].event_readMPI2[4]);
-        __GUARD clReleaseEvent((*vcl)[m->num_devices-1].event_readMPI2[4]);
-        if (bstep && m->back_prop_type==1){
-            if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[m->num_devices-1].szz_r_sub2, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID+1, 5, m->MYID+1, 5, MPI_COMM_WORLD, NULL);
-            __GUARD clEnqueueWriteBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].szz_r_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].szz_r_sub2, 0, NULL, NULL);
-        }
-        if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[m->num_devices-1].szz_sub2, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID+1, 5, m->MYID+1, 5, MPI_COMM_WORLD, NULL);
-        __GUARD clEnqueueWriteBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].szz_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].szz_sub2, 0, NULL, NULL);
-        
-        __GUARD clWaitForEvents(	1, &(*vcl)[m->num_devices-1].event_readMPI2[5]);
-        __GUARD clReleaseEvent((*vcl)[m->num_devices-1].event_readMPI2[5]);
-        if (bstep && m->back_prop_type==1){
-            if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[m->num_devices-1].sxz_r_sub2, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID+1, 6, m->MYID+1, 6, MPI_COMM_WORLD, NULL);
-            __GUARD clEnqueueWriteBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].sxz_r_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].sxz_r_sub2, 0, NULL, NULL);
-        }
-        if (!state) state= MPI_Sendrecv_replace( (void*)(*mloc)[m->num_devices-1].sxz_sub2, (int)m->buffer_size_comm/sizeof(float), MPI_FLOAT,m->MYID+1, 6, m->MYID+1, 6, MPI_COMM_WORLD, NULL);
-        __GUARD clEnqueueWriteBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].sxz_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].sxz_sub2, 0, NULL, &(*vcl)[m->num_devices-1].event_writes2);
-    }
-    
-    return state;
-    
-}
-
-int comm_v(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc, int bstep){
-    /*Communication for domain decompositon for MPI (between processing elements) and OpenCL (between devices) */
-    int state = 0;
-    int d;
-    
-    
-    //Read buffers for comunnication between devices
-    for (d=0;d<m->num_devices;d++){
-        
-        
-        if (d>0){
-            if (m->ND==21){
-                
-                if (bstep && m->back_prop_type==1){
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d-1].cmd_queuecomm, (*vcl)[d-1].vy_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].vy_sub1, 1, &(*vcl)[d-1].event_updatev_comm2, NULL);
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d-1].cmd_queuecomm, (*vcl)[d-1].vy_r_sub2_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].vy_r_sub1, 0, NULL, &(*vcl)[d].event_readv1);
-                }
-                else{
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d-1].cmd_queuecomm, (*vcl)[d-1].vy_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].vy_sub1, 1, &(*vcl)[d-1].event_updatev_comm2, &(*vcl)[d].event_readv1);
-                }
-                __GUARD clReleaseEvent((*vcl)[d-1].event_updatev_comm2);
-            }
-            else{
-                __GUARD clEnqueueReadBuffer( (*vcl)[d-1].cmd_queuecomm, (*vcl)[d-1].vx_sub2_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].vx_sub1, 1, &(*vcl)[d-1].event_updatev_comm2, NULL);
-                if (m->ND==3){// For 3D
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d-1].cmd_queuecomm, (*vcl)[d-1].vy_sub2_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].vy_sub1, 0, NULL, NULL);
-                }
-                if (bstep && m->back_prop_type==1){
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d-1].cmd_queuecomm, (*vcl)[d-1].vx_r_sub2_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].vx_r_sub1, 0, NULL, NULL);
-                    if (m->ND==3){// For 3D
-                        __GUARD clEnqueueReadBuffer( (*vcl)[d-1].cmd_queuecomm, (*vcl)[d-1].vy_r_sub2_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].vy_r_sub1, 0, NULL, NULL);
-                    }
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d-1].cmd_queuecomm, (*vcl)[d-1].vz_r_sub2_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].vz_r_sub1, 0, NULL, NULL);
-                }
-                __GUARD clEnqueueReadBuffer( (*vcl)[d-1].cmd_queuecomm, (*vcl)[d-1].vz_sub2_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].vz_sub1, 0, NULL, &(*vcl)[d].event_readv1);
-                __GUARD clReleaseEvent((*vcl)[d-1].event_updatev_comm2);
-            }
-        }
-        
-        if (d<m->num_devices-1){
-            if (m->ND==21){
-                if (bstep && m->back_prop_type==1){
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d+1].cmd_queuecomm, (*vcl)[d+1].vy_sub1_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].vy_sub2, 1, &(*vcl)[d+1].event_updatev_comm1, NULL);
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d+1].cmd_queuecomm, (*vcl)[d+1].vy_r_sub1_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].vy_r_sub2, 0, NULL, &(*vcl)[d].event_readv2);
-                }
-                else{
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d+1].cmd_queuecomm, (*vcl)[d+1].vy_sub1_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].vy_sub2, 1, &(*vcl)[d+1].event_updatev_comm1, &(*vcl)[d].event_readv2);
-                }
-                __GUARD clReleaseEvent((*vcl)[d+1].event_updatev_comm1);
-            }
-            else{
-                __GUARD clEnqueueReadBuffer( (*vcl)[d+1].cmd_queuecomm, (*vcl)[d+1].vx_sub1_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].vx_sub2, 1, &(*vcl)[d+1].event_updatev_comm1, NULL);
-                if (m->ND==3){// For 3D
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d+1].cmd_queuecomm, (*vcl)[d+1].vy_sub1_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].vy_sub2, 0, NULL, NULL);
-                }
-                if (bstep && m->back_prop_type==1){
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d+1].cmd_queuecomm, (*vcl)[d+1].vx_r_sub1_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].vx_r_sub2, 0, NULL, NULL);
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d+1].cmd_queuecomm, (*vcl)[d+1].vz_r_sub1_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].vz_r_sub2, 0, NULL, NULL);
-                    if (m->ND==3){// For 3D
-                        __GUARD clEnqueueReadBuffer( (*vcl)[d+1].cmd_queuecomm, (*vcl)[d+1].vy_r_sub1_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].vy_r_sub2, 0, NULL, NULL);
-                    }
-                }
-                __GUARD clEnqueueReadBuffer( (*vcl)[d+1].cmd_queuecomm, (*vcl)[d+1].vz_sub1_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].vz_sub2, 0, NULL, &(*vcl)[d].event_readv2);
-                __GUARD clReleaseEvent((*vcl)[d+1].event_updatev_comm1);
-            }
+            __GUARD clReleaseEvent(
+              (*vcl)[d+1].ups_f[i].v2com[m->ups_f[i].nvcom-1]->cl_buf1.event_r);
         }
         
     }
     
-    //Read buffers for comunnication between MPI processes sharing this shot
-    if (m->MYLOCALID>0){
-        
-        if (m->ND==21){
-            if (bstep && m->back_prop_type==1){
-                __GUARD clEnqueueReadBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].vy_r_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].vy_r_sub1, 1, &(*vcl)[0].event_updatev_comm1, NULL);
-            }
-            __GUARD clEnqueueReadBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].vy_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].vy_sub1, 1, &(*vcl)[0].event_updatev_comm1, &(*vcl)[0].event_readMPI1[0]);
-            __GUARD clReleaseEvent((*vcl)[0].event_updatev_comm1);
-        }
-        else{
-            if (bstep && m->back_prop_type==1){
-                __GUARD clEnqueueReadBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].vx_r_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].vx_r_sub1, 1, &(*vcl)[0].event_updatev_comm1, NULL);
-                if (m->ND==3){// For 3D
-                    __GUARD clEnqueueReadBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].vy_r_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].vy_r_sub1, 0, NULL, NULL);
-                }
-                __GUARD clEnqueueReadBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].vz_r_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].vz_r_sub1, 0, NULL, NULL);
-            }
-            
-            __GUARD clEnqueueReadBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].vx_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].vx_sub1, 1, &(*vcl)[0].event_updatev_comm1, &(*vcl)[0].event_readMPI1[0]);
-            if (m->ND==3){// For 3D
-                __GUARD clEnqueueReadBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].vy_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].vy_sub1, 0, NULL, &(*vcl)[0].event_readMPI1[1]);
-            }
-            __GUARD clEnqueueReadBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].vz_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].vz_sub1, 0, NULL, &(*vcl)[0].event_readMPI1[2]);
-            __GUARD clReleaseEvent((*vcl)[0].event_updatev_comm1);
-        }
-        
-    }
-    if (m->MYLOCALID<m->NLOCALP-1){
-        if (m->ND==21){
-            if (bstep && m->back_prop_type==1){
-                __GUARD clEnqueueReadBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].vy_r_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].vy_r_sub2, 1, &(*vcl)[m->num_devices-1].event_updatev_comm2, NULL);
-            }
-            
-            __GUARD clEnqueueReadBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].vy_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].vy_sub2, 1, &(*vcl)[m->num_devices-1].event_updatev_comm2, &(*vcl)[m->num_devices-1].event_readMPI2[0]);
-            __GUARD clReleaseEvent((*vcl)[m->num_devices-1].event_updatev_comm2);
-        }
-        else{
-            if (bstep && m->back_prop_type==1){
-                __GUARD clEnqueueReadBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].vx_r_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].vx_r_sub2, 1, &(*vcl)[m->num_devices-1].event_updatev_comm2, NULL);
-                if (m->ND==3){// For 3D
-                    __GUARD clEnqueueReadBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].vy_r_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].vy_r_sub2, 0, NULL, NULL);
-                }
-                __GUARD clEnqueueReadBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].vz_r_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].vz_r_sub2, 0, NULL, NULL);
-            }
-            
-            __GUARD clEnqueueReadBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].vx_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].vx_sub2, 1, &(*vcl)[m->num_devices-1].event_updatev_comm2, &(*vcl)[m->num_devices-1].event_readMPI2[0]);
-            if (m->ND==3){// For 3D
-                __GUARD clEnqueueReadBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].vy_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].vy_sub2, 0, NULL, &(*vcl)[m->num_devices-1].event_readMPI2[1]);
-            }
-            __GUARD clEnqueueReadBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].vz_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].vz_sub2, 0, NULL, &(*vcl)[m->num_devices-1].event_readMPI2[2]);
-            __GUARD clReleaseEvent((*vcl)[m->num_devices-1].event_updatev_comm2);
-        }
+    //Sends those commands to the compute devices
+    for (d=0;d<m->NUM_DEVICES;d++){
+        clFlush( (*vcl)[d].queuecomm);
+        clFlush( (*vcl)[d].queue);
     }
     
-    for (d=0;d<m->num_devices;d++){
-        clFlush((*vcl)[d].cmd_queue);
-        clFlush((*vcl)[d].cmd_queuecomm);
-    }
-    
-    //Write buffers for comunnication between devices
-    for (d=0;d<m->num_devices;d++){
-        if (d>0){
-            if (m->ND==21){
-                if (bstep && m->back_prop_type==1){
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].vy_sub1_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].vy_sub1, 1, &(*vcl)[d].event_readv1, NULL);
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].vy_r_sub1_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].vy_r_sub1, 0, NULL, &(*vcl)[d].event_writev1);
-                }
-                else{
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].vy_sub1_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].vy_sub1, 1, &(*vcl)[d].event_readv1, &(*vcl)[d].event_writev1);
-                }
-                __GUARD clReleaseEvent((*vcl)[d].event_readv1);
-            }
-            else{
-                __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].vx_sub1_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].vx_sub1, 1, &(*vcl)[d].event_readv1, NULL);
-                if (m->ND==3){// For 3D
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].vy_sub1_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].vy_sub1, 0, NULL, NULL);
-                }
-                if (bstep && m->back_prop_type==1){
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].vx_r_sub1_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].vx_r_sub1, 0, NULL, NULL);
-                    if (m->ND==3){// For 3D
-                        __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].vy_r_sub1_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].vy_r_sub1, 0, NULL, NULL);
-                    }
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].vz_r_sub1_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].vz_r_sub1, 0, NULL, NULL);
-                }
-                
-                __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].vz_sub1_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].vz_sub1, 0, NULL, &(*vcl)[d].event_writev1);
-                __GUARD clReleaseEvent((*vcl)[d].event_readv1);
-            }
-        }
-        
-        if (d<m->num_devices-1){
-            if (m->ND==21){
-                
-                if (bstep && m->back_prop_type==1){
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].vy_sub2_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].vy_sub2, 1, &(*vcl)[d].event_readv2, NULL);
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].vy_r_sub2_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].vy_r_sub2, 0, NULL, &(*vcl)[d].event_writev2);
-                }
-                __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].vy_sub2_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].vy_sub2, 1, &(*vcl)[d].event_readv2, &(*vcl)[d].event_writev2);
-                __GUARD clReleaseEvent((*vcl)[d].event_readv2);
-            }
-            else{
-                __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].vx_sub2_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].vx_sub2, 1, &(*vcl)[d].event_readv2, NULL);
-                if (m->ND==3){// For 3D
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].vy_sub2_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].vy_sub2, 0, NULL, NULL);
-                }
-                if (bstep && m->back_prop_type==1){
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].vx_r_sub2_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].vx_r_sub2, 0, NULL, NULL);
-                    if (m->ND==3){// For 3D
-                        __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].vy_r_sub2_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].vy_r_sub2, 0, NULL, NULL);
-                    }
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].vz_r_sub2_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].vz_r_sub2, 0, NULL, NULL);
-                }
-                
-                __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].vz_sub2_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].vz_sub2, 0, NULL, &(*vcl)[d].event_writev2);
-                __GUARD clReleaseEvent((*vcl)[d].event_readv2);
-            }
-        }
-        
-    }
-    
-    for (d=0;d<m->num_devices;d++){
-        clFlush((*vcl)[d].cmd_queuecomm);
-    }
-    
-    //Wait for Opencl buffers to be read, send MPI bufers and write to devices
-    //Processess with even ID in the group send and receive buffers 1 first, and then buffers 2, vice versa for odd IDs
+    // Wait for Opencl buffers to be read, send MPI bufers and write to devices
+    // Processess with even ID in the group send and receive buffers 1 first,
+    // and then buffers 2, vice versa for odd IDs
     if (m->MYLOCALID % 2 != 0 && m->MYLOCALID>0){
-        __GUARD comm1_v_MPI(m, vcl, mloc, bstep);
+        __GUARD comm1_MPI(m, vcl, adj, ui);
     }
     
     if (m->MYLOCALID % 2 == 0 && m->MYLOCALID<m->NLOCALP-1){
-        __GUARD comm2_v_MPI(m, vcl, mloc, bstep);
+        __GUARD comm2_MPI(m, vcl, adj, ui);
     }
     
     if (m->MYLOCALID % 2 == 0 && m->MYLOCALID>0){
-        __GUARD comm1_v_MPI(m, vcl, mloc, bstep);
+        __GUARD comm1_MPI(m, vcl, adj, ui);
     }
     
     if (m->MYLOCALID % 2 != 0 && m->MYLOCALID<m->NLOCALP-1){
-        __GUARD comm2_v_MPI(m, vcl, mloc, bstep);
+        __GUARD comm2_MPI(m, vcl, adj, ui);
     }
-    
-    return state;
-    
-}
 
-
-
-
-int comm_s(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc, int bstep){
-    
-    int state = 0;
-    int d;
-    
-    
-    //Read buffers for comunnication between devices
-    for (d=0;d<m->num_devices;d++){
-        
-        
-        if (d>0){
-            if (m->ND==21){
-                __GUARD clEnqueueReadBuffer( (*vcl)[d-1].cmd_queuecomm, (*vcl)[d-1].sxy_sub2_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].sxy_sub1, 1, &(*vcl)[d-1].event_updates_comm2, NULL);
-                if (bstep && m->back_prop_type==1){
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d-1].cmd_queuecomm, (*vcl)[d-1].sxy_r_sub2_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].sxy_r_sub1, 0, NULL, NULL);
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d-1].cmd_queuecomm, (*vcl)[d-1].syz_r_sub2_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].syz_r_sub1, 0, NULL, NULL);
-                }
-                __GUARD clEnqueueReadBuffer( (*vcl)[d-1].cmd_queuecomm, (*vcl)[d-1].syz_sub2_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].syz_sub1, 0, NULL, &(*vcl)[d].event_reads1);
-                __GUARD clReleaseEvent((*vcl)[d-1].event_updates_comm2);
-            }
-            else{
-                __GUARD clEnqueueReadBuffer( (*vcl)[d-1].cmd_queuecomm, (*vcl)[d-1].sxx_sub2_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].sxx_sub1, 1, &(*vcl)[d-1].event_updates_comm2, NULL);
-                if (m->ND==3){// For 3D
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d-1].cmd_queuecomm, (*vcl)[d-1].syy_sub2_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].syy_sub1, 0, NULL, NULL);
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d-1].cmd_queuecomm, (*vcl)[d-1].sxy_sub2_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].sxy_sub1, 0, NULL, NULL);
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d-1].cmd_queuecomm, (*vcl)[d-1].syz_sub2_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].syz_sub1, 0, NULL, NULL);
-                }
-                if (bstep && m->back_prop_type==1){
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d-1].cmd_queuecomm, (*vcl)[d-1].sxx_r_sub2_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].sxx_r_sub1, 0, NULL, NULL);
-                    if (m->ND==3){// For 3D
-                        __GUARD clEnqueueReadBuffer( (*vcl)[d-1].cmd_queuecomm, (*vcl)[d-1].syy_r_sub2_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].syy_r_sub1, 0, NULL, NULL);
-                        __GUARD clEnqueueReadBuffer( (*vcl)[d-1].cmd_queuecomm, (*vcl)[d-1].sxy_r_sub2_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].sxy_r_sub1, 0, NULL, NULL);
-                        __GUARD clEnqueueReadBuffer( (*vcl)[d-1].cmd_queuecomm, (*vcl)[d-1].syz_r_sub2_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].syz_r_sub1, 0, NULL, NULL);
-                        
-                    }
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d-1].cmd_queuecomm, (*vcl)[d-1].szz_r_sub2_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].szz_r_sub1, 0, NULL, NULL);
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d-1].cmd_queuecomm, (*vcl)[d-1].sxz_r_sub2_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].sxz_r_sub1, 0, NULL, NULL);
-                    
-                }
-                __GUARD clEnqueueReadBuffer( (*vcl)[d-1].cmd_queuecomm, (*vcl)[d-1].szz_sub2_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].szz_sub1, 0, NULL, NULL);
-                
-                __GUARD clEnqueueReadBuffer( (*vcl)[d-1].cmd_queuecomm, (*vcl)[d-1].sxz_sub2_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].sxz_sub1, 0, NULL, &(*vcl)[d].event_reads1);
-                __GUARD clReleaseEvent((*vcl)[d-1].event_updates_comm2);
-            }
-            
-        }
-        
-        if (d<m->num_devices-1){
-            if (m->ND==21){
-                __GUARD clEnqueueReadBuffer( (*vcl)[d+1].cmd_queuecomm, (*vcl)[d+1].sxy_sub1_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].sxy_sub2, 1, &(*vcl)[d+1].event_updates_comm1, NULL);
-                if (bstep && m->back_prop_type==1){
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d+1].cmd_queuecomm, (*vcl)[d+1].sxy_r_sub1_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].sxy_r_sub2, 0, NULL, NULL);
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d+1].cmd_queuecomm, (*vcl)[d+1].syz_r_sub1_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].syz_r_sub2, 0, NULL, NULL);
-                }
-                __GUARD clEnqueueReadBuffer( (*vcl)[d+1].cmd_queuecomm, (*vcl)[d+1].syz_sub1_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].syz_sub2, 0, NULL, &(*vcl)[d].event_reads2);
-                __GUARD clReleaseEvent((*vcl)[d+1].event_updates_comm1);
-            }
-            else{
-                __GUARD clEnqueueReadBuffer( (*vcl)[d+1].cmd_queuecomm, (*vcl)[d+1].sxx_sub1_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].sxx_sub2, 1, &(*vcl)[d+1].event_updates_comm1, NULL);
-                if (m->ND==3){// For 3D
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d+1].cmd_queuecomm, (*vcl)[d+1].syy_sub1_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].syy_sub2, 0, NULL, NULL);
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d+1].cmd_queuecomm, (*vcl)[d+1].sxy_sub1_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].sxy_sub2, 0, NULL, NULL);
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d+1].cmd_queuecomm, (*vcl)[d+1].syz_sub1_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].syz_sub2, 0, NULL, NULL);
-                }
-                if (bstep && m->back_prop_type==1){
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d+1].cmd_queuecomm, (*vcl)[d+1].sxx_r_sub1_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].sxx_r_sub2, 0, NULL, NULL);
-                    if (m->ND==3){// For 3D
-                        __GUARD clEnqueueReadBuffer( (*vcl)[d+1].cmd_queuecomm, (*vcl)[d+1].syy_r_sub1_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].syy_r_sub2, 0, NULL, NULL);
-                        __GUARD clEnqueueReadBuffer( (*vcl)[d+1].cmd_queuecomm, (*vcl)[d+1].sxy_r_sub1_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].sxy_r_sub2, 0, NULL, NULL);
-                        __GUARD clEnqueueReadBuffer( (*vcl)[d+1].cmd_queuecomm, (*vcl)[d+1].syz_r_sub1_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].syz_r_sub2, 0, NULL, NULL);
-                    }
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d+1].cmd_queuecomm, (*vcl)[d+1].szz_r_sub1_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].szz_r_sub2, 0, NULL, NULL);
-                    __GUARD clEnqueueReadBuffer( (*vcl)[d+1].cmd_queuecomm, (*vcl)[d+1].sxz_r_sub1_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].sxz_r_sub2, 0, NULL, NULL);
-                }
-                __GUARD clEnqueueReadBuffer( (*vcl)[d+1].cmd_queuecomm, (*vcl)[d+1].szz_sub1_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].szz_sub2, 0, NULL, NULL);
-                __GUARD clEnqueueReadBuffer( (*vcl)[d+1].cmd_queuecomm, (*vcl)[d+1].sxz_sub1_dev, CL_FALSE,0, m->buffer_size_comm, (void*)(*mloc)[d].sxz_sub2, 0, NULL, &(*vcl)[d].event_reads2);
-                __GUARD clReleaseEvent((*vcl)[d+1].event_updates_comm1);
-            }
-        }
-        
-    }
-    
-    
-    //Read buffers for comunnication between MPI processes sharing this shot
-    if (m->MYLOCALID>0){
-        if (m->ND==21){
-            if (bstep && m->back_prop_type==1){
-                __GUARD clEnqueueReadBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].sxy_r_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].sxy_r_sub1, 1, &(*vcl)[0].event_updates_comm1, NULL);
-                __GUARD clEnqueueReadBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].syz_r_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].syz_r_sub1, 0, NULL, NULL);
-            }
-            __GUARD clEnqueueReadBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].sxy_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].sxy_sub1, 1, &(*vcl)[0].event_updates_comm1, &(*vcl)[0].event_readMPI1[0]);
-            __GUARD clEnqueueReadBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].syz_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].syz_sub1, 0, NULL, &(*vcl)[0].event_readMPI1[1]);
-            __GUARD clReleaseEvent((*vcl)[0].event_updates_comm1);
-        }
-        else{
-            if (bstep && m->back_prop_type==1){
-                __GUARD clEnqueueReadBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].sxx_r_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].sxx_r_sub1, 1, &(*vcl)[0].event_updates_comm1, NULL);
-                if (m->ND==3){// For 3D
-                    __GUARD clEnqueueReadBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].syy_r_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].syy_r_sub1, 0, NULL, NULL);
-                    __GUARD clEnqueueReadBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].sxy_r_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].sxy_r_sub1, 0, NULL, NULL);
-                    __GUARD clEnqueueReadBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].syz_r_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].syz_r_sub1, 0, NULL, NULL);
-                }
-                __GUARD clEnqueueReadBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].szz_r_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].szz_r_sub1, 0, NULL, NULL);
-                __GUARD clEnqueueReadBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].sxz_r_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].sxz_r_sub1, 0, NULL, NULL);
-            }
-            
-            __GUARD clEnqueueReadBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].sxx_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].sxx_sub1, 1, &(*vcl)[0].event_updates_comm1, &(*vcl)[0].event_readMPI1[0]);
-            if (m->ND==3){// For 3D
-                __GUARD clEnqueueReadBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].syy_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].syy_sub1, 0, NULL, &(*vcl)[0].event_readMPI1[1]);
-                __GUARD clEnqueueReadBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].sxy_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].sxy_sub1, 0, NULL, &(*vcl)[0].event_readMPI1[2]);
-                __GUARD clEnqueueReadBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].syz_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].syz_sub1, 0, NULL, &(*vcl)[0].event_readMPI1[3]);
-            }
-            
-            __GUARD clEnqueueReadBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].szz_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].szz_sub1, 0, NULL, &(*vcl)[0].event_readMPI1[4]);
-            __GUARD clEnqueueReadBuffer( (*vcl)[0].cmd_queuecomm, (*vcl)[0].sxz_sub1_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[0].sxz_sub1, 0, NULL, &(*vcl)[0].event_readMPI1[5]);
-            __GUARD clReleaseEvent((*vcl)[0].event_updates_comm1);
-        }
-    }
-    if (m->MYLOCALID<m->NLOCALP-1){
-        if (m->ND==21){
-            if (bstep && m->back_prop_type==1){
-                __GUARD clEnqueueReadBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].sxy_r_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].sxy_r_sub2, 1, &(*vcl)[m->num_devices-1].event_updates_comm2, NULL);
-                __GUARD clEnqueueReadBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].syz_r_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].syz_r_sub2, 0, NULL, NULL);
-            }
-            __GUARD clEnqueueReadBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].sxy_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].sxy_sub2, 1, &(*vcl)[m->num_devices-1].event_updates_comm2, &(*vcl)[m->num_devices-1].event_readMPI2[0]);
-            __GUARD clEnqueueReadBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].syz_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].syz_sub2, 0, NULL, &(*vcl)[m->num_devices-1].event_readMPI2[1]);
-            __GUARD clReleaseEvent((*vcl)[m->num_devices-1].event_updates_comm2);
-        }
-        else{
-            if (bstep && m->back_prop_type==1){
-                __GUARD clEnqueueReadBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].sxx_r_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].sxx_r_sub2, 1, &(*vcl)[m->num_devices-1].event_updates_comm2, NULL);
-                if (m->ND==3){// For 3D
-                    __GUARD clEnqueueReadBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].syy_r_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].syy_r_sub2, 0, NULL, NULL);
-                    __GUARD clEnqueueReadBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].sxy_r_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].sxy_r_sub2, 0, NULL, NULL);
-                    __GUARD clEnqueueReadBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].syz_r_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].syz_r_sub2, 0, NULL, NULL);
-                }
-                __GUARD clEnqueueReadBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].szz_r_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].szz_r_sub2, 0, NULL, NULL);
-                __GUARD clEnqueueReadBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].sxz_r_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].sxz_r_sub2, 0, NULL, NULL);
-            }
-            __GUARD clEnqueueReadBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].sxx_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].sxx_sub2, 1, &(*vcl)[m->num_devices-1].event_updates_comm2, &(*vcl)[m->num_devices-1].event_readMPI2[0]);
-            
-            if (m->ND==3){// For 3D
-                __GUARD clEnqueueReadBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].syy_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].syy_sub2, 0, NULL, &(*vcl)[m->num_devices-1].event_readMPI2[1]);
-                __GUARD clEnqueueReadBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].sxy_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].sxy_sub2, 0, NULL, &(*vcl)[m->num_devices-1].event_readMPI2[2]);
-                __GUARD clEnqueueReadBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].syz_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].syz_sub2, 0, NULL, &(*vcl)[m->num_devices-1].event_readMPI2[3]);
-            }
-            __GUARD clEnqueueReadBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].szz_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].szz_sub2, 0, NULL, &(*vcl)[m->num_devices-1].event_readMPI2[4]);
-            __GUARD clEnqueueReadBuffer( (*vcl)[m->num_devices-1].cmd_queuecomm, (*vcl)[m->num_devices-1].sxz_sub2_dev, CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[m->num_devices-1].sxz_sub2, 0, NULL, &(*vcl)[m->num_devices-1].event_readMPI2[5]);
-            __GUARD clReleaseEvent((*vcl)[m->num_devices-1].event_updates_comm2);
-        }
-    }
-    
-    for (d=0;d<m->num_devices;d++){
-        clFlush((*vcl)[d].cmd_queue);
-        clFlush((*vcl)[d].cmd_queuecomm);
-    }
-    
-    //Write buffers for comunnication between devices
-    for (d=0;d<m->num_devices;d++){
-        if (d>0){
-            if (m->ND==21){
-                __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].sxy_sub1_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].sxy_sub1, 1, &(*vcl)[d].event_reads1, NULL);
-                if (bstep && m->back_prop_type==1){
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].sxy_r_sub1_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].sxy_r_sub1, 0, NULL, NULL);
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].syz_r_sub1_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].syz_r_sub1, 0, NULL, NULL);
-                }
-                __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].syz_sub1_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].syz_sub1, 0, NULL, &(*vcl)[d].event_writes1);
-                __GUARD clReleaseEvent((*vcl)[d].event_reads1);
-            }
-            else{
-                __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].sxx_sub1_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].sxx_sub1, 1, &(*vcl)[d].event_reads1, NULL);
-                if (m->ND==3){// For 3D
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].syy_sub1_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].syy_sub1, 0, NULL, NULL);
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].sxy_sub1_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].sxy_sub1, 0, NULL, NULL);
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].syz_sub1_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].syz_sub1, 0, NULL, NULL);
-                }
-                
-                if (bstep && m->back_prop_type==1){
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].sxx_r_sub1_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].sxx_r_sub1, 0, NULL, NULL);
-                    if (m->ND==3){// For 3D
-                        __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].syy_r_sub1_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].syy_r_sub1, 0, NULL, NULL);
-                        __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].sxy_r_sub1_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].sxy_r_sub1, 0, NULL, NULL);
-                        __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].syz_r_sub1_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].syz_r_sub1, 0, NULL, NULL);
-                        
-                    }
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].szz_r_sub1_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].szz_r_sub1, 0, NULL, NULL);
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].sxz_r_sub1_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].sxz_r_sub1, 0, NULL, NULL);
-                }
-                __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].szz_sub1_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].szz_sub1, 0, NULL, NULL);
-                __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].sxz_sub1_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].sxz_sub1, 0, NULL, &(*vcl)[d].event_writes1);
-                __GUARD clReleaseEvent((*vcl)[d].event_reads1);
-            }
-        }
-        
-        if (d<m->num_devices-1){
-            if (m->ND==21){
-                __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].sxy_sub2_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].sxy_sub2, 1, &(*vcl)[d].event_reads2, NULL);
-                if (bstep && m->back_prop_type==1){
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].sxy_r_sub2_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].sxy_r_sub2, 0, NULL, NULL);
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].syz_r_sub2_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].syz_r_sub2, 0, NULL, NULL);
-                }
-                __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].syz_sub2_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].syz_sub2, 0, NULL, &(*vcl)[d].event_writes2);
-                __GUARD clReleaseEvent((*vcl)[d].event_reads2);
-            }
-            else{
-                __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].sxx_sub2_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].sxx_sub2, 1, &(*vcl)[d].event_reads2, NULL);
-                if (m->ND==3){// For 3D
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].syy_sub2_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].syy_sub2, 0, NULL, NULL);
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].sxy_sub2_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].sxy_sub2, 0, NULL, NULL);
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].syz_sub2_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].syz_sub2, 0, NULL, NULL);
-                }
-                if (bstep && m->back_prop_type==1){
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].sxx_r_sub2_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].sxx_r_sub2, 0, NULL, NULL);
-                    if (m->ND==3){// For 3D
-                        __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].syy_r_sub2_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].syy_r_sub2, 0, NULL, NULL);
-                        __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].sxy_r_sub2_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].sxy_r_sub2, 0, NULL, NULL);
-                        __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].syz_r_sub2_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].syz_r_sub2, 0, NULL, NULL);
-                        
-                    }
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].szz_r_sub2_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].szz_r_sub2, 0, NULL, NULL);
-                    __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].sxz_r_sub2_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].sxz_r_sub2, 0, NULL, NULL);
-                }
-                __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].szz_sub2_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].szz_sub2, 0, NULL, NULL);
-                __GUARD clEnqueueWriteBuffer((*vcl)[d].cmd_queuecomm,   (*vcl)[d].sxz_sub2_dev,   CL_FALSE, 0, m->buffer_size_comm, (void*)(*mloc)[d].sxz_sub2, 0, NULL, &(*vcl)[d].event_writes2);
-                __GUARD clReleaseEvent((*vcl)[d].event_reads2);
-            }
-        }
-        
-    }
-    
-    for (d=0;d<m->num_devices;d++){
-        clFlush((*vcl)[d].cmd_queuecomm);
-    }
-    
-    //Wait for Opencl buffers to be read, send MPI bufers and write to devices
-    //Processess with even ID in the group send and receive buffers 1 first, and then buffers 2, vice versa for odd IDs
-    if (m->MYLOCALID % 2 != 0 && m->MYLOCALID>0){
-        __GUARD comm1_s_MPI(m, vcl, mloc, bstep);
-    }
-    
-    if (m->MYLOCALID % 2 == 0 && m->MYLOCALID<m->NLOCALP-1){
-        __GUARD comm2_s_MPI(m, vcl, mloc, bstep);
-    }
-    
-    if (m->MYLOCALID % 2 == 0 && m->MYLOCALID>0){
-        __GUARD comm1_s_MPI(m, vcl, mloc, bstep);
-    }
-    
-    if (m->MYLOCALID % 2 != 0 && m->MYLOCALID<m->NLOCALP-1){
-        __GUARD comm2_s_MPI(m, vcl, mloc, bstep);
-    }
-    
-    
     return state;
     
 }
