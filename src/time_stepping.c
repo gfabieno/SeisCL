@@ -64,7 +64,7 @@
 #define PI (3.141592653589793238462643383279502884197169)
 
 int reduce_seis(struct modcsts * m, struct varcl ** vcl, int s){
-    
+    // Transfer the variables to output to host and reduce in global buffer
     int state=0;
     int posx, i, j, k, d;
     
@@ -81,7 +81,9 @@ int reduce_seis(struct modcsts * m, struct varcl ** vcl, int s){
         }
     }
     
-    // Put them in the global buffer
+    // Put them in the global buffer that collect all sources and receivers data
+    // from all devices. For all MPI processes, it is reduced at the end of
+    // program
     for (d=0;d<m->NUM_DEVICES;d++){
         __GUARD clFinish((*vcl)[d].queue);
         for (k=0;k<(*vcl)[d].nvars;k++){
@@ -106,7 +108,7 @@ int reduce_seis(struct modcsts * m, struct varcl ** vcl, int s){
 }
 
 int movout(struct modcsts * m, struct varcl ** vcl, int t, int s){
-    
+    // Collect the buffers for movie creation
     int state=0;
     int d, i, j, elm, elfd;
     int k,l;
@@ -114,6 +116,7 @@ int movout(struct modcsts * m, struct varcl ** vcl, int t, int s){
     int Nm[MAX_DIMS];
     int Nfd[MAX_DIMS];
 
+    // Tranfer all variables to ouput to host for this time step
     for (d=0;d<m->NUM_DEVICES;d++){
         for (i=0;i<m->nvars;i++){
             if ((*vcl)[d].vars[i].to_output){
@@ -123,19 +126,25 @@ int movout(struct modcsts * m, struct varcl ** vcl, int t, int s){
         
     }
     
+    // Aggregate in a global buffers all variables from all devices.
+    // Local and global variables don't have the same size, the first being
+    // padded by FDORDER/2 on all sides, so we need to transform coordinates
     for (d=0;d<m->NUM_DEVICES;d++){
         clFinish((*vcl)[d].queue);
         for (i=0;i<m->nvars;i++){
             if ((*vcl)[d].vars[i].to_output){
+                
+                //Number of elements mapped from local to global buffer
                 Nel=1;
                 for (j=0;j<m->NDIM;j++){
                     Nel*=(*vcl)[d].N[j];
                 }
                 for (j=0;j<Nel;j++){
+                    //Linear indice in global buffer of this element
                     elm=s*m->NT/m->MOVOUT*Nel
                     +((t+1)/m->MOVOUT-1)*Nel
                     +j;
-                    
+                    // Indices for each dimensions for global Nm and local Nfd
                     for (k=0;k<m->NDIM;k++){
                         Nm[k]=j;
                         for (l=0;l<k;l++){
@@ -147,6 +156,7 @@ int movout(struct modcsts * m, struct varcl ** vcl, int t, int s){
                             Nm[k]*=(*vcl)[d].N[l]+m->FDORDER;
                         }
                     }
+                    // Linear indice for local buffer
                     elfd=1;
                     for (k=0;k<m->NDIM;k++){
                         for (l=0;l<k;l++){
@@ -230,7 +240,6 @@ int inject_bnd(struct modcsts * m, struct varcl ** vcl, int t){
     return state;
 }
 
-
 int update_grid(struct modcsts * m, struct varcl ** vcl){
     /*Update operations of one iteration */
     int state=0;
@@ -267,7 +276,7 @@ int update_grid(struct modcsts * m, struct varcl ** vcl){
             __GUARD comm(m, vcl, 0, i);
 
         
-        // Send the communcated buffers to the devices
+        // Transfer memory in communication buffers to variables' buffers
         for (d=0;d<m->NUM_DEVICES;d++){
             
             if (d>0 || m->MYLOCALID>0){
@@ -293,7 +302,7 @@ int update_grid_adj(struct modcsts * m, struct varcl ** vcl){
     int state=0;
     int d, i;
     
-    
+    // Perform the updates in backward order for adjoint simulation
     for (i=m->nupdates-1;i>=0;i--){
         
         // Updating the variables
@@ -324,7 +333,7 @@ int update_grid_adj(struct modcsts * m, struct varcl ** vcl){
         __GUARD comm(m, vcl, 1, i);
         
         
-        // Send the communcated buffers to the devices
+        // Transfer memory in communication buffers to variables' buffers
         for (d=0;d<m->NUM_DEVICES;d++){
             
             if (d>0 || m->MYLOCALID>0){
@@ -353,6 +362,8 @@ int initialize_grid(struct modcsts * m, struct varcl ** vcl, int s){
     // Initialization of the seismic variables
     for (d=0;d<m->NUM_DEVICES;d++){
         
+        // Source and receivers position are transfered at the beginning of each
+        // simulation
         (*vcl)[d].src_recs.cl_src.size=sizeof(float)
                                            * m->NT * (*vcl)[d].src_recs.nsrc[s];
         (*vcl)[d].src_recs.cl_src_pos.size= sizeof(float)
@@ -364,7 +375,7 @@ int initialize_grid(struct modcsts * m, struct varcl ** vcl, int s){
         __GUARD clbuf_send(&(*vcl)[d].queue, &(*vcl)[d].src_recs.cl_src_pos);
         __GUARD clbuf_send(&(*vcl)[d].queue, &(*vcl)[d].src_recs.cl_rec_pos);
         
-        
+        // Implent initial conditions
         __GUARD prog_launch( &(*vcl)[d].queue, &(*vcl)[d].bnd_cnds.init_f);
         (*vcl)[d].src_recs.varsoutinit.gsize[0]=m->NT*(*vcl)[d].src_recs.nrec[s];
         
@@ -372,12 +383,9 @@ int initialize_grid(struct modcsts * m, struct varcl ** vcl, int s){
 
         
         // Buffer size for this shot
-
         (*vcl)[d].src_recs.varsout.gsize[0]=(*vcl)[d].src_recs.nrec[s];
         (*vcl)[d].src_recs.sources.gsize[0]=(*vcl)[d].src_recs.nsrc[s];
-        
 
-        
         if (m->GRADOUT==1 && m->BACK_PROP_TYPE==2){
             __GUARD prog_launch( &(*vcl)[d].queue,
                                  &(*vcl)[d].grads.initsavefreqs);
@@ -389,16 +397,16 @@ int initialize_grid(struct modcsts * m, struct varcl ** vcl, int s){
     return state;
 }
 
-
-
 int time_stepping(struct modcsts * m, struct varcl ** vcl) {
-    
+    // Performs forward and adjoint modeling for each source point assigned to
+    // this group of nodes and devices.
+
     int state=0;
     
     int t,s,i,d, thist;
    
 
-    // Calculate what shots belong to the group this processing element belongs to
+    // Calculate what shots belong to the group this processing element
     m->src_recs.smin=0;
     m->src_recs.smax=0;
     
@@ -431,10 +439,10 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl) {
         // Initialization of the seismic variables
         __GUARD initialize_grid(m, vcl, s);
         
-        // Loop for seismic propagation
+        // Loop for forward time stepping
         for (t=0;t<m->tmax; t++){
             
-            //Assign the time step to kernels
+            //Assign the time step value to kernels
             for (d=0;d<m->NUM_DEVICES;d++){
                 for (i=0;i<(*vcl)[d].nprogs;i++){
                     if ((*vcl)[d].progs[i]->tinput>0)
@@ -513,33 +521,37 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl) {
             __GUARD m->res_calc(m,s);
         }
 
-        // Calculation of the gradient for this shot
+        // Calculation of the gradient for this shot, if required
         if (m->GRADOUT==1){
             
-            // Initialize the backpropagation and gradient. Transfer the residual to GPUs
+            // Initialize the backpropagation and gradient.
+            // and transfer the residual to GPUs
             for (d=0;d<m->NUM_DEVICES;d++){
                
                 // Transfer the residuals to the gpus
                 for (i=0;i<m->nvars;i++){
                     if ( (*vcl)[d].vars[i].to_output){
                         (*vcl)[d].vars[i].cl_var_res.size=sizeof(float)
-                        * m->NT * m->src_recs.nrec[s];
-                        (*vcl)[d].vars[i].cl_var_res.host=(*vcl)[d].vars[i].gl_var_res[s];
+                                                  * m->NT * m->src_recs.nrec[s];
+                        (*vcl)[d].vars[i].cl_var_res.host=
+                                                (*vcl)[d].vars[i].gl_var_res[s];
                         __GUARD clbuf_send(&(*vcl)[d].queue,
                                            &(*vcl)[d].vars[i].cl_var_res);
                     }
                 }
-                
-               if (m->BACK_PROP_TYPE==1){
-                   __GUARD prog_launch( &(*vcl)[d].queue,
-                                       &(*vcl)[d].bnd_cnds.init_adj);
-               }
-                
+                // Initialize the backpropagation of the forward variables
+                if (m->BACK_PROP_TYPE==1){
+                    __GUARD prog_launch( &(*vcl)[d].queue,
+                                         &(*vcl)[d].bnd_cnds.init_adj);
+                }
+                // Initialized the source gradient
                 if (m->GRADSRCOUT==1){
                     __GUARD prog_launch( &(*vcl)[d].queue,
                                         &(*vcl)[d].src_recs.init_gradsrc);
                 }
-                
+                // Transfer to host the forward variable frequencies obtained
+                // obtained by DFT. The same buffers on the devices are reused
+                // for the adjoint variables.
                 if (m->BACK_PROP_TYPE==2){
                     for (i=0;i<(*vcl)[d].nvars;i++){
                         if ((*vcl)[d].vars[i].for_grad){
@@ -547,7 +559,8 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl) {
                                                &(*vcl)[d].vars[i].cl_fvar);
                         }
                     }
-
+                    // Inialize to 9 the frequency buffers, and the adjoint
+                    // variable buffers (forward buffers are reused).
                     __GUARD prog_launch( &(*vcl)[d].queue,
                                          &(*vcl)[d].grads.initsavefreqs);
                     __GUARD prog_launch( &(*vcl)[d].queue,
@@ -559,10 +572,12 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl) {
             // Inverse time stepping
             for (t=m->tmax-1;t>=m->tmin; t--){
 
-                // Save the boundaries
+                // Injecct the forward variables boundaries
                 if (m->BACK_PROP_TYPE==1)
                     __GUARD inject_bnd( m, vcl, t);
                 
+                // Update the adjoint wavefield and perform back-propagation of
+                // forward wavefield
                 __GUARD update_grid_adj(m, vcl);
                 
                 //Save the selected frequency if the gradient is obtained by DFT
@@ -586,14 +601,18 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl) {
                 }
             }
             
-            
+            // Transfer  the source gradient to the host
             if (m->GRADSRCOUT==1){
                 for (d=0;d<m->NUM_DEVICES;d++){
-                    __GUARD clbuf_read( &(*vcl)[d].queue, &(*vcl)[d].src_recs.cl_grad_src);
+                    __GUARD clbuf_read( &(*vcl)[d].queue,
+                                        &(*vcl)[d].src_recs.cl_grad_src);
                 }
             }
             
-            // Transfer the gradient from GPUs to host
+            // Transfer the adjoint frequencies to the host, calculate the
+            // gradient by the crosscorrelation of forward and adjoint
+            // frequencies and intialize frequencies and forward buffers to 0
+            // for the forward modeling of the next source.
             if (m->BACK_PROP_TYPE==2){
                 for (i=0;i<(*vcl)[d].nvars;i++){
                     if ((*vcl)[d].vars_adj[i].for_grad){
@@ -617,7 +636,8 @@ int time_stepping(struct modcsts * m, struct varcl ** vcl) {
         
 
     }
-    
+    // Using back-propagation, the gradient is computed on the devices. After
+    // all sources positions have been modeled, transfer back the gradient.
     if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1){
         for (d=0;d<m->NUM_DEVICES;d++){
             for (i=0;i<m->npars;i++){
