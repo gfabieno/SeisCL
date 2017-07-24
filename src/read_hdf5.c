@@ -220,7 +220,7 @@ int checkmatNDIM_atleast(hid_t file_id, const char * invar, int NDIM, hsize_t * 
 
 
 
-int readhdf5(struct filenames files, struct modcsts * m) {
+int readhdf5(struct filenames files, model * m) {
     
     hid_t       file_id=0;
     hsize_t     dimsND[MAX_DIMS],dims2D[2],dimsfreqs[2];
@@ -657,9 +657,9 @@ int readhdf5(struct filenames files, struct modcsts * m) {
                 if (1==H5Lexists( file_id, m->vars[i].name, H5P_DEFAULT)){
                     m->vars[i].to_output=1;
                     if (!state) if ((state=checkmatNDIM_atleast(file_id, m->vars[i].name,  2, dims2D)))   {state=1;fprintf(stderr, "Variable %s must be nt x number of recording stations\n",m->vars[i].name );};
-                    alloc_seismo(&m->vars[i].gl_varin, m);
+                    var_alloc_out(&m->vars[i].gl_varin, m);
                     if (m->RESOUT){
-                        alloc_seismo(&m->vars[i].gl_var_res, m);
+                        var_alloc_out(&m->vars[i].gl_var_res, m);
                     }
                     __GUARD read_seis(file_id, H5T_NATIVE_FLOAT, m->vars[i].name, m->vars[i].gl_varin[0], m->src_recs.rec_pos[0], m->src_recs.allng, m->NT);
                     anyout=1;
@@ -669,9 +669,9 @@ int readhdf5(struct filenames files, struct modcsts * m) {
                 if (1==H5Lexists( file_id, m->trans_vars[i].name, H5P_DEFAULT)){
                     m->trans_vars[i].to_output=1;
                     if (!state) if ((state=checkmatNDIM_atleast(file_id, m->trans_vars[i].name,  2, dims2D)))   {state=1;fprintf(stderr, "Variable %s must be nt x number of recording stations\n",m->trans_vars[i].name );};
-                    alloc_seismo(&m->trans_vars[i].gl_varin, m);
+                    var_alloc_out(&m->trans_vars[i].gl_varin, m);
                     if (m->RESOUT){
-                        alloc_seismo(&m->trans_vars[i].gl_var_res, m);
+                        var_alloc_out(&m->trans_vars[i].gl_var_res, m);
                     }
                     __GUARD read_seis(file_id, H5T_NATIVE_FLOAT, m->trans_vars[i].name, m->trans_vars[i].gl_varin[0], m->src_recs.rec_pos[0], m->src_recs.allng, m->NT);
                     anyout=1;

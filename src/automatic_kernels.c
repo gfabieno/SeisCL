@@ -23,9 +23,9 @@
 #include "F.h"
 
 
-int kernel_varout(struct varcl * vcl,
-                  struct variable * vars,
-                  struct clprogram * prog){
+int kernel_varout(device * dev,
+                  variable * vars,
+                  clprogram * prog){
  
     int state=0;
     int i;
@@ -35,7 +35,7 @@ int kernel_varout(struct varcl * vcl,
     char * p=(char*)temp;
     
     strcat(temp, "__kernel void varsout(int nt, __global float * rec_pos, ");
-    for (i=0;i<vcl->nvars;i++){
+    for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
             strcat(temp, "__global float * ");
             strcat(temp, vars[i].name);
@@ -58,7 +58,7 @@ int kernel_varout(struct varcl * vcl,
            "\n");
     
     sprintf(temp2,"    if (i-OFFSET<FDOH || i-OFFSET>N%s-FDOH-1){\n",
-            vcl->N_names[vcl->NDIM-1] );
+            dev->N_names[dev->NDIM-1] );
     strcat(temp, temp2);
     strcat(temp,
            "        return;\n"
@@ -67,15 +67,15 @@ int kernel_varout(struct varcl * vcl,
     
     char posstr[100]={0};
     
-    if (vcl->NDIM==2){
-        sprintf(posstr,"[(i-OFFSET)*N%s+k];\n",vcl->N_names[0]);
+    if (dev->NDIM==2){
+        sprintf(posstr,"[(i-OFFSET)*N%s+k];\n",dev->N_names[0]);
     }
-    else if (vcl->NDIM==3){
+    else if (dev->NDIM==3){
         sprintf(posstr,"[(i-OFFSET)*N%s*N%s+j*(N%s)+k];\n",
-                vcl->N_names[1], vcl->N_names[0], vcl->N_names[0]);
+                dev->N_names[1], dev->N_names[0], dev->N_names[0]);
     }
     
-    for (i=0;i<vcl->nvars;i++){
+    for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
             strcat(temp, "    ");
             strcat(temp, vars[i].name);
@@ -100,9 +100,9 @@ int kernel_varout(struct varcl * vcl,
 }
 
 
-int kernel_varoutinit(struct varcl * vcl,
-                      struct variable * vars,
-                      struct clprogram * prog){
+int kernel_varoutinit(device * dev,
+                      variable * vars,
+                      clprogram * prog){
     
     int state=0;
     int i;
@@ -112,7 +112,7 @@ int kernel_varoutinit(struct varcl * vcl,
     char * p=(char*)temp;
     
     strcat(temp, "__kernel void varsoutinit(");
-    for (i=0;i<vcl->nvars;i++){
+    for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
             strcat(temp, "__global float * ");
             strcat(temp, vars[i].name);
@@ -127,7 +127,7 @@ int kernel_varoutinit(struct varcl * vcl,
     
     strcat(temp,"    int gid = get_global_id(0);\n\n");
     
-    for (i=0;i<vcl->nvars;i++){
+    for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
             strcat(temp, "    ");
             strcat(temp, vars[i].name);
@@ -149,9 +149,9 @@ int kernel_varoutinit(struct varcl * vcl,
     
 }
 
-int kernel_varinit(struct varcl * vcl,
-                   struct variable * vars,
-                   struct clprogram * prog){
+int kernel_varinit(device * dev,
+                   variable * vars,
+                   clprogram * prog){
     
     int state=0;
     int i;
@@ -162,7 +162,7 @@ int kernel_varinit(struct varcl * vcl,
     char ptemp[50];
     
     int maxsize=0;
-    for (i=0;i<vcl->nvars;i++){
+    for (i=0;i<dev->nvars;i++){
         if (vars[i].num_ele>maxsize){
             maxsize=vars[i].num_ele;
         }
@@ -170,7 +170,7 @@ int kernel_varinit(struct varcl * vcl,
     
     
     strcat(temp, "__kernel void vars_init(");
-    for (i=0;i<vcl->nvars;i++){
+    for (i=0;i<dev->nvars;i++){
             strcat(temp, "__global float * ");
             strcat(temp, vars[i].name);
             strcat(temp, ", ");
@@ -184,7 +184,7 @@ int kernel_varinit(struct varcl * vcl,
     strcat(temp,"    int gid = get_global_id(0);\n\n");
     
     
-    for (i=0;i<vcl->nvars;i++){
+    for (i=0;i<dev->nvars;i++){
         if (vars[i].num_ele<maxsize){
             sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
             strcat(temp,ptemp);
@@ -209,12 +209,12 @@ int kernel_varinit(struct varcl * vcl,
     
 }
 
-int kernel_sources(struct varcl * vcl,
-                   struct variable * vars,
-                   struct clprogram * prog){
+int kernel_sources(device * dev,
+                   variable * vars,
+                   clprogram * prog){
     
     int state=0;
-    int i,j;
+    int i;
     
     char temp[MAX_KERN_STR]={0};
     char temp2[100]={0};
@@ -226,13 +226,13 @@ int kernel_sources(struct varcl * vcl,
     int * tosources=NULL;
     int ntypes=0;
     int ind;
-    GMALLOC(tosources,vcl->nvars*sizeof(int));
-    for (i=0;i<vcl->src_recs.allns;i++){
-        ind =vcl->src_recs.src_pos[0][4+i*5];
-        if (ind<vcl->nvars)
+    GMALLOC(tosources,dev->nvars*sizeof(int));
+    for (i=0;i<dev->src_recs.allns;i++){
+        ind =dev->src_recs.src_pos[0][4+i*5];
+        if (ind<dev->nvars)
             tosources[ind]=1;
     }
-    for (i=0;i<vcl->nvars;i++){
+    for (i=0;i<dev->nvars;i++){
         if (tosources[i]==1){
             ntypes++;
         }
@@ -244,7 +244,7 @@ int kernel_sources(struct varcl * vcl,
     
     strcat(temp, "__kernel void sources(int nt, __global float * src_pos,"
                  " __global float * src, ");
-    for (i=0;i<vcl->nvars;i++){
+    for (i=0;i<dev->nvars;i++){
         if (tosources[i]){
             strcat(temp, "__global float * ");
             strcat(temp, vars[i].name);
@@ -264,7 +264,7 @@ int kernel_sources(struct varcl * vcl,
            "\n");
 
     sprintf(temp2,"    if (i-OFFSET<FDOH || i-OFFSET>N%s-FDOH-1){\n",
-            vcl->N_names[vcl->NDIM-1] );
+            dev->N_names[dev->NDIM-1] );
     strcat(temp, temp2);
     strcat(temp,
            "        return;\n"
@@ -275,12 +275,12 @@ int kernel_sources(struct varcl * vcl,
     char posstr[100]={0};
 
     
-    if (vcl->NDIM==2){
-        sprintf(posstr,"[(i-OFFSET)*N%s+k]",vcl->N_names[0]);
+    if (dev->NDIM==2){
+        sprintf(posstr,"[(i-OFFSET)*N%s+k]",dev->N_names[0]);
     }
-    else if (vcl->NDIM==3){
+    else if (dev->NDIM==3){
         sprintf(posstr,"[(i-OFFSET)*N%s*N%s+j*(N%s)+k]",
-                vcl->N_names[1], vcl->N_names[0], vcl->N_names[0]);
+                dev->N_names[1], dev->N_names[0], dev->N_names[0]);
     }
     else{
         state=1;
@@ -289,7 +289,7 @@ int kernel_sources(struct varcl * vcl,
     }
     
     
-    for (i=0;i<vcl->nvars;i++){
+    for (i=0;i<dev->nvars;i++){
         
         if (tosources[i]){
             if (ntypes>1){
@@ -319,9 +319,9 @@ int kernel_sources(struct varcl * vcl,
     
 }
 
-int kernel_residuals(struct varcl * vcl,
-                     struct variable * vars,
-                     struct clprogram * prog){
+int kernel_residuals(device * dev,
+                     variable * vars,
+                     clprogram * prog){
     
     int state=0;
     int i;
@@ -334,7 +334,7 @@ int kernel_residuals(struct varcl * vcl,
    
     
     strcat(temp, "__kernel void residuals(int nt, __global float * rec_pos,");
-    for (i=0;i<vcl->nvars;i++){
+    for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
             strcat(temp, "__global float * ");
             strcat(temp, vars[i].name);
@@ -356,7 +356,7 @@ int kernel_residuals(struct varcl * vcl,
            "    int k=(int)(rec_pos[2+8*gid]/DH)+FDOH;\n\n");
     
     sprintf(temp2,"    if (i-OFFSET<FDOH || i-OFFSET>N%s-FDOH-1){\n",
-            vcl->N_names[vcl->NDIM-1] );
+            dev->N_names[dev->NDIM-1] );
     strcat(temp, temp2);
     strcat(temp,
            "        return;\n"
@@ -364,17 +364,17 @@ int kernel_residuals(struct varcl * vcl,
     
     char posstr[100]={0};
 
-    if (vcl->NDIM==2){
-        sprintf(posstr,"[(i-OFFSET)*N%s+k]",vcl->N_names[0]);
+    if (dev->NDIM==2){
+        sprintf(posstr,"[(i-OFFSET)*N%s+k]",dev->N_names[0]);
     }
-    else if (vcl->NDIM==3){
+    else if (dev->NDIM==3){
         sprintf(posstr,"[(i-OFFSET)*N%s*N%s+j*(N%s)+k]",
-                vcl->N_names[1], vcl->N_names[0], vcl->N_names[0]);
+                dev->N_names[1], dev->N_names[0], dev->N_names[0]);
     }
 
     
     
-    for (i=0;i<vcl->nvars;i++){
+    for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
             strcat(temp, "        ");
             strcat(temp, vars[i].name);
@@ -400,9 +400,9 @@ int kernel_residuals(struct varcl * vcl,
 
 
 
-int kernel_gradinit(struct varcl * vcl,
-                    struct parameter * pars,
-                    struct clprogram * prog){
+int kernel_gradinit(device * dev,
+                    parameter * pars,
+                    clprogram * prog){
     
     int state=0;
     int i;
@@ -413,7 +413,7 @@ int kernel_gradinit(struct varcl * vcl,
     
 
     strcat(temp, "__kernel void gradinit(");
-    for (i=0;i<vcl->npars;i++){
+    for (i=0;i<dev->npars;i++){
         if (pars[i].to_grad){
             strcat(temp, "__global float * grad");
             strcat(temp, pars[i].name);
@@ -429,7 +429,7 @@ int kernel_gradinit(struct varcl * vcl,
     strcat(temp,"    int gid = get_global_id(0);\n\n");
     
     
-    for (i=0;i<vcl->npars;i++){
+    for (i=0;i<dev->npars;i++){
         if (pars[i].to_grad){
             strcat(temp, "    grad");
             strcat(temp, pars[i].name);
@@ -449,9 +449,9 @@ int kernel_gradinit(struct varcl * vcl,
     
 }
 
-int kernel_initsavefreqs(struct varcl * vcl,
-                         struct variable * vars,
-                         struct clprogram * prog){
+int kernel_initsavefreqs(device * dev,
+                         variable * vars,
+                         clprogram * prog){
     
     int state=0;
     int i;
@@ -462,14 +462,14 @@ int kernel_initsavefreqs(struct varcl * vcl,
     char ptemp[50];
     
     int maxsize=0;
-    for (i=0;i<vcl->nvars;i++){
+    for (i=0;i<dev->nvars;i++){
         if (vars[i].num_ele>maxsize && vars[i].for_grad){
             maxsize=vars[i].num_ele;
         }
     }
     
     strcat(temp, "__kernel void initsavefreqs(");
-    for (i=0;i<vcl->nvars;i++){
+    for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
             strcat(temp, "__global float * f");
             strcat(temp, vars[i].name);
@@ -485,7 +485,7 @@ int kernel_initsavefreqs(struct varcl * vcl,
     strcat(temp,"    int gid = get_global_id(0);\n\n");
     
     
-    for (i=0;i<vcl->nvars;i++){
+    for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
             if (vars[i].num_ele<maxsize){
                 sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
@@ -510,9 +510,9 @@ int kernel_initsavefreqs(struct varcl * vcl,
     
 }
 
-int kernel_savefreqs(struct varcl * vcl,
-                     struct variable * vars,
-                     struct clprogram * prog){
+int kernel_savefreqs(device * dev,
+                     variable * vars,
+                     clprogram * prog){
     
     int state=0;
     int i;
@@ -523,14 +523,14 @@ int kernel_savefreqs(struct varcl * vcl,
     char ptemp[50];
     
     int maxsize=0;
-    for (i=0;i<vcl->nvars;i++){
+    for (i=0;i<dev->nvars;i++){
         if (vars[i].num_ele>maxsize && vars[i].for_grad){
             maxsize=vars[i].num_ele;
         }
     }
     
     strcat(temp,"__kernel void savefreqs(__constant float *gradfreqs, int nt, ");
-    for (i=0;i<vcl->nvars;i++){
+    for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
             strcat(temp, "__global float * ");
             strcat(temp, vars[i].name);
@@ -548,7 +548,7 @@ int kernel_savefreqs(struct varcl * vcl,
     strcat(temp,"    int freq,l;\n"
                 "    float2 fact[NFREQS]={0};\n");
     
-    for (i=0;i<vcl->nvars;i++){
+    for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
             strcat(temp, "    float  l");
             strcat(temp, vars[i].name);
@@ -563,7 +563,7 @@ int kernel_savefreqs(struct varcl * vcl,
     strcat(temp,"    int gid = get_global_id(0);\n"
                 "    int gsize=get_global_size(0);\n\n" );
     
-    for (i=0;i<vcl->nvars;i++){
+    for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
             if (vars[i].num_ele<maxsize){
                 sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
@@ -588,7 +588,7 @@ int kernel_savefreqs(struct varcl * vcl,
         
         
     
-    for (i=0;i<vcl->nvars;i++){
+    for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
             if (vars[i].num_ele<maxsize){
                 sprintf(ptemp,"    if (gid<%d){\n", vars[i].num_ele);
@@ -619,7 +619,7 @@ int kernel_savefreqs(struct varcl * vcl,
     
 }
 
-int kernel_init_gradsrc(struct clprogram * prog){
+int kernel_init_gradsrc(clprogram * prog){
     
     int state=0;
     
@@ -643,9 +643,9 @@ int kernel_init_gradsrc(struct clprogram * prog){
     
 }
 
-int kernel_fcom_out(struct varcl * vcl,
-                    struct variable * vars,
-                    struct clprogram * prog,
+int kernel_fcom_out(device * dev,
+                    variable * vars,
+                    clprogram * prog,
                     int upid, int buff12){
     
     int state=0;
@@ -657,14 +657,14 @@ int kernel_fcom_out(struct varcl * vcl,
     char ptemp[200];
     
     int maxsize=0;
-    for (i=0;i<vcl->nvars;i++){
+    for (i=0;i<dev->nvars;i++){
         if (vars[i].num_ele>maxsize){
             maxsize=vars[i].num_ele;
         }
     }
     
     strcat(temp, "__kernel void fill_transfer_buff_out(");
-    for (i=0;i<vcl->nvars;i++){
+    for (i=0;i<dev->nvars;i++){
         if (vars[i].to_comm==upid){
             strcat(temp, "__global float * ");
             strcat(temp, vars[i].name);
@@ -684,10 +684,10 @@ int kernel_fcom_out(struct varcl * vcl,
     
     
     //Indice if local memory is used
-    if (vcl->LOCAL_OFF==0){
-        for (i=0;i<vcl->NDIM;i++){
+    if (dev->LOCAL_OFF==0){
+        for (i=0;i<dev->NDIM;i++){
             sprintf(ptemp,"    int gid%s=get_global_id(%d)+FDOH;\n",
-                                                vcl->N_names[i],i );
+                                                dev->N_names[i],i );
             strcat(temp, ptemp);
         }
     }
@@ -696,18 +696,18 @@ int kernel_fcom_out(struct varcl * vcl,
         strcat(temp,"    int gid = get_global_id(0);\n");
 
         sprintf(ptemp,"    int gid%s=gid%%(N%s-2*FDOH);\n",
-                           vcl->N_names[0],vcl->N_names[0]);
+                           dev->N_names[0],dev->N_names[0]);
         strcat(temp, ptemp);
         
-        for (i=1;i<vcl->NDIM;i++){
-            sprintf(ptemp,"    int gid%s=(gid",vcl->N_names[i]);
+        for (i=1;i<dev->NDIM;i++){
+            sprintf(ptemp,"    int gid%s=(gid",dev->N_names[i]);
             strcat(temp, ptemp);
             for (j=0;j<i;j++){
-                sprintf(ptemp,"/(N%s-2*FDOH)",vcl->N_names[j]);
+                sprintf(ptemp,"/(N%s-2*FDOH)",dev->N_names[j]);
                 strcat(temp, ptemp);
             }
-            if (i<vcl->NDIM-1){
-                sprintf(ptemp,")%%(N%s-2*fdoh);\n",vcl->N_names[i]);
+            if (i<dev->NDIM-1){
+                sprintf(ptemp,")%%(N%s-2*fdoh);\n",dev->N_names[i]);
                 strcat(temp, ptemp);
             }
             else
@@ -719,41 +719,41 @@ int kernel_fcom_out(struct varcl * vcl,
     strcat(temp,"\n");
     
     strcat(temp,"    int idbuf=");
-    for (i=0;i<vcl->NDIM;i++){
-        sprintf(ptemp,"gid%s",vcl->N_names[i]);
+    for (i=0;i<dev->NDIM;i++){
+        sprintf(ptemp,"gid%s",dev->N_names[i]);
         strcat(temp, ptemp);
         for (j=0;j<i;j++){
-            sprintf(ptemp,"*(N%s-2*FDOH)",vcl->N_names[j]);
+            sprintf(ptemp,"*(N%s-2*FDOH)",dev->N_names[j]);
             strcat(temp, ptemp);
         }
-        if (i!=vcl->NDIM-1){
+        if (i!=dev->NDIM-1){
             strcat(temp, "+");
         }
     }
     strcat(temp,";\n");
     strcat(temp,"    int idvar=");
-    for (i=0;i<vcl->NDIM;i++){
-        if (i!=vcl->NDIM-1)
-            sprintf(ptemp,"(gid%s+FDOH)",vcl->N_names[i]);
+    for (i=0;i<dev->NDIM;i++){
+        if (i!=dev->NDIM-1)
+            sprintf(ptemp,"(gid%s+FDOH)",dev->N_names[i]);
         else{
             if (buff12==1)
-                sprintf(ptemp,"(gid%s+FDOH)",vcl->N_names[i]);
+                sprintf(ptemp,"(gid%s+FDOH)",dev->N_names[i]);
             else
                 sprintf(ptemp,"(gid%s+N%s-2*FDOH)",
-                              vcl->N_names[i],vcl->N_names[i]);
+                              dev->N_names[i],dev->N_names[i]);
         }
         strcat(temp, ptemp);
         for (j=0;j<i;j++){
-            sprintf(ptemp,"*N%s",vcl->N_names[j]);
+            sprintf(ptemp,"*N%s",dev->N_names[j]);
             strcat(temp, ptemp);
         }
-        if (i!=vcl->NDIM-1){
+        if (i!=dev->NDIM-1){
             strcat(temp, "+");
         }
     }
     strcat(temp,";\n\n");
     
-    for (i=0;i<vcl->nvars;i++){
+    for (i=0;i<dev->nvars;i++){
         if (vars[i].to_comm==upid){
             sprintf(ptemp,"    %s_buf%d[idbuf]=%s[idvar];\n",
                           vars[i].name, buff12, vars[i].name);
@@ -775,9 +775,9 @@ int kernel_fcom_out(struct varcl * vcl,
     
 }
 
-int kernel_fcom_in(struct varcl * vcl,
-                   struct variable * vars,
-                   struct clprogram * prog,
+int kernel_fcom_in(device * dev,
+                   variable * vars,
+                   clprogram * prog,
                    int upid, int buff12){
     
     int state=0;
@@ -789,14 +789,14 @@ int kernel_fcom_in(struct varcl * vcl,
     char ptemp[200];
     
     int maxsize=0;
-    for (i=0;i<vcl->nvars;i++){
+    for (i=0;i<dev->nvars;i++){
         if (vars[i].num_ele>maxsize){
             maxsize=vars[i].num_ele;
         }
     }
     
     strcat(temp, "__kernel void fill_transfer_buff_in(");
-    for (i=0;i<vcl->nvars;i++){
+    for (i=0;i<dev->nvars;i++){
         if (vars[i].to_comm==upid){
             strcat(temp, "__global float * ");
             strcat(temp, vars[i].name);
@@ -816,10 +816,10 @@ int kernel_fcom_in(struct varcl * vcl,
     
     
     //Indice if local memory is used
-    if (vcl->LOCAL_OFF==0){
-        for (i=0;i<vcl->NDIM;i++){
+    if (dev->LOCAL_OFF==0){
+        for (i=0;i<dev->NDIM;i++){
             sprintf(ptemp,"    int gid%s=get_global_id(%d)+FDOH;\n",
-                                                vcl->N_names[i],i );
+                                                dev->N_names[i],i );
             strcat(temp, ptemp);
         }
     }
@@ -828,18 +828,18 @@ int kernel_fcom_in(struct varcl * vcl,
         strcat(temp,"    int gid = get_global_id(0);\n");
         
         sprintf(ptemp,"    int gid%s=gid%%(N%s-2*FDOH);\n",
-                          vcl->N_names[0],vcl->N_names[0]);
+                          dev->N_names[0],dev->N_names[0]);
         strcat(temp, ptemp);
         
-        for (i=1;i<vcl->NDIM;i++){
-            sprintf(ptemp,"    int gid%s=(gid",vcl->N_names[i]);
+        for (i=1;i<dev->NDIM;i++){
+            sprintf(ptemp,"    int gid%s=(gid",dev->N_names[i]);
             strcat(temp, ptemp);
             for (j=0;j<i;j++){
-                sprintf(ptemp,"/(N%s-2*FDOH)",vcl->N_names[j]);
+                sprintf(ptemp,"/(N%s-2*FDOH)",dev->N_names[j]);
                 strcat(temp, ptemp);
             }
-            if (i<vcl->NDIM-1){
-                sprintf(ptemp,")%%(N%s-2*fdoh);\n",vcl->N_names[i]);
+            if (i<dev->NDIM-1){
+                sprintf(ptemp,")%%(N%s-2*fdoh);\n",dev->N_names[i]);
                 strcat(temp, ptemp);
             }
             else
@@ -851,41 +851,41 @@ int kernel_fcom_in(struct varcl * vcl,
     strcat(temp,"\n");
     
     strcat(temp,"    int idbuf=");
-    for (i=0;i<vcl->NDIM;i++){
-        sprintf(ptemp,"gid%s",vcl->N_names[i]);
+    for (i=0;i<dev->NDIM;i++){
+        sprintf(ptemp,"gid%s",dev->N_names[i]);
         strcat(temp, ptemp);
         for (j=0;j<i;j++){
-            sprintf(ptemp,"*(N%s-2*FDOH)",vcl->N_names[j]);
+            sprintf(ptemp,"*(N%s-2*FDOH)",dev->N_names[j]);
             strcat(temp, ptemp);
         }
-        if (i!=vcl->NDIM-1){
+        if (i!=dev->NDIM-1){
             strcat(temp, "+");
         }
     }
     strcat(temp,";\n");
     strcat(temp,"    int idvar=");
-    for (i=0;i<vcl->NDIM;i++){
-        if (i!=vcl->NDIM-1)
-            sprintf(ptemp,"(gid%s+FDOH)",vcl->N_names[i]);
+    for (i=0;i<dev->NDIM;i++){
+        if (i!=dev->NDIM-1)
+            sprintf(ptemp,"(gid%s+FDOH)",dev->N_names[i]);
         else{
             if (buff12==1)
-                sprintf(ptemp,"(gid%s)",vcl->N_names[i]);
+                sprintf(ptemp,"(gid%s)",dev->N_names[i]);
             else
                 sprintf(ptemp,"(gid%s+N%s-FDOH)",
-                             vcl->N_names[i],vcl->N_names[i]);
+                             dev->N_names[i],dev->N_names[i]);
         }
         strcat(temp, ptemp);
         for (j=0;j<i;j++){
-            sprintf(ptemp,"*N%s",vcl->N_names[j]);
+            sprintf(ptemp,"*N%s",dev->N_names[j]);
             strcat(temp, ptemp);
         }
-        if (i!=vcl->NDIM-1){
+        if (i!=dev->NDIM-1){
             strcat(temp, "+");
         }
     }
     strcat(temp,";\n\n");
     
-    for (i=0;i<vcl->nvars;i++){
+    for (i=0;i<dev->nvars;i++){
         if (vars[i].to_comm==upid){
             sprintf(ptemp,"    %s[idvar]=%s_buf%d[idbuf];\n",
                                vars[i].name, vars[i].name, buff12);

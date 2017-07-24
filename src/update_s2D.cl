@@ -336,7 +336,7 @@ __kernel void update_s(int offcomm,
         }
 #endif
         
-#if DEV==0 & MYLOCALID==0
+#if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
             
             i =gidx-FDOH;
@@ -350,7 +350,7 @@ __kernel void update_s(int offcomm,
         }
 #endif
         
-#if DEV==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-NAB-FDOH-1){
             
             i =gidx - NX+NAB+FDOH+NAB;
@@ -467,7 +467,7 @@ __kernel void update_s(int offcomm,
             sxz(gidz,gidx)*=taper[NZ-FDOH-gidz-1];
         }
         
-#if DEV==0 & MYLOCALID==0
+#if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
             sxx(gidz,gidx)*=taper[gidx-FDOH];
             szz(gidz,gidx)*=taper[gidx-FDOH];
@@ -475,7 +475,7 @@ __kernel void update_s(int offcomm,
         }
 #endif
         
-#if DEV==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-NAB-FDOH-1){
             sxx(gidz,gidx)*=taper[NX-FDOH-gidx-1];
             szz(gidz,gidx)*=taper[NX-FDOH-gidx-1];

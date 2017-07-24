@@ -23,12 +23,12 @@ int main(int argc, char **argv) {
     
     int state=0;
 
-    struct modcsts m={};
-    struct varcl *vcl=NULL;
+    model m={};
+    device *dev=NULL;
 
     
     int i;
-    double time1=0.0, time2=0.0, time3=0.0, time4=0.0, time5=0.0;
+    double time1=0.0, time2=0.0, time3=0.0, time4=0.0, time5=0.0, time6=0.0;
 
     
     //Input files name is an argument
@@ -87,61 +87,68 @@ int main(int argc, char **argv) {
     
     time3=MPI_Wtime();
     
-    __GUARD Init_OpenCL(&m, &vcl);
-//
-//    
-//
-//    
-//    time4=MPI_Wtime();
-//    
-//    
-//    // Main part, where seismic modeling occurs
-//    __GUARD time_stepping(&m, &vcl, &mloc);
-//    
-//    time5=MPI_Wtime();
-//    
-//    
-//    //Output time for each part of the program
-//    {
-//        double * times=NULL;
-//        
-//        if (m.MYID==0){
-//            times=malloc(sizeof(double)*5*m.NP);
-//        }
-//        
-//        double t1=time2-time1;
-//        double t2=time3-time2;
-//        double t3=time4-time3;
-//        double t4=(time5-time4)/(m.smax-m.smin)/m.NT;
-//        double t5=(time5-time1);
-//        
-//        if (!state) MPI_Gather(&t1, 1, MPI_DOUBLE , &times[0]     , 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-//        if (!state) MPI_Gather(&t2, 1, MPI_DOUBLE , &times[  m.NP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-//        if (!state) MPI_Gather(&t3, 1, MPI_DOUBLE , &times[2*m.NP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-//        if (!state) MPI_Gather(&t4, 1, MPI_DOUBLE , &times[3*m.NP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-//        if (!state) MPI_Gather(&t5, 1, MPI_DOUBLE , &times[4*m.NP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-//        
-//        if (m.MYID==0){
-//            fprintf(stdout,"Run time for each process:\n");
-//            fprintf(stdout,"process read_variables init_model init_opencl time_per_shot_per_step total_time_per_device\n");
-//            
-//            for (i=0;i<m.NP;i++){
-//                
-//                fprintf(stdout,"%d %f %f %f %f %f\n",i, times[i], times[i+m.NP], times[i+2*m.NP], times[i+3*m.NP], times[i+4*m.NP]) ;
-//            }
-//            fprintf(stdout,"Total real time of the program is: %f s\n",t5) ;
-//            free(times);
-//        }
-//    }
-//    
-//    //Write ouput files
-//    __GUARD Out_MPI(file, &m);
-//    
-//    
-//    // Free the memory
-//    Free_OpenCL(&m, &vcl, &mloc);
-//    Free_MPI(&m);
+    __GUARD Init_OpenCL(&m, &dev);
+
+    time4=MPI_Wtime();
+
+    // Main part, where seismic modeling occurs
+    __GUARD time_stepping(&m, &dev);
+
+    time5=MPI_Wtime();
     
+    //Reduce to process 0 all required outputs
+    __GUARD Out_MPI(&m);
+    
+    // Write the ouputs to hdf5 files
+    if (m.MYID==0){
+        __GUARD writehdf5(file, &m) ;
+    }
+    time6=MPI_Wtime();
+    
+    //Output time for each part of the program
+    {
+        double * times=NULL;
+        
+        if (m.MYID==0){
+            times=malloc(sizeof(double)*6*m.NP);
+        }
+        
+        double t1=time2-time1;
+        double t2=time3-time2;
+        double t3=time4-time3;
+        double t4=(time5-time4)/(m.src_recs.smax-m.src_recs.smin)/m.NT;
+        double t6=(time6-time5);
+        double t5=(time6-time1);
+        
+        if (!state) MPI_Gather(&t1, 1, MPI_DOUBLE , &times[0]     , 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        if (!state) MPI_Gather(&t2, 1, MPI_DOUBLE , &times[  m.NP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        if (!state) MPI_Gather(&t3, 1, MPI_DOUBLE , &times[2*m.NP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        if (!state) MPI_Gather(&t4, 1, MPI_DOUBLE , &times[3*m.NP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        if (!state) MPI_Gather(&t5, 1, MPI_DOUBLE , &times[4*m.NP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        if (!state) MPI_Gather(&t6, 1, MPI_DOUBLE , &times[5*m.NP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        
+        if (m.MYID==0){
+            for (i=0;i<m.NP;i++){
+                fprintf(stdout,"Run time for each process:\n");
+                fprintf(stdout,"process: %d\n", i);
+                fprintf(stdout,"read_variables: %f\n",times[i]);
+                fprintf(stdout,"init_model: %f\n", times[i+m.NP]);
+                fprintf(stdout,"init_opencl: \%f\n", times[i+2*m.NP]);
+                fprintf(stdout,"time_per_shot_per_step: %f\n", times[i+3*m.NP]);
+                fprintf(stdout,"Outputting files: \%f\n", times[i+4*m.NP]);
+                fprintf(stdout,"Total time per device: %f\n\n",times[i+5*m.NP]);
+            }
+
+            fprintf(stdout,"Total real time of the program is: %f s\n",t5) ;
+            free(times);
+        }
+    }
+    
+
+    
+    
+    // Free the memory
+    Free_OpenCL(&m, &dev);
 
     if (m.MPI_INIT==1){
         MPI_Finalize();

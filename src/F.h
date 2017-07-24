@@ -65,6 +65,11 @@
 #define MAX_KERNELS 100
 #define MAX_KERN_STR 10000
 
+
+struct device;
+
+struct model;
+
 struct filenames {
     char model[1024];
     char csts[1024];
@@ -76,7 +81,8 @@ struct filenames {
 };
 
 
-struct clbuf {
+/* _____________Structure to intereact with OpenCL memory buffers ____________*/
+typedef struct clbuf {
     
     cl_mem mem;
     size_t size;
@@ -94,10 +100,34 @@ struct clbuf {
     int nwait_s;
     cl_event * waits_s;
     
-};
+} clbuf;
+
+cl_int clbuf_send(cl_command_queue *inqueue, clbuf * buf);
+
+cl_int clbuf_sendpin( cl_command_queue *inqueue,
+                     clbuf * buf,
+                     clbuf * bufpin,
+                     int offset);
+
+cl_int clbuf_read(cl_command_queue *inqueue, clbuf * buf);
+
+cl_int clbuf_readpin( cl_command_queue *inqueue,
+                     clbuf * buf,
+                     clbuf * bufpin,
+                     int offset);
+
+cl_int clbuf_create(cl_context *incontext, clbuf * buf);
+
+cl_int clbuf_create_cst(cl_context *incontext, clbuf * buf);
+
+cl_int clbuf_create_pin(cl_context *incontext, cl_command_queue *inqueue,
+                        clbuf * buf);
 
 
-struct clprogram {
+/* ____________________Structure to execute OpenCL kernels____________________*/
+
+
+typedef struct clprogram {
     
     const char * name;
     const char * src;
@@ -122,19 +152,29 @@ struct clprogram {
     int nwait;
     cl_event * waits;
     
-};
+} clprogram;
 
-struct variable{
+int prog_source(clprogram * prog,
+                char* name,
+                const char * source);
+
+int prog_launch( cl_command_queue *inqueue, clprogram * prog);
+
+int prog_create(struct model * m, struct device * dev,clprogram * prog);
+
+
+/* ___________Structure for variables, or what is to be modelled______________*/
+typedef struct variable{
     
     const char * name;
     
-    struct clbuf cl_var;
-    struct clbuf cl_varout;
-    struct clbuf cl_varbnd;
-    struct clbuf cl_fvar;
-    struct clbuf cl_buf1;
-    struct clbuf cl_buf2;
-    struct clbuf cl_var_res;
+    clbuf cl_var;
+    clbuf cl_varout;
+    clbuf cl_varbnd;
+    clbuf cl_fvar;
+    clbuf cl_buf1;
+    clbuf cl_buf2;
+    clbuf cl_var_res;
 
     cl_float2 * gl_fvar;
     float **    gl_varout;
@@ -146,15 +186,19 @@ struct variable{
     int  to_comm;
     int num_ele;
     
-};
+} variable;
 
-struct parameter{
+int var_alloc_out(float *** var, struct model *m );
+int var_res_raw(struct model * m, int s);
+
+/* _____________Structure for parameters, or what can be inverted_____________*/
+typedef struct parameter{
     
     const char * name;
     
-    struct clbuf   cl_par;
-    struct clbuf   cl_grad;
-    struct clbuf   cl_H;
+    clbuf   cl_par;
+    clbuf   cl_grad;
+    clbuf   cl_H;
     float * gl_par;
     float * gl_grad;
     float * gl_H;
@@ -164,13 +208,17 @@ struct parameter{
     int to_grad;
     int (*transform)(float *);
 
-};
+} parameter;
 
-struct constants{
+int par_calc_grad(struct model* m);
+
+
+/* ____Structure for constants, which vectors broadcasted to all devices______*/
+typedef struct constants{
     
     const char * name;
     
-    struct clbuf   cl_cst;
+    clbuf   cl_cst;
     float  * gl_cst;
     int num_ele;
     const char * to_read;
@@ -178,21 +226,21 @@ struct constants{
 
     int (*transform)(float *);
     
-};
+} constants;
 
+/* ______________Structure that control sources and receivers ________________*/
+typedef struct sources_records{
 
-struct sources_records{
-
-    struct clbuf cl_src;
-    struct clbuf cl_src_pos;
-    struct clbuf cl_rec_pos;
-    struct clbuf cl_grad_src;;
+    clbuf cl_src;
+    clbuf cl_src_pos;
+    clbuf cl_rec_pos;
+    clbuf cl_grad_src;;
     
-    struct clprogram sources;
-    struct clprogram varsout;
-    struct clprogram varsoutinit;
-    struct clprogram residuals;
-    struct clprogram init_gradsrc;
+    clprogram sources;
+    clprogram varsout;
+    clprogram varsoutinit;
+    clprogram residuals;
+    clprogram init_gradsrc;
 
     int ns;
     int nsmax;
@@ -208,22 +256,23 @@ struct sources_records{
     float **src_pos;
     float **rec_pos;
 
-};
+} sources_records;
 
-struct update{
+/* ________________Structure that defines an update step _____________________*/
+typedef struct update{
 
     const char * name;
 
-    struct clprogram center;
-    struct clprogram com1;
-    struct clprogram com2;
-    struct clprogram fcom1_out;
-    struct clprogram fcom2_out;
-    struct clprogram fcom1_in;
-    struct clprogram fcom2_in;
+    clprogram center;
+    clprogram com1;
+    clprogram com2;
+    clprogram fcom1_out;
+    clprogram fcom2_out;
+    clprogram fcom1_in;
+    clprogram fcom2_in;
     
     int nvcom;
-    struct variable ** v2com;
+    variable ** v2com;
     
     cl_event event_readMPI1[6];
     cl_event event_readMPI2[6];
@@ -235,26 +284,30 @@ struct update{
     cl_event event_update_com1;
     cl_event event_update_com2;
 
-};
+} update;
 
-struct boundary_conditions{
+/* _____________Structure that defines the boundary conditions _______________*/
+typedef struct boundary_conditions{
     
-    struct clprogram surf;
-    struct clprogram init_f;
-    struct clprogram init_adj;
+    clprogram surf;
+    clprogram init_f;
+    clprogram init_adj;
 
-};
+} boundary_conditions;
 
-struct gradients {
+/* _____________Structure that defines the boundary conditions _______________*/
+typedef struct gradients {
 
-    struct clprogram init;
-    struct clprogram savefreqs;
-    struct clprogram initsavefreqs;
-    struct clprogram savebnd;
+    clprogram init;
+    clprogram savefreqs;
+    clprogram initsavefreqs;
+    clprogram savebnd;
 
-};
+} gradients;
 
-struct varcl {
+
+/* _____________Structure that holds all information of a device _____________*/
+typedef struct device {
     
     cl_command_queue queue;
     cl_command_queue queuecomm;
@@ -266,57 +319,56 @@ struct varcl {
     int NX0;
     int OFFSET;
     int OFFSETfd;
-    int DEV;
+    int DEVID;
     int NBND;
     
     int LOCAL_OFF;
     
-    struct clprogram * progs[MAX_KERNELS];
+    clprogram * progs[MAX_KERNELS];
     int nprogs;
 
-    struct variable * vars;
-    struct variable * vars_adj;
+    variable * vars;
+    variable * vars_adj;
     int nvars;
-    struct parameter * pars;
+    parameter * pars;
     int npars;
-    struct constants * csts;
+    constants * csts;
     int ncsts;
     
-    struct variable * trans_vars;
+    variable * trans_vars;
     int ntvars;
     
-    struct update * ups_f;
-    struct update * ups_adj;
+    update * ups_f;
+    update * ups_adj;
     int nupdates;
     
-    struct sources_records src_recs;
-    struct gradients grads;
-    struct boundary_conditions bnd_cnds;
+    sources_records src_recs;
+    gradients grads;
+    boundary_conditions bnd_cnds;
 
-};
+} device;
 
-
-// Structure containing all seismic parameters
-struct modcsts {
+/* _____________Structure that holds all information of a MPI process_________*/
+typedef struct model {
     
-    struct variable * vars;
-    struct variable * vars_adj;
+    variable * vars;
+    variable * vars_adj;
     int nvars;
-    struct parameter * pars;
+    parameter * pars;
     int npars;
-    struct constants * csts;
+    constants * csts;
     int ncsts;
     
-    struct variable * trans_vars;
+    variable * trans_vars;
     int ntvars;
     
-    struct update * ups_f;
-    struct update * ups_adj;
+    update * ups_f;
+    update * ups_adj;
     int nupdates;
     
-    struct sources_records src_recs;
-    struct gradients grads;
-    struct boundary_conditions bnd_cnds;
+    sources_records src_recs;
+    gradients grads;
+    boundary_conditions bnd_cnds;
 
     int NXP;
     int NT;
@@ -394,145 +446,101 @@ struct modcsts {
     cl_device_type device_type;
     cl_uint NUM_DEVICES;
     cl_context context;
-    size_t buffer_size_comm;
 
-    int (*res_calc)(struct modcsts * , int );
+    int (*res_calc)(struct model * , int );
 
-};
-
-// SeisCL function definition
-
-int toMPI(struct modcsts * mptr);
-
-int Init_cst(struct modcsts * m);
-
-int Init_model(struct modcsts * m);
-
-int Init_OpenCL(struct modcsts * m, struct varcl ** vcl);
-
-int Free_OpenCL(struct modcsts * m, struct varcl ** vcl) ;
-
-int time_stepping(struct modcsts * m, struct varcl ** vcl);
-
-int readhdf5(struct filenames files, struct modcsts * m);
-
-int Init_MPI(struct modcsts * m);
-
-int writehdf5(struct filenames file, struct modcsts * m);
-
-int Free_MPI(struct modcsts * m) ;
-
-int Out_MPI(struct filenames file, struct modcsts * m);
-
-int assign_modeling_case(struct modcsts * m);
-
-int assign_var_size(int* N, int NDIM, int FDORDER, int numvar, int L, struct variable * vars);
+} model;
 
 
-cl_int GetPlatformID( cl_device_type * pref_device_type, cl_device_type * device_type, cl_platform_id* clsel_plat_id, cl_uint  *outnum_devices, int n_no_use_GPUs, int * no_use_GPUs);
+/* __________________________SeisCL functions________________________________*/
 
-cl_int connect_allgpus(struct varcl ** vcl, cl_context *incontext, cl_device_type * device_type, cl_platform_id* clsel_plat_id, int n_no_use_GPUs, int * no_use_GPUs, int nmax_dev);
+int readhdf5(struct filenames files, model * m);
 
-cl_int get_device_num(cl_uint * NUM_DEVICES);
+int assign_modeling_case(model * m);
 
-cl_int create_gpu_kernel(const char * filename, cl_program *program, cl_context *context, cl_kernel *kernel, const char * program_name, const char * build_options);
+int assign_var_size(int* N,int NDIM,int FDORDER,int numvar,int L,variable*vars);
 
-cl_int create_gpu_kernel_from_string(const char *program_source, cl_program *program, cl_context *context, cl_kernel *kernel, const char * program_name, const char * build_options);
+int Init_cst(model * m);
 
-cl_int clbuf_send(cl_command_queue *inqueue, struct clbuf * buf);
+int Init_model(model * m);
 
-cl_int clbuf_sendpin( cl_command_queue *inqueue,
-                     struct clbuf * buf,
-                     struct clbuf * bufpin,
-                     int offset);
+int Init_MPI(model * m);
 
-cl_int clbuf_read(cl_command_queue *inqueue, struct clbuf * buf);
+int Init_OpenCL(model * m, device ** dev);
 
-cl_int clbuf_readpin( cl_command_queue *inqueue,
-                     struct clbuf * buf,
-                     struct clbuf * bufpin,
-                     int offset);
+int event_dependency( model * m,  device ** dev, int adj);
 
-cl_int clbuf_create(cl_context *incontext, struct clbuf * buf);
+int time_stepping(model * m, device ** dev);
 
-cl_int clbuf_create_cst(cl_context *incontext, struct clbuf * buf);
+int comm(model * m, device ** dev, int adj, int ui);
 
-cl_int clbuf_create_pin(cl_context *incontext, cl_command_queue *inqueue,
-                        struct clbuf * buf);
+int Out_MPI(model * m);
 
-cl_int prog_launch( cl_command_queue *inqueue, struct clprogram * prog);
+int writehdf5(struct filenames file, model * m);
 
-double machcore(uint64_t endTime, uint64_t startTime);
+int Free_OpenCL(model * m, device ** dev) ;
 
-char *cl_err_code(cl_int err);
+char *clerrors(int err);
 
-int calc_grad(struct modcsts* m);
 
-int calc_Hessian(struct modcsts* mglob);
+/* __________________________Data Processing________________________________*/
 
-int butterworth(float * data, float fcl, float fch, float dt, int NT, int tmax, int ntrace, int order);
+int butterworth(float * data,
+                float fcl,
+                float fch,
+                float dt,
+                int NT,
+                int tmax,
+                int ntrace,
+                int order);
 
-int res_raw(struct modcsts * mptr, int s);
-int res_amp(struct modcsts * mptr, int s);
+/* ______________________Automatic kernels functions__________________________*/
+int kernel_varout(device * dev,
+                  variable * vars,
+                  clprogram * prog);
 
-int alloc_seismo(float *** var, struct modcsts *m );
+int kernel_varoutinit(device * dev,
+                      variable * vars,
+                      clprogram * prog);
 
-int split (const char *str, char c, char ***arr);
+int kernel_varinit(device * dev,
+                   variable * vars,
+                   clprogram * prog);
 
-int extract_args(const char *str, char *name, char *** argnames, int * ninputs);
+int kernel_residuals(device * dev,
+                     variable * vars,
+                     clprogram * prog);
 
-int create_kernel(struct modcsts * m, struct varcl * vcl,  struct clprogram * prog);
+int kernel_gradinit(device * dev,
+                    parameter * pars,
+                    clprogram * prog);
 
-int prog_source(struct clprogram * prog,
-                char* name,
-                const char * source);
+int kernel_initsavefreqs(device * dev,
+                         variable * vars,
+                         clprogram * prog);
 
-int kernel_varout(struct varcl * vcl,
-                  struct variable * vars,
-                  struct clprogram * prog);
+int kernel_savefreqs(device * dev,
+                     variable * vars,
+                     clprogram * prog);
 
-int kernel_varoutinit(struct varcl * vcl,
-                      struct variable * vars,
-                      struct clprogram * prog);
+int kernel_init_gradsrc(clprogram * prog);
 
-int kernel_varinit(struct varcl * vcl,
-                   struct variable * vars,
-                   struct clprogram * prog);
-
-int kernel_residuals(struct varcl * vcl,
-                     struct variable * vars,
-                     struct clprogram * prog);
-
-int kernel_gradinit(struct varcl * vcl,
-                    struct parameter * pars,
-                    struct clprogram * prog);
-
-int kernel_initsavefreqs(struct varcl * vcl,
-                         struct variable * vars,
-                         struct clprogram * prog);
-
-int kernel_savefreqs(struct varcl * vcl,
-                     struct variable * vars,
-                     struct clprogram * prog);
-
-int kernel_init_gradsrc(struct clprogram * prog);
-
-int kernel_fcom_out(struct varcl * vcl,
-                    struct variable * vars,
-                    struct clprogram * prog,
+int kernel_fcom_out(device * dev,
+                    variable * vars,
+                    clprogram * prog,
                     int upid,
                     int buff12);
 
-int kernel_fcom_in(struct varcl * vcl,
-                   struct variable * vars,
-                   struct clprogram * prog,
+int kernel_fcom_in(device * dev,
+                   variable * vars,
+                   clprogram * prog,
                    int upid,
                    int buff12);
 
-int kernel_sources(struct varcl * vcl,
-                   struct variable * vars,
-                   struct clprogram * prog);
+int kernel_sources(device * dev,
+                   variable * vars,
+                   clprogram * prog);
 
-int event_dependency( struct modcsts * m,  struct varcl ** vcl, int adj);
 
-int comm(struct modcsts * m, struct varcl ** vcl, int adj, int ui);
+
+

@@ -19,7 +19,7 @@
 
 #include "F.h"
 
-int alloc_seismo(float *** var, struct modcsts *m ){
+int var_alloc_out(float *** var, model *m ){
     int state=0;
     
     GMALLOC(*var,sizeof(float*)*m->ns);
@@ -35,7 +35,7 @@ int alloc_seismo(float *** var, struct modcsts *m ){
 }
 
 
-int Init_MPI(struct modcsts * m) {
+int Init_MPI(model * m) {
 
     int state=0;
     int i;
@@ -175,9 +175,9 @@ int Init_MPI(struct modcsts * m) {
     if (m->RMSOUT==1 || m->RESOUT==1 || m->GRADOUT==1){
         for (i=0;i<m->nvars;i++){
             if (m->vars[i].to_output){
-                alloc_seismo(&m->vars[i].gl_var_res, m);
+                var_alloc_out(&m->vars[i].gl_var_res, m);
                 if (m->MYID!=0){
-                    alloc_seismo(&m->vars[i].gl_varin, m);
+                    var_alloc_out(&m->vars[i].gl_varin, m);
                 }
                 if (!state){
                     MPI_Bcast( m->vars[i].gl_varin[0], m->src_recs.allng*m->NT, MPI_FLOAT, 0, MPI_COMM_WORLD );
@@ -186,9 +186,9 @@ int Init_MPI(struct modcsts * m) {
         }
         for (i=0;i<m->ntvars;i++){
             if (m->trans_vars[i].to_output){
-                alloc_seismo(&m->trans_vars[i].gl_var_res, m);
+                var_alloc_out(&m->trans_vars[i].gl_var_res, m);
                 if (m->MYID!=0){
-                    alloc_seismo(&m->trans_vars[i].gl_varin, m);
+                    var_alloc_out(&m->trans_vars[i].gl_varin, m);
                 }
                 if (!state){
                     MPI_Bcast( m->trans_vars[i].gl_varin[0], m->src_recs.allng*m->NT, MPI_FLOAT, 0, MPI_COMM_WORLD );

@@ -232,7 +232,7 @@ int CPML_coeff(float NPOWER, float k_max_CPML, float FPML, float VPPML, float dh
 }
 
 
-int holbergcoeff(struct modcsts *inm) {
+int holbergcoeff(model *inm) {
     /*------------------------------------------------------------------------
      * Copyright (C) 2011 For the list of authors, see file AUTHORS.
      *
@@ -334,7 +334,7 @@ int holbergcoeff(struct modcsts *inm) {
 }
 
 
-int Init_cst(struct modcsts * m) {
+int Init_cst(model * m) {
     
     int state=0;
     int i,j;

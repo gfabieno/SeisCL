@@ -606,7 +606,7 @@ __kernel void update_v(int offcomm,
             
             
         }
-#if DEV==0 & MYLOCALID==0
+#if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
             
             i =gidx-FDOH;
@@ -623,7 +623,7 @@ __kernel void update_v(int offcomm,
         }
 #endif
         
-#if DEV==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-NAB-FDOH-1){
             
             i =gidx - NX+NAB+FDOH+NAB;
@@ -680,7 +680,7 @@ __kernel void update_v(int offcomm,
             vy(gidz,gidy,gidx)*=taper[NY-FDOH-gidy-1];
             vz(gidz,gidy,gidx)*=taper[NY-FDOH-gidy-1];
         }
-#if DEV==0 & MYLOCALID==0
+#if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
             vx(gidz,gidy,gidx)*=taper[gidx-FDOH];
             vy(gidz,gidy,gidx)*=taper[gidx-FDOH];
@@ -688,7 +688,7 @@ __kernel void update_v(int offcomm,
         }
 #endif
         
-#if DEV==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-NAB-FDOH-1){
             vx(gidz,gidy,gidx)*=taper[NX-FDOH-gidx-1];
             vy(gidz,gidy,gidx)*=taper[NX-FDOH-gidx-1];

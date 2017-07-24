@@ -152,7 +152,7 @@ __kernel void savebnd(__global float *vx,         __global float *vy,      __glo
     sxzbnd[gid]=sxz(k,j,i);
 
 // If we have domain decomposition and it is the first device, we need 5 sides of the boundary
-#elif DEV==0 & MYGROUPID==0
+#elif DEVID==0 & MYGROUPID==0
     int gid = get_global_id(0);
     int NXbnd = (NX-2*FDOH-NAB);
     int NYbnd = (NY-2*FDOH-2*NAB);
@@ -206,7 +206,7 @@ __kernel void savebnd(__global float *vx,         __global float *vy,      __glo
     sxzbnd[gid]=sxz(k,j,i);
 
 // If we have domain decomposition and it is the last device, we need 5 sides of the boundary
-#elif DEV==NUM_DEVICES-1 & MYGROUPID==NLOCALP-1
+#elif DEVID==NUM_DEVICES-1 & MYGROUPID==NLOCALP-1
     int gid = get_global_id(0);
     int NXbnd = (NX-2*FDOH-NAB);
     int NYbnd = (NY-2*FDOH-2*NAB);

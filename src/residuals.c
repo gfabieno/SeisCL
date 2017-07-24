@@ -162,7 +162,7 @@ static void crossvar(float * data, float * data0, float *res, float *trace, floa
 }
 
 
-int res_raw(struct modcsts * mptr, int s)
+int res_raw(model * mptr, int s)
 {
     
     int t,g,n, thisfreq;
@@ -510,7 +510,7 @@ int res_raw(struct modcsts * mptr, int s)
     return state;
 }
 
-int res_amp(struct modcsts * m, int s){
+int res_amp(model * m, int s){
     int state=0;
     
     int g;

@@ -10,11 +10,11 @@
 
 /*Loading files autmatically created by the makefile that contain the *.cl kernels in a c string.
  This way, no .cl file need to be read and there is no need to be in the executable directory to execute SeisCL.*/
-#include "initialize.hcl"
-#include "residuals.hcl"
+//#include "initialize.hcl"
+//#include "residuals.hcl"
 #include "savebnd2D.hcl"
 #include "savebnd3D.hcl"
-#include "savefreqs.hcl"
+//#include "savefreqs.hcl"
 #include "surface2D.hcl"
 #include "surface2D_SH.hcl"
 #include "surface3D.hcl"
@@ -37,7 +37,7 @@
 
 
 //Assign parameters list depending on which case of modeling is desired
-int assign_modeling_case(struct modcsts * m){
+int assign_modeling_case(model * m){
     
     int i,j;
     int state =0;
@@ -60,7 +60,7 @@ int assign_modeling_case(struct modcsts * m){
     //Arrays of constants size on all devices
     {
         m->ncsts=23;
-        GMALLOC(m->csts, sizeof(struct constants)*m->ncsts);
+        GMALLOC(m->csts, sizeof(constants)*m->ncsts);
         m->csts[0].name="taper";   m->csts[0].num_ele=m->NAB;
         m->csts[1].name="K_z";      m->csts[1].num_ele=2*m->NAB;
         m->csts[2].name="a_z";      m->csts[2].num_ele=2*m->NAB;
@@ -112,13 +112,13 @@ int assign_modeling_case(struct modcsts * m){
     
     //Define the update kernels
     m->nupdates=2;
-    GMALLOC(m->ups_f, m->nupdates*sizeof(struct update));
+    GMALLOC(m->ups_f, m->nupdates*sizeof(update));
     m->ups_f[0].name="update_v";
     m->ups_f[1].name="update_s";
 
     
     if (m->GRADOUT){
-        GMALLOC(m->ups_adj, m->nupdates*sizeof(struct update));
+        GMALLOC(m->ups_adj, m->nupdates*sizeof(update));
         m->ups_adj[0].name="update_adjv";
         m->ups_adj[1].name="update_adjs";
     }
@@ -156,7 +156,7 @@ int assign_modeling_case(struct modcsts * m){
             
             m->npars=14;
             
-            GMALLOC(m->pars, sizeof(struct parameter)*m->npars);
+            GMALLOC(m->pars, sizeof(parameter)*m->npars);
             if (!state){
             m->pars[0].name="mu";        m->pars[0].to_read="/mu";
             m->pars[1].name="M";         m->pars[1].to_read="/M";
@@ -177,7 +177,7 @@ int assign_modeling_case(struct modcsts * m){
             m->nvars=15;
             if (m->ABS_TYPE==1)
                 m->nvars+=18;
-            GMALLOC(m->vars, sizeof(struct variable)*m->nvars);
+            GMALLOC(m->vars, sizeof(variable)*m->nvars);
             
             
             if (!state){
@@ -223,7 +223,7 @@ int assign_modeling_case(struct modcsts * m){
             
             
             m->ntvars=1;
-            GMALLOC(m->trans_vars, sizeof(struct variable)*m->ntvars);
+            GMALLOC(m->trans_vars, sizeof(variable)*m->ntvars);
             m->trans_vars[0].name="p";
             
         }
@@ -252,7 +252,7 @@ int assign_modeling_case(struct modcsts * m){
             
             
             m->npars=9;
-            GMALLOC(m->pars, sizeof(struct parameter)*m->npars);
+            GMALLOC(m->pars, sizeof(parameter)*m->npars);
             if (!state){
             m->pars[0].name="mu";    m->pars[0].to_read="/mu";
             m->pars[1].name="M";     m->pars[1].to_read="/M";
@@ -268,7 +268,7 @@ int assign_modeling_case(struct modcsts * m){
             m->nvars=9;
             if (m->ABS_TYPE==1)
                 m->nvars+=18;
-            GMALLOC(m->vars, sizeof(struct variable)*m->nvars);
+            GMALLOC(m->vars, sizeof(variable)*m->nvars);
             if (!state){
             m->vars[0].name="vx"; m->vars[0].for_grad=1; m->vars[0].to_comm=1;
             m->vars[1].name="vy"; m->vars[1].for_grad=1; m->vars[1].to_comm=1;
@@ -304,7 +304,7 @@ int assign_modeling_case(struct modcsts * m){
             
             
             m->ntvars=1;
-            GMALLOC(m->trans_vars, sizeof(struct variable)*m->ntvars);
+            GMALLOC(m->trans_vars, sizeof(variable)*m->ntvars);
             m->trans_vars[0].name="p";
         }
         else if (m->ND==2 && m->L>0){
@@ -331,7 +331,7 @@ int assign_modeling_case(struct modcsts * m){
             }
             
             m->npars=9;
-            GMALLOC(m->pars, sizeof(struct parameter)*m->npars);
+            GMALLOC(m->pars, sizeof(parameter)*m->npars);
             if (!state){
             m->pars[0].name="mu";       m->pars[0].to_read="/mu";
             m->pars[1].name="M";        m->pars[1].to_read="/M";
@@ -347,7 +347,7 @@ int assign_modeling_case(struct modcsts * m){
             m->nvars=8;
             if (m->ABS_TYPE==1)
                 m->nvars+=8;
-            GMALLOC(m->vars, sizeof(struct variable)*m->nvars);
+            GMALLOC(m->vars, sizeof(variable)*m->nvars);
             if (!state){
             m->vars[0].name="vx"; m->vars[0].for_grad=1; m->vars[0].to_comm=1;
             m->vars[1].name="vz"; m->vars[1].for_grad=1; m->vars[1].to_comm=1;
@@ -371,7 +371,7 @@ int assign_modeling_case(struct modcsts * m){
             }}
             
             m->ntvars=1;
-            GMALLOC(m->trans_vars, sizeof(struct variable)*m->ntvars);
+            GMALLOC(m->trans_vars, sizeof(variable)*m->ntvars);
             if (!state){m->trans_vars[0].name="p";}
         }
         else if (m->ND==2 && m->L==0){
@@ -399,7 +399,7 @@ int assign_modeling_case(struct modcsts * m){
             
             m->npars=6;
             
-            GMALLOC(m->pars, sizeof(struct parameter)*m->npars);
+            GMALLOC(m->pars, sizeof(parameter)*m->npars);
             if (!state){
             m->pars[0].name="mu";    m->pars[0].to_read="/mu";
             m->pars[1].name="M";     m->pars[1].to_read="/M";
@@ -412,7 +412,7 @@ int assign_modeling_case(struct modcsts * m){
             m->nvars=5;
             if (m->ABS_TYPE==1)
                 m->nvars+=8;
-            GMALLOC(m->vars, sizeof(struct variable)*m->nvars);
+            GMALLOC(m->vars, sizeof(variable)*m->nvars);
             if (!state){
             m->vars[0].name="vx"; m->vars[0].for_grad=1; m->vars[0].to_comm=1;
             m->vars[1].name="vz"; m->vars[1].for_grad=1; m->vars[1].to_comm=1;
@@ -434,7 +434,7 @@ int assign_modeling_case(struct modcsts * m){
             }}
             
             m->ntvars=1;
-            GMALLOC(m->trans_vars, sizeof(struct variable)*m->ntvars);
+            GMALLOC(m->trans_vars, sizeof(variable)*m->ntvars);
             m->trans_vars[0].name="p";
         }
         else if (m->ND==21 && m->L>0){
@@ -462,7 +462,7 @@ int assign_modeling_case(struct modcsts * m){
             
             m->npars=7;
             
-            GMALLOC(m->pars, sizeof(struct parameter)*m->npars);
+            GMALLOC(m->pars, sizeof(parameter)*m->npars);
             if (!state){
             m->pars[0].name="mu";        m->pars[0].to_read="/mu";
             m->pars[1].name="rho";      m->pars[1].to_read="/rho";
@@ -476,7 +476,7 @@ int assign_modeling_case(struct modcsts * m){
             m->nvars=5;
             if (m->ABS_TYPE==1)
                 m->vars+=4;
-            GMALLOC(m->vars, sizeof(struct variable)*m->nvars);
+            GMALLOC(m->vars, sizeof(variable)*m->nvars);
             if (!state){
             m->vars[0].name="vy"; m->vars[0].for_grad=1; m->vars[0].to_comm=1;
             m->vars[1].name="sxy"; m->vars[1].for_grad=1; m->vars[1].to_comm=2;
@@ -493,7 +493,7 @@ int assign_modeling_case(struct modcsts * m){
             }}
             
             m->ntvars=1;
-            GMALLOC(m->trans_vars, sizeof(struct variable)*m->ntvars);
+            GMALLOC(m->trans_vars, sizeof(variable)*m->ntvars);
             m->trans_vars[0].name="p";
             
         }
@@ -524,7 +524,7 @@ int assign_modeling_case(struct modcsts * m){
             
             m->npars=5;
             
-            GMALLOC(m->pars, sizeof(struct parameter)*m->npars);
+            GMALLOC(m->pars, sizeof(parameter)*m->npars);
             if (!state){
             m->pars[0].name="mu";     m->pars[0].to_read="/mu";
             m->pars[1].name="rho";   m->pars[1].to_read="/rho";
@@ -536,7 +536,7 @@ int assign_modeling_case(struct modcsts * m){
             m->nvars=3;
             if (m->ABS_TYPE==1)
                 m->nvars+=4;
-            GMALLOC(m->vars, sizeof(struct variable)*m->nvars);
+            GMALLOC(m->vars, sizeof(variable)*m->nvars);
             if (!state){
             m->vars[0].name="vy"; m->vars[0].for_grad=1; m->vars[0].to_comm=1;
             m->vars[1].name="sxy"; m->vars[1].for_grad=1; m->vars[1].to_comm=2;
@@ -559,7 +559,7 @@ int assign_modeling_case(struct modcsts * m){
     
     //Create adjoint variables if necessary
     if (m->GRADOUT && m->BACK_PROP_TYPE==1){
-        GMALLOC(m->vars_adj, sizeof(struct variable)*m->nvars);
+        GMALLOC(m->vars_adj, sizeof(variable)*m->nvars);
         for (i=0;i<m->nvars;i++){
             m->vars_adj[i]=m->vars[i];
         }
@@ -701,9 +701,10 @@ int assign_modeling_case(struct modcsts * m){
     //Allocate memory of variables
     for (i=0;i<m->nvars;i++){
         if (m->vars[i].to_output){
-            alloc_seismo(&m->vars[i].gl_varout, m);
+            var_alloc_out(&m->vars[i].gl_varout, m);
             if (m->MOVOUT>0){
-                GMALLOC(m->vars[i].gl_mov,sizeof(float)*m->ns*m->vars[i].num_ele*m->NT/m->MOVOUT);
+                GMALLOC(m->vars[i].gl_mov,sizeof(float)*
+                             m->src_recs.ns*m->vars[i].num_ele*m->NT/m->MOVOUT);
             }
             if (m->GRADOUT && m->BACK_PROP_TYPE==2){
                 GMALLOC(m->vars[i].gl_fvar, sizeof(cl_float2)*m->vars[i].num_ele);
@@ -712,10 +713,11 @@ int assign_modeling_case(struct modcsts * m){
     }
     
     if (m->GRADSRCOUT==1){
-        GMALLOC(m->src_recs.gradsrc,sizeof(float*)*m->ns);
+        GMALLOC(m->src_recs.gradsrc,sizeof(float*)*m->src_recs.ns);
         GMALLOC(m->src_recs.gradsrc[0],sizeof(float)*m->src_recs.allns*m->NT);
-        for (i=1;i<m->ns;i++){
-            m->src_recs.gradsrc[i]=m->src_recs.gradsrc[i-1]+m->src_recs.nsrc[i-1]*m->NT;
+        for (i=1;i<m->src_recs.ns;i++){
+            m->src_recs.gradsrc[i]=m->src_recs.gradsrc[i-1]
+                                  +m->src_recs.nsrc[i-1]*m->NT;
         }
     }
     
@@ -725,7 +727,7 @@ int assign_modeling_case(struct modcsts * m){
     return state;
 }
 
-int assign_var_size(int* N, int NDIM, int FDORDER, int numvar, int L, struct variable * vars){
+int assign_var_size(int* N, int NDIM, int FDORDER, int numvar, int L, variable * vars){
     int i,j;
     int sizevars=1;
     int sizebnd[10];

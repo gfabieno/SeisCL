@@ -21,11 +21,15 @@
 #include "F.h"
 
 // Write float matrix compatible with .mat v7.3 format
-void writetomat(hid_t* file_id, const char *var, float * varptr, int NDIMs, hsize_t dims[] ){
+void writetomat(hid_t* file_id,
+                const char *var,
+                float * varptr,
+                int NDIMs,
+                hsize_t dims[] ){
     
     hid_t dataspace_id=0, dataset_id=0, attribute_id=0;
     hid_t    plist_id;
-    hsize_t  cdims[10]={20,20,20,20,20,20,20,20,20,20};
+    hsize_t  cdims[MAX_DIMS]={10};
     int ii;
     
     hid_t vls_type_c_id = H5Tcopy(H5T_C_S1);
@@ -42,12 +46,28 @@ void writetomat(hid_t* file_id, const char *var, float * varptr, int NDIMs, hsiz
         H5Pset_chunk (plist_id, NDIMs, cdims);
         H5Pset_deflate (plist_id, 6);
         
-        dataset_id = H5Dcreate2(*file_id, var, H5T_IEEE_F64LE, dataspace_id, H5P_DEFAULT, plist_id, H5P_DEFAULT);
-        H5Dwrite(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, varptr);
+        dataset_id = H5Dcreate2(*file_id,
+                                var,
+                                H5T_IEEE_F64LE,
+                                dataspace_id,
+                                H5P_DEFAULT,
+                                plist_id,
+                                H5P_DEFAULT);
+        H5Dwrite(dataset_id,
+                 H5T_NATIVE_FLOAT,
+                 H5S_ALL,
+                 H5S_ALL,
+                 H5P_DEFAULT,
+                 varptr);
         H5Sclose(dataspace_id);
         
         dataspace_id = H5Screate(H5S_SCALAR);
-        attribute_id = H5Acreate2 (dataset_id, "MATLAB_class", vls_type_c_id, dataspace_id, H5P_DEFAULT, H5P_DEFAULT);
+        attribute_id = H5Acreate2 (dataset_id,
+                                   "MATLAB_class",
+                                   vls_type_c_id,
+                                   dataspace_id,
+                                   H5P_DEFAULT,
+                                   H5P_DEFAULT);
         H5Awrite(attribute_id, vls_type_c_id, "double");
         H5Aclose(attribute_id);
         H5Sclose(dataspace_id);
@@ -57,7 +77,12 @@ void writetomat(hid_t* file_id, const char *var, float * varptr, int NDIMs, hsiz
     }
     else{
         dataset_id = H5Dopen2(*file_id, var, H5P_DEFAULT);
-        H5Dwrite(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, varptr);
+        H5Dwrite(dataset_id,
+                 H5T_NATIVE_FLOAT,
+                 H5S_ALL,
+                 H5S_ALL,
+                 H5P_DEFAULT,
+                 varptr);
         H5Dclose(dataset_id);
         
     }
@@ -65,11 +90,15 @@ void writetomat(hid_t* file_id, const char *var, float * varptr, int NDIMs, hsiz
 }
 
 //Write double matrix compatible with .mat v7.3 format
-void writetomatd(hid_t* file_id, const char *var, double * varptr, int NDIMs, hsize_t dims[] ){
+void writetomatd(hid_t* file_id,
+                 const char *var,
+                 double * varptr,
+                 int NDIMs,
+                 hsize_t dims[] ){
     
     hid_t dataspace_id=0, dataset_id=0, attribute_id=0;
     hid_t    plist_id;
-    hsize_t  cdims[3]={20,20,20};
+    hsize_t  cdims[MAX_DIMS]={10};
     int ii;
     
     hid_t vls_type_c_id = H5Tcopy(H5T_C_S1);
@@ -86,12 +115,27 @@ void writetomatd(hid_t* file_id, const char *var, double * varptr, int NDIMs, hs
         H5Pset_chunk (plist_id, NDIMs, cdims);
         H5Pset_deflate (plist_id, 6);
         
-        dataset_id = H5Dcreate2(*file_id, var, H5T_IEEE_F64LE, dataspace_id, H5P_DEFAULT, plist_id, H5P_DEFAULT);
-        H5Dwrite(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, varptr);
+        dataset_id = H5Dcreate2(*file_id, var,
+                                H5T_IEEE_F64LE,
+                                dataspace_id,
+                                H5P_DEFAULT,
+                                plist_id,
+                                H5P_DEFAULT);
+        H5Dwrite(dataset_id,
+                 H5T_NATIVE_DOUBLE,
+                 H5S_ALL,
+                 H5S_ALL,
+                 H5P_DEFAULT,
+                 varptr);
         H5Sclose(dataspace_id);
         
         dataspace_id = H5Screate(H5S_SCALAR);
-        attribute_id = H5Acreate2 (dataset_id, "MATLAB_class", vls_type_c_id, dataspace_id, H5P_DEFAULT, H5P_DEFAULT);
+        attribute_id = H5Acreate2 (dataset_id,
+                                   "MATLAB_class",
+                                   vls_type_c_id,
+                                   dataspace_id,
+                                   H5P_DEFAULT,
+                                   H5P_DEFAULT);
         H5Awrite(attribute_id, vls_type_c_id, "double");
         H5Aclose(attribute_id);
         H5Sclose(dataspace_id);
@@ -101,7 +145,12 @@ void writetomatd(hid_t* file_id, const char *var, double * varptr, int NDIMs, hs
     }
     else{
         dataset_id = H5Dopen2(*file_id, var, H5P_DEFAULT);
-        H5Dwrite(dataset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, varptr);
+        H5Dwrite(dataset_id,
+                 H5T_NATIVE_DOUBLE,
+                 H5S_ALL,
+                 H5S_ALL,
+                 H5P_DEFAULT,
+                 varptr);
         H5Dclose(dataset_id);
         
     }
@@ -120,7 +169,10 @@ hid_t create_file(const char *filename){
     
     fp = fopen(filename,"r+");
     int matbin[] = {0x00000000, 0x00000000, 0x4D490200};
-    const char * mathead = "MATLAB 7.3 MAT-file, Platform: GLNXA64, Created on: Fri Feb 07 02:29:00 2014 HDF5 schema 1.00 .                     ";
+    const char * mathead = "MATLAB 7.3 MAT-file, "
+                           "Platform: GLNXA64, "
+                           "Created on: Fri Feb 07 02:29:00 2014 "
+                           "HDF5 schema 1.00 .                     ";
     fprintf(fp, "%s",mathead);
     fwrite(matbin,sizeof(int),3,fp);
     fclose(fp);
@@ -131,44 +183,47 @@ hid_t create_file(const char *filename){
     return file_id;
 }
 
-int writehdf5(struct filenames file, struct modcsts * m) {
+int writehdf5(struct filenames file, model * m) {
     
     hid_t       file_id=0;
-    hsize_t     dims2D[2], dims3D[3], dims5D[5];
+    int i;
     int state=0;
     float rms;
+    char name[100];
+    hsize_t dims[MAX_DIMS+2];
 
    
     // Write data output file
     if (m->VARSOUT || m->RESOUT){
         
         file_id = create_file(file.dout);
-        if (!state) if (file_id<0) {state=1;fprintf(stderr, "Could not open the input/output file %s", file.dout);};
-        
-        dims2D[0]=m->src_recs.allng; dims2D[1]=m->NT;
-        
-        if (m->bcastvx)  writetomat(&file_id, "/vxout",  m->vxout[0],  2, dims2D );
-        if (m->bcastvy)  writetomat(&file_id, "/vyout",  m->vyout[0],  2, dims2D );
-        if (m->bcastvz)  writetomat(&file_id, "/vzout",  m->vzout[0],  2, dims2D );
-        if (m->bcastsxx) writetomat(&file_id, "/sxxout", m->sxxout[0], 2, dims2D );
-        if (m->bcastsyy) writetomat(&file_id, "/syyout", m->syyout[0], 2, dims2D );
-        if (m->bcastszz) writetomat(&file_id, "/szzout", m->szzout[0], 2, dims2D );
-        if (m->bcastsxy) writetomat(&file_id, "/sxyout", m->sxyout[0], 2, dims2D );
-        if (m->bcastsxz) writetomat(&file_id, "/sxzout", m->sxzout[0], 2, dims2D );
-        if (m->bcastsyz) writetomat(&file_id, "/syzout", m->syzout[0], 2, dims2D );
-        if (m->bcastp)   writetomat(&file_id, "/pout",   m->pout[0],   2, dims2D );
-
-        if (m->RESOUT){
-            if (m->bcastvx) writetomat(&file_id, "/rx", m->rx[0], 2, dims2D );
-            if (m->bcastvz) writetomat(&file_id, "/rz", m->rz[0], 2, dims2D );
-            if (m->bcastvy) writetomat(&file_id, "/ry", m->ry[0], 2, dims2D );
+        if (!state && file_id<0){
+            state=1;
+            fprintf(stderr,"Could not open the input/output file %s",file.dout);
         }
         
-        dims2D[0]=m->src_recs.allns; dims2D[1]=5;
-        writetomat(&file_id, "/src_pos", m->src_pos[0], 2, dims2D );
+        dims[0]=m->src_recs.allng; dims[1]=m->NT;
         
-        dims2D[0]=m->src_recs.allng; dims2D[1]=8;
-        writetomat(&file_id, "/rec_pos", m->rec_pos[0], 2, dims2D );
+        for (i=0;i<m->nvars;i++){
+            if (m->vars[i].to_output){
+                sprintf(name, "%sout",m->vars[i].name);
+                writetomat(&file_id,name,m->vars[i].gl_varout[0],2,dims);
+            }
+        }
+        if (m->RESOUT){
+            for (i=0;i<m->nvars;i++){
+                if (m->vars[i].to_output){
+                    sprintf(name, "%sres",m->vars[i].name);
+                    writetomat(&file_id,name,m->vars[i].gl_var_res[0],2,dims);
+                }
+            }
+        }
+        
+        dims[0]=m->src_recs.allns; dims[1]=5;
+        writetomat(&file_id, "/src_pos", m->src_recs.src_pos[0], 2, dims );
+        
+        dims[0]=m->src_recs.allng; dims[1]=8;
+        writetomat(&file_id, "/rec_pos", m->src_recs.rec_pos[0], 2, dims );
 
         if (file_id) H5Fclose(file_id);
 
@@ -179,10 +234,10 @@ int writehdf5(struct filenames file, struct modcsts * m) {
     if (m->RMSOUT){
         file_id = create_file(file.RMSOUT);
         rms=sqrt(m->rms);
-        dims2D[0]=1; dims2D[1]=1;
-        writetomat(&file_id, "/rms", &rms, 2, dims2D );
+        dims[0]=1; dims[1]=1;
+        writetomat(&file_id, "/rms", &rms, 2, dims );
         rms=sqrt((m->rmsnorm));
-        writetomat(&file_id, "/rms_norm", &rms, 2, dims2D );
+        writetomat(&file_id, "/rms_norm", &rms, 2, dims );
         if (file_id) H5Fclose(file_id);
         
     }
@@ -191,111 +246,50 @@ int writehdf5(struct filenames file, struct modcsts * m) {
     if (m->GRADOUT){
         
         file_id = create_file(file.gout);
-        
-        dims3D[2]=m->NZ; dims3D[1]=m->NY, dims3D[0]=m->NX;
-        
-        // Output name depends on the paretrization
-        const char *var1=NULL, *var2=NULL, *var3=NULL, *var4=NULL, *var5=NULL;
-        const char *Hvar1=NULL, *Hvar2=NULL, *Hvar3=NULL, *Hvar4=NULL, *Hvar5=NULL;
-        if (m->par_type==1){
-            var1="/gradrho";
-            var2="/gradM";
-            var3="/gradmu";
-            var4="/gradtaup";
-            var5="/gradtaus";
-            Hvar1="/Hrho";
-            Hvar2="/HM";
-            Hvar3="/Hmu";
-            Hvar4="/Htaup";
-            Hvar5="/Htaus";
-        }
-        else if (m->par_type==2){
-            var1="/gradrho";
-            var2="/gradIp";
-            var3="/gradIs";
-            var4="/gradtaup";
-            var5="/gradtaus";
-            Hvar1="/Hrho";
-            Hvar2="/HIp";
-            Hvar3="/HIs";
-            Hvar4="/Htaup";
-            Hvar5="/Htaus";
-        }
-        else if (m->par_type==3){
-            var1="/gradrho";
-            var2="/gradvpR";
-            var3="/gradvsR";
-            var4="/gradvpI";
-            var5="/gradvsI";
-            Hvar1="/Hrho";
-            Hvar2="/HvpR";
-            Hvar3="/HvsR";
-            Hvar4="/HvpI";
-            Hvar5="/HvsI";
-        }
-        else {
-            var1="/gradrho";
-            var2="/gradvp";
-            var3="/gradvs";
-            var4="/gradtaup";
-            var5="/gradtaus";
-            Hvar1="/Hrho";
-            Hvar2="/Hvp";
-            Hvar3="/Hvs";
-            Hvar4="/Htaup";
-            Hvar5="/Htaus";
+        for (i=0;i<m->NDIM;i++){
+            dims[m->NDIM-i-1]=m->N[i];
         }
         
-        
-        writetomatd(&file_id, var1, m->gradrho, 3, dims3D );
-        if (m->ND!=21)
-            writetomatd(&file_id, var2, m->gradM, 3, dims3D );
-        writetomatd(&file_id, var3, m->gradmu, 3, dims3D );
-        if (m->L>0){
-            if (m->ND!=21)
-                writetomatd(&file_id, var4, m->gradtaup, 3, dims3D );
-            writetomatd(&file_id, var5, m->gradtaus, 3, dims3D );
+        for (i=0;i<m->npars;i++){
+            if (m->pars[i].to_grad){
+                sprintf(name, "grad%s",m->pars[i].to_read);
+                writetomat(&file_id,name,m->pars[i].gl_grad,m->NDIM,dims);
+            }
+        }
+        // Write Hessian output file
+        if ( m->HOUT){
+            for (i=0;i<m->npars;i++){
+                if (m->pars[i].to_grad){
+                    sprintf(name, "H%s",m->pars[i].to_read);
+                    writetomat(&file_id,name,m->pars[i].gl_H,m->NDIM,dims);
+                }
+            }
         }
         
         if (m->GRADSRCOUT==1){
-            dims2D[0]=m->src_recs.allns; dims2D[1]=m->NT;
-            writetomat(&file_id, "/gradsrc", m->gradsrc[0], 2, dims2D );
+            dims[0]=m->src_recs.allns; dims[1]=m->NT;
+            writetomat(&file_id, "/gradsrc", m->src_recs.gradsrc[0], 2, dims );
             
         }
 
-        // Write Hessian output file
-        if ( m->HOUT){
-            writetomatd(&file_id, Hvar1, m->Hrho, 3, dims3D );
-            if (m->ND!=21)
-            writetomatd(&file_id, Hvar2, m->HM, 3, dims3D );
-            writetomatd(&file_id, Hvar3, m->Hmu, 3, dims3D );
-            if (m->L>0){
-                if (m->ND!=21)
-                writetomatd(&file_id, Hvar4, m->Htaup, 3, dims3D );
-                writetomatd(&file_id, Hvar5, m->Htaus, 3, dims3D );
-            }
-        }
         if (file_id) H5Fclose(file_id);
     
     }
-    
-
     
     // Write movie output file
     if (m->MOVOUT>0){
         file_id = create_file(file.MOVOUT);
 
-        dims5D[0]=m->ns;
-        dims5D[1]=m->NT/m->MOVOUT;
-        dims5D[2]=m->NX;
-        dims5D[3]=m->NY;
-        dims5D[4]=m->NZ;
-        if (m->ND!=21){
-            writetomat(&file_id, "/movvx", m->movvx, 5, dims5D );
-            writetomat(&file_id, "/movvz", m->movvz, 5, dims5D );
+        dims[0]=m->src_recs.ns;
+        dims[1]=m->NT/m->MOVOUT;
+        for (i=0;i<m->NDIM;i++){
+            dims[m->NDIM-i+1]=m->N[i];
         }
-        if (m->ND==3 || m->ND==21){
-            writetomat(&file_id, "/movvy", m->movvy, 5, dims5D );
+        for (i=0;i<m->nvars;i++){
+            if (m->vars[i].to_output){
+                sprintf(name, "mov%s",m->vars[i].name);
+                writetomat(&file_id,name,m->vars[i].gl_mov,m->NDIM+2,dims);
+            }
         }
         
         if (file_id) H5Fclose(file_id);

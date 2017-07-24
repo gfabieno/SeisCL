@@ -141,7 +141,7 @@ int evarm( int k, int i){
     
     
     
-#elif DEV==0 & MYGROUPID==0
+#elif DEVID==0 & MYGROUPID==0
     
     int NXbnd = (NX-2*FDOH-NAB);
     int NZbnd = (NZ-2*FDOH-2*NAB);
@@ -167,7 +167,7 @@ int evarm( int k, int i){
         m=NZbnd*FDOH+(NXbnd-FDOH)*FDOH+i+k*(NXbnd-FDOH);
     }
     
-#elif DEV==NUM_DEVICES-1 & MYGROUPID==NLOCALP-1
+#elif DEVID==NUM_DEVICES-1 & MYGROUPID==NLOCALP-1
     int NXbnd = (NX-2*FDOH-NAB);
     int NZbnd = (NZ-2*FDOH-2*NAB);
     
@@ -565,7 +565,7 @@ __kernel void update_adjs(int offcomm, int nt,
         }
 #endif
         
-#if DEV==0 & MYLOCALID==0
+#if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
             
             i =gidx-FDOH;
@@ -577,7 +577,7 @@ __kernel void update_adjs(int offcomm, int nt,
         }
 #endif
         
-#if DEV==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-NAB-FDOH-1){
             
             i =gidx - NX+NAB+FDOH+NAB;
@@ -647,14 +647,14 @@ __kernel void update_adjs(int offcomm, int nt,
             syz_r(gidz,gidx)*=taper[NZ-FDOH-gidz-1];
         }
         
-#if DEV==0 & MYLOCALID==0
+#if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
             sxy_r(gidz,gidx)*=taper[gidx-FDOH];
             syz_r(gidz,gidx)*=taper[gidx-FDOH];
         }
 #endif
         
-#if DEV==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-NAB-FDOH-1){
             sxy_r(gidz,gidx)*=taper[NX-FDOH-gidx-1];
             syz_r(gidz,gidx)*=taper[NX-FDOH-gidx-1];

@@ -36,7 +36,7 @@
 
 
 
-int Init_model(struct modcsts * m) {
+int Init_model(model * m) {
 
     int state=0;
     int i,j,k,l;

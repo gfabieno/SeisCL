@@ -165,7 +165,7 @@ int evarm( int k, int j, int i){
     }
 
     
-#elif DEV==0 & MYGROUPID==0
+#elif DEVID==0 & MYGROUPID==0
     int NXbnd = (NX-2*FDOH-NAB);
     int NYbnd = (NY-2*FDOH-2*NAB);
     int NZbnd = (NZ-2*FDOH-2*NAB);
@@ -202,7 +202,7 @@ int evarm( int k, int j, int i){
         k=k-NZbnd+FDOH;
         m=NYbnd*NZbnd*FDOH+(NXbnd-FDOH)*NZbnd*FDOH*2+(NXbnd-FDOH)*(NYbnd-2*FDOH)*FDOH+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
     }
-#elif DEV==NUM_DEVICES-1 & MYGROUPID==NLOCALP-1
+#elif DEVID==NUM_DEVICES-1 & MYGROUPID==NLOCALP-1
     int NXbnd = (NX-2*FDOH-NAB);
     int NYbnd = (NY-2*FDOH-2*NAB);
     int NZbnd = (NZ-2*FDOH-2*NAB);
@@ -1257,7 +1257,7 @@ __kernel void update_adjs(int offcomm, int nt,
             
             
         }
-#if DEV==0 & MYLOCALID==0
+#if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
             
             i =gidx-FDOH;
@@ -1275,7 +1275,7 @@ __kernel void update_adjs(int offcomm, int nt,
         }
 #endif
         
-#if DEV==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-NAB-FDOH-1){
             
             i =gidx - NX+NAB+FDOH+NAB;
@@ -1424,7 +1424,7 @@ __kernel void update_adjs(int offcomm, int nt,
             szz_r(gidz,gidy,gidx)*=taper[NY-FDOH-gidy-1];
         }
         
-#if DEV==0 & MYLOCALID==0
+#if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
             sxy_r(gidz,gidy,gidx)*=taper[gidx-FDOH];
             syz_r(gidz,gidy,gidx)*=taper[gidx-FDOH];
@@ -1435,7 +1435,7 @@ __kernel void update_adjs(int offcomm, int nt,
         }
 #endif
         
-#if DEV==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-NAB-FDOH-1){
             sxy_r(gidz,gidy,gidx)*=taper[NX-FDOH-gidx-1];
             syz_r(gidz,gidy,gidx)*=taper[NX-FDOH-gidx-1];

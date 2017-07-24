@@ -17,474 +17,246 @@
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  --------------------------------------------------------------------------*/
 
-// Free all memory for local grids and OpenCL devices
+
 #include "F.h"
 
-
-
-int Free_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc)  {
+void clbuf_free(device *dev, clbuf *buf){
     
-    int d;
-    // Memory freeing for GPU buffers and host memory
-    for (d=0;d<m->NUM_DEVICES;d++){
-        
-        if ((*mloc)){
-            
-            
-            if  ((*mloc)[d].vxout){
-                GFree((*mloc)[d].vxout[0])
-            }
-            GFree((*mloc)[d].vxout);
-            if  ((*mloc)[d].vyout){
-                GFree((*mloc)[d].vyout[0])
-            }
-            GFree((*mloc)[d].vyout);
-            if  ((*mloc)[d].vzout){
-                GFree((*mloc)[d].vzout[0])
-            }
-            GFree((*mloc)[d].vzout);
-            
-            
-            if  ((*mloc)[d].sxxout){
-                GFree((*mloc)[d].sxxout[0])
-            }
-            GFree((*mloc)[d].sxxout);
-            if  ((*mloc)[d].syyout){
-                GFree((*mloc)[d].syyout[0])
-            }
-            GFree((*mloc)[d].syyout);
-            if  ((*mloc)[d].szzout){
-                GFree((*mloc)[d].szzout[0])
-            }
-            GFree((*mloc)[d].szzout);
-            if  ((*mloc)[d].sxyout){
-                GFree((*mloc)[d].sxyout[0])
-            }
-            GFree((*mloc)[d].sxyout);
-            if  ((*mloc)[d].sxzout){
-                GFree((*mloc)[d].sxzout[0])
-            }
-            GFree((*mloc)[d].sxzout);
-            if  ((*mloc)[d].syzout){
-                GFree((*mloc)[d].syzout[0])
-            }
-            GFree((*mloc)[d].syzout);
-            if  ((*mloc)[d].pout){
-                GFree((*mloc)[d].pout[0])
-            }
-            GFree((*mloc)[d].pout);
-            
-            GFree((*mloc)[d].f_vx);
-            GFree((*mloc)[d].f_vy);
-            GFree((*mloc)[d].f_vz);
-            GFree((*mloc)[d].f_sxx);
-            GFree((*mloc)[d].f_syy);
-            GFree((*mloc)[d].f_szz);
-            GFree((*mloc)[d].f_sxy);
-            GFree((*mloc)[d].f_sxz);
-            GFree((*mloc)[d].f_syz);
-            GFree((*mloc)[d].f_rxx);
-            GFree((*mloc)[d].f_ryy);
-            GFree((*mloc)[d].f_rzz);
-            GFree((*mloc)[d].f_rxy);
-            GFree((*mloc)[d].f_rxz);
-            GFree((*mloc)[d].f_ryz);
-            GFree((*mloc)[d].f_vxr);
-            GFree((*mloc)[d].f_vyr);
-            GFree((*mloc)[d].f_vzr);
-            GFree((*mloc)[d].f_sxxr);
-            GFree((*mloc)[d].f_syyr);
-            GFree((*mloc)[d].f_szzr);
-            GFree((*mloc)[d].f_sxyr);
-            GFree((*mloc)[d].f_sxzr);
-            GFree((*mloc)[d].f_syzr);
-            GFree((*mloc)[d].f_rxxr);
-            GFree((*mloc)[d].f_ryyr);
-            GFree((*mloc)[d].f_rzzr);
-            GFree((*mloc)[d].f_rxyr);
-            GFree((*mloc)[d].f_rxzr);
-            GFree((*mloc)[d].f_ryzr);
-            
-            GFree((*mloc)[d].buffermovvx);
-            GFree((*mloc)[d].buffermovvy);
-            GFree((*mloc)[d].buffermovvz);
-            
-            
-            if ((*mloc)[d].sxx_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxx_sub1, (*mloc)[d].sxx_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].syy_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].syy_sub1, (*mloc)[d].syy_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].szz_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].szz_sub1, (*mloc)[d].szz_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].sxy_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxy_sub1, (*mloc)[d].sxy_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].syz_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].syz_sub1, (*mloc)[d].syz_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].sxz_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxz_sub1, (*mloc)[d].sxz_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].vx_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vx_sub1, (*mloc)[d].vx_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].vy_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vy_sub1, (*mloc)[d].vy_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].vz_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vz_sub1, (*mloc)[d].vz_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].sxx_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxx_sub2, (*mloc)[d].sxx_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].syy_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].syy_sub2, (*mloc)[d].syy_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].szz_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].szz_sub2, (*mloc)[d].szz_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].sxy_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxy_sub2, (*mloc)[d].sxy_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].syz_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].syz_sub2, (*mloc)[d].syz_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].sxz_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxz_sub2, (*mloc)[d].sxz_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].vx_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vx_sub2, (*mloc)[d].vx_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].vy_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vy_sub2, (*mloc)[d].vy_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].vz_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vz_sub2, (*mloc)[d].vz_sub2, 0 , NULL , NULL );
-            
-            if ((*mloc)[d].sxx_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxx_r_sub1, (*mloc)[d].sxx_r_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].syy_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].syy_r_sub1, (*mloc)[d].syy_r_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].szz_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].szz_r_sub1, (*mloc)[d].szz_r_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].sxy_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxy_r_sub1, (*mloc)[d].sxy_r_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].syz_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].syz_r_sub1, (*mloc)[d].syz_r_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].sxz_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxz_r_sub1, (*mloc)[d].sxz_r_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].vx_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vx_r_sub1, (*mloc)[d].vx_r_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].vy_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vy_r_sub1, (*mloc)[d].vy_r_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].vz_r_sub1) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vz_r_sub1, (*mloc)[d].vz_r_sub1, 0 , NULL , NULL );
-            if ((*mloc)[d].sxx_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxx_r_sub2, (*mloc)[d].sxx_r_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].syy_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].syy_r_sub2, (*mloc)[d].syy_r_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].szz_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].szz_r_sub2, (*mloc)[d].szz_r_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].sxy_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxy_r_sub2, (*mloc)[d].sxy_r_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].syz_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].syz_r_sub2, (*mloc)[d].syz_r_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].sxz_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxz_r_sub2, (*mloc)[d].sxz_r_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].vx_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vx_r_sub2, (*mloc)[d].vx_r_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].vy_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vy_r_sub2, (*mloc)[d].vy_r_sub2, 0 , NULL , NULL );
-            if ((*mloc)[d].vz_r_sub2) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vz_r_sub2, (*mloc)[d].vz_r_sub2, 0 , NULL , NULL );
-            
-            
-            
-            if ((*mloc)[d].sxxbnd) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxxbnd_pin, (*mloc)[d].sxxbnd, 0 , NULL , NULL );
-            if ((*mloc)[d].syybnd) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].syybnd_pin, (*mloc)[d].syybnd, 0 , NULL , NULL );
-            if ((*mloc)[d].szzbnd) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].szzbnd_pin, (*mloc)[d].szzbnd, 0 , NULL , NULL );
-            if ((*mloc)[d].sxybnd) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxybnd_pin, (*mloc)[d].sxybnd, 0 , NULL , NULL );
-            if ((*mloc)[d].syzbnd) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].syzbnd_pin, (*mloc)[d].syzbnd, 0 , NULL , NULL );
-            if ((*mloc)[d].sxzbnd) clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].sxzbnd_pin, (*mloc)[d].sxzbnd, 0 , NULL , NULL );
-            if ((*mloc)[d].vxbnd)  clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vxbnd_pin,  (*mloc)[d].vxbnd, 0 , NULL , NULL );
-            if ((*mloc)[d].vybnd)  clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vybnd_pin,  (*mloc)[d].vybnd, 0 , NULL , NULL );
-            if ((*mloc)[d].vzbnd)  clEnqueueUnmapMemObject( (*vcl)[d].queuecomm, (*vcl)[d].vzbnd_pin,  (*mloc)[d].vzbnd, 0 , NULL , NULL );
-            
-            
+    if (buf->pin) clEnqueueUnmapMemObject(dev->queuecomm,
+                                          buf->pin,
+                                          buf->host,
+                                          0,
+                                          NULL,
+                                          NULL);
+    if (buf->pin) clReleaseMemObject(buf->pin);
+    if (buf->mem) clReleaseMemObject(buf->mem);
+}
+
+void clprogram_free(clprogram * prog){
+    int i;
+    if (prog->kernel ) clReleaseKernel(prog->kernel);
+    if (prog->prog) clReleaseProgram(prog->prog);
+    if (prog->input_list){
+        for (i=0;i<prog->ninputs;i++){
+            GFree(prog->input_list[i]);
         }
-        
-        if ((*vcl)){
-            
-            if ((*vcl)[d].sxx) clReleaseMemObject((*vcl)[d].sxx);
-            if ((*vcl)[d].syy) clReleaseMemObject((*vcl)[d].syy);
-            if ((*vcl)[d].szz) clReleaseMemObject((*vcl)[d].szz);
-            if ((*vcl)[d].sxy) clReleaseMemObject((*vcl)[d].sxy);
-            if ((*vcl)[d].syz) clReleaseMemObject((*vcl)[d].syz);
-            if ((*vcl)[d].sxz) clReleaseMemObject((*vcl)[d].sxz);
-            if ((*vcl)[d].vx) clReleaseMemObject((*vcl)[d].vx);
-            if ((*vcl)[d].vy) clReleaseMemObject((*vcl)[d].vy);
-            if ((*vcl)[d].vz) clReleaseMemObject((*vcl)[d].vz);
-            if ((*vcl)[d].rip) clReleaseMemObject((*vcl)[d].rip);
-            if ((*vcl)[d].rjp) clReleaseMemObject((*vcl)[d].rjp);
-            if ((*vcl)[d].rkp) clReleaseMemObject((*vcl)[d].rkp);
-            if ((*vcl)[d].uipjp) clReleaseMemObject((*vcl)[d].uipjp);
-            if ((*vcl)[d].ujpkp) clReleaseMemObject((*vcl)[d].ujpkp);
-            if ((*vcl)[d].uipkp) clReleaseMemObject((*vcl)[d].uipkp);
-            if ((*vcl)[d].u) clReleaseMemObject((*vcl)[d].u);
-            if ((*vcl)[d].pi) clReleaseMemObject((*vcl)[d].pi);
-            if ((*vcl)[d].src) clReleaseMemObject((*vcl)[d].src);
-            if ((*vcl)[d].src_pos) clReleaseMemObject((*vcl)[d].src_pos);
-            if ((*vcl)[d].rec_pos) clReleaseMemObject((*vcl)[d].rec_pos);
-            if ((*vcl)[d].taper) clReleaseMemObject((*vcl)[d].taper);
-            if ((*vcl)[d].vxout) clReleaseMemObject((*vcl)[d].vxout);
-            if ((*vcl)[d].vyout) clReleaseMemObject((*vcl)[d].vyout);
-            if ((*vcl)[d].vzout) clReleaseMemObject((*vcl)[d].vzout);
-            
-            if ((*vcl)[d].sxxout) clReleaseMemObject((*vcl)[d].sxxout);
-            if ((*vcl)[d].syyout) clReleaseMemObject((*vcl)[d].syyout);
-            if ((*vcl)[d].szzout) clReleaseMemObject((*vcl)[d].szzout);
-            if ((*vcl)[d].sxyout) clReleaseMemObject((*vcl)[d].sxyout);
-            if ((*vcl)[d].sxzout) clReleaseMemObject((*vcl)[d].sxzout);
-            if ((*vcl)[d].syzout) clReleaseMemObject((*vcl)[d].syzout);
-            if ((*vcl)[d].pout) clReleaseMemObject((*vcl)[d].pout);
-            
-            if ((*vcl)[d].rx) clReleaseMemObject((*vcl)[d].rx);
-            if ((*vcl)[d].ry) clReleaseMemObject((*vcl)[d].ry);
-            if ((*vcl)[d].rz) clReleaseMemObject((*vcl)[d].rz);
-            if ((*vcl)[d].rp) clReleaseMemObject((*vcl)[d].rp);
-            
-            if ((*vcl)[d].taup) clReleaseMemObject((*vcl)[d].taup);
-            if ((*vcl)[d].taus) clReleaseMemObject((*vcl)[d].taus);
-            if ((*vcl)[d].tausipjp) clReleaseMemObject((*vcl)[d].tausipjp);
-            if ((*vcl)[d].tausjpkp) clReleaseMemObject((*vcl)[d].tausjpkp);
-            if ((*vcl)[d].tausipkp) clReleaseMemObject((*vcl)[d].tausipkp);
-            if ((*vcl)[d].eta) clReleaseMemObject((*vcl)[d].eta);
-            if ((*vcl)[d].rxx) clReleaseMemObject((*vcl)[d].rxx);
-            if ((*vcl)[d].ryy) clReleaseMemObject((*vcl)[d].ryy);
-            if ((*vcl)[d].rzz) clReleaseMemObject((*vcl)[d].rzz);
-            if ((*vcl)[d].rxy) clReleaseMemObject((*vcl)[d].rxy);
-            if ((*vcl)[d].ryz) clReleaseMemObject((*vcl)[d].ryz);
-            if ((*vcl)[d].rxz) clReleaseMemObject((*vcl)[d].rxz);
+        free(prog->input_list);
+    }
+}
 
-            if ((*vcl)[d].psi_sxx_x) clReleaseMemObject((*vcl)[d].psi_sxx_x);
-            if ((*vcl)[d].psi_sxy_x) clReleaseMemObject((*vcl)[d].psi_sxy_x);
-            if ((*vcl)[d].psi_sxz_x) clReleaseMemObject((*vcl)[d].psi_sxz_x);
-            if ((*vcl)[d].psi_syy_y) clReleaseMemObject((*vcl)[d].psi_syy_y);
-            if ((*vcl)[d].psi_sxy_y) clReleaseMemObject((*vcl)[d].psi_sxy_y);
-            if ((*vcl)[d].psi_syz_y) clReleaseMemObject((*vcl)[d].psi_syz_y);
-            if ((*vcl)[d].psi_szz_z) clReleaseMemObject((*vcl)[d].psi_szz_z);
-            if ((*vcl)[d].psi_sxz_z) clReleaseMemObject((*vcl)[d].psi_sxz_z);
-            if ((*vcl)[d].psi_syz_z) clReleaseMemObject((*vcl)[d].psi_syz_z);
-            
-            if ((*vcl)[d].psi_vxx) clReleaseMemObject((*vcl)[d].psi_vxx);
-            if ((*vcl)[d].psi_vyy) clReleaseMemObject((*vcl)[d].psi_vyy);
-            if ((*vcl)[d].psi_vzz) clReleaseMemObject((*vcl)[d].psi_vzz);
-            if ((*vcl)[d].psi_vxy) clReleaseMemObject((*vcl)[d].psi_vxy);
-            if ((*vcl)[d].psi_vxz) clReleaseMemObject((*vcl)[d].psi_vxz);
-            if ((*vcl)[d].psi_vyx) clReleaseMemObject((*vcl)[d].psi_vyx);
-            if ((*vcl)[d].psi_vyz) clReleaseMemObject((*vcl)[d].psi_vyz);
-            if ((*vcl)[d].psi_vzx) clReleaseMemObject((*vcl)[d].psi_vzx);
-            if ((*vcl)[d].psi_vzy) clReleaseMemObject((*vcl)[d].psi_vzy);
-            
-            if ((*vcl)[d].K_x) clReleaseMemObject((*vcl)[d].K_x);
-            if ((*vcl)[d].a_x) clReleaseMemObject((*vcl)[d].a_x);
-            if ((*vcl)[d].b_x) clReleaseMemObject((*vcl)[d].b_x);
-            if ((*vcl)[d].K_x_half) clReleaseMemObject((*vcl)[d].K_x_half);
-            if ((*vcl)[d].a_x_half) clReleaseMemObject((*vcl)[d].a_x_half);
-            if ((*vcl)[d].b_x_half) clReleaseMemObject((*vcl)[d].b_x_half);
-            
-            if ((*vcl)[d].K_y) clReleaseMemObject((*vcl)[d].K_y);
-            if ((*vcl)[d].a_y) clReleaseMemObject((*vcl)[d].a_y);
-            if ((*vcl)[d].b_y) clReleaseMemObject((*vcl)[d].b_y);
-            if ((*vcl)[d].K_y_half) clReleaseMemObject((*vcl)[d].K_y_half);
-            if ((*vcl)[d].a_y_half) clReleaseMemObject((*vcl)[d].a_y_half);
-            if ((*vcl)[d].b_y_half) clReleaseMemObject((*vcl)[d].b_y_half);
-            
-            if ((*vcl)[d].K_z) clReleaseMemObject((*vcl)[d].K_z);
-            if ((*vcl)[d].a_z) clReleaseMemObject((*vcl)[d].a_z);
-            if ((*vcl)[d].b_z) clReleaseMemObject((*vcl)[d].b_z);
-            if ((*vcl)[d].K_z_half) clReleaseMemObject((*vcl)[d].K_z_half);
-            if ((*vcl)[d].a_z_half) clReleaseMemObject((*vcl)[d].a_z_half);
-            if ((*vcl)[d].b_z_half) clReleaseMemObject((*vcl)[d].b_z_half);
-            
-            if ((*vcl)[d].gradsrc) clReleaseMemObject((*vcl)[d].gradsrc);
-            
-            
-            if ((*vcl)[d].sxxbnd) clReleaseMemObject((*vcl)[d].sxxbnd);
-            if ((*vcl)[d].syybnd) clReleaseMemObject((*vcl)[d].syybnd);
-            if ((*vcl)[d].szzbnd) clReleaseMemObject((*vcl)[d].szzbnd);
-            if ((*vcl)[d].sxybnd) clReleaseMemObject((*vcl)[d].sxybnd);
-            if ((*vcl)[d].syzbnd) clReleaseMemObject((*vcl)[d].syzbnd);
-            if ((*vcl)[d].sxzbnd) clReleaseMemObject((*vcl)[d].sxzbnd);
-            if ((*vcl)[d].vxbnd) clReleaseMemObject((*vcl)[d].vxbnd);
-            if ((*vcl)[d].vybnd) clReleaseMemObject((*vcl)[d].vybnd);
-            if ((*vcl)[d].vzbnd) clReleaseMemObject((*vcl)[d].vzbnd);
-            
-            if ((*vcl)[d].sxx_r) clReleaseMemObject((*vcl)[d].sxx_r);
-            if ((*vcl)[d].syy_r) clReleaseMemObject((*vcl)[d].syy_r);
-            if ((*vcl)[d].szz_r) clReleaseMemObject((*vcl)[d].szz_r);
-            if ((*vcl)[d].sxy_r) clReleaseMemObject((*vcl)[d].sxy_r);
-            if ((*vcl)[d].syz_r) clReleaseMemObject((*vcl)[d].syz_r);
-            if ((*vcl)[d].sxz_r) clReleaseMemObject((*vcl)[d].sxz_r);
-            
-            if ((*vcl)[d].vx_r) clReleaseMemObject((*vcl)[d].vx_r);
-            if ((*vcl)[d].vy_r) clReleaseMemObject((*vcl)[d].vy_r);
-            if ((*vcl)[d].vz_r) clReleaseMemObject((*vcl)[d].vz_r);
-            
-            if ((*vcl)[d].rxx_r) clReleaseMemObject((*vcl)[d].rxx_r);
-            if ((*vcl)[d].ryy_r) clReleaseMemObject((*vcl)[d].ryy_r);
-            if ((*vcl)[d].rzz_r) clReleaseMemObject((*vcl)[d].rzz_r);
-            if ((*vcl)[d].rxy_r) clReleaseMemObject((*vcl)[d].rxy_r);
-            if ((*vcl)[d].ryz_r) clReleaseMemObject((*vcl)[d].ryz_r);
-            if ((*vcl)[d].rxz_r) clReleaseMemObject((*vcl)[d].rxz_r);
-            
-            if ((*vcl)[d].gradtaup) clReleaseMemObject((*vcl)[d].gradtaup);
-            if ((*vcl)[d].gradtaus) clReleaseMemObject((*vcl)[d].gradtaus);
-            if ((*vcl)[d].gradrho) clReleaseMemObject((*vcl)[d].gradrho);
-            if ((*vcl)[d].gradM) clReleaseMemObject((*vcl)[d].gradM);
-            if ((*vcl)[d].gradmu) clReleaseMemObject((*vcl)[d].gradmu);
-            
-            if ((*vcl)[d].Hrho) clReleaseMemObject((*vcl)[d].Hrho);
-            if ((*vcl)[d].HM) clReleaseMemObject((*vcl)[d].HM);
-            if ((*vcl)[d].Hmu) clReleaseMemObject((*vcl)[d].Hmu);
-            if ((*vcl)[d].Htaup) clReleaseMemObject((*vcl)[d].Htaup);
-            if ((*vcl)[d].Htaus) clReleaseMemObject((*vcl)[d].Htaus);
-            
-            if ((*vcl)[d].f_sxx) clReleaseMemObject((*vcl)[d].f_sxx);
-            if ((*vcl)[d].f_syy) clReleaseMemObject((*vcl)[d].f_syy);
-            if ((*vcl)[d].f_szz) clReleaseMemObject((*vcl)[d].f_szz);
-            if ((*vcl)[d].f_sxy) clReleaseMemObject((*vcl)[d].f_sxy);
-            if ((*vcl)[d].f_syz) clReleaseMemObject((*vcl)[d].f_syz);
-            if ((*vcl)[d].f_sxz) clReleaseMemObject((*vcl)[d].f_sxz);
-            if ((*vcl)[d].f_vx) clReleaseMemObject((*vcl)[d].f_vx);
-            if ((*vcl)[d].f_vy) clReleaseMemObject((*vcl)[d].f_vy);
-            if ((*vcl)[d].f_vz) clReleaseMemObject((*vcl)[d].f_vz);
-            
-            if ((*vcl)[d].f_rxx) clReleaseMemObject((*vcl)[d].f_rxx);
-            if ((*vcl)[d].f_ryy) clReleaseMemObject((*vcl)[d].f_ryy);
-            if ((*vcl)[d].f_rzz) clReleaseMemObject((*vcl)[d].f_rzz);
-            if ((*vcl)[d].f_rxy) clReleaseMemObject((*vcl)[d].f_rxy);
-            if ((*vcl)[d].f_ryz) clReleaseMemObject((*vcl)[d].f_ryz);
-            if ((*vcl)[d].f_rxz) clReleaseMemObject((*vcl)[d].f_rxz);
-            
-            if ((*vcl)[d].gradfreqsn) clReleaseMemObject((*vcl)[d].gradfreqsn);
-            
-            if ((*vcl)[d].sxx_sub1) clReleaseMemObject((*vcl)[d].sxx_sub1);
-            if ((*vcl)[d].syy_sub1) clReleaseMemObject((*vcl)[d].syy_sub1);
-            if ((*vcl)[d].szz_sub1) clReleaseMemObject((*vcl)[d].szz_sub1);
-            if ((*vcl)[d].sxy_sub1) clReleaseMemObject((*vcl)[d].sxy_sub1);
-            if ((*vcl)[d].syz_sub1) clReleaseMemObject((*vcl)[d].syz_sub1);
-            if ((*vcl)[d].sxz_sub1) clReleaseMemObject((*vcl)[d].sxz_sub1);
-            if ((*vcl)[d].vx_sub1) clReleaseMemObject((*vcl)[d].vx_sub1);
-            if ((*vcl)[d].vy_sub1) clReleaseMemObject((*vcl)[d].vy_sub1);
-            if ((*vcl)[d].vz_sub1) clReleaseMemObject((*vcl)[d].vz_sub1);
-            if ((*vcl)[d].sxx_sub2) clReleaseMemObject((*vcl)[d].sxx_sub2);
-            if ((*vcl)[d].syy_sub2) clReleaseMemObject((*vcl)[d].syy_sub2);
-            if ((*vcl)[d].szz_sub2) clReleaseMemObject((*vcl)[d].szz_sub2);
-            if ((*vcl)[d].sxy_sub2) clReleaseMemObject((*vcl)[d].sxy_sub2);
-            if ((*vcl)[d].syz_sub2) clReleaseMemObject((*vcl)[d].syz_sub2);
-            if ((*vcl)[d].sxz_sub2) clReleaseMemObject((*vcl)[d].sxz_sub2);
-            if ((*vcl)[d].vx_sub2) clReleaseMemObject((*vcl)[d].vx_sub2);
-            if ((*vcl)[d].vy_sub2) clReleaseMemObject((*vcl)[d].vy_sub2);
-            if ((*vcl)[d].vz_sub2) clReleaseMemObject((*vcl)[d].vz_sub2);
-            
-            if ((*vcl)[d].sxx_r_sub1) clReleaseMemObject((*vcl)[d].sxx_r_sub1);
-            if ((*vcl)[d].syy_r_sub1) clReleaseMemObject((*vcl)[d].syy_r_sub1);
-            if ((*vcl)[d].szz_r_sub1) clReleaseMemObject((*vcl)[d].szz_r_sub1);
-            if ((*vcl)[d].sxy_r_sub1) clReleaseMemObject((*vcl)[d].sxy_r_sub1);
-            if ((*vcl)[d].syz_r_sub1) clReleaseMemObject((*vcl)[d].syz_r_sub1);
-            if ((*vcl)[d].sxz_r_sub1) clReleaseMemObject((*vcl)[d].sxz_r_sub1);
-            if ((*vcl)[d].vx_r_sub1) clReleaseMemObject((*vcl)[d].vx_r_sub1);
-            if ((*vcl)[d].vy_r_sub1) clReleaseMemObject((*vcl)[d].vy_r_sub1);
-            if ((*vcl)[d].vz_r_sub1) clReleaseMemObject((*vcl)[d].vz_r_sub1);
-            if ((*vcl)[d].sxx_r_sub2) clReleaseMemObject((*vcl)[d].sxx_r_sub2);
-            if ((*vcl)[d].syy_r_sub2) clReleaseMemObject((*vcl)[d].syy_r_sub2);
-            if ((*vcl)[d].szz_r_sub2) clReleaseMemObject((*vcl)[d].szz_r_sub2);
-            if ((*vcl)[d].sxy_r_sub2) clReleaseMemObject((*vcl)[d].sxy_r_sub2);
-            if ((*vcl)[d].syz_r_sub2) clReleaseMemObject((*vcl)[d].syz_r_sub2);
-            if ((*vcl)[d].sxz_r_sub2) clReleaseMemObject((*vcl)[d].sxz_r_sub2);
-            if ((*vcl)[d].vx_r_sub2) clReleaseMemObject((*vcl)[d].vx_r_sub2);
-            if ((*vcl)[d].vy_r_sub2) clReleaseMemObject((*vcl)[d].vy_r_sub2);
-            if ((*vcl)[d].vz_r_sub2) clReleaseMemObject((*vcl)[d].vz_r_sub2);
-            
-            if ((*vcl)[d].sxx_sub1_dev) clReleaseMemObject((*vcl)[d].sxx_sub1_dev);
-            if ((*vcl)[d].syy_sub1_dev) clReleaseMemObject((*vcl)[d].syy_sub1_dev);
-            if ((*vcl)[d].szz_sub1_dev) clReleaseMemObject((*vcl)[d].szz_sub1_dev);
-            if ((*vcl)[d].sxy_sub1_dev) clReleaseMemObject((*vcl)[d].sxy_sub1_dev);
-            if ((*vcl)[d].syz_sub1_dev) clReleaseMemObject((*vcl)[d].syz_sub1_dev);
-            if ((*vcl)[d].sxz_sub1_dev) clReleaseMemObject((*vcl)[d].sxz_sub1_dev);
-            if ((*vcl)[d].vx_sub1_dev) clReleaseMemObject((*vcl)[d].vx_sub1_dev);
-            if ((*vcl)[d].vy_sub1_dev) clReleaseMemObject((*vcl)[d].vy_sub1_dev);
-            if ((*vcl)[d].vz_sub1_dev) clReleaseMemObject((*vcl)[d].vz_sub1_dev);
-            if ((*vcl)[d].sxx_sub2_dev) clReleaseMemObject((*vcl)[d].sxx_sub2_dev);
-            if ((*vcl)[d].syy_sub2_dev) clReleaseMemObject((*vcl)[d].syy_sub2_dev);
-            if ((*vcl)[d].szz_sub2_dev) clReleaseMemObject((*vcl)[d].szz_sub2_dev);
-            if ((*vcl)[d].sxy_sub2_dev) clReleaseMemObject((*vcl)[d].sxy_sub2_dev);
-            if ((*vcl)[d].syz_sub2_dev) clReleaseMemObject((*vcl)[d].syz_sub2_dev);
-            if ((*vcl)[d].sxz_sub2_dev) clReleaseMemObject((*vcl)[d].sxz_sub2_dev);
-            if ((*vcl)[d].vx_sub2_dev) clReleaseMemObject((*vcl)[d].vx_sub2_dev);
-            if ((*vcl)[d].vy_sub2_dev) clReleaseMemObject((*vcl)[d].vy_sub2_dev);
-            if ((*vcl)[d].vz_sub2_dev) clReleaseMemObject((*vcl)[d].vz_sub2_dev);
-            
-            if ((*vcl)[d].sxx_r_sub1_dev) clReleaseMemObject((*vcl)[d].sxx_r_sub1_dev);
-            if ((*vcl)[d].syy_r_sub1_dev) clReleaseMemObject((*vcl)[d].syy_r_sub1_dev);
-            if ((*vcl)[d].szz_r_sub1_dev) clReleaseMemObject((*vcl)[d].szz_r_sub1_dev);
-            if ((*vcl)[d].sxy_r_sub1_dev) clReleaseMemObject((*vcl)[d].sxy_r_sub1_dev);
-            if ((*vcl)[d].syz_r_sub1_dev) clReleaseMemObject((*vcl)[d].syz_r_sub1_dev);
-            if ((*vcl)[d].sxz_r_sub1_dev) clReleaseMemObject((*vcl)[d].sxz_r_sub1_dev);
-            if ((*vcl)[d].vx_r_sub1_dev) clReleaseMemObject((*vcl)[d].vx_r_sub1_dev);
-            if ((*vcl)[d].vy_r_sub1_dev) clReleaseMemObject((*vcl)[d].vy_r_sub1_dev);
-            if ((*vcl)[d].vz_r_sub1_dev) clReleaseMemObject((*vcl)[d].vz_r_sub1_dev);
-            if ((*vcl)[d].sxx_r_sub2_dev) clReleaseMemObject((*vcl)[d].sxx_r_sub2_dev);
-            if ((*vcl)[d].syy_r_sub2_dev) clReleaseMemObject((*vcl)[d].syy_r_sub2_dev);
-            if ((*vcl)[d].szz_r_sub2_dev) clReleaseMemObject((*vcl)[d].szz_r_sub2_dev);
-            if ((*vcl)[d].sxy_r_sub2_dev) clReleaseMemObject((*vcl)[d].sxy_r_sub2_dev);
-            if ((*vcl)[d].syz_r_sub2_dev) clReleaseMemObject((*vcl)[d].syz_r_sub2_dev);
-            if ((*vcl)[d].sxz_r_sub2_dev) clReleaseMemObject((*vcl)[d].sxz_r_sub2_dev);
-            if ((*vcl)[d].vx_r_sub2_dev) clReleaseMemObject((*vcl)[d].vx_r_sub2_dev);
-            if ((*vcl)[d].vy_r_sub2_dev) clReleaseMemObject((*vcl)[d].vy_r_sub2_dev);
-            if ((*vcl)[d].vz_r_sub2_dev) clReleaseMemObject((*vcl)[d].vz_r_sub2_dev);
-            
-            if ((*vcl)[d].sxxbnd_pin) clReleaseMemObject((*vcl)[d].sxxbnd_pin);
-            if ((*vcl)[d].syybnd_pin) clReleaseMemObject((*vcl)[d].syybnd_pin);
-            if ((*vcl)[d].szzbnd_pin) clReleaseMemObject((*vcl)[d].szzbnd_pin);
-            if ((*vcl)[d].sxybnd_pin) clReleaseMemObject((*vcl)[d].sxybnd_pin);
-            if ((*vcl)[d].syzbnd_pin) clReleaseMemObject((*vcl)[d].syzbnd_pin);
-            if ((*vcl)[d].sxzbnd_pin) clReleaseMemObject((*vcl)[d].sxzbnd_pin);
-            if ((*vcl)[d].vxbnd_pin) clReleaseMemObject((*vcl)[d].vxbnd_pin);
-            if ((*vcl)[d].vybnd_pin) clReleaseMemObject((*vcl)[d].vybnd_pin);
-            if ((*vcl)[d].vzbnd_pin) clReleaseMemObject((*vcl)[d].vzbnd_pin);
-            
-            if ((*vcl)[d].kernel_v) clReleaseKernel((*vcl)[d].kernel_v);
-            if ((*vcl)[d].kernel_s) clReleaseKernel((*vcl)[d].kernel_s);
-            if ((*vcl)[d].kernel_surf) clReleaseKernel((*vcl)[d].kernel_surf);
-            if ((*vcl)[d].kernel_initseis) clReleaseKernel((*vcl)[d].kernel_initseis);
-            if ((*vcl)[d].kernel_varsout) clReleaseKernel((*vcl)[d].kernel_varsout);
-            if ((*vcl)[d].kernel_varsoutinit) clReleaseKernel((*vcl)[d].kernel_varsoutinit);
-            if ((*vcl)[d].kernel_vcom) clReleaseKernel((*vcl)[d].kernel_vcom);
-            if ((*vcl)[d].kernel_scom) clReleaseKernel((*vcl)[d].kernel_scom);
-            if ((*vcl)[d].kernel_vcom) clReleaseKernel((*vcl)[d].kernel_vcom);
-            if ((*vcl)[d].kernel_scom) clReleaseKernel((*vcl)[d].kernel_scom);
-            if ((*vcl)[d].kernel_fill_transfer_buff1_v_out) clReleaseKernel((*vcl)[d].kernel_fill_transfer_buff1_v_out);
-            if ((*vcl)[d].kernel_fill_transfer_buff2_v_out) clReleaseKernel((*vcl)[d].kernel_fill_transfer_buff2_v_out);
-            if ((*vcl)[d].kernel_fill_transfer_buff1_v_in) clReleaseKernel((*vcl)[d].kernel_fill_transfer_buff1_v_in);
-            if ((*vcl)[d].kernel_fill_transfer_buff2_v_in) clReleaseKernel((*vcl)[d].kernel_fill_transfer_buff2_v_in);
-            if ((*vcl)[d].kernel_fill_transfer_buff1_s_out) clReleaseKernel((*vcl)[d].kernel_fill_transfer_buff1_s_out);
-            if ((*vcl)[d].kernel_fill_transfer_buff2_s_out) clReleaseKernel((*vcl)[d].kernel_fill_transfer_buff2_s_out);
-            if ((*vcl)[d].kernel_fill_transfer_buff1_s_in) clReleaseKernel((*vcl)[d].kernel_fill_transfer_buff1_s_in);
-            if ((*vcl)[d].kernel_fill_transfer_buff2_s_in) clReleaseKernel((*vcl)[d].kernel_fill_transfer_buff2_s_in);
-            if ((*vcl)[d].kernel_adj_fill_transfer_buff1_v_out) clReleaseKernel((*vcl)[d].kernel_adj_fill_transfer_buff1_v_out);
-            if ((*vcl)[d].kernel_adj_fill_transfer_buff2_v_out) clReleaseKernel((*vcl)[d].kernel_adj_fill_transfer_buff2_v_out);
-            if ((*vcl)[d].kernel_adj_fill_transfer_buff1_v_in) clReleaseKernel((*vcl)[d].kernel_adj_fill_transfer_buff1_v_in);
-            if ((*vcl)[d].kernel_adj_fill_transfer_buff2_v_in) clReleaseKernel((*vcl)[d].kernel_adj_fill_transfer_buff2_v_in);
-            if ((*vcl)[d].kernel_adj_fill_transfer_buff1_s_out) clReleaseKernel((*vcl)[d].kernel_adj_fill_transfer_buff1_s_out);
-            if ((*vcl)[d].kernel_adj_fill_transfer_buff2_s_out) clReleaseKernel((*vcl)[d].kernel_adj_fill_transfer_buff2_s_out);
-            if ((*vcl)[d].kernel_adj_fill_transfer_buff1_s_in) clReleaseKernel((*vcl)[d].kernel_adj_fill_transfer_buff1_s_in);
-            if ((*vcl)[d].kernel_adj_fill_transfer_buff2_s_in) clReleaseKernel((*vcl)[d].kernel_adj_fill_transfer_buff2_s_in);
-            if ((*vcl)[d].kernel_adjv) clReleaseKernel((*vcl)[d].kernel_adjv);
-            if ((*vcl)[d].kernel_adjs) clReleaseKernel((*vcl)[d].kernel_adjs);
-            if ((*vcl)[d].kernel_adjvcom) clReleaseKernel((*vcl)[d].kernel_adjvcom);
-            if ((*vcl)[d].kernel_adjscom) clReleaseKernel((*vcl)[d].kernel_adjscom);
-            if ((*vcl)[d].kernel_adjvcom) clReleaseKernel((*vcl)[d].kernel_adjvcom);
-            if ((*vcl)[d].kernel_adjscom) clReleaseKernel((*vcl)[d].kernel_adjscom);
-            if ((*vcl)[d].kernel_initseis_r) clReleaseKernel((*vcl)[d].kernel_initseis_r);
-            if ((*vcl)[d].kernel_residuals ) clReleaseKernel((*vcl)[d].kernel_residuals );
-            if ((*vcl)[d].kernel_initgrad) clReleaseKernel((*vcl)[d].kernel_initgrad);
-            if ((*vcl)[d].kernel_bnd) clReleaseKernel((*vcl)[d].kernel_bnd);
-            if ((*vcl)[d].kernel_savefreqs) clReleaseKernel((*vcl)[d].kernel_savefreqs);
-            if ((*vcl)[d].kernel_initsavefreqs) clReleaseKernel((*vcl)[d].kernel_initsavefreqs);
-            if ((*vcl)[d].kernel_initialize_gradsrc) clReleaseKernel((*vcl)[d].kernel_initialize_gradsrc);
-            
-            
-            if ((*vcl)[d].program_v) clReleaseProgram((*vcl)[d].program_v);
-            if ((*vcl)[d].program_s) clReleaseProgram((*vcl)[d].program_s);
-            if ((*vcl)[d].program_vcom) clReleaseProgram((*vcl)[d].program_vcom);
-            if ((*vcl)[d].program_scom) clReleaseProgram((*vcl)[d].program_scom);
-            if ((*vcl)[d].program_vcom) clReleaseProgram((*vcl)[d].program_vcom);
-            if ((*vcl)[d].program_scom) clReleaseProgram((*vcl)[d].program_scom);
-            if ((*vcl)[d].program_adjvcom) clReleaseProgram((*vcl)[d].program_adjvcom);
-            if ((*vcl)[d].program_adjscom) clReleaseProgram((*vcl)[d].program_adjscom);
-            if ((*vcl)[d].program_adjvcom) clReleaseProgram((*vcl)[d].program_adjvcom);
-            if ((*vcl)[d].program_adjscom) clReleaseProgram((*vcl)[d].program_adjscom);
-            if ((*vcl)[d].program_fill_transfer_buff_v) clReleaseProgram((*vcl)[d].program_fill_transfer_buff_v);
-            if ((*vcl)[d].program_fill_transfer_buff_s) clReleaseProgram((*vcl)[d].program_fill_transfer_buff_s);
-            if ((*vcl)[d].program_surf) clReleaseProgram((*vcl)[d].program_surf);
-            if ((*vcl)[d].program_initseis) clReleaseProgram((*vcl)[d].program_initseis);
-            if ((*vcl)[d].program_varsout) clReleaseProgram((*vcl)[d].program_varsout);
-            if ((*vcl)[d].program_varsoutinit) clReleaseProgram((*vcl)[d].program_varsoutinit);
-            if ((*vcl)[d].program_adjv) clReleaseProgram((*vcl)[d].program_adjv);
-            if ((*vcl)[d].program_adjs) clReleaseProgram((*vcl)[d].program_adjs);
-            if ((*vcl)[d].program_initseis_r) clReleaseProgram((*vcl)[d].program_initseis_r);
-            if ((*vcl)[d].program_residuals) clReleaseProgram((*vcl)[d].program_residuals);
-            if ((*vcl)[d].program_initgrad) clReleaseProgram((*vcl)[d].program_initgrad);
-            if ((*vcl)[d].program_bnd) clReleaseProgram((*vcl)[d].program_bnd);
-            if ((*vcl)[d].program_savefreqs) clReleaseProgram((*vcl)[d].program_savefreqs);
-            if ((*vcl)[d].program_initsavefreqs) clReleaseProgram((*vcl)[d].program_initsavefreqs);
-            if ((*vcl)[d].program_initialize_gradsrc) clReleaseProgram((*vcl)[d].program_initialize_gradsrc);
-            
+void variable_free(device *dev, variable * var){
+    
+    clbuf_free(dev, &var->cl_var);
+    clbuf_free(dev, &var->cl_varout);
+    clbuf_free(dev, &var->cl_varbnd);
+    clbuf_free(dev, &var->cl_fvar);
+    clbuf_free(dev, &var->cl_buf1);
+    clbuf_free(dev, &var->cl_buf2);
+    clbuf_free(dev, &var->cl_var_res);
+    
+    GFree(var->gl_fvar);
+    if  (var->gl_varout) GFree(var->gl_varout[0]);
+    GFree(var->gl_varout);
+    if  (var->gl_varin) GFree(var->gl_varin[0]);
+    GFree(var->gl_varin);
+    GFree(var->gl_var_res);
+    if  (var->gl_var_res) GFree(var->gl_var_res[0]);
+    GFree(var->gl_mov);
+    
+}
 
-            
-            if ((*vcl)[d].queue) clReleaseCommandQueue((*vcl)[d].queue);
-            if ((*vcl)[d].queuecomm) clReleaseCommandQueue((*vcl)[d].queuecomm);
+void parameter_free(device *dev, parameter * par){
+    
+    clbuf_free(dev, &par->cl_par);
+    clbuf_free(dev, &par->cl_grad);
+    clbuf_free(dev, &par->cl_H);
+    GFree(par->gl_par);
+    GFree(par->gl_grad);
+    GFree(par->gl_H);
+}
+
+void constants_free(device *dev, constants *cst){
+    
+    clbuf_free(dev, &cst->cl_cst);
+    GFree(cst->gl_cst);
+}
+
+void sources_records_free(device *dev, sources_records * src_rec){
+    
+    clbuf_free(dev, &src_rec->cl_src);
+    clbuf_free(dev, &src_rec->cl_src_pos);
+    clbuf_free(dev, &src_rec->cl_rec_pos);
+    clbuf_free(dev, &src_rec->cl_grad_src);
+    
+    clprogram_free(&src_rec->sources);
+    clprogram_free(&src_rec->varsout);
+    clprogram_free(&src_rec->varsoutinit);
+    clprogram_free(&src_rec->residuals);
+    clprogram_free(&src_rec->init_gradsrc);
+    
+    GFree(src_rec->nsrc);
+    GFree(src_rec->nrec);
+    if  (src_rec->src) GFree(src_rec->src[0]);
+    GFree(src_rec->src);
+    if  (src_rec->gradsrc) GFree(src_rec->gradsrc[0]);
+    GFree(src_rec->gradsrc);
+    if  (src_rec->src_pos) GFree(src_rec->src_pos[0]);
+    GFree(src_rec->src_pos);
+    if  (src_rec->rec_pos) GFree(src_rec->rec_pos[0]);
+    GFree(src_rec->rec_pos);
+    
+}
+
+void update_free(update * up){
+    
+    clprogram_free(&up->center);
+    clprogram_free(&up->com1);
+    clprogram_free(&up->com2);
+    clprogram_free(&up->fcom1_out);
+    clprogram_free(&up->fcom2_out);
+    clprogram_free(&up->fcom1_in);
+    clprogram_free(&up->fcom2_out);
+    GFree(up->v2com)
+}
+
+void boundary_conditions_free(boundary_conditions * bnd){
+    
+    clprogram_free(&bnd->surf);
+    clprogram_free(&bnd->init_f);
+    clprogram_free(&bnd->init_adj);
+
+}
+
+void gradients_free(gradients * grad){
+    
+    clprogram_free(&grad->init);
+    clprogram_free(&grad->savefreqs);
+    clprogram_free(&grad->initsavefreqs);
+    clprogram_free(&grad->savebnd);
+    
+}
+
+void varcl_free(device * dev){
+    int i;
+    
+    if (dev->vars){
+        for (i=0;i<dev->nvars;i++){
+            variable_free(dev, &dev->vars[i]);
         }
+        GFree(dev->vars);
+    }
+    if (dev->vars_adj){
+        for (i=0;i<dev->nvars;i++){
+            variable_free(dev, &dev->vars_adj[i]);
+        }
+        GFree(dev->vars_adj);
+    }
+    if (dev->pars){
+        for (i=0;i<dev->npars;i++){
+            parameter_free(dev, &dev->pars[i]);
+        }
+        GFree(dev->pars);
+    }
+    if (dev->csts){
+        for (i=0;i<dev->ncsts;i++){
+            constants_free(dev, &dev->csts[i]);
+        }
+        GFree(dev->csts);
+    }
+    if (dev->trans_vars){
+        for (i=0;i<dev->ntvars;i++){
+            variable_free(dev, &dev->trans_vars[i]);
+        }
+        GFree(dev->trans_vars);
+    }
+    if (dev->ups_f){
+        for (i=0;i<dev->nupdates;i++){
+            update_free(&dev->ups_f[i]);
+        }
+        GFree(dev->ups_f);
+    }
+    if (dev->ups_adj){
+        for (i=0;i<dev->nupdates;i++){
+            update_free(&dev->ups_adj[i]);
+        }
+        GFree(dev->ups_adj);
+    }
+    
+    sources_records_free(dev, &dev->src_recs);
+    gradients_free(&dev->grads);
+    boundary_conditions_free(&dev->bnd_cnds);
+    
+    if (dev->queue) clReleaseCommandQueue(dev->queue);
+    if (dev->queuecomm) clReleaseCommandQueue(dev->queuecomm);
+    
+}
 
+void modcsts_free(model * m){
+    int i;
+    device * dev = NULL;
+    if (m->vars){
+        for (i=0;i<m->nvars;i++){
+            variable_free(dev, &m->vars[i]);
+        }
+        GFree(m->vars);
+    }
+    if (m->vars_adj){
+        for (i=0;i<m->nvars;i++){
+            variable_free(dev, &m->vars_adj[i]);
+        }
+        GFree(m->vars_adj);
+    }
+    if (m->pars){
+        for (i=0;i<m->npars;i++){
+            parameter_free(dev, &m->pars[i]);
+        }
+        GFree(m->pars);
+    }
+    if (m->csts){
+        for (i=0;i<m->ncsts;i++){
+            constants_free(dev, &m->csts[i]);
+        }
+        GFree(m->csts);
+    }
+    if (m->trans_vars){
+        for (i=0;i<m->ntvars;i++){
+            variable_free(dev, &m->trans_vars[i]);
+        }
+        GFree(m->trans_vars);
+    }
+    if (m->ups_f){
+        for (i=0;i<m->nupdates;i++){
+            update_free(&m->ups_f[i]);
+        }
+        GFree(m->ups_f);
+    }
+    if (m->ups_adj){
+        for (i=0;i<m->nupdates;i++){
+            update_free(&m->ups_adj[i]);
+        }
+        GFree(m->ups_adj);
     }
 
+    sources_records_free(dev, &m->src_recs);
+    gradients_free(&m->grads);
+    boundary_conditions_free(&m->bnd_cnds);
+    
+    GFree(m->no_use_GPUs);
+    
     if (m->context) clReleaseContext(m->context);
-    if ((*vcl)) free((*vcl));
-    if ((*mloc)) free((*mloc));
+    
+}
+
+int Free_OpenCL(model * m, device ** dev)  {
+    // Free all memory contained in all structures listed in F.h
+    int d;
+    if (*dev){
+        for (d=0;d<m->NUM_DEVICES;d++){
+            varcl_free(dev[d]);
+        }
+    }
+    GFree(*dev);
+    modcsts_free(m);
     
     return 0;
-
-
 }

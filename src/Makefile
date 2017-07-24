@@ -17,11 +17,8 @@ UNAME_S := $(shell uname -s)
 
 
 SeisCL_CL= \
-	initialize.cl \
-	residuals.cl \
 	savebnd2D.cl \
 	savebnd3D.cl \
-	savefreqs.cl \
 	surface2D.cl \
 	surface2D_SH.cl \
 	surface3D.cl \
@@ -36,35 +33,35 @@ SeisCL_CL= \
 	update_s3D.cl \
 	update_v2D.cl \
 	update_v2D_SH.cl \
-	update_v3D.cl \
-	update_v_CPML.cl \
-	seisout.cl \
-	fill_transfer_buff_s.cl \
-	fill_transfer_buff_v.cl
+	update_v3D.cl
 
 SeisCL_CL_Headers = $(SeisCL_CL:%.cl=%.hcl)
 
 SeisCL_MPI_SRC= \
-	gpu_util.c \
-	read_hdf5.c\
-	Init_MPI.c \
-	Init_cst.c \
-	Init_OpenCL.c \
-	gpu_initialize_Fkernel.c \
-	CPML_coeff.c\
-	Init_model.c \
-	time_stepping.c \
-	comm.c\
-	calc_grad.c \
-	Out_MPI.c \
-	writehdf5.c \
-	Free_MPI.c \
-	Free_OpenCL.c \
-	SeisCL_MPI.c \
+	assign_modeling_case.c \
+    automatic_kernels.c \
 	butterworth.c \
-	kiss_fft.c \
-	kiss_fftr.c \
+	calc_grad.c \
+    clbuf.c \
+    clerrors.c \
+    clprogram.c \
+	comm.c\
+    event_dependency.c \
+	Free_OpenCL.c \
+	Free_MPI.c \
+    Init_cst.c \
+	Init_model.c \
+	Init_MPI.c \
+	Init_OpenCL.c \
+    kiss_fft.c \
+    kiss_fftr.c \
+	Out_MPI.c \
+	read_hdf5.c\
 	residuals.c \
+	SeisCL_MPI.c \
+	time_stepping.c \
+	writehdf5.c
+
 
 SeisCL_MPI_OBJ = $(SeisCL_MPI_SRC:%.c=%.o)
 

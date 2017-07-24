@@ -73,7 +73,7 @@ __kernel void savebnd(__global float *vx,         __global float *vy,      __glo
     }
     
 
-#elif DEV==0 & MYGROUPID==0
+#elif DEVID==0 & MYGROUPID==0
     
     int gid = get_global_id(0);
     int NXbnd = (NX- 2*FDOH- NAB);
@@ -102,7 +102,7 @@ __kernel void savebnd(__global float *vx,         __global float *vy,      __glo
         return;
     }
 
-#elif DEV==NUM_DEVICES-1 & MYGROUPID==NLOCALP-1
+#elif DEVID==NUM_DEVICES-1 & MYGROUPID==NLOCALP-1
     
     int gid = get_global_id(0);
     int NXbnd = (NX- 2*FDOH- NAB);

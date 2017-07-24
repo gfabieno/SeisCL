@@ -506,7 +506,7 @@ int grad_coefelast_3_SH(double (*c)[24],float M, float mu, float taup, float tau
 }
 
 
-int calc_grad(struct modcsts* mglob, struct modcstsloc * m)  {
+int par_calc_grad(model* mglob, modelloc * m)  {
     
     int i,j,k,f,l;
     float df,freq,ND, al,w0;
