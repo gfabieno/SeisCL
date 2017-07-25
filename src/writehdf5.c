@@ -29,8 +29,12 @@ void writetomat(hid_t* file_id,
     
     hid_t dataspace_id=0, dataset_id=0, attribute_id=0;
     hid_t    plist_id;
-    hsize_t  cdims[MAX_DIMS]={10};
+    hsize_t  cdims[MAX_DIMS];
     int ii;
+    
+    for (ii=0;ii<NDIMs;ii++){
+        cdims[ii]=10;
+    }
     
     hid_t vls_type_c_id = H5Tcopy(H5T_C_S1);
     H5Tset_size(vls_type_c_id, 6);

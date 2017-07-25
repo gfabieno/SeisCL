@@ -179,7 +179,7 @@ char *get_build_options(device *dev,
         }
     }
     for (i=0;i<m->FDOH;i++){
-        sprintf(src,"-D hc%d=%9.9f ",i+1,m->hc[i]);
+        sprintf(src,"-D hc%d=%9.9f ",i+1,m->hc[i+1]);
         strcat(build_options,src);
         
     }
@@ -379,12 +379,10 @@ int prog_create(model * m,
         if (!argfound){
             for (j=0;j<m->ncsts;j++){
                 if (strcmp((*dev).csts[j].name,(*prog).input_list[i])==0){
-                    if ((*dev).csts[j].cl_cst.mem){
-                        state = clSetKernelArg((*prog).kernel,
-                                               i,
-                                               sizeof(cl_mem),
-                                               &(*dev).csts[j].cl_cst.mem);
-                    }
+                    state = clSetKernelArg((*prog).kernel,
+                                           i,
+                                           sizeof(cl_mem),
+                                           &(*dev).csts[j].cl_cst.mem);
                     argfound=1;
 
                     break;

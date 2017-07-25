@@ -371,7 +371,7 @@ int Init_cst(model * m) {
     
     //Viscoelastic constants initialization
     float * eta=m->csts[20].gl_cst;
-    float * FL=m->csts[20].gl_cst;
+    float * FL=m->csts[19].gl_cst;
     if (m->L>0){
         for (int l=0;l<m->L;l++) {
             eta[l]=(2.0*PI*FL[l])/m->dt;

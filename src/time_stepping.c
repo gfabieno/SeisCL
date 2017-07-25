@@ -21,47 +21,6 @@
 
 #include "F.h"
 
-#define rho(z,y,x) rho[(x)*m.NY*m.NZ+(y)*m.NZ+(z)]
-#define rip(z,y,x) rip[(x)*m.NY*m.NZ+(y)*m.NZ+(z)]
-#define rjp(z,y,x) rjp[(x)*m.NY*m.NZ+(y)*m.NZ+(z)]
-#define rkp(z,y,x) rkp[(x)*m.NY*m.NZ+(y)*m.NZ+(z)]
-#define uipjp(z,y,x) uipjp[(x)*m.NY*m.NZ+(y)*m.NZ+(z)]
-#define ujpkp(z,y,x) ujpkp[(x)*m.NY*m.NZ+(y)*m.NZ+(z)]
-#define uipkp(z,y,x) uipkp[(x)*m.NY*m.NZ+(y)*m.NZ+(z)]
-#define u(z,y,x) u[(x)*m.NY*m.NZ+(y)*m.NZ+(z)]
-#define pi(z,y,x) pi[(x)*m.NY*m.NZ+(y)*m.NZ+(z)]
-#define grad(z,y,x) grad[(x)*m.NY*m.NZ+(y)*m.NZ+(z)]
-#define grads(z,y,x) grads[(x)*m.NY*m.NZ+(y)*m.NZ+(z)]
-#define amp1(z,y,x) amp1[(x)*m.NY*m.NZ+(y)*m.NZ+(z)]
-#define amp2(z,y,x) amp2[(x)*m.NY*m.NZ+(y)*m.NZ+(z)]
-
-#define vxout(y,x) vxout[(y)*NT+(x)]
-#define vyout(y,x) vyout[(y)*NT+(x)]
-#define vzout(y,x) vzout[(y)*NT+(x)]
-#define vx0(y,x) vx0[(y)*NT+(x)]
-#define vy0(y,x) vy0[(y)*NT+(x)]
-#define vz0(y,x) vz0[(y)*NT+(x)]
-#define rx(y,x) rx[(y)*NT+(x)]
-#define ry(y,x) ry[(y)*NT+(x)]
-#define rz(y,x) rz[(y)*NT+(x)]
-#define mute(y,x) mute[(y)*5+(x)]
-#define weight(y,x) weight[(y)*NT+(x)]
-
-#define vxcum(y,x) vxcum[(y)*NT+(x)]
-#define vycum(y,x) vycum[(y)*NT+(x)]
-
-#define u_in(z,y,x) u_in[(x)*m.NY*m.NZ+(y)*m.NZ+(z)]
-#define pi_in(z,y,x) pi_in[(x)*m.NY*m.NZ+(y)*m.NZ+(z)]
-#define uL(z,y,x) uL[(x)*m.NY*m.NZ+(y)*m.NZ+(z)]
-#define piL(z,y,x) piL[(x)*m.NY*m.NZ+(y)*m.NZ+(z)]
-#define taus(z,y,x) taus[(x)*m.NY*m.NZ+(y)*m.NZ+(z)]
-#define tausipjp(z,y,x) tausipjp[(x)*m.NY*m.NZ+(y)*m.NZ+(z)]
-#define tausjpkp(z,y,x) tausjpkp[(x)*m.NY*m.NZ+(y)*m.NZ+(z)]
-#define tausipkp(z,y,x) tausipkp[(x)*m.NY*m.NZ+(y)*m.NZ+(z)]
-#define taup(z,y,x) taup[(x)*m.NY*m.NZ+(y)*m.NZ+(z)]
-
-
-#define PI (3.141592653589793238462643383279502884197169)
 
 int reduce_seis(model * m, device ** dev, int s){
     // Transfer the variables to output to host and reduce in global buffer
@@ -72,10 +31,10 @@ int reduce_seis(model * m, device ** dev, int s){
     for (d=0;d<m->NUM_DEVICES;d++){
         for (i=0;i<m->nvars;i++){
             if ( (*dev)[d].vars[i].to_output){
-                (*dev)[d].vars[i].cl_var.size=sizeof(float)
+                (*dev)[d].vars[i].cl_varout.size=sizeof(float)
                 * m->NT * m->src_recs.nrec[s];
                 __GUARD clbuf_read( &(*dev)[d].queue,
-                                   &(*dev)[d].vars[i].cl_var);
+                                   &(*dev)[d].vars[i].cl_varout);
             }
             
         }
@@ -476,6 +435,12 @@ int time_stepping(model * m, device ** dev) {
             
             // Apply all updates
             update_grid(m, dev);
+            
+            // Inject the sources
+            for (d=0;d<m->NUM_DEVICES;d++){
+                __GUARD prog_launch( &(*dev)[d].queue,
+                                     &(*dev)[d].src_recs.sources);
+            }
             
             // Computing the free surface
             if (m->FREESURF==1){

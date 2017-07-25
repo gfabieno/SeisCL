@@ -405,8 +405,8 @@ __kernel void update_s(int offcomm,
 #if LVE==0
 
         sxz(gidz, gidx)+=(fipkp*(vxz+vzx));
-        sxx(gidz, gidx)+=(g*(vxx+vzz))-(f*vzz) ;
-        szz(gidz, gidx)+=(g*(vxx+vzz))-(f*vxx) ;
+        sxx(gidz, gidx)+=(g*(vxx+vzz))-(f*vzz);
+        szz(gidz, gidx)+=(g*(vxx+vzz))-(f*vxx);
         
         
 #else

@@ -139,7 +139,7 @@ int Init_model(model * m) {
                 }
             }
         }
-        if (m->par_type==3){
+        else if (m->par_type==3){
             if (M && mu && taup && taus){
                 for (i=0;i<num_ele;i++){
                     
@@ -290,7 +290,7 @@ int Init_model(model * m) {
     else
     {
         NX=m->N[1];
-        NY=0;
+        NY=1;
         NZ=m->N[0];
     }
     

@@ -372,7 +372,6 @@ __kernel void update_v(int offcomm,
 
 // Update the velocities
     {
-
         vx(gidz,gidx)+= ((sxx_x + sxz_z)/rip(gidz,gidx));
         vz(gidz,gidx)+= ((szz_z + sxz_x)/rkp(gidz,gidx));
     }

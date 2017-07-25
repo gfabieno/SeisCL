@@ -276,7 +276,7 @@ int kernel_sources(device * dev,
            "        return;\n"
            "    }\n\n"
            "    int source_type= src_pos[4+5*gid];\n"
-           "    float amp=DIRPROP*(DT*src[gid*NT+nt])/(DH*DH*DH);\n\n");
+           "    float amp=(DT*src[gid*NT+nt])/(DH*DH*DH);\n\n");
 
     char posstr[100]={0};
 
@@ -317,7 +317,7 @@ int kernel_sources(device * dev,
     
     __GUARD prog_source(prog, "sources", (*prog).src);
     
-//    printf("%s\n\n%lu\n",temp, strlen(temp));
+    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     free(tosources);
     
