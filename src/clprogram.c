@@ -421,9 +421,7 @@ int prog_create(model * m,
                 argfound=1;
             }
         }
-        
-        
-        
+
         if (!argfound){
             if (strcmp("offcomm",(*prog).input_list[i])==0){
                 state = clSetKernelArg((*prog).kernel,
@@ -434,15 +432,26 @@ int prog_create(model * m,
                 //                printf("%s\n",(*prog).input_list[i]);
             }
         }
+        
+        if (!argfound){
+            if (strcmp("lvar",(*prog).input_list[i])==0){
+                state = clSetKernelArg((*prog).kernel,
+                                       i,
+                                       shared_size,
+                                       NULL);
+                argfound=1;
+                //                printf("%s\n",(*prog).input_list[i]);
+            }
+        }
+        
         if (!argfound){
             if (strcmp("nt"  ,(*prog).input_list[i])==0){
                 prog->tinput=i+1;
                 argfound=1;
             }
         }
-        if (!argfound
-            && strcmp("lvar",(*prog).input_list[i])!=0
-            && strcmp("nt"  ,(*prog).input_list[i])!=0){
+        
+        if (!argfound){
             printf("Error: input %s undefined for kernel %s\n\n",
                              (*prog).input_list[i], (*prog).name);
             printf("Input list: \n\n");
