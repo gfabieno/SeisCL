@@ -366,25 +366,30 @@ int initialize_grid(model * m, device ** dev, int s){
         // simulation
         (*dev)[d].src_recs.cl_src.size=sizeof(float)
                                            * m->NT * (*dev)[d].src_recs.nsrc[s];
+        (*dev)[d].src_recs.cl_src.host=(*dev)[d].src_recs.src[s];
         (*dev)[d].src_recs.cl_src_pos.size= sizeof(float)
                                                * 5 * (*dev)[d].src_recs.nsrc[s];
+        (*dev)[d].src_recs.cl_src_pos.host=(*dev)[d].src_recs.src_pos[s];
         (*dev)[d].src_recs.cl_rec_pos.size= sizeof(float)
                                                * 8 * (*dev)[d].src_recs.nrec[s];
+        (*dev)[d].src_recs.cl_rec_pos.host=(*dev)[d].src_recs.rec_pos[s];
         
         __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].src_recs.cl_src);
         __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].src_recs.cl_src_pos);
         __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].src_recs.cl_rec_pos);
         
+        // Assign work sizes to kernels
+        (*dev)[d].src_recs.sources.gsize[0]=(*dev)[d].src_recs.nsrc[s];
+        (*dev)[d].src_recs.varsout.gsize[0]=(*dev)[d].src_recs.nrec[s];
+        (*dev)[d].src_recs.varsoutinit.gsize[0]=(*dev)[d].src_recs.nrec[s]*m->NT;
+        (*dev)[d].src_recs.residuals.gsize[0]=(*dev)[d].src_recs.nrec[s];
+        (*dev)[d].src_recs.init_gradsrc.gsize[0]=(*dev)[d].src_recs.nsrc[s]
+                                                                        * m->NT;
+        
         // Implent initial conditions
         __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].bnd_cnds.init_f);
-        (*dev)[d].src_recs.varsoutinit.gsize[0]=m->NT*(*dev)[d].src_recs.nrec[s];
-        
         __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].src_recs.varsoutinit);
 
-        
-        // Buffer size for this shot
-        (*dev)[d].src_recs.varsout.gsize[0]=(*dev)[d].src_recs.nrec[s];
-        (*dev)[d].src_recs.sources.gsize[0]=(*dev)[d].src_recs.nsrc[s];
 
         if (m->GRADOUT==1 && m->BACK_PROP_TYPE==2){
             __GUARD prog_launch( &(*dev)[d].queue,
@@ -586,7 +591,7 @@ int time_stepping(model * m, device ** dev) {
                     for (d=0;d<m->NUM_DEVICES;d++){
                         thist=(t-m->tmin)/m->DTNYQ;
                         __GUARD clSetKernelArg((*dev)[d].grads.savefreqs.kernel,
-                                               (*dev)[d].grads.savefreqs.tinput-1,
+                                             (*dev)[d].grads.savefreqs.tinput-1,
                                                sizeof(int), &thist);
                         __GUARD prog_launch( &(*dev)[d].queue,
                                             &(*dev)[d].grads.savefreqs);
@@ -613,7 +618,7 @@ int time_stepping(model * m, device ** dev) {
             // gradient by the crosscorrelation of forward and adjoint
             // frequencies and intialize frequencies and forward buffers to 0
             // for the forward modeling of the next source.
-            if (m->BACK_PROP_TYPE==2){
+            if (m->BACK_PROP_TYPE==2 && !state){
                 for (i=0;i<(*dev)[d].nvars;i++){
                     if ((*dev)[d].vars_adj[i].for_grad){
                         __GUARD clbuf_read(&(*dev)[d].queue,
@@ -628,7 +633,7 @@ int time_stepping(model * m, device ** dev) {
                 
                 for (d=0;d<m->NUM_DEVICES;d++){
                     __GUARD clFinish((*dev)[d].queue);
-                    if (!state) par_calc_grad(m);
+//                    if (!state) par_calc_grad(m);
                 }
             }
 

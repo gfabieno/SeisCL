@@ -73,6 +73,8 @@ int split (const char *str, char c, char ***arr)
 
 char * extract_name(const char *str){
     
+    int state=0;
+    
     char * output=NULL;
     
     int len=(int)strlen(str);
@@ -92,7 +94,7 @@ char * extract_name(const char *str){
     }
     p2++;
     
-    output = malloc(sizeof(str)*(p1-p2+1));
+    GMALLOC(output, sizeof(str)*(p1-p2+1) );
     
     sprintf(output,"%.*s", (int)(p1-p2+1), p2);
     
@@ -101,6 +103,7 @@ char * extract_name(const char *str){
 
 int set_args_list(const char *str, char *name, char *** argnames, int * ninputs){
     
+    int state=0;
     int c = 0;
     char **arr = NULL;
     char * args = NULL;
@@ -136,7 +139,7 @@ int set_args_list(const char *str, char *name, char *** argnames, int * ninputs)
     
     c = split(args, ',', &arr);
     
-    (*argnames)=malloc(c*sizeof(char *));
+    GMALLOC((*argnames), c*sizeof(char *) );
     
     
     for (int i = 0; i < c; i++){
@@ -147,7 +150,7 @@ int set_args_list(const char *str, char *name, char *** argnames, int * ninputs)
     free(arr);
     free(args);
     
-    return 0;
+    return state;
 }
 
 char *get_build_options(device *dev,
@@ -376,10 +379,12 @@ int prog_create(model * m,
         if (!argfound){
             for (j=0;j<m->ncsts;j++){
                 if (strcmp((*dev).csts[j].name,(*prog).input_list[i])==0){
-                    state = clSetKernelArg((*prog).kernel,
-                                            i,
-                                            sizeof(cl_mem),
-                                            &(*dev).csts[j].cl_cst.mem);
+                    if ((*dev).csts[j].cl_cst.mem){
+                        state = clSetKernelArg((*prog).kernel,
+                                               i,
+                                               sizeof(cl_mem),
+                                               &(*dev).csts[j].cl_cst.mem);
+                    }
                     argfound=1;
 
                     break;
@@ -429,9 +434,12 @@ int prog_create(model * m,
                 //                printf("%s\n",(*prog).input_list[i]);
             }
         }
-        if (strcmp("nt"  ,(*prog).input_list[i])==0)
-            prog->tinput=i+1;
-        
+        if (!argfound){
+            if (strcmp("nt"  ,(*prog).input_list[i])==0){
+                prog->tinput=i+1;
+                argfound=1;
+            }
+        }
         if (!argfound
             && strcmp("lvar",(*prog).input_list[i])!=0
             && strcmp("nt"  ,(*prog).input_list[i])!=0){
@@ -461,19 +469,21 @@ int prog_launch( cl_command_queue *inqueue, clprogram * prog){
     /*Launch a kernel and check for errors */
     int state = 0;
     cl_event * event=NULL;
-    size_t * lsize;
+    size_t * lsize=NULL;
     if (prog->outevent)
         event=&prog->event;
     if (prog->lsize[0]!=0)
         lsize=prog->lsize;
     
-    state = clEnqueueNDRangeKernel(*inqueue, prog->kernel,
-                                    prog->NDIM, NULL,
-                                    prog->gsize,
-                                    lsize,
-                                    prog->nwait,
-                                    prog->waits,
-                                    event);
+    state = clEnqueueNDRangeKernel(*inqueue,
+                                   prog->kernel,
+                                   prog->wdim,
+                                   NULL,
+                                   prog->gsize,
+                                   lsize,
+                                   prog->nwait,
+                                   prog->waits,
+                                   event);
     
     if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
     

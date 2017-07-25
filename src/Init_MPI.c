@@ -22,10 +22,10 @@
 int var_alloc_out(float *** var, model *m ){
     int state=0;
     
-    GMALLOC(*var,sizeof(float*)*m->ns);
+    GMALLOC(*var,sizeof(float*)*m->src_recs.ns);
     GMALLOC((*var)[0],sizeof(float)*m->src_recs.allng*m->NT);
     if (!state){
-        for (int i=1; i<m->ns; i++){
+        for (int i=1; i<m->src_recs.ns; i++){
             (*var)[i]=(*var)[i-1]+m->src_recs.nrec[i-1]*m->NT;
         }
     }
@@ -52,7 +52,7 @@ int Init_MPI(model * m) {
         MPI_Bcast( &m->NAB, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->MAXRELERROR, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->GRADOUT, 1, MPI_INT, 0, MPI_COMM_WORLD );
-        MPI_Bcast( &m->ns, 1, MPI_INT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->src_recs.ns, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->L, 1, MPI_INT, 0, MPI_COMM_WORLD );
         
         
@@ -113,30 +113,30 @@ int Init_MPI(model * m) {
         
         
         if (m->MYID!=0){
-            GMALLOC(m->src_recs.nsrc,sizeof(int)*m->ns);
-            GMALLOC(m->src_recs.src_pos,sizeof(float*)*m->ns);
+            GMALLOC(m->src_recs.nsrc,sizeof(int)*m->src_recs.ns);
+            GMALLOC(m->src_recs.src_pos,sizeof(float*)*m->src_recs.ns);
             GMALLOC(m->src_recs.src_pos[0],sizeof(float)*m->src_recs.allns*5);
             
-            GMALLOC(m->src_recs.src,sizeof(float*)*m->ns);
+            GMALLOC(m->src_recs.src,sizeof(float*)*m->src_recs.ns);
             GMALLOC(m->src_recs.src[0],sizeof(float)*m->src_recs.allns*m->NT);
             
-            GMALLOC(m->src_recs.nrec,sizeof(int)*m->ns);
-            GMALLOC(m->src_recs.rec_pos,sizeof(float*)*m->ns);
+            GMALLOC(m->src_recs.nrec,sizeof(int)*m->src_recs.ns);
+            GMALLOC(m->src_recs.rec_pos,sizeof(float*)*m->src_recs.ns);
             GMALLOC(m->src_recs.rec_pos[0],sizeof(float)*m->src_recs.allng*8);
         }
         
         if (!state){
             MPI_Barrier(MPI_COMM_WORLD);
-            MPI_Bcast( m->src_recs.nsrc, m->ns, MPI_INT, 0, MPI_COMM_WORLD );
+            MPI_Bcast( m->src_recs.nsrc, m->src_recs.ns, MPI_INT, 0, MPI_COMM_WORLD );
             MPI_Bcast( m->src_recs.src_pos[0], m->src_recs.allns*5, MPI_FLOAT, 0, MPI_COMM_WORLD );
             MPI_Bcast( m->src_recs.src[0], m->src_recs.allns*m->NT,  MPI_FLOAT, 0, MPI_COMM_WORLD );
-            MPI_Bcast( m->src_recs.nrec, m->ns, MPI_INT, 0, MPI_COMM_WORLD );
+            MPI_Bcast( m->src_recs.nrec, m->src_recs.ns, MPI_INT, 0, MPI_COMM_WORLD );
             MPI_Bcast( m->src_recs.rec_pos[0], m->src_recs.allng*8,  MPI_FLOAT, 0, MPI_COMM_WORLD );
             MPI_Barrier(MPI_COMM_WORLD);
         }
         
         if (m->MYID!=0){
-            for (i=1; i<m->ns; i++){
+            for (i=1; i<m->src_recs.ns; i++){
                 m->src_recs.src_pos[i]=m->src_recs.src_pos[i-1]+m->src_recs.nsrc[i-1]*5;
                 m->src_recs.src[i]=m->src_recs.src[i-1]+m->src_recs.nsrc[i-1]*m->NT;
                 m->src_recs.rec_pos[i]=m->src_recs.rec_pos[i-1]+m->src_recs.nrec[i-1]*8;
@@ -175,8 +175,9 @@ int Init_MPI(model * m) {
     if (m->RMSOUT==1 || m->RESOUT==1 || m->GRADOUT==1){
         for (i=0;i<m->nvars;i++){
             if (m->vars[i].to_output){
-                var_alloc_out(&m->vars[i].gl_var_res, m);
+                
                 if (m->MYID!=0){
+                    var_alloc_out(&m->vars[i].gl_var_res, m);
                     var_alloc_out(&m->vars[i].gl_varin, m);
                 }
                 if (!state){

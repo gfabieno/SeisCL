@@ -23,7 +23,7 @@ int main(int argc, char **argv) {
     
     int state=0;
 
-    model m={};
+    model m={0};
     device *dev=NULL;
 
     

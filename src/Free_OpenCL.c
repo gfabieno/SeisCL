@@ -28,23 +28,31 @@ void clbuf_free(device *dev, clbuf *buf){
                                           0,
                                           NULL,
                                           NULL);
+    else if (buf->free_host){
+         GFree(buf->host);
+    }
     if (buf->pin) clReleaseMemObject(buf->pin);
     if (buf->mem) clReleaseMemObject(buf->mem);
 }
 
-void clprogram_free(clprogram * prog){
-    int i;
+void clprogram_freeCL(clprogram * prog){
+    
     if (prog->kernel ) clReleaseKernel(prog->kernel);
     if (prog->prog) clReleaseProgram(prog->prog);
+    
+}
+
+void clprogram_freeGL(clprogram * prog){
+    int i;
     if (prog->input_list){
         for (i=0;i<prog->ninputs;i++){
             GFree(prog->input_list[i]);
         }
-        free(prog->input_list);
+        GFree(prog->input_list);
     }
 }
 
-void variable_free(device *dev, variable * var){
+void variable_freeCL(device *dev, variable * var){
     
     clbuf_free(dev, &var->cl_var);
     clbuf_free(dev, &var->cl_varout);
@@ -54,192 +62,258 @@ void variable_free(device *dev, variable * var){
     clbuf_free(dev, &var->cl_buf2);
     clbuf_free(dev, &var->cl_var_res);
     
+}
+
+void variable_freeGL(device *dev, variable * var){
+
     GFree(var->gl_fvar);
-    if  (var->gl_varout) GFree(var->gl_varout[0]);
+    if (var->gl_varout){
+        GFree(var->gl_varout[0]);
+    }
     GFree(var->gl_varout);
-    if  (var->gl_varin) GFree(var->gl_varin[0]);
+    if (var->gl_varin){
+        GFree(var->gl_varin[0]);
+    }
     GFree(var->gl_varin);
+    if (var->gl_var_res){
+        GFree(var->gl_var_res[0]);
+    }
     GFree(var->gl_var_res);
-    if  (var->gl_var_res) GFree(var->gl_var_res[0]);
     GFree(var->gl_mov);
     
 }
 
-void parameter_free(device *dev, parameter * par){
+void parameter_freeCL(device *dev, parameter * par){
     
     clbuf_free(dev, &par->cl_par);
     clbuf_free(dev, &par->cl_grad);
     clbuf_free(dev, &par->cl_H);
+}
+
+void parameter_freeGL(device *dev, parameter * par){
+    
     GFree(par->gl_par);
     GFree(par->gl_grad);
     GFree(par->gl_H);
 }
 
-void constants_free(device *dev, constants *cst){
+void constants_freeCL(device *dev, constants *cst){
     
     clbuf_free(dev, &cst->cl_cst);
+}
+
+void constants_freeGL(device *dev, constants *cst){
+    
     GFree(cst->gl_cst);
 }
 
-void sources_records_free(device *dev, sources_records * src_rec){
+void sources_records_freeCL(device *dev, sources_records * src_rec){
     
     clbuf_free(dev, &src_rec->cl_src);
     clbuf_free(dev, &src_rec->cl_src_pos);
     clbuf_free(dev, &src_rec->cl_rec_pos);
     clbuf_free(dev, &src_rec->cl_grad_src);
     
-    clprogram_free(&src_rec->sources);
-    clprogram_free(&src_rec->varsout);
-    clprogram_free(&src_rec->varsoutinit);
-    clprogram_free(&src_rec->residuals);
-    clprogram_free(&src_rec->init_gradsrc);
+    clprogram_freeCL(&src_rec->sources);
+    clprogram_freeCL(&src_rec->varsout);
+    clprogram_freeCL(&src_rec->varsoutinit);
+    clprogram_freeCL(&src_rec->residuals);
+    clprogram_freeCL(&src_rec->init_gradsrc);
+    
+}
+
+void sources_records_freeGL(device *dev, sources_records * src_rec){
+    
+   
+    clprogram_freeGL(&src_rec->sources);
+    clprogram_freeGL(&src_rec->varsout);
+    clprogram_freeGL(&src_rec->varsoutinit);
+    clprogram_freeGL(&src_rec->residuals);
+    clprogram_freeGL(&src_rec->init_gradsrc);
     
     GFree(src_rec->nsrc);
     GFree(src_rec->nrec);
-    if  (src_rec->src) GFree(src_rec->src[0]);
+    if  (src_rec->src){
+        GFree(src_rec->src[0]);
+    }
     GFree(src_rec->src);
-    if  (src_rec->gradsrc) GFree(src_rec->gradsrc[0]);
+    if  (src_rec->gradsrc){
+        GFree(src_rec->gradsrc[0]);
+    }
     GFree(src_rec->gradsrc);
-    if  (src_rec->src_pos) GFree(src_rec->src_pos[0]);
+    if  (src_rec->src_pos){
+        GFree(src_rec->src_pos[0]);
+    }
     GFree(src_rec->src_pos);
-    if  (src_rec->rec_pos) GFree(src_rec->rec_pos[0]);
+    if  (src_rec->rec_pos){
+        GFree(src_rec->rec_pos[0]);
+    }
     GFree(src_rec->rec_pos);
     
 }
 
-void update_free(update * up){
+void update_freeCL(update * up){
     
-    clprogram_free(&up->center);
-    clprogram_free(&up->com1);
-    clprogram_free(&up->com2);
-    clprogram_free(&up->fcom1_out);
-    clprogram_free(&up->fcom2_out);
-    clprogram_free(&up->fcom1_in);
-    clprogram_free(&up->fcom2_out);
+    clprogram_freeCL(&up->center);
+    clprogram_freeCL(&up->com1);
+    clprogram_freeCL(&up->com2);
+    clprogram_freeCL(&up->fcom1_out);
+    clprogram_freeCL(&up->fcom2_out);
+    clprogram_freeCL(&up->fcom1_in);
+    clprogram_freeCL(&up->fcom2_out);
     GFree(up->v2com)
 }
 
-void boundary_conditions_free(boundary_conditions * bnd){
+void update_freeGL(update * up){
     
-    clprogram_free(&bnd->surf);
-    clprogram_free(&bnd->init_f);
-    clprogram_free(&bnd->init_adj);
+    clprogram_freeGL(&up->center);
+    clprogram_freeGL(&up->com1);
+    clprogram_freeGL(&up->com2);
+    clprogram_freeGL(&up->fcom1_out);
+    clprogram_freeGL(&up->fcom2_out);
+    clprogram_freeGL(&up->fcom1_in);
+    clprogram_freeGL(&up->fcom2_out);
+    GFree(up->v2com)
+}
+
+void boundary_conditions_freeCL(boundary_conditions * bnd){
+    
+    clprogram_freeCL(&bnd->surf);
+    clprogram_freeCL(&bnd->init_f);
+    clprogram_freeCL(&bnd->init_adj);
 
 }
 
-void gradients_free(gradients * grad){
+void boundary_conditions_freeGL(boundary_conditions * bnd){
     
-    clprogram_free(&grad->init);
-    clprogram_free(&grad->savefreqs);
-    clprogram_free(&grad->initsavefreqs);
-    clprogram_free(&grad->savebnd);
+    clprogram_freeGL(&bnd->surf);
+    clprogram_freeGL(&bnd->init_f);
+    clprogram_freeGL(&bnd->init_adj);
     
 }
 
-void varcl_free(device * dev){
+void gradients_freeCL(gradients * grad){
+    
+    clprogram_freeCL(&grad->init);
+    clprogram_freeCL(&grad->savefreqs);
+    clprogram_freeCL(&grad->initsavefreqs);
+    clprogram_freeCL(&grad->savebnd);
+    
+}
+
+void gradients_freeGL(gradients * grad){
+    
+    clprogram_freeGL(&grad->init);
+    clprogram_freeGL(&grad->savefreqs);
+    clprogram_freeGL(&grad->initsavefreqs);
+    clprogram_freeGL(&grad->savebnd);
+    
+}
+
+void device_free(device * dev){
     int i;
     
     if (dev->vars){
         for (i=0;i<dev->nvars;i++){
-            variable_free(dev, &dev->vars[i]);
+            variable_freeCL(dev, &(dev->vars[i]));
         }
         GFree(dev->vars);
     }
     if (dev->vars_adj){
         for (i=0;i<dev->nvars;i++){
-            variable_free(dev, &dev->vars_adj[i]);
+            variable_freeCL(dev, &dev->vars_adj[i]);
         }
         GFree(dev->vars_adj);
     }
     if (dev->pars){
         for (i=0;i<dev->npars;i++){
-            parameter_free(dev, &dev->pars[i]);
+            parameter_freeCL(dev, &dev->pars[i]);
         }
         GFree(dev->pars);
     }
     if (dev->csts){
         for (i=0;i<dev->ncsts;i++){
-            constants_free(dev, &dev->csts[i]);
+            constants_freeCL(dev, &dev->csts[i]);
         }
         GFree(dev->csts);
     }
     if (dev->trans_vars){
         for (i=0;i<dev->ntvars;i++){
-            variable_free(dev, &dev->trans_vars[i]);
+            variable_freeCL(dev, &dev->trans_vars[i]);
         }
         GFree(dev->trans_vars);
     }
     if (dev->ups_f){
         for (i=0;i<dev->nupdates;i++){
-            update_free(&dev->ups_f[i]);
+            update_freeCL(&dev->ups_f[i]);
         }
         GFree(dev->ups_f);
     }
     if (dev->ups_adj){
         for (i=0;i<dev->nupdates;i++){
-            update_free(&dev->ups_adj[i]);
+            update_freeCL(&dev->ups_adj[i]);
         }
         GFree(dev->ups_adj);
     }
     
-    sources_records_free(dev, &dev->src_recs);
-    gradients_free(&dev->grads);
-    boundary_conditions_free(&dev->bnd_cnds);
+    sources_records_freeCL(dev, &dev->src_recs);
+    gradients_freeCL(&dev->grads);
+    boundary_conditions_freeCL(&dev->bnd_cnds);
     
     if (dev->queue) clReleaseCommandQueue(dev->queue);
     if (dev->queuecomm) clReleaseCommandQueue(dev->queuecomm);
     
 }
 
-void modcsts_free(model * m){
+void model_free(model * m){
     int i;
     device * dev = NULL;
     if (m->vars){
         for (i=0;i<m->nvars;i++){
-            variable_free(dev, &m->vars[i]);
+            variable_freeGL(dev, &m->vars[i]);
         }
         GFree(m->vars);
     }
     if (m->vars_adj){
         for (i=0;i<m->nvars;i++){
-            variable_free(dev, &m->vars_adj[i]);
+            variable_freeGL(dev, &m->vars_adj[i]);
         }
         GFree(m->vars_adj);
     }
     if (m->pars){
         for (i=0;i<m->npars;i++){
-            parameter_free(dev, &m->pars[i]);
+            parameter_freeGL(dev, &m->pars[i]);
         }
         GFree(m->pars);
     }
     if (m->csts){
         for (i=0;i<m->ncsts;i++){
-            constants_free(dev, &m->csts[i]);
+            constants_freeGL(dev, &m->csts[i]);
         }
         GFree(m->csts);
     }
     if (m->trans_vars){
         for (i=0;i<m->ntvars;i++){
-            variable_free(dev, &m->trans_vars[i]);
+            variable_freeGL(dev, &m->trans_vars[i]);
         }
         GFree(m->trans_vars);
     }
     if (m->ups_f){
         for (i=0;i<m->nupdates;i++){
-            update_free(&m->ups_f[i]);
+            update_freeGL(&m->ups_f[i]);
         }
         GFree(m->ups_f);
     }
     if (m->ups_adj){
         for (i=0;i<m->nupdates;i++){
-            update_free(&m->ups_adj[i]);
+            update_freeGL(&m->ups_adj[i]);
         }
         GFree(m->ups_adj);
     }
 
-    sources_records_free(dev, &m->src_recs);
-    gradients_free(&m->grads);
-    boundary_conditions_free(&m->bnd_cnds);
+    sources_records_freeGL(dev, &m->src_recs);
+    gradients_freeGL(&m->grads);
+    boundary_conditions_freeGL(&m->bnd_cnds);
     
     GFree(m->no_use_GPUs);
     
@@ -252,11 +326,11 @@ int Free_OpenCL(model * m, device ** dev)  {
     int d;
     if (*dev){
         for (d=0;d<m->NUM_DEVICES;d++){
-            varcl_free(dev[d]);
+            device_free(dev[d]);
         }
     }
     GFree(*dev);
-    modcsts_free(m);
+    model_free(m);
     
     return 0;
 }

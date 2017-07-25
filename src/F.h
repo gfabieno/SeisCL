@@ -89,6 +89,7 @@ typedef struct clbuf {
     
     cl_mem pin;
     float * host;
+    int free_host;
     
     int outevent_r;
     int outevent_s;
@@ -139,7 +140,7 @@ typedef struct clprogram {
     size_t lsize[MAX_DIMS];
     size_t gsize[MAX_DIMS];
     int local;
-    int NDIM;
+    int wdim;
     
     int OFFCOMM;
     int LCOMM;

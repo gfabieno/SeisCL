@@ -65,7 +65,7 @@ int get_platform( model * m, cl_platform_id*  clplateform)
                                       NULL,
                                       &m->NUM_DEVICES);
         
-        if(device_found){
+        if(device_found==CL_SUCCESS && m->NUM_DEVICES>0){
             //Check if any GPU is flagged not to be used
             for (j=0;j<m->NUM_DEVICES;j++){
                 for (k=0;k<m->n_no_use_GPUs;k++){
@@ -75,11 +75,12 @@ int get_platform( model * m, cl_platform_id*  clplateform)
             }
             
             if (m->NUM_DEVICES<1){
-                printf ("no allowed devices could be found\n");
+                fprintf(stdout,"Warning: No allowed devices could be found");
                 return 1;
             }
             else{
                 *clplateform = clPlatformIDs[i];
+                m->device_type=m->pref_device_type;
                 break;
             }
         }
@@ -177,6 +178,7 @@ cl_int connect_devices(device ** dev, model * m)
     __GUARD get_platform( m, &clplateform);
     GMALLOC(*dev, sizeof(device)*m->NUM_DEVICES);
     
+    
     // Find the number of prefered devices
     __GUARD clGetDeviceIDs(clplateform,m->device_type,0, NULL, &nalldevices);
 
@@ -217,21 +219,22 @@ cl_int connect_devices(device ** dev, model * m)
     }
     
     // Print some information about the returned devices
-    for (i=0;i<m->NUM_DEVICES;i++){
-        __GUARD clGetDeviceInfo(devices[allow_devs[i]],
-                                CL_DEVICE_VENDOR,
-                                sizeof(vendor_name),
-                                vendor_name,
-                                NULL);
-        __GUARD clGetDeviceInfo(devices[allow_devs[i]],
-                                CL_DEVICE_NAME,
-                                sizeof(device_name),
-                                device_name,
-                                NULL);
-        fprintf(stdout,"-Device %d: %s %s\n",
-                allow_devs[i], vendor_name, device_name);
+    if (!state){
+        for (i=0;i<m->NUM_DEVICES;i++){
+            __GUARD clGetDeviceInfo(devices[allow_devs[i]],
+                                    CL_DEVICE_VENDOR,
+                                    sizeof(vendor_name),
+                                    vendor_name,
+                                    NULL);
+            __GUARD clGetDeviceInfo(devices[allow_devs[i]],
+                                    CL_DEVICE_NAME,
+                                    sizeof(device_name),
+                                    device_name,
+                                    NULL);
+            fprintf(stdout,"-Device %d: %s %s\n",
+                    allow_devs[i], vendor_name, device_name);
+        }
     }
-
     // Create a context with the specified devices
     if (!state) m->context = clCreateContext(NULL,
                                              m->NUM_DEVICES,
@@ -266,7 +269,7 @@ cl_int connect_devices(device ** dev, model * m)
 int Init_OpenCL(model * m, device ** dev)  {
     /* Function that intialize model decomposition on multiple devices on one
        host. All OpenCL buffers and kernels are created and are contained in a
-       varcl structure (one for each devices)
+       device structure (one for each devices)
      */
     int state=0;
     int dimbool;
@@ -281,6 +284,7 @@ int Init_OpenCL(model * m, device ** dev)  {
     int required_work_size=0;
     size_t workitem_size[MAX_DIMS];
     size_t workgroup_size=0;
+    int workdim = 0;
     int lsize[MAX_DIMS];
     int gsize[MAX_DIMS];
     int gsize_com1[MAX_DIMS];
@@ -294,6 +298,8 @@ int Init_OpenCL(model * m, device ** dev)  {
     // Connect all OpenCL devices that can be used in a single context
     __GUARD connect_devices(dev, m);
 
+
+    
     //For each device, create the memory buffers and programs on the GPU
     for (d=0; d<m->NUM_DEVICES; d++) {
         
@@ -395,7 +401,7 @@ int Init_OpenCL(model * m, device ** dev)  {
                     dimbool=1;
             }
             if (workitem_size[0]<m->FDORDER || dimbool){
-                fprintf(stdout,"Maximum device work item size of device"
+                fprintf(stdout,"Maximum device work item size of device "
                                "%d doesn't support 3D local memory\n"
                                "Switching off local memory optimization\n", d);
                 di->LOCAL_OFF = 1;
@@ -492,7 +498,7 @@ int Init_OpenCL(model * m, device ** dev)  {
                 
                 gsize[0] = (di->N[m->NDIM-1]-LCOMM)*slicesize;
                 
-                di->workdim=1;
+                workdim=1;
                 
             }
             else{
@@ -538,7 +544,7 @@ int Init_OpenCL(model * m, device ** dev)  {
                                +(lsize[m->NDIM-1]-(di->N[m->NDIM-1]-LCOMM)
                                   %lsize[m->NDIM-1])%lsize[m->NDIM-1];
                 
-                di->workdim=m->NDIM;
+                workdim=m->NDIM;
 
             }
         }
@@ -553,16 +559,23 @@ int Init_OpenCL(model * m, device ** dev)  {
             }
             
             for (i=0;i<m->nupdates;i++){
-                for (j=0;j<di->workdim;j++){
+                for (j=0;j<workdim;j++){
+                    di->ups_f[i].center.wdim=workdim;
                     di->ups_f[i].center.gsize[j]=gsize[j];
                     di->ups_f[i].center.lsize[j]=lsize[j];
+                    di->ups_f[i].com1.wdim=workdim;
                     di->ups_f[i].com1.gsize[j]=gsize_com1[j];
                     di->ups_f[i].com1.lsize[j]=lsize[j];
+                    di->ups_f[i].com2.wdim=workdim;
                     di->ups_f[i].com2.gsize[j]=gsize_com2[j];
-                    di->ups_f[i].com1.lsize[j]=lsize[j];
+                    di->ups_f[i].com2.lsize[j]=lsize[j];
+                    di->ups_f[i].fcom1_in.wdim=workdim;
                     di->ups_f[i].fcom1_in.gsize[j]=gsize_fcom[j];
+                    di->ups_f[i].fcom2_in.wdim=workdim;
                     di->ups_f[i].fcom2_in.gsize[j]=gsize_fcom[j];
+                    di->ups_f[i].fcom1_out.wdim=workdim;
                     di->ups_f[i].fcom1_out.gsize[j]=gsize_fcom[j];
+                    di->ups_f[i].fcom2_out.wdim=workdim;
                     di->ups_f[i].fcom2_out.gsize[j]=gsize_fcom[j];
                 }
             }
@@ -574,16 +587,23 @@ int Init_OpenCL(model * m, device ** dev)  {
                     GMALLOC(di->ups_adj[i].v2com,m->nvars*sizeof(variable*));
                 }
                 for (i=0;i<m->nupdates;i++){
-                    for (j=0;j<di->workdim;j++){
+                    for (j=0;j<workdim;j++){
+                        di->ups_adj[i].center.wdim=workdim;
                         di->ups_adj[i].center.gsize[j]=gsize[j];
                         di->ups_adj[i].center.lsize[j]=lsize[j];
+                        di->ups_adj[i].com1.wdim=workdim;
                         di->ups_adj[i].com1.gsize[j]=gsize_com1[j];
                         di->ups_adj[i].com1.lsize[j]=lsize[j];
+                        di->ups_adj[i].com2.wdim=workdim;
                         di->ups_adj[i].com2.gsize[j]=gsize_com2[j];
-                        di->ups_adj[i].com1.lsize[j]=lsize[j];
+                        di->ups_adj[i].com2.lsize[j]=lsize[j];
+                        di->ups_adj[i].fcom1_in.wdim=workdim;
                         di->ups_adj[i].fcom1_in.gsize[j]=gsize_fcom[j];
+                        di->ups_adj[i].fcom2_in.wdim=workdim;
                         di->ups_adj[i].fcom2_in.gsize[j]=gsize_fcom[j];
+                        di->ups_adj[i].fcom1_out.wdim=workdim;
                         di->ups_adj[i].fcom1_out.gsize[j]=gsize_fcom[j];
+                        di->ups_adj[i].fcom2_out.wdim=workdim;
                         di->ups_adj[i].fcom2_out.gsize[j]=gsize_fcom[j];
                     }
                 }
@@ -699,6 +719,7 @@ int Init_OpenCL(model * m, device ** dev)  {
                                           * m->NT * m->src_recs.ngmax;
                 __GUARD clbuf_create( &m->context, &di->vars[i].cl_varout);
                 GMALLOC(di->vars[i].cl_varout.host, di->vars[i].cl_varout.size);
+                di->vars[i].cl_varout.free_host=1;
                 
                 //Create also a buffer for the residuals
                 if (m->vars[i].gl_var_res){
@@ -719,6 +740,7 @@ int Init_OpenCL(model * m, device ** dev)  {
                                         * di->vars[i].num_ele * m->NFREQS;
                 __GUARD clbuf_create(&m->context,&di->vars[i].cl_fvar);
                 GMALLOC(di->vars[i].cl_fvar.host,di->vars[i].cl_fvar.size);
+                di->vars[i].cl_fvar.free_host=1;
             }
             
             // If we want the movie, allocate memory for variables
@@ -727,6 +749,7 @@ int Init_OpenCL(model * m, device ** dev)  {
                     di->vars[i].gl_mov=&m->vars[i].gl_mov[di->OFFSET];
                     GMALLOC(di->vars[i].cl_var.host,
                             di->vars[i].num_ele*sizeof(cl_float));
+                    di->vars[i].cl_var.free_host=1;
                 }
             }
             
@@ -860,8 +883,6 @@ int Init_OpenCL(model * m, device ** dev)  {
             }
         }
 
-
-        
         
         //Create automaticly kernels for gradient, variable inti, sources ...
         __GUARD kernel_sources(di, di->vars, &di->src_recs.sources);
@@ -875,6 +896,7 @@ int Init_OpenCL(model * m, device ** dev)  {
         
         __GUARD kernel_varinit(di, di->vars, &di->bnd_cnds.init_f);
         __GUARD prog_create(m, di,  &di->bnd_cnds.init_f);
+        di->bnd_cnds.init_f.gsize[0]=fdsize;
         
         
         if (m->GRADOUT){
@@ -884,17 +906,21 @@ int Init_OpenCL(model * m, device ** dev)  {
             if (m->BACK_PROP_TYPE==1){
                 __GUARD kernel_varinit(di,di->vars_adj, &di->bnd_cnds.init_adj);
                 __GUARD prog_create(m, di,  &di->bnd_cnds.init_adj);
+                di->bnd_cnds.init_adj.gsize[0]=fdsize;
                 
                 __GUARD kernel_gradinit(di, di->pars, &di->grads.init);
                 __GUARD prog_create(m, di,  &di->grads.init);
+                di->grads.init.gsize[0]=parsize;
             }
             else if(m->BACK_PROP_TYPE==2){
                 __GUARD kernel_initsavefreqs(di, di->vars,
                                                       &di->grads.initsavefreqs);
                 __GUARD prog_create(m, di,  &di->grads.initsavefreqs);
+                di->grads.initsavefreqs.gsize[0]=parsize;
                 
                 kernel_savefreqs(di, di->vars, &di->grads.savefreqs);
                 __GUARD prog_create(m, di,  &di->grads.savefreqs);
+                di->grads.savefreqs.gsize[0]=parsize;
             }
             
             if (m->GRADSRCOUT){
@@ -908,12 +934,19 @@ int Init_OpenCL(model * m, device ** dev)  {
         //TODO Adjoint free surface
         if (m->FREESURF){
             __GUARD prog_create(m, di,  &di->bnd_cnds.surf);
+            di->bnd_cnds.surf.wdim=m->NDIM-1;
+            for (i=1;i<m->NDIM;i++){
+                di->bnd_cnds.surf.gsize[i-1]=di->N[i];
+            }
         }
         
         //TODO Create automatically the kernel for saving boundary
         //TODO Implement random boundaries instead
         if (m->GRADOUT && m->BACK_PROP_TYPE==1){
             __GUARD prog_create(m, di,  &di->grads.savebnd);
+            di->grads.savebnd.wdim=1;
+            di->grads.savebnd.gsize[0]=di->NBND;
+            
         }
         
         

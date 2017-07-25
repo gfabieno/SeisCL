@@ -10,11 +10,8 @@
 
 /*Loading files autmatically created by the makefile that contain the *.cl kernels in a c string.
  This way, no .cl file need to be read and there is no need to be in the executable directory to execute SeisCL.*/
-//#include "initialize.hcl"
-//#include "residuals.hcl"
 #include "savebnd2D.hcl"
 #include "savebnd3D.hcl"
-//#include "savefreqs.hcl"
 #include "surface2D.hcl"
 #include "surface2D_SH.hcl"
 #include "surface3D.hcl"
@@ -30,10 +27,7 @@
 #include "update_v2D.hcl"
 #include "update_v2D_SH.hcl"
 #include "update_v3D.hcl"
-#include "update_v_CPML.hcl"
-//#include "varsout.hcl"
-//#include "fill_transfer_buff_s.hcl"
-//#include "fill_transfer_buff_v.hcl"
+
 
 
 //Assign parameters list depending on which case of modeling is desired

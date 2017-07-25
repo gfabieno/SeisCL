@@ -418,10 +418,7 @@ int readhdf5(struct filenames files, model * m) {
     }
     
     if (m->restype==0){
-        m->res_calc = &res_raw;
-    }
-    else if (m->restype==1){
-        m->res_calc = &res_amp;
+        m->res_calc = &var_res_raw;
     }
     else{
         state=1;fprintf(stderr, "Unknown restype\n");
@@ -498,12 +495,12 @@ int readhdf5(struct filenames files, model * m) {
     
     /* Determine the number of shots to simulate */
     if (!state){
-        m->ns=0;
+        m->src_recs.ns=0;
         thisid=-9999;
         for (i=0;i<m->src_recs.allns;i++){
             if (thisid<src_pos0[3+i*5]){
                 thisid=src_pos0[3+i*5];
-                m->ns+=1;
+                m->src_recs.ns+=1;
             }
             else if (thisid>src_pos0[3+i*5]){
                 state=1;
@@ -528,15 +525,15 @@ int readhdf5(struct filenames files, model * m) {
             }
             
         }
-        if (!state) if (nsg!=m->ns) {state=1;fprintf(stderr, "Number of sources ids in src_pos and rec_pos are not the same\n");};
+        if (!state) if (nsg!=m->src_recs.ns) {state=1;fprintf(stderr, "Number of sources ids in src_pos and rec_pos are not the same\n");};
     }
     
     /* Assign the 2D arrays in which shot and receivers variables are stored */
-    GMALLOC(m->src_recs.src_pos,sizeof(float*)*m->ns);
-    GMALLOC(m->src_recs.src,sizeof(float*)*m->ns);
-    GMALLOC(m->src_recs.nsrc,sizeof(int)*m->ns);
-    GMALLOC(m->src_recs.rec_pos,sizeof(float*)*m->ns);
-    GMALLOC(m->src_recs.nrec,sizeof(int)*m->ns);
+    GMALLOC(m->src_recs.src_pos,sizeof(float*)*m->src_recs.ns);
+    GMALLOC(m->src_recs.src,sizeof(float*)*m->src_recs.ns);
+    GMALLOC(m->src_recs.nsrc,sizeof(int)*m->src_recs.ns);
+    GMALLOC(m->src_recs.rec_pos,sizeof(float*)*m->src_recs.ns);
+    GMALLOC(m->src_recs.nrec,sizeof(int)*m->src_recs.ns);
     
     if (!state){
         
@@ -556,7 +553,7 @@ int readhdf5(struct filenames files, model * m) {
             }
             
         }
-        m->src_recs.nsrc[m->ns-1]=n;
+        m->src_recs.nsrc[m->src_recs.ns-1]=n;
         
         // Determine the number of receiver positions per shot
         thisid=rec_pos0[3];
@@ -574,13 +571,13 @@ int readhdf5(struct filenames files, model * m) {
             }
             
         }
-        m->src_recs.nrec[m->ns-1]=n;
+        m->src_recs.nrec[m->src_recs.ns-1]=n;
         
         //Assign the right number of shots and geophones for each shot
         m->src_recs.src_pos[0]=src_pos0;
         m->src_recs.src[0]=src0;
         m->src_recs.rec_pos[0]=rec_pos0;
-        for (i=1;i<m->ns;i++){
+        for (i=1;i<m->src_recs.ns;i++){
             m->src_recs.src_pos[i]=m->src_recs.src_pos[i-1]+m->src_recs.nsrc[i-1]*5;
             m->src_recs.src[i]=m->src_recs.src[i-1]+m->src_recs.nsrc[i-1]*m->NT;
             m->src_recs.rec_pos[i]=m->src_recs.rec_pos[i-1]+m->src_recs.nrec[i-1]*8;
@@ -589,7 +586,7 @@ int readhdf5(struct filenames files, model * m) {
         //Compute the maximum number of geophones and shots within a source id
         m->src_recs.nsmax=0;
         m->src_recs.ngmax=0;
-        for (i=0;i<m->ns; i++){
+        for (i=0;i<m->src_recs.ns; i++){
             m->src_recs.nsmax = fmax(m->src_recs.nsmax, m->src_recs.nsrc[i]);
             m->src_recs.ngmax = fmax(m->src_recs.ngmax, m->src_recs.nrec[i]);
         }

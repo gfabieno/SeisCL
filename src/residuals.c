@@ -162,7 +162,7 @@ static void crossvar(float * data, float * data0, float *res, float *trace, floa
 }
 
 
-int res_raw(model * mptr, int s)
+int var_res_raw(model * mptr, int s)
 {
     
     int t,g,n, thisfreq;

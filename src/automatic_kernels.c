@@ -95,6 +95,8 @@ int kernel_varout(device * dev,
     
     __GUARD prog_source(prog, "varsout", (*prog).src);
     
+    prog->wdim=1;
+    
     return state;
 
 }
@@ -144,6 +146,8 @@ int kernel_varoutinit(device * dev,
     (*prog).src=temp;
     
     __GUARD prog_source(prog, "varsoutinit", (*prog).src);
+    
+    prog->wdim=1;
     
     return state;
     
@@ -204,6 +208,8 @@ int kernel_varinit(device * dev,
     (*prog).src=temp;
     
     __GUARD prog_source(prog, "vars_init", (*prog).src);
+    
+    prog->wdim=1;
     
     return state;
     
@@ -311,9 +317,11 @@ int kernel_sources(device * dev,
     
     __GUARD prog_source(prog, "sources", (*prog).src);
     
-    printf("%s\n\n%lu\n",temp, strlen(temp));
+//    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     free(tosources);
+    
+    prog->wdim=1;
     
     return state;
     
@@ -394,6 +402,8 @@ int kernel_residuals(device * dev,
 
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
     
+    prog->wdim=1;
+    
     return state;
     
 }
@@ -444,6 +454,8 @@ int kernel_gradinit(device * dev,
     __GUARD prog_source(prog, "gradinit", (*prog).src);
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
+    
+    prog->wdim=1;
     
     return state;
     
@@ -505,6 +517,8 @@ int kernel_initsavefreqs(device * dev,
     __GUARD prog_source(prog, "initsavefreqs", (*prog).src);
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
+    
+    prog->wdim=1;
     
     return state;
     
@@ -615,6 +629,8 @@ int kernel_savefreqs(device * dev,
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
     
+    prog->wdim=1;
+    
     return state;
     
 }
@@ -638,6 +654,8 @@ int kernel_init_gradsrc(clprogram * prog){
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     __GUARD prog_source(prog, "init_gradsrc", (*prog).src);
+    
+    prog->wdim=1;
     
     return state;
     
