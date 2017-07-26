@@ -450,16 +450,12 @@ int prog_create(model * m,
         }
         
         if (!argfound){
-            printf("Error: input %s undefined for kernel %s\n\n",
+            fprintf(stdout,"Warning: input %s undefined for kernel %s\n",
                              (*prog).input_list[i], (*prog).name);
-            printf("Input list: \n\n");
-            for (j=0;j<(*prog).ninputs;j++){
-                printf("%s\n",(*prog).input_list[j]);
-            }
-            printf("\n\nKernel: \n\n");
-            printf("%s\n",(*prog).src);
-            state=1;
-            
+            state = clSetKernelArg((*prog).kernel,
+                                   i,
+                                   sizeof(cl_mem),
+                                   NULL);
         }
 
     }

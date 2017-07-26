@@ -23,9 +23,9 @@
 #define rho(z,x)    rho[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define rip(z,x)    rip[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define rkp(z,x)    rkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define uipkp(z,x) uipkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define u(z,x)        u[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define pi(z,x)      pi[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define muipkp(z,x) muipkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define mu(z,x)        mu[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define M(z,x)      M[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define grad(z,x)  grad[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define grads(z,x) grads[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define amp1(z,x)  amp1[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
@@ -63,6 +63,13 @@
 #define rx(y,x) rx[(y)*NT+(x)]
 #define rz(y,x) rz[(y)*NT+(x)]
 
+#define psi_vxx(z,x) psi_vxx[(x)*(NZ-2*FDOH)+(z)]
+#define psi_vzx(z,x) psi_vzx[(x)*(NZ-2*FDOH)+(z)]
+
+#define psi_vxz(z,x) psi_vxz[(x)*(2*NAB)+(z)]
+#define psi_vzz(z,x) psi_vzz[(x)*(2*NAB)+(z)]
+
+
 #define PI (3.141592653589793238462643383279502884197169)
 #define signals(y,x) signals[(y)*NT+(x)]
 
@@ -70,9 +77,9 @@
 
 __kernel void surface(        __global float *vx,         __global float *vz,
                               __global float *sxx,        __global float *szz,      __global float *sxz,
-                              __global float *pi,         __global float *u,        __global float *rxx,
+                              __global float *M,         __global float *mu,        __global float *rxx,
                               __global float *rzz,        __global float *taus,     __global float *taup,
-                              __global float *eta)
+                              __global float *eta, __global float *K_x, __global float *psi_vx_x)
 {
     /*Indice definition */
     int gidx = get_global_id(0) + FDOH;
@@ -173,24 +180,68 @@ __kernel void surface(        __global float *vx,         __global float *vz,
     }
 #endif
     
+    //TODO Solution is unstable that way, I don't know why
+    // Absorbing boundary
+#if ABS_TYPE==2
+    {
+        
+#if DEV==0 & MYLOCALID==0
+        if (gidx-FDOH<NAB){
+            sxx(gidz,gidx)*=1.0/taper[gidx-FDOH];
+        }
+#endif
+        
+#if DEV==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+        if (gidx>NX-NAB-FDOH-1){
+            sxx(gidz,gidx)*=1.0/taper[NX-FDOH-gidx-1];
+        }
+#endif
+    }
+#endif
+    
+    // Correct spatial derivatives to implement CPML
+#if abs_type==1
+    {
+        int i,k,ind;
+#if DEV==0 & MYLOCALID==0
+        if (gidx-FDOH<NAB){
+            
+            i =gidx-FDOH;
+            k =gidz-FDOH;
+            
+            vxx = vxx / K_x[i] + psi_vxx(k,i);
+        }
+#endif
+        
+#if DEV==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+        if (gidx>NX-NAB-FDOH-1){
+            
+            i =gidx - NX+NAB+FDOH+NAB;
+            k =gidz-FDOH;
+            ind=2*NAB-1-i;
+            vxx = vxx /K_x[ind+1] + psi_vxx(k,i);
+        }
+#endif
+    }
+#endif
 
 #if LVE==0
-				f=u(gidz,  gidx)*2.0;
-				g=pi(gidz,  gidx);
+				f=mu(gidz,  gidx)*2.0;
+				g=M(gidz,  gidx);
 				h=-(DT*(g-f)*(g-f)*(vxx)/g)-(DT*(g-f)*vzz);
 				sxx(gidz,  gidx)+=h;
 #else
     float b,d,e;
     /* partially updating sxx  in the same way*/
-    f=u(gidz,  gidx)*2.0*(1.0+L*taus(gidz,  gidx));
-    g=pi(gidz,  gidx)*(1.0+L*taup(gidz,  gidx));
+    f=mu(gidz,  gidx)*2.0*(1.0+L*taus(gidz,  gidx));
+    g=M(gidz,  gidx)*(1.0+L*taup(gidz,  gidx));
     h=-(DT*(g-f)*(g-f)*(vxx)/g)-(DT*(g-f)*vzz);
     sxx(gidz,  gidx)+=h-(DT/2.0*rxx(gidz,  gidx));
     
     /* updating the memory-variable rxx at the free surface */
     
-    d=2.0*u(gidz,  gidx)*taus(gidz,  gidx);
-    e=pi(gidz,  gidx)*taup(gidz,  gidx);
+    d=2.0*mu(gidz,  gidx)*taus(gidz,  gidx);
+    e=M(gidz,  gidx)*taup(gidz,  gidx);
     for (m=0;m<LVE;m++){
         b=eta[m]/(1.0+(eta[m]*0.5));
         h=b*(((d-e)*((f/g)-1.0)*(vxx+vyy))-((d-e)*vzz));
@@ -200,6 +251,24 @@ __kernel void surface(        __global float *vx,         __global float *vz,
     /*completely updating the stresses sxx  */
     sxx(gidz,  gidx)+=(DT/2.0*rxx(gidz,  gidx));
     
+#endif
+    
+// Absorbing boundary
+#if ABS_TYPE==2
+    {
+  
+#if DEV==0 & MYLOCALID==0
+        if (gidx-FDOH<NAB){
+            sxx(gidz,gidx)*=taper[gidx-FDOH];
+        }
+#endif
+        
+#if DEV==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+        if (gidx>NX-NAB-FDOH-1){
+            sxx(gidz,gidx)*=taper[NX-FDOH-gidx-1];
+        }
+#endif
+    }
 #endif
 
 }

@@ -24,11 +24,11 @@
 #define rip(z,y,x)     rip[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define rjp(z,y,x)     rjp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define rkp(z,y,x)     rkp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define uipjp(z,y,x) uipjp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define ujpkp(z,y,x) ujpkp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define uipkp(z,y,x) uipkp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define u(z,y,x)         u[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define pi(z,y,x)       pi[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define muipjp(z,y,x) muipjp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define mujpkp(z,y,x) mujpkp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define muipkp(z,y,x) muipkp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define mu(z,y,x)         mu[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define M(z,y,x)       M[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define grad(z,y,x)   grad[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define grads(z,y,x) grads[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define amp1(z,y,x)   amp1[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
@@ -72,6 +72,18 @@
 
 #endif
 
+#define psi_vxx(z,y,x) psi_vxx[(x)*(NY-2*FDOH)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
+#define psi_vyx(z,y,x) psi_vyx[(x)*(NY-2*FDOH)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
+#define psi_vzx(z,y,x) psi_vzx[(x)*(NY-2*FDOH)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
+
+#define psi_vxy(z,y,x) psi_vxy[(x)*(2*NAB)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
+#define psi_vyy(z,y,x) psi_vyy[(x)*(2*NAB)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
+#define psi_vzy(z,y,x) psi_vzy[(x)*(2*NAB)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
+
+#define psi_vxz(z,y,x) psi_vxz[(x)*(NY-2*FDOH)*(2*NAB)+(y)*(2*NAB)+(z)]
+#define psi_vyz(z,y,x) psi_vyz[(x)*(NY-2*FDOH)*(2*NAB)+(y)*(2*NAB)+(z)]
+#define psi_vzz(z,y,x) psi_vzz[(x)*(NY-2*FDOH)*(2*NAB)+(y)*(2*NAB)+(z)]
+
 
 
 #define PI (3.141592653589793238462643383279502884197169)
@@ -82,9 +94,10 @@
 __kernel void surface(        __global float *vx,         __global float *vy,       __global float *vz,
                               __global float *sxx,        __global float *syy,      __global float *szz,
                               __global float *sxy,        __global float *syz,      __global float *sxz,
-                              __global float *pi,         __global float *u,        __global float *rxx,
+                              __global float *M,         __global float *mu,        __global float *rxx,
                               __global float *ryy,        __global float *rzz,
-                              __global float *taus,       __global float *taup,     __global float *eta)
+                              __global float *taus,       __global float *taup,     __global float *eta, __global float *K_x, __global float *psi_vx_x,
+                              __global float *K_y, __global float *psi_vy_y)
 {
     /*Indice definition */
     int gidy = get_global_id(0) + FDOH;
@@ -209,27 +222,101 @@ __kernel void surface(        __global float *vx,         __global float *vy,   
                HC6*(vz(gidz+5,gidy,gidx)-vz(gidz-6,gidy,gidx)))/DH;
     }
 #endif
+
+
+// Absorbing boundary
+#if ABS_TYPE==2
+{
+    if (gidy-FDOH<NAB){
+        sxx(gidz,gidy,gidx)*=1.0/taper[gidy-FDOH];
+        syy(gidz,gidy,gidx)*=1.0/taper[gidy-FDOH];
+    }
     
+    if (gidy>NY-NAB-FDOH-1){
+        sxx(gidz,gidy,gidx)*=1.0/taper[NY-FDOH-gidy-1];
+        syy(gidz,gidy,gidx)*=1.0/taper[NY-FDOH-gidy-1];
+    }
+    
+#if DEV==0 & MYLOCALID==0
+    if (gidx-FDOH<NAB){
+        sxx(gidz,gidy,gidx)*=1.0/taper[gidx-FDOH];
+        syy(gidz,gidy,gidx)*=1.0/taper[gidx-FDOH];
+    }
+#endif
+    
+#if DEV==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+    if (gidx>NX-NAB-FDOH-1){
+        sxx(gidz,gidy,gidx)*=1.0/taper[NX-FDOH-gidx-1];
+        syy(gidz,gidy,gidx)*=1.0/taper[NX-FDOH-gidx-1];
+    }
+#endif
+}
+#endif
+    
+// Correct spatial derivatives to implement CPML
+#if abs_type==1
+    {
+        int i,j,k,ind;
+        
+        if (gidy-FDOH<NAB){
+            i =gidx-FDOH;
+            j =gidy-FDOH;
+            k =gidz-FDOH;
+            
+            vyy = vyy / K_y[j] + psi_vyy(k,j,i);
+        }
+        
+        else if (gidy>NY-NAB-FDOH-1){
+            
+            i =gidx-FDOH;
+            j =gidy - NY+NAB+FDOH+NAB;
+            k =gidz-FDOH;
+            ind=2*NAB-1-j;
+            vyy = vyy / K_y[ind+1] + psi_vyy(k,j,i);
+        }
+#if DEV==0 & MYLOCALID==0
+        if (gidx-FDOH<NAB){
+            
+            i =gidx-FDOH;
+            j =gidy-FDOH;
+            k =gidz-FDOH;
+
+            vxx = vxx / K_x[i] + psi_vxx(k,j,i);
+        }
+#endif
+        
+#if DEV==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+        if (gidx>NX-NAB-FDOH-1){
+            
+            i =gidx - NX+NAB+FDOH+NAB;
+            j =gidy-FDOH;
+            k =gidz-FDOH;
+            ind=2*NAB-1-i;
+            vxx = vxx /K_x[ind+1] + psi_vxx(k,j,i);
+        }
+#endif
+    }
+#endif
 
 #if LVE==0
-				f=u(gidz, gidy, gidx)*2.0;
-				g=pi(gidz, gidy, gidx);
+				f=mu(gidz, gidy, gidx)*2.0;
+				g=M(gidz, gidy, gidx);
 				h=-(DT*(g-f)*(g-f)*(vxx+vyy)/g)-(DT*(g-f)*vzz);
 				sxx(gidz, gidy, gidx)+=h;
 				syy(gidz, gidy, gidx)+=h;
 #else
     float b,d,e;
     /* partially updating sxx and syy in the same way*/
-    f=u(gidz, gidy, gidx)*2.0*(1.0+L*taus(gidz, gidy, gidx));
-    g=pi(gidz, gidy, gidx)*(1.0+L*taup(gidz, gidy, gidx));
+    f=mu(gidz, gidy, gidx)*2.0*(1.0+L*taus(gidz, gidy, gidx));
+    g=M(gidz, gidy, gidx)*(1.0+L*taup(gidz, gidy, gidx));
     h=-(DT*(g-f)*(g-f)*(vxx+vyy)/g)-(DT*(g-f)*vzz);
     sxx(gidz, gidy, gidx)+=h-(DT/2.0*rxx(gidz, gidy, gidx));
     syy(gidz, gidy, gidx)+=h-(DT/2.0*ryy(gidz, gidy, gidx));
     
     /* updating the memory-variable rxx, ryy at the free surface */
     
-    d=2.0*u(gidz, gidy, gidx)*taus(gidz, gidy, gidx);
-    e=pi(gidz, gidy, gidx)*taup(gidz, gidy, gidx);
+    d=2.0*mu(gidz, gidy, gidx)*taus(gidz, gidy, gidx);
+    e=M(gidz, gidy, gidx)*taup(gidz, gidy, gidx);
     for (m=0;m<LVE;m++){
         b=eta[m]/(1.0+(eta[m]*0.5));
         h=b*(((d-e)*((f/g)-1.0)*(vxx+vyy))-((d-e)*vzz));
@@ -243,6 +330,35 @@ __kernel void surface(        __global float *vx,         __global float *vy,   
     
 #endif
 
+// Absorbing boundary
+#if ABS_TYPE==2
+    {
+        if (gidy-FDOH<NAB){
+            sxx(gidz,gidy,gidx)*=taper[gidy-FDOH];
+            syy(gidz,gidy,gidx)*=taper[gidy-FDOH];
+        }
+        
+        if (gidy>NY-NAB-FDOH-1){
+            sxx(gidz,gidy,gidx)*=taper[NY-FDOH-gidy-1];
+            syy(gidz,gidy,gidx)*=taper[NY-FDOH-gidy-1];
+        }
+        
+#if DEV==0 & MYLOCALID==0
+        if (gidx-FDOH<NAB){
+            sxx(gidz,gidy,gidx)*=taper[gidx-FDOH];
+            syy(gidz,gidy,gidx)*=taper[gidx-FDOH];
+        }
+#endif
+        
+#if DEV==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+        if (gidx>NX-NAB-FDOH-1){
+            sxx(gidz,gidy,gidx)*=taper[NX-FDOH-gidx-1];
+            syy(gidz,gidy,gidx)*=taper[NX-FDOH-gidx-1];
+        }
+#endif
+    }
+#endif
+    
 }
 
 

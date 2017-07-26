@@ -317,7 +317,7 @@ int kernel_sources(device * dev,
     
     __GUARD prog_source(prog, "sources", (*prog).src);
     
-    printf("%s\n\n%lu\n",temp, strlen(temp));
+//    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     free(tosources);
     

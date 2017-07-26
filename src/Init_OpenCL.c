@@ -677,7 +677,13 @@ int Init_OpenCL(model * m, device ** dev)  {
             di->vars[i]=m->vars[i];
         }
         //TODO: This is model specific, find a better way
-        assign_var_size(di->N,m->NDIM,m->FDORDER, m->nvars, m->L, di->vars);
+        assign_var_size(di->N,
+                        m->NAB,
+                        m->NDIM,
+                        m->FDORDER,
+                        m->nvars,
+                        m->L,
+                        di->vars);
         
         
         //Create OpenCL buffers with the right size
@@ -933,6 +939,7 @@ int Init_OpenCL(model * m, device ** dev)  {
         //TODO Boundary conditions should be included in the update kernel
         //TODO Adjoint free surface
         if (m->FREESURF){
+            di->bnd_cnds.surf=m->bnd_cnds.surf;
             __GUARD prog_create(m, di,  &di->bnd_cnds.surf);
             di->bnd_cnds.surf.wdim=m->NDIM-1;
             for (i=1;i<m->NDIM;i++){
@@ -943,6 +950,7 @@ int Init_OpenCL(model * m, device ** dev)  {
         //TODO Create automatically the kernel for saving boundary
         //TODO Implement random boundaries instead
         if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+            di->grads.savebnd=m->grads.savebnd;
             __GUARD prog_create(m, di,  &di->grads.savebnd);
             di->grads.savebnd.wdim=1;
             di->grads.savebnd.gsize[0]=di->NBND;

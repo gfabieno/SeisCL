@@ -116,9 +116,9 @@ int main(int argc, char **argv) {
         double t1=time2-time1;
         double t2=time3-time2;
         double t3=time4-time3;
-        double t4=(time5-time4)/(m.src_recs.smax-m.src_recs.smin)/m.NT;
-        double t6=(time6-time5);
-        double t5=(time6-time1);
+        double t4=(time5-time4);
+        double t5=(time6-time5);
+        double t6=(time6-time1);
         
         if (!state) MPI_Gather(&t1, 1, MPI_DOUBLE , &times[0]     , 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
         if (!state) MPI_Gather(&t2, 1, MPI_DOUBLE , &times[  m.NP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
@@ -128,18 +128,18 @@ int main(int argc, char **argv) {
         if (!state) MPI_Gather(&t6, 1, MPI_DOUBLE , &times[5*m.NP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
         
         if (m.MYID==0){
+            fprintf(stdout,"\nRun time for each process:\n\n");
             for (i=0;i<m.NP;i++){
-                fprintf(stdout,"Run time for each process:\n");
-                fprintf(stdout,"process: %d\n", i);
-                fprintf(stdout,"read_variables: %f\n",times[i]);
-                fprintf(stdout,"init_model: %f\n", times[i+m.NP]);
-                fprintf(stdout,"init_opencl: \%f\n", times[i+2*m.NP]);
-                fprintf(stdout,"time_per_shot_per_step: %f\n", times[i+3*m.NP]);
+                fprintf(stdout,"Process: %d\n", i);
+                fprintf(stdout,"Read variables: %f\n",times[i]);
+                fprintf(stdout,"Intialize model: %f\n", times[i+m.NP]);
+                fprintf(stdout,"Intialize OpenCL: \%f\n", times[i+2*m.NP]);
+                fprintf(stdout,"Time for modeling: %f\n", times[i+3*m.NP]);
                 fprintf(stdout,"Outputting files: \%f\n", times[i+4*m.NP]);
-                fprintf(stdout,"Total time per device: %f\n\n",times[i+5*m.NP]);
+                fprintf(stdout,"Total time of process: %f\n\n",times[i+5*m.NP]);
             }
 
-            fprintf(stdout,"Total real time of the program is: %f s\n",t5) ;
+            fprintf(stdout,"Total real time of the program is: %f s\n",t6) ;
             free(times);
         }
     }

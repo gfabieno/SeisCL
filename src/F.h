@@ -186,6 +186,7 @@ typedef struct variable{
     int       for_grad;
     int  to_comm;
     int num_ele;
+    int active;
     
 } variable;
 
@@ -204,6 +205,7 @@ typedef struct parameter{
     float * gl_grad;
     float * gl_H;
     int num_ele;
+    int active;
     
     const char * to_read;
     int to_grad;
@@ -296,7 +298,7 @@ typedef struct boundary_conditions{
 
 } boundary_conditions;
 
-/* _____________Structure that defines the boundary conditions _______________*/
+/* _____________Structure that defines the gradient_______________*/
 typedef struct gradients {
 
     clprogram init;
@@ -459,7 +461,12 @@ int readhdf5(struct filenames files, model * m);
 
 int assign_modeling_case(model * m);
 
-int assign_var_size(int* N,int NDIM,int FDORDER,int numvar,int L,variable*vars);
+int assign_var_size(int* N,
+                    int nab,
+                    int NDIM,
+                    int FDORDER,
+                    int numvar,
+                    int L, variable * vars);
 
 int Init_cst(model * m);
 

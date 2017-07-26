@@ -575,7 +575,13 @@ int assign_modeling_case(model * m){
     for (i=0;i<m->npars;i++){
         m->pars[i].num_ele=sizepars;
     }}
-    __GUARD assign_var_size(m->N, m->NDIM, m->FDORDER, m->nvars, m->L, m->vars);
+    __GUARD assign_var_size(m->N,
+                            m->NAB,
+                            m->NDIM,
+                            m->FDORDER,
+                            m->nvars,
+                            m->L,
+                            m->vars);
     
     //Check to name of variable to be read depending on the chosen paretrization
     if (!state){
@@ -721,15 +727,21 @@ int assign_modeling_case(model * m){
     return state;
 }
 
-int assign_var_size(int* N, int NDIM, int FDORDER, int numvar, int L, variable * vars){
+int assign_var_size(int* N,
+                    int NAB,
+                    int NDIM,
+                    int FDORDER,
+                    int numvar,
+                    int L,
+                    variable * vars){
     int i,j;
     int sizevars=1;
-    int sizebnd[10];
+    int sizebnd[10]={0};
     for (i=0;i<NDIM;i++){
        sizevars*=N[i]+FDORDER;
     }
     for (i=0;i<NDIM;i++){
-        sizebnd[i]=1;
+        sizebnd[i]=2*NAB;
         for (j=0;j<NDIM;j++){
             if (i!=j)
                 sizebnd[i]*=N[j];
