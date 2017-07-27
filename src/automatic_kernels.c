@@ -596,7 +596,7 @@ int kernel_savefreqs(device * dev,
     strcat(temp,"\n"
         "    for (freq=0;freq<NFREQS;freq++){\n"
         "        fact[freq].x = DTNYQ*DT*cospi(2.0*gradfreqs[freq]*nt/NTNYQ);\n"
-        "        fact[freq].y =-DTNYQ*DT*sinpi(2.0*gradfreqs[freq]*nt/NTNYQ);\n"
+        "        fact[freq].y = -DTNYQ*DT*sinpi(2.0*gradfreqs[freq]*nt/NTNYQ);\n"
         "    }\n\n"
            );
         
@@ -627,7 +627,7 @@ int kernel_savefreqs(device * dev,
     (*prog).src=temp;
     __GUARD prog_source(prog, "savefreqs", (*prog).src);
     
-//    printf("%s\n\n%lu\n",temp, strlen(temp));
+    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     prog->wdim=1;
     

@@ -529,7 +529,7 @@ int time_stepping(model * m, device ** dev) {
                                                &(*dev)[d].vars[i].cl_fvar);
                         }
                     }
-                    // Inialize to 9 the frequency buffers, and the adjoint
+                    // Inialize to 0 the frequency buffers, and the adjoint
                     // variable buffers (forward buffers are reused).
                     __GUARD prog_launch( &(*dev)[d].queue,
                                          &(*dev)[d].grads.initsavefreqs);
@@ -584,21 +584,23 @@ int time_stepping(model * m, device ** dev) {
             // frequencies and intialize frequencies and forward buffers to 0
             // for the forward modeling of the next source.
             if (m->BACK_PROP_TYPE==2 && !state){
-                for (i=0;i<(*dev)[d].nvars;i++){
-                    if ((*dev)[d].vars_adj[i].for_grad){
-                        __GUARD clbuf_read(&(*dev)[d].queue,
-                                           &(*dev)[d].vars_adj[i].cl_fvar);
+                for (d=0;d<m->NUM_DEVICES;d++){
+                    for (i=0;i<(*dev)[d].nvars;i++){
+                        if ((*dev)[d].vars[i].for_grad){
+                            __GUARD clbuf_read(&(*dev)[d].queue,
+                                               &(*dev)[d].vars[i].cl_fvar);
+                        }
+                        
                     }
+                    
+                    __GUARD prog_launch( &(*dev)[d].queue,
+                                        &(*dev)[d].grads.initsavefreqs);
+                    __GUARD prog_launch( &(*dev)[d].queue,
+                                        &(*dev)[d].bnd_cnds.init_f);
                 }
-                
-                __GUARD prog_launch( &(*dev)[d].queue,
-                                    &(*dev)[d].grads.initsavefreqs);
-                __GUARD prog_launch( &(*dev)[d].queue,
-                                    &(*dev)[d].bnd_cnds.init_f);
-                
                 for (d=0;d<m->NUM_DEVICES;d++){
                     __GUARD clFinish((*dev)[d].queue);
-//                    if (!state) par_calc_grad(m);
+                    //                    if (!state) par_calc_grad(m);
                 }
             }
 

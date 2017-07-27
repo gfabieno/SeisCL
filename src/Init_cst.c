@@ -333,7 +333,6 @@ int holbergcoeff(model *inm) {
     
 }
 
-
 int Init_cst(model * m) {
     
     int state=0;
@@ -365,7 +364,19 @@ int Init_cst(model * m) {
             K_i_half=m->csts[4+i*6].gl_cst;
             a_i_half=m->csts[5+i*6].gl_cst;
             b_i_half=m->csts[6+i*6].gl_cst;
-            CPML_coeff(m->NPOWER, m->K_MAX_CPML, m->FPML, m->VPPML, m->dh, m->dt, m->NAB, K_i, b_i, a_i, K_i_half, b_i_half, a_i_half);
+            CPML_coeff(m->NPOWER,
+                       m->K_MAX_CPML,
+                       m->FPML,
+                       m->VPPML,
+                       m->dh,
+                       m->dt,
+                       m->NAB,
+                       K_i,
+                       b_i,
+                       a_i,
+                       K_i_half,
+                       b_i_half,
+                       a_i_half);
         }
     }
     

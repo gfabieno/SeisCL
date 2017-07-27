@@ -888,7 +888,39 @@ int Init_OpenCL(model * m, device ** dev)  {
                 __GUARD prog_create(m, di,  &di->ups_f[i].fcom2_in);
             }
         }
-
+        if (m->GRADOUT){
+            for (i=0;i<m->nupdates;i++){
+                di->ups_adj[i].center.OFFCOMM=offcom1;
+                di->ups_adj[i].center.LCOMM=LCOMM;
+                __GUARD prog_create(m, di,  &di->ups_adj[i].center);
+                if (d>0 || m->MYLOCALID>0){
+                    di->ups_adj[i].com1.OFFCOMM=0;
+                    di->ups_adj[i].com1.LCOMM=LCOMM;
+                    di->ups_adj[i].com1.COMM=1;
+                    __GUARD prog_create(m, di,  &di->ups_adj[i].com1);
+                    
+                    __GUARD kernel_fcom_out( di ,di->vars,
+                                            &di->ups_adj[i].fcom1_out, i+1, 1);
+                    __GUARD prog_create(m, di,  &di->ups_adj[i].fcom1_out);
+                    __GUARD kernel_fcom_in( di ,di->vars,
+                                           &di->ups_adj[i].fcom1_in, i+1, 1);
+                    __GUARD prog_create(m, di,  &di->ups_adj[i].fcom1_in);
+                }
+                if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
+                    di->ups_adj[i].com2.OFFCOMM=offcom2;
+                    di->ups_adj[i].com2.LCOMM=LCOMM;
+                    di->ups_adj[i].com2.COMM=1;
+                    __GUARD prog_create(m, di,  &di->ups_adj[i].com2);
+                    
+                    __GUARD kernel_fcom_out( di, di->vars,
+                                            &di->ups_adj[i].fcom2_out, i+1, 2);
+                    __GUARD prog_create(m, di,  &di->ups_adj[i].fcom2_out);
+                    __GUARD kernel_fcom_in(di ,di->vars,
+                                           &di->ups_adj[i].fcom2_in, i+1, 2);
+                    __GUARD prog_create(m, di,  &di->ups_adj[i].fcom2_in);
+                }
+            }
+        }
         
         //Create automaticly kernels for gradient, variable inti, sources ...
         __GUARD kernel_sources(di, di->vars, &di->src_recs.sources);

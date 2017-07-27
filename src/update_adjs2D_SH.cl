@@ -26,11 +26,11 @@
 #define rip(z,x)    rip[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define rjp(z,x)    rjp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define rkp(z,x)    rkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define uipkp(z,x) uipkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define ujpkp(z,x) ujpkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define uipjp(z,x) uipjp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define u(z,x)        u[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define pi(z,x)      pi[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define muipkp(z,x) muipkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define mujpkp(z,x) mujpkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define muipjp(z,x) muipjp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define mu(z,x)        mu[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define M(z,x)      M[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define gradrho(z,x)  gradrho[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define gradM(z,x)  gradM[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define gradmu(z,x)  gradmu[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
@@ -80,8 +80,8 @@
 #define psi_sxy_x(z,x) psi_sxy_x[(x)*(NZ-2*FDOH)+(z)]
 #define psi_syz_z(z,x) psi_syz_z[(x)*(2*NAB)+(z)]
 
-#define psi_vyx(z,x) psi_vyx[(x)*(NZ-2*FDOH)+(z)]
-#define psi_vyz(z,x) psi_vyz[(x)*(2*NAB)+(z)]
+#define psi_vy_x(z,x) psi_vy_x[(x)*(NZ-2*FDOH)+(z)]
+#define psi_vy_z(z,x) psi_vy_z[(x)*(2*NAB)+(z)]
 
 #define vxout(y,x) vxout[(y)*NT+(x)]
 #define vyout(y,x) vyout[(y)*NT+(x)]
@@ -220,7 +220,7 @@ int evarm( int k, int i){
     
 }
 
-__kernel void update_adjs(int offcomm, int nt,
+__kernel void update_adjs(int offcomm, 
                           __global float *vy,
                           __global float *sxy,        __global float *syz,
                           __global float *vybnd,
@@ -229,15 +229,14 @@ __kernel void update_adjs(int offcomm, int nt,
                           __global float *sxy_r,      __global float *syz_r,
                           __global float *rxy,        __global float *ryz,
                           __global float *rxy_r,      __global float *ryz_r,
-                          __global float *uipjp,      __global float *ujpkp,
+                          __global float *muipjp,      __global float *mujpkp,
                           __global float *tausipjp,   __global float *tausjpkp,
-                          __global float *eta,
-                          __global float *srcpos_loc, __global float *signals,  __global float *taper,
+                          __global float *eta,        __global float *taper,
                           __global float *K_x,        __global float *a_x,      __global float *b_x,
                           __global float *K_x_half,   __global float *a_x_half, __global float *b_x_half,
                           __global float *K_z,        __global float *a_z,      __global float *b_z,
                           __global float *K_z_half,   __global float *a_z_half, __global float *b_z_half,
-                          __global float *psi_vyx,    __global float *psi_vyz,
+                          __global float *psi_vy_x,    __global float *psi_vy_z,
                           __global float *gradrho,    __global float *gradmu,   __global float *gradsrc,
                           __local  float *lvar)
 {
@@ -246,7 +245,7 @@ __kernel void update_adjs(int offcomm, int nt,
     float fipjp, fjpkp;
     float sumrxy,sumryz;
     float b,c,dipjp,djpkp;
-    float luipjp, lujpkp, ltausipjp, ltausjpkp;
+    float lmuipjp, lmujpkp, ltausipjp, ltausjpkp;
 #if LVE>0
     float leta[LVE];
 #endif
@@ -466,13 +465,13 @@ __kernel void update_adjs(int offcomm, int nt,
 // Read model parameters into local memory
 #if LVE==0
     
-    fipjp=uipjp(gidz,gidx)*DT;
-    fjpkp=ujpkp(gidz,gidx)*DT;
+    fipjp=muipjp(gidz,gidx)*DT;
+    fjpkp=mujpkp(gidz,gidx)*DT;
     
 #else
     
-    luipjp=uipjp(gidz,gidx);
-    lujpkp=ujpkp(gidz,gidx);
+    lmuipjp=muipjp(gidz,gidx);
+    lmujpkp=mujpkp(gidz,gidx);
     ltausipjp=tausipjp(gidz,gidx);
     ltausjpkp=tausjpkp(gidz,gidx);
     
@@ -480,10 +479,10 @@ __kernel void update_adjs(int offcomm, int nt,
         leta[l]=eta[l];
     }
     
-    fipjp=luipjp*DT*(1.0+ (float)LVE*ltausipjp);
-    fjpkp=lujpkp*DT*(1.0+ (float)LVE*ltausjpkp);
-    dipjp=luipjp*ltausipjp;
-    djpkp=lujpkp*ltausjpkp;
+    fipjp=lmuipjp*DT*(1.0+ (float)LVE*ltausipjp);
+    fjpkp=lmujpkp*DT*(1.0+ (float)LVE*ltausjpkp);
+    dipjp=lmuipjp*ltausipjp;
+    djpkp=lmujpkp*ltausjpkp;
     
 #endif
     
@@ -549,8 +548,8 @@ __kernel void update_adjs(int offcomm, int nt,
             k =gidz - NZ+NAB+FDOH+NAB;
             ind=2*NAB-1-k;
             
-            psi_vyz(k,i) = b_z_half[ind] * psi_vyz(k,i) + a_z_half[ind] * vyz_r;
-            vyz_r = vyz_r / K_z_half[ind] + psi_vyz(k,i);
+            psi_vy_z(k,i) = b_z_half[ind] * psi_vy_z(k,i) + a_z_half[ind] * vyz_r;
+            vyz_r = vyz_r / K_z_half[ind] + psi_vy_z(k,i);
         }
         
 #if FREESURF==0
@@ -559,8 +558,8 @@ __kernel void update_adjs(int offcomm, int nt,
             i =gidx-FDOH;
             k =gidz-FDOH;
             
-            psi_vyz(k,i) = b_z_half[k] * psi_vyz(k,i) + a_z_half[k] * vyz_r;
-            vyz_r = vyz_r / K_z_half[k] + psi_vyz(k,i);
+            psi_vy_z(k,i) = b_z_half[k] * psi_vy_z(k,i) + a_z_half[k] * vyz_r;
+            vyz_r = vyz_r / K_z_half[k] + psi_vy_z(k,i);
             
         }
 #endif
@@ -571,8 +570,8 @@ __kernel void update_adjs(int offcomm, int nt,
             i =gidx-FDOH;
             k =gidz-FDOH;
             
-            psi_vyx(k,i) = b_x_half[i] * psi_vyx(k,i) + a_x_half[i] * vyx_r;
-            vyx_r = vyx_r / K_x_half[i] + psi_vyx(k,i);
+            psi_vy_x(k,i) = b_x_half[i] * psi_vy_x(k,i) + a_x_half[i] * vyx_r;
+            vyx_r = vyx_r / K_x_half[i] + psi_vy_x(k,i);
             
         }
 #endif
@@ -584,8 +583,8 @@ __kernel void update_adjs(int offcomm, int nt,
             k =gidz-FDOH;
             ind=2*NAB-1-i;
             
-            psi_vyx(k,i) = b_x_half[ind] * psi_vyx(k,i) + a_x_half[ind] * vyx_r;
-            vyx_r = vyx_r  /K_x_half[ind] + psi_vyx(k,i);
+            psi_vy_x(k,i) = b_x_half[ind] * psi_vy_x(k,i) + a_x_half[ind] * vyx_r;
+            vyx_r = vyx_r  /K_x_half[ind] + psi_vy_x(k,i);
         }
 #endif
 

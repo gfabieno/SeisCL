@@ -26,11 +26,11 @@
 #define rip(z,y,x)             rip[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define rjp(z,y,x)             rjp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define rkp(z,y,x)             rkp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define uipjp(z,y,x)         uipjp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define ujpkp(z,y,x)         ujpkp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define uipkp(z,y,x)         uipkp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define u(z,y,x)                 u[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define pi(z,y,x)               pi[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define muipjp(z,y,x)         muipjp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define mujpkp(z,y,x)         mujpkp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define muipkp(z,y,x)         muipkp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define mu(z,y,x)                 mu[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define M(z,y,x)               M[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define gradrho(z,y,x)     gradrho[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define gradM(z,y,x)         gradM[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define gradmu(z,y,x)       gradmu[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
@@ -77,17 +77,17 @@
 #define ryz_r(z,y,x,l) ryz_r[(l)*NX*NY*NZ+(x)*NY*NZ+(y)*NZ+(z)]
 #define rxz_r(z,y,x,l) rxz_r[(l)*NX*NY*NZ+(x)*NY*NZ+(y)*NZ+(z)]
 
-#define psi_vxx(z,y,x) psi_vxx[(x)*(NY-2*FDOH)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
-#define psi_vyx(z,y,x) psi_vyx[(x)*(NY-2*FDOH)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
-#define psi_vzx(z,y,x) psi_vzx[(x)*(NY-2*FDOH)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
+#define psi_vx_x(z,y,x) psi_vx_x[(x)*(NY-2*FDOH)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
+#define psi_vy_x(z,y,x) psi_vy_x[(x)*(NY-2*FDOH)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
+#define psi_vz_x(z,y,x) psi_vz_x[(x)*(NY-2*FDOH)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
 
-#define psi_vxy(z,y,x) psi_vxy[(x)*(2*NAB)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
-#define psi_vyy(z,y,x) psi_vyy[(x)*(2*NAB)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
-#define psi_vzy(z,y,x) psi_vzy[(x)*(2*NAB)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
+#define psi_vx_y(z,y,x) psi_vx_y[(x)*(2*NAB)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
+#define psi_vy_y(z,y,x) psi_vy_y[(x)*(2*NAB)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
+#define psi_vz_y(z,y,x) psi_vz_y[(x)*(2*NAB)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
 
-#define psi_vxz(z,y,x) psi_vxz[(x)*(NY-2*FDOH)*(2*NAB)+(y)*(2*NAB)+(z)]
-#define psi_vyz(z,y,x) psi_vyz[(x)*(NY-2*FDOH)*(2*NAB)+(y)*(2*NAB)+(z)]
-#define psi_vzz(z,y,x) psi_vzz[(x)*(NY-2*FDOH)*(2*NAB)+(y)*(2*NAB)+(z)]
+#define psi_vx_z(z,y,x) psi_vx_z[(x)*(NY-2*FDOH)*(2*NAB)+(y)*(2*NAB)+(z)]
+#define psi_vy_z(z,y,x) psi_vy_z[(x)*(NY-2*FDOH)*(2*NAB)+(y)*(2*NAB)+(z)]
+#define psi_vz_z(z,y,x) psi_vz_z[(x)*(NY-2*FDOH)*(2*NAB)+(y)*(2*NAB)+(z)]
 
 #define vxout(y,x) vxout[(y)*NT+(x)]
 #define vyout(y,x) vyout[(y)*NT+(x)]
@@ -275,7 +275,7 @@ int evarm( int k, int j, int i){
     
 }
 
-__kernel void update_adjs(int offcomm, int nt,
+__kernel void update_adjs(int offcomm, 
                           __global float *vx,         __global float *vy,       __global float *vz,
                           __global float *sxx,        __global float *syy,      __global float *szz,
                           __global float *sxy,        __global float *syz,      __global float *sxz,
@@ -289,20 +289,20 @@ __kernel void update_adjs(int offcomm, int nt,
                           __global float *rxy,        __global float *ryz,      __global float *rxz,
                           __global float *rxx_r,      __global float *ryy_r,    __global float *rzz_r,
                           __global float *rxy_r,      __global float *ryz_r,    __global float *rxz_r,
-                          __global float *pi,         __global float *u,        __global float *uipjp,
-                          __global float *ujpkp,      __global float *uipkp,
+                          __global float *M,         __global float *mu,        __global float *muipjp,
+                          __global float *mujpkp,      __global float *muipkp,
                           __global float *taus,       __global float *tausipjp, __global float *tausjpkp,
                           __global float *tausipkp,   __global float *taup,     __global float *eta,
-                          __global float *srcpos_loc, __global float *signals,  __global float *taper,
+                          __global float *taper,
                           __global float *K_x,        __global float *a_x,      __global float *b_x,
                           __global float *K_x_half,   __global float *a_x_half, __global float *b_x_half,
                           __global float *K_y,        __global float *a_y,      __global float *b_y,
                           __global float *K_y_half,   __global float *a_y_half, __global float *b_y_half,
                           __global float *K_z,        __global float *a_z,      __global float *b_z,
                           __global float *K_z_half,   __global float *a_z_half, __global float *b_z_half,
-                          __global float *psi_vxx,    __global float *psi_vxy,  __global float *psi_vxz,
-                          __global float *psi_vyx,    __global float *psi_vyy,  __global float *psi_vyz,
-                          __global float *psi_vzx,    __global float *psi_vzy,  __global float *psi_vzz,
+                          __global float *psi_vx_x,    __global float *psi_vx_y,  __global float *psi_vx_z,
+                          __global float *psi_vy_x,    __global float *psi_vy_y,  __global float *psi_vy_z,
+                          __global float *psi_vz_x,    __global float *psi_vz_y,  __global float *psi_vz_z,
                           __global float *gradrho,    __global float *gradM,    __global float *gradmu,
                           __global float *gradtaup,   __global float *gradtaus, __global float *gradsrc,
                           __local  float *lvar)
@@ -317,7 +317,7 @@ __kernel void update_adjs(int offcomm, int nt,
     float sumrxy,sumryz,sumrxz,sumrxx,sumryy,sumrzz;
     float b,c,e,d,dipjp,djpkp,dipkp;
     int l;
-    float lpi, lu, luipjp, luipkp, lujpkp,ltaup, ltaus, ltausipjp, ltausipkp, ltausjpkp;
+    float lM, lmu, lmuipjp, lmuipkp, lmujpkp,ltaup, ltaus, ltausipjp, ltausipkp, ltausjpkp;
     float leta[LVE];
     float lsxx, lsyy, lszz, lsxy, lsxz, lsyz;
     
@@ -1048,22 +1048,22 @@ __kernel void update_adjs(int offcomm, int nt,
     
 // Read model parameters into local memory
 #if LVE==0
-    lpi=pi(gidz,gidy,gidx);
-    lu=u(gidz,gidy,gidx);
-    fipjp=uipjp(gidz,gidy,gidx)*DT;
-    fjpkp=ujpkp(gidz,gidy,gidx)*DT;
-    fipkp=uipkp(gidz,gidy,gidx)*DT;
-    g=lpi*DT;
-    f=2.0*lu*DT;
+    lM=M(gidz,gidy,gidx);
+    lmu=mu(gidz,gidy,gidx);
+    fipjp=muipjp(gidz,gidy,gidx)*DT;
+    fjpkp=mujpkp(gidz,gidy,gidx)*DT;
+    fipkp=muipkp(gidz,gidy,gidx)*DT;
+    g=lM*DT;
+    f=2.0*lmu*DT;
 
     
 #else
     
-    lpi=pi(gidz,gidy,gidx);
-    lu=u(gidz,gidy,gidx);
-    luipkp=uipkp(gidz,gidy,gidx);
-    luipjp=uipjp(gidz,gidy,gidx);
-    lujpkp=ujpkp(gidz,gidy,gidx);
+    lM=M(gidz,gidy,gidx);
+    lmu=u(gidz,gidy,gidx);
+    lmuipkp=muipkp(gidz,gidy,gidx);
+    lmuipjp=muipjp(gidz,gidy,gidx);
+    lmujpkp=mujpkp(gidz,gidy,gidx);
     ltaup=taup(gidz,gidy,gidx);
     ltaus=taus(gidz,gidy,gidx);
     ltausipkp=tausipkp(gidz,gidy,gidx);
@@ -1074,16 +1074,16 @@ __kernel void update_adjs(int offcomm, int nt,
         leta[l]=eta[l];
     }
     
-    fipjp=luipjp*DT*(1.0+ (float)LVE*ltausipjp);
-    fjpkp=lujpkp*DT*(1.0+ (float)LVE*ltausjpkp);
-    fipkp=luipkp*DT*(1.0+ (float)LVE*ltausipkp);
-    g=lpi*(1.0+(float)LVE*ltaup)*DT;
-    f=2.0*lu*(1.0+(float)LVE*ltaus)*DT;
-    dipjp=luipjp*ltausipjp;
-    djpkp=lujpkp*ltausjpkp;
-    dipkp=luipkp*ltausipkp;
-    d=2.0*lu*ltaus;
-    e=lpi*ltaup;
+    fipjp=lmuipjp*DT*(1.0+ (float)LVE*ltausipjp);
+    fjpkp=lmujpkp*DT*(1.0+ (float)LVE*ltausjpkp);
+    fipkp=lmuipkp*DT*(1.0+ (float)LVE*ltausipkp);
+    g=lM*(1.0+(float)LVE*ltaup)*DT;
+    f=2.0*lmu*(1.0+(float)LVE*ltaus)*DT;
+    dipjp=lmuipjp*ltausipjp;
+    djpkp=lmujpkp*ltausjpkp;
+    dipkp=lmuipkp*ltausipkp;
+    d=2.0*lmu*ltaus;
+    e=lM*ltaup;
     
     
 #endif
@@ -1198,12 +1198,12 @@ __kernel void update_adjs(int offcomm, int nt,
             k =gidz - NZ+NAB+FDOH+NAB;
             ind=2*NAB-1-k;
             
-            psi_vxz(k,j,i) = b_z_half[ind] * psi_vxz(k,j,i) + a_z_half[ind] * vxz_r;
-            vxz_r = vxz_r / K_z_half[ind] + psi_vxz(k,j,i);
-            psi_vyz(k,j,i) = b_z_half[ind] * psi_vyz(k,j,i) + a_z_half[ind] * vyz_r;
-            vyz_r = vyz_r / K_z_half[ind] + psi_vyz(k,j,i);
-            psi_vzz(k,j,i) = b_z[ind+1] * psi_vzz(k,j,i) + a_z[ind+1] * vzz_r;
-            vzz_r = vzz_r / K_z[ind+1] + psi_vzz(k,j,i);
+            psi_vx_z(k,j,i) = b_z_half[ind] * psi_vx_z(k,j,i) + a_z_half[ind] * vxz_r;
+            vxz_r = vxz_r / K_z_half[ind] + psi_vx_z(k,j,i);
+            psi_vy_z(k,j,i) = b_z_half[ind] * psi_vy_z(k,j,i) + a_z_half[ind] * vyz_r;
+            vyz_r = vyz_r / K_z_half[ind] + psi_vy_z(k,j,i);
+            psi_vz_z(k,j,i) = b_z[ind+1] * psi_vz_z(k,j,i) + a_z[ind+1] * vzz_r;
+            vzz_r = vzz_r / K_z[ind+1] + psi_vz_z(k,j,i);
             
         }
         
@@ -1215,12 +1215,12 @@ __kernel void update_adjs(int offcomm, int nt,
             k =gidz-FDOH;
             
             
-            psi_vxz(k,j,i) = b_z_half[k] * psi_vxz(k,j,i) + a_z_half[k] * vxz_r;
-            vxz_r = vxz_r / K_z_half[k] + psi_vxz(k,j,i);
-            psi_vyz(k,j,i) = b_z_half[k] * psi_vyz(k,j,i) + a_z_half[k] * vyz_r;
-            vyz_r = vyz_r / K_z_half[k] + psi_vyz(k,j,i);
-            psi_vzz(k,j,i) = b_z[k] * psi_vzz(k,j,i) + a_z[k] * vzz_r;
-            vzz_r = vzz_r / K_z[k] + psi_vzz(k,j,i);
+            psi_vx_z(k,j,i) = b_z_half[k] * psi_vx_z(k,j,i) + a_z_half[k] * vxz_r;
+            vxz_r = vxz_r / K_z_half[k] + psi_vx_z(k,j,i);
+            psi_vy_z(k,j,i) = b_z_half[k] * psi_vy_z(k,j,i) + a_z_half[k] * vyz_r;
+            vyz_r = vyz_r / K_z_half[k] + psi_vy_z(k,j,i);
+            psi_vz_z(k,j,i) = b_z[k] * psi_vz_z(k,j,i) + a_z[k] * vzz_r;
+            vzz_r = vzz_r / K_z[k] + psi_vz_z(k,j,i);
             
             
         }
@@ -1231,12 +1231,12 @@ __kernel void update_adjs(int offcomm, int nt,
             j =gidy-FDOH;
             k =gidz-FDOH;
             
-            psi_vxy(k,j,i) = b_y_half[j] * psi_vxy(k,j,i) + a_y_half[j] * vxy_r;
-            vxy_r = vxy_r / K_y_half[j] + psi_vxy(k,j,i);
-            psi_vyy(k,j,i) = b_y[j] * psi_vyy(k,j,i) + a_y[j] * vyy_r;
-            vyy_r = vyy_r / K_y[j] + psi_vyy(k,j,i);
-            psi_vzy(k,j,i) = b_y_half[j] * psi_vzy(k,j,i) + a_y_half[j] * vzy_r;
-            vzy_r = vzy_r / K_y_half[j] + psi_vzy(k,j,i);
+            psi_vx_y(k,j,i) = b_y_half[j] * psi_vx_y(k,j,i) + a_y_half[j] * vxy_r;
+            vxy_r = vxy_r / K_y_half[j] + psi_vx_y(k,j,i);
+            psi_vy_y(k,j,i) = b_y[j] * psi_vy_y(k,j,i) + a_y[j] * vyy_r;
+            vyy_r = vyy_r / K_y[j] + psi_vy_y(k,j,i);
+            psi_vz_y(k,j,i) = b_y_half[j] * psi_vz_y(k,j,i) + a_y_half[j] * vzy_r;
+            vzy_r = vzy_r / K_y_half[j] + psi_vz_y(k,j,i);
             
         }
         
@@ -1248,12 +1248,12 @@ __kernel void update_adjs(int offcomm, int nt,
             ind=2*NAB-1-j;
             
             
-            psi_vxy(k,j,i) = b_y_half[ind] * psi_vxy(k,j,i) + a_y_half[ind] * vxy_r;
-            vxy_r = vxy_r / K_y_half[ind] + psi_vxy(k,j,i);
-            psi_vyy(k,j,i) = b_y[ind+1] * psi_vyy(k,j,i) + a_y[ind+1] * vyy_r;
-            vyy_r = vyy_r / K_y[ind+1] + psi_vyy(k,j,i);
-            psi_vzy(k,j,i) = b_y_half[ind] * psi_vzy(k,j,i) + a_y_half[ind] * vzy_r;
-            vzy_r = vzy_r / K_y_half[ind] + psi_vzy(k,j,i);
+            psi_vx_y(k,j,i) = b_y_half[ind] * psi_vx_y(k,j,i) + a_y_half[ind] * vxy_r;
+            vxy_r = vxy_r / K_y_half[ind] + psi_vx_y(k,j,i);
+            psi_vy_y(k,j,i) = b_y[ind+1] * psi_vy_y(k,j,i) + a_y[ind+1] * vyy_r;
+            vyy_r = vyy_r / K_y[ind+1] + psi_vy_y(k,j,i);
+            psi_vz_y(k,j,i) = b_y_half[ind] * psi_vz_y(k,j,i) + a_y_half[ind] * vzy_r;
+            vzy_r = vzy_r / K_y_half[ind] + psi_vz_y(k,j,i);
             
             
         }
@@ -1264,12 +1264,12 @@ __kernel void update_adjs(int offcomm, int nt,
             j =gidy-FDOH;
             k =gidz-FDOH;
             
-            psi_vxx(k,j,i) = b_x[i] * psi_vxx(k,j,i) + a_x[i] * vxx_r;
-            vxx_r = vxx_r / K_x[i] + psi_vxx(k,j,i);
-            psi_vyx(k,j,i) = b_x_half[i] * psi_vyx(k,j,i) + a_x_half[i] * vyx_r;
-            vyx_r = vyx_r / K_x_half[i] + psi_vyx(k,j,i);
-            psi_vzx(k,j,i) = b_x_half[i] * psi_vzx(k,j,i) + a_x_half[i] * vzx_r;
-            vzx_r = vzx_r / K_x_half[i] + psi_vzx(k,j,i);
+            psi_vx_x(k,j,i) = b_x[i] * psi_vx_x(k,j,i) + a_x[i] * vxx_r;
+            vxx_r = vxx_r / K_x[i] + psi_vx_x(k,j,i);
+            psi_vy_x(k,j,i) = b_x_half[i] * psi_vy_x(k,j,i) + a_x_half[i] * vyx_r;
+            vyx_r = vyx_r / K_x_half[i] + psi_vy_x(k,j,i);
+            psi_vz_x(k,j,i) = b_x_half[i] * psi_vz_x(k,j,i) + a_x_half[i] * vzx_r;
+            vzx_r = vzx_r / K_x_half[i] + psi_vz_x(k,j,i);
             
             
         }
@@ -1284,12 +1284,12 @@ __kernel void update_adjs(int offcomm, int nt,
             ind=2*NAB-1-i;
             
             
-            psi_vxx(k,j,i) = b_x[ind+1] * psi_vxx(k,j,i) + a_x[ind+1] * vxx_r;
-            vxx_r = vxx_r /K_x[ind+1] + psi_vxx(k,j,i);
-            psi_vyx(k,j,i) = b_x_half[ind] * psi_vyx(k,j,i) + a_x_half[ind] * vyx_r;
-            vyx_r = vyx_r  /K_x_half[ind] + psi_vyx(k,j,i);
-            psi_vzx(k,j,i) = b_x_half[ind] * psi_vzx(k,j,i) + a_x_half[ind] * vzx_r;
-            vzx_r = vzx_r / K_x_half[ind]  +psi_vzx(k,j,i);
+            psi_vx_x(k,j,i) = b_x[ind+1] * psi_vx_x(k,j,i) + a_x[ind+1] * vxx_r;
+            vxx_r = vxx_r /K_x[ind+1] + psi_vx_x(k,j,i);
+            psi_vy_x(k,j,i) = b_x_half[ind] * psi_vy_x(k,j,i) + a_x_half[ind] * vyx_r;
+            vyx_r = vyx_r  /K_x_half[ind] + psi_vy_x(k,j,i);
+            psi_vz_x(k,j,i) = b_x_half[ind] * psi_vz_x(k,j,i) + a_x_half[ind] * vzx_r;
+            vzx_r = vzx_r / K_x_half[ind]  +psi_vz_x(k,j,i);
             
             
         }
@@ -1450,8 +1450,8 @@ __kernel void update_adjs(int offcomm, int nt,
     
 // Shear wave modulus and P-wave modulus gradient calculation on the fly    
 #if BACK_PROP_TYPE==1
-                 float c1=1.0/pown(3.0*lpi-4.0*lu,2);
-                 float c3=1.0/pown(lu,2);
+                 float c1=1.0/pown(3.0*lM-4.0*lmu,2);
+                 float c3=1.0/pown(lmu,2);
                  float c5=1.0/6.0*c3;
                  
                  float dM=c1*( sxx(gidz,gidy,gidx)+syy(gidz,gidy,gidx)+szz(gidz,gidy,gidx) )*( lsxx+lsyy+lszz );

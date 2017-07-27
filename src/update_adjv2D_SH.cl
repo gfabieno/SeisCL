@@ -224,16 +224,14 @@ int evarm( int k, int i){
 }
 
 
-__kernel void update_adjv(int offcomm, int ng, int nt,
+__kernel void update_adjv(int offcomm, 
                           __global float *vy,
                           __global float *sxy,        __global float *syz,
                           __global float *vybnd,
                           __global float *sxybnd,     __global float *syzbnd,
                           __global float *vy_r,
                           __global float *sxy_r,      __global float *syz_r,
-                          __global float *ry,
                           __global float *rjp,
-                          __global float *srcpos_loc, __global float *signals, __global float *rec_pos,
                           __global float *taper,
                           __global float *K_x,        __global float *a_x,          __global float *b_x,
                           __global float *K_x_half,   __global float *a_x_half,     __global float *b_x_half,

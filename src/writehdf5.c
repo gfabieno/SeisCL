@@ -236,7 +236,7 @@ int writehdf5(struct filenames file, model * m) {
 
     // Write rms output file
     if (m->RMSOUT){
-        file_id = create_file(file.RMSOUT);
+        file_id = create_file(file.rmsout);
         rms=sqrt(m->rms);
         dims[0]=1; dims[1]=1;
         writetomat(&file_id, "/rms", &rms, 2, dims );
@@ -256,7 +256,7 @@ int writehdf5(struct filenames file, model * m) {
         
         for (i=0;i<m->npars;i++){
             if (m->pars[i].to_grad){
-                sprintf(name, "grad%s",m->pars[i].to_read);
+                sprintf(name, "grad%s",&m->pars[i].to_read[1]);
                 writetomat(&file_id,name,m->pars[i].gl_grad,m->NDIM,dims);
             }
         }
@@ -282,7 +282,7 @@ int writehdf5(struct filenames file, model * m) {
     
     // Write movie output file
     if (m->MOVOUT>0){
-        file_id = create_file(file.MOVOUT);
+        file_id = create_file(file.movout);
 
         dims[0]=m->src_recs.ns;
         dims[1]=m->NT/m->MOVOUT;

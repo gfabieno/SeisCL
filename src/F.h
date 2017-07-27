@@ -76,8 +76,8 @@ struct filenames {
     char dout[1024];
     char din[1024];
     char gout[1024];
-    char RMSOUT[1024];
-    char MOVOUT[1024];
+    char rmsout[1024];
+    char movout[1024];
 };
 
 
@@ -277,15 +277,6 @@ typedef struct update{
     int nvcom;
     variable ** v2com;
     
-    cl_event event_readMPI1[6];
-    cl_event event_readMPI2[6];
-    
-    cl_event event_read1;
-    cl_event event_read2;
-    cl_event event_write1;
-    cl_event event_write2;
-    cl_event event_update_com1;
-    cl_event event_update_com2;
 
 } update;
 
