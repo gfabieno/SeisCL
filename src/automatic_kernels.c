@@ -543,7 +543,7 @@ int kernel_savefreqs(device * dev,
         }
     }
     
-    strcat(temp,"__kernel void savefreqs(__constant float *gradfreqs, int nt, ");
+    strcat(temp,"__kernel void savefreqs(__constant float *gradfreqsn, int nt, ");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
             strcat(temp, "__global float * ");
@@ -595,8 +595,8 @@ int kernel_savefreqs(device * dev,
     
     strcat(temp,"\n"
         "    for (freq=0;freq<NFREQS;freq++){\n"
-        "        fact[freq].x = DTNYQ*DT*cospi(2.0*gradfreqs[freq]*nt/NTNYQ);\n"
-        "        fact[freq].y = -DTNYQ*DT*sinpi(2.0*gradfreqs[freq]*nt/NTNYQ);\n"
+        "        fact[freq].x = DTNYQ*DT*cospi(2.0*gradfreqsn[freq]*nt/NTNYQ);\n"
+        "        fact[freq].y = -DTNYQ*DT*sinpi(2.0*gradfreqsn[freq]*nt/NTNYQ);\n"
         "    }\n\n"
            );
         
