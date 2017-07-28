@@ -407,6 +407,7 @@ int Init_cst(model * m) {
         }
     }
     
+    
     return state;
 
 }
