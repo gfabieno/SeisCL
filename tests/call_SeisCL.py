@@ -28,9 +28,7 @@ filenames['movout']=file+"_movie.mat"   #File containing the movie ouput
 
 #_____________________Simulation constants input file_______________________
 csts={}
-csts['NX']=150              #Grid size in X
-csts['NY']=1                #Grid size in Y (set to 1 for 2D)
-csts['NZ']=200              #Grid size in Z
+csts['N']=np.array([200,150]) #Grid size ( z,x)
 csts['ND']=2                #Flag for dimension. 3: 3D, 2: 2D P-SV,  21: 2D SH
 csts['dh']=10                #Grid spatial spacing
 csts['dt']=0.0008           # Time step size
@@ -84,11 +82,11 @@ h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_pyt
 
 #_________________Model File__________________
 model={}
-model['vp']=np.zeros( (csts['NZ'],csts['NY'],csts['NX']))+3500  #Must contain the variables names of the chosen paretrization
-model['vs']=np.zeros( (csts['NZ'],csts['NY'],csts['NX']))+2000
-model['rho']=np.zeros( (csts['NZ'],csts['NY'],csts['NX']))+2000
-model['taup']=np.zeros( (csts['NZ'],csts['NY'],csts['NX']))+0.02
-model['taus']=np.zeros( (csts['NZ'],csts['NY'],csts['NX']))+0.02
+model['vp']=np.zeros( (csts['N'][0],csts['N'][1]))+3500  #Must contain the variables names of the chosen paretrization
+model['vs']=np.zeros( (csts['N'][0],csts['N'][1]))+2000
+model['rho']=np.zeros( (csts['N'][0],csts['N'][1]))+2000
+model['taup']=np.zeros( (csts['N'][0],csts['N'][1]))+0.02
+model['taus']=np.zeros( (csts['N'][0],csts['N'][1]))+0.02
 
 h5mat.savemat(filenames['model'], model , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
 
@@ -112,7 +110,7 @@ for ii in range(0,63,10):
     csts['src']=np.append(csts['src'], ricker  , axis=1)
     for jj in range(0,126):
         toappend=np.zeros((8,1))
-        toappend[0,:]=(csts['NX']-csts['nab']-5)*csts['dh']
+        toappend[0,:]=(csts['N'][1]-csts['nab']-5)*csts['dh']
         toappend[1,:]=0
         toappend[2,:]=(csts['nab']+5+jj)*csts['dh']
         toappend[3,:]=ii
@@ -122,8 +120,8 @@ for ii in range(0,63,10):
 
 
 #________________Launch simulation______________
-model['vp'][70:90,0,65:85]= 3550
-model['taup'][110:130,0,65:85]= 0.03
+model['vp'][70:90,65:85]= 3550
+model['taup'][110:130,65:85]= 0.03
 h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
 h5mat.savemat(filenames['model'], model , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
 
@@ -140,14 +138,14 @@ dout = h5mat.loadmat(filenames['dout'])
 din={}
 din['src_pos']=dout['src_pos']
 din['rec_pos']=dout['rec_pos']
-din['vx0']=dout['vxout']
-din['vz0']=dout['vzout']
+din['vx']=dout['vxout']
+din['vz']=dout['vzout']
 h5mat.savemat(filenames['din'], din , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
 
 
 #________________Calculate gradient______________
-model['vp'][70:90,0,65:85]= 3500
-model['taup'][110:130,0,65:85]= 0.02
+model['vp'][70:90,65:85]= 3500
+model['taup'][110:130,65:85]= 0.02
 csts['gradout']=1
 csts['resout']=1
 csts['gradfreqs']=np.append(csts['gradfreqs'], csts['f0'])

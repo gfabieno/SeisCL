@@ -706,9 +706,6 @@ int assign_modeling_case(model * m){
                 GMALLOC(m->vars[i].gl_mov,sizeof(float)*
                              m->src_recs.ns*m->vars[i].num_ele*m->NT/m->MOVOUT);
             }
-            if (m->GRADOUT && m->BACK_PROP_TYPE==2){
-                GMALLOC(m->vars[i].gl_fvar, sizeof(cl_float2)*m->vars[i].num_ele);
-            }
         }
     }
     

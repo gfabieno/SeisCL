@@ -137,6 +137,7 @@ typedef struct clprogram {
     char ** input_list;
     int ninputs;
     int tinput;
+    int pdir;
     size_t lsize[MAX_DIMS];
     size_t gsize[MAX_DIMS];
     int local;
@@ -173,11 +174,11 @@ typedef struct variable{
     clbuf cl_varout;
     clbuf cl_varbnd;
     clbuf cl_fvar;
+    clbuf cl_fvar_adj;
     clbuf cl_buf1;
     clbuf cl_buf2;
     clbuf cl_var_res;
 
-    cl_float2 * gl_fvar;
     float **    gl_varout;
     float **    gl_varin;
     float   *   gl_mov;
@@ -213,7 +214,7 @@ typedef struct parameter{
 
 } parameter;
 
-int par_calc_grad(struct model* m);
+int par_calc_grad(struct model * m, struct device * dev);
 
 
 /* ____Structure for constants, which vectors broadcasted to all devices______*/

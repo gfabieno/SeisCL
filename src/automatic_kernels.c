@@ -249,7 +249,7 @@ int kernel_sources(device * dev,
     }
     
     strcat(temp, "__kernel void sources(int nt, __global float * src_pos,"
-                 " __global float * src, ");
+                 " __global float * src, int pdir, ");
     for (i=0;i<dev->nvars;i++){
         if (tosources[i]){
             strcat(temp, "__global float * ");
@@ -306,7 +306,7 @@ int kernel_sources(device * dev,
             strcat(temp, "    ");
             strcat(temp, vars[i].name);
             strcat(temp, posstr);
-            strcat(temp, "+=amp;\n");
+            strcat(temp, "+=pdir*amp;\n");
             
         }
     }
@@ -317,7 +317,7 @@ int kernel_sources(device * dev,
     
     __GUARD prog_source(prog, "sources", (*prog).src);
     
-//    printf("%s\n\n%lu\n",temp, strlen(temp));
+    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     free(tosources);
     
@@ -483,7 +483,7 @@ int kernel_initsavefreqs(device * dev,
     strcat(temp, "__kernel void initsavefreqs(");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
-            strcat(temp, "__global float * f");
+            strcat(temp, "__global float2 * f");
             strcat(temp, vars[i].name);
             strcat(temp, ", ");
         }
@@ -494,7 +494,7 @@ int kernel_initsavefreqs(device * dev,
     strcat(temp, "){\n\n");
     
     
-    strcat(temp,"    int gid = get_global_id(0);\n\n");
+    strcat(temp,"    int gid = get_global_id(0);\n");
     
     
     for (i=0;i<dev->nvars;i++){
@@ -516,7 +516,7 @@ int kernel_initsavefreqs(device * dev,
     
     __GUARD prog_source(prog, "initsavefreqs", (*prog).src);
     
-//    printf("%s\n\n%lu\n",temp, strlen(temp));
+    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     prog->wdim=1;
     
@@ -612,7 +612,9 @@ int kernel_savefreqs(device * dev,
             strcat(temp, "    for (freq=0;freq<NFREQS;freq++){\n");
             strcat(temp, "        f");
             strcat(temp, vars[i].name);
-            strcat(temp, "[gid+freq*gsize]+=fact[freq]*l");
+            strcat(temp, "[gid+freq*");
+            sprintf(ptemp, "%d]+=fact[freq]*l", vars[i].num_ele);
+            strcat(temp,ptemp);
             strcat(temp, vars[i].name);
             strcat(temp, ";\n");
             strcat(temp, "    }\n");

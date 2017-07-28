@@ -58,6 +58,7 @@ void variable_freeCL(device *dev, variable * var){
     clbuf_free(dev, &var->cl_varout);
     clbuf_free(dev, &var->cl_varbnd);
     clbuf_free(dev, &var->cl_fvar);
+    clbuf_free(dev, &var->cl_fvar_adj);
     clbuf_free(dev, &var->cl_buf1);
     clbuf_free(dev, &var->cl_buf2);
     clbuf_free(dev, &var->cl_var_res);
@@ -66,10 +67,7 @@ void variable_freeCL(device *dev, variable * var){
 
 void variable_freeGL(device *dev, variable * var){
 
-    GFree(var->gl_fvar);
-    if (var->gl_varout){
-        GFree(var->gl_varout[0]);
-    }
+
     GFree(var->gl_varout);
     if (var->gl_varin){
         GFree(var->gl_varin[0]);

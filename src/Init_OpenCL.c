@@ -747,6 +747,9 @@ int Init_OpenCL(model * m, device ** dev)  {
                 __GUARD clbuf_create(&m->context,&di->vars[i].cl_fvar);
                 GMALLOC(di->vars[i].cl_fvar.host,di->vars[i].cl_fvar.size);
                 di->vars[i].cl_fvar.free_host=1;
+                di->vars[i].cl_fvar_adj.size= di->vars[i].cl_fvar.size;
+                GMALLOC(di->vars[i].cl_fvar_adj.host,di->vars[i].cl_fvar.size);
+                di->vars[i].cl_fvar_adj.free_host=1;
             }
             
             // If we want the movie, allocate memory for variables
@@ -954,11 +957,11 @@ int Init_OpenCL(model * m, device ** dev)  {
                 __GUARD kernel_initsavefreqs(di, di->vars,
                                                       &di->grads.initsavefreqs);
                 __GUARD prog_create(m, di,  &di->grads.initsavefreqs);
-                di->grads.initsavefreqs.gsize[0]=parsize;
+                di->grads.initsavefreqs.gsize[0]=fdsize;
                 
                 kernel_savefreqs(di, di->vars, &di->grads.savefreqs);
                 __GUARD prog_create(m, di,  &di->grads.savefreqs);
-                di->grads.savefreqs.gsize[0]=parsize;
+                di->grads.savefreqs.gsize[0]=fdsize;
             }
             
             if (m->GRADSRCOUT){

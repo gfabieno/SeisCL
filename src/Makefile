@@ -48,7 +48,6 @@ SeisCL_MPI_SRC= \
 	comm.c\
     event_dependency.c \
 	Free_OpenCL.c \
-	Free_MPI.c \
     Init_cst.c \
 	Init_model.c \
 	Init_MPI.c \

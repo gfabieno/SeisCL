@@ -375,10 +375,8 @@ int readhdf5(struct filenames files, model * m) {
     }
     
     __GUARD checkexists(file_id,"/N");
-    dims2D[0]=1;dims2D[1]=m->NDIM;
-    if (m->NDIM>MAX_DIMS) {state=1;fprintf(stderr, "Maximum number of dimensions is %d\n",MAX_DIMS);};
-    if (!state) if ((state=checkmatNDIM(file_id, "/N",  2, dims2D)))       {state=1;fprintf(stderr, "Variable N must be 1xnumber of dimensions\n");};
-
+    __GUARD getdimmat(file_id, "/N", 2, dims2D);
+    if (m->NDIM!=dims2D[0]*dims2D[1]) {state=1;fprintf(stderr, "Number of dimensions mismatch\n");};
     __GUARD readvar(file_id, H5T_NATIVE_INT, "/N", m->N);
 
     for (i=0;i<m->NDIM;i++){

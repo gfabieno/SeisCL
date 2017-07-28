@@ -362,14 +362,24 @@ int prog_create(model * m,
                 }
             }
         }
-        if (!argfound && m->vars_adj){
+        if (!argfound){
             for (j=0;j<m->nvars;j++){
-                sprintf(str2comp,"%s_r",(*dev).vars_adj[j].name);
+                sprintf(str2comp,"%s_r",(*dev).vars[j].name);
                 if (strcmp(str2comp,(*prog).input_list[i])==0){
-                    state = clSetKernelArg((*prog).kernel,
-                                            i,
-                                            sizeof(cl_mem),
-                                            &(*dev).vars_adj[j].cl_var.mem);
+                    //TODO this is a hack for how adj kernels are written,
+                    //     think of a better way
+                    if (m->BACK_PROP_TYPE==1){
+                        state = clSetKernelArg((*prog).kernel,
+                                               i,
+                                               sizeof(cl_mem),
+                                               &(*dev).vars_adj[j].cl_var.mem);
+                    }
+                    else if (m->BACK_PROP_TYPE==2){
+                        state = clSetKernelArg((*prog).kernel,
+                                               i,
+                                               sizeof(cl_mem),
+                                               &(*dev).vars[j].cl_var.mem);
+                    }
                     argfound=1;
 
                     break;
@@ -445,6 +455,12 @@ int prog_create(model * m,
         if (!argfound){
             if (strcmp("nt"  ,(*prog).input_list[i])==0){
                 prog->tinput=i+1;
+                argfound=1;
+            }
+        }
+        if (!argfound){
+            if (strcmp("pdir"  ,(*prog).input_list[i])==0){
+                prog->pdir=i+1;
                 argfound=1;
             }
         }

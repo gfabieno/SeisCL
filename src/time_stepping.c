@@ -53,7 +53,7 @@ int reduce_seis(model * m, device ** dev, int s){
                         && posx<((*dev)[d].NX0+(*dev)[d].N[(*dev)[d].NDIM-1])){
                         
                         for (j=0;j<m->NT;j++){
-                            (*dev)[d].vars[k].gl_varout[s][i*m->NT+j]=
+                            (*dev)[d].vars[k].gl_varout[s][i*m->NT+j]+=
                             (*dev)[d].vars[k].cl_varout.host[i*m->NT+j];
                         }
                     }
@@ -315,7 +315,7 @@ int update_grid_adj(model * m, device ** dev){
 int initialize_grid(model * m, device ** dev, int s){
     /*Initialize the buffers to 0 before the first time step of each shot*/
     int state=0;
-    int d;
+    int d, i;
     
 
     // Initialization of the seismic variables
@@ -355,6 +355,16 @@ int initialize_grid(model * m, device ** dev, int s){
                                  &(*dev)[d].grads.initsavefreqs);
         }
         
+        //Assign the propagation direction to kernels
+        int pdir=1;
+        for (d=0;d<m->NUM_DEVICES;d++){
+            for (i=0;i<(*dev)[d].nprogs;i++){
+                if ((*dev)[d].progs[i]->pdir>0)
+                    __GUARD clSetKernelArg((*dev)[d].progs[i]->kernel,
+                                           (*dev)[d].progs[i]->pdir-1,
+                                           sizeof(int), &pdir);
+            }
+        }
         
     }
     
@@ -505,8 +515,10 @@ int time_stepping(model * m, device ** dev) {
                                                   * m->NT * m->src_recs.nrec[s];
                         (*dev)[d].vars[i].cl_var_res.host=
                                                 (*dev)[d].vars[i].gl_var_res[s];
-                        __GUARD clbuf_send(&(*dev)[d].queue,
-                                           &(*dev)[d].vars[i].cl_var_res);
+                        __GUARD clbuf_sendpin(&(*dev)[d].queue,
+                                              &(*dev)[d].vars[i].cl_varout,
+                                              &(*dev)[d].vars[i].cl_var_res,
+                                              0);
                     }
                 }
                 // Initialize the backpropagation of the forward variables
@@ -536,15 +548,49 @@ int time_stepping(model * m, device ** dev) {
                     __GUARD prog_launch( &(*dev)[d].queue,
                                          &(*dev)[d].bnd_cnds.init_f);
                 }
+                
+                //Assign the propagation direction to kernels
+                int pdir=-1;
+                for (d=0;d<m->NUM_DEVICES;d++){
+                    for (i=0;i<(*dev)[d].nprogs;i++){
+                        if ((*dev)[d].progs[i]->pdir>0)
+                            __GUARD clSetKernelArg((*dev)[d].progs[i]->kernel,
+                                                   (*dev)[d].progs[i]->pdir-1,
+                                                   sizeof(int), &pdir);
+                    }
+                }
 
             }
 
             // Inverse time stepping
             for (t=m->tmax-1;t>=m->tmin; t--){
 
-                // Injecct the forward variables boundaries
-                if (m->BACK_PROP_TYPE==1)
+                //Assign the time step value to kernels
+                for (d=0;d<m->NUM_DEVICES;d++){
+                    for (i=0;i<(*dev)[d].nprogs;i++){
+                        if ((*dev)[d].progs[i]->tinput>0)
+                            __GUARD clSetKernelArg((*dev)[d].progs[i]->kernel,
+                                                   (*dev)[d].progs[i]->tinput-1,
+                                                   sizeof(int), &t);
+                    }
+                }
+                
+                // Inject the forward variables boundaries
+                if (m->BACK_PROP_TYPE==1){
                     __GUARD inject_bnd( m, dev, t);
+                }
+                
+                // Inject the sources with negative sign
+                if (m->BACK_PROP_TYPE==1){
+                    __GUARD prog_launch( &(*dev)[d].queue,
+                                         &(*dev)[d].src_recs.sources);
+                }
+                
+                // Inject the residuals
+                for (d=0;d<m->NUM_DEVICES;d++){
+                    __GUARD prog_launch( &(*dev)[d].queue,
+                                         &(*dev)[d].src_recs.residuals);
+                }
                 
                 // Update the adjoint wavefield and perform back-propagation of
                 // forward wavefield
@@ -587,8 +633,10 @@ int time_stepping(model * m, device ** dev) {
                 for (d=0;d<m->NUM_DEVICES;d++){
                     for (i=0;i<(*dev)[d].nvars;i++){
                         if ((*dev)[d].vars[i].for_grad){
-                            __GUARD clbuf_read(&(*dev)[d].queue,
-                                               &(*dev)[d].vars[i].cl_fvar);
+                            __GUARD clbuf_readpin(&(*dev)[d].queue,
+                                                  &(*dev)[d].vars[i].cl_fvar,
+                                                  &(*dev)[d].vars[i].cl_fvar_adj,
+                                                  0);
                         }
                         
                     }
@@ -600,7 +648,7 @@ int time_stepping(model * m, device ** dev) {
                 }
                 for (d=0;d<m->NUM_DEVICES;d++){
                     __GUARD clFinish((*dev)[d].queue);
-                    //                    if (!state) par_calc_grad(m);
+                    __GUARD par_calc_grad(m, &(*dev)[d]);
                 }
             }
 
