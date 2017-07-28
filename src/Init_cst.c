@@ -385,7 +385,7 @@ int Init_cst(model * m) {
     float * FL=m->csts[19].gl_cst;
     if (m->L>0){
         for (int l=0;l<m->L;l++) {
-            eta[l]=(2.0*PI*FL[l])/m->dt;
+            eta[l]=(2.0*PI*FL[l])*m->dt;
         }
     }
     
