@@ -31,3 +31,6 @@ Thumbs.db
 *.mat
 out
 err
+*.pyc
+/*.egg-info
+docs/_build/
