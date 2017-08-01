@@ -34,3 +34,6 @@ err
 *.pyc
 /*.egg-info
 docs/_build/
+*.segy
+*.hcl
+*.ipynb_checkpoints
