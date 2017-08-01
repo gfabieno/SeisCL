@@ -347,7 +347,7 @@ int readhdf5(struct filenames files, model * m) {
     }
     if (!state) if (1==H5Lexists( file_id, "/scalermsnorm", H5P_DEFAULT)){
         __GUARD checkscalar(file_id, "/scalermsnorm");
-        __GUARD readvar(file_id, H5T_NATIVE_INT,   "/scalermsnorm", &m->scalermsnorm);
+        __GUARD readvar(file_id, H5T_NATIVE_INT,"/scalermsnorm",&m->scalermsnorm);
     }
     if (!state) if (1==H5Lexists( file_id, "/restype", H5P_DEFAULT)){
         __GUARD checkscalar(file_id, "/restype");
@@ -376,7 +376,9 @@ int readhdf5(struct filenames files, model * m) {
     
     __GUARD checkexists(file_id,"/N");
     __GUARD getdimmat(file_id, "/N", 2, dims2D);
-    if (m->NDIM!=dims2D[0]*dims2D[1]) {state=1;fprintf(stderr, "Number of dimensions mismatch\n");};
+    if (m->NDIM!=dims2D[0]*dims2D[1]){
+        state=1;fprintf(stderr, "Number of dimensions mismatch\n");
+    }
     __GUARD readvar(file_id, H5T_NATIVE_INT, "/N", m->N);
 
     for (i=0;i<m->NDIM;i++){
@@ -394,7 +396,10 @@ int readhdf5(struct filenames files, model * m) {
             m->n_no_use_GPUs=(int)dims2D[0]*(int)dims2D[1];
             if (m->n_no_use_GPUs>0){
                 GMALLOC(m->no_use_GPUs,sizeof(int)*m->n_no_use_GPUs);
-                __GUARD readvar(file_id, H5T_NATIVE_INT,   "/no_use_GPUs", m->no_use_GPUs);
+                __GUARD readvar(file_id,
+                                H5T_NATIVE_INT,
+                                "/no_use_GPUs",
+                                m->no_use_GPUs);
             }
         }
         else
@@ -403,8 +408,15 @@ int readhdf5(struct filenames files, model * m) {
     
     __GUARD checkexists(file_id,"/back_prop_type");
     __GUARD checkscalar(file_id, "/back_prop_type");
-    __GUARD readvar(file_id, H5T_NATIVE_INT, "/back_prop_type", &m->BACK_PROP_TYPE);
-    if (!(m->BACK_PROP_TYPE ==1 | m->BACK_PROP_TYPE ==2)) {state=1;fprintf(stderr, "bac_prop_type must be 1 or 2\n");}
+    __GUARD readvar(file_id,
+                    H5T_NATIVE_INT,
+                    "/back_prop_type",
+                    &m->BACK_PROP_TYPE);
+    if (!(m->BACK_PROP_TYPE ==1
+        || m->BACK_PROP_TYPE ==2)) {
+        state=1;
+        fprintf(stderr, "bac_prop_type must be 1 or 2\n");
+    }
     
     if (m->BACK_PROP_TYPE==2 && m->GRADOUT==1){
         __GUARD checkexists(file_id,"/gradfreqs");
@@ -443,12 +455,13 @@ int readhdf5(struct filenames files, model * m) {
         __GUARD readvar(file_id, H5T_NATIVE_FLOAT, "/VPPML", &m->VPPML);
         __GUARD readvar(file_id, H5T_NATIVE_FLOAT, "/FPML", &m->FPML);
         __GUARD readvar(file_id, H5T_NATIVE_FLOAT, "/NPOWER", &m->NPOWER);
-        __GUARD readvar(file_id, H5T_NATIVE_FLOAT, "/K_MAX_CPML", &m->K_MAX_CPML);
+        __GUARD readvar(file_id, H5T_NATIVE_FLOAT, "/K_MAX_CPML",&m->K_MAX_CPML);
     }
     else if (m->ABS_TYPE==0){
     }
     else if (!state){
-        state=1;fprintf(stderr, "Variable ABS_TYPE allowed values are 0, 1 and 2\n");
+        state=1;
+        fprintf(stderr, "Variable ABS_TYPE allowed values are 0, 1 and 2\n");
     }
     
     
@@ -471,14 +484,29 @@ int readhdf5(struct filenames files, model * m) {
     
     /* Check that the variables are in the required format */
     __GUARD getdimmat(file_id, "/src_pos", 2, dims2D);
-    if (!state) if(dims2D[1]!=5) {state=1;fprintf(stderr, "src_pos dimension 1 must be 5\n");};
+    if (!state){
+        if(dims2D[1]!=5) {
+            state=1;
+            fprintf(stderr, "src_pos dimension 1 must be 5\n");
+        }
+    }
     m->src_recs.allns=(int)dims2D[0];
     dims2D[1]=m->NT;
-    if (!state) if ((state=checkmatNDIM(file_id, "/src",  2, dims2D)))  {state=1;fprintf(stderr, "Variable src must be nt x number of sources\n");};
+    if (!state){
+        if (checkmatNDIM(file_id, "/src",  2, dims2D)){
+            state=1;
+            fprintf(stderr, "Variable src must be nt x number of sources\n");
+        }
+    }
     
     
     __GUARD getdimmat(file_id, "/rec_pos", 2, dims2D);
-    if (!state) if(dims2D[1]!=8) {state=1;fprintf(stderr, "rec_pos dimension 1 must be 8\n");};
+    if (!state){
+        if(dims2D[1]!=8) {
+            state=1;
+            fprintf(stderr, "rec_pos dimension 1 must be 8\n");
+        }
+    }
     m->src_recs.allng=(int)dims2D[0];
     
     /* Assign the memory */
@@ -518,12 +546,18 @@ int readhdf5(struct filenames files, model * m) {
             }
             else if (thisid>rec_pos0[3+i*8]){
                 state=1;
-                printf("Sources ids in rec_pos must be sorted in ascending order\n");
+                printf("Src ids in rec_pos must be sorted in ascending order\n");
                 break;
             }
             
         }
-        if (!state) if (nsg!=m->src_recs.ns) {state=1;fprintf(stderr, "Number of sources ids in src_pos and rec_pos are not the same\n");};
+        if (!state){
+            if (nsg!=m->src_recs.ns){
+                state=1;
+                fprintf(stderr, "Number of sources ids in src_pos and rec_pos "
+                                "are not the same\n");
+            }
+        }
     }
     
     /* Assign the 2D arrays in which shot and receivers variables are stored */
@@ -598,13 +632,13 @@ int readhdf5(struct filenames files, model * m) {
         if (m->csts[i].to_read  && m->csts[i].active==1){
             __GUARD checkexists(file_id,m->csts[i].to_read);
             GMALLOC(m->csts[i].gl_cst,sizeof(float)*m->csts[i].num_ele);
-            __GUARD readvar(file_id, H5T_NATIVE_FLOAT, m->csts[i].to_read, m->csts[i].gl_cst);
+            __GUARD readvar(file_id,
+                            H5T_NATIVE_FLOAT,
+                            m->csts[i].to_read,
+                            m->csts[i].gl_cst);
         }
     }
 
-
-    
-    
     if (file_id>=0) H5Fclose(file_id);
     file_id=0;
     
@@ -618,15 +652,26 @@ int readhdf5(struct filenames files, model * m) {
 
     /* Open the model file. */
     if (!state) file_id = H5Fopen(files.model, H5F_ACC_RDWR, H5P_DEFAULT);
-    if (!state) if (file_id<0) {state=1;fprintf(stderr, "Could not open the input file model");};
+    if (!state) if (file_id<0) {
+        state=1;fprintf(stderr, "Could not open the input file model");
+    }
     
     /* Read parameters. */
     for (i=0;i<m->npars;i++){
         if (m->pars[i].to_read){
             __GUARD checkexists(file_id,m->pars[i].to_read);
             GMALLOC(m->pars[i].gl_par,sizeof(float)*m->pars[i].num_ele);
-            if (!state) if ((state=checkmatNDIM(file_id, m->pars[i].to_read, m->NDIM, dimsND)))  {state=1;fprintf(stderr, "Variable %s must have dimensions given by N\n",m->pars[i].to_read);};
-            __GUARD readvar(file_id, H5T_NATIVE_FLOAT, m->pars[i].to_read, m->pars[i].gl_par);
+            if (!state){
+                if (checkmatNDIM(file_id, m->pars[i].to_read, m->NDIM, dimsND)){
+                    state=1;
+                    fprintf(stderr, "Variable %s must have dimensions in N\n",
+                            m->pars[i].to_read);
+                }
+            }
+            __GUARD readvar(file_id,
+                            H5T_NATIVE_FLOAT,
+                            m->pars[i].to_read,
+                            m->pars[i].gl_par);
         }
     }
     
@@ -641,34 +686,60 @@ int readhdf5(struct filenames files, model * m) {
     /* Open the data file. */
     if (m->RMSOUT==1 || m->RESOUT || m->GRADOUT==1){
         file_id = H5Fopen(files.din, H5F_ACC_RDWR, H5P_DEFAULT);
-        if (!state) if (file_id<0 && m->GRADOUT) {state=1;fprintf(stderr, "Could not open the input file for data_in\n");};
+        if (!state) if (file_id<0 && m->GRADOUT) {
+            state=1;
+            fprintf(stderr, "Could not open the input file for data_in\n");
+        }
         
         int anyout=0;
         if (file_id>=0){
-            
-            
+
             dims2D[0]=m->src_recs.allng;dims2D[1]=m->NT;
             for (i=0;i<m->nvars;i++){
                 if (1==H5Lexists( file_id, m->vars[i].name, H5P_DEFAULT)){
                     m->vars[i].to_output=1;
-                    if (!state) if ((state=checkmatNDIM_atleast(file_id, m->vars[i].name,  2, dims2D)))   {state=1;fprintf(stderr, "Variable %s must be nt x number of recording stations\n",m->vars[i].name );};
+                    if (!state){
+                        if (checkmatNDIM_atleast(file_id, m->vars[i].name, 2, dims2D)){
+                            state=1;
+                            fprintf(stderr, "Variable %s must be nt x number of"
+                                       "recording stations\n",m->vars[i].name );
+                        }
+                    }
                     var_alloc_out(&m->vars[i].gl_varin, m);
-                    if (m->RESOUT){
+                    if (m->RESOUT || m->GRADOUT){
                         var_alloc_out(&m->vars[i].gl_var_res, m);
                     }
-                    __GUARD read_seis(file_id, H5T_NATIVE_FLOAT, m->vars[i].name, m->vars[i].gl_varin[0], m->src_recs.rec_pos[0], m->src_recs.allng, m->NT);
+                    __GUARD read_seis(file_id,
+                                      H5T_NATIVE_FLOAT,
+                                      m->vars[i].name,
+                                      m->vars[i].gl_varin[0],
+                                      m->src_recs.rec_pos[0],
+                                      m->src_recs.allng,
+                                      m->NT);
                     anyout=1;
                 }
             }
             for (i=0;i<m->ntvars;i++){
                 if (1==H5Lexists( file_id, m->trans_vars[i].name, H5P_DEFAULT)){
                     m->trans_vars[i].to_output=1;
-                    if (!state) if ((state=checkmatNDIM_atleast(file_id, m->trans_vars[i].name,  2, dims2D)))   {state=1;fprintf(stderr, "Variable %s must be nt x number of recording stations\n",m->trans_vars[i].name );};
+                    if (!state){
+                        if (checkmatNDIM_atleast(file_id, m->trans_vars[i].name,2, dims2D)) {
+                            state=1;
+                            fprintf(stderr, "Variable %s must be nt x number of"
+                                    "recording stations\n",m->trans_vars[i].name);
+                        }
+                    }
                     var_alloc_out(&m->trans_vars[i].gl_varin, m);
                     if (m->RESOUT){
                         var_alloc_out(&m->trans_vars[i].gl_var_res, m);
                     }
-                    __GUARD read_seis(file_id, H5T_NATIVE_FLOAT, m->trans_vars[i].name, m->trans_vars[i].gl_varin[0], m->src_recs.rec_pos[0], m->src_recs.allng, m->NT);
+                    __GUARD read_seis(file_id,
+                                      H5T_NATIVE_FLOAT,
+                                      m->trans_vars[i].name,
+                                      m->trans_vars[i].gl_varin[0],
+                                      m->src_recs.rec_pos[0],
+                                      m->src_recs.allng,
+                                      m->NT);
                     anyout=1;
                 }
             }
@@ -679,12 +750,17 @@ int readhdf5(struct filenames files, model * m) {
 
         if (!anyout){
             state=1;
-            fprintf(stderr, "Cannot output gradient, rms or residuals without reference data\n");
+            fprintf(stderr, "Cannot output gradient, rms or residuals without "
+                            "reference data\n");
         }
         
     }
     
-    if (state && m->MPI_INIT==1) MPI_Bcast( &state, 1, MPI_INT, m->MYID, MPI_COMM_WORLD );
+    if (state && m->MPI_INIT==1) MPI_Bcast( &state,
+                                           1,
+                                           MPI_INT,
+                                           m->MYID,
+                                           MPI_COMM_WORLD );
     
     return state;
     
