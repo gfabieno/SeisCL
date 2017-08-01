@@ -37,3 +37,5 @@ docs/_build/
 *.segy
 *.hcl
 *.ipynb_checkpoints
+SeisCL_MPI
+cl2cstring
