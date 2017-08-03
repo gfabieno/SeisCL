@@ -307,17 +307,17 @@ int Init_MPI(struct modcsts * m) {
             MPI_Bcast( m->vz0[0], m->allng*m->NT, MPI_FLOAT, 0, MPI_COMM_WORLD );
         }
     }
-    if ( (m->rmsout==1 || m->resout) && m->bcastp){
-        
-        // Allocate memory for the resiudals seismograms
-        alloc_seismo(&m->rp, m->ns, m->allng, m->NT, m->nrec);
-        if (m->MYID!=0){
-            alloc_seismo(&m->p0, m->ns, m->allng, m->NT, m->nrec);
-        }
-        if (!state){
-            MPI_Bcast( m->p0[0], m->allng*m->NT, MPI_FLOAT, 0, MPI_COMM_WORLD );
-        }
-    }
+//    if ( (m->rmsout==1 || m->resout) && m->bcastp){
+//        
+//        // Allocate memory for the resiudals seismograms
+//        alloc_seismo(&m->rp, m->ns, m->allng, m->NT, m->nrec);
+//        if (m->MYID!=0){
+//            alloc_seismo(&m->p0, m->ns, m->allng, m->NT, m->nrec);
+//        }
+//        if (!state){
+//            MPI_Bcast( m->p0[0], m->allng*m->NT, MPI_FLOAT, 0, MPI_COMM_WORLD );
+//        }
+//    }
     
 
     if (m->gradout==1 ){

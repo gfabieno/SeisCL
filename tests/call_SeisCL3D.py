@@ -151,22 +151,22 @@ din['vz0']=dout['vzout']
 h5mat.savemat(filenames['din'], din , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
 
 
-#________________Calculate gradient______________
-model['vp'][20:40,10:20,5:10]= 3500
-model['taup'][20:40,10:20,5:10]= 0.02
-csts['gradout']=1
-csts['resout']=1
-csts['gradfreqs']=np.append(csts['gradfreqs'], csts['f0'])
-h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
-h5mat.savemat(filenames['model'], model , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
-              
-filepath=os.getcwd()
-cmdlaunch='cd ../src/; mpirun -np 1 ./SeisCL_MPI '+filepath+'/SeisCL > ../tests/out 2>../tests/err'
-print(cmdlaunch)
-pipes = subprocess.Popen(cmdlaunch,stdout=subprocess.PIPE, stderr=subprocess.PIPE,shell=True)
-while (pipes.poll() is None):
-    time.sleep(1)
-sys.stdout.write('Gradient calculation completed \n')
-sys.stdout.flush()
+##________________Calculate gradient______________
+#model['vp'][20:40,10:20,5:10]= 3500
+#model['taup'][20:40,10:20,5:10]= 0.02
+#csts['gradout']=1
+#csts['resout']=1
+#csts['gradfreqs']=np.append(csts['gradfreqs'], csts['f0'])
+#h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
+#h5mat.savemat(filenames['model'], model , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
+#              
+#filepath=os.getcwd()
+#cmdlaunch='cd ../src/; mpirun -np 1 ./SeisCL_MPI '+filepath+'/SeisCL > ../tests/out 2>../tests/err'
+#print(cmdlaunch)
+#pipes = subprocess.Popen(cmdlaunch,stdout=subprocess.PIPE, stderr=subprocess.PIPE,shell=True)
+#while (pipes.poll() is None):
+#    time.sleep(1)
+#sys.stdout.write('Gradient calculation completed \n')
+#sys.stdout.flush()
 
 

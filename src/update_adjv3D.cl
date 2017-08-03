@@ -17,7 +17,7 @@
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  --------------------------------------------------------------------------*/
 
-/*Adjoint update of the velocities in 3D SV*//
+/*Adjoint update of the velocities in 3D SV*/
 
 /*Define useful macros to be able to write a matrix formulation in 2D with OpenCl */
 #define lbnd (fdoh+nab)
