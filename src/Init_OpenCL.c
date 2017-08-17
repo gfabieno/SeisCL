@@ -193,7 +193,7 @@ cl_int connect_devices(device ** dev, model * m)
         fprintf(stdout,"Found %d CPU, ", nalldevices);
     fprintf(stdout,"connecting to  %d devices:\n", num_allow_devs);
     
-    
+    __GUARD clGetPlatformIDs (1, &clplateform, NULL);
     __GUARD clGetDeviceIDs(clplateform,
                            m->device_type,
                            nalldevices,
