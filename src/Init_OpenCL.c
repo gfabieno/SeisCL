@@ -42,7 +42,7 @@ int get_platform( model * m, cl_platform_id*  clplateform)
     }
     
     // Get OpenCL platform count
-    __GUARD clGetPlatformIDs (0, NULL, &num_platforms);
+    CLGUARD(clGetPlatformIDs (0, NULL, &num_platforms))
     if(num_platforms == 0){
         fprintf(stderr,"No OpenCL platform found!\n\n");
         return 1;
@@ -55,7 +55,7 @@ int get_platform( model * m, cl_platform_id*  clplateform)
     
     // Get platform info for each platform and the platform containing the
     // prefered device type if found
-    __GUARD clGetPlatformIDs (num_platforms, clPlatformIDs, NULL);
+    CLGUARD(clGetPlatformIDs (num_platforms, clPlatformIDs, NULL))
 
     // Try to find a platform with the prefered device type first
     for(i = 0; i < num_platforms; ++i){
@@ -136,11 +136,11 @@ int get_platform( model * m, cl_platform_id*  clplateform)
         state=1;
     }
     else{
-        __GUARD clGetPlatformInfo (*clplateform,
+        CLGUARD(clGetPlatformInfo (*clplateform,
                                    CL_PLATFORM_NAME,
                                    1024,
                                    &chBuffer,
-                                   NULL);
+                                   NULL))
         fprintf(stdout,"Connection to platform %d: %s\n", i, chBuffer);
         
     }
@@ -175,12 +175,12 @@ cl_int connect_devices(device ** dev, model * m)
         m->nmax_dev=1;
     }
     
-    __GUARD get_platform( m, &clplateform);
+    CLGUARD(get_platform( m, &clplateform))
     GMALLOC(*dev, sizeof(device)*m->NUM_DEVICES);
     
     
     // Find the number of prefered devices
-    __GUARD clGetDeviceIDs(clplateform,m->device_type,0, NULL, &nalldevices);
+    CLGUARD(clGetDeviceIDs(clplateform,m->device_type,0, NULL, &nalldevices))
 
     GMALLOC(devices,sizeof(cl_device_id)*nalldevices);
     if (m->device_type==CL_DEVICE_TYPE_GPU)
