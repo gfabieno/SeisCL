@@ -140,7 +140,6 @@ typedef struct clprogram {
     int pdir;
     size_t lsize[MAX_DIMS];
     size_t gsize[MAX_DIMS];
-    int local;
     int wdim;
     
     int OFFCOMM;

@@ -285,12 +285,12 @@ int prog_create(model * m,
     }
     
     /*Define the size of the local variables of the compute device*/
-    if (   (*prog).local==1 ){
+    if (   dev->LOCAL_OFF==0 ){
         for (i=0;i<m->NDIM;i++){
             shared_size*=(*prog).lsize[i]+m->FDORDER;
         }
     }
-    
+
     /*Define the arguments for this kernel */
     
     for (i=0;i<(*prog).ninputs;i++){
