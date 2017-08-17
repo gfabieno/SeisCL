@@ -400,7 +400,7 @@ int Init_OpenCL(model * m, device ** dev)  {
                 if (workitem_size[i]<2)
                     dimbool=1;
             }
-            if (workitem_size[0]<m->FDORDER || dimbool){
+            if (1 || workitem_size[0]<m->FDORDER || dimbool){
                 fprintf(stdout,"Maximum device work item size of device "
                                "%d doesn't support 3D local memory\n"
                                "Switching off local memory optimization\n", d);
