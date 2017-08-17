@@ -148,6 +148,7 @@ int get_platform( model * m, cl_platform_id*  clplateform)
     //Verify that we do not use more than the allowed number of devices
     m->NUM_DEVICES=m->NUM_DEVICES>m->nmax_dev ? m->nmax_dev : m->NUM_DEVICES;
     
+    
     GFree(clPlatformIDs);
     if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
     
@@ -198,6 +199,12 @@ cl_int connect_devices(device ** dev, model * m)
                            nalldevices,
                            devices,
                            NULL);
+    if (!state) m->context = clCreateContext(NULL,
+                                             m->NUM_DEVICES,
+                                             nalldevices,
+                                             NULL,
+                                             NULL,
+                                             &state);
     fprintf(stdout,"state:%d, line 201\n", state);
     GMALLOC(allow_devs,sizeof(int)*m->NUM_DEVICES);
     
