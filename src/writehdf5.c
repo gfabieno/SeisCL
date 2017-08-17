@@ -217,7 +217,7 @@ int writehdf5(struct filenames file, model * m) {
         for (i=0;i<m->ntvars;i++){
             if (m->trans_vars[i].to_output){
                 sprintf(name, "%sout",m->trans_vars[i].name);
-                fprintf(stdout,"name: %sout, d1=%llu d2=%llu\n",name, dims[0], dims[1]);
+                fprintf(stdout,"name: %sout, d1=%llu d2=%llu, ptr: %p\n",name, dims[0], dims[1],m->trans_vars[i].gl_varout[0]);
                 writetomat(&file_id,name,m->trans_vars[i].gl_varout[0],2,dims);
             }
         }
