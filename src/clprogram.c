@@ -108,6 +108,7 @@ int set_args_list(const char *str, char *name, char *** argnames, int * ninputs)
     char **arr = NULL;
     char * args = NULL;
     char del2[2] = ")";
+    int i;
     
     
     char del1[100];
@@ -142,7 +143,7 @@ int set_args_list(const char *str, char *name, char *** argnames, int * ninputs)
     GMALLOC((*argnames), c*sizeof(char *) );
     
     
-    for (int i = 0; i < c; i++){
+    for ( i = 0; i < c; i++){
         (*argnames)[i]=extract_name(arr[i]);
         free(arr[i]);
     }
