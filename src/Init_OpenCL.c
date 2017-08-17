@@ -148,7 +148,6 @@ int get_platform( model * m, cl_platform_id*  clplateform)
     //Verify that we do not use more than the allowed number of devices
     m->NUM_DEVICES=m->NUM_DEVICES>m->nmax_dev ? m->nmax_dev : m->NUM_DEVICES;
     
-    
     GFree(clPlatformIDs);
     if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
     
@@ -193,19 +192,13 @@ cl_int connect_devices(device ** dev, model * m)
         fprintf(stdout,"Found %d CPU, ", nalldevices);
     fprintf(stdout,"connecting to  %d devices:\n", num_allow_devs);
     
-    __GUARD clGetPlatformIDs (1, &clplateform, NULL);
+    
     __GUARD clGetDeviceIDs(clplateform,
                            m->device_type,
                            nalldevices,
                            devices,
                            NULL);
-    if (!state) m->context = clCreateContext(NULL,
-                                             nalldevices,
-                                             devices,
-                                             NULL,
-                                             NULL,
-                                             &state);
-    fprintf(stdout,"state:%d, line 201\n", state);
+
     GMALLOC(allow_devs,sizeof(int)*m->NUM_DEVICES);
     
     //Collect all allowed devices
@@ -243,9 +236,7 @@ cl_int connect_devices(device ** dev, model * m)
                     allow_devs[i], vendor_name, device_name);
         }
     }
-    fprintf(stdout,"state:%d, line 239\n", state);
-    fprintf(stdout,"ndivice:%d\n", m->NUM_DEVICES);
-    fprintf(stdout,"ndivice:%d\n", nalldevices);
+
     // Create a context with the specified devices
     if (!state) m->context = clCreateContext(NULL,
                                              m->NUM_DEVICES,
@@ -253,7 +244,7 @@ cl_int connect_devices(device ** dev, model * m)
                                              NULL,
                                              NULL,
                                              &state);
-    fprintf(stdout,"state:%d, line 247\n", state);
+
     // Create command queues for each devices
     for (i=0;i<m->NUM_DEVICES;i++){
         if (!state)
@@ -267,7 +258,7 @@ cl_int connect_devices(device ** dev, model * m)
                                                        0 ,
                                                        &state);
     }
-    fprintf(stdout,"state:%d, line 261\n", state);
+
     if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
     GFree(devices);
     GFree(allow_devs);
