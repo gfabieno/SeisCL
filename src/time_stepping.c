@@ -440,72 +440,72 @@ int time_stepping(model * m, device ** dev) {
         // Loop for forward time stepping
         for (t=0;t<m->tmax; t++){
             
-            //Assign the time step value to kernels
-            for (d=0;d<m->NUM_DEVICES;d++){
-                for (i=0;i<(*dev)[d].nprogs;i++){
-                    if ((*dev)[d].progs[i]->tinput>0)
-                        __GUARD clSetKernelArg((*dev)[d].progs[i]->kernel,
-                                               (*dev)[d].progs[i]->tinput-1,
-                                               sizeof(int), &t);
-                }
-            }
-            
-            //Save the selected frequency if the gradient is obtained by DFT
-            if (m->GRADOUT==1
-                && m->BACK_PROP_TYPE==2
-                && t>=m->tmin
-                && (t-m->tmin)%m->DTNYQ==0){
-                
-                for (d=0;d<m->NUM_DEVICES;d++){
-                    thist=(t-m->tmin)/m->DTNYQ;
-                    __GUARD clSetKernelArg((*dev)[d].grads.savefreqs.kernel,
-                                           (*dev)[d].grads.savefreqs.tinput-1,
-                                           sizeof(int), &thist);
-                    __GUARD prog_launch( &(*dev)[d].queue,
-                                         &(*dev)[d].grads.savefreqs);
-                }
-                
-            }
-            
+//            //Assign the time step value to kernels
+//            for (d=0;d<m->NUM_DEVICES;d++){
+//                for (i=0;i<(*dev)[d].nprogs;i++){
+//                    if ((*dev)[d].progs[i]->tinput>0)
+//                        __GUARD clSetKernelArg((*dev)[d].progs[i]->kernel,
+//                                               (*dev)[d].progs[i]->tinput-1,
+//                                               sizeof(int), &t);
+//                }
+//            }
+//            
+//            //Save the selected frequency if the gradient is obtained by DFT
+//            if (m->GRADOUT==1
+//                && m->BACK_PROP_TYPE==2
+//                && t>=m->tmin
+//                && (t-m->tmin)%m->DTNYQ==0){
+//                
+//                for (d=0;d<m->NUM_DEVICES;d++){
+//                    thist=(t-m->tmin)/m->DTNYQ;
+//                    __GUARD clSetKernelArg((*dev)[d].grads.savefreqs.kernel,
+//                                           (*dev)[d].grads.savefreqs.tinput-1,
+//                                           sizeof(int), &thist);
+//                    __GUARD prog_launch( &(*dev)[d].queue,
+//                                         &(*dev)[d].grads.savefreqs);
+//                }
+//                
+//            }
+//            
             // Apply all updates
 //            update_grid(m, dev);
             
-            // Inject the sources
-            for (d=0;d<m->NUM_DEVICES;d++){
-                __GUARD prog_launch( &(*dev)[d].queue,
-                                     &(*dev)[d].src_recs.sources);
-            }
-            
-            // Computing the free surface
-            if (m->FREESURF==1){
-                for (d=0;d<m->NUM_DEVICES;d++){
-                    __GUARD prog_launch( &(*dev)[d].queue,
-                                        &(*dev)[d].bnd_cnds.surf);
-                }
-            }
-            
-            // Save the boundaries
-            if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1)
-                __GUARD save_bnd( m, dev, t);
-            
-            
-            // Outputting seismograms
-            for (d=0;d<m->NUM_DEVICES;d++){
-                __GUARD prog_launch( &(*dev)[d].queue,
-                                     &(*dev)[d].src_recs.varsout);
-            }
-
-            // Outputting the movie
-            if (m->MOVOUT>0 && (t+1)%m->MOVOUT==0 && state==0)
-                movout( m, dev, t, s);
-            
-
-            // Flush all the previous commands to the computing device
-            for (d=0;d<m->NUM_DEVICES;d++){
-                if (d>0 || d<m->NUM_DEVICES-1)
-                    __GUARD clFlush((*dev)[d].queuecomm);
-                __GUARD clFlush((*dev)[d].queue);
-            }
+//            // Inject the sources
+//            for (d=0;d<m->NUM_DEVICES;d++){
+//                __GUARD prog_launch( &(*dev)[d].queue,
+//                                     &(*dev)[d].src_recs.sources);
+//            }
+//            
+//            // Computing the free surface
+//            if (m->FREESURF==1){
+//                for (d=0;d<m->NUM_DEVICES;d++){
+//                    __GUARD prog_launch( &(*dev)[d].queue,
+//                                        &(*dev)[d].bnd_cnds.surf);
+//                }
+//            }
+//            
+//            // Save the boundaries
+//            if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1)
+//                __GUARD save_bnd( m, dev, t);
+//            
+//            
+//            // Outputting seismograms
+//            for (d=0;d<m->NUM_DEVICES;d++){
+//                __GUARD prog_launch( &(*dev)[d].queue,
+//                                     &(*dev)[d].src_recs.varsout);
+//            }
+//
+//            // Outputting the movie
+//            if (m->MOVOUT>0 && (t+1)%m->MOVOUT==0 && state==0)
+//                movout( m, dev, t, s);
+//            
+//
+//            // Flush all the previous commands to the computing device
+//            for (d=0;d<m->NUM_DEVICES;d++){
+//                if (d>0 || d<m->NUM_DEVICES-1)
+//                    __GUARD clFlush((*dev)[d].queuecomm);
+//                __GUARD clFlush((*dev)[d].queue);
+//            }
             
         }
         

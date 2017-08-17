@@ -181,9 +181,7 @@ cl_int connect_devices(device ** dev, model * m)
     
     // Find the number of prefered devices
     __GUARD clGetDeviceIDs(clplateform,m->device_type,0, NULL, &nalldevices);
-    fprintf(stdout,"state:%d, line 184\n", state);
     GMALLOC(devices,sizeof(cl_device_id)*nalldevices);
-    fprintf(stdout,"state:%d, line 186\n", state);
     if (m->device_type==CL_DEVICE_TYPE_GPU)
         fprintf(stdout,"Found %d GPU, ", nalldevices);
     else if (m->device_type==CL_DEVICE_TYPE_ACCELERATOR)
