@@ -249,8 +249,8 @@ int update_grid(model * m, device ** dev){
             }
             
             //Launch kernel on the interior elements
-            __GUARD prog_launch( &(*dev)[d].queue,
-                                  &(*dev)[d].ups_f[i].center);
+//            __GUARD prog_launch( &(*dev)[d].queue,
+//                                  &(*dev)[d].ups_f[i].center);
 
         }
         
@@ -468,7 +468,7 @@ int time_stepping(model * m, device ** dev) {
             }
             
             // Apply all updates
-//            update_grid(m, dev);
+            update_grid(m, dev);
             
             // Inject the sources
             for (d=0;d<m->NUM_DEVICES;d++){
