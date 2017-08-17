@@ -52,7 +52,7 @@ void writetomat(hid_t* file_id,
         
         dataset_id = H5Dcreate2(*file_id,
                                 var,
-                                H5T_IEEE_F64LE,
+                                H5T_IEEE_F32LE,
                                 dataspace_id,
                                 H5P_DEFAULT,
                                 plist_id,
@@ -72,7 +72,7 @@ void writetomat(hid_t* file_id,
                                    dataspace_id,
                                    H5P_DEFAULT,
                                    H5P_DEFAULT);
-        H5Awrite(attribute_id, vls_type_c_id, "double");
+        H5Awrite(attribute_id, vls_type_c_id, "single");
         H5Aclose(attribute_id);
         H5Sclose(dataspace_id);
         H5Pclose (plist_id);
