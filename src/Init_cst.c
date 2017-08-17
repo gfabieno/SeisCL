@@ -336,7 +336,7 @@ int holbergcoeff(model *inm) {
 int Init_cst(model * m) {
     
     int state=0;
-    int i,j;
+    int i,j, l;
     float * K_i;
     float * a_i;
     float * b_i;
@@ -384,7 +384,7 @@ int Init_cst(model * m) {
     float * eta=m->csts[20].gl_cst;
     float * FL=m->csts[19].gl_cst;
     if (m->L>0){
-        for (int l=0;l<m->L;l++) {
+        for (l=0;l<m->L;l++) {
             eta[l]=(2.0*PI*FL[l])*m->dt;
         }
     }
