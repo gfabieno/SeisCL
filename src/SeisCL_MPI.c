@@ -97,7 +97,7 @@ int main(int argc, char **argv) {
     time5=MPI_Wtime();
     
     //Reduce to process 0 all required outputs
-//    __GUARD Out_MPI(&m);
+    __GUARD Out_MPI(&m);
     
     // Write the ouputs to hdf5 files
     if (m.MYID==0){
