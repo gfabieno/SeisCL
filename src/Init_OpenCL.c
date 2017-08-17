@@ -237,6 +237,8 @@ cl_int connect_devices(device ** dev, model * m)
         }
     }
     fprintf(stdout,"state:%d, line 239\n", state);
+    fprintf(stdout,"ndivice:%d\n", m->NUM_DEVICES);
+    fprintf(stdout,"ndivice:%d\n", nalldevices);
     // Create a context with the specified devices
     if (!state) m->context = clCreateContext(NULL,
                                              m->NUM_DEVICES,
