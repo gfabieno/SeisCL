@@ -37,7 +37,7 @@ void writetomat(hid_t* file_id,
     }
     
     hid_t vls_type_c_id = H5Tcopy(H5T_C_S1);
-    H5Tset_size(vls_type_c_id, 8);
+    H5Tset_size(vls_type_c_id, 4);
     
     
     if (1!=H5Lexists( *file_id, var, H5P_DEFAULT)){
