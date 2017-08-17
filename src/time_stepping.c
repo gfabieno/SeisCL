@@ -468,7 +468,7 @@ int time_stepping(model * m, device ** dev) {
             }
             
             // Apply all updates
-            update_grid(m, dev);
+//            update_grid(m, dev);
             
             // Inject the sources
             for (d=0;d<m->NUM_DEVICES;d++){
