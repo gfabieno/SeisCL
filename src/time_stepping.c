@@ -249,8 +249,8 @@ int update_grid(model * m, device ** dev){
             }
             
             //Launch kernel on the interior elements
-//            __GUARD prog_launch( &(*dev)[d].queue,
-//                                  &(*dev)[d].ups_f[i].center);
+            __GUARD prog_launch( &(*dev)[d].queue,
+                                  &(*dev)[d].ups_f[i].center);
 
         }
         
