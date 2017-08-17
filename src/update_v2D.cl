@@ -135,18 +135,18 @@ __kernel void update_v(int offcomm,
     {
 #if LOCAL_OFF==0
         lsxx(lidz,lidx)=sxx(gidz, gidx);
-        if (lidx<2*FDOH)
-            lsxx(lidz,lidx-FDOH)=sxx(gidz,gidx-FDOH);
-        if (lidx+lsizex-3*FDOH<FDOH)
-            lsxx(lidz,lidx+lsizex-3*FDOH)=sxx(gidz,gidx+lsizex-3*FDOH);
-        if (lidx>(lsizex-2*FDOH-1))
-            lsxx(lidz,lidx+FDOH)=sxx(gidz,gidx+FDOH);
-        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
-            lsxx(lidz,lidx-lsizex+3*FDOH)=sxx(gidz,gidx-lsizex+3*FDOH);
+//        if (lidx<2*FDOH)
+//            lsxx(lidz,lidx-FDOH)=sxx(gidz,gidx-FDOH);
+//        if (lidx+lsizex-3*FDOH<FDOH)
+//            lsxx(lidz,lidx+lsizex-3*FDOH)=sxx(gidz,gidx+lsizex-3*FDOH);
+//        if (lidx>(lsizex-2*FDOH-1))
+//            lsxx(lidz,lidx+FDOH)=sxx(gidz,gidx+FDOH);
+//        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
+//            lsxx(lidz,lidx-lsizex+3*FDOH)=sxx(gidz,gidx-lsizex+3*FDOH);
         
         barrier(CLK_LOCAL_MEM_FENCE);
 #endif
-//        
+//
 //#if   FDOH ==1
 //        sxx_x = DTDH*HC1*(lsxx(lidz,lidx+1) - lsxx(lidz,lidx));
 //#elif FDOH ==2
