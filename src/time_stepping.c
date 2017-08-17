@@ -425,17 +425,17 @@ int time_stepping(model * m, device ** dev) {
     }
     
     // Initialize the gradient buffers before time stepping
-    if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1){
-        for (d=0;d<m->NUM_DEVICES;d++){
-            __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].grads.init);
-        }
-    }
+//    if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1){
+//        for (d=0;d<m->NUM_DEVICES;d++){
+//            __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].grads.init);
+//        }
+//    }
     
     // Main loop over shots of this group
     for (s= m->src_recs.smin;s< m->src_recs.smax;s++){
-
-        // Initialization of the seismic variables
-        __GUARD initialize_grid(m, dev, s);
+//
+//        // Initialization of the seismic variables
+//        __GUARD initialize_grid(m, dev, s);
         
         // Loop for forward time stepping
         for (t=0;t<m->tmax; t++){
