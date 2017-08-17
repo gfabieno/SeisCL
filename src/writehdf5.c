@@ -33,7 +33,7 @@ void writetomat(hid_t* file_id,
     int ii;
     
     for (ii=0;ii<NDIMs;ii++){
-        cdims[ii]=10;
+        cdims[ii]=8;
     }
     
     hid_t vls_type_c_id = H5Tcopy(H5T_C_S1);
@@ -49,7 +49,7 @@ void writetomat(hid_t* file_id,
         }
         cdims[0]=dims[0];
         H5Pset_chunk (plist_id, NDIMs, cdims);
-//        H5Pset_deflate (plist_id, 6);
+        H5Pset_deflate (plist_id, 6);
         
         dataset_id = H5Dcreate2(*file_id,
                                 var,
