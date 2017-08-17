@@ -131,21 +131,21 @@ __kernel void update_v(int offcomm,
     
 #endif
 
-//// Calculation of the stresses spatial derivatives
-//    {
-//#if LOCAL_OFF==0
-//        lsxx(lidz,lidx)=sxx(gidz, gidx);
-//        if (lidx<2*FDOH)
-//            lsxx(lidz,lidx-FDOH)=sxx(gidz,gidx-FDOH);
-//        if (lidx+lsizex-3*FDOH<FDOH)
-//            lsxx(lidz,lidx+lsizex-3*FDOH)=sxx(gidz,gidx+lsizex-3*FDOH);
-//        if (lidx>(lsizex-2*FDOH-1))
-//            lsxx(lidz,lidx+FDOH)=sxx(gidz,gidx+FDOH);
-//        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
-//            lsxx(lidz,lidx-lsizex+3*FDOH)=sxx(gidz,gidx-lsizex+3*FDOH);
-//        
-//        barrier(CLK_LOCAL_MEM_FENCE);
-//#endif
+// Calculation of the stresses spatial derivatives
+    {
+#if LOCAL_OFF==0
+        lsxx(lidz,lidx)=sxx(gidz, gidx);
+        if (lidx<2*FDOH)
+            lsxx(lidz,lidx-FDOH)=sxx(gidz,gidx-FDOH);
+        if (lidx+lsizex-3*FDOH<FDOH)
+            lsxx(lidz,lidx+lsizex-3*FDOH)=sxx(gidz,gidx+lsizex-3*FDOH);
+        if (lidx>(lsizex-2*FDOH-1))
+            lsxx(lidz,lidx+FDOH)=sxx(gidz,gidx+FDOH);
+        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
+            lsxx(lidz,lidx-lsizex+3*FDOH)=sxx(gidz,gidx-lsizex+3*FDOH);
+        
+        barrier(CLK_LOCAL_MEM_FENCE);
+#endif
 //        
 //#if   FDOH ==1
 //        sxx_x = DTDH*HC1*(lsxx(lidz,lidx+1) - lsxx(lidz,lidx));
@@ -289,21 +289,21 @@ __kernel void update_v(int offcomm,
 //                      HC5*(lsxz(lidz,lidx+4)-lsxz(lidz,lidx-5))+
 //                      HC6*(lsxz(lidz,lidx+5)-lsxz(lidz,lidx-6)));
 //#endif
-//    }
-//
-//// To stop updating if we are outside the model (global id must be a multiple of local id in OpenCL, hence we stop if we have a global id outside the grid)
-//#if LOCAL_OFF==0
-//#if COMM12==0
-//    if (gidz>(NZ-FDOH-1) || (gidx-offcomm)>(NX-FDOH-1-LCOMM) ){
-//        return;
-//    }
-//    
-//#else
-//    if (gidz>(NZ-FDOH-1) ){
-//        return;
-//    }
-//#endif
-//#endif
+    }
+
+// To stop updating if we are outside the model (global id must be a multiple of local id in OpenCL, hence we stop if we have a global id outside the grid)
+#if LOCAL_OFF==0
+#if COMM12==0
+    if (gidz>(NZ-FDOH-1) || (gidx-offcomm)>(NX-FDOH-1-LCOMM) ){
+        return;
+    }
+    
+#else
+    if (gidz>(NZ-FDOH-1) ){
+        return;
+    }
+#endif
+#endif
 //
 //     
 //
