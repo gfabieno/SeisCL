@@ -672,9 +672,16 @@ int Init_OpenCL(model * m, device ** dev)  {
         
         //Allocate the variables structure for this device and create buffers
         di->nvars=m->nvars;
+        di->ntvars=m->ntvars;
         GMALLOC(di->vars, sizeof(variable)*m->nvars);
+        if (di->ntvars){
+            GMALLOC(di->trans_vars, sizeof(variable)*m->nvars);
+        }
         for (i=0;i<m->nvars;i++){
             di->vars[i]=m->vars[i];
+        }
+        for (i=0;i<m->ntvars;i++){
+            di->trans_vars[i]=m->trans_vars[i];
         }
         //TODO: This is model specific, find a better way
         assign_var_size(di->N,
@@ -684,6 +691,7 @@ int Init_OpenCL(model * m, device ** dev)  {
                         m->nvars,
                         m->L,
                         di->vars);
+        
         
         
         //Create OpenCL buffers with the right size
@@ -764,6 +772,27 @@ int Init_OpenCL(model * m, device ** dev)  {
             
         }
 
+        //Create OpenCL buffers for transformed varibales
+        for (i=0;i<m->ntvars;i++){
+            // Create the buffers to output variables at receivers locations
+            if (di->trans_vars[i].to_output){
+                
+                //Memory for recordings for this device on host side
+                di->trans_vars[i].cl_varout.size=sizeof(float)
+                * m->NT * m->src_recs.ngmax;
+                __GUARD clbuf_create( &m->context, &di->trans_vars[i].cl_varout);
+                GMALLOC(di->trans_vars[i].cl_varout.host, di->trans_vars[i].cl_varout.size);
+                di->trans_vars[i].cl_varout.free_host=1;
+                
+                //Create also a buffer for the residuals
+                if (m->trans_vars[i].gl_var_res){
+                    di->trans_vars[i].cl_var_res.size=sizeof(float)
+                    * m->NT * m->src_recs.ngmax;
+                    __GUARD clbuf_create( &m->context, &di->trans_vars[i].cl_var_res);
+                }
+
+            }
+        }
         
         //Create constants structure and buffers, transfer to device
         di->ncsts=m->ncsts;
@@ -926,13 +955,13 @@ int Init_OpenCL(model * m, device ** dev)  {
         }
         
         //Create automaticly kernels for gradient, variable inti, sources ...
-        __GUARD kernel_sources(di, di->vars, &di->src_recs.sources);
+        __GUARD kernel_sources(di,  &di->src_recs.sources);
         __GUARD prog_create(m, di,  &di->src_recs.sources);
         
-        __GUARD kernel_varout(di, di->vars, &di->src_recs.varsout);
+        __GUARD kernel_varout(di, &di->src_recs.varsout);
         __GUARD prog_create(m, di,  &di->src_recs.varsout);
         
-        __GUARD kernel_varoutinit(di, di->vars, &di->src_recs.varsoutinit);
+        __GUARD kernel_varoutinit(di, &di->src_recs.varsoutinit);
         __GUARD prog_create(m, di,  &di->src_recs.varsoutinit);
         
         __GUARD kernel_varinit(di, di->vars, &di->bnd_cnds.init_f);
@@ -941,7 +970,7 @@ int Init_OpenCL(model * m, device ** dev)  {
         
         
         if (m->GRADOUT){
-            __GUARD kernel_residuals(di, di->vars, &di->src_recs.residuals);
+            __GUARD kernel_residuals(di, &di->src_recs.residuals);
             __GUARD prog_create(m, di,  &di->src_recs.residuals);
             
             if (m->BACK_PROP_TYPE==1){

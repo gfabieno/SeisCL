@@ -363,6 +363,20 @@ int prog_create(model * m,
             }
         }
         if (!argfound){
+            for (j=0;j<m->ntvars;j++){
+                sprintf(str2comp,"%sout",(*dev).trans_vars[j].name);
+                if (strcmp(str2comp,(*prog).input_list[i])==0){
+                    state = clSetKernelArg((*prog).kernel,
+                                           i,
+                                           sizeof(cl_mem),
+                                           &(*dev).trans_vars[j].cl_varout.mem);
+                    argfound=1;
+                    break;
+                }
+               
+            }
+        }
+        if (!argfound){
             for (j=0;j<m->nvars;j++){
                 sprintf(str2comp,"%s_r",(*dev).vars[j].name);
                 if (strcmp(str2comp,(*prog).input_list[i])==0){

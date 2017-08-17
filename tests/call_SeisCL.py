@@ -71,7 +71,7 @@ csts['weight']=None         # NTxnumber of geophones or 1x number of geophones. 
 
 csts['gradout']=0           #Output gradient 1:yes, 0: no
 csts['gradsrcout']=0        #Output source gradient 1:yes, 0: no
-csts['seisout']=1           #Output seismograms 1:velocities, 2: pressure, 3: velocities and pressure, 4: velocities and stresses
+csts['seisout']=2           #Output seismograms 1:velocities, 2: pressure, 3: velocities and pressure, 4: velocities and stresses
 csts['resout']=0            #Output residuals 1:yes, 0: no
 csts['rmsout']=0            #Output rms value 1:yes, 0: no
 csts['movout']=0            #Output movie 1:yes, 0: no
@@ -105,7 +105,7 @@ for ii in range(0,63,10):
     toappend[1,:]=0
     toappend[2,:]=(csts['nab']+5+2*ii)*csts['dh']
     toappend[3,:]=ii
-    toappend[4,:]=1
+    toappend[4,:]=100
     csts['src_pos']=np.append(csts['src_pos'], toappend, axis=1)
     csts['src']=np.append(csts['src'], ricker  , axis=1)
     for jj in range(0,126):
@@ -138,8 +138,9 @@ dout = h5mat.loadmat(filenames['dout'])
 din={}
 din['src_pos']=dout['src_pos']
 din['rec_pos']=dout['rec_pos']
-din['vx']=dout['vxout']
-din['vz']=dout['vzout']
+#din['vx']=dout['vxout']
+#din['vz']=dout['vzout']
+din['p']=dout['pout']
 h5mat.savemat(filenames['din'], din , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
 
 

@@ -78,6 +78,7 @@ void variable_freeGL(device *dev, variable * var){
     }
     GFree(var->gl_var_res);
     GFree(var->gl_mov);
+    GFree(var->var2ave);
     
 }
 

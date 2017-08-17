@@ -219,6 +219,12 @@ int assign_modeling_case(model * m){
             m->ntvars=1;
             GMALLOC(m->trans_vars, sizeof(variable)*m->ntvars);
             m->trans_vars[0].name="p";
+            m->trans_vars[0].n2ave=3;
+            GMALLOC(m->trans_vars[0].var2ave, sizeof(char *)*3);
+            m->trans_vars[0].var2ave[0]="sxx";
+            m->trans_vars[0].var2ave[1]="syy";
+            m->trans_vars[0].var2ave[2]="szz";
+            
             
         }
         else if (m->ND==3 && m->L==0){
@@ -300,6 +306,11 @@ int assign_modeling_case(model * m){
             m->ntvars=1;
             GMALLOC(m->trans_vars, sizeof(variable)*m->ntvars);
             m->trans_vars[0].name="p";
+            m->trans_vars[0].n2ave=3;
+            GMALLOC(m->trans_vars[0].var2ave, sizeof(char *)*3);
+            m->trans_vars[0].var2ave[0]="sxx";
+            m->trans_vars[0].var2ave[1]="syy";
+            m->trans_vars[0].var2ave[2]="szz";
         }
         else if (m->ND==2 && m->L>0){
             
@@ -366,7 +377,13 @@ int assign_modeling_case(model * m){
             
             m->ntvars=1;
             GMALLOC(m->trans_vars, sizeof(variable)*m->ntvars);
-            if (!state){m->trans_vars[0].name="p";}
+            if (!state){
+                m->trans_vars[0].name="p";
+                m->trans_vars[0].n2ave=2;
+                GMALLOC(m->trans_vars[0].var2ave, sizeof(char *)*2);
+                m->trans_vars[0].var2ave[0]="sxx";
+                m->trans_vars[0].var2ave[1]="szz";
+            }
         }
         else if (m->ND==2 && m->L==0){
             
@@ -429,7 +446,14 @@ int assign_modeling_case(model * m){
             
             m->ntvars=1;
             GMALLOC(m->trans_vars, sizeof(variable)*m->ntvars);
-            m->trans_vars[0].name="p";
+            if (!state){
+                m->trans_vars[0].name="p";
+                m->trans_vars[0].n2ave=2;
+                GMALLOC(m->trans_vars[0].var2ave, sizeof(char *)*2);
+                m->trans_vars[0].var2ave[0]="sxx";
+                m->trans_vars[0].var2ave[1]="szz";
+            }
+            
         }
         else if (m->ND==21 && m->L>0){
             
@@ -486,9 +510,6 @@ int assign_modeling_case(model * m){
                 
             }}
             
-            m->ntvars=1;
-            GMALLOC(m->trans_vars, sizeof(variable)*m->ntvars);
-            m->trans_vars[0].name="p";
             
         }
         else if (m->ND==21 && m->L==0){
@@ -706,6 +727,11 @@ int assign_modeling_case(model * m){
                 GMALLOC(m->vars[i].gl_mov,sizeof(float)*
                              m->src_recs.ns*m->vars[i].num_ele*m->NT/m->MOVOUT);
             }
+        }
+    }
+    for (i=0;i<m->ntvars;i++){
+        if (m->trans_vars[i].to_output){
+            var_alloc_out(&m->trans_vars[i].gl_varout, m);
         }
     }
     

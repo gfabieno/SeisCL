@@ -38,6 +38,15 @@ int reduce_seis(model * m, device ** dev, int s){
             }
             
         }
+        for (i=0;i<m->ntvars;i++){
+            if ( (*dev)[d].trans_vars[i].to_output){
+                (*dev)[d].trans_vars[i].cl_varout.size=sizeof(float)
+                * m->NT * m->src_recs.nrec[s];
+                __GUARD clbuf_read( &(*dev)[d].queue,
+                                   &(*dev)[d].trans_vars[i].cl_varout);
+            }
+            
+        }
     }
     
     // Put them in the global buffer that collect all sources and receivers data
@@ -55,6 +64,21 @@ int reduce_seis(model * m, device ** dev, int s){
                         for (j=0;j<m->NT;j++){
                             (*dev)[d].vars[k].gl_varout[s][i*m->NT+j]+=
                             (*dev)[d].vars[k].cl_varout.host[i*m->NT+j];
+                        }
+                    }
+                }
+            }
+        }
+        for (k=0;k<(*dev)[d].ntvars;k++){
+            if ((*dev)[d].trans_vars[k].to_output){
+                for ( i=0;i<(*dev)[d].src_recs.nrec[s];i++){
+                    posx=(int)floor((*dev)[d].src_recs.rec_pos[s][8*i]/m->dh);
+                    if (posx>=(*dev)[d].NX0
+                        && posx<((*dev)[d].NX0+(*dev)[d].N[(*dev)[d].NDIM-1])){
+                        
+                        for (j=0;j<m->NT;j++){
+                            (*dev)[d].trans_vars[k].gl_varout[s][i*m->NT+j]+=
+                            (*dev)[d].trans_vars[k].cl_varout.host[i*m->NT+j];
                         }
                     }
                 }
@@ -518,6 +542,18 @@ int time_stepping(model * m, device ** dev) {
                         __GUARD clbuf_sendpin(&(*dev)[d].queue,
                                               &(*dev)[d].vars[i].cl_varout,
                                               &(*dev)[d].vars[i].cl_var_res,
+                                              0);
+                    }
+                }
+                for (i=0;i<m->ntvars;i++){
+                    if ( (*dev)[d].trans_vars[i].to_output){
+                        (*dev)[d].trans_vars[i].cl_var_res.size=sizeof(float)
+                        * m->NT * m->src_recs.nrec[s];
+                        (*dev)[d].trans_vars[i].cl_var_res.host=
+                        (*dev)[d].trans_vars[i].gl_var_res[s];
+                        __GUARD clbuf_sendpin(&(*dev)[d].queue,
+                                              &(*dev)[d].trans_vars[i].cl_varout,
+                                              &(*dev)[d].trans_vars[i].cl_var_res,
                                               0);
                     }
                 }

@@ -82,6 +82,13 @@ int Out_MPI(model * m)  {
                                          m->MYID);
             }
         }
+        for (i=0;i<m->ntvars;i++){
+            if (m->trans_vars[i].to_output){
+                __GUARD buf_reduce_float(m->trans_vars[i].gl_varout[0],
+                                         m->trans_vars[i].num_ele,
+                                         m->MYID);
+            }
+        }
     }
     // Add the rms value of all processing elements
     if (m->RMSOUT){
@@ -95,6 +102,13 @@ int Out_MPI(model * m)  {
             if (m->vars[i].to_output){
                 __GUARD buf_reduce_float(m->vars[i].gl_var_res[0],
                                          m->vars[i].num_ele,
+                                         m->MYID);
+            }
+        }
+        for (i=0;i<m->ntvars;i++){
+            if (m->trans_vars[i].to_output){
+                __GUARD buf_reduce_float(m->trans_vars[i].gl_var_res[0],
+                                         m->trans_vars[i].num_ele,
                                          m->MYID);
             }
         }

@@ -189,6 +189,9 @@ typedef struct variable{
     int num_ele;
     int active;
     
+    int n2ave;
+    const char ** var2ave;
+    
 } variable;
 
 int var_alloc_out(float *** var, struct model *m );
@@ -496,11 +499,9 @@ int butterworth(float * data,
 
 /* ______________________Automatic kernels functions__________________________*/
 int kernel_varout(device * dev,
-                  variable * vars,
                   clprogram * prog);
 
 int kernel_varoutinit(device * dev,
-                      variable * vars,
                       clprogram * prog);
 
 int kernel_varinit(device * dev,
@@ -508,7 +509,6 @@ int kernel_varinit(device * dev,
                    clprogram * prog);
 
 int kernel_residuals(device * dev,
-                     variable * vars,
                      clprogram * prog);
 
 int kernel_gradinit(device * dev,
@@ -538,7 +538,6 @@ int kernel_fcom_in(device * dev,
                    int buff12);
 
 int kernel_sources(device * dev,
-                   variable * vars,
                    clprogram * prog);
 
 

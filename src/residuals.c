@@ -68,6 +68,25 @@ int var_res_raw(model * m, int s)
             }
             
         }
+        for (i=0;i<m->ntvars;i++){
+            if (m->trans_vars[i].to_output){
+                butterworth(m->trans_vars[i].gl_varout[s],
+                            m->fmin,
+                            m->fmax,
+                            m->dt,
+                            m->NT,
+                            m->tmax,
+                            nrec, 6);
+                butterworth(m->trans_vars[i].gl_varin[s],
+                            m->fmin,
+                            m->fmax,
+                            m->dt,
+                            m->NT,
+                            m->tmax,
+                            nrec, 6);
+            }
+            
+        }
     }
 
     // We compute the rms value, if data is to be scaled with it
@@ -87,6 +106,14 @@ int var_res_raw(model * m, int s)
                     for (t=tmin;t<tmax;t++){
                         rms_scaling[g]+=pow(m->vars[i].gl_varout[s][g*NT+t],2);
                         rms_scaling0[g]+=pow(m->vars[i].gl_varin[s][g*NT+t],2);
+                    }
+                }
+            }
+            for (i=0;i<m->ntvars;i++){
+                if (m->trans_vars[i].to_output){
+                    for (t=tmin;t<tmax;t++){
+                        rms_scaling[g]+=pow(m->trans_vars[i].gl_varout[s][g*NT+t],2);
+                        rms_scaling0[g]+=pow(m->trans_vars[i].gl_varin[s][g*NT+t],2);
                     }
                 }
             }
@@ -130,6 +157,14 @@ int var_res_raw(model * m, int s)
                     }
                 }
             }
+            for (i=0;i<m->ntvars;i++){
+                if (m->trans_vars[i].to_output){
+                    for (t=tmin;t<tmax;t++){
+                        m->trans_vars[i].gl_varout[s][g*NT+t]*=rms_scaling[g];
+                        m->trans_vars[i].gl_varin[s][g*NT+t]*=rms_scaling0[g];
+                    }
+                }
+            }
         }
     }
     else {
@@ -153,6 +188,15 @@ int var_res_raw(model * m, int s)
                     }
                 }
             }
+            for (i=0;i<m->ntvars;i++){
+                if (m->trans_vars[i].to_output){
+                    for (t=tmin;t<tmax;t++){
+                        rmsnorm_scaling[g]+= m->trans_vars[i].gl_varout[s][g*NT+t]*
+                        (m->trans_vars[i].gl_varout[s][g*NT+t]
+                         -m->trans_vars[i].gl_varin[s][g*NT+t]);
+                    }
+                }
+            }
             if (m->scalerms){
                 rmsnorm_scaling[g]*=pow(ws/rms_scaling0[g]/ws,2);
             }
@@ -168,6 +212,11 @@ int var_res_raw(model * m, int s)
             nout++;
         }
     }
+    for (i=0;i<m->ntvars;i++){
+        if (m->trans_vars[i].to_output){
+            nout++;
+        }
+    }
 
 
     if (m->BACK_PROP_TYPE==2 )  {
@@ -180,6 +229,15 @@ int var_res_raw(model * m, int s)
         n=0;
         for (i=0;i<m->nvars;i++){
             if (m->vars[i].to_output){
+                GMALLOC(temp[n], sizeof(float)*nfft*2);
+                GMALLOC(temp_out[n], sizeof(kiss_fft_cpx)*nfft*2);
+                GMALLOC(temp0[n], sizeof(float)*nfft*2);
+                GMALLOC(temp0_out[n], sizeof(kiss_fft_cpx)*nfft*2);
+                n++;
+            }
+        }
+        for (i=0;i<m->ntvars;i++){
+            if (m->trans_vars[i].to_output){
                 GMALLOC(temp[n], sizeof(float)*nfft*2);
                 GMALLOC(temp_out[n], sizeof(kiss_fft_cpx)*nfft*2);
                 GMALLOC(temp0[n], sizeof(float)*nfft*2);
@@ -204,6 +262,12 @@ int var_res_raw(model * m, int s)
                                    +m->vars[i].gl_varin[s][g*NT+t],2);
                     }
                 }
+                for (i=0;i<m->ntvars;i++){
+                    if (m->trans_vars[i].to_output){
+                        m->rms+=pow(-m->trans_vars[i].gl_varout[s][g*NT+t]
+                                    +m->trans_vars[i].gl_varin[s][g*NT+t],2);
+                    }
+                }
             }
             else if (m->BACK_PROP_TYPE==2){
                 n=0;
@@ -212,6 +276,14 @@ int var_res_raw(model * m, int s)
                         temp[n][t]=-m->vars[i].gl_varout[s][g*NT+t]
                                    +m->vars[i].gl_varin[s][g*NT+t];
                         temp0[n][t]=m->vars[i].gl_varin[s][g*NT+t];
+                        n++;
+                    }
+                }
+                for (i=0;i<m->ntvars;i++){
+                    if (m->trans_vars[i].to_output){
+                        temp[n][t]=-m->trans_vars[i].gl_varout[s][g*NT+t]
+                        +m->trans_vars[i].gl_varin[s][g*NT+t];
+                        temp0[n][t]=m->trans_vars[i].gl_varin[s][g*NT+t];
                         n++;
                     }
                 }
@@ -227,6 +299,14 @@ int var_res_raw(model * m, int s)
                                             -m->vars[i].gl_varin[s][g*NT+t]);
                     }
                 }
+                for (i=0;i<m->ntvars;i++){
+                    if (m->trans_vars[i].to_output){
+                        m->trans_vars[i].gl_var_res[s][g*NT+t]=-rms_scaling[g]*(
+                                        (1.0-rmsnorm_scaling[g])
+                                        *m->trans_vars[i].gl_varout[s][g*NT+t]
+                                        -m->trans_vars[i].gl_varin[s][g*NT+t]);
+                    }
+                }
             }
             else {
                 for (i=0;i<m->nvars;i++){
@@ -234,6 +314,13 @@ int var_res_raw(model * m, int s)
                         m->vars[i].gl_var_res[s][g*NT+t]=-rms_scaling[g]*(
                                                 m->vars[i].gl_varout[s][g*NT+t]
                                                -m->vars[i].gl_varin[s][g*NT+t]);
+                    }
+                }
+                for (i=0;i<m->ntvars;i++){
+                    if (m->trans_vars[i].to_output){
+                        m->trans_vars[i].gl_var_res[s][g*NT+t]=-rms_scaling[g]*(
+                                         m->trans_vars[i].gl_varout[s][g*NT+t]
+                                        -m->trans_vars[i].gl_varin[s][g*NT+t]);
                     }
                 }
             }
@@ -245,6 +332,13 @@ int var_res_raw(model * m, int s)
             n=0;
             for (i=0;i<m->nvars;i++){
                 if (m->vars[i].to_output){
+                    kiss_fftr( stf , temp[n], (kiss_fft_cpx*)temp_out[n] );
+                    kiss_fftr( stf , temp0[n], (kiss_fft_cpx*)temp0_out[n] );
+                    n++;
+                }
+            }
+            for (i=0;i<m->ntvars;i++){
+                if (m->trans_vars[i].to_output){
                     kiss_fftr( stf , temp[n], (kiss_fft_cpx*)temp_out[n] );
                     kiss_fftr( stf , temp0[n], (kiss_fft_cpx*)temp0_out[n] );
                     n++;
@@ -263,6 +357,15 @@ int var_res_raw(model * m, int s)
                         n++;
                     }
                 }
+                for (i=0;i<m->ntvars;i++){
+                    if (m->trans_vars[i].to_output){
+                        m->rms+=powf(temp_out[n][thisfreq].i ,2)
+                        +powf(temp_out[n][thisfreq].r, 2);
+                        m->rmsnorm+=powf(temp0_out[n][thisfreq].i ,2)
+                        +powf(temp0_out[n][thisfreq].r, 2);
+                        n++;
+                    }
+                }
             }
         }
         
@@ -275,6 +378,15 @@ int var_res_raw(model * m, int s)
         n=0;
         for (i=0;i<m->nvars;i++){
             if (m->vars[i].to_output){
+                GFree(temp[n]);
+                GFree(temp0[n]);
+                GFree(temp_out[n]);
+                GFree(temp0_out[n]);
+                n++;
+            }
+        }
+        for (i=0;i<m->ntvars;i++){
+            if (m->trans_vars[i].to_output){
                 GFree(temp[n]);
                 GFree(temp0[n]);
                 GFree(temp_out[n]);

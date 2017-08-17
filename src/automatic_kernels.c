@@ -24,15 +24,16 @@
 
 
 int kernel_varout(device * dev,
-                  variable * vars,
                   clprogram * prog){
  
     int state=0;
-    int i;
+    int i,j;
     
     char temp[MAX_KERN_STR]={0};;
     char temp2[100]={0};
     char * p=(char*)temp;
+    variable * vars = dev->vars;
+    variable * tvars = dev->trans_vars;
     
     strcat(temp, "__kernel void varsout(int nt, __global float * rec_pos, ");
     for (i=0;i<dev->nvars;i++){
@@ -42,6 +43,19 @@ int kernel_varout(device * dev,
             strcat(temp, ", ");
             strcat(temp, "__global float * ");
             strcat(temp, vars[i].name);
+            strcat(temp, "out, ");
+        }
+    }
+    for (i=0;i<dev->ntvars;i++){
+        if (tvars[i].to_output){
+            for (j=0;j<tvars[i].n2ave;j++){
+                strcat(temp, "__global float * ");
+                strcat(temp, tvars[i].var2ave[j]);
+                strcat(temp, ", ");
+            }
+
+            strcat(temp, "__global float * ");
+            strcat(temp, tvars[i].name);
             strcat(temp, "out, ");
         }
     }
@@ -68,10 +82,10 @@ int kernel_varout(device * dev,
     char posstr[100]={0};
     
     if (dev->NDIM==2){
-        sprintf(posstr,"[(i-OFFSET)*N%s+k];\n",dev->N_names[0]);
+        sprintf(posstr,"[(i-OFFSET)*N%s+k]",dev->N_names[0]);
     }
     else if (dev->NDIM==3){
-        sprintf(posstr,"[(i-OFFSET)*N%s*N%s+j*(N%s)+k];\n",
+        sprintf(posstr,"[(i-OFFSET)*N%s*N%s+j*(N%s)+k]",
                 dev->N_names[1], dev->N_names[0], dev->N_names[0]);
     }
     
@@ -82,6 +96,26 @@ int kernel_varout(device * dev,
             strcat(temp, "out[NT*gid+nt]=");
             strcat(temp, vars[i].name);
             strcat(temp, posstr);
+            strcat(temp, ";\n");
+        }
+    }
+    for (i=0;i<dev->ntvars;i++){
+        if (tvars[i].to_output){
+            strcat(temp, "    ");
+            strcat(temp, tvars[i].name);
+            strcat(temp, "out[NT*gid+nt]=(");
+            for (j=0;j<tvars->n2ave;j++){
+                strcat(temp, tvars[i].var2ave[j]);
+                strcat(temp, posstr);
+                strcat(temp, "+");
+            }
+            while (*p)
+                p++;
+            p[-1]='\0';
+            strcat(temp, ")/");
+            sprintf(temp2,"%d",tvars->n2ave);
+            strcat(temp, temp2);
+            strcat(temp, ";\n");
         }
     }
 
@@ -103,12 +137,12 @@ int kernel_varout(device * dev,
 
 
 int kernel_varoutinit(device * dev,
-                      variable * vars,
                       clprogram * prog){
     
     int state=0;
     int i;
-    
+    variable * vars = dev->vars;
+    variable * tvars = dev->trans_vars;
     char temp[MAX_KERN_STR]={0};;
     
     char * p=(char*)temp;
@@ -118,6 +152,13 @@ int kernel_varoutinit(device * dev,
         if (vars[i].to_output){
             strcat(temp, "__global float * ");
             strcat(temp, vars[i].name);
+            strcat(temp, "out, ");
+        }
+    }
+    for (i=0;i<dev->ntvars;i++){
+        if (tvars[i].to_output){
+            strcat(temp, "__global float * ");
+            strcat(temp, tvars[i].name);
             strcat(temp, "out, ");
         }
     }
@@ -133,6 +174,13 @@ int kernel_varoutinit(device * dev,
         if (vars[i].to_output){
             strcat(temp, "    ");
             strcat(temp, vars[i].name);
+            strcat(temp, "out[gid]=0;\n");
+        }
+    }
+    for (i=0;i<dev->ntvars;i++){
+        if (tvars[i].to_output){
+            strcat(temp, "    ");
+            strcat(temp, tvars[i].name);
             strcat(temp, "out[gid]=0;\n");
         }
     }
@@ -216,12 +264,12 @@ int kernel_varinit(device * dev,
 }
 
 int kernel_sources(device * dev,
-                   variable * vars,
                    clprogram * prog){
     
     int state=0;
-    int i;
-    
+    int i,j;
+    variable * vars = dev->vars;
+    variable * tvars = dev->trans_vars;
     char temp[MAX_KERN_STR]={0};
     char temp2[100]={0};
 //    
@@ -230,19 +278,30 @@ int kernel_sources(device * dev,
     
     
     int * tosources=NULL;
+    int * tosources2=NULL;
     int ntypes=0;
     int ind;
     GMALLOC(tosources,dev->nvars*sizeof(int));
+    GMALLOC(tosources2,dev->ntvars*sizeof(int));
     for (i=0;i<dev->src_recs.allns;i++){
         ind =dev->src_recs.src_pos[0][4+i*5];
-        if (ind<dev->nvars)
+        if (ind<dev->nvars && ind>-1)
             tosources[ind]=1;
+        if (ind-100<dev->ntvars && ind-100>-1)
+            tosources2[ind-100]=1;
     }
+
     for (i=0;i<dev->nvars;i++){
         if (tosources[i]==1){
             ntypes++;
         }
     }
+    for (i=0;i<dev->ntvars;i++){
+        if (tosources2[i]==1){
+            ntypes++;
+        }
+    }
+    
     if (ntypes==0){
         state=1;
         fprintf(stderr,"Error: No sources for variable list found\n");
@@ -257,6 +316,16 @@ int kernel_sources(device * dev,
             strcat(temp, ", ");
         }
     }
+    for (i=0;i<dev->ntvars;i++){
+        if (tosources2[i]){
+            for (j=0;j<tvars[i].n2ave;j++){
+                strcat(temp, "__global float * ");
+                strcat(temp, tvars[i].var2ave[j]);
+                strcat(temp, ", ");
+            }
+        }
+    }
+
     while (*p)
         p++;
     p[-2]='\0';
@@ -310,6 +379,26 @@ int kernel_sources(device * dev,
             
         }
     }
+    for (i=0;i<dev->ntvars;i++){
+        
+        if (tosources2[i]){
+            if (ntypes>1){
+                sprintf(temp2,"    if (source_type==%d){\n", i+100);
+                strcat(temp, temp2);
+                strcat(temp, "    ");
+            }
+            for (j=0;j<tvars[i].n2ave;j++){
+                strcat(temp, "    ");
+                strcat(temp, tvars[i].var2ave[j]);
+                strcat(temp, posstr);
+                sprintf(temp2,"+=pdir*amp/%d;\n", tvars[i].n2ave);
+                strcat(temp, temp2);
+            }
+            if (ntypes>1){
+                strcat(temp, "    }");
+            }
+        }
+    }
     
     strcat(temp, "\n}");
     
@@ -320,6 +409,7 @@ int kernel_sources(device * dev,
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     free(tosources);
+    free(tosources2);
     
     prog->wdim=1;
     
@@ -328,16 +418,16 @@ int kernel_sources(device * dev,
 }
 
 int kernel_residuals(device * dev,
-                     variable * vars,
                      clprogram * prog){
     
     int state=0;
-    int i;
+    int i,j;
     
     char temp[MAX_KERN_STR]={0};;
     char temp2[100]={0};
     char * p=(char*)temp;
-
+    variable * vars = dev->vars;
+    variable * tvars = dev->trans_vars;
     
    
     
@@ -349,6 +439,19 @@ int kernel_residuals(device * dev,
             strcat(temp, ", ");
             strcat(temp, "__global float * ");
             strcat(temp, vars[i].name);
+            strcat(temp, "out, ");
+        }
+    }
+    for (i=0;i<dev->ntvars;i++){
+        if (tvars[i].to_output){
+            for (j=0;j<tvars[i].n2ave;j++){
+                strcat(temp, "__global float * ");
+                strcat(temp, tvars[i].var2ave[j]);
+                strcat(temp, ", ");
+            }
+            
+            strcat(temp, "__global float * ");
+            strcat(temp, tvars[i].name);
             strcat(temp, "out, ");
         }
     }
@@ -391,6 +494,21 @@ int kernel_residuals(device * dev,
             strcat(temp, vars[i].name);
             strcat(temp, "out[NT*gid+nt];\n");
 
+        }
+    }
+    for (i=0;i<dev->ntvars;i++){
+        if (tvars[i].to_output){
+            for (j=0;j<tvars[i].n2ave;j++){
+                strcat(temp, "        ");
+                strcat(temp, tvars[i].var2ave[j]);
+                strcat(temp, posstr);
+                strcat(temp, "+=");
+                strcat(temp, tvars[i].name);
+                strcat(temp, "out[NT*gid+nt]/");
+                sprintf(temp2,"%d",tvars[i].n2ave);
+                strcat(temp, temp2);
+                strcat(temp, ";\n");
+            }
         }
     }
     
