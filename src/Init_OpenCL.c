@@ -192,11 +192,11 @@ cl_int connect_devices(device ** dev, model * m)
     fprintf(stdout,"connecting to  %d devices:\n", num_allow_devs);
     
     
-    __GUARD clGetDeviceIDs(clplateform,
+    CLGUARD(clGetDeviceIDs(clplateform,
                            m->device_type,
                            nalldevices,
                            devices,
-                           NULL);
+                           NULL))
 
     GMALLOC(allow_devs,sizeof(int)*m->NUM_DEVICES);
     
@@ -221,16 +221,16 @@ cl_int connect_devices(device ** dev, model * m)
     // Print some information about the returned devices
     if (!state){
         for (i=0;i<m->NUM_DEVICES;i++){
-            __GUARD clGetDeviceInfo(devices[allow_devs[i]],
+            CLGUARD(clGetDeviceInfo(devices[allow_devs[i]],
                                     CL_DEVICE_VENDOR,
                                     sizeof(vendor_name),
                                     vendor_name,
-                                    NULL);
-            __GUARD clGetDeviceInfo(devices[allow_devs[i]],
+                                    NULL))
+            CLGUARD(clGetDeviceInfo(devices[allow_devs[i]],
                                     CL_DEVICE_NAME,
                                     sizeof(device_name),
                                     device_name,
-                                    NULL);
+                                    NULL))
             fprintf(stdout,"-Device %d: %s %s\n",
                     allow_devs[i], vendor_name, device_name);
         }
