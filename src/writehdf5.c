@@ -48,7 +48,6 @@ void writetomat(hid_t* file_id,
             cdims[ii]=cdims[ii]<dims[ii]?cdims[ii]:dims[ii];
         }
         cdims[0]=dims[0];
-        cdims[1]=1;
         H5Pset_chunk (plist_id, NDIMs, cdims);
 //        H5Pset_deflate (plist_id, 6);
         
