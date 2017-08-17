@@ -101,7 +101,7 @@ int main(int argc, char **argv) {
     
     // Write the ouputs to hdf5 files
     if (m.MYID==0){
-//        __GUARD writehdf5(file, &m) ;
+        __GUARD writehdf5(file, &m) ;
     }
     time6=MPI_Wtime();
     
