@@ -236,6 +236,7 @@ cl_int connect_devices(device ** dev, model * m)
                     allow_devs[i], vendor_name, device_name);
         }
     }
+    fprintf(stdout,"state:%d, line 239\n", state);
     // Create a context with the specified devices
     if (!state) m->context = clCreateContext(NULL,
                                              m->NUM_DEVICES,
@@ -243,7 +244,7 @@ cl_int connect_devices(device ** dev, model * m)
                                              NULL,
                                              NULL,
                                              &state);
-
+    fprintf(stdout,"state:%d, line 247\n", state);
     // Create command queues for each devices
     for (i=0;i<m->NUM_DEVICES;i++){
         if (!state)
@@ -257,7 +258,7 @@ cl_int connect_devices(device ** dev, model * m)
                                                        0 ,
                                                        &state);
     }
-
+    fprintf(stdout,"state:%d, line 261\n", state);
     if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
     GFree(devices);
     GFree(allow_devs);
