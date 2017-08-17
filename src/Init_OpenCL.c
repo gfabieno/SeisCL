@@ -200,8 +200,8 @@ cl_int connect_devices(device ** dev, model * m)
                            devices,
                            NULL);
     if (!state) m->context = clCreateContext(NULL,
-                                             m->NUM_DEVICES,
                                              nalldevices,
+                                             devices,
                                              NULL,
                                              NULL,
                                              &state);
