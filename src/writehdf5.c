@@ -214,12 +214,12 @@ int writehdf5(struct filenames file, model * m) {
                 writetomat(&file_id,name,m->vars[i].gl_varout[0],2,dims);
             }
         }
-        for (i=0;i<m->ntvars;i++){
-            if (m->trans_vars[i].to_output){
-                sprintf(name, "%sout",m->trans_vars[i].name);
-                writetomat(&file_id,name,m->trans_vars[i].gl_varout[0],2,dims);
-            }
-        }
+//        for (i=0;i<m->ntvars;i++){
+//            if (m->trans_vars[i].to_output){
+//                sprintf(name, "%sout",m->trans_vars[i].name);
+//                writetomat(&file_id,name,m->trans_vars[i].gl_varout[0],2,dims);
+//            }
+//        }
         if (m->RESOUT){
             for (i=0;i<m->nvars;i++){
                 if (m->vars[i].to_output){
