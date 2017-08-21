@@ -467,14 +467,15 @@ int time_stepping(model * m, device ** dev) {
                 
             }
             
-            // Apply all updates
-            update_grid(m, dev);
-            
             // Inject the sources
             for (d=0;d<m->NUM_DEVICES;d++){
                 __GUARD prog_launch( &(*dev)[d].queue,
-                                     &(*dev)[d].src_recs.sources);
+                                    &(*dev)[d].src_recs.sources);
             }
+            
+            // Apply all updates
+            update_grid(m, dev);
+            
             
             // Computing the free surface
             if (m->FREESURF==1){
