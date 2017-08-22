@@ -63,7 +63,7 @@
 #define rx(y,x) rx[(y)*NT+(x)]
 #define rz(y,x) rz[(y)*NT+(x)]
 
-#define psi_vxx(z,x) psi_vxx[(x)*(NZ-2*FDOH)+(z)]
+#define psi_vx_x(z,x) psi_vx_x[(x)*(NZ-2*FDOH)+(z)]
 #define psi_vzx(z,x) psi_vzx[(x)*(NZ-2*FDOH)+(z)]
 
 #define psi_vxz(z,x) psi_vxz[(x)*(2*NAB)+(z)]
@@ -185,13 +185,13 @@ __kernel void surface(        __global float *vx,         __global float *vz,
 #if ABS_TYPE==2
     {
         
-#if DEV==0 & MYLOCALID==0
+#if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
             sxx(gidz,gidx)*=1.0/taper[gidx-FDOH];
         }
 #endif
         
-#if DEV==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-NAB-FDOH-1){
             sxx(gidz,gidx)*=1.0/taper[NX-FDOH-gidx-1];
         }
@@ -200,26 +200,26 @@ __kernel void surface(        __global float *vx,         __global float *vz,
 #endif
     
     // Correct spatial derivatives to implement CPML
-#if abs_type==1
+#if ABS_TYPE==1
     {
         int i,k,ind;
-#if DEV==0 & MYLOCALID==0
+#if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
             
             i =gidx-FDOH;
             k =gidz-FDOH;
             
-            vxx = vxx / K_x[i] + psi_vxx(k,i);
+            vxx = vxx / K_x[i] + psi_vx_x(k,i);
         }
 #endif
         
-#if DEV==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-NAB-FDOH-1){
             
             i =gidx - NX+NAB+FDOH+NAB;
             k =gidz-FDOH;
             ind=2*NAB-1-i;
-            vxx = vxx /K_x[ind+1] + psi_vxx(k,i);
+            vxx = vxx /K_x[ind+1] + psi_vx_x(k,i);
         }
 #endif
     }
@@ -257,13 +257,13 @@ __kernel void surface(        __global float *vx,         __global float *vz,
 #if ABS_TYPE==2
     {
   
-#if DEV==0 & MYLOCALID==0
+#if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
             sxx(gidz,gidx)*=taper[gidx-FDOH];
         }
 #endif
         
-#if DEV==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-NAB-FDOH-1){
             sxx(gidz,gidx)*=taper[NX-FDOH-gidx-1];
         }

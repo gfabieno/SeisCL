@@ -254,7 +254,7 @@ __kernel void surface(        __global float *vx,         __global float *vy,   
 #endif
     
 // Correct spatial derivatives to implement CPML
-#if abs_type==1
+#if ABS_TYPE==1
     {
         int i,j,k,ind;
         
