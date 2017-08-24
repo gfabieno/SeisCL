@@ -370,7 +370,7 @@ int grad_coefelast_3_SH(double (*c)[24],float M, float mu, float taup, float tau
 
 int par_calc_grad(model * m, device * dev)  {
     
-    int i,j,k,f,l;
+    int i,j,k,f,l, n;
     float df,freq,ND, al,w0;
     double c[24]={0}, dot[17]={0};
     float * tausigl=NULL;
@@ -623,7 +623,19 @@ int par_calc_grad(model * m, device * dev)  {
                             c_calc(&c,M[indm], mu[indm], taup[indm], taus[indm], rho[indm], ND,m->L,al);
                         else
                             c_calc(&c,M[indm], mu[indm], 0, 0, rho[indm], ND,m->L,al);
+                        
+                        if (mu[indm]<1){
+                            for (n=2;n<8;n++){
+                                c[n]=0;
+                            }
+                            for (n=10;n<16;n++){
+                                c[n]=0;
+                            }
+                            for (n=18;n<24;n++){
+                                c[n]=0;
+                            }
 
+                        }
 
                         dot[1]=0;dot[5]=0;dot[6]=0;dot[7]=0;
                         for (l=0;l<m->L;l++){
@@ -738,6 +750,19 @@ int par_calc_grad(model * m, device * dev)  {
                         c_calc(&c,M[indm], mu[indm], taup[indm], taus[indm], rho[indm], ND,m->L,al);
                     else
                         c_calc(&c,M[indm], mu[indm], 0, 0, rho[indm], ND,m->L,al);
+                    
+                    if (mu[indm]<1){
+                        for (n=2;n<8;n++){
+                            c[n]=0;
+                        }
+                        for (n=10;n<16;n++){
+                            c[n]=0;
+                        }
+                        for (n=18;n<24;n++){
+                            c[n]=0;
+                        }
+                        
+                    }
                     
                     dot[1]=0;dot[5]=0;dot[6]=0;dot[7]=0;
                     for (l=0;l<m->L;l++){
