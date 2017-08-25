@@ -25,7 +25,8 @@
 int var_res_raw(model * m, int s)
 {
     
-    int t,g,n,i,f, thisfreq;
+    int t,g,n,i,f, thisfreq, j;
+    int x,y,z, pos=0;
     int state=0;
     float *rms_scaling=NULL, *rms_scaling0=NULL;
     float *rmsnorm_scaling=NULL;
@@ -43,7 +44,7 @@ int var_res_raw(model * m, int s)
     int tmax=m->tmax;
     int tmin=m->tmin;
     int nrec=(m->src_recs.nrec[s]);
-    
+    float * par=NULL;
 
     
     
@@ -293,7 +294,7 @@ int var_res_raw(model * m, int s)
             if (m->scalermsnorm || m->scalerms){
                 for (i=0;i<m->nvars;i++){
                     if (m->vars[i].to_output){
-                        m->vars[i].gl_var_res[s][g*NT+t]=-rms_scaling[g]*(
+                        m->vars[i].gl_var_res[s][g*NT+t]=rms_scaling[g]*(
                                             (1.0-rmsnorm_scaling[g])
                                             *m->vars[i].gl_varout[s][g*NT+t]
                                             -m->vars[i].gl_varin[s][g*NT+t]);
@@ -301,7 +302,7 @@ int var_res_raw(model * m, int s)
                 }
                 for (i=0;i<m->ntvars;i++){
                     if (m->trans_vars[i].to_output){
-                        m->trans_vars[i].gl_var_res[s][g*NT+t]=-rms_scaling[g]*(
+                        m->trans_vars[i].gl_var_res[s][g*NT+t]=rms_scaling[g]*(
                                         (1.0-rmsnorm_scaling[g])
                                         *m->trans_vars[i].gl_varout[s][g*NT+t]
                                         -m->trans_vars[i].gl_varin[s][g*NT+t]);
@@ -311,14 +312,14 @@ int var_res_raw(model * m, int s)
             else {
                 for (i=0;i<m->nvars;i++){
                     if (m->vars[i].to_output){
-                        m->vars[i].gl_var_res[s][g*NT+t]=-rms_scaling[g]*(
+                        m->vars[i].gl_var_res[s][g*NT+t]=rms_scaling[g]*(
                                                 m->vars[i].gl_varout[s][g*NT+t]
                                                -m->vars[i].gl_varin[s][g*NT+t]);
                     }
                 }
                 for (i=0;i<m->ntvars;i++){
                     if (m->trans_vars[i].to_output){
-                        m->trans_vars[i].gl_var_res[s][g*NT+t]=-rms_scaling[g]*(
+                        m->trans_vars[i].gl_var_res[s][g*NT+t]=rms_scaling[g]*(
                                          m->trans_vars[i].gl_varout[s][g*NT+t]
                                         -m->trans_vars[i].gl_varin[s][g*NT+t]);
                     }
@@ -373,6 +374,64 @@ int var_res_raw(model * m, int s)
         
     }
     
+    
+    // Scale by the material parameters
+    for (i=0;i<m->nvars;i++){
+        if (m->vars[i].to_output){
+            if (strcmp(m->vars[i].name,"vx")==0 ||
+                strcmp(m->vars[i].name,"vy")==0 ||
+                strcmp(m->vars[i].name,"vz")==0 ){
+                for (j=0;j<m->npars;j++){
+                    if (strcmp(m->pars[j].name,"rho")){
+                        par = m->pars[j].gl_par;
+                    }
+                }
+                for (g=0;g<nrec;g++){
+                    
+                    x = m->src_recs.rec_pos[s][0+8*g]/m->dh;
+                    y = m->src_recs.rec_pos[s][0+8*g]/m->dh;
+                    z = m->src_recs.rec_pos[s][0+8*g]/m->dh;
+                    if (m->NDIM==2){
+                        pos = x*m->N[0]+z;
+                    }
+                    else {
+                        pos = x*m->N[0]*m->N[1]+y*m->N[0]+z;
+                    }
+                    for (t=0;t<tmax;t++){
+                        m->vars[i].gl_var_res[s][g*NT+t]*=1/par[pos];
+                    }
+                }
+            }
+        }
+    }
+    for (i=0;i<m->ntvars;i++){
+        if (m->trans_vars[i].to_output){
+            if (strcmp(m->trans_vars[i].name,"p")==0){
+                for (j=0;j<m->npars;j++){
+                    if (strcmp(m->pars[j].name,"M")){
+                        par = m->pars[j].gl_par;
+                    }
+                }
+                for (g=0;g<nrec;g++){
+                    
+                    x = m->src_recs.rec_pos[s][0+8*g]/m->dh;
+                    y = m->src_recs.rec_pos[s][0+8*g]/m->dh;
+                    z = m->src_recs.rec_pos[s][0+8*g]/m->dh;
+                    if (m->NDIM==2){
+                        pos = x*m->N[0]+z;
+                    }
+                    else {
+                        pos = x*m->N[0]*m->N[1]+y*m->N[0]+z;
+                    }
+                    for (t=0;t<tmax;t++){
+                        m->trans_vars[i].gl_var_res[s][g*NT+t]*=-par[pos];
+                    }
+                }
+            }
+        }
+    }
+    
+    // Free memory of FFTs
     if (m->BACK_PROP_TYPE==2){
         free(stf);
         n=0;

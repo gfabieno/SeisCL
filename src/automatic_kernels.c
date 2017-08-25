@@ -747,7 +747,7 @@ int kernel_savefreqs(device * dev,
     (*prog).src=temp;
     __GUARD prog_source(prog, "savefreqs", (*prog).src);
     
-    printf("%s\n\n%lu\n",temp, strlen(temp));
+//    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     prog->wdim=1;
     
