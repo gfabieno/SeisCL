@@ -277,7 +277,7 @@ int writehdf5(struct filenames file, model * m) {
         if ( m->HOUT){
             for (i=0;i<m->npars;i++){
                 if (m->pars[i].to_grad){
-                    sprintf(name, "H%s",m->pars[i].to_read);
+                    sprintf(name, "H%s",&m->pars[i].to_read[1]);
                     writetomat(&file_id,name,m->pars[i].gl_H,m->NDIM,dims);
                 }
             }

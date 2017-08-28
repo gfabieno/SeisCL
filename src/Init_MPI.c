@@ -83,7 +83,6 @@ int Init_MPI(model * m) {
         MPI_Bcast( &m->MOVOUT, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->RESOUT, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->RMSOUT, 1, MPI_INT, 0, MPI_COMM_WORLD );
-        MPI_Bcast( &m->HOUT, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->tmin, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->tmax, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->par_type, 1, MPI_INT, 0, MPI_COMM_WORLD );
