@@ -415,8 +415,8 @@ int var_res_raw(model * m, int s)
                 for (g=0;g<nrec;g++){
                     
                     x = m->src_recs.rec_pos[s][0+8*g]/m->dh;
-                    y = m->src_recs.rec_pos[s][0+8*g]/m->dh;
-                    z = m->src_recs.rec_pos[s][0+8*g]/m->dh;
+                    y = m->src_recs.rec_pos[s][1+8*g]/m->dh;
+                    z = m->src_recs.rec_pos[s][2+8*g]/m->dh;
                     if (m->NDIM==2){
                         pos = x*m->N[0]+z;
                     }
@@ -424,7 +424,7 @@ int var_res_raw(model * m, int s)
                         pos = x*m->N[0]*m->N[1]+y*m->N[0]+z;
                     }
                     for (t=0;t<tmax;t++){
-                        m->trans_vars[i].gl_var_res[s][g*NT+t]*=-1.0;//par[pos];
+                        m->trans_vars[i].gl_var_res[s][g*NT+t]*=-par[pos];
                     }
                 }
             }
