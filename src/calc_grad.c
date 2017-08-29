@@ -870,35 +870,35 @@ int par_calc_grad(model * m, device * dev)  {
                         dot[8]=(cl_norm(cl_derivative(fvx[indfd], freq))
                                 +cl_norm(cl_derivative(fvz[indfd], freq)))/m->NTNYQ;
                         
-                        HM[indm]+=   -c[0]*dot[0]
-                                    +c[1]*dot[1];
-                        Hmu[indm]+=  -c[2]*dot[2]
-                                    +c[3]*dot[3]
-                                    -c[4]*dot[4]
-                                    +c[5]*dot[5]
-                                    -c[6]*dot[6]
-                                    +c[7]*dot[7];
+                        HM[indm]+=   c[0]*dot[0]
+                                    -c[1]*dot[1];
+                        Hmu[indm]+=  c[2]*dot[2]
+                                    -c[3]*dot[3]
+                                    +c[4]*dot[4]
+                                    -c[5]*dot[5]
+                                    +c[6]*dot[6]
+                                    -c[7]*dot[7];
                         
                         if (m->L>0){
-                            Htaup[indm]+=-c[8]*dot[0]
-                                        +c[9]*dot[1];
-                            Htaus[indm]+=-c[10]*dot[2]
-                                        +c[11]*dot[3]
-                                        -c[12]*dot[4]
-                                        +c[13]*dot[5]
-                                        -c[14]*dot[6]
-                                        +c[15]*dot[7];
+                            Htaup[indm]+=c[8]*dot[0]
+                                        -c[9]*dot[1];
+                            Htaus[indm]+=c[10]*dot[2]
+                                        -c[11]*dot[3]
+                                        +c[12]*dot[4]
+                                        -c[13]*dot[5]
+                                        +c[14]*dot[6]
+                                        -c[15]*dot[7];
                         }
                         
-                        Hrho[indm]+=-dot[8]
-                                    +c[16]*dot[0]
-                                    -c[17]*dot[1]
-                                    +c[18]*dot[2]
-                                    -c[19]*dot[3]
-                                    +c[20]*dot[4]
-                                    -c[21]*dot[5]
-                                    +c[22]*dot[6]
-                                    -c[23]*dot[7];
+                        Hrho[indm]+=dot[8]
+                                    -c[16]*dot[0]
+                                    +c[17]*dot[1]
+                                    -c[18]*dot[2]
+                                    +c[19]*dot[3]
+                                    -c[20]*dot[4]
+                                    +c[21]*dot[5]
+                                    -c[22]*dot[6]
+                                    +c[23]*dot[7];
                         
                     }
                     
