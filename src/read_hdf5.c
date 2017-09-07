@@ -306,6 +306,9 @@ int readhdf5(struct filenames files, model * m) {
         __GUARD checkscalar(file_id, "/tmax");
         __GUARD readvar(file_id, H5T_NATIVE_FLOAT,   "/tmax", &tmaxf);
         m->tmax=tmaxf/m->dt;
+        if (m->tmax<1){
+            m->tmax=m->NT;
+        }
     }
     else{
         m->tmax=m->NT;

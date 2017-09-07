@@ -382,7 +382,7 @@ int var_res_raw(model * m, int s)
                 strcmp(m->vars[i].name,"vy")==0 ||
                 strcmp(m->vars[i].name,"vz")==0 ){
                 for (j=0;j<m->npars;j++){
-                    if (strcmp(m->pars[j].name,"rho")){
+                    if (strcmp(m->pars[j].name,"rho")==0){
                         par = m->pars[j].gl_par;
                     }
                 }
@@ -408,7 +408,7 @@ int var_res_raw(model * m, int s)
         if (m->trans_vars[i].to_output){
             if (strcmp(m->trans_vars[i].name,"p")==0){
                 for (j=0;j<m->npars;j++){
-                    if (strcmp(m->pars[j].name,"M")){
+                    if (strcmp(m->pars[j].name,"M")==0){
                         par = m->pars[j].gl_par;
                     }
                 }
@@ -424,7 +424,8 @@ int var_res_raw(model * m, int s)
                         pos = x*m->N[0]*m->N[1]+y*m->N[0]+z;
                     }
                     for (t=0;t<tmax;t++){
-                        m->trans_vars[i].gl_var_res[s][g*NT+t]*=-1.0;//par[pos];
+                        m->trans_vars[i].gl_var_res[s][g*NT+t]*=-par[pos];
+                        
                     }
                 }
             }
