@@ -191,6 +191,8 @@ typedef struct variable{
     int n2ave;
     const char ** var2ave;
     
+    void (*set_size)(int* , void *, void *);
+    
 } variable;
 
 int var_alloc_out(float *** var, struct model *m );
@@ -212,11 +214,13 @@ typedef struct parameter{
     
     const char * to_read;
     int to_grad;
-    int (*transform)(float *);
+    void (*transform)(void *);
 
 } parameter;
 
 int par_calc_grad(struct model * m, struct device * dev);
+float * get_par(parameter * pars, int npars, const char * name);
+int get_num_ele(parameter * pars, int npars, const char * name);
 
 
 /* ____Structure for constants, which vectors broadcasted to all devices______*/
@@ -230,9 +234,11 @@ typedef struct constants{
     const char * to_read;
     int active;
 
-    int (*transform)(float *);
+    void (*transform)(void *, void *, int);
     
 } constants;
+
+float * get_cst(constants* csts, int ncsts, const char * name);
 
 /* ______________Structure that control sources and receivers ________________*/
 typedef struct sources_records{
@@ -445,6 +451,7 @@ typedef struct model {
     cl_context context;
 
     int (*res_calc)(struct model * , int );
+    int (*check_stability)(void *);
 
 } model;
 
@@ -455,12 +462,6 @@ int readhdf5(struct filenames files, model * m);
 
 int assign_modeling_case(model * m);
 
-int assign_var_size(int* N,
-                    int nab,
-                    int NDIM,
-                    int FDORDER,
-                    int numvar,
-                    int L, variable * vars);
 
 int Init_cst(model * m);
 
@@ -539,6 +540,18 @@ int kernel_fcom_in(device * dev,
 int kernel_sources(device * dev,
                    clprogram * prog);
 
-
+int CPML_coeff(float NPOWER,
+               float k_max_CPML,
+               float FPML,
+               float VPPML,
+               float dh,
+               float dt,
+               int NAB,
+               float * K_i,
+               float * b_i,
+               float * a_i,
+               float * K_i_half,
+               float * b_i_half,
+               float * a_i_half);
 
 

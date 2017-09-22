@@ -29,6 +29,721 @@
 #include "update_v3D.hcl"
 
 
+float * get_par(parameter * pars, int npars, const char * name){
+    
+    int i;
+    float * outptr=NULL;
+    for (i=0;i<npars;i++){
+        if (strcmp(pars[i].name,name)==0){
+            outptr=pars[i].gl_par;
+        }
+    }
+    
+    return outptr;
+ 
+}
+int get_num_ele(parameter * pars, int npars, const char * name){
+    
+    int i;
+    int output=0;
+    for (i=0;i<npars;i++){
+        if (strcmp(pars[i].name,name)==0){
+            output=pars[i].num_ele;
+        }
+    }
+    
+    return output;
+    
+}
+float * get_cst(constants* csts, int ncsts, const char * name){
+    
+    int i;
+    float * outptr=NULL;
+    for (i=0;i<ncsts;i++){
+        if (strcmp(csts[i].name,name)==0){
+            outptr=csts[i].gl_cst;
+        }
+    }
+    
+    return outptr;
+    
+}
+void ave_arithmetic1(float * pin, float * pout, int * N, int ndim, int  dir[3]){
+    
+    int i,j,k;
+    int NX, NY, NZ;
+    int NX0=0, NY0=0, NZ0=0;
+    int ind1, ind2;
+    if (ndim==3){
+        NX=N[2];
+        NY=N[1];
+        NZ=N[0];
+    }
+    else
+    {
+        NX=N[1];
+        NY=1;
+        NZ=N[0];
+    }
+    
+    
+    for (k=0;k<NZ-dir[0];k++){
+        for (j=0;j<NY-dir[1];j++){
+            for (i=0;i<NX-dir[2];i++){
+                ind1 = (i  )*NY*NZ+(j)*NZ+(k);
+                ind2 = (i+dir[2])*NY*NZ+(j+dir[1])*NZ+(k+dir[0]);
+                pout[ind1]=0.5*( pin[ind1]+pin[ind2]);
+            }
+        }
+    }
+    
+    if (dir[2]==1){
+        NX0=NX-1;
+    }
+    else if (dir[1]==1){
+        NY0=NY-1;
+    }
+    if (dir[0]==1){
+        NZ0=NZ-1;
+    }
+    
+    for (k=NZ0;k<NZ;k++){
+        for (j=NY0;j<NY;j++){
+            for (i=NX0;i<NX;i++){
+                ind1 = (i  )*NY*NZ+(j)*NZ+(k);
+                pout[ind1]= pin[ind1];
+            }
+        }
+    }
+    
+    
+}
+void ave_arithmetic2(float *pin, float *pout, int *N, int ndim, int dir[2][3]) {
+    
+    int i,j,k;
+    int NX, NY, NZ;
+    int NX0=0, NY0=0, NZ0=0;
+    int ind1, ind2, ind3, ind4;
+    if (ndim==3){
+        NX=N[2];
+        NY=N[1];
+        NZ=N[0];
+    }
+    else
+    {
+        NX=N[1];
+        NY=1;
+        NZ=N[0];
+    }
+    
+    
+    for (k=0;k<NZ-dir[0][0]-dir[1][0];k++){
+        for (j=0;j<NY-dir[0][1]-dir[1][1];j++){
+            for (i=0;i<NX-dir[0][2]-dir[1][2];i++){
+                ind1 = (i  )*NY*NZ+(j)*NZ+(k);
+                ind2 = (i+dir[0][2])*NY*NZ+(j+dir[0][1])*NZ+(k+dir[0][0]);
+                ind3 = (i+dir[1][2])*NY*NZ+(j+dir[1][1])*NZ+(k+dir[1][0]);
+                ind4 = (i+dir[0][2]+dir[1][2])*NY*NZ
+                +(j+dir[0][1]+dir[1][1])*NZ
+                +(k+dir[0][0]+dir[1][0]);
+                
+                pout[ind1]=0.25*( pin[ind1]+pin[ind2]+pin[ind3]+pin[ind4]);
+            }
+        }
+    }
+    
+    if (dir[0][2]==1){
+        NX0=NX-1;
+    }
+    else if (dir[0][1]==1){
+        NY0=NY-1;
+    }
+    if (dir[0][0]==1){
+        NZ0=NZ-1;
+    }
+    
+    for (k=NZ0;k<NZ;k++){
+        for (j=NY0;j<NY;j++){
+            for (i=NX0;i<NX;i++){
+                ind1 = (i  )*NY*NZ+(j)*NZ+(k);
+                pout[ind1]= pin[ind1];
+            }
+        }
+    }
+    
+    if (dir[1][2]==1){
+        NX0=NX-1;
+    }
+    else if (dir[1][1]==1){
+        NY0=NY-1;
+    }
+    if (dir[1][0]==1){
+        NZ0=NZ-1;
+    }
+    
+    for (k=NZ0;k<NZ;k++){
+        for (j=NY0;j<NY;j++){
+            for (i=NX0;i<NX;i++){
+                ind1 = (i  )*NY*NZ+(j)*NZ+(k);
+                pout[ind1]= pin[ind1];
+            }
+        }
+    }
+    
+    
+}
+void ave_harmonic(float * pin, float * pout, int * N, int ndim, int dir[2][3]) {
+    
+    int i,j,k;
+    int NX, NY, NZ;
+    int NX0=0, NY0=0, NZ0=0;
+    int ind1, ind2, ind3, ind4;
+    if (ndim==3){
+        NX=N[2];
+        NY=N[1];
+        NZ=N[0];
+    }
+    else
+    {
+        NX=N[1];
+        NY=1;
+        NZ=N[0];
+    }
+    
+    
+    for (k=0;k<NZ-dir[0][0]-dir[1][0];k++){
+        for (j=0;j<NY-dir[0][1]-dir[1][1];j++){
+            for (i=0;i<NX-dir[0][2]-dir[1][2];i++){
+                ind1 = (i  )*NY*NZ+(j)*NZ+(k);
+                ind2 = (i+dir[0][2])*NY*NZ+(j+dir[0][1])*NZ+(k+dir[0][0]);
+                ind3 = (i+dir[1][2])*NY*NZ+(j+dir[1][1])*NZ+(k+dir[1][0]);
+                ind4 = (i+dir[0][2]+dir[1][2])*NY*NZ
+                      +(j+dir[0][1]+dir[1][1])*NZ
+                      +(k+dir[0][0]+dir[1][0]);
+                
+                pout[ind1]=4.0/( 1.0/pin[ind1]
+                                +1.0/pin[ind2]
+                                +1.0/pin[ind3]
+                                +1.0/pin[ind4]);
+            }
+        }
+    }
+    
+    if (dir[0][2]==1){
+        NX0=NX-1;
+    }
+    else if (dir[0][1]==1){
+        NY0=NY-1;
+    }
+    if (dir[0][0]==1){
+        NZ0=NZ-1;
+    }
+    
+    for (k=NZ0;k<NZ;k++){
+        for (j=NY0;j<NY;j++){
+            for (i=NX0;i<NX;i++){
+                ind1 = (i  )*NY*NZ+(j)*NZ+(k);
+                pout[ind1]= pin[ind1];
+            }
+        }
+    }
+    
+    if (dir[1][2]==1){
+        NX0=NX-1;
+    }
+    else if (dir[1][1]==1){
+        NY0=NY-1;
+    }
+    if (dir[1][0]==1){
+        NZ0=NZ-1;
+    }
+    
+    for (k=NZ0;k<NZ;k++){
+        for (j=NY0;j<NY;j++){
+            for (i=NX0;i<NX;i++){
+                ind1 = (i  )*NY*NZ+(j)*NZ+(k);
+                pout[ind1]= pin[ind1];
+            }
+        }
+    }
+    
+    
+}
+
+
+void mu(void * mptr){
+    
+    int i,l, state=0;
+    model * m = (model *) mptr;
+    float *mu = get_par(m->pars, m->npars, "mu");
+    int num_ele = get_num_ele(m->pars, m->npars, "mu");
+    float *rho = get_par(m->pars, m->npars, "rho");
+    float *taus = get_par(m->pars, m->npars, "taus");
+    float thisvs, thistaus;
+    if (m->par_type==0){
+        for (i=0;i<num_ele;i++){
+            mu[i]=powf(mu[i],2)*rho[i];
+        }
+    }
+    else if (m->par_type==2){
+        for (i=0;i<num_ele;i++){
+            mu[i]=powf(mu[i]/rho[i],2)*rho[i];
+        }
+    }
+    else if (m->par_type==3){
+        for (i=0;i<num_ele;i++){
+            
+            if (mu[i]>0){
+                thisvs=mu[i]-taus[i];
+                thistaus=taus[i]/(mu[i]-taus[i]);
+            }
+            else{
+                thistaus=0;
+                thisvs=0;
+            }
+            mu[i]=powf(thisvs,2)*rho[i];
+            taus[i]=thistaus;
+        }
+        
+    }
+    //Correct the phase velocity for viscoelastic modeling
+    if (m->L>0){
+        float *pts=NULL;
+        /* vector for maxwellbodies */
+        GMALLOC(pts,m->L*sizeof(float));
+        
+        for (l=0;l<m->L;l++) {
+            pts[l]=m->dt/m->csts[20].gl_cst[l];
+        }
+        
+        float ws=2.0*PI*m->f0;
+        float sumu=0.0;
+        
+        for (i=0;i<num_ele;i++){
+            sumu=0.0;
+            for (l=0;l<m->L;l++){
+                sumu+= ((ws*ws*pts[l]*pts[l]*taus[i])
+                        /(1.0+ws*ws*pts[l]*pts[l]));
+            }
+            mu[i]=mu[i]/(1.0+sumu);
+        }
+        
+        free(pts);
+    }
+    
+}
+void M(void * mptr){
+    
+    int i,l, state=0;
+    model * m = (model *) mptr;
+    float *M = get_par(m->pars, m->npars, "M");
+    int num_ele = get_num_ele(m->pars, m->npars, "M");
+    float *rho = get_par(m->pars, m->npars, "rho");
+    float *taup = get_par(m->pars, m->npars, "taup");
+    float thisvp, thistaup;
+    if (m->par_type==0){
+        for (i=0;i<num_ele;i++){
+            M[i]=powf(M[i],2)*rho[i];
+        }
+    }
+    else if (m->par_type==2){
+        for (i=0;i<num_ele;i++){
+            M[i]=powf(M[i]/rho[i],2)*rho[i];
+        }
+    }
+    else if (m->par_type==3){
+        for (i=0;i<num_ele;i++){
+            
+            thisvp=M[i]-taup[i];
+            thistaup=taup[i]/(M[i]-taup[i]);
+            M[i]=powf(thisvp,2)*rho[i];
+            taup[i]=thistaup;
+        }
+        
+    }
+    //Correct the phase velocity for viscoelastic modeling
+    if (m->L>0){
+        float *pts=NULL;
+        /* vector for maxwellbodies */
+        GMALLOC(pts,m->L*sizeof(float));
+        
+        for (l=0;l<m->L;l++) {
+            pts[l]=m->dt/m->csts[20].gl_cst[l];
+        }
+        
+        float ws=2.0*PI*m->f0;
+        float sumpi=0.0;
+        
+        for (i=0;i<num_ele;i++){
+            sumpi=0.0;
+            for (l=0;l<m->L;l++){
+                sumpi+= ((ws*ws*pts[l]*pts[l]*taup[i])
+                         /(1.0+ws*ws*pts[l]*pts[l]));
+            }
+            M[i]=M[i]/(1.0+sumpi);
+        }
+        
+        free(pts);
+    }
+    
+}
+void rip(void * mptr){
+    
+    model * m = (model *) mptr;
+    float *rho = get_par(m->pars, m->npars, "rho");
+    float *rip = get_par(m->pars, m->npars, "rip");
+    int dir[3]={0,0,1};
+    ave_arithmetic1(rho, rip, m->N, m->NDIM, dir);
+}
+void rjp(void * mptr){
+    
+    model * m = (model *) mptr;
+    float *rho = get_par(m->pars, m->npars, "rho");
+    float *rjp = get_par(m->pars, m->npars, "rjp");
+    int dir[3]={0,1,0};
+    ave_arithmetic1(rho, rjp, m->N, m->NDIM, dir);
+}
+void rkp(void * mptr){
+    
+    model * m = (model *) mptr;
+    float *rho = get_par(m->pars, m->npars, "rho");
+    float *rkp = get_par(m->pars, m->npars, "rkp");
+    int dir[3]={1,0,0};
+    ave_arithmetic1(rho, rkp, m->N, m->NDIM, dir);
+}
+void muipkp(void * mptr){
+    
+    model * m = (model *) mptr;
+    float *mu = get_par(m->pars, m->npars, "mu");
+    float *muipkp = get_par(m->pars, m->npars, "muipkp");
+    int dir[2][3]={{0,0,1},{1,0,0}};
+    ave_harmonic(mu, muipkp, m->N, m->NDIM, dir);
+}
+void mujpkp(void * mptr){
+    
+    model * m = (model *) mptr;
+    float *mu = get_par(m->pars, m->npars, "mu");
+    float *mujpkp = get_par(m->pars, m->npars, "mujpkp");
+    int dir[2][3]={{0,1,0},{1,0,0}};
+    ave_harmonic(mu, mujpkp, m->N, m->NDIM, dir);
+}
+void muipjp(void * mptr){
+    
+    model * m = (model *) mptr;
+    float *mu = get_par(m->pars, m->npars, "mu");
+    float *muipjp = get_par(m->pars, m->npars, "muipjp");
+    int dir[2][3]={{0,0,1},{0,1,0}};
+    ave_harmonic(mu, muipjp, m->N, m->NDIM, dir);
+}
+void tausipkp(void * mptr){
+    
+    model * m = (model *) mptr;
+    float *taus = get_par(m->pars, m->npars, "taus");
+    float *tausipkp = get_par(m->pars, m->npars, "tausipkp");
+    int dir[2][3]={{0,0,1},{1,0,0}};
+    ave_arithmetic2(taus, tausipkp, m->N, m->NDIM, dir);
+}
+void tausjpkp(void * mptr){
+    
+    model * m = (model *) mptr;
+    float *taus = get_par(m->pars, m->npars, "taus");
+    float *tausjpkp = get_par(m->pars, m->npars, "tausjpkp");
+    int dir[2][3]={{0,1,0},{1,0,0}};
+    ave_arithmetic2(taus, tausjpkp, m->N, m->NDIM, dir);
+}
+void tausipjp(void * mptr){
+    
+    model * m = (model *) mptr;
+    float *taus = get_par(m->pars, m->npars, "taus");
+    float *tausipjp = get_par(m->pars, m->npars, "tausipjp");
+    int dir[2][3]={{0,0,1},{0,1,0}};
+    ave_arithmetic2(taus, tausipjp, m->N, m->NDIM, dir);
+}
+void eta( void *mptr, void *cstptr, int ncst){
+    //Viscoelastic constants initialization
+    int l;
+    float * eta=get_cst((constants*) cstptr, ncst, "eta");
+    float * FL =get_cst((constants*) cstptr, ncst, "FL" );
+    model * m = (model *) mptr;
+    if (m->L>0){
+        for (l=0;l<m->L;l++) {
+            eta[l]=(2.0*PI*FL[l])*m->dt;
+        }
+    }
+    
+}
+void gradfreqsn( void *mptr, void *cstptr, int ncst){
+    //Viscoelastic constants initialization
+    int j;
+    float * gradfreqs=get_cst((constants*) cstptr, ncst, "gradfreqs");
+    float * gradfreqsn =get_cst((constants*) cstptr, ncst, "gradfreqsn" );
+    model * m = (model *) mptr;
+    
+    float fmaxout=0;
+    for (j=0;j<m->NFREQS;j++){
+        if (gradfreqs[j]>fmaxout)
+        fmaxout=gradfreqs[j];
+    }
+    float df;
+    m->DTNYQ=ceil(0.0156/fmaxout/m->dt);
+    m->NTNYQ=(m->tmax-m->tmin)/m->DTNYQ+1;
+    df=1.0/m->NTNYQ/m->dt/m->DTNYQ;
+    for (j=0;j<m->NFREQS;j++){
+        gradfreqsn[j]=floor(gradfreqs[j]/df);
+    }
+    
+}
+void taper( void *mptr, void *cstptr, int ncst){
+    //Viscoelastic constants initialization
+    int i;
+    float * taper=get_cst((constants*) cstptr, ncst, "taper");
+    model * m = (model *) mptr;
+    
+    float amp=1-m->abpc/100;
+    float a=sqrt(-log(amp)/((m->NAB-1)*(m->NAB-1)));
+    for (i=1; i<=m->NAB; i++) {
+        taper[i-1]=exp(-(a*a*(m->NAB-i)*(m->NAB-i)));
+    }
+    
+}
+
+void CPML_z( void *mptr, void *cstptr, int ncst){
+    //Viscoelastic constants initialization
+    float * K_i=get_cst((constants*) cstptr, ncst, "K_z");
+    float * a_i=get_cst((constants*) cstptr, ncst, "a_z");
+    float * b_i=get_cst((constants*) cstptr, ncst, "b_z");
+    float * K_i_half=get_cst((constants*) cstptr, ncst, "K_z_half");
+    float * a_i_half=get_cst((constants*) cstptr, ncst, "a_z_half");
+    float * b_i_half=get_cst((constants*) cstptr, ncst, "b_z_half");
+    model * m = (model *) mptr;
+    CPML_coeff(m->NPOWER,
+               m->K_MAX_CPML,
+               m->FPML,
+               m->VPPML,
+               m->dh,
+               m->dt,
+               m->NAB,
+               K_i,
+               b_i,
+               a_i,
+               K_i_half,
+               b_i_half,
+               a_i_half);
+    
+}
+void CPML_x( void *mptr, void *cstptr, int ncst){
+    //Viscoelastic constants initialization
+    float * K_i=get_cst((constants*) cstptr, ncst, "K_x");
+    float * a_i=get_cst((constants*) cstptr, ncst, "a_x");
+    float * b_i=get_cst((constants*) cstptr, ncst, "b_x");
+    float * K_i_half=get_cst((constants*) cstptr, ncst, "K_x_half");
+    float * a_i_half=get_cst((constants*) cstptr, ncst, "a_x_half");
+    float * b_i_half=get_cst((constants*) cstptr, ncst, "b_x_half");
+    model * m = (model *) mptr;
+    CPML_coeff(m->NPOWER,
+               m->K_MAX_CPML,
+               m->FPML,
+               m->VPPML,
+               m->dh,
+               m->dt,
+               m->NAB,
+               K_i,
+               b_i,
+               a_i,
+               K_i_half,
+               b_i_half,
+               a_i_half);
+    
+}
+void CPML_y( void *mptr, void *cstptr, int ncst){
+    //Viscoelastic constants initialization
+    float * K_i=get_cst((constants*) cstptr, ncst, "K_y");
+    float * a_i=get_cst((constants*) cstptr, ncst, "a_y");
+    float * b_i=get_cst((constants*) cstptr, ncst, "b_y");
+    float * K_i_half=get_cst((constants*) cstptr, ncst, "K_y_half");
+    float * a_i_half=get_cst((constants*) cstptr, ncst, "a_y_half");
+    float * b_i_half=get_cst((constants*) cstptr, ncst, "b_y_half");
+    model * m = (model *) mptr;
+    CPML_coeff(m->NPOWER,
+               m->K_MAX_CPML,
+               m->FPML,
+               m->VPPML,
+               m->dh,
+               m->dt,
+               m->NAB,
+               K_i,
+               b_i,
+               a_i,
+               K_i_half,
+               b_i_half,
+               a_i_half);
+    
+}
+
+void size_varseis(int* N, void *mptr, void *varptr){
+    
+    model * m = (model *) mptr;
+    variable * var = (variable *) varptr;
+    int i;
+    int sizevars=1;
+    for (i=0;i<m->NDIM;i++){
+        sizevars*=N[i]+m->FDORDER;
+    }
+    var->num_ele=sizevars;
+}
+void size_varmem(int* N, void *mptr, void *varptr){
+    
+    model * m = (model *) mptr;
+    variable * var = (variable *) varptr;
+    int i;
+    int sizevars=1;
+    for (i=0;i<m->NDIM;i++){
+        sizevars*=N[i]+m->FDORDER;
+    }
+    var->num_ele=sizevars*m->L;
+}
+void size_varcpmlx(int* N, void *mptr, void *varptr){
+    
+    model * m = (model *) mptr;
+    variable * var = (variable *) varptr;
+    int i,j;
+    int sizebnd[10]={0};
+    for (i=0;i<m->NDIM;i++){
+        sizebnd[i]=2*m->NAB;
+        for (j=0;j<m->NDIM;j++){
+            if (i!=j)
+            sizebnd[i]*=N[j];
+        }
+    }
+    var->num_ele=sizebnd[m->NDIM-1];
+}
+void size_varcpmly(int* N, void *mptr, void *varptr){
+    
+    model * m = (model *) mptr;
+    variable * var = (variable *) varptr;
+    int i,j;
+    int sizebnd[10]={0};
+    for (i=0;i<m->NDIM;i++){
+        sizebnd[i]=2*m->NAB;
+        for (j=0;j<m->NDIM;j++){
+            if (i!=j)
+            sizebnd[i]*=N[j];
+        }
+    }
+    var->num_ele=sizebnd[1];
+}
+void size_varcpmlz(int* N, void *mptr, void *varptr){
+    
+    model * m = (model *) mptr;
+    variable * var = (variable *) varptr;
+    int i,j;
+    int sizebnd[10]={0};
+    for (i=0;i<m->NDIM;i++){
+        sizebnd[i]=2*m->NAB;
+        for (j=0;j<m->NDIM;j++){
+            if (i!=j)
+            sizebnd[i]*=N[j];
+        }
+    }
+    var->num_ele=sizebnd[0];
+}
+
+int check_stability( void *mptr){
+    
+    int i;
+    int state=0;
+    float vpmax=0;
+    float vsmax=0;
+    float vpmin=99999;
+    float vsmin=99999;
+    float thisvs, thisvp;
+    float vmin, vmax;
+    float g, gamma, dtstable;
+    
+    model * m = (model *) mptr;
+    float *mu = get_par(m->pars, m->npars, "mu");
+    int num_ele = get_num_ele(m->pars, m->npars, "mu");
+    float *M = get_par(m->pars, m->npars, "M");
+    float *rho = get_par(m->pars, m->npars, "rho");
+    
+    if (mu){
+        for (i=0;i<num_ele;i++){
+            thisvs=sqrt(mu[i]/rho[i]);
+            if (vsmax<thisvs) vsmax=thisvs;
+            if (vsmin>thisvs && thisvs>0.1) vsmin=thisvs;
+        }
+    }
+    if (M){
+        for (i=0;i<num_ele;i++){
+            thisvp=sqrt(M[i]/rho[i]);
+            if (vpmax<thisvp) vpmax=thisvp;
+            if (vpmin>thisvp && thisvp>0.1) vpmin=thisvp;
+        }
+    }
+    if (vsmin==99999){
+        vmin=vpmin;
+    }
+    else{
+        vmin=vsmin;
+    }
+    if (vpmax==0){
+        vmax=vsmax;
+    }
+    else{
+        vmax=vpmax;
+    }
+    
+    switch (m->FDORDER){
+        case 2: g=12.0;
+            break;
+        case 4: g=8.32;
+            break;
+        case 6: g=4.77;
+            break;
+        case 8: g=3.69;
+            break;
+        case 10: g=3.19;
+            break;
+        case 12: g=2.91;
+            break;
+        default: g=0;
+            break;
+    }
+    if ((m->dh>(vmin/m->fmax/g))){
+        fprintf(stdout,"Warning: Grid spacing too large, ");
+        fprintf(stdout,"dispersion will affect the solution\n");
+    }
+    /*  gamma for stability estimation (Holberg) */
+    switch (m->FDORDER){
+        case 2: gamma=1.0;
+            break;
+        case 4: gamma=1.184614;
+            break;
+        case 6: gamma=1.283482;
+            break;
+        case 8: gamma=1.345927;
+            break;
+        case 10: gamma=1.38766;
+            break;
+        case 12: gamma=1.417065;
+            break;
+        default: gamma=1.0;
+            break;
+    }
+    if (m->ND==3)
+    dtstable=m->dh/(gamma*sqrt(3.0)*vmax);
+    else
+    dtstable=m->dh/(gamma*sqrt(2.0)*vmax);
+    
+    if (m->dt>dtstable){
+        state=1;
+        fprintf(stderr, "Error: Time step too large, to be stable, ");
+        fprintf(stderr, "set dt<%f\n", dtstable);
+    }
+    
+    
+    return state;
+}
 
 //Assign parameters list depending on which case of modeling is desired
 int assign_modeling_case(model * m){
@@ -51,35 +766,38 @@ int assign_modeling_case(model * m){
         }
     }
     
+    // Check Stability function
+    m->check_stability=&check_stability;
+    
     //Arrays of constants size on all devices
     {
         m->ncsts=23;
         GMALLOC(m->csts, sizeof(constants)*m->ncsts);
-        m->csts[0].name="taper";   m->csts[0].num_ele=m->NAB;
-        m->csts[1].name="K_z";      m->csts[1].num_ele=2*m->NAB;
+        m->csts[0].name="taper";   m->csts[0].num_ele=m->NAB; m->csts[0].transform=&taper;
+        m->csts[1].name="K_z";      m->csts[1].num_ele=2*m->NAB; m->csts[1].transform=&CPML_z;
         m->csts[2].name="a_z";      m->csts[2].num_ele=2*m->NAB;
         m->csts[3].name="b_z";      m->csts[3].num_ele=2*m->NAB;
         m->csts[4].name="K_z_half"; m->csts[4].num_ele=2*m->NAB;
         m->csts[5].name="a_z_half"; m->csts[5].num_ele=2*m->NAB;
         m->csts[6].name="b_z_half"; m->csts[6].num_ele=2*m->NAB;
         
-        m->csts[7].name="K_x";      m->csts[7].num_ele=2*m->NAB;
+        m->csts[7].name="K_x";      m->csts[7].num_ele=2*m->NAB; m->csts[7].transform=&CPML_x;
         m->csts[8].name="a_x";      m->csts[8].num_ele=2*m->NAB;
         m->csts[9].name="b_x";      m->csts[9].num_ele=2*m->NAB;
         m->csts[10].name="K_x_half"; m->csts[10].num_ele=2*m->NAB;
         m->csts[11].name="a_x_half"; m->csts[11].num_ele=2*m->NAB;
         m->csts[12].name="b_x_half"; m->csts[12].num_ele=2*m->NAB;
         
-        m->csts[13].name="K_y";      m->csts[13].num_ele=2*m->NAB;
+        m->csts[13].name="K_y";      m->csts[13].num_ele=2*m->NAB; m->csts[13].transform=&CPML_y;
         m->csts[14].name="a_y";      m->csts[14].num_ele=2*m->NAB;
         m->csts[15].name="b_y";      m->csts[15].num_ele=2*m->NAB;
         m->csts[16].name="K_y_half"; m->csts[16].num_ele=2*m->NAB;
         m->csts[17].name="a_y_half"; m->csts[17].num_ele=2*m->NAB;
         m->csts[18].name="b_y_half"; m->csts[18].num_ele=2*m->NAB;
         m->csts[19].name="FL"; m->csts[19].num_ele=m->L; m->csts[19].to_read="/FL";
-        m->csts[20].name="eta"; m->csts[20].num_ele=m->L;
-        m->csts[21].name="gradfreqs"; m->csts[21].num_ele=m->NFREQS; m->csts[21].to_read="/gradfreqs";
-        m->csts[22].name="gradfreqsn"; m->csts[22].num_ele=m->NFREQS;
+        m->csts[20].name="eta"; m->csts[20].num_ele=m->L; m->csts[20].transform=&eta;
+        m->csts[21].name="gradfreqs";  m->csts[21].num_ele=m->NFREQS; m->csts[21].to_read="/gradfreqs";
+        m->csts[22].name="gradfreqsn"; m->csts[22].num_ele=m->NFREQS;  m->csts[22].transform=&gradfreqsn;
         
         if (m->L>0){
             m->csts[19].active=1;
@@ -338,15 +1056,15 @@ int assign_modeling_case(model * m){
             m->npars=9;
             GMALLOC(m->pars, sizeof(parameter)*m->npars);
             if (!state){
-            m->pars[0].name="mu";       m->pars[0].to_read="/mu";
-            m->pars[1].name="M";        m->pars[1].to_read="/M";
+            m->pars[0].name="mu";       m->pars[0].to_read="/mu"; m->pars[0].transform=&mu;
+            m->pars[1].name="M";        m->pars[1].to_read="/M";  m->pars[1].transform=&M;
             m->pars[2].name="rho";      m->pars[2].to_read="/rho";
             m->pars[3].name="taup";     m->pars[3].to_read="/taup";
             m->pars[4].name="taus";     m->pars[4].to_read="/taus";
-            m->pars[5].name="rip";
-            m->pars[6].name="rkp";
-            m->pars[7].name="muipkp";
-            m->pars[8].name="tausipkp";
+            m->pars[5].name="rip";      m->pars[5].transform=&rip;
+            m->pars[6].name="rkp";      m->pars[6].transform=&rkp;
+            m->pars[7].name="muipkp";   m->pars[7].transform=&muipkp;
+            m->pars[8].name="tausipkp"; m->pars[8].transform=&tausipkp;
             }
             
             m->nvars=8;
@@ -354,24 +1072,24 @@ int assign_modeling_case(model * m){
                 m->nvars+=8;
             GMALLOC(m->vars, sizeof(variable)*m->nvars);
             if (!state){
-            m->vars[0].name="vx"; m->vars[0].for_grad=1; m->vars[0].to_comm=1;
-            m->vars[1].name="vz"; m->vars[1].for_grad=1; m->vars[1].to_comm=1;
-            m->vars[2].name="sxx"; m->vars[2].for_grad=1; m->vars[2].to_comm=2;
-            m->vars[3].name="szz"; m->vars[3].for_grad=1; m->vars[3].to_comm=2;
-            m->vars[4].name="sxz"; m->vars[4].for_grad=1; m->vars[4].to_comm=2;
-            m->vars[5].name="rxx"; m->vars[5].for_grad=1; 
-            m->vars[6].name="rzz"; m->vars[6].for_grad=1; 
-            m->vars[7].name="rxz"; m->vars[7].for_grad=1; 
+            m->vars[0].name="vx"; m->vars[0].for_grad=1; m->vars[0].to_comm=1, m->vars[0].set_size=&size_varseis;
+            m->vars[1].name="vz"; m->vars[1].for_grad=1; m->vars[1].to_comm=1; m->vars[1].set_size=&size_varseis;
+            m->vars[2].name="sxx"; m->vars[2].for_grad=1; m->vars[2].to_comm=2; m->vars[2].set_size=&size_varseis;
+            m->vars[3].name="szz"; m->vars[3].for_grad=1; m->vars[3].to_comm=2; m->vars[3].set_size=&size_varseis;
+            m->vars[4].name="sxz"; m->vars[4].for_grad=1; m->vars[4].to_comm=2; m->vars[4].set_size=&size_varseis;
+            m->vars[5].name="rxx"; m->vars[5].for_grad=1; m->vars[5].set_size=&size_varmem;
+            m->vars[6].name="rzz"; m->vars[6].for_grad=1; m->vars[6].set_size=&size_varmem;
+            m->vars[7].name="rxz"; m->vars[7].for_grad=1; m->vars[7].set_size=&size_varmem;
             
             if (m->ABS_TYPE==1){
-                m->vars[8].name="psi_sxx_x"; m->vars[8].for_grad=0; 
-                m->vars[9].name="psi_sxz_x"; m->vars[9].for_grad=0; 
-                m->vars[10].name="psi_szz_z"; m->vars[10].for_grad=0; 
-                m->vars[11].name="psi_sxz_z"; m->vars[11].for_grad=0; 
-                m->vars[12].name="psi_vx_x"; m->vars[12].for_grad=0; 
-                m->vars[13].name="psi_vz_x"; m->vars[13].for_grad=0; 
-                m->vars[14].name="psi_vx_z"; m->vars[14].for_grad=0; 
-                m->vars[15].name="psi_vz_z"; m->vars[15].for_grad=0; 
+                m->vars[8].name="psi_sxx_x"; m->vars[8].for_grad=0; m->vars[8].set_size=&size_varcpmlx;
+                m->vars[9].name="psi_sxz_x"; m->vars[9].for_grad=0; m->vars[9].set_size=&size_varcpmlx;
+                m->vars[10].name="psi_szz_z"; m->vars[10].for_grad=0; m->vars[10].set_size=&size_varcpmlz;
+                m->vars[11].name="psi_sxz_z"; m->vars[11].for_grad=0; m->vars[11].set_size=&size_varcpmlz;
+                m->vars[12].name="psi_vx_x"; m->vars[12].for_grad=0; m->vars[12].set_size=&size_varcpmlx;
+                m->vars[13].name="psi_vz_x"; m->vars[13].for_grad=0; m->vars[13].set_size=&size_varcpmlx;
+                m->vars[14].name="psi_vx_z"; m->vars[14].for_grad=0; m->vars[14].set_size=&size_varcpmlz;
+                m->vars[15].name="psi_vz_z"; m->vars[15].for_grad=0; m->vars[15].set_size=&size_varcpmlz;
                 
             }}
             
@@ -596,15 +1314,13 @@ int assign_modeling_case(model * m){
     for (i=0;i<m->npars;i++){
         m->pars[i].num_ele=sizepars;
     }}
-    __GUARD assign_var_size(m->N,
-                            m->NAB,
-                            m->NDIM,
-                            m->FDORDER,
-                            m->nvars,
-                            m->L,
-                            m->vars);
+    if (!state){
+        for (i=0;i<m->nvars;i++){
+            m->vars[i].set_size(m->N, (void*) m, &m->vars[i]);
+    }}
+
     
-    //Check to name of variable to be read depending on the chosen paretrization
+    //Check the name of variable to be read depending on the chosen paretrization
     if (!state){
 
         if (m->par_type==2){
@@ -750,79 +1466,4 @@ int assign_modeling_case(model * m){
     return state;
 }
 
-int assign_var_size(int* N,
-                    int NAB,
-                    int NDIM,
-                    int FDORDER,
-                    int numvar,
-                    int L,
-                    variable * vars){
-    int i,j;
-    int sizevars=1;
-    int sizebnd[10]={0};
-    for (i=0;i<NDIM;i++){
-       sizevars*=N[i]+FDORDER;
-    }
-    for (i=0;i<NDIM;i++){
-        sizebnd[i]=2*NAB;
-        for (j=0;j<NDIM;j++){
-            if (i!=j)
-                sizebnd[i]*=N[j];
-        }
-    }
-    
-    for (i=0;i<numvar;i++){
-        
-        if (strcmp(vars[i].name,"vx")==0 ||
-            strcmp(vars[i].name,"vy")==0 ||
-            strcmp(vars[i].name,"vz")==0 ||
-            strcmp(vars[i].name,"sxx")==0 ||
-            strcmp(vars[i].name,"syy")==0 ||
-            strcmp(vars[i].name,"szz")==0 ||
-            strcmp(vars[i].name,"sxy")==0 ||
-            strcmp(vars[i].name,"sxz")==0 ||
-            strcmp(vars[i].name,"syz")==0 ){
-            vars[i].num_ele=sizevars;
-        }
-        else if(strcmp(vars[i].name,"rxx")==0 ||
-                strcmp(vars[i].name,"ryy")==0 ||
-                strcmp(vars[i].name,"rzz")==0 ||
-                strcmp(vars[i].name,"rxy")==0 ||
-                strcmp(vars[i].name,"rxz")==0 ||
-                strcmp(vars[i].name,"ryz")==0 )
-        {
-            vars[i].num_ele=sizevars*L;
-        }
-        else if(strcmp(vars[i].name,"psi_szz_z")==0 ||
-                strcmp(vars[i].name,"psi_sxz_z")==0 ||
-                strcmp(vars[i].name,"psi_syz_z")==0 ||
-                strcmp(vars[i].name,"psi_vx_z")==0 ||
-                strcmp(vars[i].name,"psi_vy_z")==0 ||
-                strcmp(vars[i].name,"psi_vz_z")==0 ){
-            vars[i].num_ele=sizebnd[0];
-        }
-        else if(strcmp(vars[i].name,"psi_syy_y")==0 ||
-                strcmp(vars[i].name,"psi_sxy_y")==0 ||
-                strcmp(vars[i].name,"psi_syz_y")==0 ||
-                strcmp(vars[i].name,"psi_vx_y")==0 ||
-                strcmp(vars[i].name,"psi_vy_y")==0 ||
-                strcmp(vars[i].name,"psi_vz_y")==0 ){
-            vars[i].num_ele=sizebnd[1];
-        }
-        else if(strcmp(vars[i].name,"psi_sxx_x")==0 ||
-                strcmp(vars[i].name,"psi_sxy_x")==0 ||
-                strcmp(vars[i].name,"psi_sxz_x")==0 ||
-                strcmp(vars[i].name,"psi_vx_x")==0 ||
-                strcmp(vars[i].name,"psi_vy_x")==0 ||
-                strcmp(vars[i].name,"psi_vz_x")==0 ){
-            vars[i].num_ele=sizebnd[NDIM-1];
-        }
 
-        
-
-    }
-    
-    return 0;
-
-    
-}

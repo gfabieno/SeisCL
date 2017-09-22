@@ -679,21 +679,13 @@ int Init_OpenCL(model * m, device ** dev)  {
         }
         for (i=0;i<m->nvars;i++){
             di->vars[i]=m->vars[i];
+            //Set the size of the local variables
+            di->vars[i].set_size(di->N, (void*) m, &di->vars[i]);
         }
         for (i=0;i<m->ntvars;i++){
             di->trans_vars[i]=m->trans_vars[i];
         }
-        //TODO: This is model specific, find a better way
-        assign_var_size(di->N,
-                        m->NAB,
-                        m->NDIM,
-                        m->FDORDER,
-                        m->nvars,
-                        m->L,
-                        di->vars);
-        
-        
-        
+
         //Create OpenCL buffers with the right size
         for (i=0;i<m->nvars;i++){
             

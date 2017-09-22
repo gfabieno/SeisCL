@@ -336,74 +336,14 @@ int holbergcoeff(model *inm) {
 int Init_cst(model * m) {
     
     int state=0;
-    int i,j, l;
-    float * K_i;
-    float * a_i;
-    float * b_i;
-    float * K_i_half;
-    float * a_i_half;
-    float * b_i_half;
+    int i;
     
     
     __GUARD holbergcoeff(m);
-    
-    //Create the taper zone for absorbing boundary
-    float * taper= m->csts[0].gl_cst;
-    if (m->ABS_TYPE==2){
-        float amp=1-m->abpc/100;
-        float a=sqrt(-log(amp)/((m->NAB-1)*(m->NAB-1)));
-        for (i=1; i<=m->NAB; i++) {
-            taper[i-1]=exp(-(a*a*(m->NAB-i)*(m->NAB-i)));
-        }
-    }
-    else if (m->ABS_TYPE==1){
-        for (i=0;i<m->NDIM;i++){
-            K_i=m->csts[1+i*6].gl_cst;
-            a_i=m->csts[2+i*6].gl_cst;
-            b_i=m->csts[3+i*6].gl_cst;
-            K_i_half=m->csts[4+i*6].gl_cst;
-            a_i_half=m->csts[5+i*6].gl_cst;
-            b_i_half=m->csts[6+i*6].gl_cst;
-            CPML_coeff(m->NPOWER,
-                       m->K_MAX_CPML,
-                       m->FPML,
-                       m->VPPML,
-                       m->dh,
-                       m->dt,
-                       m->NAB,
-                       K_i,
-                       b_i,
-                       a_i,
-                       K_i_half,
-                       b_i_half,
-                       a_i_half);
-        }
-    }
-    
-    //Viscoelastic constants initialization
-    float * eta=m->csts[20].gl_cst;
-    float * FL=m->csts[19].gl_cst;
-    if (m->L>0){
-        for (l=0;l<m->L;l++) {
-            eta[l]=(2.0*PI*FL[l])*m->dt;
-        }
-    }
-    
-    //Initialize the gradient
-    if (m->GRADOUT==1 && m->BACK_PROP_TYPE==2){
-        float * gradfreqs = m->csts[21].gl_cst;
-        float * gradfreqsn = m->csts[22].gl_cst;
-        float fmaxout=0;
-        for (j=0;j<m->NFREQS;j++){
-            if (gradfreqs[j]>fmaxout)
-                fmaxout=gradfreqs[j];
-        }
-        float df;
-        m->DTNYQ=ceil(0.0156/fmaxout/m->dt);
-        m->NTNYQ=(m->tmax-m->tmin)/m->DTNYQ+1;
-        df=1.0/m->NTNYQ/m->dt/m->DTNYQ;
-        for (j=0;j<m->NFREQS;j++){
-           gradfreqsn[j]=floor(gradfreqs[j]/df);
+
+    for (i=0;i<m->ncsts;i++){
+        if (m->csts[i].active==1 && m->csts[i].transform !=NULL){
+            m->csts[i].transform( (void*)m, (void*) m->csts, m->ncsts );
         }
     }
     
