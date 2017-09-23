@@ -216,6 +216,7 @@ typedef struct parameter{
     int to_grad;
     void (*transform)(void *);
 
+
 } parameter;
 
 int par_calc_grad(struct model * m, struct device * dev);
@@ -232,13 +233,12 @@ typedef struct constants{
     float  * gl_cst;
     int num_ele;
     const char * to_read;
-    int active;
 
     void (*transform)(void *, void *, int);
     
 } constants;
 
-float * get_cst(constants* csts, int ncsts, const char * name);
+float * get_cst( void * m, const char * name);
 
 /* ______________Structure that control sources and receivers ________________*/
 typedef struct sources_records{

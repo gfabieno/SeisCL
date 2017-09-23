@@ -342,7 +342,7 @@ int Init_cst(model * m) {
     __GUARD holbergcoeff(m);
 
     for (i=0;i<m->ncsts;i++){
-        if (m->csts[i].active==1 && m->csts[i].transform !=NULL){
+        if (m->csts[i].transform !=NULL){
             m->csts[i].transform( (void*)m, (void*) m->csts, m->ncsts );
         }
     }

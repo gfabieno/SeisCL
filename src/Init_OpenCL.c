@@ -792,12 +792,10 @@ int Init_OpenCL(model * m, device ** dev)  {
         for (i=0;i<m->ncsts;i++){
             di->csts[i]=m->csts[i];
             //Size of constants does not depend of domain decomposition
-            if (di->csts[i].active){
-                di->csts[i].cl_cst.size=sizeof(float)*di->csts[i].num_ele;
-                di->csts[i].cl_cst.host=m->csts[i].gl_cst;
-                __GUARD clbuf_create( &m->context, &di->csts[i].cl_cst);
-                __GUARD clbuf_send( &di->queue, &di->csts[i].cl_cst);
-            }
+            di->csts[i].cl_cst.size=sizeof(float)*di->csts[i].num_ele;
+            di->csts[i].cl_cst.host=m->csts[i].gl_cst;
+            __GUARD clbuf_create( &m->context, &di->csts[i].cl_cst);
+            __GUARD clbuf_send( &di->queue, &di->csts[i].cl_cst);
             
         }
         

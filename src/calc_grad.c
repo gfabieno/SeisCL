@@ -398,13 +398,15 @@ int par_calc_grad(model * m, device * dev)  {
     
     w0=2.0*PI*m->f0;
     al=0;
+    float * gradfreqsn = get_cst( (void*)m, "gradfreqsn");
     
     if (m->L>0){
         tausigl=malloc(sizeof(float)*m->L);
+        float * FL = get_cst( (void*)m, "FL");
         for (l=0;l<m->L;l++){
-            tausigl[l]=  1.0/(2.0*PI*m->csts[19].gl_cst[l]);
-            al+=      pow(w0/(2.0*PI*m->csts[19].gl_cst[l]),2)
-                /(1.0+pow(w0/(2.0*PI*m->csts[19].gl_cst[l]),2));
+            tausigl[l]=  1.0/(2.0*PI*FL[l]);
+            al+=      pow(w0/(2.0*PI*FL[l]),2)
+                /(1.0+pow(w0/(2.0*PI*FL[l]),2));
         }
     }
     
@@ -617,7 +619,7 @@ int par_calc_grad(model * m, device * dev)  {
                              +(k+m->FDOH);
                         indm=i*NY*NZ+j*NZ+k;
 
-                        freq=2.0*PI*df* (float)m->csts[22].gl_cst[f];
+                        freq=2.0*PI*df* gradfreqsn[f];
                         
                         if (m->L>0)
                             c_calc(&c,M[indm], mu[indm], taup[indm], taus[indm], rho[indm], ND,m->L,al);
@@ -745,7 +747,7 @@ int par_calc_grad(model * m, device * dev)  {
                          +(k+m->FDOH);
                     indm=i*NZ+k;
                     
-                    freq=2.0*PI*df* (float)m->csts[22].gl_cst[f];
+                    freq=2.0*PI*df* gradfreqsn[f];
                     if (m->L>0)
                         c_calc(&c,M[indm], mu[indm], taup[indm], taus[indm], rho[indm], ND,m->L,al);
                     else
@@ -919,7 +921,7 @@ int par_calc_grad(model * m, device * dev)  {
                     +(k+m->FDOH);
                     indm=i*NZ+k;
                     
-                    freq=2.0*PI*df* (float)m->csts[22].gl_cst[f];
+                    freq=2.0*PI*df* gradfreqsn[f];
                     if (m->L>0)
                         c_calc(&c,M[indm], mu[indm], taup[indm], taus[indm], rho[indm], ND,m->L,al);
                     else

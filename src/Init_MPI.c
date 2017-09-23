@@ -164,8 +164,7 @@ int Init_MPI(model * m) {
         }
         
         for (i=0;i<m->ncsts;i++){
-            if (m->csts[i].active)
-                MPI_Bcast( m->csts[i].gl_cst, m->csts[i].num_ele, MPI_FLOAT, 0, MPI_COMM_WORLD );
+            MPI_Bcast( m->csts[i].gl_cst, m->csts[i].num_ele, MPI_FLOAT, 0, MPI_COMM_WORLD );
         }
         
     }

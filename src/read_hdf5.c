@@ -632,7 +632,7 @@ int readhdf5(struct filenames files, model * m) {
     
     //Read active constants
     for (i=0;i<m->ncsts;i++){
-        if (m->csts[i].to_read  && m->csts[i].active==1){
+        if (m->csts[i].to_read  ){
             __GUARD checkexists(file_id,m->csts[i].to_read);
             GMALLOC(m->csts[i].gl_cst,sizeof(float)*m->csts[i].num_ele);
             __GUARD readvar(file_id,

@@ -45,7 +45,7 @@ int var_res_raw(model * m, int s)
     int tmin=m->tmin;
     int nrec=(m->src_recs.nrec[s]);
     float * par=NULL;
-
+    float * gradfreqs;
     
     
     //  The data is filtered between the maximum and minimum frequencies
@@ -345,9 +345,10 @@ int var_res_raw(model * m, int s)
                     n++;
                 }
             }
-
+            
+            gradfreqs = get_cst( (void*)m, "gradfreqs");
             for (f=0;f<m->NFREQS;f++){
-                thisfreq=m->csts[21].gl_cst[f]*nfft*m->dt+1;
+                thisfreq=gradfreqs[f]*nfft*m->dt+1;
                 n=0;
                 for (i=0;i<m->nvars;i++){
                     if (m->vars[i].to_output){
