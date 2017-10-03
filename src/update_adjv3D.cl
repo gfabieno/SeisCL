@@ -37,6 +37,12 @@
 #define gradtaup(z,y,x)   gradtaup[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define gradtaus(z,y,x)   gradtaus[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 
+#define Hrho(z,y,x)     Hrho[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define HM(z,y,x)         HM[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define Hmu(z,y,x)       Hmu[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define Htaup(z,y,x)   Htaup[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define Htaus(z,y,x)   Htaus[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+
 #define taus(z,y,x)         taus[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define tausipjp(z,y,x) tausipjp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define tausjpkp(z,y,x) tausjpkp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
@@ -278,7 +284,8 @@ __kernel void update_adjv(int offcomm,
                           __global float *psi_sxx_x,  __global float *psi_sxy_x,     __global float *psi_sxy_y,
                           __global float *psi_sxz_x,  __global float *psi_sxz_z,     __global float *psi_syy_y,
                           __global float *psi_syz_y,  __global float *psi_syz_z,     __global float *psi_szz_z,
-                          __local  float *lvar, __global float *gradrho, __global float *gradsrc)
+                          __local  float *lvar, __global float *gradrho, __global float *gradsrc,
+                          __global float *Hrho, __global float *Hsrc)
 {
 
     int g,i,j,k,m;
@@ -1259,7 +1266,12 @@ __kernel void update_adjv(int offcomm,
 
 // Density gradient calculation on the fly    
 #if BACK_PROP_TYPE==1
-    gradrho(gidz,gidx)+=vx(gidz,gidx)*lvx+vy(gidz,gidx)*lvy+vz(gidz,gidx)*lvz;
+    gradrho(gidz,gidy,gidx)+=-vx(gidz,gidy,gidx)*lvx-vy(gidz,gidy,gidx)*lvy-vz(gidz,gidy,gidx)*lvz;
+    
+#if HOUT==1
+    Hrho(gidz,gidx)+= pown(vx(gidz,gidy,gidx),2)+pown(vy(gidz,gidy,gidx),2)+pown(vz(gidz,gidy,gidx),2);
+#endif
+    
 #endif
     
 #if GRADSRCOUT==1

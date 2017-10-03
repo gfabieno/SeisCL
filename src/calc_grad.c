@@ -155,9 +155,9 @@ int grad_coefelast_0(double (*c)[24],float M, float mu, float taup, float taus, 
     (*c)[3]= 2.0*sqrtf(rho*mu)*(ND+1.0)/3.0/pow(ND*M-2.0*(ND-1.0)*mu,2.0);
     (*c)[4]= 2.0*sqrtf(rho*mu)*1.0/( 2*ND*mu*mu );
     
-    (*c)[16]= 2.0*sqrtf(rho*M)*1.0/pow(ND*M-2.0*(ND-1.0)*mu,2.0);
+    (*c)[16]= M/rho*1.0/pow(ND*M-2.0*(ND-1.0)*mu,2.0);
     
-    (*c)[18]= M/rho*1.0/( mu*mu);
+    (*c)[18]= mu/rho*1.0/( mu*mu);
     (*c)[19]= mu/rho*(ND+1.0)/3.0/pow(ND*M-2.0*(ND-1.0)*mu,2.0);
     (*c)[20]= mu/rho*1.0/( 2*ND*mu*mu );
     
@@ -245,7 +245,9 @@ int grad_coefelast_2(double (*c)[24],float M, float mu, float taup, float taus, 
     (*c)[3]= 2.0*sqrtf(mu/rho)*(ND+1.0)/3.0/pow(ND*M-2.0*(ND-1.0)*mu,2.0);
     (*c)[4]= 2.0*sqrtf(mu/rho)*1.0/( 2*ND*mu*mu );
     
-    (*c)[18]= -M/rho*1.0/( mu*mu);
+    (*c)[16]= -M/rho*(1.0+L*taup)*(1.0+al*taup)*pow(1.0+al*taus,2);
+    
+    (*c)[18]= -mu/rho*1.0/( mu*mu);
     (*c)[19]= -mu/rho*(ND+1.0)/3.0/pow(ND*M-2.0*(ND-1.0)*mu,2.0);
     (*c)[20]= -mu/rho*1.0/( 2*ND*mu*mu );
     
@@ -368,7 +370,7 @@ int grad_coefelast_3_SH(double (*c)[24],float M, float mu, float taup, float tau
 }
 
 
-int par_calc_grad(model * m, device * dev)  {
+int calc_grad(model * m, device * dev)  {
     
     int i,j,k,f,l, n;
     float df,freq,ND, al,w0;
@@ -960,4 +962,71 @@ int par_calc_grad(model * m, device * dev)  {
     return 0;
     
 }
+
+
+int transf_grad(model * m) {
+    
+    int state=0;
+    int i, num_ele=0;
+    
+    float * rho = get_par(m->pars, m->npars, "rho");
+    float * M = get_par(m->pars, m->npars, "M");
+    float * mu = get_par(m->pars, m->npars, "mu");
+    float * gradrho=NULL;
+    for (i=0;i<m->npars;i++){
+        if (strcmp(m->pars[i].name,"rho")==0){
+            gradrho=m->pars[i].gl_grad;
+        }
+    }
+    float * gradM=NULL;
+    for (i=0;i<m->npars;i++){
+        if (strcmp(m->pars[i].name,"M")==0){
+            gradM=m->pars[i].gl_grad;
+        }
+    }
+    float * gradmu=NULL;
+    for (i=0;i<m->npars;i++){
+        if (strcmp(m->pars[i].name,"mu")==0){
+            gradmu=m->pars[i].gl_grad;
+            num_ele = m->pars[i].num_ele;
+        }
+    }
+    
+    
+    
+    if (m->par_type==0){
+        
+        for (i=0;i<num_ele;i++){
+            
+            gradrho[i]= gradrho[i]+M[i]/rho[i]*gradM[i]+mu[i]/rho[i]*gradmu[i];
+            
+            gradM[i]  = 2.0*sqrt((double)rho[i]*(double)M[i])*gradM[i];
+            gradmu[i] = 2.0*sqrt((double)rho[i]*(double)mu[i])*gradmu[i];
+            
+        }
+
+    }
+    else if (m->par_type==1){
+        
+    }
+    else if (m->par_type==2){
+        for (i=0;i<num_ele;i++){
+            gradrho[i]= gradrho[i]+M[i]/rho[i]*gradM[i]+mu[i]/rho[i]*gradmu[i];
+            
+            gradM[i]  = 2.0*sqrt((double)M[i]/(double)rho[i])*gradM[i];
+            gradmu[i] = 2.0*sqrt((double)mu[i]/(double)rho[i])*gradmu[i];
+        }
+    }
+    else{
+        fprintf(stdout,"Warning: Gradiant transformation not implemented: ");
+        fprintf(stdout,"Outputting grad for M,mu,rho parametrization\n");
+    }
+    
+    
+    
+    return state;
+
+}
+
+
 

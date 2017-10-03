@@ -37,6 +37,13 @@
 #define gradtaup(z,x)  gradtaup[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define gradtaus(z,x)  gradtaus[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 
+#define Hrho(z,x)  Hrho[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define HM(z,x)  HM[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define Hmu(z,x)  Hmu[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define Htaup(z,x)  Htaup[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define Htaus(z,x)  Htaus[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+
+
 #define taus(z,x)        taus[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define tausipkp(z,x) tausipkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define tausipjp(z,x) tausipjp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
@@ -238,6 +245,7 @@ __kernel void update_adjs(int offcomm,
                           __global float *K_z_half,   __global float *a_z_half, __global float *b_z_half,
                           __global float *psi_vy_x,    __global float *psi_vy_z,
                           __global float *gradrho,    __global float *gradmu,   __global float *gradsrc,
+                          __global float *Hrho,    __global float *Hmu,
                           __local  float *lvar)
 {
 
@@ -665,7 +673,7 @@ __kernel void update_adjs(int offcomm,
 // Shear wave modulus gradient calculation on the fly    
 #if BACK_PROP_TYPE==1
 
-                 gradmu(gidz,gidy,gidx)+=(sxy(gidz,gidx)*fipjp*vyx_r+syz(gidz,gidx)*fipjp*vyz_r)/(pown( (fipjp/DT+fjpkp/DT)/2.0,2));
+    gradmu(gidz,gidy,gidx)+=-(sxy(gidz,gidx)*fipjp*vyx_r+syz(gidz,gidx)*fipjp*vyz_r)/(pown( (fipjp/DT+fjpkp/DT)/2.0,2));
 #endif
     
 

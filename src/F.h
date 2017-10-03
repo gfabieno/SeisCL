@@ -222,7 +222,8 @@ typedef struct parameter{
 
 } parameter;
 
-int par_calc_grad(struct model * m, struct device * dev);
+int calc_grad(struct model * m, struct device * dev);
+int transf_grad(struct model * m);
 float * get_par(parameter * pars, int npars, const char * name);
 int get_num_ele(parameter * pars, int npars, const char * name);
 

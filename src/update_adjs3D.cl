@@ -37,6 +37,12 @@
 #define gradtaup(z,y,x)   gradtaup[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define gradtaus(z,y,x)   gradtaus[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 
+#define Hrho(z,y,x)     Hrho[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define HM(z,y,x)         HM[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define Hmu(z,y,x)       Hmu[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define Htaup(z,y,x)   Htaup[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define Htaus(z,y,x)   Htaus[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+
 #define taus(z,y,x)         taus[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define tausipjp(z,y,x) tausipjp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define tausjpkp(z,y,x) tausjpkp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
@@ -305,6 +311,8 @@ __kernel void update_adjs(int offcomm,
                           __global float *psi_vz_x,    __global float *psi_vz_y,  __global float *psi_vz_z,
                           __global float *gradrho,    __global float *gradM,    __global float *gradmu,
                           __global float *gradtaup,   __global float *gradtaus, __global float *gradsrc,
+                          __global float *Hrho,    __global float *HM,     __global float *Hmu,
+                          __global float *Htaup,   __global float *Htaus,  __global float *Hsrc,
                           __local  float *lvar)
 {
 
@@ -1450,30 +1458,40 @@ __kernel void update_adjs(int offcomm,
     
 // Shear wave modulus and P-wave modulus gradient calculation on the fly    
 #if BACK_PROP_TYPE==1
-                 float c1=1.0/pown(3.0*lM-4.0*lmu,2);
-                 float c3=1.0/pown(lmu,2);
-                 float c5=1.0/6.0*c3;
-                 
-                 float dM=c1*( sxx(gidz,gidy,gidx)+syy(gidz,gidy,gidx)+szz(gidz,gidy,gidx) )*( lsxx+lsyy+lszz );
-                 
-                 gradM(gidz,gidy,gidx)+=dM;
-                 gradmu(gidz,gidy,gidx)+=c3*(sxz(gidz,gidy,gidx)*lsxz +sxy(gidz,gidy,gidx)*lsxy +syz(gidz,gidy,gidx)*lsyz )
-                                         - 4.0/3*dM
-                                         +c5*(  lsxx*(2.0*sxx(gidz,gidy,gidx)- syy(gidz,gidy,gidx)-szz(gidz,gidy,gidx) )
-                                               +lsyy*(2.0*syy(gidz,gidy,gidx)- sxx(gidz,gidy,gidx)-szz(gidz,gidy,gidx) )
-                                               +lszz*(2.0*szz(gidz,gidy,gidx)- sxx(gidz,gidy,gidx)-syy(gidz,gidy,gidx) )
-                                              );
+    float c1=1.0/pown(3.0*lM-4.0*lmu,2);
+    float c3=1.0/pown(lmu,2);
+    float c5=1.0/6.0*c3;
+    
+    float dM=-c1*( sxx(gidz,gidy,gidx)+syy(gidz,gidy,gidx)+szz(gidz,gidy,gidx) )*( lsxx+lsyy+lszz );
+    
+    gradM(gidz,gidy,gidx)+=-dM;
+    gradmu(gidz,gidy,gidx)+=-c3*(sxz(gidz,gidy,gidx)*lsxz +sxy(gidz,gidy,gidx)*lsxy +syz(gidz,gidy,gidx)*lsyz )
+    + 4.0/3*dM
+    -c5*(  lsxx*(2.0*sxx(gidz,gidy,gidx)- syy(gidz,gidy,gidx)-szz(gidz,gidy,gidx) )
+         +lsyy*(2.0*syy(gidz,gidy,gidx)- sxx(gidz,gidy,gidx)-szz(gidz,gidy,gidx) )
+         +lszz*(2.0*szz(gidz,gidy,gidx)- sxx(gidz,gidy,gidx)-syy(gidz,gidy,gidx) )
+         );
+#if HOUT==1
+    float dMH=c1*pown( sxx(gidz,gidy,gidx)+syy(gidz,gidy,gidx)+szz(gidz,gidy,gidx),2);
+    HM(gidz,gidx)+= dMH;
+    Hmu(gidz,gidx)+=c3*(pown(sxz(gidz,gidy,gidx),2)+pown(sxy(gidz,gidy,gidx),2)+pown(syz(gidz,gidy,gidx),2))
+                    - 4.0/3*dM
+                    +c5*(pown((2.0*sxx(gidz,gidy,gidx)- syy(gidz,gidy,gidx)-szz(gidz,gidy,gidx)),2)
+                         +pown((2.0*syy(gidz,gidy,gidx)- sxx(gidz,gidy,gidx)-szz(gidz,gidy,gidx)),2)
+                         +pown(2.0*szz(gidz,gidy,gidx)- sxx(gidz,gidy,gidx)-syy(gidz,gidy,gidx)),2));
+#endif
+    
 #endif
     
 #if GRADSRCOUT==1
     //TODO
 //    float pressure;
 //    if (nsrc>0){
-//        
+//
 //        for (int srci=0; srci<nsrc; srci++){
-//            
+//
 //            int SOURCE_TYPE= (int)srcpos_loc(4,srci);
-//            
+//
 //            if (SOURCE_TYPE==1){
 //                int i=(int)(srcpos_loc(0,srci)/DH-0.5)+FDOH;
 //                int j=(int)(srcpos_loc(1,srci)/DH-0.5)+FDOH;

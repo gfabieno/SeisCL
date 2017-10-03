@@ -314,6 +314,15 @@ int prog_create(model * m,
                 
                 break;
             }
+            sprintf(str2comp,"H%s",(*dev).pars[j].name);
+            if (strcmp(str2comp,(*prog).input_list[i])==0){
+                state = clSetKernelArg((*prog).kernel,
+                                       i, sizeof(cl_mem),
+                                       &(*dev).pars[j].cl_H.mem);
+                argfound=1;
+                
+                break;
+            }
         }
         if (!argfound){
             for (j=0;j<m->nvars;j++){

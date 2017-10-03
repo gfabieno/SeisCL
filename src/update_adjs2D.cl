@@ -34,6 +34,12 @@
 #define gradtaup(z,x)  gradtaup[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define gradtaus(z,x)  gradtaus[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 
+#define Hrho(z,x)  Hrho[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define HM(z,x)  HM[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define Hmu(z,x)  Hmu[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define Htaup(z,x)  Htaup[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define Htaus(z,x)  Htaus[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+
 #define taus(z,x)        taus[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define tausipkp(z,x) tausipkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define taup(z,x)        taup[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
@@ -221,6 +227,8 @@ __kernel void update_adjs(int offcomm,
                           __global float *psi_vz_x,    __global float *psi_vz_z,
                           __global float *gradrho,    __global float *gradM,     __global float *gradmu,
                           __global float *gradtaup,   __global float *gradtaus,  __global float *gradsrc,
+                          __global float *Hrho,    __global float *HM,     __global float *Hmu,
+                          __global float *Htaup,   __global float *Htaus,  __global float *Hsrc,
                           __local  float *lvar)
 {
 
@@ -857,12 +865,15 @@ __kernel void update_adjs(int offcomm,
     
     float dM=c1*( sxx(gidz,gidx)+szz(gidz,gidx) )*( lsxx+lszz );
     
-//    float topr = 1000000*lszz;
-//    if (gidz==100 && gidx==100)
-//        printf("%f\n",topr);
+    gradM(gidz,gidx)+=-dM;
+    gradmu(gidz,gidx)+=-c3*(sxz(gidz,gidx)*lsxz)+dM-c5*(  (sxx(gidz,gidx)-szz(gidz,gidx))*(lsxx-lszz)  );
     
-    gradM(gidz,gidx)+=dM;
-    gradmu(gidz,gidx)+=c3*(sxz(gidz,gidx)*lsxz)-dM+c5*(  (sxx(gidz,gidx)-szz(gidz,gidx))*(lsxx-lszz)  );
+//#if HOUT==1
+//    float dMH=c1*pown( sxx(gidz,gidx)+szz(gidz,gidx),2);
+//    HM(gidz,gidx)+= dMH;
+//    Hmu(gidz,gidx)+=c3*pown(sxz(gidz,gidx),2)-dM+c5*pown(sxx(gidz,gidx)-szz(gidz,gidx),2) ;
+//#endif
+    
 #endif
 
 #if GRADSRCOUT==1

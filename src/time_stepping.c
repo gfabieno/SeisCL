@@ -690,7 +690,7 @@ int time_stepping(model * m, device ** dev) {
                 }
                 for (d=0;d<m->NUM_DEVICES;d++){
                     __GUARD clFinish((*dev)[d].queue);
-                    __GUARD par_calc_grad(m, &(*dev)[d]);
+                    __GUARD calc_grad(m, &(*dev)[d]);
                 }
             }
 
@@ -718,6 +718,8 @@ int time_stepping(model * m, device ** dev) {
         for (d=0;d<m->NUM_DEVICES;d++){
             __GUARD clFinish((*dev)[d].queue);
         }
+        
+        __GUARD transf_grad(m);
     }
     
     if (state && m->MPI_INIT==1)

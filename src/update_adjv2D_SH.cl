@@ -37,6 +37,12 @@
 #define gradtaup(z,x)  gradtaup[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define gradtaus(z,x)  gradtaus[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 
+#define Hrho(z,x)  Hrho[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define HM(z,x)  HM[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define Hmu(z,x)  Hmu[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define Htaup(z,x)  Htaup[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define Htaus(z,x)  Htaus[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+
 #define taus(z,x)        taus[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define tausipkp(z,x) tausipkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define tausipjp(z,x) tausipjp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
@@ -238,7 +244,8 @@ __kernel void update_adjv(int offcomm,
                           __global float *K_z,        __global float *a_z,          __global float *b_z,
                           __global float *K_z_half,   __global float *a_z_half,     __global float *b_z_half,
                           __global float *psi_sxy_x,  __global float *psi_syz_z,
-                          __local  float *lvar, __global float *gradrho, __global float *gradsrc)
+                          __local  float *lvar, __global float *gradrho, __global float *gradsrc,
+                          __global float *Hrho, __global float *Hsrc)
 {
 
     int g,i,j,k,m, ind;
@@ -573,7 +580,7 @@ __kernel void update_adjv(int offcomm,
 
 // Density gradient calculation on the fly
 #if BACK_PROP_TYPE==1
-    gradrho(gidz,gidx)+=vy(gidz,gidx)*lvy;
+    gradrho(gidz,gidx)+=-vy(gidz,gidx)*lvy;
 #endif
     
 #if GRADSRCOUT==1
