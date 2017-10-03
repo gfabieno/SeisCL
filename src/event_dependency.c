@@ -113,7 +113,7 @@ int event_dependency( model * m,  device ** dev, int adj){
         }
     }
     
-    //Assign events to outut and event to wait for for each devices
+    //Event dependencies for device communication
     for (d=0;d<m->NUM_DEVICES;d++){
         for (i=0;i<m->nupdates;i++){
             lu=m->ups_f[i].nvcom-1;
@@ -229,11 +229,7 @@ int event_dependency( model * m,  device ** dev, int adj){
             }
         }
     }
-    
 
-    
 
-   
-    
     return state;
 }

@@ -804,6 +804,34 @@ int Init_OpenCL(model * m, device ** dev)  {
         // propagation of the seismic wavefield
         // TODO: this is ugly and model specific, find a better way
         if (m->BACK_PROP_TYPE==1 && m->GRADOUT){
+            
+            GMALLOC(di->vars_adj, sizeof(variable)*m->nvars);
+            for (i=0;i<m->nvars;i++){
+                di->vars_adj[i]=di->vars[i];
+            }
+            
+            for (i=0;i<m->nvars;i++){
+                //Add the variable to variables to communicate during update
+                if (di->vars_adj[i].to_comm>0){
+                    j=di->vars_adj[i].to_comm-1;
+                    di->ups_adj[j].v2com[di->ups_adj[j].nvcom]=&di->vars_adj[i];
+                    di->ups_adj[j].nvcom++;
+                }
+                __GUARD clbuf_create( &m->context, &di->vars_adj[i].cl_var);
+                if (di->vars[i].to_comm && (d>0
+                                            || m->MYLOCALID>0
+                                            || d<m->NUM_DEVICES-1
+                                            || m->MYLOCALID<m->NLOCALP-1)){
+                    
+                    __GUARD clbuf_create_pin(&m->context,
+                                             &di->queuecomm,
+                                             &di->vars_adj[i].cl_buf1);
+                    __GUARD clbuf_create_pin(&m->context,
+                                             &di->queuecomm,
+                                             &di->vars_adj[i].cl_buf2);
+                }
+            }
+            
             if (m->ND==3){// For 3D
                 if (m->NUM_DEVICES==1 && m->NLOCALP==1)
                     di->NBND=(di->N[2]-2*m->NAB)*(di->N[1]-2*m->NAB)*2*m->FDOH
@@ -841,6 +869,7 @@ int Init_OpenCL(model * m, device ** dev)  {
             for (i=0;i<m->nvars;i++){
                 if (di->vars[i].to_comm){
                     di->vars[i].cl_varbnd.size=sizeof(float) * di->NBND;
+                    di->vars[i].cl_varbnd.sizepin=sizeof(float) *di->NBND*m->NT;
                     __GUARD clbuf_create_pin( &m->context,
                                               &di->queuecomm,
                                               &di->vars[i].cl_varbnd);
@@ -848,32 +877,7 @@ int Init_OpenCL(model * m, device ** dev)  {
             }
             
             
-            GMALLOC(di->vars_adj, sizeof(variable)*m->nvars);
-            for (i=0;i<m->nvars;i++){
-                di->vars_adj[i]=di->vars[i];
-            }
-            
-            for (i=0;i<m->nvars;i++){
-                //Add the variable to variables to communicate during update
-                if (di->vars_adj[i].to_comm>0){
-                    j=di->vars_adj[i].to_comm-1;
-                    di->ups_adj[j].v2com[di->ups_adj[j].nvcom]=&di->vars_adj[i];
-                    di->ups_adj[j].nvcom++;
-                }
-                __GUARD clbuf_create( &m->context, &di->vars_adj[i].cl_var);
-                if (di->vars[i].to_comm && (d>0
-                                            || m->MYLOCALID>0
-                                            || d<m->NUM_DEVICES-1
-                                            || m->MYLOCALID<m->NLOCALP-1)){
-                    
-                    __GUARD clbuf_create_pin(&m->context,
-                                             &di->queuecomm,
-                                             &di->vars_adj[i].cl_buf1);
-                    __GUARD clbuf_create_pin(&m->context,
-                                             &di->queuecomm,
-                                             &di->vars_adj[i].cl_buf2);
-                }
-            }
+
 
         }
         
@@ -960,7 +964,9 @@ int Init_OpenCL(model * m, device ** dev)  {
         
         
         if (m->GRADOUT){
-            __GUARD kernel_residuals(di, &di->src_recs.residuals);
+            __GUARD kernel_residuals(di,
+                                     &di->src_recs.residuals,
+                                     m->BACK_PROP_TYPE);
             __GUARD prog_create(m, di,  &di->src_recs.residuals);
             
             if (m->BACK_PROP_TYPE==1){

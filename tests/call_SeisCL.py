@@ -36,7 +36,7 @@ csts['NT']=875              #Number of time steps
 csts['freesurf']=0          #Include a free surface at z=0: 0: no, 1: yes
 csts['FDORDER']=8           #Order of the finite difference stencil. Values: 2,4,6,8,10,12
 csts['MAXRELERROR']=1       #Set to 1
-csts['L']=1                 #Number of attenuation mechanism (L=0 elastic)
+csts['L']=0                 #Number of attenuation mechanism (L=0 elastic)
 csts['f0']=15               #Central frequency for which the relaxation mechanism are corrected to the righ velocity
 csts['FL']=np.array(15)     #Array of frequencies in Hz of the attenuation mechanism
 
@@ -51,7 +51,7 @@ csts['FPML']=15              #Dominant frequency of the wavefield
 csts['K_MAX_CPML']=2        #Coeffienc involved in CPML (may influence simulation stability)
 csts['nab']=32              #Width in grid points of the absorbing layer
 csts['abpc']=6              #Exponential decay of the absorbing layer of Cerjan et. al.
-csts['pref_device_type']=4  #Type of processor used: 2: CPU, 4: GPU, 8: Accelerator
+csts['pref_device_type']=2  #Type of processor used: 2: CPU, 4: GPU, 8: Accelerator
 csts['nmax_dev']=9999       #Maximum number of devices that can be used
 csts['no_use_GPUs']=np.empty( (1,0) )  #Array of device numbers that should not be used for computation
 csts['MPI_NPROC_SHOT']=1    #Maximum number of MPI process (nodes) per shot involved in domain decomposition
@@ -140,26 +140,26 @@ din['src_pos']=dout['src_pos']
 din['rec_pos']=dout['rec_pos']
 #din['vx']=dout['vxout']
 #din['vz']=dout['vzout']
-din['p']=dout['pout']
+din['p']=np.transpose(dout['pout'])
 h5mat.savemat(filenames['din'], din , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
-#
-#
-##________________Calculate gradient______________
-#model['vp'][70:90,65:85]= 3500
-#model['taup'][110:130,65:85]= 0.02
-#csts['gradout']=1
-#csts['resout']=1
-#csts['gradfreqs']=np.append(csts['gradfreqs'], csts['f0'])
-#h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
-#h5mat.savemat(filenames['model'], model , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
-#              
-#filepath=os.getcwd()
-#cmdlaunch='cd ../src/; mpirun -np 1 ./SeisCL_MPI '+filepath+'/SeisCL > ../tests/out 2>../tests/err'
-#print(cmdlaunch)
-#pipes = subprocess.Popen(cmdlaunch,stdout=subprocess.PIPE, stderr=subprocess.PIPE,shell=True)
-#while (pipes.poll() is None):
-#    time.sleep(1)
-#sys.stdout.write('Gradient calculation completed \n')
-#sys.stdout.flush()
+
+
+#________________Calculate gradient______________
+model['vp'][70:90,65:85]= 3500
+model['taup'][110:130,65:85]= 0.02
+csts['gradout']=1
+csts['resout']=1
+csts['gradfreqs']=np.append(csts['gradfreqs'], csts['f0'])
+h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
+h5mat.savemat(filenames['model'], model , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
+              
+filepath=os.getcwd()
+cmdlaunch='cd ../src/; mpirun -np 1 ./SeisCL_MPI '+filepath+'/SeisCL > ../tests/out 2>../tests/err'
+print(cmdlaunch)
+pipes = subprocess.Popen(cmdlaunch,stdout=subprocess.PIPE, stderr=subprocess.PIPE,shell=True)
+while (pipes.poll() is None):
+    time.sleep(1)
+sys.stdout.write('Gradient calculation completed \n')
+sys.stdout.flush()
 
 

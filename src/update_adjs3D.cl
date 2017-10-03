@@ -1105,9 +1105,9 @@ __kernel void update_adjs(int offcomm,
         sxy(gidz,gidy,gidx)-=(fipjp*vxyyx);
         syz(gidz,gidy,gidx)-=(fjpkp*vyzzy);
         sxz(gidz,gidy,gidx)-=(fipkp*vxzzx);
-        sxx(gidz,gidy,gidx)-=((g*vxxyyzz)-(f*vyyzz)) + amp;
-        syy(gidz,gidy,gidx)-=((g*vxxyyzz)-(f*vxxzz)) + amp;
-        szz(gidz,gidy,gidx)-=((g*vxxyyzz)-(f*vxxyy)) + amp;
+        sxx(gidz,gidy,gidx)-=((g*vxxyyzz)-(f*vyyzz)) ;
+        syy(gidz,gidy,gidx)-=((g*vxxyyzz)-(f*vxxzz)) ;
+        szz(gidz,gidy,gidx)-=((g*vxxyyzz)-(f*vxxyy)) ;
         
 // Backpropagation is not stable for viscoelastic wave equation
 #else
@@ -1167,9 +1167,9 @@ __kernel void update_adjs(int offcomm,
         sxy(gidz,gidy,gidx)-=lsxy+(DT2*sumrxy);
         syz(gidz,gidy,gidx)-=lsyz+(DT2*sumryz);
         sxz(gidz,gidy,gidx)-=lsxz+(DT2*sumrxz);
-        sxx(gidz,gidy,gidx)-=lsxx+(DT2*sumrxx)+amp;
-        syy(gidz,gidy,gidx)-=lsyy+(DT2*sumryy)+amp;
-        szz(gidz,gidy,gidx)-=lszz+(DT2*sumrzz)+amp;
+        sxx(gidz,gidy,gidx)-=lsxx+(DT2*sumrxx);
+        syy(gidz,gidy,gidx)-=lsyy+(DT2*sumryy);
+        szz(gidz,gidy,gidx)-=lszz+(DT2*sumrzz);
         
 #endif
         

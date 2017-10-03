@@ -418,7 +418,8 @@ int kernel_sources(device * dev,
 }
 
 int kernel_residuals(device * dev,
-                     clprogram * prog){
+                     clprogram * prog,
+                     int BACK_PROP_TYPE){
     
     int state=0;
     int i,j;
@@ -436,6 +437,8 @@ int kernel_residuals(device * dev,
         if (vars[i].to_output){
             strcat(temp, "__global float * ");
             strcat(temp, vars[i].name);
+            if (BACK_PROP_TYPE==1)
+                strcat(temp, "_r");
             strcat(temp, ", ");
             strcat(temp, "__global float * ");
             strcat(temp, vars[i].name);
@@ -447,6 +450,8 @@ int kernel_residuals(device * dev,
             for (j=0;j<tvars[i].n2ave;j++){
                 strcat(temp, "__global float * ");
                 strcat(temp, tvars[i].var2ave[j]);
+                if (BACK_PROP_TYPE==1)
+                    strcat(temp, "_r");
                 strcat(temp, ", ");
             }
             
@@ -489,6 +494,8 @@ int kernel_residuals(device * dev,
         if (vars[i].to_output){
             strcat(temp, "        ");
             strcat(temp, vars[i].name);
+            if (BACK_PROP_TYPE==1)
+                strcat(temp, "_r");
             strcat(temp, posstr);
             strcat(temp, "+=");
             strcat(temp, vars[i].name);
@@ -501,6 +508,8 @@ int kernel_residuals(device * dev,
             for (j=0;j<tvars[i].n2ave;j++){
                 strcat(temp, "        ");
                 strcat(temp, tvars[i].var2ave[j]);
+                if (BACK_PROP_TYPE==1)
+                    strcat(temp, "_r");
                 strcat(temp, posstr);
                 strcat(temp, "+=");
                 strcat(temp, tvars[i].name);

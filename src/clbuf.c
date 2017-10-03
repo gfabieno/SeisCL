@@ -136,6 +136,7 @@ cl_int clbuf_create(cl_context *incontext, clbuf * buf)
 cl_int clbuf_create_pin(cl_context *incontext, cl_command_queue *inqueue,
                         clbuf * buf)
 {
+    size_t sizepin;
     /*Create pinned memory */
     cl_int cl_err = 0;
     (*buf).mem = clCreateBuffer(*incontext,
@@ -143,18 +144,24 @@ cl_int clbuf_create_pin(cl_context *incontext, cl_command_queue *inqueue,
                                 (*buf).size,
                                 NULL,
                                 &cl_err);
+    if ((*buf).sizepin>0){
+        sizepin=(*buf).sizepin;
+    }
+    else{
+        sizepin=(*buf).size;
+    }
     (*buf).pin= clCreateBuffer(*incontext,
                                CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR,
-                               (*buf).size,
+                               sizepin,
                                NULL,
                                &cl_err);
     
     (*buf).host = (float*)clEnqueueMapBuffer(*inqueue,
-                                             (*buf).mem,
+                                             (*buf).pin,
                                              CL_TRUE,
                                              CL_MAP_WRITE | CL_MAP_READ,
                                              0,
-                                             (*buf).size,
+                                             sizepin,
                                              0,
                                              NULL,
                                              NULL,

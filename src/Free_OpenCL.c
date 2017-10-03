@@ -22,6 +22,7 @@
 
 void clbuf_free(device *dev, clbuf *buf){
     
+    if (buf->mem) clReleaseMemObject(buf->mem);
     if (buf->pin) clEnqueueUnmapMemObject(dev->queuecomm,
                                           buf->pin,
                                           buf->host,
@@ -32,7 +33,7 @@ void clbuf_free(device *dev, clbuf *buf){
          GFree(buf->host);
     }
     if (buf->pin) clReleaseMemObject(buf->pin);
-    if (buf->mem) clReleaseMemObject(buf->mem);
+
 }
 
 void clprogram_freeCL(clprogram * prog){

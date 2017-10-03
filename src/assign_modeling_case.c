@@ -836,7 +836,7 @@ int assign_modeling_case(model * m){
     // Check Stability function
     m->check_stability=&check_stability;
     
-    /* Arrays of constants size on all devices.  the most constants we have 
+    /* Arrays of constants size on all devices. The most constants we have 
        here is 23 */
     GMALLOC(m->csts, sizeof(constants)*23);
     
@@ -1152,8 +1152,6 @@ int assign_modeling_case(model * m){
         __GUARD append_par(m, &ind, "mu", "/mu", &mu);
         __GUARD append_par(m, &ind, "M", "/M", &M);
         __GUARD append_par(m, &ind, "rho", "/rho", NULL);
-        __GUARD append_par(m, &ind, "taup", "/taup", NULL);
-        __GUARD append_par(m, &ind, "taus", "/taus", NULL);
         __GUARD append_par(m, &ind, "rip", NULL, &rip);
         __GUARD append_par(m, &ind, "rkp", NULL, &rkp);
         __GUARD append_par(m, &ind, "muipkp", NULL, &muipkp);

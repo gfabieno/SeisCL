@@ -162,26 +162,27 @@ int save_bnd(model * m, device ** dev, int t){
     int state=0;
     int d,i;
     int lv=-1;
+    int l0=-1;
 
     
     for (d=0;d<m->NUM_DEVICES;d++){
         (*dev)[d].grads.savebnd.outevent=1;
         __GUARD prog_launch(&(*dev)[d].queue, &(*dev)[d].grads.savebnd);
-        if (t>0)
+        if ((*dev)[d].grads.savebnd.waits)
             __GUARD clReleaseEvent(*(*dev)[d].grads.savebnd.waits);
         
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].to_comm){
+                if (l0<0){
+                    l0=i;
+                }
                 lv=i;
             }
         }
 
         (*dev)[d].vars[lv].cl_varbnd.outevent_r=1;
-        (*dev)[d].vars[0].cl_varbnd.nwait_r=1;
-        (*dev)[d].vars[0].cl_varbnd.waits_r=&(*dev)[d].grads.savebnd.event;
-        (*dev)[d].grads.savebnd.nwait=1;
-        (*dev)[d].grads.savebnd.waits=
-        &(*dev)[d].vars[lv].cl_varbnd.event_r;
+        (*dev)[d].vars[l0].cl_varbnd.nwait_r=1;
+        (*dev)[d].vars[l0].cl_varbnd.waits_r=&(*dev)[d].grads.savebnd.event;
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].to_comm){
                 __GUARD clbuf_readpin(&(*dev)[d].queuecomm,
@@ -190,6 +191,8 @@ int save_bnd(model * m, device ** dev, int t){
                                       (*dev)[d].NBND*t);
             }
         }
+        (*dev)[d].grads.savebnd.nwait=1;
+        (*dev)[d].grads.savebnd.waits=&(*dev)[d].vars[lv].cl_varbnd.event_r;
         __GUARD clReleaseEvent((*dev)[d].grads.savebnd.event);
         
     }
@@ -511,12 +514,12 @@ int time_stepping(model * m, device ** dev) {
         }
         
 
-        //Realease events that have not been released
-        for (d=0;d<m->NUM_DEVICES;d++){
-            if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1){
-                __GUARD clReleaseEvent((*dev)[d].grads.savebnd.event);
-            }
-        }
+//        //Realease events that have not been released
+//        for (d=0;d<m->NUM_DEVICES;d++){
+//            if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1){
+//                __GUARD clReleaseEvent(*(*dev)[d].grads.savebnd.waits);
+//            }
+//        }
 
         // Aggregate the seismograms in the output variable
         __GUARD reduce_seis(m, dev, s);
@@ -619,8 +622,10 @@ int time_stepping(model * m, device ** dev) {
                 
                 // Inject the sources with negative sign
                 if (m->BACK_PROP_TYPE==1){
-                    __GUARD prog_launch( &(*dev)[d].queue,
-                                         &(*dev)[d].src_recs.sources);
+                    for (d=0;d<m->NUM_DEVICES;d++){
+                        __GUARD prog_launch( &(*dev)[d].queue,
+                                            &(*dev)[d].src_recs.sources);
+                    }
                 }
                 
                 // Inject the residuals

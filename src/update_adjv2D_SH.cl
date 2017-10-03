@@ -476,7 +476,7 @@ __kernel void update_adjv(int offcomm,
 #if BACK_PROP_TYPE==1
     {
 
-        lvy=((sxy_x + syz_z)/rjp(gidz,gidx))+amp;
+        lvy=((sxy_x + syz_z)/rjp(gidz,gidx));
 
         vy(gidz,gidx)-= lvy;
         

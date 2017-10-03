@@ -1079,9 +1079,9 @@ __kernel void update_adjv(int offcomm,
 // Backpropagate the forward velocity
 #if BACK_PROP_TYPE==1
     {
-        lvx=((sxx_x + sxy_y + sxz_z)/rip(gidz,gidy,gidx))+amp.x;
-        lvy=((syy_y + sxy_x + syz_z)/rjp(gidz,gidy,gidx))+amp.y;
-        lvz=((szz_z + sxz_x + syz_y)/rkp(gidz,gidy,gidx))+amp.z;
+        lvx=((sxx_x + sxy_y + sxz_z)/rip(gidz,gidy,gidx));
+        lvy=((syy_y + sxy_x + syz_z)/rjp(gidz,gidy,gidx));
+        lvz=((szz_z + sxz_x + syz_y)/rkp(gidz,gidy,gidx));
         
         vx(gidz,gidy,gidx)-= lvx;
         vy(gidz,gidy,gidx)-= lvy;

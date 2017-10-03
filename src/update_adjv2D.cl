@@ -231,7 +231,6 @@ __kernel void update_adjv(int offcomm,
     float szz_z;
     float sxz_x;
     float sxz_z;
-    float2 amp;
     float lvx;
     float lvz;
     
@@ -616,8 +615,8 @@ __kernel void update_adjv(int offcomm,
 #if BACK_PROP_TYPE==1
     {
 
-        lvx=((sxx_x + sxz_z)/rip(gidz,gidx))+amp.x;
-        lvz=((szz_z + sxz_x)/rkp(gidz,gidx))+amp.y;
+        lvx=((sxx_x + sxz_z)/rip(gidz,gidx));
+        lvz=((szz_z + sxz_x)/rkp(gidz,gidx));
         vx(gidz,gidx)-= lvx;
         vz(gidz,gidx)-= lvz;
         

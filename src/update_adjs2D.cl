@@ -638,8 +638,8 @@ __kernel void update_adjs(int offcomm,
 #if LVE==0
     
     sxz(gidz, gidx)-=(fipkp*(vxz+vzx));
-    sxx(gidz, gidx)-=(g*(vxx+vzz))-(f*vzz) + amp;
-    szz(gidz, gidx)-=(g*(vxx+vzz))-(f*vxx) + amp;
+    sxx(gidz, gidx)-=(g*(vxx+vzz))-(f*vzz) ;
+    szz(gidz, gidx)-=(g*(vxx+vzz))-(f*vxx) ;
 
 // Backpropagation is not stable for viscoelastic wave equation
 #else
@@ -676,8 +676,8 @@ __kernel void update_adjs(int offcomm,
     /* and now the components of the stress tensor are
      completely updated */
     sxz(gidz, gidx)-= lsxz + (DT2*sumrxz);
-    sxx(gidz, gidx)-= lsxx + (DT2*sumrxx) + amp;
-    szz(gidz, gidx)-= lszz + (DT2*sumrzz) + amp;
+    sxx(gidz, gidx)-= lsxx + (DT2*sumrxx) ;
+    szz(gidz, gidx)-= lszz + (DT2*sumrzz) ;
 
     
 #endif
@@ -856,6 +856,10 @@ __kernel void update_adjs(int offcomm,
     float c5=0.25*c3;
     
     float dM=c1*( sxx(gidz,gidx)+szz(gidz,gidx) )*( lsxx+lszz );
+    
+//    float topr = 1000000*lszz;
+//    if (gidz==100 && gidx==100)
+//        printf("%f\n",topr);
     
     gradM(gidz,gidx)+=dM;
     gradmu(gidz,gidx)+=c3*(sxz(gidz,gidx)*lsxz)-dM+c5*(  (sxx(gidz,gidx)-szz(gidz,gidx))*(lsxx-lszz)  );

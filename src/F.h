@@ -88,6 +88,7 @@ typedef struct clbuf {
     size_t size;
     
     cl_mem pin;
+    size_t sizepin;
     float * host;
     int free_host;
     
@@ -182,6 +183,8 @@ typedef struct variable{
     float **    gl_varin;
     float   *   gl_mov;
     float **    gl_var_res;
+
+    
     int       to_output;
     int       for_grad;
     int  to_comm;
@@ -509,7 +512,8 @@ int kernel_varinit(device * dev,
                    clprogram * prog);
 
 int kernel_residuals(device * dev,
-                     clprogram * prog);
+                     clprogram * prog,
+                     int BACK_PROP_TYPE);
 
 int kernel_gradinit(device * dev,
                     parameter * pars,
