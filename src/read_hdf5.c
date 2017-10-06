@@ -298,7 +298,6 @@ int readhdf5(struct filenames files, model * m) {
     __GUARD readvar(file_id, H5T_NATIVE_INT,   "/seisout", &m->VARSOUT);
     __GUARD readvar(file_id, H5T_NATIVE_INT,   "/resout", &m->RESOUT);
     __GUARD readvar(file_id, H5T_NATIVE_INT,   "/rmsout", &m->RMSOUT);
-    __GUARD readvar(file_id, H5T_NATIVE_INT,   "/pref_device_type", &m->pref_device_type);
     __GUARD readvar(file_id, H5T_NATIVE_INT,   "/nmax_dev", &m->nmax_dev);
     __GUARD readvar(file_id, H5T_NATIVE_INT,   "/MPI_NPROC_SHOT", &m->MPI_NPROC_SHOT);
     
