@@ -25,7 +25,7 @@
 //    /* Routine that return the OpenCL error in a string format */
 //    
 //    switch (err) {
-//        case 0: return "CL_SUCCESS";
+//        case 0: return "0";
 //        case -1: return "CL_DEVICE_NOT_FOUND";
 //        case -2: return "CL_DEVICE_NOT_AVAILABLE";
 //        case -3: return "CL_COMPILER_NOT_AVAILABLE";

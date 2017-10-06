@@ -30,7 +30,7 @@ SeisCL_MPI_SRC= \
     Init_cst.c \
 	Init_model.c \
 	Init_MPI.c \
-	Init_OpenCL.c \
+	Init_CUDA.c \
     kiss_fft.c \
     kiss_fftr.c \
 	Out_MPI.c \

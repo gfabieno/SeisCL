@@ -87,7 +87,7 @@ int main(int argc, char **argv) {
     
     time3=MPI_Wtime();
     
-//    __GUARD Init_OpenCL(&m, &dev);
+//    __GUARD Init_CUDA(&m, &dev);
 
     time4=MPI_Wtime();
 

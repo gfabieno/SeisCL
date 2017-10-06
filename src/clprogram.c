@@ -232,14 +232,14 @@
 //                                             &program_source,
 //                                             NULL,
 //                                             &state);
-//        if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
+//        if (state !=0) fprintf(stderr,"%s\n",clerrors(state));
 //        
 //        state = clBuildProgram(*program, 0, NULL, build_options, NULL, NULL);
-//        if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
+//        if (state !=0) fprintf(stderr,"%s\n",clerrors(state));
 //    }
 //    // Now create the kernel "objects"
 //    *kernel = clCreateKernel(*program, program_name, &state);
-//    if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
+//    if (state !=0) fprintf(stderr,"%s\n",clerrors(state));
 //    
 //    
 //    return state;
@@ -537,7 +537,7 @@
 //                                   prog->waits,
 //                                   event);
 //    
-//    if (state !=CL_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
+//    if (state !=0) fprintf(stderr,"%s\n",clerrors(state));
 //    
 //    return state;
 //    

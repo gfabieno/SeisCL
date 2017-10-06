@@ -19,168 +19,98 @@
 
 
 #include "F.h"
-//
-//cl_int clbuf_send( cl_command_queue *inqueue, clbuf * buf)
-//{
-//    /*Routine to allocate memory buffers to the device*/
-//    
-//    cl_int cl_err = 0;
-//    cl_event * event=NULL;
-//    if (buf->outevent_s)
-//        event=&buf->event_s;
-//    /*Transfer memory from host to the device*/
-//    cl_err = clEnqueueWriteBuffer(*inqueue, buf->mem,
-//                                  CL_TRUE,
-//                                  0,
-//                                  buf->size,
-//                                  (void*)buf->host,
-//                                  buf->nwait_s,
-//                                  buf->waits_s,
-//                                  event);
-//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",clerrors(cl_err));
-//    
-//    return cl_err;
-//}
-//
-//cl_int clbuf_sendpin( cl_command_queue *inqueue,
-//                     clbuf * buf,
-//                     clbuf * bufpin,
-//                     int offset)
-//{
-//    /*Routine to allocate memory buffers to the device*/
-//    
-//    cl_int cl_err = 0;
-//    cl_event * event=NULL;
-//    if (buf->outevent_s)
-//        event=&buf->event_s;
-//    /*Transfer memory from host to the device*/
-//    cl_err = clEnqueueWriteBuffer(*inqueue, buf->mem,
-//                                  CL_TRUE,
-//                                  0,
-//                                  buf->size,
-//                                  (void*)&bufpin->host[offset],
-//                                  buf->nwait_s,
-//                                  buf->waits_s,
-//                                  event);
-//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",clerrors(cl_err));
-//    
-//    return cl_err;
-//}
-//
-//
-//
-//cl_int clbuf_read( cl_command_queue *inqueue, clbuf * buf)
-//{
-//    /*Routine to read memory buffers from the device*/
-//    
-//    cl_int cl_err = 0;
-//    cl_event * event=NULL;
-//    if (buf->outevent_r)
-//        event=&buf->event_r;
-//    
-//    /*Read memory from device to the host*/
-//    cl_err = clEnqueueReadBuffer(*inqueue,
-//                                 buf->mem,
-//                                 CL_FALSE,
-//                                 0,
-//                                 buf->size,
-//                                 buf->host,
-//                                 buf->nwait_r,
-//                                 buf->waits_r,
-//                                 event);
-//    
-//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",clerrors(cl_err));
-//    
-//    return cl_err;
-//}
-//
-//cl_int clbuf_readpin( cl_command_queue *inqueue,
-//                     clbuf * buf,
-//                     clbuf * bufpin,
-//                     int offset)
-//{
-//    /*Routine to read memory buffers from the device*/
-//    
-//    cl_int cl_err = 0;
-//    cl_event * event=NULL;
-//    if (buf->outevent_r)
-//        event=&buf->event_r;
-//    
-//    /*Read memory from device to the host*/
-//    cl_err = clEnqueueReadBuffer(*inqueue,
-//                                 buf->mem,
-//                                 CL_FALSE,
-//                                 0,
-//                                 buf->size,
-//                                 &bufpin->host[offset],
-//                                 buf->nwait_r,
-//                                 buf->waits_r,
-//                                 event);
-//    
-//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",clerrors(cl_err));
-//    
-//    return cl_err;
-//}
-//
-//cl_int clbuf_create(cl_context *incontext, clbuf * buf)
-//{
-//    /*Create the buffer on the device */
-//    cl_int cl_err = 0;
-//    (*buf).mem = clCreateBuffer(*incontext, CL_MEM_READ_WRITE, (*buf).size, NULL, &cl_err);
-//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",clerrors(cl_err));
-//    
-//    return cl_err;
-//    
-//}
-//
-//cl_int clbuf_create_pin(cl_context *incontext, cl_command_queue *inqueue,
-//                        clbuf * buf)
-//{
-//    size_t sizepin;
-//    /*Create pinned memory */
-//    cl_int cl_err = 0;
-//    (*buf).mem = clCreateBuffer(*incontext,
-//                                CL_MEM_READ_WRITE,
-//                                (*buf).size,
-//                                NULL,
-//                                &cl_err);
-//    if ((*buf).sizepin>0){
-//        sizepin=(*buf).sizepin;
-//    }
-//    else{
-//        sizepin=(*buf).size;
-//    }
-//    (*buf).pin= clCreateBuffer(*incontext,
-//                               CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR,
-//                               sizepin,
-//                               NULL,
-//                               &cl_err);
-//    
-//    (*buf).host = (float*)clEnqueueMapBuffer(*inqueue,
-//                                             (*buf).pin,
-//                                             CL_TRUE,
-//                                             CL_MAP_WRITE | CL_MAP_READ,
-//                                             0,
-//                                             sizepin,
-//                                             0,
-//                                             NULL,
-//                                             NULL,
-//                                             &cl_err);
-//    
-//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",clerrors(cl_err));
-//    
-//    return cl_err;
-//    
-//}
-//
-//cl_int clbuf_create_cst(cl_context *incontext, clbuf * buf)
-//{
-//    /*Create read only memory */
-//    cl_int cl_err = 0;
-//    (*buf).mem = clCreateBuffer(*incontext, CL_MEM_READ_ONLY, (*buf).size, NULL, &cl_err);
-//    if (cl_err !=CL_SUCCESS) fprintf(stderr,"%s\n",clerrors(cl_err));
-//    
-//    return cl_err;
-//    
-//}
+
+int clbuf_send(  clbuf * buf)
+{
+    /*Routine to allocate memory buffers to the device*/
+    
+    int err = 0;
+
+    /*Transfer memory from host to the device*/
+    err = cudaMemcpy(buf->mem, (void*)buf->host, buf->size, cudaMemcpyHostToDevice);
+    if (err !=0) fprintf(stderr,"%s\n",cudaGetErrorString(err));
+    
+    return err;
+}
+
+int clbuf_sendpin(   clbuf * buf,
+                     clbuf * bufpin,
+                     int offset)
+{
+    /*Routine to allocate memory buffers to the device*/
+    
+    int err = 0;
+    /*Transfer memory from host to the device*/
+    err = cudaMemcpy(buf->mem,
+                     (void*)&bufpin->host[offset],
+                     buf->size,
+                     cudaMemcpyHostToDevice);
+    if (err !=0) fprintf(stderr,"%s\n",cudaGetErrorString(err));
+    
+    return err;
+}
+
+int clbuf_read( clbuf * buf)
+{
+    /*Routine to read memory buffers from the device*/
+    
+    int err = 0;
+    
+    /*Read memory from device to the host*/
+    err = cudaMemcpy(buf->host, buf->mem, buf->size, cudaMemcpyDeviceToHost);
+    
+    if (err !=0) fprintf(stderr,"%s\n",cudaGetErrorString(err));
+    
+    return err;
+}
+
+int clbuf_readpin(   clbuf * buf,
+                     clbuf * bufpin,
+                     int offset)
+{
+    /*Routine to read memory buffers from the device*/
+    
+    int err = 0;
+    
+    /*Read memory from device to the host*/
+    err = cudaMemcpy(&bufpin->host[offset], buf->mem, buf->size, cudaMemcpyDeviceToHost);
+    
+    if (err !=0) fprintf(stderr,"%s\n",cudaGetErrorString(err));
+    
+    return err;
+}
+
+int clbuf_create(clbuf * buf)
+{
+    /*Create the buffer on the device */
+    int err = 0;
+    err = cudaMalloc( (void **)&(*buf).mem , (*buf).size);
+    if (err !=0) fprintf(stderr,"%s\n",cudaGetErrorString(err));
+    
+    return err;
+    
+}
+
+int clbuf_create_pin(clbuf * buf)
+{
+    size_t sizepin;
+    /*Create pinned memory */
+    int err = 0;
+    err = cudaMalloc( (void **)&(*buf).mem , (*buf).size);
+
+    if ((*buf).sizepin>0){
+        sizepin=(*buf).sizepin;
+    }
+    else{
+        sizepin=(*buf).size;
+    }
+    err = cudaMallocHost((void**)&(*buf).pin, sizepin);
+        
+    if (err !=0) fprintf(stderr,"%s\n",cudaGetErrorString(err));
+    
+    return err;
+    
+}
+
+
 

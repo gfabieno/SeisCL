@@ -43,6 +43,8 @@
 //#else
 //#include <CL/cl.h>
 //#endif
+// includes CUDA Runtime
+#include <cuda_runtime.h>
 
 #include <mpi.h>
 #include <hdf5.h>
@@ -84,10 +86,10 @@ struct filenames {
 /* _____________Structure to intereact with OpenCL memory buffers ____________*/
 typedef struct clbuf {
     
-//    cl_mem mem;
+    float * mem;
     size_t size;
     
-//    cl_mem pin;
+    float * pin;
     size_t sizepin;
     float * host;
     int free_host;
@@ -104,26 +106,21 @@ typedef struct clbuf {
     
 } clbuf;
 
-//int clbuf_send(cl_command_queue *inqueue, clbuf * buf);
-//
-//int clbuf_sendpin( cl_command_queue *inqueue,
-//                     clbuf * buf,
-//                     clbuf * bufpin,
-//                     int offset);
-//
-//int clbuf_read(cl_command_queue *inqueue, clbuf * buf);
-//
-//int clbuf_readpin( cl_command_queue *inqueue,
-//                     clbuf * buf,
-//                     clbuf * bufpin,
-//                     int offset);
-//
-//int clbuf_create(cl_context *incontext, clbuf * buf);
-//
-//int clbuf_create_cst(cl_context *incontext, clbuf * buf);
-//
-//int clbuf_create_pin(cl_context *incontext, cl_command_queue *inqueue,
-//                        clbuf * buf);
+int clbuf_send( clbuf * buf);
+
+int clbuf_sendpin(   clbuf * buf,
+                     clbuf * bufpin,
+                     int offset);
+
+int clbuf_read( clbuf * buf);
+
+int clbuf_readpin( clbuf * buf,
+                     clbuf * bufpin,
+                     int offset);
+
+int clbuf_create(clbuf * buf);
+
+int clbuf_create_pin( clbuf * buf);
 
 
 /* ____________________Structure to execute OpenCL kernels____________________*/
@@ -133,7 +130,7 @@ typedef struct clprogram {
     
     const char * name;
     const char * src;
-//    cl_program prog;
+    void (*prog)(void *);
 //    cl_kernel kernel;
     char ** input_list;
     int ninputs;
@@ -155,6 +152,9 @@ typedef struct clprogram {
 //    cl_event * waits;
     
 } clprogram;
+
+int update_velocity_2D_visco( void * mv);
+int update_stress_2D_visco( void * mv);
 
 int prog_source(clprogram * prog,
                 char* name,
@@ -451,7 +451,7 @@ typedef struct model {
     int n_no_use_GPUs;
 //    cl_device_type pref_device_type;
 //    cl_device_type device_type;
-//    cl_uint NUM_DEVICES;
+    int NUM_DEVICES;
 //    cl_context context;
 
     int (*res_calc)(struct model * , int );
@@ -473,7 +473,7 @@ int Init_model(model * m);
 
 int Init_MPI(model * m);
 
-int Init_OpenCL(model * m, device ** dev);
+int Init_CUDA(model * m, device ** dev);
 
 int event_dependency( model * m,  device ** dev, int adj);
 
