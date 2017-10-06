@@ -5,8 +5,8 @@ UNAME_S := $(shell uname -s)
 
 
     ifeq ($(UNAME_S),Linux)
-        CC=mpicc
-	LFLAGS= -lm -lmpi -lOpenCL -lhdf5 -L/usr/local/hdf5/lib -L/usr/lib64/ -lz -pipe
+        CC=nvcc
+	LFLAGS= -lm -lmpi -lhdf5 -L/usr/local/hdf5/lib -L/usr/lib64/ -lz -pipe
 	CFLAGS= -g -I/usr/local/hdf5/include
     endif
     ifeq ($(UNAME_S),Darwin)
@@ -15,27 +15,6 @@ UNAME_S := $(shell uname -s)
 	CFLAGS= -Wall -O3 -I/opt/local/include
     endif
 
-
-SeisCL_CL= \
-	savebnd2D.cl \
-	savebnd3D.cl \
-	surface2D.cl \
-	surface2D_SH.cl \
-	surface3D.cl \
-	update_adjs2D.cl \
-	update_adjs2D_SH.cl \
-	update_adjs3D.cl \
-	update_adjv2D.cl \
-	update_adjv2D_SH.cl \
-	update_adjv3D.cl \
-	update_s2D.cl \
-	update_s2D_SH.cl \
-	update_s3D.cl \
-	update_v2D.cl \
-	update_v2D_SH.cl \
-	update_v3D.cl
-
-SeisCL_CL_Headers = $(SeisCL_CL:%.cl=%.hcl)
 
 SeisCL_MPI_SRC= \
 	assign_modeling_case.c \

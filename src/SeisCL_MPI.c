@@ -87,12 +87,12 @@ int main(int argc, char **argv) {
     
     time3=MPI_Wtime();
     
-    __GUARD Init_OpenCL(&m, &dev);
+//    __GUARD Init_OpenCL(&m, &dev);
 
     time4=MPI_Wtime();
 
     // Main part, where seismic modeling occurs
-    __GUARD time_stepping(&m, &dev);
+//    __GUARD time_stepping(&m, &dev);
 
     time5=MPI_Wtime();
     
@@ -145,7 +145,7 @@ int main(int argc, char **argv) {
     }
 
     // Free the memory
-    Free_OpenCL(&m, &dev);
+//    Free_OpenCL(&m, &dev);
 
     if (m.MPI_INIT==1){
         MPI_Finalize();

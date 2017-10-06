@@ -38,11 +38,11 @@
 #include "kiss_fft.h"
 #include "kiss_fftr.h"
 
-#ifdef __APPLE__
-#include <OpenCL/opencl.h>
-#else
-#include <CL/cl.h>
-#endif
+//#ifdef __APPLE__
+//#include <OpenCL/opencl.h>
+//#else
+//#include <CL/cl.h>
+//#endif
 
 #include <mpi.h>
 #include <hdf5.h>
@@ -84,46 +84,46 @@ struct filenames {
 /* _____________Structure to intereact with OpenCL memory buffers ____________*/
 typedef struct clbuf {
     
-    cl_mem mem;
+//    cl_mem mem;
     size_t size;
     
-    cl_mem pin;
+//    cl_mem pin;
     size_t sizepin;
     float * host;
     int free_host;
     
     int outevent_r;
     int outevent_s;
-    cl_event event_r;
-    cl_event event_s;
+//    cl_event event_r;
+//    cl_event event_s;
     
     int nwait_r;
-    cl_event * waits_r;
+//    cl_event * waits_r;
     int nwait_s;
-    cl_event * waits_s;
+//    cl_event * waits_s;
     
 } clbuf;
 
-cl_int clbuf_send(cl_command_queue *inqueue, clbuf * buf);
-
-cl_int clbuf_sendpin( cl_command_queue *inqueue,
-                     clbuf * buf,
-                     clbuf * bufpin,
-                     int offset);
-
-cl_int clbuf_read(cl_command_queue *inqueue, clbuf * buf);
-
-cl_int clbuf_readpin( cl_command_queue *inqueue,
-                     clbuf * buf,
-                     clbuf * bufpin,
-                     int offset);
-
-cl_int clbuf_create(cl_context *incontext, clbuf * buf);
-
-cl_int clbuf_create_cst(cl_context *incontext, clbuf * buf);
-
-cl_int clbuf_create_pin(cl_context *incontext, cl_command_queue *inqueue,
-                        clbuf * buf);
+//int clbuf_send(cl_command_queue *inqueue, clbuf * buf);
+//
+//int clbuf_sendpin( cl_command_queue *inqueue,
+//                     clbuf * buf,
+//                     clbuf * bufpin,
+//                     int offset);
+//
+//int clbuf_read(cl_command_queue *inqueue, clbuf * buf);
+//
+//int clbuf_readpin( cl_command_queue *inqueue,
+//                     clbuf * buf,
+//                     clbuf * bufpin,
+//                     int offset);
+//
+//int clbuf_create(cl_context *incontext, clbuf * buf);
+//
+//int clbuf_create_cst(cl_context *incontext, clbuf * buf);
+//
+//int clbuf_create_pin(cl_context *incontext, cl_command_queue *inqueue,
+//                        clbuf * buf);
 
 
 /* ____________________Structure to execute OpenCL kernels____________________*/
@@ -133,8 +133,8 @@ typedef struct clprogram {
     
     const char * name;
     const char * src;
-    cl_program prog;
-    cl_kernel kernel;
+//    cl_program prog;
+//    cl_kernel kernel;
     char ** input_list;
     int ninputs;
     int tinput;
@@ -149,10 +149,10 @@ typedef struct clprogram {
     int DIRPROP;
 
     int outevent;
-    cl_event event;
+//    cl_event event;
     
     int nwait;
-    cl_event * waits;
+//    cl_event * waits;
     
 } clprogram;
 
@@ -160,7 +160,7 @@ int prog_source(clprogram * prog,
                 char* name,
                 const char * source);
 
-int prog_launch( cl_command_queue *inqueue, clprogram * prog);
+//int prog_launch( cl_command_queue *inqueue, clprogram * prog);
 
 int prog_create(struct model * m, struct device * dev,clprogram * prog);
 
@@ -316,8 +316,8 @@ typedef struct gradients {
 /* _____________Structure that holds all information of a device _____________*/
 typedef struct device {
     
-    cl_command_queue queue;
-    cl_command_queue queuecomm;
+//    cl_command_queue queue;
+//    cl_command_queue queuecomm;
 
     int workdim;
     int NDIM;
@@ -449,10 +449,10 @@ typedef struct model {
     int nmax_dev;
     int *no_use_GPUs;
     int n_no_use_GPUs;
-    cl_device_type pref_device_type;
-    cl_device_type device_type;
-    cl_uint NUM_DEVICES;
-    cl_context context;
+//    cl_device_type pref_device_type;
+//    cl_device_type device_type;
+//    cl_uint NUM_DEVICES;
+//    cl_context context;
 
     int (*res_calc)(struct model * , int );
     int (*check_stability)(void *);
