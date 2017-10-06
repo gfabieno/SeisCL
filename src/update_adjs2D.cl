@@ -868,11 +868,11 @@ __kernel void update_adjs(int offcomm,
     gradM(gidz,gidx)+=-dM;
     gradmu(gidz,gidx)+=-c3*(sxz(gidz,gidx)*lsxz)+dM-c5*(  (sxx(gidz,gidx)-szz(gidz,gidx))*(lsxx-lszz)  );
     
-//#if HOUT==1
-//    float dMH=c1*pown( sxx(gidz,gidx)+szz(gidz,gidx),2);
-//    HM(gidz,gidx)+= dMH;
-//    Hmu(gidz,gidx)+=c3*pown(sxz(gidz,gidx),2)-dM+c5*pown(sxx(gidz,gidx)-szz(gidz,gidx),2) ;
-//#endif
+#if HOUT==1
+    float dMH=c1*pown( sxx(gidz,gidx)+szz(gidz,gidx),2);
+    HM(gidz,gidx)+= dMH;
+    Hmu(gidz,gidx)+=c3*pown(sxz(gidz,gidx),2)-dM+c5*pown(sxx(gidz,gidx)-szz(gidz,gidx),2) ;
+#endif
     
 #endif
 
