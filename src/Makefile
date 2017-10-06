@@ -6,7 +6,7 @@ UNAME_S := $(shell uname -s)
 
     ifeq ($(UNAME_S),Linux)
         CC=nvcc
-	LFLAGS= -lm -lmpi -lhdf5 -L/usr/local/hdf5/lib -L/usr/lib64/ -lz -pipe
+	LFLAGS= -lm -lmpi -lhdf5 -L/usr/local/hdf5/lib -L/usr/lib64/ -lz 
 	CFLAGS= -g -I/usr/local/hdf5/include
     endif
     ifeq ($(UNAME_S),Darwin)
