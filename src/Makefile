@@ -6,7 +6,7 @@ UNAME_S := $(shell uname -s)
 
     ifeq ($(UNAME_S),Linux)
         CC=mpicc
-	LFLAGS= -lm -lmpi -lhdf5 -L/usr/local/hdf5/lib -L/usr/lib64/ -lz -L$CUDA_PATH/lib64 -lnvrtc -lcuda -Wl -rpath,$CUDA_PATH/lib64
+	LFLAGS= -lm -lmpi -lhdf5 -L/usr/local/hdf5/lib -L/usr/lib64/ -lz -L$CUDA_PATH/lib64 -lnvrtc -lcuda -Wl,-rpath,$CUDA_PATH/lib64
 	CFLAGS= -g -I/usr/local/hdf5/include -I$CUDA_PATH/include
     endif
     ifeq ($(UNAME_S),Darwin)
