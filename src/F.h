@@ -325,8 +325,8 @@ typedef struct gradients {
 /* _____________Structure that holds all information of a device _____________*/
 typedef struct device {
     
-    cudaStream_t queue;
-    cudaStream_t queuecomm;
+    CUstream queue;
+    CUstream queuecomm;
 
     int workdim;
     int NDIM;
