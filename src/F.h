@@ -44,7 +44,6 @@
 //#include <CL/cl.h>
 //#endif
 // includes CUDA Runtime
-#include <cuda_runtime.h>
 #include <cuda.h>
 #include <nvrtc.h>
 
@@ -90,7 +89,7 @@ struct filenames {
 /* _____________Structure to intereact with OpenCL memory buffers ____________*/
 typedef struct clbuf {
     
-    float * mem;
+    CUdeviceptr mem;
     size_t size;
     
     float * pin;
@@ -110,17 +109,19 @@ typedef struct clbuf {
     
 } clbuf;
 
-int clbuf_send( clbuf * buf);
+int clbuf_send(CUstream *inqueue,  clbuf * buf);
 
-int clbuf_sendpin(   clbuf * buf,
-                     clbuf * bufpin,
-                     int offset);
+int clbuf_sendpin(CUstream *inqueue,
+                  clbuf * buf,
+                  clbuf * bufpin,
+                  int offset);
 
-int clbuf_read( clbuf * buf);
+int clbuf_read(CUstream *inqueue, clbuf * buf);
 
-int clbuf_readpin( clbuf * buf,
-                     clbuf * bufpin,
-                     int offset);
+int clbuf_readpin(CUstream *inqueue,
+                  clbuf * buf,
+                  clbuf * bufpin,
+                  int offset);
 
 int clbuf_create(clbuf * buf);
 
@@ -362,6 +363,7 @@ typedef struct device {
     boundary_conditions bnd_cnds;
     
     CUcontext context;
+    CUdevice cudev;
 
 } device;
 

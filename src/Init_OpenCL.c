@@ -224,8 +224,10 @@ int connect_devices(device ** dev, model * m)
         __GUARD cuCtxCreate(&(*dev)[i].context,
                             0,
                             devices[allow_devs[i]]);
-        __GUARD cudaStreamCreate( &(*dev)[i].queue );
-        __GUARD cudaStreamCreate( &(*dev)[i].queuecomm );
+        __GUARD cuCtxGetDevice (&(*dev)[i].cudev );
+        __GUARD cuStreamCreate( &(*dev)[i].queue, CU_STREAM_NON_BLOCKING );
+        __GUARD cuStreamCreate( &(*dev)[i].queuecomm, CU_STREAM_NON_BLOCKING );
+        
     }
 
     if (state !=CUDA_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
@@ -249,10 +251,10 @@ int Init_CUDA(model * m, device ** dev)  {
     int slicesize=0;
     int slicesizefd=0;
     int devid;
-    size_t local_mem_size=0;
+    int local_mem_size=0;
     int required_local_mem_size=0;
     int required_work_size=0;
-    size_t workgroup_size=0;
+    int workgroup_size=0;
     int workdim = 0;
     int lsize[MAX_DIMS];
     int gsize[MAX_DIMS];
@@ -342,12 +344,13 @@ int Init_CUDA(model * m, device ** dev)  {
         }
 
         // Get some properties of the device, to define the work sizes
-        struct cudaDeviceProp prop;
         {
-            __GUARD cuCtxGetDevice ( &devid );
-            __GUARD cudaGetDeviceProperties( &prop, devid );
-            workgroup_size = prop.maxThreadsPerBlock;
-            local_mem_size = prop.sharedMemPerBlock;
+            __GUARD  cuDeviceGetAttribute(&workgroup_size,
+                                  CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
+                                  di->cudev );
+            __GUARD  cuDeviceGetAttribute(&local_mem_size,
+                                          CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK,
+                                          di->cudev );
 
             if (state !=CUDA_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
             
@@ -586,7 +589,7 @@ int Init_CUDA(model * m, device ** dev)  {
                     di->pars[i].num_ele=parsize;
                     di->pars[i].cl_par.size=sizeof(float)*parsize;
                     __GUARD clbuf_create(&di->pars[i].cl_par);
-                    __GUARD clbuf_send(&di->pars[i].cl_par);
+                    __GUARD clbuf_send(&di->queue,&di->pars[i].cl_par);
                     if (m->GRADOUT && m->BACK_PROP_TYPE==1){
                         di->pars[i].cl_grad.size=sizeof(float)*parsize;
                         __GUARD clbuf_create(&di->pars[i].cl_grad);
@@ -738,7 +741,7 @@ int Init_CUDA(model * m, device ** dev)  {
             di->csts[i].cl_cst.size=sizeof(float)*di->csts[i].num_ele;
             di->csts[i].cl_cst.host=m->csts[i].gl_cst;
             __GUARD clbuf_create(  &di->csts[i].cl_cst);
-            __GUARD clbuf_send(  &di->csts[i].cl_cst);
+            __GUARD clbuf_send( &di->queue, &di->csts[i].cl_cst);
             
         }
         

@@ -20,62 +20,64 @@
 
 #include "F.h"
 
-int clbuf_send(  clbuf * buf)
+int clbuf_send(CUstream *inqueue, clbuf * buf)
 {
     /*Routine to allocate memory buffers to the device*/
     
     int err = 0;
 
     /*Transfer memory from host to the device*/
-    err = cudaMemcpy(buf->mem, (void*)buf->host, buf->size, cudaMemcpyHostToDevice);
-    if (err !=0) fprintf(stderr,"%s\n",cudaGetErrorString(err));
+    err = cuMemcpyHtoDAsync ( buf->mem, (void*)buf->host, buf->size, *inqueue );
+    if (err !=0) fprintf(stderr,"%s\n",clerrors(err));
     
     return err;
 }
 
-int clbuf_sendpin(   clbuf * buf,
-                     clbuf * bufpin,
-                     int offset)
+int clbuf_sendpin(CUstream *inqueue,
+                  clbuf * buf,
+                  clbuf * bufpin,
+                  int offset)
 {
     /*Routine to allocate memory buffers to the device*/
     
     int err = 0;
     /*Transfer memory from host to the device*/
-    err = cudaMemcpy(buf->mem,
-                     (void*)&bufpin->host[offset],
-                     buf->size,
-                     cudaMemcpyHostToDevice);
-    if (err !=0) fprintf(stderr,"%s\n",cudaGetErrorString(err));
+    err = cuMemcpyHtoDAsync ( buf->mem,
+                             (void*)&buf->host[offset],
+                             buf->size,
+                             *inqueue );
+    if (err !=0) fprintf(stderr,"%s\n",clerrors(err));
     
     return err;
 }
 
-int clbuf_read( clbuf * buf)
+int clbuf_read(CUstream *inqueue, clbuf * buf)
 {
     /*Routine to read memory buffers from the device*/
     
     int err = 0;
     
     /*Read memory from device to the host*/
-    err = cudaMemcpy(buf->host, buf->mem, buf->size, cudaMemcpyDeviceToHost);
+    err= cuMemcpyDtoHAsync ( buf->host, buf->mem, buf->size, *inqueue );
     
-    if (err !=0) fprintf(stderr,"%s\n",cudaGetErrorString(err));
+    if (err !=0) fprintf(stderr,"%s\n",clerrors(err));
     
     return err;
 }
 
-int clbuf_readpin(   clbuf * buf,
-                     clbuf * bufpin,
-                     int offset)
+int clbuf_readpin(CUstream *inqueue,
+                  clbuf * buf,
+                  clbuf * bufpin,
+                  int offset)
 {
     /*Routine to read memory buffers from the device*/
     
     int err = 0;
     
     /*Read memory from device to the host*/
-    err = cudaMemcpy(&bufpin->host[offset], buf->mem, buf->size, cudaMemcpyDeviceToHost);
+    err= cuMemcpyDtoHAsync(&bufpin->host[offset], buf->mem,buf->size, *inqueue);
     
-    if (err !=0) fprintf(stderr,"%s\n",cudaGetErrorString(err));
+    if (err !=0) fprintf(stderr,"%s\n",clerrors(err));
     
     return err;
 }
@@ -84,8 +86,8 @@ int clbuf_create(clbuf * buf)
 {
     /*Create the buffer on the device */
     int err = 0;
-    err = cudaMalloc( (void **)&(*buf).mem , (*buf).size);
-    if (err !=0) fprintf(stderr,"%s\n",cudaGetErrorString(err));
+    err = cuMemAlloc( &(*buf).mem , (*buf).size);
+    if (err !=0) fprintf(stderr,"%s\n",clerrors(err));
     
     return err;
     
@@ -96,7 +98,7 @@ int clbuf_create_pin(clbuf * buf)
     size_t sizepin;
     /*Create pinned memory */
     int err = 0;
-    err = cudaMalloc( (void **)&(*buf).mem , (*buf).size);
+    err = cuMemAlloc( &(*buf).mem , (*buf).size);
 
     if ((*buf).sizepin>0){
         sizepin=(*buf).sizepin;
@@ -104,9 +106,9 @@ int clbuf_create_pin(clbuf * buf)
     else{
         sizepin=(*buf).size;
     }
-    err = cudaMallocHost((void**)&(*buf).pin, sizepin);
+    err = cuMemAllocHost((void**)&(*buf).pin, sizepin);
         
-    if (err !=0) fprintf(stderr,"%s\n",cudaGetErrorString(err));
+    if (err !=0) fprintf(stderr,"%s\n",clerrors(err));
     
     return err;
     

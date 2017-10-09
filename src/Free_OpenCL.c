@@ -22,8 +22,8 @@
 
 void clbuf_free(device *dev, clbuf *buf){
     
-    if (buf->mem) cudaFree(buf->mem);
-    if (buf->pin) cudaFreeHost(buf->pin);
+    if (buf->mem) cuMemFree(buf->mem);
+    if (buf->pin) cuMemFreeHost(buf->pin);
     else if (buf->free_host){
          GFree(buf->host);
     }
