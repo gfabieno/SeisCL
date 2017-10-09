@@ -307,21 +307,21 @@ int prog_create(model * m,
         //        printf("%s\n",(*prog).input_list[i]);
         for (j=0;j<m->npars;j++){
             if (strcmp((*dev).pars[j].name,(*prog).input_list[i])==0){
-                (*prog).inputs[i]=(*dev).pars[j].cl_par.mem;
+                (*prog).inputs[i]=(void*)(*dev).pars[j].cl_par.mem;
                 argfound=1;
 
                 break;
             }
             sprintf(str2comp,"grad%s",(*dev).pars[j].name);
             if (strcmp(str2comp,(*prog).input_list[i])==0){
-                (*prog).inputs[i]=(*dev).pars[j].cl_grad.mem;
+                (*prog).inputs[i]=(void*)(*dev).pars[j].cl_grad.mem;
                 argfound=1;
                 
                 break;
             }
             sprintf(str2comp,"H%s",(*dev).pars[j].name);
             if (strcmp(str2comp,(*prog).input_list[i])==0){
-                (*prog).inputs[i]=(*dev).pars[j].cl_H.mem;
+                (*prog).inputs[i]=(void*)(*dev).pars[j].cl_H.mem;
                 argfound=1;
                 
                 break;
@@ -330,37 +330,37 @@ int prog_create(model * m,
         if (!argfound){
             for (j=0;j<m->nvars;j++){
                 if (strcmp((*dev).vars[j].name,(*prog).input_list[i])==0){
-                    (*prog).inputs[i]=(*dev).vars[j].cl_var.mem;
+                    (*prog).inputs[i]=(void*)(*dev).vars[j].cl_var.mem;
                     argfound=1;
                     break;
                 }
                 sprintf(str2comp,"%sout",(*dev).vars[j].name);
                 if (strcmp(str2comp,(*prog).input_list[i])==0){
-                    (*prog).inputs[i]=(*dev).vars[j].cl_varout.mem;
+                    (*prog).inputs[i]=(void*)(*dev).vars[j].cl_varout.mem;
                     argfound=1;
                     break;
                 }
                 sprintf(str2comp,"%sbnd",(*dev).vars[j].name);
                 if (strcmp(str2comp,(*prog).input_list[i])==0){
-                    (*prog).inputs[i]=(*dev).vars[j].cl_varbnd.mem;
+                    (*prog).inputs[i]=(void*)(*dev).vars[j].cl_varbnd.mem;
                     argfound=1;
                     break;
                 }
                 sprintf(str2comp,"f%s",(*dev).vars[j].name);
                 if (strcmp(str2comp,(*prog).input_list[i])==0){
-                    (*prog).inputs[i]=(*dev).vars[j].cl_fvar.mem;
+                    (*prog).inputs[i]=(void*)(*dev).vars[j].cl_fvar.mem;
                     argfound=1;
                     break;
                 }
                 sprintf(str2comp,"%s_buf1",(*dev).vars[j].name);
                 if (strcmp(str2comp,(*prog).input_list[i])==0){
-                    (*prog).inputs[i]=(*dev).vars[j].cl_buf1.mem;
+                    (*prog).inputs[i]=(void*)(*dev).vars[j].cl_buf1.mem;
                     argfound=1;
                     break;
                 }
                 sprintf(str2comp,"%s_buf2",(*dev).vars[j].name);
                 if (strcmp(str2comp,(*prog).input_list[i])==0){
-                    (*prog).inputs[i]=(*dev).vars[j].cl_buf2.mem;
+                    (*prog).inputs[i]=(void*)(*dev).vars[j].cl_buf2.mem;
                     argfound=1;
                     break;
                 }
@@ -370,7 +370,7 @@ int prog_create(model * m,
             for (j=0;j<m->ntvars;j++){
                 sprintf(str2comp,"%sout",(*dev).trans_vars[j].name);
                 if (strcmp(str2comp,(*prog).input_list[i])==0){
-                    (*prog).inputs[i]=(*dev).trans_vars[j].cl_varout.mem;
+                    (*prog).inputs[i]=(void*)(*dev).trans_vars[j].cl_varout.mem;
                     argfound=1;
                     break;
                 }
@@ -384,10 +384,10 @@ int prog_create(model * m,
                     //TODO this is a hack for how adj kernels are written,
                     //     think of a better way
                     if (m->BACK_PROP_TYPE==1){
-                        (*prog).inputs[i]=(*dev).vars_adj[j].cl_var.mem;
+                        (*prog).inputs[i]=(void*)(*dev).vars_adj[j].cl_var.mem;
                     }
                     else if (m->BACK_PROP_TYPE==2){
-                        (*prog).inputs[i]=(*dev).vars[j].cl_var.mem;
+                        (*prog).inputs[i]=(void*)(*dev).vars[j].cl_var.mem;
                     }
                     argfound=1;
 
@@ -398,7 +398,7 @@ int prog_create(model * m,
         if (!argfound){
             for (j=0;j<m->ncsts;j++){
                 if (strcmp((*dev).csts[j].name,(*prog).input_list[i])==0){
-                    (*prog).inputs[i]=(*dev).csts[j].cl_cst.mem;
+                    (*prog).inputs[i]=(void*)(*dev).csts[j].cl_cst.mem;
                     argfound=1;
 
                     break;
@@ -407,19 +407,19 @@ int prog_create(model * m,
         }
         if (!argfound){
             if (strcmp("src" ,(*prog).input_list[i])==0){
-                (*prog).inputs[i]=(*dev).src_recs.cl_src.mem;
+                (*prog).inputs[i]=(void*)(*dev).src_recs.cl_src.mem;
                 argfound=1;
             }
             else if (strcmp("src_pos" ,(*prog).input_list[i])==0){
-                (*prog).inputs[i]=(*dev).src_recs.cl_src_pos.mem;
+                (*prog).inputs[i]=(void*)(*dev).src_recs.cl_src_pos.mem;
                 argfound=1;
             }
             else if (strcmp("rec_pos" ,(*prog).input_list[i])==0){
-                (*prog).inputs[i]=(*dev).src_recs.cl_rec_pos.mem;
+                (*prog).inputs[i]=(void*)(*dev).src_recs.cl_rec_pos.mem;
                 argfound=1;
             }
             else if (strcmp("grad_src" ,(*prog).input_list[i])==0){
-                (*prog).inputs[i]=(*dev).src_recs.cl_grad_src.mem;
+                (*prog).inputs[i]=(void*)(*dev).src_recs.cl_grad_src.mem;
                 argfound=1;
             }
         }

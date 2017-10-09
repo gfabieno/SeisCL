@@ -162,14 +162,12 @@ typedef struct clprogram {
     
 } clprogram;
 
-int update_velocity_2D_visco( void * mv);
-int update_stress_2D_visco( void * mv);
 
 int prog_source(clprogram * prog,
                 char* name,
                 const char * source);
 
-//int prog_launch( cl_command_queue *inqueue, clprogram * prog);
+int prog_launch( CUstream *inqueue, clprogram * prog);
 
 int prog_create(struct model * m, struct device * dev,clprogram * prog);
 
@@ -490,7 +488,7 @@ int event_dependency( model * m,  device ** dev, int adj);
 
 int time_stepping(model * m, device ** dev);
 
-int comm(model * m, device ** dev, int adj, int ui);
+//int comm(model * m, device ** dev, int adj, int ui);
 
 int Out_MPI(model * m);
 

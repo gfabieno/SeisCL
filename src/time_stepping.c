@@ -167,7 +167,7 @@ int save_bnd(model * m, device ** dev, int t){
     
     for (d=0;d<m->NUM_DEVICES;d++){
         (*dev)[d].grads.savebnd.outevent=1;
-//        __GUARD prog_launch(&(*dev)[d].queue, &(*dev)[d].grads.savebnd);
+        __GUARD prog_launch(&(*dev)[d].queue, &(*dev)[d].grads.savebnd);
 //        if ((*dev)[d].grads.savebnd.waits)
 //            __GUARD clReleaseEvent(*(*dev)[d].grads.savebnd.waits);
         
@@ -239,40 +239,40 @@ int update_grid(model * m, device ** dev){
             // Launch the kernel on the outside grid needing communication only
             // if a neighbouring device or processing elelement exist
             if (d>0 || m->MYLOCALID>0){
-//                __GUARD prog_launch( &(*dev)[d].queue,
-//                                       &(*dev)[d].ups_f[i].com1);
-//                __GUARD prog_launch( &(*dev)[d].queue,
-//                                       &(*dev)[d].ups_f[i].fcom1_out);
+                __GUARD prog_launch( &(*dev)[d].queue,
+                                       &(*dev)[d].ups_f[i].com1);
+                __GUARD prog_launch( &(*dev)[d].queue,
+                                       &(*dev)[d].ups_f[i].fcom1_out);
             }
             if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
-//                __GUARD prog_launch( &(*dev)[d].queue,
-//                                      &(*dev)[d].ups_f[i].com2);
-//                __GUARD prog_launch( &(*dev)[d].queue,
-//                                      &(*dev)[d].ups_f[i].fcom2_out);
+                __GUARD prog_launch( &(*dev)[d].queue,
+                                      &(*dev)[d].ups_f[i].com2);
+                __GUARD prog_launch( &(*dev)[d].queue,
+                                      &(*dev)[d].ups_f[i].fcom2_out);
             }
             
             //Launch kernel on the interior elements
-//            __GUARD prog_launch( &(*dev)[d].queue,
-//                                  &(*dev)[d].ups_f[i].center);
+            __GUARD prog_launch( &(*dev)[d].queue,
+                                  &(*dev)[d].ups_f[i].center);
 
         }
         
         // Communication between devices and MPI processes
-        if (m->NUM_DEVICES>1 || m->NLOCALP>1)
-            __GUARD comm(m, dev, 0, i);
+//        if (m->NUM_DEVICES>1 || m->NLOCALP>1)
+//            __GUARD comm(m, dev, 0, i);
 
         
         // Transfer memory in communication buffers to variables' buffers
         for (d=0;d<m->NUM_DEVICES;d++){
             
             if (d>0 || m->MYLOCALID>0){
-//                __GUARD prog_launch(   &(*dev)[d].queue,
-//                                       &(*dev)[d].ups_f[i].fcom1_in);
+                __GUARD prog_launch(   &(*dev)[d].queue,
+                                       &(*dev)[d].ups_f[i].fcom1_in);
 //                __GUARD clReleaseEvent(*(*dev)[d].ups_f[i].fcom1_in.waits);
             }
             if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
-//                __GUARD prog_launch(   &(*dev)[d].queue,
-//                                       &(*dev)[d].ups_f[i].fcom2_in);
+                __GUARD prog_launch(   &(*dev)[d].queue,
+                                       &(*dev)[d].ups_f[i].fcom2_in);
 //                __GUARD clReleaseEvent(*(*dev)[d].ups_f[i].fcom2_in.waits);
             }
         }
@@ -296,40 +296,40 @@ int update_grid_adj(model * m, device ** dev){
             // Launch the kernel on the outside grid needing communication only
             // if a neighbouring device or processing elelement exist
             if (d>0 || m->MYLOCALID>0){
-//                __GUARD prog_launch( &(*dev)[d].queue,
-//                                    &(*dev)[d].ups_adj[i].com1);
-//                __GUARD prog_launch( &(*dev)[d].queue,
-//                                    &(*dev)[d].ups_adj[i].fcom1_out);
+                __GUARD prog_launch( &(*dev)[d].queue,
+                                    &(*dev)[d].ups_adj[i].com1);
+                __GUARD prog_launch( &(*dev)[d].queue,
+                                    &(*dev)[d].ups_adj[i].fcom1_out);
             }
             if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
-//                __GUARD prog_launch( &(*dev)[d].queue,
-//                                    &(*dev)[d].ups_adj[i].com2);
-//                __GUARD prog_launch( &(*dev)[d].queue,
-//                                    &(*dev)[d].ups_adj[i].fcom2_out);
+                __GUARD prog_launch( &(*dev)[d].queue,
+                                    &(*dev)[d].ups_adj[i].com2);
+                __GUARD prog_launch( &(*dev)[d].queue,
+                                    &(*dev)[d].ups_adj[i].fcom2_out);
             }
             
             //Launch kernel on the interior elements
-//            __GUARD prog_launch( &(*dev)[d].queue,
-//                                &(*dev)[d].ups_adj[i].center);
+            __GUARD prog_launch( &(*dev)[d].queue,
+                                &(*dev)[d].ups_adj[i].center);
             
         }
         
         // Communication between devices and MPI processes
-        if (m->NUM_DEVICES>1 || m->NLOCALP>1)
-        __GUARD comm(m, dev, 1, i);
+//        if (m->NUM_DEVICES>1 || m->NLOCALP>1)
+//        __GUARD comm(m, dev, 1, i);
         
         
         // Transfer memory in communication buffers to variables' buffers
         for (d=0;d<m->NUM_DEVICES;d++){
             
             if (d>0 || m->MYLOCALID>0){
-//                __GUARD prog_launch(   &(*dev)[d].queue,
-//                                    &(*dev)[d].ups_adj[i].fcom1_in);
+                __GUARD prog_launch(   &(*dev)[d].queue,
+                                    &(*dev)[d].ups_adj[i].fcom1_in);
 //                __GUARD clReleaseEvent(*(*dev)[d].ups_adj[i].fcom1_in.waits);
             }
             if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
-//                __GUARD prog_launch(   &(*dev)[d].queue,
-//                                    &(*dev)[d].ups_adj[i].fcom2_in);
+                __GUARD prog_launch(   &(*dev)[d].queue,
+                                    &(*dev)[d].ups_adj[i].fcom2_in);
 //                __GUARD clReleaseEvent(*(*dev)[d].ups_adj[i].fcom2_in.waits);
             }
         }
@@ -373,13 +373,13 @@ int initialize_grid(model * m, device ** dev, int s){
                                                                         * m->NT;
         
         // Implent initial conditions
-//        __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].bnd_cnds.init_f);
-//        __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].src_recs.varsoutinit);
+        __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].bnd_cnds.init_f);
+        __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].src_recs.varsoutinit);
 
 
         if (m->GRADOUT==1 && m->BACK_PROP_TYPE==2){
-//            __GUARD prog_launch( &(*dev)[d].queue,
-//                                 &(*dev)[d].grads.initsavefreqs);
+            __GUARD prog_launch( &(*dev)[d].queue,
+                                 &(*dev)[d].grads.initsavefreqs);
         }
         
         //Assign the propagation direction to kernels
@@ -431,7 +431,7 @@ int time_stepping(model * m, device ** dev) {
     // Initialize the gradient buffers before time stepping
     if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1){
         for (d=0;d<m->NUM_DEVICES;d++){
-//            __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].grads.init);
+            __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].grads.init);
         }
     }
     
@@ -466,16 +466,16 @@ int time_stepping(model * m, device ** dev) {
 //                    __GUARD clSetKernelArg((*dev)[d].grads.savefreqs.kernel,
 //                                           (*dev)[d].grads.savefreqs.tinput-1,
 //                                           sizeof(int), &thist);
-//                    __GUARD prog_launch( &(*dev)[d].queue,
-//                                         &(*dev)[d].grads.savefreqs);
+                    __GUARD prog_launch( &(*dev)[d].queue,
+                                         &(*dev)[d].grads.savefreqs);
                 }
                 
             }
             
             // Inject the sources
             for (d=0;d<m->NUM_DEVICES;d++){
-//                __GUARD prog_launch( &(*dev)[d].queue,
-//                                    &(*dev)[d].src_recs.sources);
+                __GUARD prog_launch( &(*dev)[d].queue,
+                                    &(*dev)[d].src_recs.sources);
             }
             
             // Apply all updates
@@ -485,8 +485,8 @@ int time_stepping(model * m, device ** dev) {
             // Computing the free surface
             if (m->FREESURF==1){
                 for (d=0;d<m->NUM_DEVICES;d++){
-//                    __GUARD prog_launch( &(*dev)[d].queue,
-//                                        &(*dev)[d].bnd_cnds.surf);
+                    __GUARD prog_launch( &(*dev)[d].queue,
+                                        &(*dev)[d].bnd_cnds.surf);
                 }
             }
             
@@ -497,8 +497,8 @@ int time_stepping(model * m, device ** dev) {
             
             // Outputting seismograms
             for (d=0;d<m->NUM_DEVICES;d++){
-//                __GUARD prog_launch( &(*dev)[d].queue,
-//                                     &(*dev)[d].src_recs.varsout);
+                __GUARD prog_launch( &(*dev)[d].queue,
+                                     &(*dev)[d].src_recs.varsout);
             }
 
             // Outputting the movie
@@ -559,13 +559,13 @@ int time_stepping(model * m, device ** dev) {
                 }
                 // Initialize the backpropagation of the forward variables
                 if (m->BACK_PROP_TYPE==1){
-//                    __GUARD prog_launch( &(*dev)[d].queue,
-//                                         &(*dev)[d].bnd_cnds.init_adj);
+                    __GUARD prog_launch( &(*dev)[d].queue,
+                                         &(*dev)[d].bnd_cnds.init_adj);
                 }
                 // Initialized the source gradient
                 if (m->GRADSRCOUT==1){
-//                    __GUARD prog_launch( &(*dev)[d].queue,
-//                                        &(*dev)[d].src_recs.init_gradsrc);
+                    __GUARD prog_launch( &(*dev)[d].queue,
+                                        &(*dev)[d].src_recs.init_gradsrc);
                 }
                 // Transfer to host the forward variable frequencies obtained
                 // obtained by DFT. The same buffers on the devices are reused
@@ -579,10 +579,10 @@ int time_stepping(model * m, device ** dev) {
                     }
                     // Inialize to 0 the frequency buffers, and the adjoint
                     // variable buffers (forward buffers are reused).
-//                    __GUARD prog_launch( &(*dev)[d].queue,
-//                                         &(*dev)[d].grads.initsavefreqs);
-//                    __GUARD prog_launch( &(*dev)[d].queue,
-//                                         &(*dev)[d].bnd_cnds.init_f);
+                    __GUARD prog_launch( &(*dev)[d].queue,
+                                         &(*dev)[d].grads.initsavefreqs);
+                    __GUARD prog_launch( &(*dev)[d].queue,
+                                         &(*dev)[d].bnd_cnds.init_f);
                 }
                 
                 //Assign the propagation direction to kernels
@@ -621,15 +621,15 @@ int time_stepping(model * m, device ** dev) {
                 // Inject the sources with negative sign
                 if (m->BACK_PROP_TYPE==1){
                     for (d=0;d<m->NUM_DEVICES;d++){
-//                        __GUARD prog_launch( &(*dev)[d].queue,
-//                                            &(*dev)[d].src_recs.sources);
+                        __GUARD prog_launch( &(*dev)[d].queue,
+                                            &(*dev)[d].src_recs.sources);
                     }
                 }
                 
                 // Inject the residuals
                 for (d=0;d<m->NUM_DEVICES;d++){
-//                    __GUARD prog_launch( &(*dev)[d].queue,
-//                                         &(*dev)[d].src_recs.residuals);
+                    __GUARD prog_launch( &(*dev)[d].queue,
+                                         &(*dev)[d].src_recs.residuals);
                 }
                 
                 // Update the adjoint wavefield and perform back-propagation of
@@ -644,8 +644,8 @@ int time_stepping(model * m, device ** dev) {
 //                        __GUARD clSetKernelArg((*dev)[d].grads.savefreqs.kernel,
 //                                             (*dev)[d].grads.savefreqs.tinput-1,
 //                                               sizeof(int), &thist);
-//                        __GUARD prog_launch( &(*dev)[d].queue,
-//                                            &(*dev)[d].grads.savefreqs);
+                        __GUARD prog_launch( &(*dev)[d].queue,
+                                            &(*dev)[d].grads.savefreqs);
                     }
                     
                 }
@@ -681,10 +681,10 @@ int time_stepping(model * m, device ** dev) {
                         
                     }
                     
-//                    __GUARD prog_launch(&(*dev)[d].queue,
-//                                        &(*dev)[d].grads.initsavefreqs);
-//                    __GUARD prog_launch( &(*dev)[d].queue,
-//                                        &(*dev)[d].bnd_cnds.init_f);
+                    __GUARD prog_launch(&(*dev)[d].queue,
+                                        &(*dev)[d].grads.initsavefreqs);
+                    __GUARD prog_launch( &(*dev)[d].queue,
+                                        &(*dev)[d].bnd_cnds.init_f);
                 }
                 for (d=0;d<m->NUM_DEVICES;d++){
 //                    __GUARD clFinish((*dev)[d].queue);

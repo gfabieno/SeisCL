@@ -10,23 +10,23 @@
 
 /*Loading files autmatically created by the makefile that contain the *.cl kernels in a c string.
  This way, no .cl file need to be read and there is no need to be in the executable directory to execute SeisCL.*/
-//#include "savebnd2D.hcl"
-//#include "savebnd3D.hcl"
-//#include "surface2D.hcl"
-//#include "surface2D_SH.hcl"
-//#include "surface3D.hcl"
-//#include "update_adjs2D.hcl"
-//#include "update_adjs2D_SH.hcl"
-//#include "update_adjs3D.hcl"
-//#include "update_adjv2D.hcl"
-//#include "update_adjv2D_SH.hcl"
-//#include "update_adjv3D.hcl"
-//#include "update_s2D.hcl"
-//#include "update_s2D_SH.hcl"
-//#include "update_s3D.hcl"
-//#include "update_v2D.hcl"
-//#include "update_v2D_SH.hcl"
-//#include "update_v3D.hcl"
+#include "savebnd2D.hcl"
+#include "savebnd3D.hcl"
+#include "surface2D.hcl"
+#include "surface2D_SH.hcl"
+#include "surface3D.hcl"
+#include "update_adjs2D.hcl"
+#include "update_adjs2D_SH.hcl"
+#include "update_adjs3D.hcl"
+#include "update_adjv2D.hcl"
+#include "update_adjv2D_SH.hcl"
+#include "update_adjv3D.hcl"
+#include "update_s2D.hcl"
+#include "update_s2D_SH.hcl"
+#include "update_s3D.hcl"
+#include "update_v2D.hcl"
+#include "update_v2D_SH.hcl"
+#include "update_v3D.hcl"
 
 
 float * get_par(parameter * pars, int npars, const char * name){
@@ -113,13 +113,11 @@ int append_var(model * m,
     
     return state;
 }
-int append_update(update * up, int * ind, char * name, int (*prog)(void *) ){
+int append_update(update * up, int * ind, char * name, const char * source){
     int state =0;
-    up[*ind].center.prog = prog;
-    up[*ind].center.name = name;
-//    __GUARD prog_source(&up[*ind].center, name, source);
-//    __GUARD prog_source(&up[*ind].com1, name, source);
-//    __GUARD prog_source(&up[*ind].com2, name, source);
+    __GUARD prog_source(&up[*ind].center, name, source);
+    __GUARD prog_source(&up[*ind].com1, name, source);
+    __GUARD prog_source(&up[*ind].com2, name, source);
     *ind+=1;
     return state;
 }
@@ -1062,20 +1060,20 @@ int assign_modeling_case(model * m){
         m->nupdates=2;
         GMALLOC(m->ups_f, m->nupdates*sizeof(update));
         ind=0;
-        __GUARD append_update(m->ups_f, &ind, "update_v", &update_velocity_2D_visco );
-        __GUARD append_update(m->ups_f, &ind, "update_s", &update_stress_2D_visco);
-//        if (m->GRADOUT){
-//            GMALLOC(m->ups_adj, m->nupdates*sizeof(update));
-//            ind=0;
-//            __GUARD append_update(m->ups_adj, &ind, "update_adjv", update_adjv2D_source);
-//            __GUARD append_update(m->ups_adj, &ind, "update_adjs", update_adjs2D_source);
-//        }
-//        if (m->FREESURF){
-//            __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface2D_source);
-//        }
-//        if (m->GRADOUT && m->BACK_PROP_TYPE==1){
-//            __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd2D_source);
-//        }
+        __GUARD append_update(m->ups_f, &ind, "update_v", update_v2D_source);
+        __GUARD append_update(m->ups_f, &ind, "update_s", update_s2D_source);
+        if (m->GRADOUT){
+            GMALLOC(m->ups_adj, m->nupdates*sizeof(update));
+            ind=0;
+            __GUARD append_update(m->ups_adj, &ind, "update_adjv", update_adjv2D_source);
+            __GUARD append_update(m->ups_adj, &ind, "update_adjs", update_adjs2D_source);
+        }
+        if (m->FREESURF){
+            __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface2D_source);
+        }
+        if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+            __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd2D_source);
+        }
         
         m->npars=9;
         GMALLOC(m->pars, sizeof(parameter)*m->npars);
