@@ -45,6 +45,8 @@
 //#endif
 // includes CUDA Runtime
 #include <cuda_runtime.h>
+#include <cuda.h>
+#include <nvrtc.h>
 
 #include <mpi.h>
 #include <hdf5.h>
@@ -62,6 +64,8 @@
 
 #define __GUARD if (!state) state=
 #define CLGUARD(x) if (!state) if (!(state = (x) )) {fprintf(stderr,"OpenCL function failed at line %d in %s()\n",__LINE__,__func__);};
+
+
 
 #define MAX_DIMS 10
 #define MAX_KERNELS 100
@@ -130,14 +134,18 @@ typedef struct clprogram {
     
     const char * name;
     const char * src;
-    void (*prog)(void *);
-//    cl_kernel kernel;
+    char * prog;
+    CUmodule module;
+    CUfunction kernel;
     char ** input_list;
     int ninputs;
+    void * inputs[1000];
     int tinput;
     int pdir;
     size_t lsize[MAX_DIMS];
     size_t gsize[MAX_DIMS];
+    size_t bsize[MAX_DIMS];
+    size_t shared_size;
     int wdim;
     
     int OFFCOMM;
@@ -316,8 +324,8 @@ typedef struct gradients {
 /* _____________Structure that holds all information of a device _____________*/
 typedef struct device {
     
-//    cl_command_queue queue;
-//    cl_command_queue queuecomm;
+    cudaStream_t queue;
+    cudaStream_t queuecomm;
 
     int workdim;
     int NDIM;
@@ -352,6 +360,8 @@ typedef struct device {
     sources_records src_recs;
     gradients grads;
     boundary_conditions bnd_cnds;
+    
+    CUcontext context;
 
 } device;
 
@@ -452,7 +462,6 @@ typedef struct model {
 //    cl_device_type pref_device_type;
 //    cl_device_type device_type;
     int NUM_DEVICES;
-//    cl_context context;
 
     int (*res_calc)(struct model * , int );
     int (*check_stability)(void *);
@@ -487,7 +496,7 @@ int writehdf5(struct filenames file, model * m);
 
 int Free_OpenCL(model * m, device ** dev) ;
 
-char *clerrors(int err);
+const char *clerrors(int err);
 
 
 /* __________________________Data Processing________________________________*/

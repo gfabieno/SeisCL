@@ -88,3 +88,9 @@
 //        default: return "Unknown OpenCl error code";
 //    }
 //}
+
+const char *clerrors(int err){
+    const char *msg;
+    cuGetErrorName(err, &msg);
+    return msg;
+}

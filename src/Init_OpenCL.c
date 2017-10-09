@@ -149,140 +149,109 @@
 //    m->NUM_DEVICES=m->NUM_DEVICES>m->nmax_dev ? m->nmax_dev : m->NUM_DEVICES;
 //    
 //    GFree(clPlatformIDs);
-//    if (state !=0) fprintf(stderr,"%s\n",clerrors(state));
+//    if (state !=CUDA_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
 //    
 //    return state;
 //}
 //
-//cl_int connect_devices(device ** dev, model * m)
-//{
-//    /*Routine to connect all computing devices, create context and queues*/
-//    
-//    cl_int state = 0;
-//    cl_uint nalldevices=0;
-//    cl_uint num_allow_devs=0;
-//    cl_device_id *devices=NULL;
-//    int *allow_devs=NULL;
-//    cl_char vendor_name[1024] = {0};
-//    cl_char device_name[1024] = {0};
-//    cl_platform_id  clplateform = NULL;
-//    int i,j,n;
-//    int allowed;
-//
-//    if (m->nmax_dev<1){
-//        fprintf(stdout,"Warning: maximum number of devices too small,"
-//                       "default to 1\n");
-//        m->nmax_dev=1;
-//    }
-//    
-//    __GUARD get_platform( m, &clplateform);
-//    GMALLOC(*dev, sizeof(device)*m->NUM_DEVICES);
-//    
-//    
-//    // Find the number of prefered devices
-//    __GUARD clGetDeviceIDs(clplateform,m->device_type,0, NULL, &nalldevices);
-//    GMALLOC(devices,sizeof(cl_device_id)*nalldevices);
-//    if (m->device_type==CL_DEVICE_TYPE_GPU)
-//        fprintf(stdout,"Found %d GPU, ", nalldevices);
-//    else if (m->device_type==CL_DEVICE_TYPE_ACCELERATOR)
-//        fprintf(stdout,"Found %d Accelerator, ", nalldevices);
-//    else if (m->device_type==CL_DEVICE_TYPE_CPU)
-//        fprintf(stdout,"Found %d CPU, ", nalldevices);
-//    fprintf(stdout,"connecting to  %d devices:\n", num_allow_devs);
-//    
-//    
-//    __GUARD clGetDeviceIDs(clplateform,
-//                           m->device_type,
-//                           nalldevices,
-//                           devices,
-//                           NULL);
-//
-//    GMALLOC(allow_devs,sizeof(int)*m->NUM_DEVICES);
-//    
-//    //Collect all allowed devices
-//    n=0;
-//    if (!state){
-//        for (i=0;i<nalldevices;i++){
-//            allowed=1;
-//            for (j=0;j<m->n_no_use_GPUs;j++){
-//                if (m->no_use_GPUs[j]!=i){
-//                    allowed=0;
-//                }
-//            }
-//            if (allowed){
-//                allow_devs[n]=i;
-//                n++;
-//            }
-//            
-//        }
-//    }
-//    
-//    // Print some information about the returned devices
-//    if (!state){
-//        for (i=0;i<m->NUM_DEVICES;i++){
-//            __GUARD clGetDeviceInfo(devices[allow_devs[i]],
-//                                    CL_DEVICE_VENDOR,
-//                                    sizeof(vendor_name),
-//                                    vendor_name,
-//                                    NULL);
-//            __GUARD clGetDeviceInfo(devices[allow_devs[i]],
-//                                    CL_DEVICE_NAME,
-//                                    sizeof(device_name),
-//                                    device_name,
-//                                    NULL);
-//            fprintf(stdout,"-Device %d: %s %s\n",
-//                    allow_devs[i], vendor_name, device_name);
-//        }
-//    }
-//
-//    // Create a context with the specified devices
-//    if (!state) m->context = clCreateContext(NULL,
-//                                             m->NUM_DEVICES,
-//                                             devices,
-//                                             NULL,
-//                                             NULL,
-//                                             &state);
-//
-//    // Create command queues for each devices
-//    for (i=0;i<m->NUM_DEVICES;i++){
-//        if (!state)
-//            (*dev)[i].queue = clCreateCommandQueue(m->context,
-//                                                   devices[allow_devs[i]],
-//                                                   0 ,
-//                                                   &state);
-//        if (!state)
-//            (*dev)[i].queuecomm = clCreateCommandQueue(m->context,
-//                                                       devices[allow_devs[i]],
-//                                                       0 ,
-//                                                       &state);
-//    }
-//
-//    if (state !=0) fprintf(stderr,"%s\n",clerrors(state));
-//    GFree(devices);
-//    GFree(allow_devs);
-//    
-//    return state;
-//    
-//}
-//
-//
+int connect_devices(device ** dev, model * m)
+{
+    /*Routine to connect all computing devices, create context and queues*/
+    
+    int state = 0;
+    int nalldevices=0;
+    int num_allow_devs=0;
+    CUdevice *devices=NULL;
+    int *allow_devs=NULL;
+    char vendor_name[1024] = {0};
+    char device_name[1024] = {0};
+    int i,j,n;
+    int allowed;
+
+    if (m->nmax_dev<1){
+        fprintf(stdout,"Warning: maximum number of devices too small,"
+                       "default to 1\n");
+        m->nmax_dev=1;
+    }
+    
+    __GUARD cuInit(0);
+    __GUARD cuDeviceGetCount ( &nalldevices );
+
+    
+    
+    
+    // Find the number of prefered devices
+    GMALLOC(allow_devs,sizeof(int)*m->NUM_DEVICES);
+    
+    //Collect all allowed devices
+    n=0;
+    if (!state){
+        for (i=0;i<nalldevices;i++){
+            allowed=1;
+            for (j=0;j<m->n_no_use_GPUs;j++){
+                if (m->no_use_GPUs[j]!=i){
+                    allowed=0;
+                }
+            }
+            if (allowed){
+                allow_devs[n]=i;
+                n++;
+            }
+            
+        }
+    }
+    m->NUM_DEVICES = n;
+    GMALLOC(*dev, sizeof(device)*m->NUM_DEVICES);
+    
+    
+    // Print some information about the returned devices
+    if (!state){
+        for (i=0;i<m->NUM_DEVICES;i++){
+            __GUARD cuDeviceGet(&devices[allow_devs[i]], 0);
+            __GUARD cuDeviceGetName(device_name,
+                                    sizeof(vendor_name),
+                                    devices[i]);
+            fprintf(stdout,"-Device %d: %s \n",
+                    allow_devs[i], device_name);
+        }
+    }
+
+
+
+    // Create command queues for each devices
+    for (i=0;i<m->NUM_DEVICES;i++){
+        // Create a context with the specified devices
+        __GUARD cuCtxCreate(&(*dev)[i].context,
+                            0,
+                            devices[allow_devs[i]]);
+        __GUARD cudaStreamCreate( &(*dev)[i].queue );
+        __GUARD cudaStreamCreate( &(*dev)[i].queuecomm );
+    }
+
+    if (state !=CUDA_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
+    GFree(devices);
+    GFree(allow_devs);
+    
+    return state;
+    
+}
+
+
 int Init_CUDA(model * m, device ** dev)  {
     /* Function that intialize model decomposition on multiple devices on one
        host. All OpenCL buffers and kernels are created and are contained in a
        device structure (one for each devices)
      */
     int state=0;
-    int dimbool;
     int i,j,d;
     int parsize=0;
     int fdsize=0;
     int slicesize=0;
     int slicesizefd=0;
-    int device=0;
+    int devid;
     size_t local_mem_size=0;
     int required_local_mem_size=0;
     int required_work_size=0;
-    size_t workitem_size[MAX_DIMS];
     size_t workgroup_size=0;
     int workdim = 0;
     int lsize[MAX_DIMS];
@@ -296,15 +265,15 @@ int Init_CUDA(model * m, device ** dev)  {
     struct device * di;
     
     // Connect all OpenCL devices that can be used in a single context
-//    __GUARD connect_devices(dev, m);
-    
-    m->NUM_DEVICES=1;
-    GMALLOC(*dev, sizeof(device)*m->NUM_DEVICES);
+    __GUARD connect_devices(dev, m);
+
+
     
     //For each device, create the memory buffers and programs on the GPU
     for (d=0; d<m->NUM_DEVICES; d++) {
         
         di=&(*dev)[d];
+        __GUARD cuCtxSetCurrent ( di->context );
         /* The domain of the FD simulation is decomposed between the devices and
         *  MPI processes along the X direction. We must compute the subdomain 
         *  size, and its location in the domain*/
@@ -375,11 +344,12 @@ int Init_CUDA(model * m, device ** dev)  {
         // Get some properties of the device, to define the work sizes
         struct cudaDeviceProp prop;
         {
-            __GUARD cudaGetDeviceProperties( &prop, di->DEVID );
+            __GUARD cuCtxGetDevice ( &devid );
+            __GUARD cudaGetDeviceProperties( &prop, devid );
             workgroup_size = prop.maxThreadsPerBlock;
             local_mem_size = prop.sharedMemPerBlock;
 
-            if (state !=0) fprintf(stderr,"%s\n",clerrors(state));
+            if (state !=CUDA_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
             
         }
         
@@ -858,27 +828,27 @@ int Init_CUDA(model * m, device ** dev)  {
                 di->ups_f[i].com1.OFFCOMM=0;
                 di->ups_f[i].com1.LCOMM=LCOMM;
                 di->ups_f[i].com1.COMM=1;
-//                __GUARD prog_create(m, di,  &di->ups_f[i].com1);
-//                
-//                __GUARD kernel_fcom_out( di ,di->vars,
-//                                        &di->ups_f[i].fcom1_out, i+1, 1);
-//                __GUARD prog_create(m, di,  &di->ups_f[i].fcom1_out);
-//                __GUARD kernel_fcom_in( di ,di->vars,
-//                                       &di->ups_f[i].fcom1_in, i+1, 1);
-//                __GUARD prog_create(m, di,  &di->ups_f[i].fcom1_in);
+                __GUARD prog_create(m, di,  &di->ups_f[i].com1);
+                
+                __GUARD kernel_fcom_out( di ,di->vars,
+                                        &di->ups_f[i].fcom1_out, i+1, 1);
+                __GUARD prog_create(m, di,  &di->ups_f[i].fcom1_out);
+                __GUARD kernel_fcom_in( di ,di->vars,
+                                       &di->ups_f[i].fcom1_in, i+1, 1);
+                __GUARD prog_create(m, di,  &di->ups_f[i].fcom1_in);
             }
             if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
                 di->ups_f[i].com2.OFFCOMM=offcom2;
                 di->ups_f[i].com2.LCOMM=LCOMM;
                 di->ups_f[i].com2.COMM=1;
-//                __GUARD prog_create(m, di,  &di->ups_f[i].com2);
-//                
-//                __GUARD kernel_fcom_out( di, di->vars,
-//                                     &di->ups_f[i].fcom2_out, i+1, 2);
-//                __GUARD prog_create(m, di,  &di->ups_f[i].fcom2_out);
-//                __GUARD kernel_fcom_in(di ,di->vars,
-//                                   &di->ups_f[i].fcom2_in, i+1, 2);
-//                __GUARD prog_create(m, di,  &di->ups_f[i].fcom2_in);
+                __GUARD prog_create(m, di,  &di->ups_f[i].com2);
+                
+                __GUARD kernel_fcom_out( di, di->vars,
+                                     &di->ups_f[i].fcom2_out, i+1, 2);
+                __GUARD prog_create(m, di,  &di->ups_f[i].fcom2_out);
+                __GUARD kernel_fcom_in(di ,di->vars,
+                                   &di->ups_f[i].fcom2_in, i+1, 2);
+                __GUARD prog_create(m, di,  &di->ups_f[i].fcom2_in);
             }
         }
         if (m->GRADOUT){
@@ -890,76 +860,76 @@ int Init_CUDA(model * m, device ** dev)  {
                     di->ups_adj[i].com1.OFFCOMM=0;
                     di->ups_adj[i].com1.LCOMM=LCOMM;
                     di->ups_adj[i].com1.COMM=1;
-//                    __GUARD prog_create(m, di,  &di->ups_adj[i].com1);
-//                    
-//                    __GUARD kernel_fcom_out( di ,di->vars,
-//                                            &di->ups_adj[i].fcom1_out, i+1, 1);
-//                    __GUARD prog_create(m, di,  &di->ups_adj[i].fcom1_out);
-//                    __GUARD kernel_fcom_in( di ,di->vars,
-//                                           &di->ups_adj[i].fcom1_in, i+1, 1);
-//                    __GUARD prog_create(m, di,  &di->ups_adj[i].fcom1_in);
+                    __GUARD prog_create(m, di,  &di->ups_adj[i].com1);
+                    
+                    __GUARD kernel_fcom_out( di ,di->vars,
+                                            &di->ups_adj[i].fcom1_out, i+1, 1);
+                    __GUARD prog_create(m, di,  &di->ups_adj[i].fcom1_out);
+                    __GUARD kernel_fcom_in( di ,di->vars,
+                                           &di->ups_adj[i].fcom1_in, i+1, 1);
+                    __GUARD prog_create(m, di,  &di->ups_adj[i].fcom1_in);
                 }
                 if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
                     di->ups_adj[i].com2.OFFCOMM=offcom2;
                     di->ups_adj[i].com2.LCOMM=LCOMM;
                     di->ups_adj[i].com2.COMM=1;
-//                    __GUARD prog_create(m, di,  &di->ups_adj[i].com2);
-//                    
-//                    __GUARD kernel_fcom_out( di, di->vars,
-//                                            &di->ups_adj[i].fcom2_out, i+1, 2);
-//                    __GUARD prog_create(m, di,  &di->ups_adj[i].fcom2_out);
-//                    __GUARD kernel_fcom_in(di ,di->vars,
-//                                           &di->ups_adj[i].fcom2_in, i+1, 2);
-//                    __GUARD prog_create(m, di,  &di->ups_adj[i].fcom2_in);
+                    __GUARD prog_create(m, di,  &di->ups_adj[i].com2);
+                    
+                    __GUARD kernel_fcom_out( di, di->vars,
+                                            &di->ups_adj[i].fcom2_out, i+1, 2);
+                    __GUARD prog_create(m, di,  &di->ups_adj[i].fcom2_out);
+                    __GUARD kernel_fcom_in(di ,di->vars,
+                                           &di->ups_adj[i].fcom2_in, i+1, 2);
+                    __GUARD prog_create(m, di,  &di->ups_adj[i].fcom2_in);
                 }
             }
         }
         
         //Create automaticly kernels for gradient, variable inti, sources ...
-//        __GUARD kernel_sources(di,  &di->src_recs.sources);
-//        __GUARD prog_create(m, di,  &di->src_recs.sources);
-//        
-//        __GUARD kernel_varout(di, &di->src_recs.varsout);
-//        __GUARD prog_create(m, di,  &di->src_recs.varsout);
-//        
-//        __GUARD kernel_varoutinit(di, &di->src_recs.varsoutinit);
-//        __GUARD prog_create(m, di,  &di->src_recs.varsoutinit);
-//        
-//        __GUARD kernel_varinit(di, di->vars, &di->bnd_cnds.init_f);
-//        __GUARD prog_create(m, di,  &di->bnd_cnds.init_f);
+        __GUARD kernel_sources(di,  &di->src_recs.sources);
+        __GUARD prog_create(m, di,  &di->src_recs.sources);
+        
+        __GUARD kernel_varout(di, &di->src_recs.varsout);
+        __GUARD prog_create(m, di,  &di->src_recs.varsout);
+        
+        __GUARD kernel_varoutinit(di, &di->src_recs.varsoutinit);
+        __GUARD prog_create(m, di,  &di->src_recs.varsoutinit);
+        
+        __GUARD kernel_varinit(di, di->vars, &di->bnd_cnds.init_f);
+        __GUARD prog_create(m, di,  &di->bnd_cnds.init_f);
         di->bnd_cnds.init_f.gsize[0]=fdsize;
         
         
         if (m->GRADOUT){
-//            __GUARD kernel_residuals(di,
-//                                     &di->src_recs.residuals,
-//                                     m->BACK_PROP_TYPE);
-//            __GUARD prog_create(m, di,  &di->src_recs.residuals);
+            __GUARD kernel_residuals(di,
+                                     &di->src_recs.residuals,
+                                     m->BACK_PROP_TYPE);
+            __GUARD prog_create(m, di,  &di->src_recs.residuals);
             
             if (m->BACK_PROP_TYPE==1){
-//                __GUARD kernel_varinit(di,di->vars_adj, &di->bnd_cnds.init_adj);
-//                __GUARD prog_create(m, di,  &di->bnd_cnds.init_adj);
+                __GUARD kernel_varinit(di,di->vars_adj, &di->bnd_cnds.init_adj);
+                __GUARD prog_create(m, di,  &di->bnd_cnds.init_adj);
                 di->bnd_cnds.init_adj.gsize[0]=fdsize;
                 
-//                __GUARD kernel_gradinit(di, di->pars, &di->grads.init);
-//                __GUARD prog_create(m, di,  &di->grads.init);
+                __GUARD kernel_gradinit(di, di->pars, &di->grads.init);
+                __GUARD prog_create(m, di,  &di->grads.init);
                 di->grads.init.gsize[0]=parsize;
             }
             else if(m->BACK_PROP_TYPE==2){
-//                __GUARD kernel_initsavefreqs(di, di->vars,
-//                                                      &di->grads.initsavefreqs);
-//                __GUARD prog_create(m, di,  &di->grads.initsavefreqs);
+                __GUARD kernel_initsavefreqs(di, di->vars,
+                                                      &di->grads.initsavefreqs);
+                __GUARD prog_create(m, di,  &di->grads.initsavefreqs);
                 di->grads.initsavefreqs.gsize[0]=fdsize;
                 
                 kernel_savefreqs(di, di->vars, &di->grads.savefreqs);
-//                __GUARD prog_create(m, di,  &di->grads.savefreqs);
+                __GUARD prog_create(m, di,  &di->grads.savefreqs);
                 di->grads.savefreqs.gsize[0]=fdsize;
             }
             
-//            if (m->GRADSRCOUT){
-//                __GUARD kernel_init_gradsrc( &di->src_recs.init_gradsrc);
-//                __GUARD prog_create(m, di,  &di->src_recs.init_gradsrc);
-//            }
+            if (m->GRADSRCOUT){
+                __GUARD kernel_init_gradsrc( &di->src_recs.init_gradsrc);
+                __GUARD prog_create(m, di,  &di->src_recs.init_gradsrc);
+            }
         }
     
         
@@ -967,7 +937,7 @@ int Init_CUDA(model * m, device ** dev)  {
         //TODO Adjoint free surface
         if (m->FREESURF){
             di->bnd_cnds.surf=m->bnd_cnds.surf;
-//            __GUARD prog_create(m, di,  &di->bnd_cnds.surf);
+            __GUARD prog_create(m, di,  &di->bnd_cnds.surf);
             di->bnd_cnds.surf.wdim=m->NDIM-1;
             for (i=1;i<m->NDIM;i++){
                 di->bnd_cnds.surf.gsize[i-1]=di->N[i];
@@ -978,7 +948,7 @@ int Init_CUDA(model * m, device ** dev)  {
         //TODO Implement random boundaries instead
         if (m->GRADOUT && m->BACK_PROP_TYPE==1){
             di->grads.savebnd=m->grads.savebnd;
-//            __GUARD prog_create(m, di,  &di->grads.savebnd);
+            __GUARD prog_create(m, di,  &di->grads.savebnd);
             di->grads.savebnd.wdim=1;
             di->grads.savebnd.gsize[0]=di->NBND;
             

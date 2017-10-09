@@ -87,12 +87,12 @@ int main(int argc, char **argv) {
     
     time3=MPI_Wtime();
     
-//    __GUARD Init_CUDA(&m, &dev);
+    __GUARD Init_CUDA(&m, &dev);
 
     time4=MPI_Wtime();
 
     // Main part, where seismic modeling occurs
-//    __GUARD time_stepping(&m, &dev);
+    __GUARD time_stepping(&m, &dev);
 
     time5=MPI_Wtime();
     
