@@ -118,7 +118,6 @@ int set_args_list(const char *str, char *name, char *** argnames, int * ninputs)
     char * strbeg = strstr(str, del1);
     
     if (!strbeg){
-        free(del1);
         fprintf(stderr, "Could not extract kernel arguments of %s\n",name);
         return 1;
     }
@@ -126,7 +125,6 @@ int set_args_list(const char *str, char *name, char *** argnames, int * ninputs)
     char * strend = strstr(strbeg, del2);
     
     if (!strend){
-        free(del1);
         fprintf(stderr, "Could not extract kernel arguments of %s\n",name);
         return 1;
     }
