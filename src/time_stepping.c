@@ -33,7 +33,8 @@ int reduce_seis(model * m, device ** dev, int s){
             if ( (*dev)[d].vars[i].to_output){
                 (*dev)[d].vars[i].cl_varout.size=sizeof(float)
                 * m->NT * m->src_recs.nrec[s];
-                __GUARD clbuf_read(&(*dev)[d].vars[i].cl_varout);
+                __GUARD clbuf_read( &(*dev)[d].queue,
+                                   &(*dev)[d].vars[i].cl_varout);
             }
             
         }
@@ -41,7 +42,8 @@ int reduce_seis(model * m, device ** dev, int s){
             if ( (*dev)[d].trans_vars[i].to_output){
                 (*dev)[d].trans_vars[i].cl_varout.size=sizeof(float)
                 * m->NT * m->src_recs.nrec[s];
-                __GUARD clbuf_read(&(*dev)[d].trans_vars[i].cl_varout);
+                __GUARD clbuf_read( &(*dev)[d].queue,
+                                   &(*dev)[d].trans_vars[i].cl_varout);
             }
             
         }
@@ -101,7 +103,7 @@ int movout(model * m, device ** dev, int t, int s){
     for (d=0;d<m->NUM_DEVICES;d++){
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].to_output){
-                __GUARD clbuf_read(&(*dev)[d].vars[i].cl_var);
+                __GUARD clbuf_read(&(*dev)[d].queue,&(*dev)[d].vars[i].cl_var);
             }
         }
         
@@ -183,7 +185,8 @@ int save_bnd(model * m, device ** dev, int t){
 //        (*dev)[d].vars[l0].cl_varbnd.waits_r=&(*dev)[d].grads.savebnd.event;
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].to_comm){
-                __GUARD clbuf_readpin(&(*dev)[d].vars[i].cl_varbnd,
+                __GUARD clbuf_readpin(&(*dev)[d].queuecomm,
+                                      &(*dev)[d].vars[i].cl_varbnd,
                                       &(*dev)[d].vars[i].cl_varbnd,
                                       (*dev)[d].NBND*t);
             }
@@ -209,7 +212,8 @@ int inject_bnd(model * m, device ** dev, int t){
 
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].to_comm){
-                __GUARD clbuf_sendpin(&(*dev)[d].vars[i].cl_varbnd,
+                __GUARD clbuf_sendpin(&(*dev)[d].queue,
+                                      &(*dev)[d].vars[i].cl_varbnd,
                                       &(*dev)[d].vars[i].cl_varbnd,
                                       (*dev)[d].NBND*t);
             }
@@ -356,9 +360,9 @@ int initialize_grid(model * m, device ** dev, int s){
                                                * 8 * (*dev)[d].src_recs.nrec[s];
         (*dev)[d].src_recs.cl_rec_pos.host=(*dev)[d].src_recs.rec_pos[s];
         
-        __GUARD clbuf_send( &(*dev)[d].src_recs.cl_src);
-        __GUARD clbuf_send( &(*dev)[d].src_recs.cl_src_pos);
-        __GUARD clbuf_send( &(*dev)[d].src_recs.cl_rec_pos);
+        __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].src_recs.cl_src);
+        __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].src_recs.cl_src_pos);
+        __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].src_recs.cl_rec_pos);
         
         // Assign work sizes to kernels
         (*dev)[d].src_recs.sources.gsize[0]=(*dev)[d].src_recs.nsrc[s];
@@ -535,7 +539,8 @@ int time_stepping(model * m, device ** dev) {
                                                   * m->NT * m->src_recs.nrec[s];
                         (*dev)[d].vars[i].cl_var_res.host=
                                                 (*dev)[d].vars[i].gl_var_res[s];
-                        __GUARD clbuf_sendpin(&(*dev)[d].vars[i].cl_varout,
+                        __GUARD clbuf_sendpin(&(*dev)[d].queue,
+                                              &(*dev)[d].vars[i].cl_varout,
                                               &(*dev)[d].vars[i].cl_var_res,
                                               0);
                     }
@@ -546,7 +551,8 @@ int time_stepping(model * m, device ** dev) {
                         * m->NT * m->src_recs.nrec[s];
                         (*dev)[d].trans_vars[i].cl_var_res.host=
                         (*dev)[d].trans_vars[i].gl_var_res[s];
-                        __GUARD clbuf_sendpin(&(*dev)[d].trans_vars[i].cl_varout,
+                        __GUARD clbuf_sendpin(&(*dev)[d].queue,
+                                              &(*dev)[d].trans_vars[i].cl_varout,
                                               &(*dev)[d].trans_vars[i].cl_var_res,
                                               0);
                     }
@@ -567,7 +573,8 @@ int time_stepping(model * m, device ** dev) {
                 if (m->BACK_PROP_TYPE==2){
                     for (i=0;i<(*dev)[d].nvars;i++){
                         if ((*dev)[d].vars[i].for_grad){
-                            __GUARD clbuf_read( &(*dev)[d].vars[i].cl_fvar);
+                            __GUARD clbuf_read(&(*dev)[d].queue,
+                                               &(*dev)[d].vars[i].cl_fvar);
                         }
                     }
                     // Inialize to 0 the frequency buffers, and the adjoint
@@ -653,7 +660,8 @@ int time_stepping(model * m, device ** dev) {
             // Transfer  the source gradient to the host
             if (m->GRADSRCOUT==1){
                 for (d=0;d<m->NUM_DEVICES;d++){
-                    __GUARD clbuf_read( &(*dev)[d].src_recs.cl_grad_src);
+                    __GUARD clbuf_read( &(*dev)[d].queue,
+                                        &(*dev)[d].src_recs.cl_grad_src);
                 }
             }
             
@@ -665,7 +673,8 @@ int time_stepping(model * m, device ** dev) {
                 for (d=0;d<m->NUM_DEVICES;d++){
                     for (i=0;i<(*dev)[d].nvars;i++){
                         if ((*dev)[d].vars[i].for_grad){
-                            __GUARD clbuf_readpin(&(*dev)[d].vars[i].cl_fvar,
+                            __GUARD clbuf_readpin(&(*dev)[d].queue,
+                                                  &(*dev)[d].vars[i].cl_fvar,
                                                   &(*dev)[d].vars[i].cl_fvar_adj,
                                                   0);
                         }
@@ -693,10 +702,12 @@ int time_stepping(model * m, device ** dev) {
         for (d=0;d<m->NUM_DEVICES;d++){
             for (i=0;i<m->npars;i++){
                 if ((*dev)[d].pars[i].to_grad){
-                    __GUARD clbuf_read(&(*dev)[d].pars[i].cl_grad);
+                    __GUARD clbuf_read( &(*dev)[d].queue,
+                                       &(*dev)[d].pars[i].cl_grad);
                 }
                 if (m->HOUT==1 && (*dev)[d].pars[i].to_grad){
-                    __GUARD clbuf_read(  &(*dev)[d].pars[i].cl_H);
+                    __GUARD clbuf_read( &(*dev)[d].queue,
+                                       &(*dev)[d].pars[i].cl_H);
                 }
             }
             
