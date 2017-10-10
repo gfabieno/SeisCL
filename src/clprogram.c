@@ -166,7 +166,7 @@ char **get_build_options(device *dev,
     GMALLOC(build_options, sizeof(char*)*2);
     
     if (m->N_names[0]){
-        for (i=0;i<m->NDIM-1;i++){
+        for (i=0;i<m->NDIM;i++){
             GMALLOC(build_options[i], sizeof(char)*30);
             sprintf(build_options[i],"-D N%s=%d ",m->N_names[i],(*dev).N[i]+m->FDORDER);
 //            strcat(build_options[i],src);
