@@ -533,6 +533,9 @@ int prog_launch( CUstream *inqueue, clprogram * prog){
     if (prog->lsize[0]!=0)
         lsize=prog->lsize;
     
+    CUdeviceptr varin;
+    state = cuMemAlloc( &varin , sizeof(float)*100);
+    void *inputs[]={varin};
     state = cuLaunchKernel (prog->kernel,
                             1,
                             1,
@@ -542,7 +545,7 @@ int prog_launch( CUstream *inqueue, clprogram * prog){
                             1,
                             (unsigned int)prog->shared_size,
                             NULL,
-                            prog->inputs,
+                            inputs,
                             NULL );
 
     
