@@ -238,9 +238,9 @@ int compile(const char *program_source,
         if (state !=NVRTC_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
         __GUARD nvrtcGetPTXSize(cuprog, &ptxSize);
         GMALLOC(program, sizeof(char)*ptxSize);
-//        __GUARD nvrtcGetPTX(cuprog, program);
-//        __GUARD nvrtcDestroyProgram(&cuprog);
-//        __GUARD cuModuleLoadDataEx(module, program, 0, 0, 0);
+        __GUARD nvrtcGetPTX(cuprog, program);
+        __GUARD nvrtcDestroyProgram(&cuprog);
+        __GUARD cuModuleLoadDataEx(module, program, 0, 0, 0);
     }
     
     // Now create the kernel "objects"
