@@ -30,12 +30,12 @@ void clbuf_free(device *dev, clbuf *buf){
 
 }
 
-//void clprogram_freeCL(clprogram * prog){
-//    
-//    if (prog->kernel ) clReleaseKernel(prog->kernel);
-//    if (prog->prog) clReleaseProgram(prog->prog);
-//    
-//}
+void clprogram_freeCL(clprogram * prog){
+    
+    if (prog->module) cuModuleUnload(prog->module);
+    if (prog->prog) free(prog->prog);
+    
+}
 
 void clprogram_freeGL(clprogram * prog){
     int i;
@@ -108,11 +108,11 @@ void sources_records_freeCL(device *dev, sources_records * src_rec){
     clbuf_free(dev, &src_rec->cl_rec_pos);
     clbuf_free(dev, &src_rec->cl_grad_src);
     
-//    clprogram_freeCL(&src_rec->sources);
-//    clprogram_freeCL(&src_rec->varsout);
-//    clprogram_freeCL(&src_rec->varsoutinit);
-//    clprogram_freeCL(&src_rec->residuals);
-//    clprogram_freeCL(&src_rec->init_gradsrc);
+    clprogram_freeCL(&src_rec->sources);
+    clprogram_freeCL(&src_rec->varsout);
+    clprogram_freeCL(&src_rec->varsoutinit);
+    clprogram_freeCL(&src_rec->residuals);
+    clprogram_freeCL(&src_rec->init_gradsrc);
     
 }
 
@@ -148,13 +148,13 @@ void sources_records_freeGL(device *dev, sources_records * src_rec){
 
 void update_freeCL(update * up){
     
-//    clprogram_freeCL(&up->center);
-//    clprogram_freeCL(&up->com1);
-//    clprogram_freeCL(&up->com2);
-//    clprogram_freeCL(&up->fcom1_out);
-//    clprogram_freeCL(&up->fcom2_out);
-//    clprogram_freeCL(&up->fcom1_in);
-//    clprogram_freeCL(&up->fcom2_out);
+    clprogram_freeCL(&up->center);
+    clprogram_freeCL(&up->com1);
+    clprogram_freeCL(&up->com2);
+    clprogram_freeCL(&up->fcom1_out);
+    clprogram_freeCL(&up->fcom2_out);
+    clprogram_freeCL(&up->fcom1_in);
+    clprogram_freeCL(&up->fcom2_out);
     GFree(up->v2com)
 }
 
@@ -172,9 +172,9 @@ void update_freeGL(update * up){
 
 void boundary_conditions_freeCL(boundary_conditions * bnd){
     
-//    clprogram_freeCL(&bnd->surf);
-//    clprogram_freeCL(&bnd->init_f);
-//    clprogram_freeCL(&bnd->init_adj);
+    clprogram_freeCL(&bnd->surf);
+    clprogram_freeCL(&bnd->init_f);
+    clprogram_freeCL(&bnd->init_adj);
 
 }
 
@@ -188,10 +188,10 @@ void boundary_conditions_freeGL(boundary_conditions * bnd){
 
 void gradients_freeCL(gradients * grad){
     
-//    clprogram_freeCL(&grad->init);
-//    clprogram_freeCL(&grad->savefreqs);
-//    clprogram_freeCL(&grad->initsavefreqs);
-//    clprogram_freeCL(&grad->savebnd);
+    clprogram_freeCL(&grad->init);
+    clprogram_freeCL(&grad->savefreqs);
+    clprogram_freeCL(&grad->initsavefreqs);
+    clprogram_freeCL(&grad->savebnd);
     
 }
 
@@ -254,8 +254,9 @@ void device_free(device * dev){
     gradients_freeCL(&dev->grads);
     boundary_conditions_freeCL(&dev->bnd_cnds);
     
-//    if (dev->queue) clReleaseCommandQueue(dev->queue);
-//    if (dev->queuecomm) clReleaseCommandQueue(dev->queuecomm);
+    if (dev->queue) cuStreamDestroy(dev->queue);
+    if (dev->queuecomm) cuStreamDestroy(dev->queuecomm);
+    if (dev->context) cuCtxDestroy(dev->context);
     
 }
 
