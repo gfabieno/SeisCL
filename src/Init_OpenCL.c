@@ -257,7 +257,7 @@ int Init_CUDA(model * m, device ** dev)  {
     
     // Connect all OpenCL devices that can be used in a single context
     __GUARD connect_devices(dev, m);
-
+    fprintf(stdout,"connected\n");
 
     
     //For each device, create the memory buffers and programs on the GPU
@@ -344,7 +344,7 @@ int Init_CUDA(model * m, device ** dev)  {
             if (state !=CUDA_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
             
         }
-        
+        fprintf(stdout,"properties\n");
         // Define the local work size of the update kernels.
         //By default, it is 32 elements long to have coalesced memory in cuda
         //Local memory usage must fit the size of local memory of the device
