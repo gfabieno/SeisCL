@@ -532,7 +532,8 @@ int prog_launch( CUstream *inqueue, clprogram * prog){
 
     if (prog->lsize[0]!=0)
         lsize=prog->lsize;
-
+    
+    fprintf(stdout,"%s\n",(unsigned int)prog->src);
     state = cuLaunchKernel (prog->kernel,
                             1,
                             1,
@@ -545,7 +546,7 @@ int prog_launch( CUstream *inqueue, clprogram * prog){
                             prog->inputs,
                             NULL );
 
-    fprintf(stdout,"%s\n",(unsigned int)prog->src);
+    
     if (state !=CUDA_SUCCESS) fprintf(stderr,"Error launching %s: %s\n",prog->name,clerrors(state));
     
     return state;
