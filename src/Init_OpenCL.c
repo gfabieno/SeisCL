@@ -229,7 +229,9 @@ int connect_devices(device ** dev, model * m)
         
     }
 
-    if (state !=CUDA_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
+    if (state !=CUDA_SUCCESS) fprintf(stderr,
+                                      "Devices connection failled: %s\n",
+                                      clerrors(state));
     GFree(devices);
     GFree(allow_devs);
     
