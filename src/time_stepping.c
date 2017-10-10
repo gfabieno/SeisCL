@@ -390,6 +390,7 @@ int initialize_grid(model * m, device ** dev, int s){
 //                    __GUARD clSetKernelArg((*dev)[d].progs[i]->kernel,
 //                                           (*dev)[d].progs[i]->pdir-1,
 //                                           sizeof(int), &pdir);
+                    (*dev)[d].progs[i]->inputs[(*dev)[d].progs[i]->pdir-1]=&pdir;
                 }
             }
         }
@@ -451,6 +452,7 @@ int time_stepping(model * m, device ** dev) {
 //                        __GUARD clSetKernelArg((*dev)[d].progs[i]->kernel,
 //                                               (*dev)[d].progs[i]->tinput-1,
 //                                               sizeof(int), &t);
+                        (*dev)[d].progs[i]->inputs[(*dev)[d].progs[i]->tinput-1]=&t;
                     }
                 }
             }
@@ -466,6 +468,7 @@ int time_stepping(model * m, device ** dev) {
 //                    __GUARD clSetKernelArg((*dev)[d].grads.savefreqs.kernel,
 //                                           (*dev)[d].grads.savefreqs.tinput-1,
 //                                           sizeof(int), &thist);
+                    (*dev)[d].grads.savefreqs.inputs[(*dev)[d].grads.savefreqs.tinput-1]=&thist;
                     __GUARD prog_launch( &(*dev)[d].queue,
                                          &(*dev)[d].grads.savefreqs);
                 }
@@ -593,6 +596,7 @@ int time_stepping(model * m, device ** dev) {
 //                            __GUARD clSetKernelArg((*dev)[d].progs[i]->kernel,
 //                                                   (*dev)[d].progs[i]->pdir-1,
 //                                                   sizeof(int), &pdir);
+                            (*dev)[d].progs[i]->inputs[(*dev)[d].progs[i]->pdir-1]=&pdir;
                         }
                     }
                 }
@@ -609,6 +613,7 @@ int time_stepping(model * m, device ** dev) {
 //                            __GUARD clSetKernelArg((*dev)[d].progs[i]->kernel,
 //                                                   (*dev)[d].progs[i]->tinput-1,
 //                                                   sizeof(int), &t);
+                            (*dev)[d].progs[i]->inputs[(*dev)[d].progs[i]->tinput-1]=&t;
                         }
                     }
                 }
@@ -644,6 +649,7 @@ int time_stepping(model * m, device ** dev) {
 //                        __GUARD clSetKernelArg((*dev)[d].grads.savefreqs.kernel,
 //                                             (*dev)[d].grads.savefreqs.tinput-1,
 //                                               sizeof(int), &thist);
+                        (*dev)[d].grads.savefreqs.inputs[(*dev)[d].grads.savefreqs.tinput-1]=&thist;
                         __GUARD prog_launch( &(*dev)[d].queue,
                                             &(*dev)[d].grads.savefreqs);
                     }
