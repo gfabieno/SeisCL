@@ -186,7 +186,7 @@ int get_build_options(device *dev,
     }
     for (i=0;i<m->FDOH;i++){
         *n+=1;
-        sprintf(build_options[*n-1],"-D hc%d=%9.9f ",i+1,m->hc[i+1]);
+        sprintf(build_options[*n-1],"-D HC%d=%9.9f ",i+1,m->hc[i+1]);
     }
     
     *n+=1;
