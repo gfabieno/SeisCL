@@ -310,103 +310,103 @@ extern "C" __global__ void update_v(int offcomm,
 
      
   
-//// Correct spatial derivatives to implement CPML
-//#if ABS_TYPE==1
-//    {
-//        int i,k,ind;
-//        
-//        if (gidz>NZ-NAB-FDOH-1){
-//            
-//            i =gidx-FDOH;
-//            k =gidz - NZ+NAB+FDOH+NAB;
-//            ind=2*NAB-1-k;
-//            
-//            psi_sxz_z(k,i) = b_z[ind+1] * psi_sxz_z(k,i) + a_z[ind+1] * sxz_z;
-//            sxz_z = sxz_z / K_z[ind+1] + psi_sxz_z(k,i);
-//            psi_szz_z(k,i) = b_z_half[ind] * psi_szz_z(k,i) + a_z_half[ind] * szz_z;
-//            szz_z = szz_z / K_z_half[ind] + psi_szz_z(k,i);
-//            
-//        }
-//        
-//#if FREESURF==0
-//        else if (gidz-FDOH<NAB){
-//            
-//            i =gidx-FDOH;
-//            k =gidz-FDOH;
-//            
-//            psi_sxz_z(k,i) = b_z[k] * psi_sxz_z(k,i) + a_z[k] * sxz_z;
-//            sxz_z = sxz_z / K_z[k] + psi_sxz_z(k,i);
-//            psi_szz_z(k,i) = b_z_half[k] * psi_szz_z(k,i) + a_z_half[k] * szz_z;
-//            szz_z = szz_z / K_z_half[k] + psi_szz_z(k,i);
-//            
-//        }
-//#endif
-//        
-//#if DEVID==0 & MYLOCALID==0
-//        if (gidx-FDOH<NAB){
-//            
-//            i =gidx-FDOH;
-//            k =gidz-FDOH;
-//            
-//            psi_sxx_x(k,i) = b_x_half[i] * psi_sxx_x(k,i) + a_x_half[i] * sxx_x;
-//            sxx_x = sxx_x / K_x_half[i] + psi_sxx_x(k,i);
-//            psi_sxz_x(k,i) = b_x[i] * psi_sxz_x(k,i) + a_x[i] * sxz_x;
-//            sxz_x = sxz_x / K_x[i] + psi_sxz_x(k,i);
-//            
-//        }
-//#endif
-//        
-//#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-//        if (gidx>NX-NAB-FDOH-1){
-//            
-//            i =gidx - NX+NAB+FDOH+NAB;
-//            k =gidz-FDOH;
-//            ind=2*NAB-1-i;
-//            
-//            psi_sxx_x(k,i) = b_x_half[ind] * psi_sxx_x(k,i) + a_x_half[ind] * sxx_x;
-//            sxx_x = sxx_x / K_x_half[ind] + psi_sxx_x(k,i);
-//            psi_sxz_x(k,i) = b_x[ind+1] * psi_sxz_x(k,i) + a_x[ind+1] * sxz_x;
-//            sxz_x = sxz_x / K_x[ind+1] + psi_sxz_x(k,i);
-//            
-//        }
-//#endif
-//    }
-//#endif
-//
-//// Update the velocities
-//    {
-//        vx(gidz,gidx)+= ((sxx_x + sxz_z)/rip(gidz,gidx));
-//        vz(gidz,gidx)+= ((szz_z + sxz_x)/rkp(gidz,gidx));
-//    }
-//
-//// Absorbing boundary
-//#if ABS_TYPE==2
-//    {
-//        if (gidz-FDOH<NAB){
-//            vx(gidz,gidx)*=taper[gidz-FDOH];
-//            vz(gidz,gidx)*=taper[gidz-FDOH];
-//        }
-//        
-//        if (gidz>NZ-NAB-FDOH-1){
-//            vx(gidz,gidx)*=taper[NZ-FDOH-gidz-1];
-//            vz(gidz,gidx)*=taper[NZ-FDOH-gidz-1];
-//        }
-//        
-//#if DEVID==0 & MYLOCALID==0
-//        if (gidx-FDOH<NAB){
-//            vx(gidz,gidx)*=taper[gidx-FDOH];
-//            vz(gidz,gidx)*=taper[gidx-FDOH];
-//        }
-//#endif
-//        
-//#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-//        if (gidx>NX-NAB-FDOH-1){
-//            vx(gidz,gidx)*=taper[NX-FDOH-gidx-1];
-//            vz(gidz,gidx)*=taper[NX-FDOH-gidx-1];
-//        }
-//#endif 
-//    }
-//#endif
+// Correct spatial derivatives to implement CPML
+#if ABS_TYPE==1
+    {
+        int i,k,ind;
+        
+        if (gidz>NZ-NAB-FDOH-1){
+            
+            i =gidx-FDOH;
+            k =gidz - NZ+NAB+FDOH+NAB;
+            ind=2*NAB-1-k;
+            
+            psi_sxz_z(k,i) = b_z[ind+1] * psi_sxz_z(k,i) + a_z[ind+1] * sxz_z;
+            sxz_z = sxz_z / K_z[ind+1] + psi_sxz_z(k,i);
+            psi_szz_z(k,i) = b_z_half[ind] * psi_szz_z(k,i) + a_z_half[ind] * szz_z;
+            szz_z = szz_z / K_z_half[ind] + psi_szz_z(k,i);
+            
+        }
+        
+#if FREESURF==0
+        else if (gidz-FDOH<NAB){
+            
+            i =gidx-FDOH;
+            k =gidz-FDOH;
+            
+            psi_sxz_z(k,i) = b_z[k] * psi_sxz_z(k,i) + a_z[k] * sxz_z;
+            sxz_z = sxz_z / K_z[k] + psi_sxz_z(k,i);
+            psi_szz_z(k,i) = b_z_half[k] * psi_szz_z(k,i) + a_z_half[k] * szz_z;
+            szz_z = szz_z / K_z_half[k] + psi_szz_z(k,i);
+            
+        }
+#endif
+        
+#if DEVID==0 & MYLOCALID==0
+        if (gidx-FDOH<NAB){
+            
+            i =gidx-FDOH;
+            k =gidz-FDOH;
+            
+            psi_sxx_x(k,i) = b_x_half[i] * psi_sxx_x(k,i) + a_x_half[i] * sxx_x;
+            sxx_x = sxx_x / K_x_half[i] + psi_sxx_x(k,i);
+            psi_sxz_x(k,i) = b_x[i] * psi_sxz_x(k,i) + a_x[i] * sxz_x;
+            sxz_x = sxz_x / K_x[i] + psi_sxz_x(k,i);
+            
+        }
+#endif
+        
+#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+        if (gidx>NX-NAB-FDOH-1){
+            
+            i =gidx - NX+NAB+FDOH+NAB;
+            k =gidz-FDOH;
+            ind=2*NAB-1-i;
+            
+            psi_sxx_x(k,i) = b_x_half[ind] * psi_sxx_x(k,i) + a_x_half[ind] * sxx_x;
+            sxx_x = sxx_x / K_x_half[ind] + psi_sxx_x(k,i);
+            psi_sxz_x(k,i) = b_x[ind+1] * psi_sxz_x(k,i) + a_x[ind+1] * sxz_x;
+            sxz_x = sxz_x / K_x[ind+1] + psi_sxz_x(k,i);
+            
+        }
+#endif
+    }
+#endif
+
+// Update the velocities
+    {
+        vx(gidz,gidx)+= ((sxx_x + sxz_z)/rip(gidz,gidx));
+        vz(gidz,gidx)+= ((szz_z + sxz_x)/rkp(gidz,gidx));
+    }
+
+// Absorbing boundary
+#if ABS_TYPE==2
+    {
+        if (gidz-FDOH<NAB){
+            vx(gidz,gidx)*=taper[gidz-FDOH];
+            vz(gidz,gidx)*=taper[gidz-FDOH];
+        }
+        
+        if (gidz>NZ-NAB-FDOH-1){
+            vx(gidz,gidx)*=taper[NZ-FDOH-gidz-1];
+            vz(gidz,gidx)*=taper[NZ-FDOH-gidz-1];
+        }
+        
+#if DEVID==0 & MYLOCALID==0
+        if (gidx-FDOH<NAB){
+            vx(gidz,gidx)*=taper[gidx-FDOH];
+            vz(gidz,gidx)*=taper[gidx-FDOH];
+        }
+#endif
+        
+#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+        if (gidx>NX-NAB-FDOH-1){
+            vx(gidz,gidx)*=taper[NX-FDOH-gidx-1];
+            vz(gidz,gidx)*=taper[NX-FDOH-gidx-1];
+        }
+#endif 
+    }
+#endif
     
 }
 
