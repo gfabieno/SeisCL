@@ -535,7 +535,7 @@ int prog_launch( CUstream *inqueue, clprogram * prog){
     
     CUdeviceptr varin;
     state = cuMemAlloc( &varin , sizeof(float)*100);
-    void *inputs[]={varin};
+    void *inputs[]={&varin};
     state = cuLaunchKernel (prog->kernel,
                             1,
                             1,
