@@ -706,16 +706,15 @@ int Init_CUDA(model * m, device ** dev)  {
                 
                 //Memory for recordings for this device on host side
                 di->trans_vars[i].cl_varout.size=sizeof(float)
-                                                    * m->NT * m->src_recs.ngmax;
+                * m->NT * m->src_recs.ngmax;
                 __GUARD clbuf_create( &di->trans_vars[i].cl_varout);
-                GMALLOC(di->trans_vars[i].cl_varout.host,
-                        di->trans_vars[i].cl_varout.size);
+                GMALLOC(di->trans_vars[i].cl_varout.host, di->trans_vars[i].cl_varout.size);
                 di->trans_vars[i].cl_varout.free_host=1;
                 
                 //Create also a buffer for the residuals
                 if (m->trans_vars[i].gl_var_res){
                     di->trans_vars[i].cl_var_res.size=sizeof(float)
-                                                    * m->NT * m->src_recs.ngmax;
+                    * m->NT * m->src_recs.ngmax;
                     __GUARD clbuf_create(  &di->trans_vars[i].cl_var_res);
                 }
 
