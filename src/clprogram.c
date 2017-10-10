@@ -171,11 +171,12 @@ int get_build_options(device *dev,
     int state=0;
     int i;
     
-    GMALLOC(build_options, sizeof(char*)*50);
+//    GMALLOC(build_options, sizeof(char*)*50);
     *n=0;
     if (m->N_names[0]){
         for (i=0;i<m->NDIM;i++){
-            add_option( build_options, n);
+//            add_option( build_options, n);
+            *n+=1;
             sprintf(build_options[*n-1],"-D N%s=%d ",m->N_names[i],(*dev).N[i]+m->FDORDER);
             fprintf(stdout,"%s\n",build_options[*n-1]);
         }
@@ -331,6 +332,12 @@ int prog_create(model * m,
     char str2comp[50];
     char ** build_options=NULL;
     int noptions=0;
+    
+    GMALLOC(build_options, sizeof(char*)*50);
+    for (i=0;i<50;i++){
+        GMALLOC(build_options[i], sizeof(char)*30);
+    }
+    
     state= get_build_options(dev,
                               m,
                               build_options,
