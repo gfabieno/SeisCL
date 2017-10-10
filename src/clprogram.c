@@ -180,81 +180,81 @@ int get_build_options(device *dev,
             
         }
     }
-    else{
-        for (i=0;i<m->NDIM;i++){
-            add_option( build_options, n);
-            sprintf(build_options[*n-1],"-D N%d=%d ",i,(*dev).N[i]+m->FDORDER);
-        }
-    }
-    for (i=0;i<m->FDOH;i++){
-        add_option( build_options, n);
-        sprintf(build_options[*n-1],"-D hc%d=%9.9f ",i+1,m->hc[i+1]);
-    }
-    
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D NDIM=%d ",(*m).NDIM);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D OFFSET=%d",(*dev).NX0);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D FDOH=%d",(*m).FDOH);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D DTDH=%9.9f",(*m).dt/(*m).dh);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D DH=%9.9f",(*m).dh);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D DT=%9.9f",(*m).dt);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D DT2=%9.9f",(*m).dt/2.0);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D NT=%d",(*m).NT);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D NAB=%d",(*m).NAB);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D NBND=%d",(*dev).NBND);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D LOCAL_OFF=%d",(*dev).LOCAL_OFF);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D LVE=%d",(*m).L);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D DEVID=%d", (*dev).DEVID);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D NUM_DEVICES=%d",  (*m).NUM_DEVICES);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D ND=%d",  (*m).ND);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D ABS_TYPE=%d",  (*m).ABS_TYPE);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D FREESURF=%d",  (*m).FREESURF);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D LCOMM=%d",  LCOMM);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D MYLOCALID=%d",  (*m).MYLOCALID);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D NLOCALP=%d",  (*m).NLOCALP);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D NFREQS=%d",  (*m).NFREQS);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D BACK_PROP_TYPE=%d",  (*m).BACK_PROP_TYPE);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D COMM12=%d",  comm);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D NTNYQ=%d", (*m).NTNYQ);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D VARSOUT=%d",(*m).VARSOUT);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D RESOUT=%d",(*m).RESOUT);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D RMSOUT=%d",(*m).RMSOUT);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D MOVOUT=%d",(*m).MOVOUT);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D GRADOUT=%d ",(*m).GRADOUT);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D HOUT=%d",(*m).HOUT);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D GRADSRCOUT=%d",(*m).GRADSRCOUT);
-    add_option( build_options, n);
-    sprintf(build_options[*n-1],"-D DIRPROP=%d",DIRPROP);
+//    else{
+//        for (i=0;i<m->NDIM;i++){
+//            add_option( build_options, n);
+//            sprintf(build_options[*n-1],"-D N%d=%d ",i,(*dev).N[i]+m->FDORDER);
+//        }
+//    }
+//    for (i=0;i<m->FDOH;i++){
+//        add_option( build_options, n);
+//        sprintf(build_options[*n-1],"-D hc%d=%9.9f ",i+1,m->hc[i+1]);
+//    }
+//    
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D NDIM=%d ",(*m).NDIM);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D OFFSET=%d",(*dev).NX0);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D FDOH=%d",(*m).FDOH);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D DTDH=%9.9f",(*m).dt/(*m).dh);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D DH=%9.9f",(*m).dh);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D DT=%9.9f",(*m).dt);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D DT2=%9.9f",(*m).dt/2.0);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D NT=%d",(*m).NT);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D NAB=%d",(*m).NAB);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D NBND=%d",(*dev).NBND);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D LOCAL_OFF=%d",(*dev).LOCAL_OFF);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D LVE=%d",(*m).L);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D DEVID=%d", (*dev).DEVID);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D NUM_DEVICES=%d",  (*m).NUM_DEVICES);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D ND=%d",  (*m).ND);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D ABS_TYPE=%d",  (*m).ABS_TYPE);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D FREESURF=%d",  (*m).FREESURF);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D LCOMM=%d",  LCOMM);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D MYLOCALID=%d",  (*m).MYLOCALID);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D NLOCALP=%d",  (*m).NLOCALP);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D NFREQS=%d",  (*m).NFREQS);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D BACK_PROP_TYPE=%d",  (*m).BACK_PROP_TYPE);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D COMM12=%d",  comm);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D NTNYQ=%d", (*m).NTNYQ);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D VARSOUT=%d",(*m).VARSOUT);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D RESOUT=%d",(*m).RESOUT);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D RMSOUT=%d",(*m).RMSOUT);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D MOVOUT=%d",(*m).MOVOUT);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D GRADOUT=%d ",(*m).GRADOUT);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D HOUT=%d",(*m).HOUT);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D GRADSRCOUT=%d",(*m).GRADSRCOUT);
+//    add_option( build_options, n);
+//    sprintf(build_options[*n-1],"-D DIRPROP=%d",DIRPROP);
     
     
     //Make it all uppercase
@@ -280,6 +280,7 @@ int compile(const char *program_source,
     int state = 0;
     size_t ptxSize=0;
     nvrtcProgram cuprog;
+    fprintf(stdout,"%d\n",noptions);
     fprintf(stdout,"%s\n",build_options[0]);
     fprintf(stdout,"%s\n",build_options[1]);
     if (!program){
@@ -329,7 +330,7 @@ int prog_create(model * m,
     size_t shared_size=sizeof(float);
     char str2comp[50];
     char ** build_options=NULL;
-    int noptions;
+    int noptions=0;
     state= get_build_options(dev,
                               m,
                               build_options,
