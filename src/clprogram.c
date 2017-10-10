@@ -545,8 +545,8 @@ int prog_launch( CUstream *inqueue, clprogram * prog){
                             prog->inputs,
                             NULL );
 
-    
-    if (state !=CUDA_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
+    fprintf(stdout,"shared_size:%d\n",(unsigned int)prog->shared_size);
+    if (state !=CUDA_SUCCESS) fprintf(stderr,"Error launching %s: %s\n",prog->name,clerrors(state));
     
     return state;
     
