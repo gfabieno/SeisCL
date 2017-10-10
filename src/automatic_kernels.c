@@ -222,14 +222,14 @@ int kernel_varinit(device * dev,
     
     
     strcat(temp, "extern \"C\" __global__ void vars_init(");
-    for (i=0;i<dev->nvars;i++){
-            strcat(temp, "float * ");
-            strcat(temp, vars[i].name);
-            strcat(temp, ", ");
-    }
-    while (*p)
-        p++;
-    p[-2]='\0';
+//    for (i=0;i<dev->nvars;i++){
+//            strcat(temp, "float * ");
+//            strcat(temp, vars[i].name);
+//            strcat(temp, ", ");
+//    }
+//    while (*p)
+//        p++;
+//    p[-2]='\0';
     strcat(temp, "){\n\n");
     
     
