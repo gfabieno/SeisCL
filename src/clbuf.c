@@ -28,7 +28,9 @@ int clbuf_send(CUstream *inqueue, clbuf * buf)
 
     /*Transfer memory from host to the device*/
     err = cuMemcpyHtoDAsync ( buf->mem, (void*)buf->host, buf->size, *inqueue );
-    if (err !=0) fprintf(stderr,"%s\n",clerrors(err));
+    if (err !=CUDA_SUCCESS) fprintf(stderr,
+                                    "Error clbuf_send: %s\n",
+                                    clerrors(err));
     
     return err;
 }
@@ -46,7 +48,9 @@ int clbuf_sendpin(CUstream *inqueue,
                              (void*)&buf->host[offset],
                              buf->size,
                              *inqueue );
-    if (err !=0) fprintf(stderr,"%s\n",clerrors(err));
+    if (err !=CUDA_SUCCESS) fprintf(stderr,
+                                    "Error clbuf_sendpin: %s\n",
+                                    clerrors(err));
     
     return err;
 }
@@ -60,7 +64,9 @@ int clbuf_read(CUstream *inqueue, clbuf * buf)
     /*Read memory from device to the host*/
     err= cuMemcpyDtoHAsync ( buf->host, buf->mem, buf->size, *inqueue );
     
-    if (err !=0) fprintf(stderr,"%s\n",clerrors(err));
+    if (err !=CUDA_SUCCESS) fprintf(stderr,
+                                    "Error clbuf_read: %s\n",
+                                    clerrors(err));
     
     return err;
 }
@@ -77,7 +83,9 @@ int clbuf_readpin(CUstream *inqueue,
     /*Read memory from device to the host*/
     err= cuMemcpyDtoHAsync(&bufpin->host[offset], buf->mem,buf->size, *inqueue);
     
-    if (err !=0) fprintf(stderr,"%s\n",clerrors(err));
+    if (err !=CUDA_SUCCESS) fprintf(stderr,
+                                    "Error clbuf_readpin: %s\n",
+                                    clerrors(err));
     
     return err;
 }
@@ -87,7 +95,9 @@ int clbuf_create(clbuf * buf)
     /*Create the buffer on the device */
     int err = 0;
     err = cuMemAlloc( &(*buf).mem , (*buf).size);
-    if (err !=0) fprintf(stderr,"%s\n",clerrors(err));
+    if (err !=CUDA_SUCCESS) fprintf(stderr,
+                                    "Error clbuf_create: %s\n",
+                                    clerrors(err));
     
     return err;
     
@@ -108,7 +118,9 @@ int clbuf_create_pin(clbuf * buf)
     }
     err = cuMemAllocHost((void**)&(*buf).pin, sizepin);
         
-    if (err !=0) fprintf(stderr,"%s\n",clerrors(err));
+    if (err !=CUDA_SUCCESS) fprintf(stderr,
+                                    "Error clbuf_create_pin: %s\n",
+                                    clerrors(err));
     
     return err;
     
