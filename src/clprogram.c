@@ -224,7 +224,9 @@ int compile(const char *program_source,
     
     int state = 0;
     size_t ptxSize=0;
-    nvrtcProgram cuprog = NULL;
+    nvrtcProgram cuprog;
+    fprintf(stdout, "name:%s\n",program_name);
+    fprintf(stdout, "source:%s\n",program_source);
     
     if (!program){
         __GUARD nvrtcCreateProgram(&cuprog,
