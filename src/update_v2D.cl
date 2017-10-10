@@ -97,11 +97,11 @@ extern "C" __global__ void update_v(int offcomm,
 {
 
 
-//    float sxx_x;
-//    float szz_z;
-//    float sxz_x;
-//    float sxz_z;
-//
+    float sxx_x;
+    float szz_z;
+    float sxz_x;
+    float sxz_z;
+
 //// If we use local memory
 //#if LOCAL_OFF==0
 //    int lsizez = get_local_size(0)+2*FDOH;
