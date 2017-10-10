@@ -540,7 +540,7 @@ int prog_launch( CUstream *inqueue, clprogram * prog){
             tsize[i]=(unsigned int)prog->lsize[i];
         bsize[i]=(unsigned int)(prog->bsize[i]+tsize[i]-1)/tsize[i];
     }
-
+    fprintf(stdout,"%d,%d,%d\n",tsize[0],tsize[1],tsize[2]);
     state = cuLaunchKernel (prog->kernel,
                             bsize[0],
                             bsize[1],
