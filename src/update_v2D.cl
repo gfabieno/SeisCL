@@ -96,7 +96,7 @@ __global__ void update_v(int offcomm,
                        float *psi_sxz_z,  float *psi_szz_z)
 {
 
-
+asdsad
     float sxx_x;
     float szz_z;
     float sxz_x;

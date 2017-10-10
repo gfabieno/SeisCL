@@ -202,7 +202,7 @@ int connect_devices(device ** dev, model * m)
     
     
     // Print some information about the returned devices
-    fprintf(stdout,"Connecting to %d devies: \n",m->NUM_DEVICES);
+    fprintf(stdout,"Connecting to %d devices: \n",m->NUM_DEVICES);
     // Create command queues for each devices
     for (i=0;i<m->NUM_DEVICES;i++){
         // Create a context with the specified devices
