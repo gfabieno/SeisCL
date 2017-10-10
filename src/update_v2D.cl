@@ -20,66 +20,66 @@
 /*Update of the velocity in 2D SV*/
 
 /*Define useful macros to be able to write a matrix formulation in 2D with OpenCl */
-#define lbnd (FDOH+NAB)
-
-#define rho(z,x)    rho[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define rip(z,x)    rip[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define rjp(z,x)    rjp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define rkp(z,x)    rkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define uipkp(z,x) uipkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define u(z,x)        u[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define pi(z,x)      pi[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define gradrho(z,x)  gradrho[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define gradM(z,x)  gradM[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define gradmu(z,x)  gradmu[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define gradtaup(z,x)  gradtaup[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define gradtaus(z,x)  gradtaus[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-
-#define taus(z,x)        taus[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define tausipkp(z,x) tausipkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define taup(z,x)        taup[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-
-#define vx(z,x)  vx[(x)*(NZ)+(z)]
-#define vy(z,x)  vy[(x)*(NZ)+(z)]
-#define vz(z,x)  vz[(x)*(NZ)+(z)]
-#define sxx(z,x) sxx[(x)*(NZ)+(z)]
-#define szz(z,x) szz[(x)*(NZ)+(z)]
-#define sxz(z,x) sxz[(x)*(NZ)+(z)]
-#define sxy(z,x) sxy[(x)*(NZ)+(z)]
-#define syz(z,x) syz[(x)*(NZ)+(z)]
-
-#define rxx(z,x,l) rxx[(l)*NX*NZ+(x)*NZ+(z)]
-#define rzz(z,x,l) rzz[(l)*NX*NZ+(x)*NZ+(z)]
-#define rxz(z,x,l) rxz[(l)*NX*NZ+(x)*NZ+(z)]
-#define rxy(z,x,l) rxy[(l)*NX*NZ+(x)*NZ+(z)]
-#define ryz(z,x,l) ryz[(l)*NX*NZ+(x)*NZ+(z)]
-
-#define psi_sxx_x(z,x) psi_sxx_x[(x)*(NZ-2*FDOH)+(z)]
-#define psi_sxz_x(z,x) psi_sxz_x[(x)*(NZ-2*FDOH)+(z)]
-#define psi_sxz_z(z,x) psi_sxz_z[(x)*(2*NAB)+(z)]
-#define psi_szz_z(z,x) psi_szz_z[(x)*(2*NAB)+(z)]
-#define psi_sxy_x(z,x) psi_sxy_x[(x)*(NZ-2*FDOH)+(z)]
-#define psi_syz_z(z,x) psi_syz_z[(x)*(2*NAB)+(z)]
-
-#if LOCAL_OFF==0
-
-#define lvar(z,x)  lvar[(x)*lsizez+(z)]
-
-#endif
-
-
-#define vxout(y,x) vxout[(y)*NT+(x)]
-#define vyout(y,x) vyout[(y)*NT+(x)]
-#define vzout(y,x) vzout[(y)*NT+(x)]
-#define vx0(y,x) vx0[(y)*NT+(x)]
-#define vy0(y,x) vy0[(y)*NT+(x)]
-#define vz0(y,x) vz0[(y)*NT+(x)]
-#define rx(y,x) rx[(y)*NT+(x)]
-#define ry(y,x) ry[(y)*NT+(x)]
-#define rz(y,x) rz[(y)*NT+(x)]
-
-#define PI (3.141592653589793238462643383279502884197169)
-#define signals(y,x) signals[(y)*NT+(x)]
+//#define lbnd (FDOH+NAB)
+//
+//#define rho(z,x)    rho[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+//#define rip(z,x)    rip[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+//#define rjp(z,x)    rjp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+//#define rkp(z,x)    rkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+//#define uipkp(z,x) uipkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+//#define u(z,x)        u[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+//#define pi(z,x)      pi[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+//#define gradrho(z,x)  gradrho[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+//#define gradM(z,x)  gradM[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+//#define gradmu(z,x)  gradmu[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+//#define gradtaup(z,x)  gradtaup[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+//#define gradtaus(z,x)  gradtaus[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+//
+//#define taus(z,x)        taus[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+//#define tausipkp(z,x) tausipkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+//#define taup(z,x)        taup[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+//
+//#define vx(z,x)  vx[(x)*(NZ)+(z)]
+//#define vy(z,x)  vy[(x)*(NZ)+(z)]
+//#define vz(z,x)  vz[(x)*(NZ)+(z)]
+//#define sxx(z,x) sxx[(x)*(NZ)+(z)]
+//#define szz(z,x) szz[(x)*(NZ)+(z)]
+//#define sxz(z,x) sxz[(x)*(NZ)+(z)]
+//#define sxy(z,x) sxy[(x)*(NZ)+(z)]
+//#define syz(z,x) syz[(x)*(NZ)+(z)]
+//
+//#define rxx(z,x,l) rxx[(l)*NX*NZ+(x)*NZ+(z)]
+//#define rzz(z,x,l) rzz[(l)*NX*NZ+(x)*NZ+(z)]
+//#define rxz(z,x,l) rxz[(l)*NX*NZ+(x)*NZ+(z)]
+//#define rxy(z,x,l) rxy[(l)*NX*NZ+(x)*NZ+(z)]
+//#define ryz(z,x,l) ryz[(l)*NX*NZ+(x)*NZ+(z)]
+//
+//#define psi_sxx_x(z,x) psi_sxx_x[(x)*(NZ-2*FDOH)+(z)]
+//#define psi_sxz_x(z,x) psi_sxz_x[(x)*(NZ-2*FDOH)+(z)]
+//#define psi_sxz_z(z,x) psi_sxz_z[(x)*(2*NAB)+(z)]
+//#define psi_szz_z(z,x) psi_szz_z[(x)*(2*NAB)+(z)]
+//#define psi_sxy_x(z,x) psi_sxy_x[(x)*(NZ-2*FDOH)+(z)]
+//#define psi_syz_z(z,x) psi_syz_z[(x)*(2*NAB)+(z)]
+//
+//#if LOCAL_OFF==0
+//
+//#define lvar(z,x)  lvar[(x)*lsizez+(z)]
+//
+//#endif
+//
+//
+//#define vxout(y,x) vxout[(y)*NT+(x)]
+//#define vyout(y,x) vyout[(y)*NT+(x)]
+//#define vzout(y,x) vzout[(y)*NT+(x)]
+//#define vx0(y,x) vx0[(y)*NT+(x)]
+//#define vy0(y,x) vy0[(y)*NT+(x)]
+//#define vz0(y,x) vz0[(y)*NT+(x)]
+//#define rx(y,x) rx[(y)*NT+(x)]
+//#define ry(y,x) ry[(y)*NT+(x)]
+//#define rz(y,x) rz[(y)*NT+(x)]
+//
+//#define PI (3.141592653589793238462643383279502884197169)
+//#define signals(y,x) signals[(y)*NT+(x)]
 
 
 
