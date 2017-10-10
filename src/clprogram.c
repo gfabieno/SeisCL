@@ -225,8 +225,6 @@ int compile(const char *program_source,
     int state = 0;
     size_t ptxSize=0;
     nvrtcProgram cuprog;
-    fprintf(stdout, "name:%s\n",program_name);
-    fprintf(stdout, "source:%s\n",program_source);
     
     if (!program){
         __GUARD nvrtcCreateProgram(&cuprog,
@@ -246,7 +244,7 @@ int compile(const char *program_source,
     }
     
     // Now create the kernel "objects"
-    __GUARD cuModuleGetFunction(kernel, *module, program_name);
+//    __GUARD cuModuleGetFunction(kernel, *module, program_name);
     if (state !=CUDA_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
     
     
