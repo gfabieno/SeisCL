@@ -244,7 +244,7 @@ int compile(const char *program_source,
     }
     
     // Now create the kernel "objects"
-//    __GUARD cuModuleGetFunction(kernel, *module, program_name);
+    __GUARD cuModuleGetFunction(kernel, *module, program_name);
     if (state !=CUDA_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
     
     
