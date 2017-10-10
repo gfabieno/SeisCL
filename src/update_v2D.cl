@@ -138,8 +138,8 @@ extern "C" __global__ void update_v(int offcomm,
     {
 #if LOCAL_OFF==0
         lsxx(lidz,lidx)=sxx(gidz, gidx);
-//        if (lidx<2*FDOH)
-//            lsxx(lidz,lidx-FDOH)=sxx(gidz,gidx-FDOH);
+        if (lidx<2*FDOH)
+            lsxx(lidz,lidx-FDOH)=sxx(gidz,gidx-FDOH);
 //        if (lidx+lsizex-3*FDOH<FDOH)
 //            lsxx(lidz,lidx+lsizex-3*FDOH)=sxx(gidz,gidx+lsizex-3*FDOH);
 //        if (lidx>(lsizex-2*FDOH-1))
