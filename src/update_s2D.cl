@@ -92,14 +92,14 @@ extern "C" __global__ void update_s(int offcomm,
     
     extern __shared__ float lvar[];
     
-//    float vxx, vzz, vzx, vxz;
-//    int i,k,l,ind;
-//    float sumrxz, sumrxx, sumrzz;
-//    float b,c,e,g,d,f,fipkp,dipkp;
-//    float leta[LVE];
-//    float lM, lmu, lmuipkp, ltaup, ltaus, ltausipkp;
-//    float lsxx, lszz, lsxz;
-//    
+    float vxx, vzz, vzx, vxz;
+    int i,k,l,ind;
+    float sumrxz, sumrxx, sumrzz;
+    float b,c,e,g,d,f,fipkp,dipkp;
+    float leta[LVE];
+    float lM, lmu, lmuipkp, ltaup, ltaus, ltausipkp;
+    float lsxx, lszz, lsxz;
+    
 //// If we use local memory
 //#if LOCAL_OFF==0
 //    int lsizez = blockDim.x+2*FDOH;
