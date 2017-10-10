@@ -75,7 +75,7 @@
 
 
 
-__global__ void update_s(int offcomm,
+extern "C" __global__ void update_s(int offcomm,
                        float *vx,         float *vz,
                        float *sxx,        float *szz,        float *sxz,
                        float *M,         float *mu,          float *muipkp,
