@@ -844,108 +844,108 @@ int Init_CUDA(model * m, device ** dev)  {
                 __GUARD prog_create(m, di,  &di->ups_f[i].fcom2_in);
             }
         }
-        if (m->GRADOUT){
-            for (i=0;i<m->nupdates;i++){
-                di->ups_adj[i].center.OFFCOMM=offcom1;
-                di->ups_adj[i].center.LCOMM=LCOMM;
-                __GUARD prog_create(m, di,  &di->ups_adj[i].center);
-                if (d>0 || m->MYLOCALID>0){
-                    di->ups_adj[i].com1.OFFCOMM=0;
-                    di->ups_adj[i].com1.LCOMM=LCOMM;
-                    di->ups_adj[i].com1.COMM=1;
-                    __GUARD prog_create(m, di,  &di->ups_adj[i].com1);
-                    
-                    __GUARD kernel_fcom_out( di ,di->vars,
-                                            &di->ups_adj[i].fcom1_out, i+1, 1);
-                    __GUARD prog_create(m, di,  &di->ups_adj[i].fcom1_out);
-                    __GUARD kernel_fcom_in( di ,di->vars,
-                                           &di->ups_adj[i].fcom1_in, i+1, 1);
-                    __GUARD prog_create(m, di,  &di->ups_adj[i].fcom1_in);
-                }
-                if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
-                    di->ups_adj[i].com2.OFFCOMM=offcom2;
-                    di->ups_adj[i].com2.LCOMM=LCOMM;
-                    di->ups_adj[i].com2.COMM=1;
-                    __GUARD prog_create(m, di,  &di->ups_adj[i].com2);
-                    
-                    __GUARD kernel_fcom_out( di, di->vars,
-                                            &di->ups_adj[i].fcom2_out, i+1, 2);
-                    __GUARD prog_create(m, di,  &di->ups_adj[i].fcom2_out);
-                    __GUARD kernel_fcom_in(di ,di->vars,
-                                           &di->ups_adj[i].fcom2_in, i+1, 2);
-                    __GUARD prog_create(m, di,  &di->ups_adj[i].fcom2_in);
-                }
-            }
-        }
-        
-        //Create automaticly kernels for gradient, variable inti, sources ...
-        __GUARD kernel_sources(di,  &di->src_recs.sources);
-        __GUARD prog_create(m, di,  &di->src_recs.sources);
-        
-        __GUARD kernel_varout(di, &di->src_recs.varsout);
-        __GUARD prog_create(m, di,  &di->src_recs.varsout);
-        
-        __GUARD kernel_varoutinit(di, &di->src_recs.varsoutinit);
-        __GUARD prog_create(m, di,  &di->src_recs.varsoutinit);
-        
-        __GUARD kernel_varinit(di, di->vars, &di->bnd_cnds.init_f);
-        __GUARD prog_create(m, di,  &di->bnd_cnds.init_f);
-        di->bnd_cnds.init_f.gsize[0]=fdsize;
-        
-        
-        if (m->GRADOUT){
-            __GUARD kernel_residuals(di,
-                                     &di->src_recs.residuals,
-                                     m->BACK_PROP_TYPE);
-            __GUARD prog_create(m, di,  &di->src_recs.residuals);
-            
-            if (m->BACK_PROP_TYPE==1){
-                __GUARD kernel_varinit(di,di->vars_adj, &di->bnd_cnds.init_adj);
-                __GUARD prog_create(m, di,  &di->bnd_cnds.init_adj);
-                di->bnd_cnds.init_adj.gsize[0]=fdsize;
-                
-                __GUARD kernel_gradinit(di, di->pars, &di->grads.init);
-                __GUARD prog_create(m, di,  &di->grads.init);
-                di->grads.init.gsize[0]=parsize;
-            }
-            else if(m->BACK_PROP_TYPE==2){
-                __GUARD kernel_initsavefreqs(di, di->vars,
-                                                      &di->grads.initsavefreqs);
-                __GUARD prog_create(m, di,  &di->grads.initsavefreqs);
-                di->grads.initsavefreqs.gsize[0]=fdsize;
-                
-                kernel_savefreqs(di, di->vars, &di->grads.savefreqs);
-                __GUARD prog_create(m, di,  &di->grads.savefreqs);
-                di->grads.savefreqs.gsize[0]=fdsize;
-            }
-            
-            if (m->GRADSRCOUT){
-                __GUARD kernel_init_gradsrc( &di->src_recs.init_gradsrc);
-                __GUARD prog_create(m, di,  &di->src_recs.init_gradsrc);
-            }
-        }
-    
-        
-        //TODO Boundary conditions should be included in the update kernel
-        //TODO Adjoint free surface
-        if (m->FREESURF){
-            di->bnd_cnds.surf=m->bnd_cnds.surf;
-            __GUARD prog_create(m, di,  &di->bnd_cnds.surf);
-            di->bnd_cnds.surf.wdim=m->NDIM-1;
-            for (i=1;i<m->NDIM;i++){
-                di->bnd_cnds.surf.gsize[i-1]=di->N[i];
-            }
-        }
-        
-        //TODO Create automatically the kernel for saving boundary
-        //TODO Implement random boundaries instead
-        if (m->GRADOUT && m->BACK_PROP_TYPE==1){
-            di->grads.savebnd=m->grads.savebnd;
-            __GUARD prog_create(m, di,  &di->grads.savebnd);
-            di->grads.savebnd.wdim=1;
-            di->grads.savebnd.gsize[0]=di->NBND;
-            
-        }
+//        if (m->GRADOUT){
+//            for (i=0;i<m->nupdates;i++){
+//                di->ups_adj[i].center.OFFCOMM=offcom1;
+//                di->ups_adj[i].center.LCOMM=LCOMM;
+//                __GUARD prog_create(m, di,  &di->ups_adj[i].center);
+//                if (d>0 || m->MYLOCALID>0){
+//                    di->ups_adj[i].com1.OFFCOMM=0;
+//                    di->ups_adj[i].com1.LCOMM=LCOMM;
+//                    di->ups_adj[i].com1.COMM=1;
+//                    __GUARD prog_create(m, di,  &di->ups_adj[i].com1);
+//                    
+//                    __GUARD kernel_fcom_out( di ,di->vars,
+//                                            &di->ups_adj[i].fcom1_out, i+1, 1);
+//                    __GUARD prog_create(m, di,  &di->ups_adj[i].fcom1_out);
+//                    __GUARD kernel_fcom_in( di ,di->vars,
+//                                           &di->ups_adj[i].fcom1_in, i+1, 1);
+//                    __GUARD prog_create(m, di,  &di->ups_adj[i].fcom1_in);
+//                }
+//                if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
+//                    di->ups_adj[i].com2.OFFCOMM=offcom2;
+//                    di->ups_adj[i].com2.LCOMM=LCOMM;
+//                    di->ups_adj[i].com2.COMM=1;
+//                    __GUARD prog_create(m, di,  &di->ups_adj[i].com2);
+//                    
+//                    __GUARD kernel_fcom_out( di, di->vars,
+//                                            &di->ups_adj[i].fcom2_out, i+1, 2);
+//                    __GUARD prog_create(m, di,  &di->ups_adj[i].fcom2_out);
+//                    __GUARD kernel_fcom_in(di ,di->vars,
+//                                           &di->ups_adj[i].fcom2_in, i+1, 2);
+//                    __GUARD prog_create(m, di,  &di->ups_adj[i].fcom2_in);
+//                }
+//            }
+//        }
+//        
+//        //Create automaticly kernels for gradient, variable inti, sources ...
+//        __GUARD kernel_sources(di,  &di->src_recs.sources);
+//        __GUARD prog_create(m, di,  &di->src_recs.sources);
+//        
+//        __GUARD kernel_varout(di, &di->src_recs.varsout);
+//        __GUARD prog_create(m, di,  &di->src_recs.varsout);
+//        
+//        __GUARD kernel_varoutinit(di, &di->src_recs.varsoutinit);
+//        __GUARD prog_create(m, di,  &di->src_recs.varsoutinit);
+//        
+//        __GUARD kernel_varinit(di, di->vars, &di->bnd_cnds.init_f);
+//        __GUARD prog_create(m, di,  &di->bnd_cnds.init_f);
+//        di->bnd_cnds.init_f.gsize[0]=fdsize;
+//        
+//        
+//        if (m->GRADOUT){
+//            __GUARD kernel_residuals(di,
+//                                     &di->src_recs.residuals,
+//                                     m->BACK_PROP_TYPE);
+//            __GUARD prog_create(m, di,  &di->src_recs.residuals);
+//            
+//            if (m->BACK_PROP_TYPE==1){
+//                __GUARD kernel_varinit(di,di->vars_adj, &di->bnd_cnds.init_adj);
+//                __GUARD prog_create(m, di,  &di->bnd_cnds.init_adj);
+//                di->bnd_cnds.init_adj.gsize[0]=fdsize;
+//                
+//                __GUARD kernel_gradinit(di, di->pars, &di->grads.init);
+//                __GUARD prog_create(m, di,  &di->grads.init);
+//                di->grads.init.gsize[0]=parsize;
+//            }
+//            else if(m->BACK_PROP_TYPE==2){
+//                __GUARD kernel_initsavefreqs(di, di->vars,
+//                                                      &di->grads.initsavefreqs);
+//                __GUARD prog_create(m, di,  &di->grads.initsavefreqs);
+//                di->grads.initsavefreqs.gsize[0]=fdsize;
+//                
+//                kernel_savefreqs(di, di->vars, &di->grads.savefreqs);
+//                __GUARD prog_create(m, di,  &di->grads.savefreqs);
+//                di->grads.savefreqs.gsize[0]=fdsize;
+//            }
+//            
+//            if (m->GRADSRCOUT){
+//                __GUARD kernel_init_gradsrc( &di->src_recs.init_gradsrc);
+//                __GUARD prog_create(m, di,  &di->src_recs.init_gradsrc);
+//            }
+//        }
+//    
+//        
+//        //TODO Boundary conditions should be included in the update kernel
+//        //TODO Adjoint free surface
+//        if (m->FREESURF){
+//            di->bnd_cnds.surf=m->bnd_cnds.surf;
+//            __GUARD prog_create(m, di,  &di->bnd_cnds.surf);
+//            di->bnd_cnds.surf.wdim=m->NDIM-1;
+//            for (i=1;i<m->NDIM;i++){
+//                di->bnd_cnds.surf.gsize[i-1]=di->N[i];
+//            }
+//        }
+//        
+//        //TODO Create automatically the kernel for saving boundary
+//        //TODO Implement random boundaries instead
+//        if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+//            di->grads.savebnd=m->grads.savebnd;
+//            __GUARD prog_create(m, di,  &di->grads.savebnd);
+//            di->grads.savebnd.wdim=1;
+//            di->grads.savebnd.gsize[0]=di->NBND;
+//            
+//        }
         
         
     }

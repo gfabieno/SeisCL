@@ -526,22 +526,30 @@ int prog_create(model * m,
 int prog_launch( CUstream *inqueue, clprogram * prog){
     
     /*Launch a kernel and check for errors */
+    int i;
     int state = 0;
 
     size_t * lsize=NULL;
 
     if (prog->lsize[0]!=0)
         lsize=prog->lsize;
-    
+    unsigned int bsize[] ={1,1,1};
+    unsigned int tsize[] ={BLOCK_SIZE,1,1};
+    for (i=0;i<prog->wdim;i++){
+        if (prog->lsize[i]>0)
+            tsize[i]=(unsigned int)prog->lsize[i];
+        bsize[i]=(unsigned int)(prog->bsize[i]+tsize[i]-1)/tsize[i];
+    }
+
     state = cuLaunchKernel (prog->kernel,
-                            1,
-                            1,
-                            1,
-                            32,
-                            1,
-                            1,
+                            bsize[0],
+                            bsize[1],
+                            bsize[2],
+                            tsize[0],
+                            tsize[1],
+                            tsize[2],
                             (unsigned int)prog->shared_size,
-                            NULL,
+                            *inqueue,
                             prog->inputs,
                             NULL );
 
