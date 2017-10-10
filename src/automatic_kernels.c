@@ -221,31 +221,31 @@ int kernel_varinit(device * dev,
     }
     
     
-    strcat(temp, "extern \"C\" __global__ void vars_init(float * varin");
-//    for (i=0;i<dev->nvars;i++){
-//            strcat(temp, "float * ");
-//            strcat(temp, vars[i].name);
-//            strcat(temp, ", ");
-//    }
-//    while (*p)
-//        p++;
-//    p[-2]='\0';
+    strcat(temp, "extern \"C\" __global__ void vars_init(");
+    for (i=0;i<dev->nvars;i++){
+            strcat(temp, "float * ");
+            strcat(temp, vars[i].name);
+            strcat(temp, ", ");
+    }
+    while (*p)
+        p++;
+    p[-2]='\0';
     strcat(temp, "){\n\n");
     
     
     strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n\n");
     
     
-//    for (i=0;i<dev->nvars;i++){
-//        if (vars[i].num_ele<maxsize){
-//            sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
-//            strcat(temp,ptemp);
-//            strcat(temp, "    ");
-//        }
-//        strcat(temp, "    ");
-//        strcat(temp, vars[i].name);
-//        strcat(temp, "[gid]=0;\n");
-//    }
+    for (i=0;i<dev->nvars;i++){
+        if (vars[i].num_ele<maxsize){
+            sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
+            strcat(temp,ptemp);
+            strcat(temp, "    ");
+        }
+        strcat(temp, "    ");
+        strcat(temp, vars[i].name);
+        strcat(temp, "[gid]=0;\n");
+    }
     
     strcat(temp, "\n}");
     
