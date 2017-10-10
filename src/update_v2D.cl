@@ -83,7 +83,7 @@
 
 
 
-__global__ void update_v(int offcomm,
+extern "C" __global__ void update_v(int offcomm,
                        float *vx,      float *vz,
                        float *sxx,     float *szz,     float *sxz,
                        float *rip,     float *rkp,
