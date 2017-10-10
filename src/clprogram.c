@@ -534,11 +534,11 @@ int prog_launch( CUstream *inqueue, clprogram * prog){
         lsize=prog->lsize;
 
     state = cuLaunchKernel (prog->kernel,
-                            (unsigned int)prog->bsize[0],
-                            (unsigned int)prog->bsize[1],
                             1,
-                            (unsigned int)prog->lsize[0],
-                            (unsigned int)prog->lsize[1],
+                            1,
+                            1,
+                            32,
+                            1,
                             1,
                             (unsigned int)prog->shared_size,
                             *inqueue,
