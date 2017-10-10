@@ -180,118 +180,118 @@ extern "C" __global__ void update_v(int offcomm,
 #endif
 
         
-//#if LOCAL_OFF==0
-//        __syncthreads();
-//        lszz(lidz,lidx)=szz(gidz, gidx);
-//        if (lidz<2*FDOH)
-//            lszz(lidz-FDOH,lidx)=szz(gidz-FDOH,gidx);
-//        if (lidz>(lsizez-2*FDOH-1))
-//            lszz(lidz+FDOH,lidx)=szz(gidz+FDOH,gidx);
-//        __syncthreads();
-//#endif
-//        
-//#if   FDOH ==1
-//        szz_z = DTDH*HC1*(lszz(lidz+1,lidx) - lszz(lidz,lidx));
-//#elif FDOH ==2
-//        szz_z = DTDH*(HC1*(lszz(lidz+1,lidx) - lszz(lidz,lidx))
-//                      +HC2*(lszz(lidz+2,lidx) - lszz(lidz-1,lidx)));
-//#elif FDOH ==3
-//        szz_z = DTDH*(HC1*(lszz(lidz+1,lidx)-lszz(lidz,lidx))+
-//                      HC2*(lszz(lidz+2,lidx)-lszz(lidz-1,lidx))+
-//                      HC3*(lszz(lidz+3,lidx)-lszz(lidz-2,lidx)));
-//#elif FDOH ==4
-//        szz_z = DTDH*(HC1*(lszz(lidz+1,lidx)-lszz(lidz,lidx))+
-//                      HC2*(lszz(lidz+2,lidx)-lszz(lidz-1,lidx))+
-//                      HC3*(lszz(lidz+3,lidx)-lszz(lidz-2,lidx))+
-//                      HC4*(lszz(lidz+4,lidx)-lszz(lidz-3,lidx)));
-//#elif FDOH ==5
-//        szz_z = DTDH*(HC1*(lszz(lidz+1,lidx)-lszz(lidz,lidx))+
-//                      HC2*(lszz(lidz+2,lidx)-lszz(lidz-1,lidx))+
-//                      HC3*(lszz(lidz+3,lidx)-lszz(lidz-2,lidx))+
-//                      HC4*(lszz(lidz+4,lidx)-lszz(lidz-3,lidx))+
-//                      HC5*(lszz(lidz+5,lidx)-lszz(lidz-4,lidx)));
-//#elif FDOH ==6
-//        szz_z = DTDH*(HC1*(lszz(lidz+1,lidx)-lszz(lidz,lidx))+
-//                      HC2*(lszz(lidz+2,lidx)-lszz(lidz-1,lidx))+
-//                      HC3*(lszz(lidz+3,lidx)-lszz(lidz-2,lidx))+
-//                      HC4*(lszz(lidz+4,lidx)-lszz(lidz-3,lidx))+
-//                      HC5*(lszz(lidz+5,lidx)-lszz(lidz-4,lidx))+
-//                      HC6*(lszz(lidz+6,lidx)-lszz(lidz-5,lidx)));
-//#endif
-//        
-//#if LOCAL_OFF==0
-//        __syncthreads();
-//        lsxz(lidz,lidx)=sxz(gidz, gidx);
-//        
-//        if (lidx<2*FDOH)
-//            lsxz(lidz,lidx-FDOH)=sxz(gidz,gidx-FDOH);
-//        if (lidx+lsizex-3*FDOH<FDOH)
-//            lsxz(lidz,lidx+lsizex-3*FDOH)=sxz(gidz,gidx+lsizex-3*FDOH);
-//        if (lidx>(lsizex-2*FDOH-1))
-//            lsxz(lidz,lidx+FDOH)=sxz(gidz,gidx+FDOH);
-//        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
-//            lsxz(lidz,lidx-lsizex+3*FDOH)=sxz(gidz,gidx-lsizex+3*FDOH);
-//        if (lidz<2*FDOH)
-//            lsxz(lidz-FDOH,lidx)=sxz(gidz-FDOH,gidx);
-//        if (lidz>(lsizez-2*FDOH-1))
-//            lsxz(lidz+FDOH,lidx)=sxz(gidz+FDOH,gidx);
-//        __syncthreads();
-//#endif
-//        
-//#if   FDOH ==1
-//        sxz_z = DTDH*HC1*(lsxz(lidz,lidx)   - lsxz(lidz-1,lidx));
-//        sxz_x = DTDH*HC1*(lsxz(lidz,lidx)   - lsxz(lidz,lidx-1));
-//#elif FDOH ==2
-//        sxz_z = DTDH*(HC1*(lsxz(lidz,lidx)   - lsxz(lidz-1,lidx))
-//                      +HC2*(lsxz(lidz+1,lidx) - lsxz(lidz-2,lidx)));
-//        sxz_x = DTDH*(HC1*(lsxz(lidz,lidx)   - lsxz(lidz,lidx-1))
-//                      +HC2*(lsxz(lidz,lidx+1) - lsxz(lidz,lidx-2)));
-//#elif FDOH ==3
-//        sxz_z = DTDH*(HC1*(lsxz(lidz,lidx)  -lsxz(lidz-1,lidx))+
-//                      HC2*(lsxz(lidz+1,lidx)-lsxz(lidz-2,lidx))+
-//                      HC3*(lsxz(lidz+2,lidx)-lsxz(lidz-3,lidx)));
-//        
-//        sxz_x = DTDH*(HC1*(lsxz(lidz,lidx)  -lsxz(lidz,lidx-1))+
-//                      HC2*(lsxz(lidz,lidx+1)-lsxz(lidz,lidx-2))+
-//                      HC3*(lsxz(lidz,lidx+2)-lsxz(lidz,lidx-3)));
-//#elif FDOH ==4
-//        sxz_z = DTDH*(HC1*(lsxz(lidz,lidx)  -lsxz(lidz-1,lidx))+
-//                      HC2*(lsxz(lidz+1,lidx)-lsxz(lidz-2,lidx))+
-//                      HC3*(lsxz(lidz+2,lidx)-lsxz(lidz-3,lidx))+
-//                      HC4*(lsxz(lidz+3,lidx)-lsxz(lidz-4,lidx)));
-//        
-//        sxz_x = DTDH*(HC1*(lsxz(lidz,lidx)  -lsxz(lidz,lidx-1))+
-//                      HC2*(lsxz(lidz,lidx+1)-lsxz(lidz,lidx-2))+
-//                      HC3*(lsxz(lidz,lidx+2)-lsxz(lidz,lidx-3))+
-//                      HC4*(lsxz(lidz,lidx+3)-lsxz(lidz,lidx-4)));
-//#elif FDOH ==5
-//        sxz_z = DTDH*(HC1*(lsxz(lidz,lidx)  -lsxz(lidz-1,lidx))+
-//                      HC2*(lsxz(lidz+1,lidx)-lsxz(lidz-2,lidx))+
-//                      HC3*(lsxz(lidz+2,lidx)-lsxz(lidz-3,lidx))+
-//                      HC4*(lsxz(lidz+3,lidx)-lsxz(lidz-4,lidx))+
-//                      HC5*(lsxz(lidz+4,lidx)-lsxz(lidz-5,lidx)));
-//        
-//        sxz_x = DTDH*(HC1*(lsxz(lidz,lidx)  -lsxz(lidz,lidx-1))+
-//                      HC2*(lsxz(lidz,lidx+1)-lsxz(lidz,lidx-2))+
-//                      HC3*(lsxz(lidz,lidx+2)-lsxz(lidz,lidx-3))+
-//                      HC4*(lsxz(lidz,lidx+3)-lsxz(lidz,lidx-4))+
-//                      HC5*(lsxz(lidz,lidx+4)-lsxz(lidz,lidx-5)));
-//#elif FDOH ==6
-//        
-//        sxz_z = DTDH*(HC1*(lsxz(lidz,lidx)  -lsxz(lidz-1,lidx))+
-//                      HC2*(lsxz(lidz+1,lidx)-lsxz(lidz-2,lidx))+
-//                      HC3*(lsxz(lidz+2,lidx)-lsxz(lidz-3,lidx))+
-//                      HC4*(lsxz(lidz+3,lidx)-lsxz(lidz-4,lidx))+
-//                      HC5*(lsxz(lidz+4,lidx)-lsxz(lidz-5,lidx))+
-//                      HC6*(lsxz(lidz+5,lidx)-lsxz(lidz-6,lidx)));
-//        
-//        sxz_x = DTDH*(HC1*(lsxz(lidz,lidx)  -lsxz(lidz,lidx-1))+
-//                      HC2*(lsxz(lidz,lidx+1)-lsxz(lidz,lidx-2))+
-//                      HC3*(lsxz(lidz,lidx+2)-lsxz(lidz,lidx-3))+
-//                      HC4*(lsxz(lidz,lidx+3)-lsxz(lidz,lidx-4))+
-//                      HC5*(lsxz(lidz,lidx+4)-lsxz(lidz,lidx-5))+
-//                      HC6*(lsxz(lidz,lidx+5)-lsxz(lidz,lidx-6)));
-//#endif
+#if LOCAL_OFF==0
+        __syncthreads();
+        lszz(lidz,lidx)=szz(gidz, gidx);
+        if (lidz<2*FDOH)
+            lszz(lidz-FDOH,lidx)=szz(gidz-FDOH,gidx);
+        if (lidz>(lsizez-2*FDOH-1))
+            lszz(lidz+FDOH,lidx)=szz(gidz+FDOH,gidx);
+        __syncthreads();
+#endif
+        
+#if   FDOH ==1
+        szz_z = DTDH*HC1*(lszz(lidz+1,lidx) - lszz(lidz,lidx));
+#elif FDOH ==2
+        szz_z = DTDH*(HC1*(lszz(lidz+1,lidx) - lszz(lidz,lidx))
+                      +HC2*(lszz(lidz+2,lidx) - lszz(lidz-1,lidx)));
+#elif FDOH ==3
+        szz_z = DTDH*(HC1*(lszz(lidz+1,lidx)-lszz(lidz,lidx))+
+                      HC2*(lszz(lidz+2,lidx)-lszz(lidz-1,lidx))+
+                      HC3*(lszz(lidz+3,lidx)-lszz(lidz-2,lidx)));
+#elif FDOH ==4
+        szz_z = DTDH*(HC1*(lszz(lidz+1,lidx)-lszz(lidz,lidx))+
+                      HC2*(lszz(lidz+2,lidx)-lszz(lidz-1,lidx))+
+                      HC3*(lszz(lidz+3,lidx)-lszz(lidz-2,lidx))+
+                      HC4*(lszz(lidz+4,lidx)-lszz(lidz-3,lidx)));
+#elif FDOH ==5
+        szz_z = DTDH*(HC1*(lszz(lidz+1,lidx)-lszz(lidz,lidx))+
+                      HC2*(lszz(lidz+2,lidx)-lszz(lidz-1,lidx))+
+                      HC3*(lszz(lidz+3,lidx)-lszz(lidz-2,lidx))+
+                      HC4*(lszz(lidz+4,lidx)-lszz(lidz-3,lidx))+
+                      HC5*(lszz(lidz+5,lidx)-lszz(lidz-4,lidx)));
+#elif FDOH ==6
+        szz_z = DTDH*(HC1*(lszz(lidz+1,lidx)-lszz(lidz,lidx))+
+                      HC2*(lszz(lidz+2,lidx)-lszz(lidz-1,lidx))+
+                      HC3*(lszz(lidz+3,lidx)-lszz(lidz-2,lidx))+
+                      HC4*(lszz(lidz+4,lidx)-lszz(lidz-3,lidx))+
+                      HC5*(lszz(lidz+5,lidx)-lszz(lidz-4,lidx))+
+                      HC6*(lszz(lidz+6,lidx)-lszz(lidz-5,lidx)));
+#endif
+        
+#if LOCAL_OFF==0
+        __syncthreads();
+        lsxz(lidz,lidx)=sxz(gidz, gidx);
+        
+        if (lidx<2*FDOH)
+            lsxz(lidz,lidx-FDOH)=sxz(gidz,gidx-FDOH);
+        if (lidx+lsizex-3*FDOH<FDOH)
+            lsxz(lidz,lidx+lsizex-3*FDOH)=sxz(gidz,gidx+lsizex-3*FDOH);
+        if (lidx>(lsizex-2*FDOH-1))
+            lsxz(lidz,lidx+FDOH)=sxz(gidz,gidx+FDOH);
+        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
+            lsxz(lidz,lidx-lsizex+3*FDOH)=sxz(gidz,gidx-lsizex+3*FDOH);
+        if (lidz<2*FDOH)
+            lsxz(lidz-FDOH,lidx)=sxz(gidz-FDOH,gidx);
+        if (lidz>(lsizez-2*FDOH-1))
+            lsxz(lidz+FDOH,lidx)=sxz(gidz+FDOH,gidx);
+        __syncthreads();
+#endif
+        
+#if   FDOH ==1
+        sxz_z = DTDH*HC1*(lsxz(lidz,lidx)   - lsxz(lidz-1,lidx));
+        sxz_x = DTDH*HC1*(lsxz(lidz,lidx)   - lsxz(lidz,lidx-1));
+#elif FDOH ==2
+        sxz_z = DTDH*(HC1*(lsxz(lidz,lidx)   - lsxz(lidz-1,lidx))
+                      +HC2*(lsxz(lidz+1,lidx) - lsxz(lidz-2,lidx)));
+        sxz_x = DTDH*(HC1*(lsxz(lidz,lidx)   - lsxz(lidz,lidx-1))
+                      +HC2*(lsxz(lidz,lidx+1) - lsxz(lidz,lidx-2)));
+#elif FDOH ==3
+        sxz_z = DTDH*(HC1*(lsxz(lidz,lidx)  -lsxz(lidz-1,lidx))+
+                      HC2*(lsxz(lidz+1,lidx)-lsxz(lidz-2,lidx))+
+                      HC3*(lsxz(lidz+2,lidx)-lsxz(lidz-3,lidx)));
+        
+        sxz_x = DTDH*(HC1*(lsxz(lidz,lidx)  -lsxz(lidz,lidx-1))+
+                      HC2*(lsxz(lidz,lidx+1)-lsxz(lidz,lidx-2))+
+                      HC3*(lsxz(lidz,lidx+2)-lsxz(lidz,lidx-3)));
+#elif FDOH ==4
+        sxz_z = DTDH*(HC1*(lsxz(lidz,lidx)  -lsxz(lidz-1,lidx))+
+                      HC2*(lsxz(lidz+1,lidx)-lsxz(lidz-2,lidx))+
+                      HC3*(lsxz(lidz+2,lidx)-lsxz(lidz-3,lidx))+
+                      HC4*(lsxz(lidz+3,lidx)-lsxz(lidz-4,lidx)));
+        
+        sxz_x = DTDH*(HC1*(lsxz(lidz,lidx)  -lsxz(lidz,lidx-1))+
+                      HC2*(lsxz(lidz,lidx+1)-lsxz(lidz,lidx-2))+
+                      HC3*(lsxz(lidz,lidx+2)-lsxz(lidz,lidx-3))+
+                      HC4*(lsxz(lidz,lidx+3)-lsxz(lidz,lidx-4)));
+#elif FDOH ==5
+        sxz_z = DTDH*(HC1*(lsxz(lidz,lidx)  -lsxz(lidz-1,lidx))+
+                      HC2*(lsxz(lidz+1,lidx)-lsxz(lidz-2,lidx))+
+                      HC3*(lsxz(lidz+2,lidx)-lsxz(lidz-3,lidx))+
+                      HC4*(lsxz(lidz+3,lidx)-lsxz(lidz-4,lidx))+
+                      HC5*(lsxz(lidz+4,lidx)-lsxz(lidz-5,lidx)));
+        
+        sxz_x = DTDH*(HC1*(lsxz(lidz,lidx)  -lsxz(lidz,lidx-1))+
+                      HC2*(lsxz(lidz,lidx+1)-lsxz(lidz,lidx-2))+
+                      HC3*(lsxz(lidz,lidx+2)-lsxz(lidz,lidx-3))+
+                      HC4*(lsxz(lidz,lidx+3)-lsxz(lidz,lidx-4))+
+                      HC5*(lsxz(lidz,lidx+4)-lsxz(lidz,lidx-5)));
+#elif FDOH ==6
+        
+        sxz_z = DTDH*(HC1*(lsxz(lidz,lidx)  -lsxz(lidz-1,lidx))+
+                      HC2*(lsxz(lidz+1,lidx)-lsxz(lidz-2,lidx))+
+                      HC3*(lsxz(lidz+2,lidx)-lsxz(lidz-3,lidx))+
+                      HC4*(lsxz(lidz+3,lidx)-lsxz(lidz-4,lidx))+
+                      HC5*(lsxz(lidz+4,lidx)-lsxz(lidz-5,lidx))+
+                      HC6*(lsxz(lidz+5,lidx)-lsxz(lidz-6,lidx)));
+        
+        sxz_x = DTDH*(HC1*(lsxz(lidz,lidx)  -lsxz(lidz,lidx-1))+
+                      HC2*(lsxz(lidz,lidx+1)-lsxz(lidz,lidx-2))+
+                      HC3*(lsxz(lidz,lidx+2)-lsxz(lidz,lidx-3))+
+                      HC4*(lsxz(lidz,lidx+3)-lsxz(lidz,lidx-4))+
+                      HC5*(lsxz(lidz,lidx+4)-lsxz(lidz,lidx-5))+
+                      HC6*(lsxz(lidz,lidx+5)-lsxz(lidz,lidx-6)));
+#endif
     }
 //
 //// To stop updating if we are outside the model (global id must be a multiple of local id in OpenCL, hence we stop if we have a global id outside the grid)
