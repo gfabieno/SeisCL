@@ -104,12 +104,12 @@ extern "C" __global__ void update_v(int offcomm,
 
 // If we use local memory
 #if LOCAL_OFF==0
-    int lsizez = blockDim.x+NZ;//blockDim.x+2*FDOH;
-//    int lsizex = blockDim.y+2*FDOH;
-//    int lidz = threadIdx.x+FDOH;
-//    int lidx = threadIdx.y+FDOH;
-//    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
-//    int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH+offcomm;
+    int lsizez = blockDim.x+2*FDOH;
+    int lsizex = blockDim.y+2*FDOH;
+    int lidz = threadIdx.x+FDOH;
+    int lidx = threadIdx.y+FDOH;
+    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
+    int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH+offcomm;
     
     #define lsxx lvar
     #define lszz lvar
