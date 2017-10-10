@@ -96,7 +96,8 @@ extern "C" __global__ void update_v(int offcomm,
                        float *psi_sxz_z,  float *psi_szz_z)
 {
 
-
+    extern __shared__ float lvar[];
+    
     float sxx_x;
     float szz_z;
     float sxz_x;
@@ -118,10 +119,12 @@ extern "C" __global__ void update_v(int offcomm,
 // If local memory is turned off
 #elif LOCAL_OFF==1
     
-//    int gid = get_global_id(0);
-//    int glsizez = (NZ-2*FDOH);
-//    int gidz = gid%glsizez+FDOH;
-//    int gidx = (gid/glsizez)+FDOH+offcomm;
+    int lsizez = blockDim.x+2*FDOH;
+    int lsizex = blockDim.y+2*FDOH;
+    int lidz = threadIdx.x+FDOH;
+    int lidx = threadIdx.y+FDOH;
+    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
+    int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH+offcomm;
     
 #define lsxx sxx
 #define lszz szz
