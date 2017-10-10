@@ -436,12 +436,12 @@ int time_stepping(model * m, device ** dev) {
         }
     }
     
-//    // Main loop over shots of this group
-//    for (s= m->src_recs.smin;s< m->src_recs.smax;s++){
-//
-//        // Initialization of the seismic variables
-//        __GUARD initialize_grid(m, dev, s);
-//        
+    // Main loop over shots of this group
+    for (s= m->src_recs.smin;s< m->src_recs.smax;s++){
+
+        // Initialization of the seismic variables
+        __GUARD initialize_grid(m, dev, s);
+        
 //        // Loop for forward time stepping
 //        for (t=0;t<m->tmax; t++){
 //            
@@ -699,32 +699,32 @@ int time_stepping(model * m, device ** dev) {
 //            }
 //
 //        }
-//        
-//
-//    }
-//    // Using back-propagation, the gradient is computed on the devices. After
-//    // all sources positions have been modeled, transfer back the gradient.
-//    if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1){
-//        for (d=0;d<m->NUM_DEVICES;d++){
-//            for (i=0;i<m->npars;i++){
-//                if ((*dev)[d].pars[i].to_grad){
-//                    __GUARD clbuf_read( &(*dev)[d].queue,
-//                                       &(*dev)[d].pars[i].cl_grad);
-//                }
-//                if (m->HOUT==1 && (*dev)[d].pars[i].to_grad){
-//                    __GUARD clbuf_read( &(*dev)[d].queue,
-//                                       &(*dev)[d].pars[i].cl_H);
-//                }
-//            }
-//            
-//        }
-//        
-//        for (d=0;d<m->NUM_DEVICES;d++){
-//            __GUARD cuStreamSynchronize((*dev)[d].queue);
-//        }
-//        
-//        __GUARD transf_grad(m);
-//    }
+        
+
+    }
+    // Using back-propagation, the gradient is computed on the devices. After
+    // all sources positions have been modeled, transfer back the gradient.
+    if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1){
+        for (d=0;d<m->NUM_DEVICES;d++){
+            for (i=0;i<m->npars;i++){
+                if ((*dev)[d].pars[i].to_grad){
+                    __GUARD clbuf_read( &(*dev)[d].queue,
+                                       &(*dev)[d].pars[i].cl_grad);
+                }
+                if (m->HOUT==1 && (*dev)[d].pars[i].to_grad){
+                    __GUARD clbuf_read( &(*dev)[d].queue,
+                                       &(*dev)[d].pars[i].cl_H);
+                }
+            }
+            
+        }
+        
+        for (d=0;d<m->NUM_DEVICES;d++){
+            __GUARD cuStreamSynchronize((*dev)[d].queue);
+        }
+        
+        __GUARD transf_grad(m);
+    }
     
     if (state && m->MPI_INIT==1)
         MPI_Bcast( &state, 1, MPI_INT, m->MYID, MPI_COMM_WORLD );
