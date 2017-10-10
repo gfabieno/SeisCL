@@ -35,13 +35,13 @@ int kernel_varout(device * dev,
     variable * vars = dev->vars;
     variable * tvars = dev->trans_vars;
     
-    strcat(temp, "__kernel void varsout(int nt, __global float * rec_pos, ");
+    strcat(temp, "extern \"C\" __global__ void varsout(int nt, float * rec_pos, ");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
-            strcat(temp, "__global float * ");
+            strcat(temp, "float * ");
             strcat(temp, vars[i].name);
             strcat(temp, ", ");
-            strcat(temp, "__global float * ");
+            strcat(temp, "float * ");
             strcat(temp, vars[i].name);
             strcat(temp, "out, ");
         }
@@ -49,12 +49,12 @@ int kernel_varout(device * dev,
     for (i=0;i<dev->ntvars;i++){
         if (tvars[i].to_output){
             for (j=0;j<tvars[i].n2ave;j++){
-                strcat(temp, "__global float * ");
+                strcat(temp, "float * ");
                 strcat(temp, tvars[i].var2ave[j]);
                 strcat(temp, ", ");
             }
 
-            strcat(temp, "__global float * ");
+            strcat(temp, "float * ");
             strcat(temp, tvars[i].name);
             strcat(temp, "out, ");
         }
@@ -65,7 +65,7 @@ int kernel_varout(device * dev,
     strcat(temp, "){\n\n");
 
     //This only supports 3 dimensions (need for more ?)
-    strcat(temp,"    int gid = get_global_id(0);\n"
+    strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n"
            "    int i=(int)(rec_pos[0+8*gid]/DH)+FDOH;\n"
            "    int j=(int)(rec_pos[1+8*gid]/DH)+FDOH;\n"
            "    int k=(int)(rec_pos[2+8*gid]/DH)+FDOH;\n"
@@ -147,17 +147,17 @@ int kernel_varoutinit(device * dev,
     
     char * p=(char*)temp;
     
-    strcat(temp, "__kernel void varsoutinit(");
+    strcat(temp, "extern \"C\" __global__ void varsoutinit(");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
-            strcat(temp, "__global float * ");
+            strcat(temp, "float * ");
             strcat(temp, vars[i].name);
             strcat(temp, "out, ");
         }
     }
     for (i=0;i<dev->ntvars;i++){
         if (tvars[i].to_output){
-            strcat(temp, "__global float * ");
+            strcat(temp, "float * ");
             strcat(temp, tvars[i].name);
             strcat(temp, "out, ");
         }
@@ -168,7 +168,7 @@ int kernel_varoutinit(device * dev,
     strcat(temp, "){\n\n");
     
     
-    strcat(temp,"    int gid = get_global_id(0);\n\n");
+    strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n\n");
     
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
@@ -221,9 +221,9 @@ int kernel_varinit(device * dev,
     }
     
     
-    strcat(temp, "__kernel void vars_init(");
+    strcat(temp, "extern \"C\" __global__ void vars_init(");
     for (i=0;i<dev->nvars;i++){
-            strcat(temp, "__global float * ");
+            strcat(temp, "float * ");
             strcat(temp, vars[i].name);
             strcat(temp, ", ");
     }
@@ -233,7 +233,7 @@ int kernel_varinit(device * dev,
     strcat(temp, "){\n\n");
     
     
-    strcat(temp,"    int gid = get_global_id(0);\n\n");
+    strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n\n");
     
     
     for (i=0;i<dev->nvars;i++){
@@ -307,11 +307,11 @@ int kernel_sources(device * dev,
         fprintf(stderr,"Error: No sources for variable list found\n");
     }
     
-    strcat(temp, "__kernel void sources(int nt, __global float * src_pos,"
-                 " __global float * src, int pdir, ");
+    strcat(temp, "extern \"C\" __global__ void sources(int nt, float * src_pos,"
+                 " float * src, int pdir, ");
     for (i=0;i<dev->nvars;i++){
         if (tosources[i]){
-            strcat(temp, "__global float * ");
+            strcat(temp, "float * ");
             strcat(temp, vars[i].name);
             strcat(temp, ", ");
         }
@@ -319,7 +319,7 @@ int kernel_sources(device * dev,
     for (i=0;i<dev->ntvars;i++){
         if (tosources2[i]){
             for (j=0;j<tvars[i].n2ave;j++){
-                strcat(temp, "__global float * ");
+                strcat(temp, "float * ");
                 strcat(temp, tvars[i].var2ave[j]);
                 strcat(temp, ", ");
             }
@@ -332,7 +332,7 @@ int kernel_sources(device * dev,
     strcat(temp, "){\n\n");
     
     //This only supports 3 dimensions (need for more ?)
-    strcat(temp,"    int gid = get_global_id(0);\n"
+    strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n"
            "    int i=(int)(src_pos[0+5*gid]/DH)+FDOH;\n"
            "    int j=(int)(src_pos[1+5*gid]/DH)+FDOH;\n"
            "    int k=(int)(src_pos[2+5*gid]/DH)+FDOH;\n"
@@ -432,15 +432,15 @@ int kernel_residuals(device * dev,
     
    
     
-    strcat(temp, "__kernel void residuals(int nt, __global float * rec_pos,");
+    strcat(temp, "extern \"C\" __global__ void residuals(int nt, float * rec_pos,");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
-            strcat(temp, "__global float * ");
+            strcat(temp, "float * ");
             strcat(temp, vars[i].name);
             if (BACK_PROP_TYPE==1)
                 strcat(temp, "_r");
             strcat(temp, ", ");
-            strcat(temp, "__global float * ");
+            strcat(temp, "float * ");
             strcat(temp, vars[i].name);
             strcat(temp, "out, ");
         }
@@ -448,14 +448,14 @@ int kernel_residuals(device * dev,
     for (i=0;i<dev->ntvars;i++){
         if (tvars[i].to_output){
             for (j=0;j<tvars[i].n2ave;j++){
-                strcat(temp, "__global float * ");
+                strcat(temp, "float * ");
                 strcat(temp, tvars[i].var2ave[j]);
                 if (BACK_PROP_TYPE==1)
                     strcat(temp, "_r");
                 strcat(temp, ", ");
             }
             
-            strcat(temp, "__global float * ");
+            strcat(temp, "float * ");
             strcat(temp, tvars[i].name);
             strcat(temp, "out, ");
         }
@@ -466,7 +466,7 @@ int kernel_residuals(device * dev,
     strcat(temp, "){\n\n");
     
     
-    strcat(temp,"    int gid = get_global_id(0);\n"
+    strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n"
            "    int i=(int)(rec_pos[0+8*gid]/DH)+FDOH;\n"
            "    int j=(int)(rec_pos[1+8*gid]/DH)+FDOH;\n"
            "    int k=(int)(rec_pos[2+8*gid]/DH)+FDOH;\n\n");
@@ -549,10 +549,10 @@ int kernel_gradinit(device * dev,
     char * p=(char*)temp;
     
 
-    strcat(temp, "__kernel void gradinit(");
+    strcat(temp, "extern \"C\" __global__ void gradinit(");
     for (i=0;i<dev->npars;i++){
         if (pars[i].to_grad){
-            strcat(temp, "__global float * grad");
+            strcat(temp, "float * grad");
             strcat(temp, pars[i].name);
             strcat(temp, ", ");
         }
@@ -563,7 +563,7 @@ int kernel_gradinit(device * dev,
     strcat(temp, "){\n\n");
     
     
-    strcat(temp,"    int gid = get_global_id(0);\n\n");
+    strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n\n");
     
     
     for (i=0;i<dev->npars;i++){
@@ -607,10 +607,10 @@ int kernel_initsavefreqs(device * dev,
         }
     }
     
-    strcat(temp, "__kernel void initsavefreqs(");
+    strcat(temp, "extern \"C\" __global__ void initsavefreqs(");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
-            strcat(temp, "__global float2 * f");
+            strcat(temp, "float2 * f");
             strcat(temp, vars[i].name);
             strcat(temp, ", ");
         }
@@ -621,7 +621,7 @@ int kernel_initsavefreqs(device * dev,
     strcat(temp, "){\n\n");
     
     
-    strcat(temp,"    int gid = get_global_id(0);\n");
+    strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n");
     
     
     for (i=0;i<dev->nvars;i++){
@@ -670,13 +670,13 @@ int kernel_savefreqs(device * dev,
         }
     }
     
-    strcat(temp,"__kernel void savefreqs(__constant float *gradfreqsn, int nt, ");
+    strcat(temp,"extern \"C\" __global__ void savefreqs(__constant float *gradfreqsn, int nt, ");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
-            strcat(temp, "__global float * ");
+            strcat(temp, "float * ");
             strcat(temp, vars[i].name);
             strcat(temp, ", ");
-            strcat(temp, "__global float2 * f");
+            strcat(temp, "float2 * f");
             strcat(temp, vars[i].name);
             strcat(temp, ", ");
         }
@@ -701,8 +701,8 @@ int kernel_savefreqs(device * dev,
     p[-2]='\0';
     strcat(temp, ";\n\n");
 
-    strcat(temp,"    int gid = get_global_id(0);\n"
-                "    int gsize=get_global_size(0);\n\n" );
+    strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n"
+                "    int gsize=blockDim.x * gridDim.x;\n\n" );
     
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
@@ -772,9 +772,9 @@ int kernel_init_gradsrc(clprogram * prog){
     
     
     strcat(temp,
-           "__kernel void init_gradsrc(__global float *gradsrc)\n"
+           "extern \"C\" __global__ void init_gradsrc(float *gradsrc)\n"
            "{\n\n"
-           "    int gid = get_global_id(0);\n"
+           "    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n"
            "    gradsrc[gid]=0.0;\n\n"
            "}");
     
@@ -810,13 +810,13 @@ int kernel_fcom_out(device * dev,
         }
     }
     
-    strcat(temp, "__kernel void fill_transfer_buff_out(");
+    strcat(temp, "extern \"C\" __global__ void fill_transfer_buff_out(");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_comm==upid){
-            strcat(temp, "__global float * ");
+            strcat(temp, "float * ");
             strcat(temp, vars[i].name);
             strcat(temp, ", ");
-            strcat(temp, "__global float * ");
+            strcat(temp, "float * ");
             strcat(temp, vars[i].name);
             if (buff12==1)
                 strcat(temp, "_buf1, ");
@@ -831,16 +831,17 @@ int kernel_fcom_out(device * dev,
     
     
     //Indice if local memory is used
+    char * names[] = {"x","y","z"};
     if (dev->LOCAL_OFF==0){
         for (i=0;i<dev->NDIM;i++){
-            sprintf(ptemp,"    int gid%s=get_global_id(%d)+FDOH;\n",
-                                                dev->N_names[i],i );
+            sprintf(ptemp,"    int gid%s=blockIdx.%s*blockDim.%s + threadIdx.%s+FDOH;\n",
+                            dev->N_names[i],names[i],names[i] ,names[i]  );
             strcat(temp, ptemp);
         }
     }
     //if we use directly global memory, with 1 working dim
     else{
-        strcat(temp,"    int gid = get_global_id(0);\n");
+        strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n");
 
         sprintf(ptemp,"    int gid%s=gid%%(N%s-2*FDOH);\n",
                            dev->N_names[0],dev->N_names[0]);
@@ -942,13 +943,13 @@ int kernel_fcom_in(device * dev,
         }
     }
     
-    strcat(temp, "__kernel void fill_transfer_buff_in(");
+    strcat(temp, "extern \"C\" __global__ void fill_transfer_buff_in(");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_comm==upid){
-            strcat(temp, "__global float * ");
+            strcat(temp, "float * ");
             strcat(temp, vars[i].name);
             strcat(temp, ", ");
-            strcat(temp, "__global float * ");
+            strcat(temp, "float * ");
             strcat(temp, vars[i].name);
             if (buff12==1)
                 strcat(temp, "_buf1, ");
@@ -962,17 +963,17 @@ int kernel_fcom_in(device * dev,
     strcat(temp, "){\n\n");
     
     
-    //Indice if local memory is used
+    char * names[] = {"x","y","z"};
     if (dev->LOCAL_OFF==0){
         for (i=0;i<dev->NDIM;i++){
-            sprintf(ptemp,"    int gid%s=get_global_id(%d)+FDOH;\n",
-                                                dev->N_names[i],i );
+            sprintf(ptemp,"    int gid%s=blockIdx.%s*blockDim.%s + threadIdx.%s+FDOH;\n",
+                    dev->N_names[i],names[i],names[i] ,names[i]  );
             strcat(temp, ptemp);
         }
     }
     //if we use directly global memory, with 1 working dim
     else{
-        strcat(temp,"    int gid = get_global_id(0);\n");
+        strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n");
         
         sprintf(ptemp,"    int gid%s=gid%%(N%s-2*FDOH);\n",
                           dev->N_names[0],dev->N_names[0]);

@@ -94,7 +94,7 @@
 
 
 // Find boundary indice for boundary injection in backpropagation
-int evarm( int k, int i){
+extern "C" __device__ int evarm( int k, int i){
     
     
 #if NUM_DEVICES==1 & NLOCALP==1
@@ -208,30 +208,31 @@ int evarm( int k, int i){
     
 }
 
-__kernel void update_adjs(int offcomm, 
-                          __global float *vx,         __global float *vz,       __global float *sxx,
-                          __global float *szz,        __global float *sxz,      __global float *vxbnd,
-                          __global float *vzbnd,      __global float *sxxbnd,   __global float *szzbnd,
-                          __global float *sxzbnd,     __global float *vx_r,     __global float *vz_r,
-                          __global float *sxx_r,      __global float *szz_r,    __global float *sxz_r,
-                          __global float *rxx,        __global float *rzz,      __global float *rxz,
-                          __global float *rxx_r,      __global float *rzz_r,    __global float *rxz_r,
-                          __global float *M,         __global float *mu,        __global float *muipkp,
-                          __global float *taus,       __global float *tausipkp, __global float *taup,
-                          __global float *eta,        __global float *taper,
-                          __global float *K_x,        __global float *a_x,      __global float *b_x,
-                          __global float *K_x_half,   __global float *a_x_half, __global float *b_x_half,
-                          __global float *K_z,        __global float *a_z,      __global float *b_z,
-                          __global float *K_z_half,   __global float *a_z_half, __global float *b_z_half,
-                          __global float *psi_vx_x,    __global float *psi_vx_z,
-                          __global float *psi_vz_x,    __global float *psi_vz_z,
-                          __global float *gradrho,    __global float *gradM,     __global float *gradmu,
-                          __global float *gradtaup,   __global float *gradtaus,  __global float *gradsrc,
-                          __global float *Hrho,    __global float *HM,     __global float *Hmu,
-                          __global float *Htaup,   __global float *Htaus,  __global float *Hsrc,
-                          __local  float *lvar)
+extern "C" __global__ void update_adjs(int offcomm,
+                          float *vx,         float *vz,       float *sxx,
+                          float *szz,        float *sxz,      float *vxbnd,
+                          float *vzbnd,      float *sxxbnd,   float *szzbnd,
+                          float *sxzbnd,     float *vx_r,     float *vz_r,
+                          float *sxx_r,      float *szz_r,    float *sxz_r,
+                          float *rxx,        float *rzz,      float *rxz,
+                          float *rxx_r,      float *rzz_r,    float *rxz_r,
+                          float *M,         float *mu,        float *muipkp,
+                          float *taus,       float *tausipkp, float *taup,
+                          float *eta,        float *taper,
+                          float *K_x,        float *a_x,      float *b_x,
+                          float *K_x_half,   float *a_x_half, float *b_x_half,
+                          float *K_z,        float *a_z,      float *b_z,
+                          float *K_z_half,   float *a_z_half, float *b_z_half,
+                          float *psi_vx_x,    float *psi_vx_z,
+                          float *psi_vz_x,    float *psi_vz_z,
+                          float *gradrho,    float *gradM,     float *gradmu,
+                          float *gradtaup,   float *gradtaus,  float *gradsrc,
+                          float *Hrho,    float *HM,     float *Hmu,
+                          float *Htaup,   float *Htaus,  float *Hsrc)
 {
 
+    extern __shared__ float lvar[];
+    
     int i,j,k,m;
     float vxx,vxz,vzx,vzz;
     float vxzzx,vxxzz;
@@ -247,12 +248,12 @@ __kernel void update_adjs(int offcomm,
     
 // If we use local memory
 #if LOCAL_OFF==0
-    int lsizez = get_local_size(0)+2*FDOH;
-    int lsizex = get_local_size(1)+2*FDOH;
-    int lidz = get_local_id(0)+FDOH;
-    int lidx = get_local_id(1)+FDOH;
-    int gidz = get_global_id(0)+FDOH;
-    int gidx = get_global_id(1)+FDOH+offcomm;
+    int lsizez = blockDim.x+2*FDOH;
+    int lsizex = blockDim.y+2*FDOH;
+    int lidz = threadIdx.x+FDOH;
+    int lidx = threadIdx.y+FDOH;
+    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
+    int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH+offcomm;
     
 #define lvx lvar
 #define lvz lvar
@@ -262,10 +263,12 @@ __kernel void update_adjs(int offcomm,
 // If local memory is turned off
 #elif LOCAL_OFF==1
     
-    int gid = get_global_id(0);
-    int glsizez = (NZ-2*FDOH);
-    int gidz = gid%glsizez+FDOH;
-    int gidx = (gid/glsizez)+FDOH+offcomm;
+    int lsizez = blockDim.x+2*FDOH;
+    int lsizex = blockDim.y+2*FDOH;
+    int lidz = threadIdx.x+FDOH;
+    int lidx = threadIdx.y+FDOH;
+    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
+    int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH+offcomm;
     
 #define lvx_r vx_r
 #define lvz_r vz_r
@@ -296,7 +299,7 @@ __kernel void update_adjs(int offcomm,
             lvx(lidz-FDOH,lidx)=vx(gidz-FDOH,gidx);
         if (lidz>(lsizez-2*FDOH-1))
             lvx(lidz+FDOH,lidx)=vx(gidz+FDOH,gidx);
-        barrier(CLK_LOCAL_MEM_FENCE);
+        __syncthreads();
 #endif
         
 #if   FDOH==1
@@ -361,7 +364,7 @@ __kernel void update_adjs(int offcomm,
         
         
 #if LOCAL_OFF==0
-        barrier(CLK_LOCAL_MEM_FENCE);
+        __syncthreads();
         lvz(lidz,lidx)=vz(gidz, gidx);
         if (lidx<2*FDOH)
             lvz(lidz,lidx-FDOH)=vz(gidz,gidx-FDOH);
@@ -371,7 +374,7 @@ __kernel void update_adjs(int offcomm,
             lvz(lidz-FDOH,lidx)=vz(gidz-FDOH,gidx);
         if (lidz>(lsizez-2*FDOH-1))
             lvz(lidz+FDOH,lidx)=vz(gidz+FDOH,gidx);
-        barrier(CLK_LOCAL_MEM_FENCE);
+        __syncthreads();
 #endif
         
 #if   FDOH==1
@@ -434,7 +437,7 @@ __kernel void update_adjs(int offcomm,
                )/DH;
 #endif
         
-        barrier(CLK_LOCAL_MEM_FENCE);
+        __syncthreads();
     }
 #endif
     
@@ -454,7 +457,7 @@ __kernel void update_adjs(int offcomm,
             lvx_r(lidz-FDOH,lidx)=vx_r(gidz-FDOH,gidx);
         if (lidz>(lsizez-2*FDOH-1))
             lvx_r(lidz+FDOH,lidx)=vx_r(gidz+FDOH,gidx);
-        barrier(CLK_LOCAL_MEM_FENCE);
+        __syncthreads();
 #endif
     
 #if   FDOH==1
@@ -519,7 +522,7 @@ __kernel void update_adjs(int offcomm,
     
     
 #if LOCAL_OFF==0
-    barrier(CLK_LOCAL_MEM_FENCE);
+    __syncthreads();
     lvz_r(lidz,lidx)=vz_r(gidz, gidx);
     if (lidx<2*FDOH)
         lvz_r(lidz,lidx-FDOH)=vz_r(gidz,gidx-FDOH);
@@ -529,7 +532,7 @@ __kernel void update_adjs(int offcomm,
         lvz_r(lidz-FDOH,lidx)=vz_r(gidz-FDOH,gidx);
     if (lidz>(lsizez-2*FDOH-1))
         lvz_r(lidz+FDOH,lidx)=vz_r(gidz+FDOH,gidx);
-    barrier(CLK_LOCAL_MEM_FENCE);
+    __syncthreads();
 #endif
     
 #if   FDOH==1
