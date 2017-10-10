@@ -373,14 +373,14 @@ int initialize_grid(model * m, device ** dev, int s){
                                                                         * m->NT;
         
         // Implent initial conditions
-        __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].bnd_cnds.init_f);
-        __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].src_recs.varsoutinit);
-
-
-        if (m->GRADOUT==1 && m->BACK_PROP_TYPE==2){
-            __GUARD prog_launch( &(*dev)[d].queue,
-                                 &(*dev)[d].grads.initsavefreqs);
-        }
+//        __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].bnd_cnds.init_f);
+//        __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].src_recs.varsoutinit);
+//
+//
+//        if (m->GRADOUT==1 && m->BACK_PROP_TYPE==2){
+//            __GUARD prog_launch( &(*dev)[d].queue,
+//                                 &(*dev)[d].grads.initsavefreqs);
+//        }
         
         //Assign the propagation direction to kernels
         int pdir=1;
