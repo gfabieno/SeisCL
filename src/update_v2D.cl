@@ -140,12 +140,12 @@ extern "C" __global__ void update_v(int offcomm,
         lsxx(lidz,lidx)=sxx(gidz, gidx);
         if (lidx<2*FDOH)
             lsxx(lidz,lidx-FDOH)=sxx(gidz,gidx-FDOH);
-//        if (lidx+lsizex-3*FDOH<FDOH)
-//            lsxx(lidz,lidx+lsizex-3*FDOH)=sxx(gidz,gidx+lsizex-3*FDOH);
-//        if (lidx>(lsizex-2*FDOH-1))
-//            lsxx(lidz,lidx+FDOH)=sxx(gidz,gidx+FDOH);
-//        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
-//            lsxx(lidz,lidx-lsizex+3*FDOH)=sxx(gidz,gidx-lsizex+3*FDOH);
+        if (lidx+lsizex-3*FDOH<FDOH)
+            lsxx(lidz,lidx+lsizex-3*FDOH)=sxx(gidz,gidx+lsizex-3*FDOH);
+        if (lidx>(lsizex-2*FDOH-1))
+            lsxx(lidz,lidx+FDOH)=sxx(gidz,gidx+FDOH);
+        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
+            lsxx(lidz,lidx-lsizex+3*FDOH)=sxx(gidz,gidx-lsizex+3*FDOH);
         
         __syncthreads();
 #endif
