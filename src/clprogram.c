@@ -533,21 +533,17 @@ int prog_launch( CUstream *inqueue, clprogram * prog){
     if (prog->lsize[0]!=0)
         lsize=prog->lsize;
     
-    int i;
-    for (i=0;i<prog->ninputs;i++){
-        fprintf(stdout, "%p\n",prog->inputs[i]);
-    }
-//    state = cuLaunchKernel (prog->kernel,
-//                            1,
-//                            1,
-//                            1,
-//                            32,
-//                            1,
-//                            1,
-//                            (unsigned int)prog->shared_size,
-//                            NULL,
-//                            prog->inputs,
-//                            NULL );
+    state = cuLaunchKernel (prog->kernel,
+                            1,
+                            1,
+                            1,
+                            32,
+                            1,
+                            1,
+                            (unsigned int)prog->shared_size,
+                            NULL,
+                            prog->inputs,
+                            NULL );
 
     
     if (state !=CUDA_SUCCESS) fprintf(stderr,"Error launching %s: %s\n",prog->name,clerrors(state));

@@ -236,16 +236,16 @@ int kernel_varinit(device * dev,
     strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n\n");
     
     
-    for (i=0;i<dev->nvars;i++){
-        if (vars[i].num_ele<maxsize){
-            sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
-            strcat(temp,ptemp);
-            strcat(temp, "    ");
-        }
-        strcat(temp, "    ");
-        strcat(temp, vars[i].name);
-        strcat(temp, "[gid]=0;\n");
-    }
+//    for (i=0;i<dev->nvars;i++){
+//        if (vars[i].num_ele<maxsize){
+//            sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
+//            strcat(temp,ptemp);
+//            strcat(temp, "    ");
+//        }
+//        strcat(temp, "    ");
+//        strcat(temp, vars[i].name);
+//        strcat(temp, "[gid]=0;\n");
+//    }
     
     strcat(temp, "\n}");
     
