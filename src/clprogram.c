@@ -164,7 +164,7 @@ char *get_build_options(device *dev,
     
     build_options[0]=0;
     if (m->N_names[0]){
-        for (i=0;i<m->NDIM;i++){
+        for (i=0;i<m->NDIM-1;i++){
             sprintf(src,"-D N%s=%d ",m->N_names[i],(*dev).N[i]+m->FDORDER);
             strcat(build_options,src);
             
