@@ -538,9 +538,9 @@ int prog_launch( CUstream *inqueue, clprogram * prog){
     for (i=0;i<prog->wdim;i++){
         if (prog->lsize[i]>0)
             tsize[i]=(unsigned int)prog->lsize[i];
-        bsize[i]=(unsigned int)(prog->bsize[i]+tsize[i]-1)/tsize[i];
+        bsize[i]=(unsigned int)(prog->gsize[i]+tsize[i]-1)/tsize[i];
     }
-    fprintf(stdout,"%d, %d,%d,%d\n",prog->bsize[i],bsize[0],bsize[1],bsize[2]);
+
     state = cuLaunchKernel (prog->kernel,
                             bsize[0],
                             bsize[1],
