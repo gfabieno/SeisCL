@@ -177,7 +177,7 @@ int get_build_options(device *dev,
         for (i=0;i<m->NDIM;i++){
             add_option( build_options, n);
             sprintf(build_options[*n-1],"-D N%s=%d ",m->N_names[i],(*dev).N[i]+m->FDORDER);
-            
+            fprintf(stdout,"%s\n",build_options[*n-1]);
         }
     }
 //    else{
