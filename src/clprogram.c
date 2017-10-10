@@ -217,7 +217,7 @@ int compile(const char *program_source,
                     CUmodule *module,
                     CUfunction *kernel,
                     const char * program_name,
-                    const char ** build_options)
+                    char ** build_options)
 {
     /* Routine to build a kernel from the source file contained in a c string*/
     
@@ -273,7 +273,7 @@ int prog_create(model * m,
     size_t shared_size=sizeof(float);
     char str2comp[50];
     
-    const char ** build_options = get_build_options(dev,
+    char ** build_options = get_build_options(dev,
                                                    m,
                                                    prog->LCOMM,
                                                    prog->COMM,
