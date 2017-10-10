@@ -150,36 +150,36 @@ extern "C" __global__ void update_v(int offcomm,
         __syncthreads();
 #endif
         
-//#if   FDOH ==1
-//        sxx_x = DTDH*HC1*(lsxx(lidz,lidx+1) - lsxx(lidz,lidx));
-//#elif FDOH ==2
-//        sxx_x = DTDH*(HC1*(lsxx(lidz,lidx+1) - lsxx(lidz,lidx))
-//                      +HC2*(lsxx(lidz,lidx+2) - lsxx(lidz,lidx-1)));
-//#elif FDOH ==3
-//        sxx_x = DTDH*(HC1*(lsxx(lidz,lidx+1)-lsxx(lidz,lidx))+
-//                      HC2*(lsxx(lidz,lidx+2)-lsxx(lidz,lidx-1))+
-//                      HC3*(lsxx(lidz,lidx+3)-lsxx(lidz,lidx-2)));
-//#elif FDOH ==4
-//        sxx_x = DTDH*(HC1*(lsxx(lidz,lidx+1)-lsxx(lidz,lidx))+
-//                      HC2*(lsxx(lidz,lidx+2)-lsxx(lidz,lidx-1))+
-//                      HC3*(lsxx(lidz,lidx+3)-lsxx(lidz,lidx-2))+
-//                      HC4*(lsxx(lidz,lidx+4)-lsxx(lidz,lidx-3)));
-//#elif FDOH ==5
-//        sxx_x = DTDH*(HC1*(lsxx(lidz,lidx+1)-lsxx(lidz,lidx))+
-//                      HC2*(lsxx(lidz,lidx+2)-lsxx(lidz,lidx-1))+
-//                      HC3*(lsxx(lidz,lidx+3)-lsxx(lidz,lidx-2))+
-//                      HC4*(lsxx(lidz,lidx+4)-lsxx(lidz,lidx-3))+
-//                      HC5*(lsxx(lidz,lidx+5)-lsxx(lidz,lidx-4)));
-//#elif FDOH ==6
-//        sxx_x = DTDH*(HC1*(lsxx(lidz,lidx+1)-lsxx(lidz,lidx))+
-//                      HC2*(lsxx(lidz,lidx+2)-lsxx(lidz,lidx-1))+
-//                      HC3*(lsxx(lidz,lidx+3)-lsxx(lidz,lidx-2))+
-//                      HC4*(lsxx(lidz,lidx+4)-lsxx(lidz,lidx-3))+
-//                      HC5*(lsxx(lidz,lidx+5)-lsxx(lidz,lidx-4))+
-//                      HC6*(lsxx(lidz,lidx+6)-lsxx(lidz,lidx-5)));
-//#endif
-//
-//        
+#if   FDOH ==1
+        sxx_x = DTDH*HC1*(lsxx(lidz,lidx+1) - lsxx(lidz,lidx));
+#elif FDOH ==2
+        sxx_x = DTDH*(HC1*(lsxx(lidz,lidx+1) - lsxx(lidz,lidx))
+                      +HC2*(lsxx(lidz,lidx+2) - lsxx(lidz,lidx-1)));
+#elif FDOH ==3
+        sxx_x = DTDH*(HC1*(lsxx(lidz,lidx+1)-lsxx(lidz,lidx))+
+                      HC2*(lsxx(lidz,lidx+2)-lsxx(lidz,lidx-1))+
+                      HC3*(lsxx(lidz,lidx+3)-lsxx(lidz,lidx-2)));
+#elif FDOH ==4
+        sxx_x = DTDH*(HC1*(lsxx(lidz,lidx+1)-lsxx(lidz,lidx))+
+                      HC2*(lsxx(lidz,lidx+2)-lsxx(lidz,lidx-1))+
+                      HC3*(lsxx(lidz,lidx+3)-lsxx(lidz,lidx-2))+
+                      HC4*(lsxx(lidz,lidx+4)-lsxx(lidz,lidx-3)));
+#elif FDOH ==5
+        sxx_x = DTDH*(HC1*(lsxx(lidz,lidx+1)-lsxx(lidz,lidx))+
+                      HC2*(lsxx(lidz,lidx+2)-lsxx(lidz,lidx-1))+
+                      HC3*(lsxx(lidz,lidx+3)-lsxx(lidz,lidx-2))+
+                      HC4*(lsxx(lidz,lidx+4)-lsxx(lidz,lidx-3))+
+                      HC5*(lsxx(lidz,lidx+5)-lsxx(lidz,lidx-4)));
+#elif FDOH ==6
+        sxx_x = DTDH*(HC1*(lsxx(lidz,lidx+1)-lsxx(lidz,lidx))+
+                      HC2*(lsxx(lidz,lidx+2)-lsxx(lidz,lidx-1))+
+                      HC3*(lsxx(lidz,lidx+3)-lsxx(lidz,lidx-2))+
+                      HC4*(lsxx(lidz,lidx+4)-lsxx(lidz,lidx-3))+
+                      HC5*(lsxx(lidz,lidx+5)-lsxx(lidz,lidx-4))+
+                      HC6*(lsxx(lidz,lidx+6)-lsxx(lidz,lidx-5)));
+#endif
+
+        
 //#if LOCAL_OFF==0
 //        __syncthreads();
 //        lszz(lidz,lidx)=szz(gidz, gidx);
