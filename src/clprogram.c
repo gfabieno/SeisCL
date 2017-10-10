@@ -273,7 +273,7 @@ int prog_create(model * m,
     size_t shared_size=sizeof(float);
     char str2comp[50];
     
-    const char * build_options = get_build_options(dev,
+    const char ** build_options = get_build_options(dev,
                                                    m,
                                                    prog->LCOMM,
                                                    prog->COMM,
