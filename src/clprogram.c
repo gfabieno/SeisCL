@@ -158,12 +158,14 @@ char **get_build_options(device *dev,
                         int comm,
                         int DIRPROP)
 {
+    int state=0;
     int i;
-    static char build_options [30][30];
+    char *build_options[30];
     char src[50];
     
     if (m->N_names[0]){
         for (i=0;i<m->NDIM-1;i++){
+            GMALLOC(build_options[i], sizeof(char)*30);
             sprintf(build_options[i],"-D N%s=%d ",m->N_names[i],(*dev).N[i]+m->FDORDER);
 //            strcat(build_options[i],src);
             
@@ -209,7 +211,7 @@ char **get_build_options(device *dev,
 //        s++;
 //    }
     
-    return (char **)build_options;
+    return build_options;
 }
 
 int compile(const char *program_source,
