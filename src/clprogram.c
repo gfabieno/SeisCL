@@ -152,21 +152,20 @@ int set_args_list(const char *str, char *name, char *** argnames, int * ninputs)
     return state;
 }
 
-char *get_build_options(device *dev,
+char **get_build_options(device *dev,
                         model *m,
                         int LCOMM,
                         int comm,
                         int DIRPROP)
 {
     int i;
-    static char build_options [6000]={0};
+    static char build_options [30][30];
     char src[50];
     
-    build_options[0]=0;
     if (m->N_names[0]){
         for (i=0;i<m->NDIM-1;i++){
-            sprintf(src,"-D N%s=%d ",m->N_names[i],(*dev).N[i]+m->FDORDER);
-            strcat(build_options,src);
+            sprintf(build_options[i],"-D N%s=%d ",m->N_names[i],(*dev).N[i]+m->FDORDER);
+//            strcat(build_options[i],src);
             
         }
     }
@@ -204,13 +203,13 @@ char *get_build_options(device *dev,
 //    strcat(build_options,src2);
     
     //Make it all uppercase
-    char *s = build_options;
-    while (*s) {
-        *s = toupper((unsigned char) *s);
-        s++;
-    }
+//    char *s = build_options;
+//    while (*s) {
+//        *s = toupper((unsigned char) *s);
+//        s++;
+//    }
     
-    return build_options;
+    return (char **)build_options;
 }
 
 int compile(const char *program_source,
@@ -218,14 +217,15 @@ int compile(const char *program_source,
                     CUmodule *module,
                     CUfunction *kernel,
                     const char * program_name,
-                    const char * build_options)
+                    const char ** build_options)
 {
     /* Routine to build a kernel from the source file contained in a c string*/
     
     int state = 0;
     size_t ptxSize=0;
     nvrtcProgram cuprog;
-    fprintf(stdout,"%s\n",build_options);
+    fprintf(stdout,"%s\n",build_options[0]);
+    fprintf(stdout,"%s\n",build_options[1]);
     if (!program){
         __GUARD nvrtcCreateProgram(&cuprog,
                            program_source,
@@ -234,7 +234,7 @@ int compile(const char *program_source,
                            NULL,
                            NULL);
         if (state !=CUDA_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
-        __GUARD nvrtcCompileProgram(cuprog,1,&build_options);
+        __GUARD nvrtcCompileProgram(cuprog,2,build_options);
         if (state !=NVRTC_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
         __GUARD nvrtcGetPTXSize(cuprog, &ptxSize);
         GMALLOC(program, sizeof(char)*ptxSize);
