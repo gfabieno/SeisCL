@@ -698,7 +698,7 @@ int Init_CUDA(model * m, device ** dev)  {
             }
             
         }
-
+        fprintf(stdout,"variable\n");
         //Create OpenCL buffers for transformed varibales
         for (i=0;i<m->ntvars;i++){
             // Create the buffers to output variables at receivers locations
@@ -720,7 +720,7 @@ int Init_CUDA(model * m, device ** dev)  {
 
             }
         }
-        
+        fprintf(stdout,"transformed\n");
         //Create constants structure and buffers, transfer to device
         di->ncsts=m->ncsts;
         GMALLOC(di->csts, sizeof(constants)*m->ncsts);
@@ -733,7 +733,7 @@ int Init_CUDA(model * m, device ** dev)  {
             __GUARD clbuf_send( &di->queue, &di->csts[i].cl_cst);
             
         }
-        
+        fprintf(stdout,"csts\n");
         
         // Determine the size of the outside boundary used for the back
         // propagation of the seismic wavefield
@@ -810,7 +810,7 @@ int Init_CUDA(model * m, device ** dev)  {
 
         }
         
-        
+        fprintf(stdout,"memory\n");
         // Create the update kernels
         di->nupdates=m->nupdates;
         for (i=0;i<m->nupdates;i++){
