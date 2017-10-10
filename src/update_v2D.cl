@@ -83,24 +83,14 @@
 
 
 
-__global__ void update_v(int offcomm,
-                       float *vx,      float *vz,
-                       float *sxx,     float *szz,     float *sxz,
-                       float *rip,     float *rkp,
-                       float *taper,
-                       float *K_z,        float *a_z,          float *b_z,
-                       float *K_z_half,   float *a_z_half,     float *b_z_half,
-                       float *K_x,        float *a_x,          float *b_x,
-                       float *K_x_half,   float *a_x_half,     float *b_x_half,
-                       float *psi_sxx_x,  float *psi_sxz_x,
-                       float *psi_sxz_z,  float *psi_szz_z)
+__global__ void update_v(int offcomm)
 {
 
 
-//    float sxx_x;
-//    float szz_z;
-//    float sxz_x;
-//    float sxz_z;
+    float sxx_x;
+    float szz_z;
+    float sxz_x;
+    float sxz_z;
 //
 //// If we use local memory
 //#if LOCAL_OFF==0
