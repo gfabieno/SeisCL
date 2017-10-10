@@ -225,7 +225,7 @@ int compile(const char *program_source,
     int state = 0;
     size_t ptxSize=0;
     nvrtcProgram cuprog;
-    
+    fprintf(stdout,"%s\n",build_options);
     if (!program){
         __GUARD nvrtcCreateProgram(&cuprog,
                            program_source,
