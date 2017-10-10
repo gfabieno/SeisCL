@@ -813,7 +813,6 @@ int Init_CUDA(model * m, device ** dev)  {
         
         // Create the update kernels
         di->nupdates=m->nupdates;
-        fprintf(stdout,"nupdates=%d\n",di->nupdates);
         for (i=0;i<m->nupdates;i++){
             di->ups_f[i].center.OFFCOMM=offcom1;
             di->ups_f[i].center.LCOMM=LCOMM;

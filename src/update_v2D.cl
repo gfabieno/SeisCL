@@ -96,40 +96,40 @@ __global__ void update_v(int offcomm,
                        float *psi_sxz_z,  float *psi_szz_z)
 {
 
-asdsad
-    float sxx_x;
-    float szz_z;
-    float sxz_x;
-    float sxz_z;
 
-// If we use local memory
-#if LOCAL_OFF==0
-    int lsizez = get_local_size(0)+2*FDOH;
-    int lsizex = get_local_size(1)+2*FDOH;
-    int lidz = get_local_id(0)+FDOH;
-    int lidx = get_local_id(1)+FDOH;
-    int gidz = get_global_id(0)+FDOH;
-    int gidx = get_global_id(1)+FDOH+offcomm;
-    
-    #define lsxx lvar
-    #define lszz lvar
-    #define lsxz lvar
-    
-// If local memory is turned off
-#elif LOCAL_OFF==1
-    
-    int gid = get_global_id(0);
-    int glsizez = (NZ-2*FDOH);
-    int gidz = gid%glsizez+FDOH;
-    int gidx = (gid/glsizez)+FDOH+offcomm;
-    
-#define lsxx sxx
-#define lszz szz
-#define lsxz sxz
-#define lidx gidx
-#define lidz gidz
-    
-#endif
+//    float sxx_x;
+//    float szz_z;
+//    float sxz_x;
+//    float sxz_z;
+//
+//// If we use local memory
+//#if LOCAL_OFF==0
+//    int lsizez = get_local_size(0)+2*FDOH;
+//    int lsizex = get_local_size(1)+2*FDOH;
+//    int lidz = get_local_id(0)+FDOH;
+//    int lidx = get_local_id(1)+FDOH;
+//    int gidz = get_global_id(0)+FDOH;
+//    int gidx = get_global_id(1)+FDOH+offcomm;
+//    
+//    #define lsxx lvar
+//    #define lszz lvar
+//    #define lsxz lvar
+//    
+//// If local memory is turned off
+//#elif LOCAL_OFF==1
+//    
+//    int gid = get_global_id(0);
+//    int glsizez = (NZ-2*FDOH);
+//    int gidz = gid%glsizez+FDOH;
+//    int gidx = (gid/glsizez)+FDOH+offcomm;
+//    
+//#define lsxx sxx
+//#define lszz szz
+//#define lsxz sxz
+//#define lidx gidx
+//#define lidz gidz
+//    
+//#endif
 
 //// Calculation of the stresses spatial derivatives
 //    {
