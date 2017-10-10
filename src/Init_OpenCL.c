@@ -160,7 +160,6 @@ int connect_devices(device ** dev, model * m)
     
     int state = 0;
     int nalldevices=0;
-    CUdevice *devices=NULL;
     int *allow_devs=NULL;
     char vendor_name[1024] = {0};
     char device_name[1024] = {0};
@@ -180,8 +179,7 @@ int connect_devices(device ** dev, model * m)
     
     
     // Find the number of prefered devices
-    GMALLOC(allow_devs,sizeof(int)*m->NUM_DEVICES);
-    
+    GMALLOC(allow_devs,sizeof(int)*nalldevices);
     //Collect all allowed devices
     n=0;
     if (!state){
@@ -204,35 +202,26 @@ int connect_devices(device ** dev, model * m)
     
     
     // Print some information about the returned devices
-    if (!state){
-        for (i=0;i<m->NUM_DEVICES;i++){
-            __GUARD cuDeviceGet(&devices[allow_devs[i]], 0);
-            __GUARD cuDeviceGetName(device_name,
-                                    sizeof(vendor_name),
-                                    devices[i]);
-            fprintf(stdout,"-Device %d: %s \n",
-                    allow_devs[i], device_name);
-        }
-    }
-
-
-
+    fprintf(stdout,"Connecting to %d devies: \n",m->NUM_DEVICES);
     // Create command queues for each devices
     for (i=0;i<m->NUM_DEVICES;i++){
         // Create a context with the specified devices
+        __GUARD cuDeviceGet(&(*dev)[i].cudev, allow_devs[i]);
         __GUARD cuCtxCreate(&(*dev)[i].context,
                             0,
-                            devices[allow_devs[i]]);
-        __GUARD cuCtxGetDevice (&(*dev)[i].cudev );
+                            (*dev)[i].cudev);
+        __GUARD cuDeviceGetName(device_name,
+                                sizeof(vendor_name),
+                                (*dev)[i].cudev);
+        fprintf(stdout,"-Device %d: %s \n",allow_devs[i], device_name);
         __GUARD cuStreamCreate( &(*dev)[i].queue, CU_STREAM_NON_BLOCKING );
         __GUARD cuStreamCreate( &(*dev)[i].queuecomm, CU_STREAM_NON_BLOCKING );
         
     }
 
     if (state !=CUDA_SUCCESS) fprintf(stderr,
-                                      "Devices connection failled: %s\n",
+                                      "Devices connection failed: %s\n",
                                       clerrors(state));
-    GFree(devices);
     GFree(allow_devs);
     
     return state;
