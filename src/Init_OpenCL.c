@@ -882,20 +882,16 @@ int Init_CUDA(model * m, device ** dev)  {
         //Create automaticly kernels for gradient, variable inti, sources ...
         __GUARD kernel_sources(di,  &di->src_recs.sources);
         __GUARD prog_create(m, di,  &di->src_recs.sources);
-        di->src_recs.sources.wdim=1;
         
         __GUARD kernel_varout(di, &di->src_recs.varsout);
         __GUARD prog_create(m, di,  &di->src_recs.varsout);
-        di->src_recs.varsout.wdim=1;
         
         __GUARD kernel_varoutinit(di, &di->src_recs.varsoutinit);
         __GUARD prog_create(m, di,  &di->src_recs.varsoutinit);
-        di->src_recs.varsoutinit.wdim=1;
         
         __GUARD kernel_varinit(di, di->vars, &di->bnd_cnds.init_f);
         __GUARD prog_create(m, di,  &di->bnd_cnds.init_f);
         di->bnd_cnds.init_f.gsize[0]=fdsize;
-        di->bnd_cnds.init_f.wdim=1;
         
         
         if (m->GRADOUT){
@@ -903,36 +899,30 @@ int Init_CUDA(model * m, device ** dev)  {
                                      &di->src_recs.residuals,
                                      m->BACK_PROP_TYPE);
             __GUARD prog_create(m, di,  &di->src_recs.residuals);
-            di->src_recs.residuals.wdim=1;
             
             if (m->BACK_PROP_TYPE==1){
                 __GUARD kernel_varinit(di,di->vars_adj, &di->bnd_cnds.init_adj);
                 __GUARD prog_create(m, di,  &di->bnd_cnds.init_adj);
                 di->bnd_cnds.init_adj.gsize[0]=fdsize;
-                di->bnd_cnds.init_adj.wdim=1;
                 
                 __GUARD kernel_gradinit(di, di->pars, &di->grads.init);
                 __GUARD prog_create(m, di,  &di->grads.init);
                 di->grads.init.gsize[0]=parsize;
-                di->grads.init.wdim=1;
             }
             else if(m->BACK_PROP_TYPE==2){
                 __GUARD kernel_initsavefreqs(di, di->vars,
                                                       &di->grads.initsavefreqs);
                 __GUARD prog_create(m, di,  &di->grads.initsavefreqs);
                 di->grads.initsavefreqs.gsize[0]=fdsize;
-                di->grads.initsavefreqs.wdim=1;
                 
                 kernel_savefreqs(di, di->vars, &di->grads.savefreqs);
                 __GUARD prog_create(m, di,  &di->grads.savefreqs);
                 di->grads.savefreqs.gsize[0]=fdsize;
-                di->grads.savefreqs.wdim=1;
             }
             
             if (m->GRADSRCOUT){
                 __GUARD kernel_init_gradsrc( &di->src_recs.init_gradsrc);
                 __GUARD prog_create(m, di,  &di->src_recs.init_gradsrc);
-                di->src_recs.init_gradsrc.wdim=1;
             }
         }
     
@@ -953,7 +943,6 @@ int Init_CUDA(model * m, device ** dev)  {
         if (m->GRADOUT && m->BACK_PROP_TYPE==1){
             di->grads.savebnd=m->grads.savebnd;
             __GUARD prog_create(m, di,  &di->grads.savebnd);
-            di->grads.savebnd.wdim=1;
             di->grads.savebnd.gsize[0]=di->NBND;
             
         }
