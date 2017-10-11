@@ -483,37 +483,37 @@ int time_stepping(model * m, device ** dev) {
             }
             
             // Inject the sources
-            for (d=0;d<m->NUM_DEVICES;d++){
-                __GUARD prog_launch( &(*dev)[d].queue,
-                                    &(*dev)[d].src_recs.sources);
-            }
+//            for (d=0;d<m->NUM_DEVICES;d++){
+//                __GUARD prog_launch( &(*dev)[d].queue,
+//                                    &(*dev)[d].src_recs.sources);
+//            }
             
             // Apply all updates
 //            update_grid(m, dev);
             
             
             // Computing the free surface
-            if (m->FREESURF==1){
-                for (d=0;d<m->NUM_DEVICES;d++){
-                    __GUARD prog_launch( &(*dev)[d].queue,
-                                        &(*dev)[d].bnd_cnds.surf);
-                }
-            }
+//            if (m->FREESURF==1){
+//                for (d=0;d<m->NUM_DEVICES;d++){
+//                    __GUARD prog_launch( &(*dev)[d].queue,
+//                                        &(*dev)[d].bnd_cnds.surf);
+//                }
+//            }
             
             // Save the boundaries
-            if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1)
-                __GUARD save_bnd( m, dev, t);
+//            if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1)
+//                __GUARD save_bnd( m, dev, t);
             
             
             // Outputting seismograms
-            for (d=0;d<m->NUM_DEVICES;d++){
-                __GUARD prog_launch( &(*dev)[d].queue,
-                                     &(*dev)[d].src_recs.varsout);
-            }
+//            for (d=0;d<m->NUM_DEVICES;d++){
+//                __GUARD prog_launch( &(*dev)[d].queue,
+//                                     &(*dev)[d].src_recs.varsout);
+//            }
 
             // Outputting the movie
-            if (m->MOVOUT>0 && (t+1)%m->MOVOUT==0 && state==0)
-                movout( m, dev, t, s);
+//            if (m->MOVOUT>0 && (t+1)%m->MOVOUT==0 && state==0)
+//                movout( m, dev, t, s);
             
 
             
