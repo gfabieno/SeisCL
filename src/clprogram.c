@@ -566,7 +566,8 @@ int prog_launch( CUstream *inqueue, clprogram * prog){
                             NULL );
 
     
-    if (state !=CUDA_SUCCESS) fprintf(stderr,"Error launching %s: %s\n",prog->name,clerrors(state));
+    if (state !=CUDA_SUCCESS) fprintf(stderr,"Error launching %s: %s\n",
+                                      prog->name,clerrors(state));
     
     return state;
     
