@@ -172,8 +172,6 @@ int get_build_options(device *dev,
     int i;
     
     *n=0;
-    *n+=1;
-    sprintf(build_options[*n-1],"--gpu-architecture=compute_30");
     if (m->N_names[0]){
         for (i=0;i<m->NDIM;i++){
             *n+=1;
@@ -326,13 +324,13 @@ int prog_create(model * m,
         GMALLOC(build_options[i], sizeof(char)*30);
     }
     double t0=MPI_Wtime();
-    state= get_build_options(dev,
-                              m,
-                              build_options,
-                              &noptions,
-                              prog->LCOMM,
-                              prog->COMM,
-                              prog->DIRPROP);
+//    state= get_build_options(dev,
+//                              m,
+//                              build_options,
+//                              &noptions,
+//                              prog->LCOMM,
+//                              prog->COMM,
+//                              prog->DIRPROP);
     fprintf(stdout,"compiling=%s\n",(*prog).name);
     double t1=MPI_Wtime();
     state = compile( (*prog).src,
