@@ -817,7 +817,7 @@ int Init_CUDA(model * m, device ** dev)  {
         for (i=0;i<m->nupdates;i++){
             di->ups_f[i].center.OFFCOMM=offcom1;
             di->ups_f[i].center.LCOMM=LCOMM;
-//            __GUARD prog_create(m, di,  &di->ups_f[i].center);
+            __GUARD prog_create(m, di,  &di->ups_f[i].center);
             if (d>0 || m->MYLOCALID>0){
                 di->ups_f[i].com1.OFFCOMM=0;
                 di->ups_f[i].com1.LCOMM=LCOMM;

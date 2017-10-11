@@ -324,13 +324,13 @@ int prog_create(model * m,
         GMALLOC(build_options[i], sizeof(char)*30);
     }
     double t0=MPI_Wtime();
-//    state= get_build_options(dev,
-//                              m,
-//                              build_options,
-//                              &noptions,
-//                              prog->LCOMM,
-//                              prog->COMM,
-//                              prog->DIRPROP);
+    state= get_build_options(dev,
+                              m,
+                              build_options,
+                              &noptions,
+                              prog->LCOMM,
+                              prog->COMM,
+                              prog->DIRPROP);
     fprintf(stdout,"compiling=%s\n",(*prog).name);
     double t1=MPI_Wtime();
     state = compile( (*prog).src,
