@@ -342,7 +342,7 @@ int update_grid_adj(model * m, device ** dev){
 int initialize_grid(model * m, device ** dev, int s){
     /*Initialize the buffers to 0 before the first time step of each shot*/
     int state=0;
-    int d, i;
+    int d, i, ind;
     
 
     // Initialization of the seismic variables
@@ -387,10 +387,16 @@ int initialize_grid(model * m, device ** dev, int s){
         for (d=0;d<m->NUM_DEVICES;d++){
             for (i=0;i<(*dev)[d].nprogs;i++){
                 if ((*dev)[d].progs[i]->pdir>0){
-//                    __GUARD clSetKernelArg((*dev)[d].progs[i]->kernel,
-//                                           (*dev)[d].progs[i]->pdir-1,
-//                                           sizeof(int), &pdir);
-                    (*dev)[d].progs[i]->inputs[(*dev)[d].progs[i]->pdir-1]=&pdir;
+                    ind =(*dev)[d].progs[i]->pdir-1;
+                    (*dev)[d].progs[i]->inputs[ind]=&pdir;
+                }
+                if ((*dev)[d].progs[i]->nsinput>0){
+                    ind =(*dev)[d].progs[i]->nsinput-1;
+                    (*dev)[d].progs[i]->inputs[ind]=&m->src_recs.nsrc[s];
+                }
+                if ((*dev)[d].progs[i]->nrinput>0){
+                    ind=(*dev)[d].progs[i]->nrinput-1;
+                    (*dev)[d].progs[i]->inputs[ind]=&m->src_recs.nrec[s];
                 }
             }
         }
@@ -482,7 +488,7 @@ int time_stepping(model * m, device ** dev) {
             }
             
             // Apply all updates
-            update_grid(m, dev);
+//            update_grid(m, dev);
             
             
             // Computing the free surface

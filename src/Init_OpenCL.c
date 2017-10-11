@@ -602,9 +602,10 @@ int Init_CUDA(model * m, device ** dev)  {
             __GUARD clbuf_create( &di->src_recs.cl_src_pos);
             __GUARD clbuf_create( &di->src_recs.cl_rec_pos);
             __GUARD clbuf_create( &di->src_recs.cl_src);
+            
             if (m->GRADSRCOUT){
                 di->src_recs.cl_grad_src.size=sizeof(float)
-                * m->NT * m->src_recs.nsmax;
+                                                    * m->NT * m->src_recs.nsmax;
                 __GUARD clbuf_create(&di->src_recs.cl_grad_src);
             }
         }

@@ -144,6 +144,8 @@ typedef struct clprogram {
     void * inputs[1000];
     int tinput;
     int pdir;
+    int nsinput;
+    int nrinput;
     size_t lsize[MAX_DIMS];
     size_t gsize[MAX_DIMS];
     size_t bsize[MAX_DIMS];
@@ -258,7 +260,7 @@ typedef struct sources_records{
     clbuf cl_src;
     clbuf cl_src_pos;
     clbuf cl_rec_pos;
-    clbuf cl_grad_src;;
+    clbuf cl_grad_src;
     
     clprogram sources;
     clprogram varsout;

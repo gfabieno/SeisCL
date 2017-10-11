@@ -35,7 +35,8 @@ int kernel_varout(device * dev,
     variable * vars = dev->vars;
     variable * tvars = dev->trans_vars;
     
-    strcat(temp, "extern \"C\" __global__ void varsout(int nt, float * rec_pos, ");
+    strcat(temp, "extern \"C\" __global__ void varsout"
+                 "(int nt, int nrec, float * rec_pos, ");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
             strcat(temp, "float * ");
@@ -71,7 +72,9 @@ int kernel_varout(device * dev,
            "    int k=(int)(rec_pos[2+8*gid]/DH)+FDOH;\n"
            "\n");
     
-    sprintf(temp2,"    if (i-OFFSET<FDOH || i-OFFSET>N%s-FDOH-1){\n",
+    sprintf(temp2,"    if (gid > nrec "
+                          "|| i-OFFSET<FDOH "
+                          "|| i-OFFSET>N%s-FDOH-1){\n",
             dev->N_names[dev->NDIM-1] );
     strcat(temp, temp2);
     strcat(temp,
@@ -147,7 +150,7 @@ int kernel_varoutinit(device * dev,
     
     char * p=(char*)temp;
     
-    strcat(temp, "extern \"C\" __global__ void varsoutinit(");
+    strcat(temp, "extern \"C\" __global__ void varsoutinit(int nrec,");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
             strcat(temp, "float * ");
@@ -169,6 +172,10 @@ int kernel_varoutinit(device * dev,
     
     
     strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n\n");
+    
+    strcat(temp,"    if (gid > nrec*NT){\n"
+                "        return;\n"
+                "    };\n\n");
     
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
@@ -237,11 +244,9 @@ int kernel_varinit(device * dev,
     
     
     for (i=0;i<dev->nvars;i++){
-        if (vars[i].num_ele<maxsize){
-            sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
-            strcat(temp,ptemp);
-            strcat(temp, "    ");
-        }
+        sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
+        strcat(temp,ptemp);
+        strcat(temp, "    ");
         strcat(temp, "    ");
         strcat(temp, vars[i].name);
         strcat(temp, "[gid]=0;\n");
@@ -307,8 +312,8 @@ int kernel_sources(device * dev,
         fprintf(stderr,"Error: No sources for variable list found\n");
     }
     
-    strcat(temp, "extern \"C\" __global__ void sources(int nt, float * src_pos,"
-                 " float * src, int pdir, ");
+    strcat(temp, "extern \"C\" __global__ void sources(int nt, int nsrc,"
+                 "float * src_pos, float * src, int pdir, ");
     for (i=0;i<dev->nvars;i++){
         if (tosources[i]){
             strcat(temp, "float * ");
@@ -338,7 +343,7 @@ int kernel_sources(device * dev,
            "    int k=(int)(src_pos[2+5*gid]/DH)+FDOH;\n"
            "\n");
 
-    sprintf(temp2,"    if (i-OFFSET<FDOH || i-OFFSET>N%s-FDOH-1){\n",
+    sprintf(temp2,"    if (gid > nsrc || i-OFFSET<FDOH || i-OFFSET>N%s-FDOH-1){\n",
             dev->N_names[dev->NDIM-1] );
     strcat(temp, temp2);
     strcat(temp,
@@ -432,7 +437,8 @@ int kernel_residuals(device * dev,
     
    
     
-    strcat(temp, "extern \"C\" __global__ void residuals(int nt, float * rec_pos,");
+    strcat(temp, "extern \"C\" __global__ void residuals(int nt, int nrec,"
+                 "float * rec_pos,");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
             strcat(temp, "float * ");
@@ -471,7 +477,7 @@ int kernel_residuals(device * dev,
            "    int j=(int)(rec_pos[1+8*gid]/DH)+FDOH;\n"
            "    int k=(int)(rec_pos[2+8*gid]/DH)+FDOH;\n\n");
     
-    sprintf(temp2,"    if (i-OFFSET<FDOH || i-OFFSET>N%s-FDOH-1){\n",
+    sprintf(temp2,"    if (gid > nrec || i-OFFSET<FDOH || i-OFFSET>N%s-FDOH-1){\n",
             dev->N_names[dev->NDIM-1] );
     strcat(temp, temp2);
     strcat(temp,
@@ -545,7 +551,7 @@ int kernel_gradinit(device * dev,
     int i;
     
     char temp[MAX_KERN_STR]={0};;
-    
+    char temp2[100]={0};
     char * p=(char*)temp;
     
 
@@ -565,6 +571,12 @@ int kernel_gradinit(device * dev,
     
     strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n\n");
     
+    if (dev->npars>0){
+        sprintf(temp2,"    if (gid>%d){\n", pars[0].num_ele);
+        strcat(temp,temp2);
+        strcat(temp,  "        return;\n"
+                      "    };\n\n");
+    }
     
     for (i=0;i<dev->npars;i++){
         if (pars[i].to_grad){
@@ -626,11 +638,9 @@ int kernel_initsavefreqs(device * dev,
     
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
-            if (vars[i].num_ele<maxsize){
-                sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
-                strcat(temp,ptemp);
-                strcat(temp, "    ");
-            }
+            sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
+            strcat(temp,ptemp);
+            strcat(temp, "    ");
             strcat(temp, "    f");
             strcat(temp, vars[i].name);
             strcat(temp, "[gid]=0;\n");
@@ -706,11 +716,9 @@ int kernel_savefreqs(device * dev,
     
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
-            if (vars[i].num_ele<maxsize){
-                sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
-                strcat(temp,ptemp);
-                strcat(temp, "    ");
-            }
+            sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
+            strcat(temp,ptemp);
+            strcat(temp, "    ");
             strcat(temp, "    l");
             strcat(temp, vars[i].name);
             strcat(temp, "=");
@@ -731,10 +739,8 @@ int kernel_savefreqs(device * dev,
     
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
-            if (vars[i].num_ele<maxsize){
-                sprintf(ptemp,"    if (gid<%d){\n", vars[i].num_ele);
-                strcat(temp,ptemp);
-            }
+            sprintf(ptemp,"    if (gid<%d){\n", vars[i].num_ele);
+            strcat(temp,ptemp);
             strcat(temp, "    #pragma unroll\n");
             strcat(temp, "    for (freq=0;freq<NFREQS;freq++){\n");
             strcat(temp, "        f");
@@ -745,9 +751,7 @@ int kernel_savefreqs(device * dev,
             strcat(temp, vars[i].name);
             strcat(temp, ";\n");
             strcat(temp, "    }\n");
-            if (vars[i].num_ele<maxsize){
-                strcat(temp,"    }\n");
-            }
+            strcat(temp,"    }\n");
         }
     }
     
@@ -772,9 +776,12 @@ int kernel_init_gradsrc(clprogram * prog){
     
     
     strcat(temp,
-           "extern \"C\" __global__ void init_gradsrc(float *gradsrc)\n"
+           "extern \"C\" __global__ void init_gradsrc(float *gradsrc, int nsrc)\n"
            "{\n\n"
            "    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n"
+           "    if (gid>nsrc*NT){\n"
+           "        return;\n"
+           "    }\n"
            "    gradsrc[gid]=0.0;\n\n"
            "}");
     
@@ -878,6 +885,19 @@ int kernel_fcom_out(device * dev,
             strcat(temp, "+");
         }
     }
+    char temp2[100]={0};
+    if (buff12==1){
+        sprintf(temp2,"    if (idbuf>%d){\n",
+                (int)(vars[0].cl_buf1.size/sizeof(float)));
+    }
+    else{
+        sprintf(temp2,"    if (idbuf>%d){\n",
+                (int)(vars[0].cl_buf1.size/sizeof(float)));
+    }
+    strcat(temp,temp2);
+    strcat(temp,  "        return;\n"
+           "    };\n\n");
+    
     strcat(temp,";\n");
     strcat(temp,"    int idvar=");
     for (i=0;i<dev->NDIM;i++){
@@ -1032,6 +1052,20 @@ int kernel_fcom_in(device * dev,
         }
     }
     strcat(temp,";\n\n");
+    
+    char temp2[100]={0};
+    if (buff12==1){
+        sprintf(temp2,"    if (idbuf>%d){\n",
+                (int)(vars[0].cl_buf1.size/sizeof(float)));
+    }
+    else{
+        sprintf(temp2,"    if (idbuf>%d){\n",
+                (int)(vars[0].cl_buf1.size/sizeof(float)));
+    }
+    strcat(temp,temp2);
+    strcat(temp,  "        return;\n"
+           "    };\n\n");
+    
     
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_comm==upid){
