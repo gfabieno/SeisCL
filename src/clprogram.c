@@ -332,6 +332,7 @@ int prog_create(model * m,
                               prog->COMM,
                               prog->DIRPROP);
     fprintf(stdout,"compiling=%s\n",(*prog).name);
+    double t1=MPI_Wtime();
     state = compile( (*prog).src,
                      (*prog).prog,
                      &(*prog).module,
@@ -339,6 +340,8 @@ int prog_create(model * m,
                      (*prog).name,
                      build_options,
                      noptions);
+    double t2=MPI_Wtime();
+    fprintf(stdout,"Compiling %s: %f s\n", prog->name, t2-t1);
     if (build_options){
         for (i=0;i<noptions;i++){
             GFree(build_options[i]);
