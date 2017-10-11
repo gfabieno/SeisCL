@@ -465,22 +465,19 @@ int time_stepping(model * m, device ** dev) {
             }
             
             //Save the selected frequency if the gradient is obtained by DFT
-            if (m->GRADOUT==1
-                && m->BACK_PROP_TYPE==2
-                && t>=m->tmin
-                && (t-m->tmin)%m->DTNYQ==0){
-                
-                for (d=0;d<m->NUM_DEVICES;d++){
-                    thist=(t-m->tmin)/m->DTNYQ;
-//                    __GUARD clSetKernelArg((*dev)[d].grads.savefreqs.kernel,
-//                                           (*dev)[d].grads.savefreqs.tinput-1,
-//                                           sizeof(int), &thist);
-                    (*dev)[d].grads.savefreqs.inputs[(*dev)[d].grads.savefreqs.tinput-1]=&thist;
-                    __GUARD prog_launch( &(*dev)[d].queue,
-                                         &(*dev)[d].grads.savefreqs);
-                }
-                
-            }
+//            if (m->GRADOUT==1
+//                && m->BACK_PROP_TYPE==2
+//                && t>=m->tmin
+//                && (t-m->tmin)%m->DTNYQ==0){
+//                
+//                for (d=0;d<m->NUM_DEVICES;d++){
+//                    thist=(t-m->tmin)/m->DTNYQ;
+//                    (*dev)[d].grads.savefreqs.inputs[(*dev)[d].grads.savefreqs.tinput-1]=&thist;
+//                    __GUARD prog_launch( &(*dev)[d].queue,
+//                                         &(*dev)[d].grads.savefreqs);
+//                }
+//                
+//            }
             
             // Inject the sources
 //            for (d=0;d<m->NUM_DEVICES;d++){
@@ -527,185 +524,185 @@ int time_stepping(model * m, device ** dev) {
 //            }
 //        }
 
-        // Aggregate the seismograms in the output variable
-        __GUARD reduce_seis(m, dev, s);
-
-        //Calculate the residuals
-        if (m->GRADOUT || m->RMSOUT || m->RESOUT){
-            __GUARD m->res_calc(m,s);
-        }
-
-        // Calculation of the gradient for this shot, if required
-        if (m->GRADOUT==1){
-            
-            // Initialize the backpropagation and gradient.
-            // and transfer the residual to GPUs
-            for (d=0;d<m->NUM_DEVICES;d++){
-               
-                // Transfer the residuals to the gpus
-                for (i=0;i<m->nvars;i++){
-                    if ( (*dev)[d].vars[i].to_output){
-                        (*dev)[d].vars[i].cl_var_res.size=sizeof(float)
-                                                  * m->NT * m->src_recs.nrec[s];
-                        (*dev)[d].vars[i].cl_var_res.host=
-                                                (*dev)[d].vars[i].gl_var_res[s];
-                        __GUARD clbuf_sendpin(&(*dev)[d].queue,
-                                              &(*dev)[d].vars[i].cl_varout,
-                                              &(*dev)[d].vars[i].cl_var_res,
-                                              0);
-                    }
-                }
-                for (i=0;i<m->ntvars;i++){
-                    if ( (*dev)[d].trans_vars[i].to_output){
-                        (*dev)[d].trans_vars[i].cl_var_res.size=sizeof(float)
-                        * m->NT * m->src_recs.nrec[s];
-                        (*dev)[d].trans_vars[i].cl_var_res.host=
-                        (*dev)[d].trans_vars[i].gl_var_res[s];
-                        __GUARD clbuf_sendpin(&(*dev)[d].queue,
-                                              &(*dev)[d].trans_vars[i].cl_varout,
-                                              &(*dev)[d].trans_vars[i].cl_var_res,
-                                              0);
-                    }
-                }
-                // Initialize the backpropagation of the forward variables
-                if (m->BACK_PROP_TYPE==1){
-                    __GUARD prog_launch( &(*dev)[d].queue,
-                                         &(*dev)[d].bnd_cnds.init_adj);
-                }
-                // Initialized the source gradient
-                if (m->GRADSRCOUT==1){
-                    __GUARD prog_launch( &(*dev)[d].queue,
-                                        &(*dev)[d].src_recs.init_gradsrc);
-                }
-                // Transfer to host the forward variable frequencies obtained
-                // obtained by DFT. The same buffers on the devices are reused
-                // for the adjoint variables.
-                if (m->BACK_PROP_TYPE==2){
-                    for (i=0;i<(*dev)[d].nvars;i++){
-                        if ((*dev)[d].vars[i].for_grad){
-                            __GUARD clbuf_read(&(*dev)[d].queue,
-                                               &(*dev)[d].vars[i].cl_fvar);
-                        }
-                    }
-                    // Inialize to 0 the frequency buffers, and the adjoint
-                    // variable buffers (forward buffers are reused).
-                    __GUARD prog_launch( &(*dev)[d].queue,
-                                         &(*dev)[d].grads.initsavefreqs);
-                    __GUARD prog_launch( &(*dev)[d].queue,
-                                         &(*dev)[d].bnd_cnds.init_f);
-                }
-                
-                //Assign the propagation direction to kernels
-                int pdir=-1;
-                for (d=0;d<m->NUM_DEVICES;d++){
-                    for (i=0;i<(*dev)[d].nprogs;i++){
-                        if ((*dev)[d].progs[i]->pdir>0){
-//                            __GUARD clSetKernelArg((*dev)[d].progs[i]->kernel,
-//                                                   (*dev)[d].progs[i]->pdir-1,
-//                                                   sizeof(int), &pdir);
-                            (*dev)[d].progs[i]->inputs[(*dev)[d].progs[i]->pdir-1]=&pdir;
-                        }
-                    }
-                }
-
-            }
-
-            // Inverse time stepping
-            for (t=m->tmax-1;t>=m->tmin; t--){
-
-                //Assign the time step value to kernels
-                for (d=0;d<m->NUM_DEVICES;d++){
-                    for (i=0;i<(*dev)[d].nprogs;i++){
-                        if ((*dev)[d].progs[i]->tinput>0){
-//                            __GUARD clSetKernelArg((*dev)[d].progs[i]->kernel,
-//                                                   (*dev)[d].progs[i]->tinput-1,
-//                                                   sizeof(int), &t);
-                            (*dev)[d].progs[i]->inputs[(*dev)[d].progs[i]->tinput-1]=&t;
-                        }
-                    }
-                }
-                
-                // Inject the forward variables boundaries
-                if (m->BACK_PROP_TYPE==1){
-                    __GUARD inject_bnd( m, dev, t);
-                }
-                
-                // Inject the sources with negative sign
-                if (m->BACK_PROP_TYPE==1){
-                    for (d=0;d<m->NUM_DEVICES;d++){
-                        __GUARD prog_launch( &(*dev)[d].queue,
-                                            &(*dev)[d].src_recs.sources);
-                    }
-                }
-                
-                // Inject the residuals
-                for (d=0;d<m->NUM_DEVICES;d++){
-                    __GUARD prog_launch( &(*dev)[d].queue,
-                                         &(*dev)[d].src_recs.residuals);
-                }
-                
-                // Update the adjoint wavefield and perform back-propagation of
-                // forward wavefield
-                __GUARD update_grid_adj(m, dev);
-                
-                //Save the selected frequency if the gradient is obtained by DFT
-                if (m->BACK_PROP_TYPE==2 && (t-m->tmin)%m->DTNYQ==0){
-                    
-                    for (d=0;d<m->NUM_DEVICES;d++){
-                        thist=(t-m->tmin)/m->DTNYQ;
-//                        __GUARD clSetKernelArg((*dev)[d].grads.savefreqs.kernel,
-//                                             (*dev)[d].grads.savefreqs.tinput-1,
-//                                               sizeof(int), &thist);
-                        (*dev)[d].grads.savefreqs.inputs[(*dev)[d].grads.savefreqs.tinput-1]=&thist;
-                        __GUARD prog_launch( &(*dev)[d].queue,
-                                            &(*dev)[d].grads.savefreqs);
-                    }
-                    
-                }
-
-//                for (d=0;d<m->NUM_DEVICES;d++){
-//                    if (d>0 || d<m->NUM_DEVICES-1)
-//                        __GUARD clFlush((*dev)[d].queuecomm);
-//                    __GUARD clFlush((*dev)[d].queue);
+//        // Aggregate the seismograms in the output variable
+//        __GUARD reduce_seis(m, dev, s);
+//
+//        //Calculate the residuals
+//        if (m->GRADOUT || m->RMSOUT || m->RESOUT){
+//            __GUARD m->res_calc(m,s);
+//        }
+//
+//        // Calculation of the gradient for this shot, if required
+//        if (m->GRADOUT==1){
+//            
+//            // Initialize the backpropagation and gradient.
+//            // and transfer the residual to GPUs
+//            for (d=0;d<m->NUM_DEVICES;d++){
+//               
+//                // Transfer the residuals to the gpus
+//                for (i=0;i<m->nvars;i++){
+//                    if ( (*dev)[d].vars[i].to_output){
+//                        (*dev)[d].vars[i].cl_var_res.size=sizeof(float)
+//                                                  * m->NT * m->src_recs.nrec[s];
+//                        (*dev)[d].vars[i].cl_var_res.host=
+//                                                (*dev)[d].vars[i].gl_var_res[s];
+//                        __GUARD clbuf_sendpin(&(*dev)[d].queue,
+//                                              &(*dev)[d].vars[i].cl_varout,
+//                                              &(*dev)[d].vars[i].cl_var_res,
+//                                              0);
+//                    }
 //                }
-            }
-            
-            // Transfer  the source gradient to the host
-            if (m->GRADSRCOUT==1){
-                for (d=0;d<m->NUM_DEVICES;d++){
-                    __GUARD clbuf_read( &(*dev)[d].queue,
-                                        &(*dev)[d].src_recs.cl_grad_src);
-                }
-            }
-            
-            // Transfer the adjoint frequencies to the host, calculate the
-            // gradient by the crosscorrelation of forward and adjoint
-            // frequencies and intialize frequencies and forward buffers to 0
-            // for the forward modeling of the next source.
-            if (m->BACK_PROP_TYPE==2 && !state){
-                for (d=0;d<m->NUM_DEVICES;d++){
-                    for (i=0;i<(*dev)[d].nvars;i++){
-                        if ((*dev)[d].vars[i].for_grad){
-                            __GUARD clbuf_readpin(&(*dev)[d].queue,
-                                                  &(*dev)[d].vars[i].cl_fvar,
-                                                  &(*dev)[d].vars[i].cl_fvar_adj,
-                                                  0);
-                        }
-                        
-                    }
-                    
-                    __GUARD prog_launch(&(*dev)[d].queue,
-                                        &(*dev)[d].grads.initsavefreqs);
-                    __GUARD prog_launch( &(*dev)[d].queue,
-                                        &(*dev)[d].bnd_cnds.init_f);
-                }
-                for (d=0;d<m->NUM_DEVICES;d++){
-                    __GUARD cuStreamSynchronize((*dev)[d].queue);
-                    __GUARD calc_grad(m, &(*dev)[d]);
-                }
-            }
-
-        }
+//                for (i=0;i<m->ntvars;i++){
+//                    if ( (*dev)[d].trans_vars[i].to_output){
+//                        (*dev)[d].trans_vars[i].cl_var_res.size=sizeof(float)
+//                        * m->NT * m->src_recs.nrec[s];
+//                        (*dev)[d].trans_vars[i].cl_var_res.host=
+//                        (*dev)[d].trans_vars[i].gl_var_res[s];
+//                        __GUARD clbuf_sendpin(&(*dev)[d].queue,
+//                                              &(*dev)[d].trans_vars[i].cl_varout,
+//                                              &(*dev)[d].trans_vars[i].cl_var_res,
+//                                              0);
+//                    }
+//                }
+//                // Initialize the backpropagation of the forward variables
+//                if (m->BACK_PROP_TYPE==1){
+//                    __GUARD prog_launch( &(*dev)[d].queue,
+//                                         &(*dev)[d].bnd_cnds.init_adj);
+//                }
+//                // Initialized the source gradient
+//                if (m->GRADSRCOUT==1){
+//                    __GUARD prog_launch( &(*dev)[d].queue,
+//                                        &(*dev)[d].src_recs.init_gradsrc);
+//                }
+//                // Transfer to host the forward variable frequencies obtained
+//                // obtained by DFT. The same buffers on the devices are reused
+//                // for the adjoint variables.
+//                if (m->BACK_PROP_TYPE==2){
+//                    for (i=0;i<(*dev)[d].nvars;i++){
+//                        if ((*dev)[d].vars[i].for_grad){
+//                            __GUARD clbuf_read(&(*dev)[d].queue,
+//                                               &(*dev)[d].vars[i].cl_fvar);
+//                        }
+//                    }
+//                    // Inialize to 0 the frequency buffers, and the adjoint
+//                    // variable buffers (forward buffers are reused).
+//                    __GUARD prog_launch( &(*dev)[d].queue,
+//                                         &(*dev)[d].grads.initsavefreqs);
+//                    __GUARD prog_launch( &(*dev)[d].queue,
+//                                         &(*dev)[d].bnd_cnds.init_f);
+//                }
+//                
+//                //Assign the propagation direction to kernels
+//                int pdir=-1;
+//                for (d=0;d<m->NUM_DEVICES;d++){
+//                    for (i=0;i<(*dev)[d].nprogs;i++){
+//                        if ((*dev)[d].progs[i]->pdir>0){
+////                            __GUARD clSetKernelArg((*dev)[d].progs[i]->kernel,
+////                                                   (*dev)[d].progs[i]->pdir-1,
+////                                                   sizeof(int), &pdir);
+//                            (*dev)[d].progs[i]->inputs[(*dev)[d].progs[i]->pdir-1]=&pdir;
+//                        }
+//                    }
+//                }
+//
+//            }
+//
+//            // Inverse time stepping
+//            for (t=m->tmax-1;t>=m->tmin; t--){
+//
+//                //Assign the time step value to kernels
+//                for (d=0;d<m->NUM_DEVICES;d++){
+//                    for (i=0;i<(*dev)[d].nprogs;i++){
+//                        if ((*dev)[d].progs[i]->tinput>0){
+////                            __GUARD clSetKernelArg((*dev)[d].progs[i]->kernel,
+////                                                   (*dev)[d].progs[i]->tinput-1,
+////                                                   sizeof(int), &t);
+//                            (*dev)[d].progs[i]->inputs[(*dev)[d].progs[i]->tinput-1]=&t;
+//                        }
+//                    }
+//                }
+//                
+//                // Inject the forward variables boundaries
+//                if (m->BACK_PROP_TYPE==1){
+//                    __GUARD inject_bnd( m, dev, t);
+//                }
+//                
+//                // Inject the sources with negative sign
+//                if (m->BACK_PROP_TYPE==1){
+//                    for (d=0;d<m->NUM_DEVICES;d++){
+//                        __GUARD prog_launch( &(*dev)[d].queue,
+//                                            &(*dev)[d].src_recs.sources);
+//                    }
+//                }
+//                
+//                // Inject the residuals
+//                for (d=0;d<m->NUM_DEVICES;d++){
+//                    __GUARD prog_launch( &(*dev)[d].queue,
+//                                         &(*dev)[d].src_recs.residuals);
+//                }
+//                
+//                // Update the adjoint wavefield and perform back-propagation of
+//                // forward wavefield
+//                __GUARD update_grid_adj(m, dev);
+//                
+//                //Save the selected frequency if the gradient is obtained by DFT
+//                if (m->BACK_PROP_TYPE==2 && (t-m->tmin)%m->DTNYQ==0){
+//                    
+//                    for (d=0;d<m->NUM_DEVICES;d++){
+//                        thist=(t-m->tmin)/m->DTNYQ;
+////                        __GUARD clSetKernelArg((*dev)[d].grads.savefreqs.kernel,
+////                                             (*dev)[d].grads.savefreqs.tinput-1,
+////                                               sizeof(int), &thist);
+//                        (*dev)[d].grads.savefreqs.inputs[(*dev)[d].grads.savefreqs.tinput-1]=&thist;
+//                        __GUARD prog_launch( &(*dev)[d].queue,
+//                                            &(*dev)[d].grads.savefreqs);
+//                    }
+//                    
+//                }
+//
+////                for (d=0;d<m->NUM_DEVICES;d++){
+////                    if (d>0 || d<m->NUM_DEVICES-1)
+////                        __GUARD clFlush((*dev)[d].queuecomm);
+////                    __GUARD clFlush((*dev)[d].queue);
+////                }
+//            }
+//            
+//            // Transfer  the source gradient to the host
+//            if (m->GRADSRCOUT==1){
+//                for (d=0;d<m->NUM_DEVICES;d++){
+//                    __GUARD clbuf_read( &(*dev)[d].queue,
+//                                        &(*dev)[d].src_recs.cl_grad_src);
+//                }
+//            }
+//            
+//            // Transfer the adjoint frequencies to the host, calculate the
+//            // gradient by the crosscorrelation of forward and adjoint
+//            // frequencies and intialize frequencies and forward buffers to 0
+//            // for the forward modeling of the next source.
+//            if (m->BACK_PROP_TYPE==2 && !state){
+//                for (d=0;d<m->NUM_DEVICES;d++){
+//                    for (i=0;i<(*dev)[d].nvars;i++){
+//                        if ((*dev)[d].vars[i].for_grad){
+//                            __GUARD clbuf_readpin(&(*dev)[d].queue,
+//                                                  &(*dev)[d].vars[i].cl_fvar,
+//                                                  &(*dev)[d].vars[i].cl_fvar_adj,
+//                                                  0);
+//                        }
+//                        
+//                    }
+//                    
+//                    __GUARD prog_launch(&(*dev)[d].queue,
+//                                        &(*dev)[d].grads.initsavefreqs);
+//                    __GUARD prog_launch( &(*dev)[d].queue,
+//                                        &(*dev)[d].bnd_cnds.init_f);
+//                }
+//                for (d=0;d<m->NUM_DEVICES;d++){
+//                    __GUARD cuStreamSynchronize((*dev)[d].queue);
+//                    __GUARD calc_grad(m, &(*dev)[d]);
+//                }
+//            }
+//
+//        }
         
 
     }
