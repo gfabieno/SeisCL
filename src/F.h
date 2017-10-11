@@ -328,6 +328,7 @@ typedef struct device {
     
     CUstream queue;
     CUstream queuecomm;
+    CUdeviceptr cuda_null;
 
     int workdim;
     int NDIM;

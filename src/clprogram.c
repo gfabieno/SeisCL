@@ -523,7 +523,7 @@ int prog_create(model * m,
         if (!argfound){
             fprintf(stdout,"Warning: input %s undefined for kernel %s\n",
                              (*prog).input_list[i], (*prog).name);
-            (*prog).inputs[i]=NULL;
+            (*prog).inputs[i]=&dev->cuda_null;
         }
 
     }

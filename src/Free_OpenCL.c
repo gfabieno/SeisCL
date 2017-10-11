@@ -254,6 +254,7 @@ void device_free(device * dev){
     gradients_freeCL(&dev->grads);
     boundary_conditions_freeCL(&dev->bnd_cnds);
     
+    if (dev->cuda_null) cuMemFree(dev->cuda_null);
     if (dev->queue) cuStreamDestroy(dev->queue);
     if (dev->queuecomm) cuStreamDestroy(dev->queuecomm);
     if (dev->context) cuCtxDestroy(dev->context);
