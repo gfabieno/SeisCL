@@ -541,10 +541,6 @@ int prog_launch( CUstream *inqueue, clprogram * prog){
     int i;
     int state = 0;
 
-    size_t * lsize=NULL;
-
-    if (prog->lsize[0]!=0)
-        lsize=prog->lsize;
     unsigned int bsize[] ={1,1,1};
     unsigned int tsize[] ={BLOCK_SIZE,1,1};
     for (i=0;i<prog->wdim;i++){
@@ -571,6 +567,7 @@ int prog_launch( CUstream *inqueue, clprogram * prog){
     
         fprintf(stderr,"bsize: %d %d %d\n",bsize[0], bsize[1],bsize[2]);
         fprintf(stderr,"tsize: %d %d %d\n",tsize[0], tsize[1],tsize[2]);
+        fprintf(stderr,"shared_size: %d \n",(unsigned int)prog->shared_size);
     }
     
     return state;
