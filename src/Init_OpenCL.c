@@ -257,7 +257,6 @@ int Init_CUDA(model * m, device ** dev)  {
     
     // Connect all OpenCL devices that can be used in a single context
     __GUARD connect_devices(dev, m);
-    fprintf(stdout,"connected\n");
 
     
     //For each device, create the memory buffers and programs on the GPU
@@ -345,7 +344,7 @@ int Init_CUDA(model * m, device ** dev)  {
             if (state !=CUDA_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
             
         }
-        fprintf(stdout,"properties\n");
+
         // Define the local work size of the update kernels.
         //By default, it is 32 elements long to have coalesced memory in cuda
         //Local memory usage must fit the size of local memory of the device
@@ -700,7 +699,7 @@ int Init_CUDA(model * m, device ** dev)  {
             }
             
         }
-        fprintf(stdout,"variable\n");
+
         //Create OpenCL buffers for transformed varibales
         for (i=0;i<m->ntvars;i++){
             // Create the buffers to output variables at receivers locations
@@ -722,7 +721,7 @@ int Init_CUDA(model * m, device ** dev)  {
 
             }
         }
-        fprintf(stdout,"transformed\n");
+
         //Create constants structure and buffers, transfer to device
         di->ncsts=m->ncsts;
         GMALLOC(di->csts, sizeof(constants)*m->ncsts);
@@ -735,7 +734,7 @@ int Init_CUDA(model * m, device ** dev)  {
             __GUARD clbuf_send( &di->queue, &di->csts[i].cl_cst);
             
         }
-        fprintf(stdout,"csts\n");
+
         
         // Determine the size of the outside boundary used for the back
         // propagation of the seismic wavefield
@@ -812,7 +811,7 @@ int Init_CUDA(model * m, device ** dev)  {
 
         }
         
-        fprintf(stdout,"memory\n");
+
         // Create the update kernels
         di->nupdates=m->nupdates;
         for (i=0;i<m->nupdates;i++){

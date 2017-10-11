@@ -172,6 +172,8 @@ int get_build_options(device *dev,
     int i;
     
     *n=0;
+    *n+=1;
+    sprintf(build_options[*n-1],"--gpu-architecture=compute_30");
     if (m->N_names[0]){
         for (i=0;i<m->NDIM;i++){
             *n+=1;
