@@ -484,7 +484,7 @@ int time_stepping(model * m, device ** dev) {
             }
             
             // Apply all updates
-//            update_grid(m, dev);
+            update_grid(m, dev);
             
             
             // Computing the free surface
@@ -595,9 +595,6 @@ int time_stepping(model * m, device ** dev) {
                 for (d=0;d<m->NUM_DEVICES;d++){
                     for (i=0;i<(*dev)[d].nprogs;i++){
                         if ((*dev)[d].progs[i]->pdir>0){
-//                            __GUARD clSetKernelArg((*dev)[d].progs[i]->kernel,
-//                                                   (*dev)[d].progs[i]->pdir-1,
-//                                                   sizeof(int), &pdir);
                             (*dev)[d].progs[i]->inputs[(*dev)[d].progs[i]->pdir-1]=&pdir;
                         }
                     }
@@ -612,9 +609,6 @@ int time_stepping(model * m, device ** dev) {
                 for (d=0;d<m->NUM_DEVICES;d++){
                     for (i=0;i<(*dev)[d].nprogs;i++){
                         if ((*dev)[d].progs[i]->tinput>0){
-//                            __GUARD clSetKernelArg((*dev)[d].progs[i]->kernel,
-//                                                   (*dev)[d].progs[i]->tinput-1,
-//                                                   sizeof(int), &t);
                             (*dev)[d].progs[i]->inputs[(*dev)[d].progs[i]->tinput-1]=&t;
                         }
                     }
@@ -648,9 +642,6 @@ int time_stepping(model * m, device ** dev) {
                     
                     for (d=0;d<m->NUM_DEVICES;d++){
                         thist=(t-m->tmin)/m->DTNYQ;
-//                        __GUARD clSetKernelArg((*dev)[d].grads.savefreqs.kernel,
-//                                             (*dev)[d].grads.savefreqs.tinput-1,
-//                                               sizeof(int), &thist);
                         (*dev)[d].grads.savefreqs.inputs[(*dev)[d].grads.savefreqs.tinput-1]=&thist;
                         __GUARD prog_launch( &(*dev)[d].queue,
                                             &(*dev)[d].grads.savefreqs);
