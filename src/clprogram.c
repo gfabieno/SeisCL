@@ -323,7 +323,7 @@ int prog_create(model * m,
     for (i=0;i<50;i++){
         GMALLOC(build_options[i], sizeof(char)*30);
     }
-    
+    double t0=MPI_Wtime();
     state= get_build_options(dev,
                               m,
                               build_options,
@@ -341,7 +341,7 @@ int prog_create(model * m,
                      build_options,
                      noptions);
     double t2=MPI_Wtime();
-    fprintf(stdout,"Compiling %s: %f s\n", prog->name, t2-t1);
+    fprintf(stdout,"Compiling %s: %f %f s\n", prog->name, t0-t1, t2-t1);
     if (build_options){
         for (i=0;i<noptions;i++){
             GFree(build_options[i]);
