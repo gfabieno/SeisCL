@@ -373,20 +373,18 @@ int initialize_grid(model * m, device ** dev, int s){
                                                                         * m->NT;
         //Assign the some arg to kernels
         int pdir=1;
-        for (d=0;d<m->NUM_DEVICES;d++){
-            for (i=0;i<(*dev)[d].nprogs;i++){
-                if ((*dev)[d].progs[i]->pdir>0){
-                    ind =(*dev)[d].progs[i]->pdir-1;
-                    (*dev)[d].progs[i]->inputs[ind]=&pdir;
-                }
-                if ((*dev)[d].progs[i]->nsinput>0){
-                    ind =(*dev)[d].progs[i]->nsinput-1;
-                    (*dev)[d].progs[i]->inputs[ind]=&m->src_recs.nsrc[s];
-                }
-                if ((*dev)[d].progs[i]->nrinput>0){
-                    ind=(*dev)[d].progs[i]->nrinput-1;
-                    (*dev)[d].progs[i]->inputs[ind]=&m->src_recs.nrec[s];
-                }
+        for (i=0;i<(*dev)[d].nprogs;i++){
+            if ((*dev)[d].progs[i]->pdir>0){
+                ind =(*dev)[d].progs[i]->pdir-1;
+                (*dev)[d].progs[i]->inputs[ind]=&pdir;
+            }
+            if ((*dev)[d].progs[i]->nsinput>0){
+                ind =(*dev)[d].progs[i]->nsinput-1;
+                (*dev)[d].progs[i]->inputs[ind]=&m->src_recs.nsrc[s];
+            }
+            if ((*dev)[d].progs[i]->nrinput>0){
+                ind=(*dev)[d].progs[i]->nrinput-1;
+                (*dev)[d].progs[i]->inputs[ind]=&m->src_recs.nrec[s];
             }
         }
         
