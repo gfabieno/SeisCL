@@ -391,7 +391,7 @@ int initialize_grid(model * m, device ** dev, int s){
         }
         
         // Implent initial conditions
-//        __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].bnd_cnds.init_f);
+        __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].bnd_cnds.init_f);
 //        __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].src_recs.varsoutinit);
 //
 //
