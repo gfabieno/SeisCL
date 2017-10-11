@@ -556,7 +556,7 @@ int prog_launch( CUstream *inqueue, clprogram * prog){
                             tsize[0],
                             tsize[1],
                             tsize[2],
-                            0,
+                            (unsigned int)prog->shared_size,
                             *inqueue,
                             prog->inputs,
                             NULL );
