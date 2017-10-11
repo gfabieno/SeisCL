@@ -371,18 +371,7 @@ int initialize_grid(model * m, device ** dev, int s){
         (*dev)[d].src_recs.residuals.gsize[0]=(*dev)[d].src_recs.nrec[s];
         (*dev)[d].src_recs.init_gradsrc.gsize[0]=(*dev)[d].src_recs.nsrc[s]
                                                                         * m->NT;
-        
-        // Implent initial conditions
-        __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].bnd_cnds.init_f);
-        __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].src_recs.varsoutinit);
-
-
-        if (m->GRADOUT==1 && m->BACK_PROP_TYPE==2){
-            __GUARD prog_launch( &(*dev)[d].queue,
-                                 &(*dev)[d].grads.initsavefreqs);
-        }
-        
-        //Assign the propagation direction to kernels
+        //Assign the some arg to kernels
         int pdir=1;
         for (d=0;d<m->NUM_DEVICES;d++){
             for (i=0;i<(*dev)[d].nprogs;i++){
@@ -400,6 +389,18 @@ int initialize_grid(model * m, device ** dev, int s){
                 }
             }
         }
+        
+        // Implent initial conditions
+        __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].bnd_cnds.init_f);
+        __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].src_recs.varsoutinit);
+
+
+        if (m->GRADOUT==1 && m->BACK_PROP_TYPE==2){
+            __GUARD prog_launch( &(*dev)[d].queue,
+                                 &(*dev)[d].grads.initsavefreqs);
+        }
+        
+
         
     }
     
