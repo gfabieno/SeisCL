@@ -178,7 +178,7 @@ int get_build_options(device *dev,
     sprintf(build_options[*n-1],"--include-path=%s",value);
     *n+=1;
     sprintf(build_options[*n-1],"--pre-include=cuda_fp16.h");
-    fprintf(stdout, "%s\n", build_options[*n-1]);
+    fprintf(stdout, "%s\n", build_options[*n-2]);
 
     
     if (m->N_names[0]){
