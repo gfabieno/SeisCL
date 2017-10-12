@@ -380,7 +380,7 @@ int kernel_sources(device * dev,
            "        return;\n"
            "    }\n\n"
            "    int source_type= src_pos[4+5*gid];\n"
-           "    float amp=(DT*src[gid*NT+nt])/(DH*DH*DH);\n\n");
+           "    float amp=(float)pdir*(DT*src[gid*NT+nt])/(DH*DH*DH);\n\n");
 
     char posstr[100]={0};
 
@@ -414,7 +414,7 @@ int kernel_sources(device * dev,
                 strcat(temp, "=__hadd(");
                 strcat(temp, vars[i].name);
                 strcat(temp, posstr);
-                strcat(temp, ", __float2half((float)pdir*amp));\n");
+                strcat(temp, ", __float2half(amp));\n");
             }
             else{
                 strcat(temp, "+=pdir*amp;\n");
@@ -439,7 +439,7 @@ int kernel_sources(device * dev,
                     strcat(temp, "=__hadd(");
                     strcat(temp, tvars[i].var2ave[j]);
                     strcat(temp, posstr);
-                    sprintf(temp2,",__float2half((float)pdir*amp/%f));\n", (float)tvars[i].n2ave);
+                    sprintf(temp2,",__float2half(amp/%f));\n", (float)tvars[i].n2ave);
                     strcat(temp, temp2);
                 }
                 else{
