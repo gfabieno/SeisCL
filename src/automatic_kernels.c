@@ -341,13 +341,18 @@ int kernel_sources(device * dev,
     strcat(temp, "){\n\n");
     
     //This only supports 3 dimensions (need for more ?)
-    strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n"
-           "    int i=(int)(src_pos[0+5*gid]/DH)+FDOH;\n"
+    strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n");
+    sprintf(temp2,"    if (gid > nsrc -1){\n");
+    strcat(temp, temp2);
+    strcat(temp,
+           "        return;\n"
+           "    }\n\n");
+    strcat(temp,"    int i=(int)(src_pos[0+5*gid]/DH)+FDOH;\n"
            "    int j=(int)(src_pos[1+5*gid]/DH)+FDOH;\n"
            "    int k=(int)(src_pos[2+5*gid]/DH)+FDOH;\n"
            "\n");
 
-    sprintf(temp2,"    if (gid > nsrc || i-OFFSET<FDOH || i-OFFSET>N%s-FDOH-1){\n",
+    sprintf(temp2,"    if (i-OFFSET<FDOH || i-OFFSET>N%s-FDOH-1){\n",
             dev->N_names[dev->NDIM-1] );
     strcat(temp, temp2);
     strcat(temp,
