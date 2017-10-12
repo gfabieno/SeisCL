@@ -67,64 +67,64 @@ int kernel_varout(device * dev,
 
     //This only supports 3 dimensions (need for more ?)
     strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n");
-//    sprintf(temp2,"    if (gid > nrec-1){\n" );
-//    strcat(temp, temp2);
-//    strcat(temp,
-//           "        return;\n"
-//           "    };\n\n");
-//    
-//    strcat(temp,       "    int i=(int)(rec_pos[0+8*gid]/DH)+FDOH;\n"
-//           "    int j=(int)(rec_pos[1+8*gid]/DH)+FDOH;\n"
-//           "    int k=(int)(rec_pos[2+8*gid]/DH)+FDOH;\n"
-//           "\n");
-//    
-//    sprintf(temp2,"    if (i-OFFSET<FDOH || i-OFFSET>N%s-FDOH-1){\n",
-//            dev->N_names[dev->NDIM-1] );
-//    strcat(temp, temp2);
-//    strcat(temp,
-//           "        return;\n"
-//           "    };\n\n");
-//
-//    
-//    char posstr[100]={0};
-//    
-//    if (dev->NDIM==2){
-//        sprintf(posstr,"[(i-OFFSET)*N%s+k]",dev->N_names[0]);
-//    }
-//    else if (dev->NDIM==3){
-//        sprintf(posstr,"[(i-OFFSET)*N%s*N%s+j*(N%s)+k]",
-//                dev->N_names[1], dev->N_names[0], dev->N_names[0]);
-//    }
-//    
-//    for (i=0;i<dev->nvars;i++){
-//        if (vars[i].to_output){
-//            strcat(temp, "    ");
-//            strcat(temp, vars[i].name);
-//            strcat(temp, "out[NT*gid+nt]=");
-//            strcat(temp, vars[i].name);
-//            strcat(temp, posstr);
-//            strcat(temp, ";\n");
-//        }
-//    }
-//    for (i=0;i<dev->ntvars;i++){
-//        if (tvars[i].to_output){
-//            strcat(temp, "    ");
-//            strcat(temp, tvars[i].name);
-//            strcat(temp, "out[NT*gid+nt]=(");
-//            for (j=0;j<tvars->n2ave;j++){
-//                strcat(temp, tvars[i].var2ave[j]);
-//                strcat(temp, posstr);
-//                strcat(temp, "+");
-//            }
-//            while (*p)
-//                p++;
-//            p[-1]='\0';
-//            strcat(temp, ")/");
-//            sprintf(temp2,"%f",(float)tvars->n2ave);
-//            strcat(temp, temp2);
-//            strcat(temp, ";\n");
-//        }
-//    }
+    sprintf(temp2,"    if (gid > nrec-1){\n" );
+    strcat(temp, temp2);
+    strcat(temp,
+           "        return;\n"
+           "    };\n\n");
+    
+    strcat(temp,       "    int i=(int)(rec_pos[0+8*gid]/DH)+FDOH;\n"
+           "    int j=(int)(rec_pos[1+8*gid]/DH)+FDOH;\n"
+           "    int k=(int)(rec_pos[2+8*gid]/DH)+FDOH;\n"
+           "\n");
+    
+    sprintf(temp2,"    if (i-OFFSET<FDOH || i-OFFSET>N%s-FDOH-1){\n",
+            dev->N_names[dev->NDIM-1] );
+    strcat(temp, temp2);
+    strcat(temp,
+           "        return;\n"
+           "    };\n\n");
+
+    
+    char posstr[100]={0};
+    
+    if (dev->NDIM==2){
+        sprintf(posstr,"[(i-OFFSET)*N%s+k]",dev->N_names[0]);
+    }
+    else if (dev->NDIM==3){
+        sprintf(posstr,"[(i-OFFSET)*N%s*N%s+j*(N%s)+k]",
+                dev->N_names[1], dev->N_names[0], dev->N_names[0]);
+    }
+    
+    for (i=0;i<dev->nvars;i++){
+        if (vars[i].to_output){
+            strcat(temp, "    ");
+            strcat(temp, vars[i].name);
+            strcat(temp, "out[NT*gid+nt]=");
+            strcat(temp, vars[i].name);
+            strcat(temp, posstr);
+            strcat(temp, ";\n");
+        }
+    }
+    for (i=0;i<dev->ntvars;i++){
+        if (tvars[i].to_output){
+            strcat(temp, "    ");
+            strcat(temp, tvars[i].name);
+            strcat(temp, "out[NT*gid+nt]=(");
+            for (j=0;j<tvars->n2ave;j++){
+                strcat(temp, tvars[i].var2ave[j]);
+                strcat(temp, posstr);
+                strcat(temp, "+");
+            }
+            while (*p)
+                p++;
+            p[-1]='\0';
+            strcat(temp, ")/");
+            sprintf(temp2,"%f",(float)tvars->n2ave);
+            strcat(temp, temp2);
+            strcat(temp, ";\n");
+        }
+    }
 
     strcat(temp, "\n}");
     
