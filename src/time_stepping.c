@@ -520,7 +520,7 @@ int time_stepping(model * m, device ** dev) {
 //        }
 
         // Aggregate the seismograms in the output variable
-        __GUARD reduce_seis(m, dev, s);
+//        __GUARD reduce_seis(m, dev, s);
 
         //Calculate the residuals
         if (m->GRADOUT || m->RMSOUT || m->RESOUT){
