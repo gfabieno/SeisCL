@@ -92,7 +92,7 @@ extern "C" __global__ void update_v(int offcomm,
                        float *K_x,        float *a_x,          float *b_x,
                        float *K_x_half,   float *a_x_half,     float *b_x_half,
                        float *psi_sxx_x,  float *psi_sxz_x,
-                       float *psi_sxz_z,  float *psi_szz_z)
+                       float *psi_sxz_z,  float *psi_szz_z, half2 *tryina)
 {
 
     extern __shared__ float lvar[];
