@@ -81,7 +81,6 @@
 #define PI (3.141592653589793238462643383279502884197169)
 #define signals(y,x) signals[(y)*NT+(x)]
 
-//#include <cuda_fp16.h>
 
 extern "C" __global__ void update_v(int offcomm,
                        float *vx,      float *vz,
@@ -98,7 +97,7 @@ extern "C" __global__ void update_v(int offcomm,
 
     extern __shared__ float lvar[];
     
-    half tryhalf=1;
+//    half tryhalf=1;
     
     float sxx_x;
     float szz_z;
