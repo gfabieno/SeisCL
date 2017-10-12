@@ -234,7 +234,12 @@ int kernel_varinit(device * dev,
     
     strcat(temp, "extern \"C\" __global__ void vars_init(");
     for (i=0;i<dev->nvars;i++){
+        if (dev->FP16==1){
+            strcat(temp, "half2 * ");
+        }
+        else{
             strcat(temp, "float * ");
+        }
             strcat(temp, vars[i].name);
             strcat(temp, ", ");
     }
@@ -253,13 +258,19 @@ int kernel_varinit(device * dev,
         strcat(temp, "    ");
         strcat(temp, "    ");
         strcat(temp, vars[i].name);
-        strcat(temp, "[gid]=0;\n");
+        if (dev->FP16==1){
+            strcat(temp, "[gid]={0,0};\n");
+        }
+        else{
+            strcat(temp, "[gid]=0;\n");
+        }
+        
     }
     
     strcat(temp, "\n}");
     
     
-//    printf("%s\n\n%lu\n",temp, strlen(temp));
+    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     
     (*prog).src=temp;

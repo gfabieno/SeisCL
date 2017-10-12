@@ -265,6 +265,7 @@ int Init_CUDA(model * m, device ** dev)  {
         di=&(*dev)[d];
         __GUARD cuCtxSetCurrent ( di->context );
         __GUARD cuMemAlloc( &di->cuda_null , sizeof(float));
+        di->FP16=m->FP16;
         /* The domain of the FD simulation is decomposed between the devices and
         *  MPI processes along the X direction. We must compute the subdomain 
         *  size, and its location in the domain*/
@@ -638,6 +639,8 @@ int Init_CUDA(model * m, device ** dev)  {
             
             //Create variable buffers for the interior domain
             di->vars[i].cl_var.size=sizeof(float)*di->vars[i].num_ele;
+            if (m->FP16)
+                di->vars[i].cl_var.size/=2;
             __GUARD clbuf_create( &di->vars[i].cl_var);
             
             //Create variable buffers for the boundary of the domain

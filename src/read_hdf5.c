@@ -368,6 +368,10 @@ int readhdf5(struct filenames files, model * m) {
         __GUARD checkscalar(file_id, "/param_type");
         __GUARD readvar(file_id, H5T_NATIVE_INT, "/param_type", &m->par_type);
     }
+    if (H5Lexists( file_id, "/FP16", H5P_DEFAULT) ){
+        __GUARD checkscalar(file_id, "/FP16");
+        __GUARD readvar(file_id, H5T_NATIVE_INT, "/FP16", &m->FP16);
+    }
     
     if (m->ND==3){
         m->NDIM=3;

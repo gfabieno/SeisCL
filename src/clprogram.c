@@ -197,6 +197,9 @@ int get_build_options(device *dev,
     }
     
     *n+=1;
+    sprintf(build_options[*n-1],"-D FP16=%d ",(*m).FP16);
+    
+    *n+=1;
     sprintf(build_options[*n-1],"-D NDIM=%d ",(*m).NDIM);
     *n+=1;
     sprintf(build_options[*n-1],"-D OFFSET=%d",(*dev).NX0);

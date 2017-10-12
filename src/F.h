@@ -340,6 +340,7 @@ typedef struct device {
     int NBND;
     
     int LOCAL_OFF;
+    int FP16;
     
     clprogram * progs[MAX_KERNELS];
     int nprogs;
@@ -465,6 +466,7 @@ typedef struct model {
 //    cl_device_type pref_device_type;
 //    cl_device_type device_type;
     int NUM_DEVICES;
+    int FP16;
 
     int (*res_calc)(struct model * , int );
     int (*check_stability)(void *);
