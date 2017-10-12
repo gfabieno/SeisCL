@@ -75,7 +75,7 @@
 
 
 
-extern "C" __global__ void update_s()
+extern "C" __global__ void update_s(float *vx)
 {
     
 //    extern __shared__ float lvar[];
