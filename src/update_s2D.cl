@@ -291,18 +291,18 @@ extern "C" __global__ void update_s(int offcomm,
 //    }
     
     
-// To stop updating if we are outside the model (global id must be a multiple of local id in OpenCL, hence we stop if we have a global id outside the grid)
-#if LOCAL_OFF==0
-#if COMM12==0
-    if (gidz>(NZ-FDOH-1) || (gidx-offcomm)>(NX-FDOH-1-LCOMM) ){
-        return;
-    }
-#else
-    if (gidz>(NZ-FDOH-1) ){
-        return;
-    }
-#endif
-#endif
+//// To stop updating if we are outside the model (global id must be a multiple of local id in OpenCL, hence we stop if we have a global id outside the grid)
+//#if LOCAL_OFF==0
+//#if COMM12==0
+//    if (gidz>(NZ-FDOH-1) || (gidx-offcomm)>(NX-FDOH-1-LCOMM) ){
+//        return;
+//    }
+//#else
+//    if (gidz>(NZ-FDOH-1) ){
+//        return;
+//    }
+//#endif
+//#endif
 
     
 //// Correct spatial derivatives to implement CPML
