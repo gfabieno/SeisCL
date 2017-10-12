@@ -72,7 +72,7 @@ int kernel_varout(device * dev,
            "    int k=(int)(rec_pos[2+8*gid]/DH)+FDOH;\n"
            "\n");
     
-    sprintf(temp2,"    if (gid > nrec "
+    sprintf(temp2,"    if (gid > nrec-1 "
                           "|| i-OFFSET<FDOH "
                           "|| i-OFFSET>N%s-FDOH-1){\n",
             dev->N_names[dev->NDIM-1] );
