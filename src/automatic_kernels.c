@@ -177,7 +177,7 @@ int kernel_varoutinit(device * dev,
     
     strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n\n");
     
-    strcat(temp,"    if (gid > nrec*NT){\n"
+    strcat(temp,"    if (gid > nrec*NT-1){\n"
                 "        return;\n"
                 "    };\n\n");
     
@@ -481,12 +481,19 @@ int kernel_residuals(device * dev,
     strcat(temp, "){\n\n");
     
     
-    strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n"
-           "    int i=(int)(rec_pos[0+8*gid]/DH)+FDOH;\n"
+    strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n");
+    
+    sprintf(temp2,"    if (gid > nrec-1){\n");
+    strcat(temp, temp2);
+    strcat(temp,
+           "        return;\n"
+           "    };\n\n");
+    
+     strcat(temp,"    int i=(int)(rec_pos[0+8*gid]/DH)+FDOH;\n"
            "    int j=(int)(rec_pos[1+8*gid]/DH)+FDOH;\n"
            "    int k=(int)(rec_pos[2+8*gid]/DH)+FDOH;\n\n");
     
-    sprintf(temp2,"    if (gid > nrec || i-OFFSET<FDOH || i-OFFSET>N%s-FDOH-1){\n",
+    sprintf(temp2,"    if ( i-OFFSET<FDOH || i-OFFSET>N%s-FDOH-1){\n",
             dev->N_names[dev->NDIM-1] );
     strcat(temp, temp2);
     strcat(temp,
@@ -581,7 +588,7 @@ int kernel_gradinit(device * dev,
     strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n\n");
     
     if (dev->npars>0){
-        sprintf(temp2,"    if (gid>%d){\n", pars[0].num_ele);
+        sprintf(temp2,"    if (gid>%d-1){\n", pars[0].num_ele);
         strcat(temp,temp2);
         strcat(temp,  "        return;\n"
                       "    };\n\n");
@@ -788,7 +795,7 @@ int kernel_init_gradsrc(clprogram * prog){
            "extern \"C\" __global__ void init_gradsrc(float *gradsrc, int nsrc)\n"
            "{\n\n"
            "    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n"
-           "    if (gid>nsrc*NT){\n"
+           "    if (gid>nsrc*NT-1){\n"
            "        return;\n"
            "    }\n"
            "    gradsrc[gid]=0.0;\n\n"
@@ -896,11 +903,11 @@ int kernel_fcom_out(device * dev,
     }
     char temp2[100]={0};
     if (buff12==1){
-        sprintf(temp2,"    if (idbuf>%d){\n",
+        sprintf(temp2,"    if (idbuf>%d-1){\n",
                 (int)(vars[0].cl_buf1.size/sizeof(float)));
     }
     else{
-        sprintf(temp2,"    if (idbuf>%d){\n",
+        sprintf(temp2,"    if (idbuf>%d-1){\n",
                 (int)(vars[0].cl_buf1.size/sizeof(float)));
     }
     strcat(temp,temp2);
@@ -1064,11 +1071,11 @@ int kernel_fcom_in(device * dev,
     
     char temp2[100]={0};
     if (buff12==1){
-        sprintf(temp2,"    if (idbuf>%d){\n",
+        sprintf(temp2,"    if (idbuf>%d-1){\n",
                 (int)(vars[0].cl_buf1.size/sizeof(float)));
     }
     else{
-        sprintf(temp2,"    if (idbuf>%d){\n",
+        sprintf(temp2,"    if (idbuf>%d-1){\n",
                 (int)(vars[0].cl_buf1.size/sizeof(float)));
     }
     strcat(temp,temp2);
