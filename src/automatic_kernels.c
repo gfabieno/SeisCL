@@ -67,25 +67,25 @@ int kernel_varout(device * dev,
 
     //This only supports 3 dimensions (need for more ?)
     strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n");
-    sprintf(temp2,"    if (gid > nrec-1){\n" );
-    strcat(temp, temp2);
-    strcat(temp,
-           "        return;\n"
-           "    };\n\n");
-    
-    strcat(temp,       "    int i=(int)(rec_pos[0+8*gid]/DH)+FDOH;\n"
-           "    int j=(int)(rec_pos[1+8*gid]/DH)+FDOH;\n"
-           "    int k=(int)(rec_pos[2+8*gid]/DH)+FDOH;\n"
-           "\n");
-    
-    sprintf(temp2,"    if (i-OFFSET<FDOH || i-OFFSET>N%s-FDOH-1){\n",
-            dev->N_names[dev->NDIM-1] );
-    strcat(temp, temp2);
-    strcat(temp,
-           "        return;\n"
-           "    };\n\n");
-
-    
+//    sprintf(temp2,"    if (gid > nrec-1){\n" );
+//    strcat(temp, temp2);
+//    strcat(temp,
+//           "        return;\n"
+//           "    };\n\n");
+//    
+//    strcat(temp,       "    int i=(int)(rec_pos[0+8*gid]/DH)+FDOH;\n"
+//           "    int j=(int)(rec_pos[1+8*gid]/DH)+FDOH;\n"
+//           "    int k=(int)(rec_pos[2+8*gid]/DH)+FDOH;\n"
+//           "\n");
+//    
+//    sprintf(temp2,"    if (i-OFFSET<FDOH || i-OFFSET>N%s-FDOH-1){\n",
+//            dev->N_names[dev->NDIM-1] );
+//    strcat(temp, temp2);
+//    strcat(temp,
+//           "        return;\n"
+//           "    };\n\n");
+//
+//    
 //    char posstr[100]={0};
 //    
 //    if (dev->NDIM==2){
