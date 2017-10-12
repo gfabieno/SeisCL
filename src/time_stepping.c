@@ -479,7 +479,7 @@ int time_stepping(model * m, device ** dev) {
                 __GUARD prog_launch( &(*dev)[d].queue,
                                     &(*dev)[d].src_recs.sources);
             }
-//            
+//
 //            // Apply all updates
 //            __GUARD update_grid(m, dev);
 //            
@@ -497,11 +497,11 @@ int time_stepping(model * m, device ** dev) {
 //                __GUARD save_bnd( m, dev, t);
 //            
 //            
-//            // Outputting seismograms
-//            for (d=0;d<m->NUM_DEVICES;d++){
-//                __GUARD prog_launch( &(*dev)[d].queue,
-//                                     &(*dev)[d].src_recs.varsout);
-//            }
+            // Outputting seismograms
+            for (d=0;d<m->NUM_DEVICES;d++){
+                __GUARD prog_launch( &(*dev)[d].queue,
+                                     &(*dev)[d].src_recs.varsout);
+            }
 //
 //            // Outputting the movie
 //            if (m->MOVOUT>0 && (t+1)%m->MOVOUT==0 && state==0)

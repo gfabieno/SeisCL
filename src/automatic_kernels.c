@@ -39,7 +39,12 @@ int kernel_varout(device * dev,
                  "(int nt, int nrec, float * rec_pos, ");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
-            strcat(temp, "float * ");
+            if (dev->FP16==1){
+                strcat(temp, "half * ");
+            }
+            else{
+                strcat(temp, "float * ");
+            }
             strcat(temp, vars[i].name);
             strcat(temp, ", ");
             strcat(temp, "float * ");
@@ -50,7 +55,12 @@ int kernel_varout(device * dev,
     for (i=0;i<dev->ntvars;i++){
         if (tvars[i].to_output){
             for (j=0;j<tvars[i].n2ave;j++){
-                strcat(temp, "float * ");
+                if (dev->FP16==1){
+                    strcat(temp, "half * ");
+                }
+                else{
+                    strcat(temp, "float * ");
+                }
                 strcat(temp, tvars[i].var2ave[j]);
                 strcat(temp, ", ");
             }
@@ -101,8 +111,14 @@ int kernel_varout(device * dev,
             strcat(temp, "    ");
             strcat(temp, vars[i].name);
             strcat(temp, "out[NT*gid+nt]=");
+            if (dev->FP16==1){
+                strcat(temp, "__half2float(");
+            }
             strcat(temp, vars[i].name);
             strcat(temp, posstr);
+            if (dev->FP16==1){
+                strcat(temp, ")");
+            }
             strcat(temp, ";\n");
         }
     }
@@ -112,8 +128,14 @@ int kernel_varout(device * dev,
             strcat(temp, tvars[i].name);
             strcat(temp, "out[NT*gid+nt]=(");
             for (j=0;j<tvars->n2ave;j++){
+                if (dev->FP16==1){
+                    strcat(temp, "__half2float(");
+                }
                 strcat(temp, tvars[i].var2ave[j]);
                 strcat(temp, posstr);
+                if (dev->FP16==1){
+                    strcat(temp, ")");
+                }
                 strcat(temp, "+");
             }
             while (*p)
@@ -129,7 +151,7 @@ int kernel_varout(device * dev,
     strcat(temp, "\n}");
     
     
-//    printf("%s\n\n%lu\n",temp, strlen(temp));
+    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     
     (*prog).src=temp;
@@ -411,13 +433,13 @@ int kernel_sources(device * dev,
             strcat(temp, vars[i].name);
             strcat(temp, posstr);
             if (dev->FP16==1){
-                strcat(temp, "=__hadd(");
+                strcat(temp, "=__float2half(__half2float(");
                 strcat(temp, vars[i].name);
                 strcat(temp, posstr);
-                strcat(temp, ", __float2half(amp));\n");
+                strcat(temp, ")+amp);\n");
             }
             else{
-                strcat(temp, "+=pdir*amp;\n");
+                strcat(temp, "+=amp;\n");
             }
 
             
@@ -459,7 +481,7 @@ int kernel_sources(device * dev,
     
     __GUARD prog_source(prog, "sources", (*prog).src);
     
-    printf("%s\n\n%lu\n",temp, strlen(temp));
+//    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     free(tosources);
     free(tosources2);
