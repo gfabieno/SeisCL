@@ -288,8 +288,8 @@ int compile(const char *program_source,
         __GUARD nvrtcCompileProgram(cuprog,noptions,(const char * const*)build_options);
         if (state !=NVRTC_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
         size_t logSize;
-        state = nvrtcGetProgramLogSize(cuprog, &logSize);
-        if (logSize>4){
+        nvrtcGetProgramLogSize(cuprog, &logSize);
+        if (state){
             char *log = malloc(logSize);
             state = nvrtcGetProgramLog(cuprog, log);
             fprintf(stdout,"Compilation of %s:\n",program_name);
