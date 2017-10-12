@@ -414,7 +414,7 @@ int kernel_sources(device * dev,
                 strcat(temp, "=__hadd(");
                 strcat(temp, vars[i].name);
                 strcat(temp, posstr);
-                strcat(temp, ", __float2half(pdir*amp));\n");
+                strcat(temp, ", __float2half((float)pdir*amp));\n");
             }
             else{
                 strcat(temp, "+=pdir*amp;\n");
@@ -439,7 +439,7 @@ int kernel_sources(device * dev,
                     strcat(temp, "=__hadd(");
                     strcat(temp, tvars[i].var2ave[j]);
                     strcat(temp, posstr);
-                    sprintf(temp2,",__float2half(pdir*amp/%f));\n", (float)tvars[i].n2ave);
+                    sprintf(temp2,",__float2half((float)pdir*amp/%f));\n", (float)tvars[i].n2ave);
                     strcat(temp, temp2);
                 }
                 else{
