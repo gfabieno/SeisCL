@@ -270,7 +270,7 @@ int kernel_varinit(device * dev,
     strcat(temp, "\n}");
     
     
-    printf("%s\n\n%lu\n",temp, strlen(temp));
+//    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     
     (*prog).src=temp;
@@ -331,7 +331,12 @@ int kernel_sources(device * dev,
                  "float * src_pos, float * src, int pdir, ");
     for (i=0;i<dev->nvars;i++){
         if (tosources[i]){
-            strcat(temp, "float * ");
+            if (dev->FP16==1){
+                strcat(temp, "half * ");
+            }
+            else{
+                strcat(temp, "float * ");
+            }
             strcat(temp, vars[i].name);
             strcat(temp, ", ");
         }
@@ -339,7 +344,12 @@ int kernel_sources(device * dev,
     for (i=0;i<dev->ntvars;i++){
         if (tosources2[i]){
             for (j=0;j<tvars[i].n2ave;j++){
-                strcat(temp, "float * ");
+                if (dev->FP16==1){
+                    strcat(temp, "half * ");
+                }
+                else{
+                    strcat(temp, "float * ");
+                }
                 strcat(temp, tvars[i].var2ave[j]);
                 strcat(temp, ", ");
             }
@@ -400,7 +410,13 @@ int kernel_sources(device * dev,
             strcat(temp, "    ");
             strcat(temp, vars[i].name);
             strcat(temp, posstr);
-            strcat(temp, "+=pdir*amp;\n");
+            if (dev->FP16==1){
+                strcat(temp, "+=__float2half(pdir*amp);\n");
+            }
+            else{
+                strcat(temp, "+=pdir*amp;\n");
+            }
+
             
         }
     }
@@ -416,7 +432,7 @@ int kernel_sources(device * dev,
                 strcat(temp, "    ");
                 strcat(temp, tvars[i].var2ave[j]);
                 strcat(temp, posstr);
-                sprintf(temp2,"+=pdir*amp/%d;\n", tvars[i].n2ave);
+                sprintf(temp2,"+=__float2half(pdir*amp/%d);\n", tvars[i].n2ave);
                 strcat(temp, temp2);
             }
             if (ntypes>1){
