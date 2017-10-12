@@ -90,45 +90,45 @@ extern "C" __global__ void update_s(int offcomm,
                        float *psi_vz_x,    float *psi_vz_z)
 {
     
-    extern __shared__ float lvar[];
-    
-    float vxx, vzz, vzx, vxz;
-    int i,k,l,ind;
-    float sumrxz, sumrxx, sumrzz;
-    float b,c,e,g,d,f,fipkp,dipkp;
-    float leta[LVE];
-    float lM, lmu, lmuipkp, ltaup, ltaus, ltausipkp;
-    float lsxx, lszz, lsxz;
-    
-// If we use local memory
-#if LOCAL_OFF==0
-    int lsizez = blockDim.x+2*FDOH;
-    int lsizex = blockDim.y+2*FDOH;
-    int lidz = threadIdx.x+FDOH;
-    int lidx = threadIdx.y+FDOH;
-    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
-    int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH+offcomm;
-
-#define lvx lvar
-#define lvz lvar
-    
-// If local memory is turned off
-#elif LOCAL_OFF==1
-    
-    int lsizez = blockDim.x+2*FDOH;
-    int lsizex = blockDim.y+2*FDOH;
-    int lidz = threadIdx.x+FDOH;
-    int lidx = threadIdx.y+FDOH;
-    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
-    int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH+offcomm;
-    
-    
-#define lvx vx
-#define lvz vz
-#define lidx gidx
-#define lidz gidz
-    
-#endif
+//    extern __shared__ float lvar[];
+//    
+//    float vxx, vzz, vzx, vxz;
+//    int i,k,l,ind;
+//    float sumrxz, sumrxx, sumrzz;
+//    float b,c,e,g,d,f,fipkp,dipkp;
+//    float leta[LVE];
+//    float lM, lmu, lmuipkp, ltaup, ltaus, ltausipkp;
+//    float lsxx, lszz, lsxz;
+//    
+//// If we use local memory
+//#if LOCAL_OFF==0
+//    int lsizez = blockDim.x+2*FDOH;
+//    int lsizex = blockDim.y+2*FDOH;
+//    int lidz = threadIdx.x+FDOH;
+//    int lidx = threadIdx.y+FDOH;
+//    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
+//    int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH+offcomm;
+//
+//#define lvx lvar
+//#define lvz lvar
+//    
+//// If local memory is turned off
+//#elif LOCAL_OFF==1
+//    
+//    int lsizez = blockDim.x+2*FDOH;
+//    int lsizex = blockDim.y+2*FDOH;
+//    int lidz = threadIdx.x+FDOH;
+//    int lidx = threadIdx.y+FDOH;
+//    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
+//    int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH+offcomm;
+//    
+//    
+//#define lvx vx
+//#define lvz vz
+//#define lidx gidx
+//#define lidz gidz
+//    
+//#endif
 
 //// Calculation of the velocity spatial derivatives
 //    {
