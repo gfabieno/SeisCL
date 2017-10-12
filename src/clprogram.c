@@ -330,7 +330,7 @@ int prog_create(model * m,
     char ** build_options=NULL;
         GMALLOC(build_options, sizeof(char*)*50);
     for (i=0;i<50;i++){
-        GMALLOC(build_options[i], sizeof(char)*30);
+        GMALLOC(build_options[i], sizeof(char)*100);
     }
     double t0=MPI_Wtime();
     state= get_build_options(dev,
