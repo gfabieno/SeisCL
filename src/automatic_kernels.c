@@ -437,7 +437,7 @@ int kernel_sources(device * dev,
                 strcat(temp, posstr);
                 if (dev->FP16==1){
                     strcat(temp, "=");
-                    strcat(temp, vars[i].name);
+                    strcat(temp, tvars[i].var2ave[j]);
                     strcat(temp, posstr);
                     sprintf(temp2,"+__float2half(pdir*amp/%f);\n", (float)tvars[i].n2ave);
                     strcat(temp, temp2);
@@ -459,7 +459,7 @@ int kernel_sources(device * dev,
     
     __GUARD prog_source(prog, "sources", (*prog).src);
     
-//    printf("%s\n\n%lu\n",temp, strlen(temp));
+    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     free(tosources);
     free(tosources2);
