@@ -75,7 +75,19 @@
 
 
 
-extern "C" __global__ void update_s(float *vx)
+extern "C" __global__ void update_s(int offcomm,
+                       float *vx,         float *vz,
+                       float *sxx,        float *szz,        float *sxz,
+                       float *M,         float *mu,          float *muipkp,
+                       float *rxx,        float *rzz,        float *rxz,
+                       float *taus,       float *tausipkp,   float *taup,
+                       float *eta,        float *taper,
+                       float *K_x,        float *a_x,          float *b_x,
+                       float *K_x_half,   float *a_x_half,     float *b_x_half,
+                       float *K_z,        float *a_z,          float *b_z,
+                       float *K_z_half,   float *a_z_half,     float *b_z_half,
+                       float *psi_vx_x,    float *psi_vx_z,
+                       float *psi_vz_x,    float *psi_vz_z)
 {
     
 //    extern __shared__ float lvar[];
