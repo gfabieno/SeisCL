@@ -178,8 +178,6 @@ int get_build_options(device *dev,
     sprintf(build_options[*n-1],"--include-path=%s/include",value);
     *n+=1;
     sprintf(build_options[*n-1],"--pre-include=cuda_fp16.h");
-    fprintf(stdout, "%s\n", build_options[*n-2]);
-
     
     if (m->N_names[0]){
         for (i=0;i<m->NDIM;i++){
@@ -343,7 +341,6 @@ int prog_create(model * m,
     for (i=0;i<50;i++){
         GMALLOC(build_options[i], sizeof(char)*100);
     }
-    double t0=MPI_Wtime();
     state= get_build_options(dev,
                               m,
                               build_options,
@@ -351,8 +348,6 @@ int prog_create(model * m,
                               prog->LCOMM,
                               prog->COMM,
                               prog->DIRPROP);
-    fprintf(stdout,"compiling=%s\n",(*prog).name);
-    double t1=MPI_Wtime();
     state = compile( (*prog).src,
                      (*prog).prog,
                      &(*prog).module,
@@ -360,8 +355,6 @@ int prog_create(model * m,
                      (*prog).name,
                      build_options,
                      noptions);
-    double t2=MPI_Wtime();
-    fprintf(stdout,"Compiling %s: %f %f s\n", prog->name, t0-t1, t2-t1);
     if (build_options){
         for (i=0;i<noptions;i++){
             GFree(build_options[i]);
