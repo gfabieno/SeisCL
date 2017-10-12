@@ -97,7 +97,7 @@ extern "C" __global__ void update_v(int offcomm,
 
     extern __shared__ float lvar[];
     
-    half2 tryhalf;
+    half trya;
     
     float sxx_x;
     float szz_z;
