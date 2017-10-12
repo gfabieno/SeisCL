@@ -175,7 +175,7 @@ int get_build_options(device *dev,
     
     char * value = getenv("CUDA_PATH");
     *n+=1;
-    sprintf(build_options[*n-1],"--include-path=%s",value);
+    sprintf(build_options[*n-1],"--include-path=%s/include",value);
     *n+=1;
     sprintf(build_options[*n-1],"--pre-include=cuda_fp16.h");
     fprintf(stdout, "%s\n", build_options[*n-2]);
