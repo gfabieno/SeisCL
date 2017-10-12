@@ -259,7 +259,7 @@ int kernel_varinit(device * dev,
         strcat(temp, "    ");
         strcat(temp, vars[i].name);
         if (dev->FP16==1){
-            strcat(temp, "[gid]={0,0};\n");
+            strcat(temp, "[gid].x=0.0;\n");
         }
         else{
             strcat(temp, "[gid]=0;\n");
