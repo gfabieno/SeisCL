@@ -289,6 +289,17 @@ int compile(const char *program_source,
         if (state !=CUDA_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
         __GUARD nvrtcCompileProgram(cuprog,noptions,(const char * const*)build_options);
         if (state !=NVRTC_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
+        size_t logSize;
+        state = nvrtcGetProgramLogSize(cuprog, &logSize);
+        if (logSize>0){
+            char *log = malloc(logSize);
+            state = nvrtcGetProgramLog(cuprog, log);
+            fprintf(stdout,"Compilation of %s:\n",program_name);
+            fprintf(stdout,"%s",log);
+            free(log);
+        }
+
+        if (state !=NVRTC_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
         __GUARD nvrtcGetPTXSize(cuprog, &ptxSize);
         GMALLOC(program, sizeof(char)*ptxSize);
         __GUARD nvrtcGetPTX(cuprog, program);
