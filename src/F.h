@@ -49,6 +49,7 @@
 
 #include <mpi.h>
 #include <hdf5.h>
+#include <cuda_fp16.h>
 
 #define STRING_SIZE 256
 #define PI (3.141592653589793238462643383279502884197169)
