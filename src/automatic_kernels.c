@@ -379,9 +379,15 @@ int kernel_sources(device * dev,
     strcat(temp,
            "        return;\n"
            "    }\n\n"
-           "    int source_type= src_pos[4+5*gid];\n"
-           "    float amp=(float)pdir*(DT*src[gid*NT+nt])/(DH*DH*DH);\n\n");
+           "    int source_type= src_pos[4+5*gid];\n");
 
+    if (dev->FP16==1){
+        strcat(temp,"    half amp=__float2half((float)pdir*(DT*src[gid*NT+nt])/(DH*DH*DH));\n\n");
+    }
+    else{
+        strcat(temp,"    float amp=(float)pdir*(DT*src[gid*NT+nt])/(DH*DH*DH);\n\n");
+    }
+    
     char posstr[100]={0};
 
     
@@ -440,7 +446,7 @@ int kernel_sources(device * dev,
 //                    strcat(temp, tvars[i].var2ave[j]);
 //                    strcat(temp, posstr);
 //                    sprintf(temp2,",__float2half(amp/%f));\n", (float)tvars[i].n2ave);
-                    sprintf(temp2,"=__float2half(amp);\n");
+                    sprintf(temp2,"=amp;\n");
                     strcat(temp, temp2);
                 }
                 else{
