@@ -411,7 +411,10 @@ int kernel_sources(device * dev,
             strcat(temp, vars[i].name);
             strcat(temp, posstr);
             if (dev->FP16==1){
-                strcat(temp, "+=__float2half(pdir*amp);\n");
+                strcat(temp, "=");
+                strcat(temp, vars[i].name);
+                strcat(temp, posstr);
+                strcat(temp, "+__float2half(pdir*amp);\n");
             }
             else{
                 strcat(temp, "+=pdir*amp;\n");
@@ -432,8 +435,17 @@ int kernel_sources(device * dev,
                 strcat(temp, "    ");
                 strcat(temp, tvars[i].var2ave[j]);
                 strcat(temp, posstr);
-                sprintf(temp2,"+=__float2half(pdir*amp/%d);\n", tvars[i].n2ave);
-                strcat(temp, temp2);
+                if (dev->FP16==1){
+                    strcat(temp, "=");
+                    strcat(temp, vars[i].name);
+                    strcat(temp, posstr);
+                    sprintf(temp2,"+__float2half(pdir*amp/%f);\n", (float)tvars[i].n2ave);
+                    strcat(temp, temp2);
+                }
+                else{
+                    sprintf(temp2,"+=pdir*amp/%d;\n", tvars[i].n2ave);
+                    strcat(temp, temp2);
+                }
             }
             if (ntypes>1){
                 strcat(temp, "    }");
