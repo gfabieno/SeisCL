@@ -446,7 +446,7 @@ int kernel_sources(device * dev,
 //                    strcat(temp, tvars[i].var2ave[j]);
 //                    strcat(temp, posstr);
 //                    sprintf(temp2,",__float2half(amp/%f));\n", (float)tvars[i].n2ave);
-                    sprintf(temp2,"=amp;\n");
+                    sprintf(temp2,"=__hadd(amp,amp);\n");
                     strcat(temp, temp2);
                 }
                 else{
