@@ -28,7 +28,7 @@ filenames['movout']=file+"_movie.mat"   #File containing the movie ouput
 
 #_____________________Simulation constants input file_______________________
 csts={}
-csts['N']=np.array([200,150]) #Grid size ( z,x)
+csts['N']=np.array([3000,3000]) #Grid size ( z,x)
 csts['ND']=2                #Flag for dimension. 3: 3D, 2: 2D P-SV,  21: 2D SH
 csts['dh']=10                #Grid spatial spacing
 csts['dt']=0.0008           # Time step size
