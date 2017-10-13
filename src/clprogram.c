@@ -179,6 +179,14 @@ int get_build_options(device *dev,
     *n+=1;
     sprintf(build_options[*n-1],"--pre-include=cuda_fp16.h");
     
+    *n+=1;
+    if ( (*dev).FP16==1){
+        sprintf(build_options[*n-1],"-D __typevar=half");
+    }else{
+        sprintf(build_options[*n-1],"-D __typevar=float");
+    }
+    
+    
     if (m->N_names[0]){
         for (i=0;i<m->NDIM;i++){
             *n+=1;
