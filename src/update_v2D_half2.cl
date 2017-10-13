@@ -81,6 +81,8 @@
 #define PI (3.141592653589793238462643383279502884197169)
 #define signals(y,x) signals[(y)*NT+(x)]
 
+#define __h2f0(x) __half2float(*((half*)&(x)))
+#define __h2f1(x) __half2float(*((half*)&(x)+1))
 
 extern "C" __global__ void update_v(int offcomm,
                                     half2 *vx,      half2 *vz,
@@ -150,9 +152,7 @@ extern "C" __global__ void update_v(int offcomm,
         __syncthreads();
 #endif
         
-        half2 trya;
-        trya.x=__float2half(0.0);
-        trya.y=__float2half(0.0);
+        float a = __h2f0(lsxx(lidz,lidx+1));
 //#if   FDOH ==1
 //        sxx_x.x = DTDH*HC1*(__half2float(lsxx(lidz,lidx+1).x) - (__half2float(lsxx(lidz,lidx).x)));
 //        sxx_x.y = DTDH*HC1*(__half2float(lsxx(lidz,lidx+1).y) - (__half2float(lsxx(lidz,lidx).y)));
