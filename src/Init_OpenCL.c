@@ -896,8 +896,7 @@ int Init_CUDA(model * m, device ** dev)  {
         
         __GUARD kernel_varinit(di, di->vars, &di->bnd_cnds.init_f);
         __GUARD prog_create(m, di,  &di->bnd_cnds.init_f);
-        di->bnd_cnds.init_f.gsize[0]=fdsize;
-        
+   
         
         if (m->GRADOUT){
             __GUARD kernel_residuals(di,

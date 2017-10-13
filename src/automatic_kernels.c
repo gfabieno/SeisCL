@@ -270,9 +270,19 @@ int kernel_varinit(device * dev,
     p[-2]='\0';
     strcat(temp, "){\n\n");
     
-    
-    strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n\n");
-    
+    if (dev->NDIM==2){
+       
+        strcat(temp,"int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
+                    "int gidx = blockIdx.y*blockDim.y + threadIdx.y;\n"
+                    "int gid = gidx*blockDim.x*gridDim.x+gidz;\n");
+    }
+    else if (dev->NDIM==3){
+        strcat(temp,"int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
+                    "int gidy = blockIdx.y*blockDim.y + threadIdx.y;\n"
+                    "int gidx = blockIdx.y*blockDim.z + threadIdx.z;\n"
+                    "int gid = gidx*blockDim.x*gridDim.x*blockDim.y*gridDim.y"
+                    "+gidy*blockDim.x*gridDim.x +gidz;\n");
+    }
     
     for (i=0;i<dev->nvars;i++){
         sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
@@ -299,7 +309,18 @@ int kernel_varinit(device * dev,
     
     __GUARD prog_source(prog, "vars_init", (*prog).src);
     
-    prog->wdim=1;
+    if (dev->FP16==1){
+        prog->gsize[0]=dev->N[0]/2;
+    }
+    else{
+        prog->gsize[0]=dev->N[0];
+    }
+    prog->gsize[1]=dev->N[1];
+    if (dev->NDIM==3){
+        prog->gsize[2]=dev->N[2];
+    }
+    
+    prog->wdim=dev->NDIM;
     
     return state;
     
