@@ -150,55 +150,58 @@ extern "C" __global__ void update_v(int offcomm,
         __syncthreads();
 #endif
         
-#if   FDOH ==1
-        sxx_x.x = DTDH*HC1*(__half2float(lsxx(lidz,lidx+1).x) - (__half2float(lsxx(lidz,lidx).x)));
-        sxx_x.y = DTDH*HC1*(__half2float(lsxx(lidz,lidx+1).y) - (__half2float(lsxx(lidz,lidx).y)));
-#elif FDOH ==2
-        sxx_x.x = DTDH*(HC1*(__half2float(lsxx(lidz,lidx+1).x) - __half2float(__half2float(lsxx(lidz,lidx).x)))
-                      +HC2*(__half2float(lsxx(lidz,lidx+2).x) - __half2float(lsxx(lidz,lidx-1).x)));
-        sxx_x.y = DTDH*(HC1*(__half2float(lsxx(lidz,lidx+1).y) - __half2float(__half2float(lsxx(lidz,lidx).y)))
-                      +HC2*(__half2float(lsxx(lidz,lidx+2).y) - __half2float(lsxx(lidz,lidx-1).y)));
-#elif FDOH ==3
-        sxx_x.x = DTDH*(HC1*(__half2float(lsxx(lidz,lidx+1).x)-__half2float(lsxx(lidz,lidx).x))+
-                      HC2*(__half2float(lsxx(lidz,lidx+2).x)-__half2float(lsxx(lidz,lidx-1).x))+
-                      HC3*(__half2float(lsxx(lidz,lidx+3).x)-__half2float(lsxx(lidz,lidx-2).x)));
-        sxx_x.y = DTDH*(HC1*(__half2float(lsxx(lidz,lidx+1).y)-__half2float(lsxx(lidz,lidx).y))+
-                      HC2*(__half2float(lsxx(lidz,lidx+2).y)-__half2float(lsxx(lidz,lidx-1).y))+
-                      HC3*(__half2float(lsxx(lidz,lidx+3).y)-__half2float(lsxx(lidz,lidx-2).y)));
-#elif FDOH ==4
-        sxx_x.x = DTDH*(HC1*(__half2float(lsxx(lidz,lidx+1).x)-__half2float(lsxx(lidz,lidx).x))+
-                      HC2*(__half2float(lsxx(lidz,lidx+2).x)-__half2float(lsxx(lidz,lidx-1).x))+
-                      HC3*(__half2float(lsxx(lidz,lidx+3).x)-__half2float(lsxx(lidz,lidx-2).x))+
-                      HC4*(__half2float(lsxx(lidz,lidx+4).x)-__half2float(lsxx(lidz,lidx-3).x)));
-        sxx_x.y = DTDH*(HC1*(__half2float(lsxx(lidz,lidx+1).y)-__half2float(lsxx(lidz,lidx).y))+
-                      HC2*(__half2float(lsxx(lidz,lidx+2).y)-__half2float(lsxx(lidz,lidx-1).y))+
-                      HC3*(__half2float(lsxx(lidz,lidx+3).y)-__half2float(lsxx(lidz,lidx-2).y))+
-                      HC4*(__half2float(lsxx(lidz,lidx+4).y)-__half2float(lsxx(lidz,lidx-3).y)));
-#elif FDOH ==5
-        sxx_x.x = DTDH*(HC1*(__half2float(lsxx(lidz,lidx+1).x)-__half2float(lsxx(lidz,lidx).x))+
-                      HC2*(__half2float(lsxx(lidz,lidx+2).x)-__half2float(lsxx(lidz,lidx-1).x))+
-                      HC3*(__half2float(lsxx(lidz,lidx+3).x)-__half2float(lsxx(lidz,lidx-2).x))+
-                      HC4*(__half2float(lsxx(lidz,lidx+4).x)-__half2float(lsxx(lidz,lidx-3).x))+
-                      HC5*(__half2float(lsxx(lidz,lidx+5).x)-__half2float(lsxx(lidz,lidx-4).x)));
-        sxx_x.y = DTDH*(HC1*(__half2float(lsxx(lidz,lidx+1).y)-__half2float(lsxx(lidz,lidx).y))+
-                      HC2*(__half2float(lsxx(lidz,lidx+2).y)-__half2float(lsxx(lidz,lidx-1).y))+
-                      HC3*(__half2float(lsxx(lidz,lidx+3).y)-__half2float(lsxx(lidz,lidx-2).y))+
-                      HC4*(__half2float(lsxx(lidz,lidx+4).y)-__half2float(lsxx(lidz,lidx-3).y))+
-                      HC5*(__half2float(lsxx(lidz,lidx+5).y)-__half2float(lsxx(lidz,lidx-4).y)));
-#elif FDOH ==6
-        sxx_x.x = DTDH*(HC1*(__half2float(lsxx(lidz,lidx+1).x)-__half2float(lsxx(lidz,lidx).x))+
-                      HC2*(__half2float(lsxx(lidz,lidx+2).x)-__half2float(lsxx(lidz,lidx-1).x))+
-                      HC3*(__half2float(lsxx(lidz,lidx+3).x)-__half2float(lsxx(lidz,lidx-2).x))+
-                      HC4*(__half2float(lsxx(lidz,lidx+4).x)-__half2float(lsxx(lidz,lidx-3).x))+
-                      HC5*(__half2float(lsxx(lidz,lidx+5).x)-__half2float(lsxx(lidz,lidx-4).x))+
-                      HC6*(__half2float(lsxx(lidz,lidx+6).x)-__half2float(lsxx(lidz,lidx-5).x)));
-        sxx_x.y = DTDH*(HC1*(__half2float(lsxx(lidz,lidx+1).y)-__half2float(lsxx(lidz,lidx).y))+
-                      HC2*(__half2float(lsxx(lidz,lidx+2).y)-__half2float(lsxx(lidz,lidx-1).y))+
-                      HC3*(__half2float(lsxx(lidz,lidx+3).y)-__half2float(lsxx(lidz,lidx-2).y))+
-                      HC4*(__half2float(lsxx(lidz,lidx+4).y)-__half2float(lsxx(lidz,lidx-3).y))+
-                      HC5*(__half2float(lsxx(lidz,lidx+5).y)-__half2float(lsxx(lidz,lidx-4).y))+
-                      HC6*(__half2float(lsxx(lidz,lidx+6).y)-__half2float(lsxx(lidz,lidx-5).y)));
-#endif
+        half2 trya;
+        trya.x=__float2half(0.0);
+        trya.y=__float2half(0.0);
+//#if   FDOH ==1
+//        sxx_x.x = DTDH*HC1*(__half2float(lsxx(lidz,lidx+1).x) - (__half2float(lsxx(lidz,lidx).x)));
+//        sxx_x.y = DTDH*HC1*(__half2float(lsxx(lidz,lidx+1).y) - (__half2float(lsxx(lidz,lidx).y)));
+//#elif FDOH ==2
+//        sxx_x.x = DTDH*(HC1*(__half2float(lsxx(lidz,lidx+1).x) - __half2float(__half2float(lsxx(lidz,lidx).x)))
+//                      +HC2*(__half2float(lsxx(lidz,lidx+2).x) - __half2float(lsxx(lidz,lidx-1).x)));
+//        sxx_x.y = DTDH*(HC1*(__half2float(lsxx(lidz,lidx+1).y) - __half2float(__half2float(lsxx(lidz,lidx).y)))
+//                      +HC2*(__half2float(lsxx(lidz,lidx+2).y) - __half2float(lsxx(lidz,lidx-1).y)));
+//#elif FDOH ==3
+//        sxx_x.x = DTDH*(HC1*(__half2float(lsxx(lidz,lidx+1).x)-__half2float(lsxx(lidz,lidx).x))+
+//                      HC2*(__half2float(lsxx(lidz,lidx+2).x)-__half2float(lsxx(lidz,lidx-1).x))+
+//                      HC3*(__half2float(lsxx(lidz,lidx+3).x)-__half2float(lsxx(lidz,lidx-2).x)));
+//        sxx_x.y = DTDH*(HC1*(__half2float(lsxx(lidz,lidx+1).y)-__half2float(lsxx(lidz,lidx).y))+
+//                      HC2*(__half2float(lsxx(lidz,lidx+2).y)-__half2float(lsxx(lidz,lidx-1).y))+
+//                      HC3*(__half2float(lsxx(lidz,lidx+3).y)-__half2float(lsxx(lidz,lidx-2).y)));
+//#elif FDOH ==4
+//        sxx_x.x = DTDH*(HC1*(__half2float(lsxx(lidz,lidx+1).x)-__half2float(lsxx(lidz,lidx).x))+
+//                      HC2*(__half2float(lsxx(lidz,lidx+2).x)-__half2float(lsxx(lidz,lidx-1).x))+
+//                      HC3*(__half2float(lsxx(lidz,lidx+3).x)-__half2float(lsxx(lidz,lidx-2).x))+
+//                      HC4*(__half2float(lsxx(lidz,lidx+4).x)-__half2float(lsxx(lidz,lidx-3).x)));
+//        sxx_x.y = DTDH*(HC1*(__half2float(lsxx(lidz,lidx+1).y)-__half2float(lsxx(lidz,lidx).y))+
+//                      HC2*(__half2float(lsxx(lidz,lidx+2).y)-__half2float(lsxx(lidz,lidx-1).y))+
+//                      HC3*(__half2float(lsxx(lidz,lidx+3).y)-__half2float(lsxx(lidz,lidx-2).y))+
+//                      HC4*(__half2float(lsxx(lidz,lidx+4).y)-__half2float(lsxx(lidz,lidx-3).y)));
+//#elif FDOH ==5
+//        sxx_x.x = DTDH*(HC1*(__half2float(lsxx(lidz,lidx+1).x)-__half2float(lsxx(lidz,lidx).x))+
+//                      HC2*(__half2float(lsxx(lidz,lidx+2).x)-__half2float(lsxx(lidz,lidx-1).x))+
+//                      HC3*(__half2float(lsxx(lidz,lidx+3).x)-__half2float(lsxx(lidz,lidx-2).x))+
+//                      HC4*(__half2float(lsxx(lidz,lidx+4).x)-__half2float(lsxx(lidz,lidx-3).x))+
+//                      HC5*(__half2float(lsxx(lidz,lidx+5).x)-__half2float(lsxx(lidz,lidx-4).x)));
+//        sxx_x.y = DTDH*(HC1*(__half2float(lsxx(lidz,lidx+1).y)-__half2float(lsxx(lidz,lidx).y))+
+//                      HC2*(__half2float(lsxx(lidz,lidx+2).y)-__half2float(lsxx(lidz,lidx-1).y))+
+//                      HC3*(__half2float(lsxx(lidz,lidx+3).y)-__half2float(lsxx(lidz,lidx-2).y))+
+//                      HC4*(__half2float(lsxx(lidz,lidx+4).y)-__half2float(lsxx(lidz,lidx-3).y))+
+//                      HC5*(__half2float(lsxx(lidz,lidx+5).y)-__half2float(lsxx(lidz,lidx-4).y)));
+//#elif FDOH ==6
+//        sxx_x.x = DTDH*(HC1*(__half2float(lsxx(lidz,lidx+1).x)-__half2float(lsxx(lidz,lidx).x))+
+//                      HC2*(__half2float(lsxx(lidz,lidx+2).x)-__half2float(lsxx(lidz,lidx-1).x))+
+//                      HC3*(__half2float(lsxx(lidz,lidx+3).x)-__half2float(lsxx(lidz,lidx-2).x))+
+//                      HC4*(__half2float(lsxx(lidz,lidx+4).x)-__half2float(lsxx(lidz,lidx-3).x))+
+//                      HC5*(__half2float(lsxx(lidz,lidx+5).x)-__half2float(lsxx(lidz,lidx-4).x))+
+//                      HC6*(__half2float(lsxx(lidz,lidx+6).x)-__half2float(lsxx(lidz,lidx-5).x)));
+//        sxx_x.y = DTDH*(HC1*(__half2float(lsxx(lidz,lidx+1).y)-__half2float(lsxx(lidz,lidx).y))+
+//                      HC2*(__half2float(lsxx(lidz,lidx+2).y)-__half2float(lsxx(lidz,lidx-1).y))+
+//                      HC3*(__half2float(lsxx(lidz,lidx+3).y)-__half2float(lsxx(lidz,lidx-2).y))+
+//                      HC4*(__half2float(lsxx(lidz,lidx+4).y)-__half2float(lsxx(lidz,lidx-3).y))+
+//                      HC5*(__half2float(lsxx(lidz,lidx+5).y)-__half2float(lsxx(lidz,lidx-4).y))+
+//                      HC6*(__half2float(lsxx(lidz,lidx+6).y)-__half2float(lsxx(lidz,lidx-5).y)));
+//#endif
         
 //        
 //#if LOCAL_OFF==0
@@ -313,8 +316,8 @@ extern "C" __global__ void update_v(int offcomm,
 //                      HC5*(__half2float(lsxz(lidz,lidx+4))-__half2float(lsxz(lidz,lidx-5)))+
 //                      HC6*(__half2float(lsxz(lidz,lidx+5))-__half2float(lsxz(lidz,lidx-6))));
 //#endif
-//    }
-//    
+    }
+//
 //    // To stop updating if we are outside the model (global id must be a multiple of local id in OpenCL, hence we stop if we have a global id outside the grid)
 //#if LOCAL_OFF==0
 //#if COMM12==0
