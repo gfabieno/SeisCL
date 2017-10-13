@@ -136,25 +136,25 @@ extern "C" __global__ void update_s(int offcomm,
     
 #endif
     
-//    // Calculation of the velocity spatial derivatives
-//    {
-//#if LOCAL_OFF==0
-//        lvx2(lidz,lidx)=vx(gidz, gidx);
-//        if (lidx<2*FDOH)
-//            lvx2(lidz,lidx-FDOH)=vx(gidz,gidx-FDOH);
-//        if (lidx+lsizex-3*FDOH<FDOH)
-//            lvx2(lidz,lidx+lsizex-3*FDOH)=vx(gidz,gidx+lsizex-3*FDOH);
-//        if (lidx>(lsizex-2*FDOH-1))
-//            lvx2(lidz,lidx+FDOH)=vx(gidz,gidx+FDOH);
-//        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
-//            lvx2(lidz,lidx-lsizex+3*FDOH)=vx(gidz,gidx-lsizex+3*FDOH);
-//        if (lidz<FDOH)
-//            lvx2(lidz-FDOH,lidx)=vx(gidz-FDOH,gidx);
-//        if (lidz>(lsizez-FDOH-1))
-//            lvx2(lidz+FDOH,lidx)=vx(gidz+FDOH,gidx);
-//        
-//        __syncthreads();
-//#endif
+    // Calculation of the velocity spatial derivatives
+    {
+#if LOCAL_OFF==0
+        lvx2(lidz,lidx)=vx(gidz, gidx);
+        if (lidx<2*FDOH)
+            lvx2(lidz,lidx-FDOH)=vx(gidz,gidx-FDOH);
+        if (lidx+lsizex-3*FDOH<FDOH)
+            lvx2(lidz,lidx+lsizex-3*FDOH)=vx(gidz,gidx+lsizex-3*FDOH);
+        if (lidx>(lsizex-2*FDOH-1))
+            lvx2(lidz,lidx+FDOH)=vx(gidz,gidx+FDOH);
+        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
+            lvx2(lidz,lidx-lsizex+3*FDOH)=vx(gidz,gidx-lsizex+3*FDOH);
+        if (lidz<FDOH)
+            lvx2(lidz-FDOH,lidx)=vx(gidz-FDOH,gidx);
+        if (lidz>(lsizez-FDOH-1))
+            lvx2(lidz+FDOH,lidx)=vx(gidz+FDOH,gidx);
+        
+        __syncthreads();
+#endif
 //        
 //#if   FDOH==1
 //        vxx.x = HC1*(__h2f(lvx((2*lidz), lidx))  -__h2f(lvx((2*lidz), lidx-1)))/DH;
@@ -398,7 +398,7 @@ extern "C" __global__ void update_s(int offcomm,
 //               + HC6*(__h2f(lvz((2*lidz+1), lidx+6))-__h2f(lvz((2*lidz+1), lidx-5)))
 //               )/DH;
 //#endif
-//    }
+    }
     
     
     // To stop updating if we are outside the model (global id must be a multiple of local id in OpenCL, hence we stop if we have a global id outside the grid)
