@@ -462,15 +462,20 @@ extern "C" __global__ void update_v(int offcomm,
 //    }
 //#endif
 //
-//    // Update the velocities
-//    {
-//        float2 lvx = __half22float2(vx(gidz,gidx));
-//        float2 lvz = __half22float2(vz(gidz,gidx));
-//        lvx.x = ((sxx_x.x + sxz_z.x)/rip(gidz,gidx).x);
-//        lvx.y = ((sxx_x.y + sxz_z.y)/rip(gidz,gidx).y);
-//        vx(gidz,gidx)+= ((sxx_x + sxz_z)/rip(gidz,gidx));
-//        vz(gidz,gidx)+= ((szz_z + sxz_x)/rkp(gidz,gidx));
-//    }
+    // Update the velocities
+    {
+        float2 lvx = __half22float2(vx(gidz,gidx));
+        float2 lvz = __half22float2(vz(gidz,gidx));
+        float2 lrip = rip(gidz,gidx);
+        float2 lrkp = rkp(gidz,gidx);
+        lvx.x = ((sxx_x.x + sxz_z.x)/lrip.x);
+        lvx.y = ((sxx_x.y + sxz_z.y)/lrip.y);
+        lvz.x = ((szz_z.x + sxz_x.x)/lrkp.x);
+        lvz.y = ((szz_z.y + sxz_x.y)/lrkp.y);
+        
+        vx(gidz,gidx)= __float22half2(lvx);
+        vz(gidz,gidx)= __float22half2(lvz);
+    }
     
 //    // Absorbing boundary
 //#if ABS_TYPE==2

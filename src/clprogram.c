@@ -178,8 +178,6 @@ int get_build_options(device *dev,
     sprintf(build_options[*n-1],"--include-path=%s/include",value);
     *n+=1;
     sprintf(build_options[*n-1],"--pre-include=cuda_fp16.h");
-    *n+=1;
-    sprintf(build_options[*n-1],"--pre-include=helper_math.h");
 
     *n+=1;
     if ( (*dev).FP16==1){
