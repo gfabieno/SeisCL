@@ -87,7 +87,7 @@
 extern "C" __global__ void update_v(int offcomm,
                                     half2 *vx,      half2 *vz,
                                     half2 *sxx,     half2 *szz,     half2 *sxz,
-                                    float2 *rip,     float2 *rkp,
+                                    half2 *rip,     half2 *rkp,
                                     float *taper,
                                     float *K_z,        float *a_z,          float *b_z,
                                     float *K_z_half,   float *a_z_half,     float *b_z_half,
