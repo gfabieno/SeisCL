@@ -73,7 +73,8 @@
 #define PI (3.141592653589793238462643383279502884197169)
 #define signals(y,x) signals[(y)*NT+(x)]
 
-
+#define __h2f0(x) __half2float(*((half*)&(x)))
+#define __h2f1(x) __half2float(*((half*)&(x)+1))
 
 extern "C" __global__ void update_s(int offcomm,
                                     half2 *vx,         half2 *vz,
