@@ -87,7 +87,7 @@
 extern "C" __global__ void update_v(int offcomm,
                                     half2 *vx,      half2 *vz,
                                     half2 *sxx,     half2 *szz,     half2 *sxz,
-                                    float *rip,     float *rkp,
+                                    float2 *rip,     float2 *rkp,
                                     float *taper,
                                     float *K_z,        float *a_z,          float *b_z,
                                     float *K_z_half,   float *a_z_half,     float *b_z_half,
@@ -473,8 +473,8 @@ extern "C" __global__ void update_v(int offcomm,
         lvz.x = ((szz_z.x + sxz_x.x)/lrkp.x);
         lvz.y = ((szz_z.y + sxz_x.y)/lrkp.y);
         
-        vx(gidz,gidx)= __float22half2(lvx);
-        vz(gidz,gidx)= __float22half2(lvz);
+        vx(gidz,gidx)= __float22half2_rn(lvx);
+        vz(gidz,gidx)= __float22half2_rn(lvz);
     }
     
 //    // Absorbing boundary
