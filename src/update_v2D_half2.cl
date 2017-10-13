@@ -98,8 +98,7 @@ extern "C" __global__ void update_v(int offcomm,
 {
     
     extern __shared__ half2 lvar2[];
-    __shared__ half * lvar;
-    lvar = (half*)lvar2;
+    half * lvar(half*)lvar2;
     
     float2 sxx_x;
     float2 szz_z;
