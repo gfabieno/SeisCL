@@ -894,7 +894,7 @@ int Init_CUDA(model * m, device ** dev)  {
         __GUARD kernel_varoutinit(di, &di->src_recs.varsoutinit);
         __GUARD prog_create(m, di,  &di->src_recs.varsoutinit);
         
-        __GUARD kernel_varinit(di, di->vars, &di->bnd_cnds.init_f);
+        __GUARD kernel_varinit(di, m, di->vars, &di->bnd_cnds.init_f);
         __GUARD prog_create(m, di,  &di->bnd_cnds.init_f);
    
         
@@ -905,23 +905,23 @@ int Init_CUDA(model * m, device ** dev)  {
             __GUARD prog_create(m, di,  &di->src_recs.residuals);
             
             if (m->BACK_PROP_TYPE==1){
-                __GUARD kernel_varinit(di,di->vars_adj, &di->bnd_cnds.init_adj);
+                __GUARD kernel_varinit(di,m, di->vars_adj, &di->bnd_cnds.init_adj);
                 __GUARD prog_create(m, di,  &di->bnd_cnds.init_adj);
-                di->bnd_cnds.init_adj.gsize[0]=fdsize;
+                
                 
                 __GUARD kernel_gradinit(di, di->pars, &di->grads.init);
                 __GUARD prog_create(m, di,  &di->grads.init);
-                di->grads.init.gsize[0]=parsize;
+                
             }
             else if(m->BACK_PROP_TYPE==2){
                 __GUARD kernel_initsavefreqs(di, di->vars,
                                                       &di->grads.initsavefreqs);
                 __GUARD prog_create(m, di,  &di->grads.initsavefreqs);
-                di->grads.initsavefreqs.gsize[0]=fdsize;
+                
                 
                 kernel_savefreqs(di, di->vars, &di->grads.savefreqs);
                 __GUARD prog_create(m, di,  &di->grads.savefreqs);
-                di->grads.savefreqs.gsize[0]=fdsize;
+                
             }
             
             if (m->GRADSRCOUT){

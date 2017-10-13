@@ -235,6 +235,7 @@ int kernel_varoutinit(device * dev,
 }
 
 int kernel_varinit(device * dev,
+                   model * m,
                    variable * vars,
                    clprogram * prog){
     
@@ -310,14 +311,14 @@ int kernel_varinit(device * dev,
     __GUARD prog_source(prog, "vars_init", (*prog).src);
     
     if (dev->FP16==1){
-        prog->gsize[0]=dev->N[0]/2;
+        prog->gsize[0]=dev->N[0]/2+m->FDOH;
     }
     else{
-        prog->gsize[0]=dev->N[0];
+        prog->gsize[0]=dev->N[0]+m->FDORDER;
     }
-    prog->gsize[1]=dev->N[1];
+    prog->gsize[1]=dev->N[1]+m->FDORDER;
     if (dev->NDIM==3){
-        prog->gsize[2]=dev->N[2];
+        prog->gsize[2]=dev->N[2]+m->FDORDER;
     }
     
     prog->wdim=dev->NDIM;
@@ -667,7 +668,19 @@ int kernel_gradinit(device * dev,
     strcat(temp, "){\n\n");
     
     
-    strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n\n");
+    if (dev->NDIM==2){
+        
+        strcat(temp,"int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
+               "int gidx = blockIdx.y*blockDim.y + threadIdx.y;\n"
+               "int gid = gidx*blockDim.x*gridDim.x+gidz;\n");
+    }
+    else if (dev->NDIM==3){
+        strcat(temp,"int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
+               "int gidy = blockIdx.y*blockDim.y + threadIdx.y;\n"
+               "int gidx = blockIdx.y*blockDim.z + threadIdx.z;\n"
+               "int gid = gidx*blockDim.x*gridDim.x*blockDim.y*gridDim.y"
+               "+gidy*blockDim.x*gridDim.x +gidz;\n");
+    }
     
     if (dev->npars>0){
         sprintf(temp2,"    if (gid>%d-1){\n", pars[0].num_ele);
@@ -692,7 +705,18 @@ int kernel_gradinit(device * dev,
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
     
-    prog->wdim=1;
+    if (dev->FP16==1){
+        prog->gsize[0]=dev->N[0]/2;
+    }
+    else{
+        prog->gsize[0]=dev->N[0];
+    }
+    prog->gsize[1]=dev->N[1];
+    if (dev->NDIM==3){
+        prog->gsize[2]=dev->N[2];
+    }
+    
+    prog->wdim=dev->NDIM;
     
     return state;
     
@@ -731,7 +755,19 @@ int kernel_initsavefreqs(device * dev,
     strcat(temp, "){\n\n");
     
     
-    strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n");
+    if (dev->NDIM==2){
+        
+        strcat(temp,"int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
+               "int gidx = blockIdx.y*blockDim.y + threadIdx.y;\n"
+               "int gid = gidx*blockDim.x*gridDim.x+gidz;\n");
+    }
+    else if (dev->NDIM==3){
+        strcat(temp,"int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
+               "int gidy = blockIdx.y*blockDim.y + threadIdx.y;\n"
+               "int gidx = blockIdx.y*blockDim.z + threadIdx.z;\n"
+               "int gid = gidx*blockDim.x*gridDim.x*blockDim.y*gridDim.y"
+               "+gidy*blockDim.x*gridDim.x +gidz;\n");
+    }
     
     
     for (i=0;i<dev->nvars;i++){
@@ -753,7 +789,18 @@ int kernel_initsavefreqs(device * dev,
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
     
-    prog->wdim=1;
+    if (dev->FP16==1){
+        prog->gsize[0]=dev->N[0]/2;
+    }
+    else{
+        prog->gsize[0]=dev->N[0];
+    }
+    prog->gsize[1]=dev->N[1];
+    if (dev->NDIM==3){
+        prog->gsize[2]=dev->N[2];
+    }
+    
+    prog->wdim=dev->NDIM;
     
     return state;
     
@@ -811,6 +858,22 @@ int kernel_savefreqs(device * dev,
 
     strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n"
                 "    int gsize=blockDim.x * gridDim.x;\n\n" );
+    if (dev->NDIM==2){
+        
+        strcat(temp,"int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
+               "    int gidx = blockIdx.y*blockDim.y + threadIdx.y;\n"
+               "    int gid = gidx*blockDim.x*gridDim.x+gidz;\n"
+               "    int gsize=blockDim.x * gridDim.x*blockDim.y * gridDim.y;\n\n");
+    }
+    else if (dev->NDIM==3){
+        strcat(temp,"    int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
+               "    int gidy = blockIdx.y*blockDim.y + threadIdx.y;\n"
+               "    int gidx = blockIdx.y*blockDim.z + threadIdx.z;\n"
+               "    int gid = gidx*blockDim.x*gridDim.x*blockDim.y*gridDim.y"
+               "+gidy*blockDim.x*gridDim.x +gidz;\n"
+               "    int gsize=blockDim.x * gridDim.x*blockDim.y * gridDim.y"
+               "*blockDim.z * gridDim.z;\n\n");
+    }
     
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
@@ -860,7 +923,18 @@ int kernel_savefreqs(device * dev,
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
     
-    prog->wdim=1;
+    if (dev->FP16==1){
+        prog->gsize[0]=dev->N[0]/2;
+    }
+    else{
+        prog->gsize[0]=dev->N[0];
+    }
+    prog->gsize[1]=dev->N[1];
+    if (dev->NDIM==3){
+        prog->gsize[2]=dev->N[2];
+    }
+    
+    prog->wdim=dev->NDIM;
     
     return state;
     
