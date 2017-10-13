@@ -76,7 +76,7 @@ csts['resout']=0            #Output residuals 1:yes, 0: no
 csts['rmsout']=0            #Output rms value 1:yes, 0: no
 csts['movout']=0            #Output movie 1:yes, 0: no
 csts['restype']=0           #Type of costfunction 0: raw seismic trace cost function. No other available at the moment
-csts['FP16']=1              #Use half precision 1: yes 0: no
+csts['FP16']=0              #Use half precision 1: yes 0: no
 
 h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
 
