@@ -58,7 +58,8 @@
 
 #if LOCAL_OFF==0
 
-#define lvar(z,x)  lvar[(x)*lsizez+(z)]
+#define lvar2(z,x)  lvar2[(x)*lsizez+(z)]
+#define lvar(z,x)  lvar[(x)*lsizez*2+(z)]
 
 #endif
 
@@ -73,8 +74,7 @@
 #define PI (3.141592653589793238462643383279502884197169)
 #define signals(y,x) signals[(y)*NT+(x)]
 
-#define __h2f0(x) __half2float(*((half*)&(x)))
-#define __h2f1(x) __half2float(*((half*)&(x)+1))
+#define __h2f(x) __half2float((x))
 
 extern "C" __global__ void update_s(int offcomm,
                                     half2 *vx,         half2 *vz,
@@ -91,7 +91,8 @@ extern "C" __global__ void update_s(int offcomm,
                                     half2 *psi_vz_x,    half2 *psi_vz_z)
 {
     
-    extern __shared__ half2 lvar[];
+    extern __shared__ half2 lvar2[];
+    half * lvar = (half*)lvar2;
     
     float2 vxx, vzz, vzx, vxz;
     int i,k,l,ind;
@@ -105,24 +106,26 @@ extern "C" __global__ void update_s(int offcomm,
     
     // If we use local memory
 #if LOCAL_OFF==0
-    int lsizez = blockDim.x+2*FDOH;
+    int lsizez = blockDim.x+FDOH;
     int lsizex = blockDim.y+2*FDOH;
-    int lidz = threadIdx.x+FDOH;
+    int lidz = threadIdx.x+FDOH/2;
     int lidx = threadIdx.y+FDOH;
-    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
+    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH/2;
     int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH+offcomm;
     
+#define lvx2 lvar2
+#define lvz2 lvar2
 #define lvx lvar
 #define lvz lvar
     
     // If local memory is turned off
 #elif LOCAL_OFF==1
     
-    int lsizez = blockDim.x+2*FDOH;
+    int lsizez = blockDim.x+FDOH;
     int lsizex = blockDim.y+2*FDOH;
-    int lidz = threadIdx.x+FDOH;
+    int lidz = threadIdx.x+FDOH/2;
     int lidx = threadIdx.y+FDOH;
-    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
+    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH/2;
     int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH+offcomm;
     
     
@@ -136,263 +139,263 @@ extern "C" __global__ void update_s(int offcomm,
     // Calculation of the velocity spatial derivatives
     {
 #if LOCAL_OFF==0
-        lvx(lidz,lidx)=vx(gidz, gidx);
+        lvx2(lidz,lidx)=vx(gidz, gidx);
         if (lidx<2*FDOH)
-            lvx(lidz,lidx-FDOH)=vx(gidz,gidx-FDOH);
+            lvx2(lidz,lidx-FDOH)=vx(gidz,gidx-FDOH);
         if (lidx+lsizex-3*FDOH<FDOH)
-            lvx(lidz,lidx+lsizex-3*FDOH)=vx(gidz,gidx+lsizex-3*FDOH);
+            lvx2(lidz,lidx+lsizex-3*FDOH)=vx(gidz,gidx+lsizex-3*FDOH);
         if (lidx>(lsizex-2*FDOH-1))
-            lvx(lidz,lidx+FDOH)=vx(gidz,gidx+FDOH);
+            lvx2(lidz,lidx+FDOH)=vx(gidz,gidx+FDOH);
         if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
-            lvx(lidz,lidx-lsizex+3*FDOH)=vx(gidz,gidx-lsizex+3*FDOH);
-        if (lidz<2*FDOH)
-            lvx(lidz-FDOH,lidx)=vx(gidz-FDOH,gidx);
-        if (lidz>(lsizez-2*FDOH-1))
-            lvx(lidz+FDOH,lidx)=vx(gidz+FDOH,gidx);
+            lvx2(lidz,lidx-lsizex+3*FDOH)=vx(gidz,gidx-lsizex+3*FDOH);
+        if (lidz<FDOH)
+            lvx2(lidz-FDOH,lidx)=vx(gidz-FDOH,gidx);
+        if (lidz>(lsizez-FDOH-1))
+            lvx2(lidz+FDOH,lidx)=vx(gidz+FDOH,gidx);
         
         __syncthreads();
 #endif
         
 #if   FDOH==1
-        vxx.x = HC1*(__h2f0(lvx(lidz, lidx))  -__h2f0(lvx(lidz, lidx-1)))/DH;
-        vxx.y = HC1*(__h2f1(lvx(lidz, lidx))  -__h2f1(lvx(lidz, lidx-1)))/DH;
-        vxz.x = HC1*(__h2f0(lvx(lidz+1, lidx))-__h2f0(lvx(lidz, lidx)))/DH;
-        vxz.y = HC1*(__h2f1(lvx(lidz+1, lidx))-__h2f1(lvx(lidz, lidx)))/DH;
+        vxx.x = HC1*(__h2f0(lvx((2*lidz), lidx))  -__h2f0(lvx((2*lidz), lidx-1)))/DH;
+        vxx.y = HC1*(__h2f1(lvx((2*lidz+1), lidx))  -__h2f1(lvx((2*lidz+1), lidx-1)))/DH;
+        vxz.x = HC1*(__h2f0(lvx((2*lidz)+1, lidx))-__h2f0(lvx((2*lidz), lidx)))/DH;
+        vxz.y = HC1*(__h2f1(lvx((2*lidz+1)+1, lidx))-__h2f1(lvx((2*lidz+1), lidx)))/DH;
 #elif FDOH==2
-        vxx.x = (  HC1*(__h2f0(lvx(lidz, lidx))  -__h2f0(lvx(lidz, lidx-1)))
-               + HC2*(__h2f0(lvx(lidz, lidx+1))-__h2f0(lvx(lidz, lidx-2)))
+        vxx.x = (  HC1*(__h2f0(lvx((2*lidz), lidx))  -__h2f0(lvx((2*lidz), lidx-1)))
+               + HC2*(__h2f0(lvx((2*lidz), lidx+1))-__h2f0(lvx((2*lidz), lidx-2)))
                )/DH;
-        vxx.y = (  HC1*(__h2f1(lvx(lidz, lidx))  -__h2f1(lvx(lidz, lidx-1)))
-               + HC2*(__h2f1(lvx(lidz, lidx+1))-__h2f1(lvx(lidz, lidx-2)))
+        vxx.y = (  HC1*(__h2f1(lvx((2*lidz+1), lidx))  -__h2f1(lvx((2*lidz+1), lidx-1)))
+               + HC2*(__h2f1(lvx((2*lidz+1), lidx+1))-__h2f1(lvx((2*lidz+1), lidx-2)))
                )/DH;
-        vxz.x = (  HC1*(__h2f0(lvx(lidz+1, lidx))-__h2f0(lvx(lidz, lidx)))
-               + HC2*(__h2f0(lvx(lidz+2, lidx))-__h2f0(lvx(lidz-1, lidx)))
+        vxz.x = (  HC1*(__h2f0(lvx((2*lidz)+1, lidx))-__h2f0(lvx((2*lidz), lidx)))
+               + HC2*(__h2f0(lvx((2*lidz)+2, lidx))-__h2f0(lvx((2*lidz)-1, lidx)))
                )/DH;
-        vxz.y = (  HC1*(__h2f1(lvx(lidz+1, lidx))-__h2f1(lvx(lidz, lidx)))
-               + HC2*(__h2f1(lvx(lidz+2, lidx))-__h2f1(lvx(lidz-1, lidx)))
+        vxz.y = (  HC1*(__h2f1(lvx((2*lidz+1)+1, lidx))-__h2f1(lvx((2*lidz+1), lidx)))
+               + HC2*(__h2f1(lvx((2*lidz+1)+2, lidx))-__h2f1(lvx((2*lidz+1)-1, lidx)))
                )/DH;
 #elif FDOH==3
-        vxx.x = (  HC1*(__h2f0(lvx(lidz, lidx))  -__h2f0(lvx(lidz, lidx-1)))
-               + HC2*(__h2f0(lvx(lidz, lidx+1))-__h2f0(lvx(lidz, lidx-2)))
-               + HC3*(__h2f0(lvx(lidz, lidx+2))-__h2f0(lvx(lidz, lidx-3)))
+        vxx.x = (  HC1*(__h2f0(lvx((2*lidz), lidx))  -__h2f0(lvx((2*lidz), lidx-1)))
+               + HC2*(__h2f0(lvx((2*lidz), lidx+1))-__h2f0(lvx((2*lidz), lidx-2)))
+               + HC3*(__h2f0(lvx((2*lidz), lidx+2))-__h2f0(lvx((2*lidz), lidx-3)))
                )/DH;
-        vxx.y = (  HC1*(__h2f1(lvx(lidz, lidx))  -__h2f1(lvx(lidz, lidx-1)))
-               + HC2*(__h2f1(lvx(lidz, lidx+1))-__h2f1(lvx(lidz, lidx-2)))
-               + HC3*(__h2f1(lvx(lidz, lidx+2))-__h2f1(lvx(lidz, lidx-3)))
+        vxx.y = (  HC1*(__h2f1(lvx((2*lidz+1), lidx))  -__h2f1(lvx((2*lidz+1), lidx-1)))
+               + HC2*(__h2f1(lvx((2*lidz+1), lidx+1))-__h2f1(lvx((2*lidz+1), lidx-2)))
+               + HC3*(__h2f1(lvx((2*lidz+1), lidx+2))-__h2f1(lvx((2*lidz+1), lidx-3)))
                )/DH;
-        vxz.x = (  HC1*(__h2f0(lvx(lidz+1, lidx))-__h2f0(lvx(lidz, lidx)))
-               + HC2*(__h2f0(lvx(lidz+2, lidx))-__h2f0(lvx(lidz-1, lidx)))
-               + HC3*(__h2f0(lvx(lidz+3, lidx))-__h2f0(lvx(lidz-2, lidx)))
+        vxz.x = (  HC1*(__h2f0(lvx((2*lidz)+1, lidx))-__h2f0(lvx((2*lidz), lidx)))
+               + HC2*(__h2f0(lvx((2*lidz)+2, lidx))-__h2f0(lvx((2*lidz)-1, lidx)))
+               + HC3*(__h2f0(lvx((2*lidz)+3, lidx))-__h2f0(lvx((2*lidz)-2, lidx)))
                )/DH;
-        vxz.y = (  HC1*(__h2f1(lvx(lidz+1, lidx))-__h2f1(lvx(lidz, lidx)))
-               + HC2*(__h2f1(lvx(lidz+2, lidx))-__h2f1(lvx(lidz-1, lidx)))
-               + HC3*(__h2f1(lvx(lidz+3, lidx))-__h2f1(lvx(lidz-2, lidx)))
+        vxz.y = (  HC1*(__h2f1(lvx((2*lidz+1)+1, lidx))-__h2f1(lvx((2*lidz+1), lidx)))
+               + HC2*(__h2f1(lvx((2*lidz+1)+2, lidx))-__h2f1(lvx((2*lidz+1)-1, lidx)))
+               + HC3*(__h2f1(lvx((2*lidz+1)+3, lidx))-__h2f1(lvx((2*lidz+1)-2, lidx)))
                )/DH;
 #elif FDOH==4
-        vxx.x = (   HC1*(__h2f0(lvx(lidz, lidx))  -__h2f0(lvx(lidz, lidx-1)))
-               + HC2*(__h2f0(lvx(lidz, lidx+1))-__h2f0(lvx(lidz, lidx-2)))
-               + HC3*(__h2f0(lvx(lidz, lidx+2))-__h2f0(lvx(lidz, lidx-3)))
-               + HC4*(__h2f0(lvx(lidz, lidx+3))-__h2f0(lvx(lidz, lidx-4)))
+        vxx.x = (   HC1*(__h2f0(lvx((2*lidz), lidx))  -__h2f0(lvx((2*lidz), lidx-1)))
+               + HC2*(__h2f0(lvx((2*lidz), lidx+1))-__h2f0(lvx((2*lidz), lidx-2)))
+               + HC3*(__h2f0(lvx((2*lidz), lidx+2))-__h2f0(lvx((2*lidz), lidx-3)))
+               + HC4*(__h2f0(lvx((2*lidz), lidx+3))-__h2f0(lvx((2*lidz), lidx-4)))
                )/DH;
-        vxx.y = (   HC1*(__h2f1(lvx(lidz, lidx))  -__h2f1(lvx(lidz, lidx-1)))
-               + HC2*(__h2f1(lvx(lidz, lidx+1))-__h2f1(lvx(lidz, lidx-2)))
-               + HC3*(__h2f1(lvx(lidz, lidx+2))-__h2f1(lvx(lidz, lidx-3)))
-               + HC4*(__h2f1(lvx(lidz, lidx+3))-__h2f1(lvx(lidz, lidx-4)))
+        vxx.y = (   HC1*(__h2f1(lvx((2*lidz+1), lidx))  -__h2f1(lvx((2*lidz+1), lidx-1)))
+               + HC2*(__h2f1(lvx((2*lidz+1), lidx+1))-__h2f1(lvx((2*lidz+1), lidx-2)))
+               + HC3*(__h2f1(lvx((2*lidz+1), lidx+2))-__h2f1(lvx((2*lidz+1), lidx-3)))
+               + HC4*(__h2f1(lvx((2*lidz+1), lidx+3))-__h2f1(lvx((2*lidz+1), lidx-4)))
                )/DH;
-        vxz.x = (  HC1*(__h2f0(lvx(lidz+1, lidx))-__h2f0(lvx(lidz, lidx)))
-               + HC2*(__h2f0(lvx(lidz+2, lidx))-__h2f0(lvx(lidz-1, lidx)))
-               + HC3*(__h2f0(lvx(lidz+3, lidx))-__h2f0(lvx(lidz-2, lidx)))
-               + HC4*(__h2f0(lvx(lidz+4, lidx))-__h2f0(lvx(lidz-3, lidx)))
+        vxz.x = (  HC1*(__h2f0(lvx((2*lidz)+1, lidx))-__h2f0(lvx((2*lidz), lidx)))
+               + HC2*(__h2f0(lvx((2*lidz)+2, lidx))-__h2f0(lvx((2*lidz)-1, lidx)))
+               + HC3*(__h2f0(lvx((2*lidz)+3, lidx))-__h2f0(lvx((2*lidz)-2, lidx)))
+               + HC4*(__h2f0(lvx((2*lidz)+4, lidx))-__h2f0(lvx((2*lidz)-3, lidx)))
                )/DH;
-        vxz.y = (  HC1*(__h2f1(lvx(lidz+1, lidx))-__h2f1(lvx(lidz, lidx)))
-               + HC2*(__h2f1(lvx(lidz+2, lidx))-__h2f1(lvx(lidz-1, lidx)))
-               + HC3*(__h2f1(lvx(lidz+3, lidx))-__h2f1(lvx(lidz-2, lidx)))
-               + HC4*(__h2f1(lvx(lidz+4, lidx))-__h2f1(lvx(lidz-3, lidx)))
+        vxz.y = (  HC1*(__h2f1(lvx((2*lidz+1)+1, lidx))-__h2f1(lvx((2*lidz+1), lidx)))
+               + HC2*(__h2f1(lvx((2*lidz+1)+2, lidx))-__h2f1(lvx((2*lidz+1)-1, lidx)))
+               + HC3*(__h2f1(lvx((2*lidz+1)+3, lidx))-__h2f1(lvx((2*lidz+1)-2, lidx)))
+               + HC4*(__h2f1(lvx((2*lidz+1)+4, lidx))-__h2f1(lvx((2*lidz+1)-3, lidx)))
                )/DH;
 #elif FDOH==5
-        vxx.x = (  HC1*(__h2f0(lvx(lidz, lidx))  -__h2f0(lvx(lidz, lidx-1)))
-               + HC2*(__h2f0(lvx(lidz, lidx+1))-__h2f0(lvx(lidz, lidx-2)))
-               + HC3*(__h2f0(lvx(lidz, lidx+2))-__h2f0(lvx(lidz, lidx-3)))
-               + HC4*(__h2f0(lvx(lidz, lidx+3))-__h2f0(lvx(lidz, lidx-4)))
-               + HC5*(__h2f0(lvx(lidz, lidx+4))-__h2f0(lvx(lidz, lidx-5)))
+        vxx.x = (  HC1*(__h2f0(lvx((2*lidz), lidx))  -__h2f0(lvx((2*lidz), lidx-1)))
+               + HC2*(__h2f0(lvx((2*lidz), lidx+1))-__h2f0(lvx((2*lidz), lidx-2)))
+               + HC3*(__h2f0(lvx((2*lidz), lidx+2))-__h2f0(lvx((2*lidz), lidx-3)))
+               + HC4*(__h2f0(lvx((2*lidz), lidx+3))-__h2f0(lvx((2*lidz), lidx-4)))
+               + HC5*(__h2f0(lvx((2*lidz), lidx+4))-__h2f0(lvx((2*lidz), lidx-5)))
                )/DH;
-        vxx.y = (  HC1*(__h2f1(lvx(lidz, lidx))  -__h2f1(lvx(lidz, lidx-1)))
-               + HC2*(__h2f1(lvx(lidz, lidx+1))-__h2f1(lvx(lidz, lidx-2)))
-               + HC3*(__h2f1(lvx(lidz, lidx+2))-__h2f1(lvx(lidz, lidx-3)))
-               + HC4*(__h2f1(lvx(lidz, lidx+3))-__h2f1(lvx(lidz, lidx-4)))
-               + HC5*(__h2f1(lvx(lidz, lidx+4))-__h2f1(lvx(lidz, lidx-5)))
+        vxx.y = (  HC1*(__h2f1(lvx((2*lidz+1), lidx))  -__h2f1(lvx((2*lidz+1), lidx-1)))
+               + HC2*(__h2f1(lvx((2*lidz+1), lidx+1))-__h2f1(lvx((2*lidz+1), lidx-2)))
+               + HC3*(__h2f1(lvx((2*lidz+1), lidx+2))-__h2f1(lvx((2*lidz+1), lidx-3)))
+               + HC4*(__h2f1(lvx((2*lidz+1), lidx+3))-__h2f1(lvx((2*lidz+1), lidx-4)))
+               + HC5*(__h2f1(lvx((2*lidz+1), lidx+4))-__h2f1(lvx((2*lidz+1), lidx-5)))
                )/DH;
-        vxz.x = (  HC1*(__h2f0(lvx(lidz+1, lidx))-__h2f0(lvx(lidz, lidx)))
-               + HC2*(__h2f0(lvx(lidz+2, lidx))-__h2f0(lvx(lidz-1, lidx)))
-               + HC3*(__h2f0(lvx(lidz+3, lidx))-__h2f0(lvx(lidz-2, lidx)))
-               + HC4*(__h2f0(lvx(lidz+4, lidx))-__h2f0(lvx(lidz-3, lidx)))
-               + HC5*(__h2f0(lvx(lidz+5, lidx))-__h2f0(lvx(lidz-4, lidx)))
+        vxz.x = (  HC1*(__h2f0(lvx((2*lidz)+1, lidx))-__h2f0(lvx((2*lidz), lidx)))
+               + HC2*(__h2f0(lvx((2*lidz)+2, lidx))-__h2f0(lvx((2*lidz)-1, lidx)))
+               + HC3*(__h2f0(lvx((2*lidz)+3, lidx))-__h2f0(lvx((2*lidz)-2, lidx)))
+               + HC4*(__h2f0(lvx((2*lidz)+4, lidx))-__h2f0(lvx((2*lidz)-3, lidx)))
+               + HC5*(__h2f0(lvx((2*lidz)+5, lidx))-__h2f0(lvx((2*lidz)-4, lidx)))
                )/DH;
-        vxz.y = (  HC1*(__h2f1(lvx(lidz+1, lidx))-__h2f1(lvx(lidz, lidx)))
-               + HC2*(__h2f1(lvx(lidz+2, lidx))-__h2f1(lvx(lidz-1, lidx)))
-               + HC3*(__h2f1(lvx(lidz+3, lidx))-__h2f1(lvx(lidz-2, lidx)))
-               + HC4*(__h2f1(lvx(lidz+4, lidx))-__h2f1(lvx(lidz-3, lidx)))
-               + HC5*(__h2f1(lvx(lidz+5, lidx))-__h2f1(lvx(lidz-4, lidx)))
+        vxz.y = (  HC1*(__h2f1(lvx((2*lidz+1)+1, lidx))-__h2f1(lvx((2*lidz+1), lidx)))
+               + HC2*(__h2f1(lvx((2*lidz+1)+2, lidx))-__h2f1(lvx((2*lidz+1)-1, lidx)))
+               + HC3*(__h2f1(lvx((2*lidz+1)+3, lidx))-__h2f1(lvx((2*lidz+1)-2, lidx)))
+               + HC4*(__h2f1(lvx((2*lidz+1)+4, lidx))-__h2f1(lvx((2*lidz+1)-3, lidx)))
+               + HC5*(__h2f1(lvx((2*lidz+1)+5, lidx))-__h2f1(lvx((2*lidz+1)-4, lidx)))
                )/DH;
 #elif FDOH==6
-        vxx.x = (  HC1*(__h2f0(lvx(lidz, lidx))  -__h2f0(lvx(lidz, lidx-1)))
-               + HC2*(__h2f0(lvx(lidz, lidx+1))-__h2f0(lvx(lidz, lidx-2)))
-               + HC3*(__h2f0(lvx(lidz, lidx+2))-__h2f0(lvx(lidz, lidx-3)))
-               + HC4*(__h2f0(lvx(lidz, lidx+3))-__h2f0(lvx(lidz, lidx-4)))
-               + HC5*(__h2f0(lvx(lidz, lidx+4))-__h2f0(lvx(lidz, lidx-5)))
-               + HC6*(__h2f0(lvx(lidz, lidx+5))-__h2f0(lvx(lidz, lidx-6)))
+        vxx.x = (  HC1*(__h2f0(lvx((2*lidz), lidx))  -__h2f0(lvx((2*lidz), lidx-1)))
+               + HC2*(__h2f0(lvx((2*lidz), lidx+1))-__h2f0(lvx((2*lidz), lidx-2)))
+               + HC3*(__h2f0(lvx((2*lidz), lidx+2))-__h2f0(lvx((2*lidz), lidx-3)))
+               + HC4*(__h2f0(lvx((2*lidz), lidx+3))-__h2f0(lvx((2*lidz), lidx-4)))
+               + HC5*(__h2f0(lvx((2*lidz), lidx+4))-__h2f0(lvx((2*lidz), lidx-5)))
+               + HC6*(__h2f0(lvx((2*lidz), lidx+5))-__h2f0(lvx((2*lidz), lidx-6)))
                )/DH;
-        vxx.y = (  HC1*(__h2f1(lvx(lidz, lidx))  -__h2f1(lvx(lidz, lidx-1)))
-               + HC2*(__h2f1(lvx(lidz, lidx+1))-__h2f1(lvx(lidz, lidx-2)))
-               + HC3*(__h2f1(lvx(lidz, lidx+2))-__h2f1(lvx(lidz, lidx-3)))
-               + HC4*(__h2f1(lvx(lidz, lidx+3))-__h2f1(lvx(lidz, lidx-4)))
-               + HC5*(__h2f1(lvx(lidz, lidx+4))-__h2f1(lvx(lidz, lidx-5)))
-               + HC6*(__h2f1(lvx(lidz, lidx+5))-__h2f1(lvx(lidz, lidx-6)))
+        vxx.y = (  HC1*(__h2f1(lvx((2*lidz+1), lidx))  -__h2f1(lvx((2*lidz+1), lidx-1)))
+               + HC2*(__h2f1(lvx((2*lidz+1), lidx+1))-__h2f1(lvx((2*lidz+1), lidx-2)))
+               + HC3*(__h2f1(lvx((2*lidz+1), lidx+2))-__h2f1(lvx((2*lidz+1), lidx-3)))
+               + HC4*(__h2f1(lvx((2*lidz+1), lidx+3))-__h2f1(lvx((2*lidz+1), lidx-4)))
+               + HC5*(__h2f1(lvx((2*lidz+1), lidx+4))-__h2f1(lvx((2*lidz+1), lidx-5)))
+               + HC6*(__h2f1(lvx((2*lidz+1), lidx+5))-__h2f1(lvx((2*lidz+1), lidx-6)))
                )/DH;
-        vxz.x = (  HC1*(__h2f0(lvx(lidz+1, lidx))-__h2f0(lvx(lidz, lidx)))
-               + HC2*(__h2f0(lvx(lidz+2, lidx))-__h2f0(lvx(lidz-1, lidx)))
-               + HC3*(__h2f0(lvx(lidz+3, lidx))-__h2f0(lvx(lidz-2, lidx)))
-               + HC4*(__h2f0(lvx(lidz+4, lidx))-__h2f0(lvx(lidz-3, lidx)))
-               + HC5*(__h2f0(lvx(lidz+5, lidx))-__h2f0(lvx(lidz-4, lidx)))
-               + HC6*(__h2f0(lvx(lidz+6, lidx))-__h2f0(lvx(lidz-5, lidx)))
+        vxz.x = (  HC1*(__h2f0(lvx((2*lidz)+1, lidx))-__h2f0(lvx((2*lidz), lidx)))
+               + HC2*(__h2f0(lvx((2*lidz)+2, lidx))-__h2f0(lvx((2*lidz)-1, lidx)))
+               + HC3*(__h2f0(lvx((2*lidz)+3, lidx))-__h2f0(lvx((2*lidz)-2, lidx)))
+               + HC4*(__h2f0(lvx((2*lidz)+4, lidx))-__h2f0(lvx((2*lidz)-3, lidx)))
+               + HC5*(__h2f0(lvx((2*lidz)+5, lidx))-__h2f0(lvx((2*lidz)-4, lidx)))
+               + HC6*(__h2f0(lvx((2*lidz)+6, lidx))-__h2f0(lvx((2*lidz)-5, lidx)))
                )/DH;
-        vxz.y = (  HC1*(__h2f1(lvx(lidz+1, lidx))-__h2f1(lvx(lidz, lidx)))
-               + HC2*(__h2f1(lvx(lidz+2, lidx))-__h2f1(lvx(lidz-1, lidx)))
-               + HC3*(__h2f1(lvx(lidz+3, lidx))-__h2f1(lvx(lidz-2, lidx)))
-               + HC4*(__h2f1(lvx(lidz+4, lidx))-__h2f1(lvx(lidz-3, lidx)))
-               + HC5*(__h2f1(lvx(lidz+5, lidx))-__h2f1(lvx(lidz-4, lidx)))
-               + HC6*(__h2f1(lvx(lidz+6, lidx))-__h2f1(lvx(lidz-5, lidx)))
+        vxz.y = (  HC1*(__h2f1(lvx((2*lidz+1)+1, lidx))-__h2f1(lvx((2*lidz+1), lidx)))
+               + HC2*(__h2f1(lvx((2*lidz+1)+2, lidx))-__h2f1(lvx((2*lidz+1)-1, lidx)))
+               + HC3*(__h2f1(lvx((2*lidz+1)+3, lidx))-__h2f1(lvx((2*lidz+1)-2, lidx)))
+               + HC4*(__h2f1(lvx((2*lidz+1)+4, lidx))-__h2f1(lvx((2*lidz+1)-3, lidx)))
+               + HC5*(__h2f1(lvx((2*lidz+1)+5, lidx))-__h2f1(lvx((2*lidz+1)-4, lidx)))
+               + HC6*(__h2f1(lvx((2*lidz+1)+6, lidx))-__h2f1(lvx((2*lidz+1)-5, lidx)))
                )/DH;
 #endif
         
         
 #if LOCAL_OFF==0
         __syncthreads();
-        lvz(lidz,lidx)=vz(gidz, gidx);
+        lvz2(lidz,lidx)=vz(gidz, gidx);
         if (lidx<2*FDOH)
-            lvz(lidz,lidx-FDOH)=vz(gidz,gidx-FDOH);
+            lvz2(lidz,lidx-FDOH)=vz(gidz,gidx-FDOH);
         if (lidx+lsizex-3*FDOH<FDOH)
-            lvz(lidz,lidx+lsizex-3*FDOH)=vz(gidz,gidx+lsizex-3*FDOH);
+            lvz2(lidz,lidx+lsizex-3*FDOH)=vz(gidz,gidx+lsizex-3*FDOH);
         if (lidx>(lsizex-2*FDOH-1))
-            lvz(lidz,lidx+FDOH)=vz(gidz,gidx+FDOH);
+            lvz2(lidz,lidx+FDOH)=vz(gidz,gidx+FDOH);
         if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
-            lvz(lidz,lidx-lsizex+3*FDOH)=vz(gidz,gidx-lsizex+3*FDOH);
-        if (lidz<2*FDOH)
-            lvz(lidz-FDOH,lidx)=vz(gidz-FDOH,gidx);
-        if (lidz>(lsizez-2*FDOH-1))
-            lvz(lidz+FDOH,lidx)=vz(gidz+FDOH,gidx);
+            lvz2(lidz,lidx-lsizex+3*FDOH)=vz(gidz,gidx-lsizex+3*FDOH);
+        if (lidz<FDOH)
+            lvz2(lidz-FDOH,lidx)=vz(gidz-FDOH,gidx);
+        if (lidz>(lsizez-FDOH-1))
+            lvz2(lidz+FDOH,lidx)=vz(gidz+FDOH,gidx);
         __syncthreads();
 #endif
         
 #if   FDOH==1
-        vzz.x = HC1*(__h2f0(lvz(lidz, lidx))  -__h2f0(lvz(lidz-1, lidx)))/DH;
-        vzz.y = HC1*(__h2f1(lvz(lidz, lidx))  -__h2f1(lvz(lidz-1, lidx)))/DH;
-        vzx.x = HC1*(__h2f0(lvz(lidz, lidx+1))-__h2f0(lvz(lidz, lidx)))/DH;
-        vzx.y = HC1*(__h2f1(lvz(lidz, lidx+1))-__h2f1(lvz(lidz, lidx)))/DH;
+        vzz.x = HC1*(__h2f0(lvz((2*lidz), lidx))  -__h2f0(lvz((2*lidz)-1, lidx)))/DH;
+        vzz.y = HC1*(__h2f1(lvz((2*lidz+1), lidx))  -__h2f1(lvz((2*lidz+1)-1, lidx)))/DH;
+        vzx.x = HC1*(__h2f0(lvz((2*lidz), lidx+1))-__h2f0(lvz((2*lidz), lidx)))/DH;
+        vzx.y = HC1*(__h2f1(lvz((2*lidz+1), lidx+1))-__h2f1(lvz((2*lidz+1), lidx)))/DH;
 #elif FDOH==2
-        vzz.x = (  HC1*(__h2f0(lvz(lidz, lidx))  -__h2f0(lvz(lidz-1, lidx)))
-               + HC2*(__h2f0(lvz(lidz+1, lidx))-__h2f0(lvz(lidz-2, lidx)))
+        vzz.x = (  HC1*(__h2f0(lvz((2*lidz), lidx))  -__h2f0(lvz((2*lidz)-1, lidx)))
+               + HC2*(__h2f0(lvz((2*lidz)+1, lidx))-__h2f0(lvz((2*lidz)-2, lidx)))
                )/DH;
-        vzz.y = (  HC1*(__h2f1(lvz(lidz, lidx))  -__h2f1(lvz(lidz-1, lidx)))
-               + HC2*(__h2f1(lvz(lidz+1, lidx))-__h2f1(lvz(lidz-2, lidx)))
+        vzz.y = (  HC1*(__h2f1(lvz((2*lidz+1), lidx))  -__h2f1(lvz((2*lidz+1)-1, lidx)))
+               + HC2*(__h2f1(lvz((2*lidz+1)+1, lidx))-__h2f1(lvz((2*lidz+1)-2, lidx)))
                )/DH;
-        vzx.x = (  HC1*(__h2f0(lvz(lidz, lidx+1))-__h2f0(lvz(lidz, lidx)))
-               + HC2*(__h2f0(lvz(lidz, lidx+2))-__h2f0(lvz(lidz, lidx-1)))
+        vzx.x = (  HC1*(__h2f0(lvz((2*lidz), lidx+1))-__h2f0(lvz((2*lidz), lidx)))
+               + HC2*(__h2f0(lvz((2*lidz), lidx+2))-__h2f0(lvz((2*lidz), lidx-1)))
                )/DH;
-        vzx.y = (  HC1*(__h2f1(lvz(lidz, lidx+1))-__h2f1(lvz(lidz, lidx)))
-               + HC2*(__h2f1(lvz(lidz, lidx+2))-__h2f1(lvz(lidz, lidx-1)))
+        vzx.y = (  HC1*(__h2f1(lvz((2*lidz+1), lidx+1))-__h2f1(lvz((2*lidz+1), lidx)))
+               + HC2*(__h2f1(lvz((2*lidz+1), lidx+2))-__h2f1(lvz((2*lidz+1), lidx-1)))
                )/DH;
 #elif FDOH==3
-        vzz.x = (  HC1*(__h2f0(lvz(lidz, lidx))  -__h2f0(lvz(lidz-1, lidx)))
-               + HC2*(__h2f0(lvz(lidz+1, lidx))-__h2f0(lvz(lidz-2, lidx)))
-               + HC3*(__h2f0(lvz(lidz+2, lidx))-__h2f0(lvz(lidz-3, lidx)))
+        vzz.x = (  HC1*(__h2f0(lvz((2*lidz), lidx))  -__h2f0(lvz((2*lidz)-1, lidx)))
+               + HC2*(__h2f0(lvz((2*lidz)+1, lidx))-__h2f0(lvz((2*lidz)-2, lidx)))
+               + HC3*(__h2f0(lvz((2*lidz)+2, lidx))-__h2f0(lvz((2*lidz)-3, lidx)))
                )/DH;
-        vzz.y = (  HC1*(__h2f1(lvz(lidz, lidx))  -__h2f1(lvz(lidz-1, lidx)))
-               + HC2*(__h2f1(lvz(lidz+1, lidx))-__h2f1(lvz(lidz-2, lidx)))
-               + HC3*(__h2f1(lvz(lidz+2, lidx))-__h2f1(lvz(lidz-3, lidx)))
+        vzz.y = (  HC1*(__h2f1(lvz((2*lidz+1), lidx))  -__h2f1(lvz((2*lidz+1)-1, lidx)))
+               + HC2*(__h2f1(lvz((2*lidz+1)+1, lidx))-__h2f1(lvz((2*lidz+1)-2, lidx)))
+               + HC3*(__h2f1(lvz((2*lidz+1)+2, lidx))-__h2f1(lvz((2*lidz+1)-3, lidx)))
                )/DH;
-        vzx.x = (  HC1*(__h2f0(lvz(lidz, lidx+1))-__h2f0(lvz(lidz, lidx)))
-               + HC2*(__h2f0(lvz(lidz, lidx+2))-__h2f0(lvz(lidz, lidx-1)))
-               + HC3*(__h2f0(lvz(lidz, lidx+3))-__h2f0(lvz(lidz, lidx-2)))
+        vzx.x = (  HC1*(__h2f0(lvz((2*lidz), lidx+1))-__h2f0(lvz((2*lidz), lidx)))
+               + HC2*(__h2f0(lvz((2*lidz), lidx+2))-__h2f0(lvz((2*lidz), lidx-1)))
+               + HC3*(__h2f0(lvz((2*lidz), lidx+3))-__h2f0(lvz((2*lidz), lidx-2)))
                )/DH;
-        vzx.y = (  HC1*(__h2f1(lvz(lidz, lidx+1))-__h2f1(lvz(lidz, lidx)))
-               + HC2*(__h2f1(lvz(lidz, lidx+2))-__h2f1(lvz(lidz, lidx-1)))
-               + HC3*(__h2f1(lvz(lidz, lidx+3))-__h2f1(lvz(lidz, lidx-2)))
+        vzx.y = (  HC1*(__h2f1(lvz((2*lidz+1), lidx+1))-__h2f1(lvz((2*lidz+1), lidx)))
+               + HC2*(__h2f1(lvz((2*lidz+1), lidx+2))-__h2f1(lvz((2*lidz+1), lidx-1)))
+               + HC3*(__h2f1(lvz((2*lidz+1), lidx+3))-__h2f1(lvz((2*lidz+1), lidx-2)))
                )/DH;
 #elif FDOH==4
-        vzz.x = (  HC1*(__h2f0(lvz(lidz, lidx))  -__h2f0(lvz(lidz-1, lidx)))
-               + HC2*(__h2f0(lvz(lidz+1, lidx))-__h2f0(lvz(lidz-2, lidx)))
-               + HC3*(__h2f0(lvz(lidz+2, lidx))-__h2f0(lvz(lidz-3, lidx)))
-               + HC4*(__h2f0(lvz(lidz+3, lidx))-__h2f0(lvz(lidz-4, lidx)))
+        vzz.x = (  HC1*(__h2f0(lvz((2*lidz), lidx))  -__h2f0(lvz((2*lidz)-1, lidx)))
+               + HC2*(__h2f0(lvz((2*lidz)+1, lidx))-__h2f0(lvz((2*lidz)-2, lidx)))
+               + HC3*(__h2f0(lvz((2*lidz)+2, lidx))-__h2f0(lvz((2*lidz)-3, lidx)))
+               + HC4*(__h2f0(lvz((2*lidz)+3, lidx))-__h2f0(lvz((2*lidz)-4, lidx)))
                )/DH;
-        vzz.y = (  HC1*(__h2f1(lvz(lidz, lidx))  -__h2f1(lvz(lidz-1, lidx)))
-               + HC2*(__h2f1(lvz(lidz+1, lidx))-__h2f1(lvz(lidz-2, lidx)))
-               + HC3*(__h2f1(lvz(lidz+2, lidx))-__h2f1(lvz(lidz-3, lidx)))
-               + HC4*(__h2f1(lvz(lidz+3, lidx))-__h2f1(lvz(lidz-4, lidx)))
+        vzz.y = (  HC1*(__h2f1(lvz((2*lidz+1), lidx))  -__h2f1(lvz((2*lidz+1)-1, lidx)))
+               + HC2*(__h2f1(lvz((2*lidz+1)+1, lidx))-__h2f1(lvz((2*lidz+1)-2, lidx)))
+               + HC3*(__h2f1(lvz((2*lidz+1)+2, lidx))-__h2f1(lvz((2*lidz+1)-3, lidx)))
+               + HC4*(__h2f1(lvz((2*lidz+1)+3, lidx))-__h2f1(lvz((2*lidz+1)-4, lidx)))
                )/DH;
-        vzx.x = (  HC1*(__h2f0(lvz(lidz, lidx+1))-__h2f0(lvz(lidz, lidx)))
-               + HC2*(__h2f0(lvz(lidz, lidx+2))-__h2f0(lvz(lidz, lidx-1)))
-               + HC3*(__h2f0(lvz(lidz, lidx+3))-__h2f0(lvz(lidz, lidx-2)))
-               + HC4*(__h2f0(lvz(lidz, lidx+4))-__h2f0(lvz(lidz, lidx-3)))
+        vzx.x = (  HC1*(__h2f0(lvz((2*lidz), lidx+1))-__h2f0(lvz((2*lidz), lidx)))
+               + HC2*(__h2f0(lvz((2*lidz), lidx+2))-__h2f0(lvz((2*lidz), lidx-1)))
+               + HC3*(__h2f0(lvz((2*lidz), lidx+3))-__h2f0(lvz((2*lidz), lidx-2)))
+               + HC4*(__h2f0(lvz((2*lidz), lidx+4))-__h2f0(lvz((2*lidz), lidx-3)))
                )/DH;
-        vzx.y = (  HC1*(__h2f1(lvz(lidz, lidx+1))-__h2f1(lvz(lidz, lidx)))
-               + HC2*(__h2f1(lvz(lidz, lidx+2))-__h2f1(lvz(lidz, lidx-1)))
-               + HC3*(__h2f1(lvz(lidz, lidx+3))-__h2f1(lvz(lidz, lidx-2)))
-               + HC4*(__h2f1(lvz(lidz, lidx+4))-__h2f1(lvz(lidz, lidx-3)))
+        vzx.y = (  HC1*(__h2f1(lvz((2*lidz+1), lidx+1))-__h2f1(lvz((2*lidz+1), lidx)))
+               + HC2*(__h2f1(lvz((2*lidz+1), lidx+2))-__h2f1(lvz((2*lidz+1), lidx-1)))
+               + HC3*(__h2f1(lvz((2*lidz+1), lidx+3))-__h2f1(lvz((2*lidz+1), lidx-2)))
+               + HC4*(__h2f1(lvz((2*lidz+1), lidx+4))-__h2f1(lvz((2*lidz+1), lidx-3)))
                )/DH;
 #elif FDOH==5
-        vzz.x = (  HC1*(__h2f0(lvz(lidz, lidx))  -__h2f0(lvz(lidz-1, lidx)))
-               + HC2*(__h2f0(lvz(lidz+1, lidx))-__h2f0(lvz(lidz-2, lidx)))
-               + HC3*(__h2f0(lvz(lidz+2, lidx))-__h2f0(lvz(lidz-3, lidx)))
-               + HC4*(__h2f0(lvz(lidz+3, lidx))-__h2f0(lvz(lidz-4, lidx)))
-               + HC5*(__h2f0(lvz(lidz+4, lidx))-__h2f0(lvz(lidz-5, lidx)))
+        vzz.x = (  HC1*(__h2f0(lvz((2*lidz), lidx))  -__h2f0(lvz((2*lidz)-1, lidx)))
+               + HC2*(__h2f0(lvz((2*lidz)+1, lidx))-__h2f0(lvz((2*lidz)-2, lidx)))
+               + HC3*(__h2f0(lvz((2*lidz)+2, lidx))-__h2f0(lvz((2*lidz)-3, lidx)))
+               + HC4*(__h2f0(lvz((2*lidz)+3, lidx))-__h2f0(lvz((2*lidz)-4, lidx)))
+               + HC5*(__h2f0(lvz((2*lidz)+4, lidx))-__h2f0(lvz((2*lidz)-5, lidx)))
                )/DH;
-        vzz.y = (  HC1*(__h2f1(lvz(lidz, lidx))  -__h2f1(lvz(lidz-1, lidx)))
-               + HC2*(__h2f1(lvz(lidz+1, lidx))-__h2f1(lvz(lidz-2, lidx)))
-               + HC3*(__h2f1(lvz(lidz+2, lidx))-__h2f1(lvz(lidz-3, lidx)))
-               + HC4*(__h2f1(lvz(lidz+3, lidx))-__h2f1(lvz(lidz-4, lidx)))
-               + HC5*(__h2f1(lvz(lidz+4, lidx))-__h2f1(lvz(lidz-5, lidx)))
+        vzz.y = (  HC1*(__h2f1(lvz((2*lidz+1), lidx))  -__h2f1(lvz((2*lidz+1)-1, lidx)))
+               + HC2*(__h2f1(lvz((2*lidz+1)+1, lidx))-__h2f1(lvz((2*lidz+1)-2, lidx)))
+               + HC3*(__h2f1(lvz((2*lidz+1)+2, lidx))-__h2f1(lvz((2*lidz+1)-3, lidx)))
+               + HC4*(__h2f1(lvz((2*lidz+1)+3, lidx))-__h2f1(lvz((2*lidz+1)-4, lidx)))
+               + HC5*(__h2f1(lvz((2*lidz+1)+4, lidx))-__h2f1(lvz((2*lidz+1)-5, lidx)))
                )/DH;
-        vzx.x = (  HC1*(__h2f0(lvz(lidz, lidx+1))-__h2f0(lvz(lidz, lidx)))
-               + HC2*(__h2f0(lvz(lidz, lidx+2))-__h2f0(lvz(lidz, lidx-1)))
-               + HC3*(__h2f0(lvz(lidz, lidx+3))-__h2f0(lvz(lidz, lidx-2)))
-               + HC4*(__h2f0(lvz(lidz, lidx+4))-__h2f0(lvz(lidz, lidx-3)))
-               + HC5*(__h2f0(lvz(lidz, lidx+5))-__h2f0(lvz(lidz, lidx-4)))
+        vzx.x = (  HC1*(__h2f0(lvz((2*(2*lidz)), lidx+1))-__h2f0(lvz((2*lidz), lidx)))
+               + HC2*(__h2f0(lvz((2*lidz), lidx+2))-__h2f0(lvz((2*lidz), lidx-1)))
+               + HC3*(__h2f0(lvz((2*lidz), lidx+3))-__h2f0(lvz((2*lidz), lidx-2)))
+               + HC4*(__h2f0(lvz((2*lidz), lidx+4))-__h2f0(lvz((2*lidz), lidx-3)))
+               + HC5*(__h2f0(lvz((2*lidz), lidx+5))-__h2f0(lvz((2*lidz), lidx-4)))
                )/DH;
-        vzx.y = (  HC1*(__h2f1(lvz(lidz, lidx+1))-__h2f1(lvz(lidz, lidx)))
-               + HC2*(__h2f1(lvz(lidz, lidx+2))-__h2f1(lvz(lidz, lidx-1)))
-               + HC3*(__h2f1(lvz(lidz, lidx+3))-__h2f1(lvz(lidz, lidx-2)))
-               + HC4*(__h2f1(lvz(lidz, lidx+4))-__h2f1(lvz(lidz, lidx-3)))
-               + HC5*(__h2f1(lvz(lidz, lidx+5))-__h2f1(lvz(lidz, lidx-4)))
+        vzx.y = (  HC1*(__h2f1(lvz((2*lidz+1), lidx+1))-__h2f1(lvz((2*lidz+1), lidx)))
+               + HC2*(__h2f1(lvz((2*lidz+1), lidx+2))-__h2f1(lvz((2*lidz+1), lidx-1)))
+               + HC3*(__h2f1(lvz((2*lidz+1), lidx+3))-__h2f1(lvz((2*lidz+1), lidx-2)))
+               + HC4*(__h2f1(lvz((2*lidz+1), lidx+4))-__h2f1(lvz((2*lidz+1), lidx-3)))
+               + HC5*(__h2f1(lvz((2*lidz+1), lidx+5))-__h2f1(lvz((2*lidz+1), lidx-4)))
                )/DH;
 #elif FDOH==6
-        vzz.x = (  HC1*(__h2f0(lvz(lidz, lidx))  -__h2f0(lvz(lidz-1, lidx)))
-               + HC2*(__h2f0(lvz(lidz+1, lidx))-__h2f0(lvz(lidz-2, lidx)))
-               + HC3*(__h2f0(lvz(lidz+2, lidx))-__h2f0(lvz(lidz-3, lidx)))
-               + HC4*(__h2f0(lvz(lidz+3, lidx))-__h2f0(lvz(lidz-4, lidx)))
-               + HC5*(__h2f0(lvz(lidz+4, lidx))-__h2f0(lvz(lidz-5, lidx)))
-               + HC6*(__h2f0(lvz(lidz+5, lidx))-__h2f0(lvz(lidz-6, lidx)))
+        vzz.x = (  HC1*(__h2f0(lvz((2*lidz), lidx))  -__h2f0(lvz((2*lidz)-1, lidx)))
+               + HC2*(__h2f0(lvz((2*lidz)+1, lidx))-__h2f0(lvz((2*lidz)-2, lidx)))
+               + HC3*(__h2f0(lvz((2*lidz)+2, lidx))-__h2f0(lvz((2*lidz)-3, lidx)))
+               + HC4*(__h2f0(lvz((2*lidz)+3, lidx))-__h2f0(lvz((2*lidz)-4, lidx)))
+               + HC5*(__h2f0(lvz((2*lidz)+4, lidx))-__h2f0(lvz((2*lidz)-5, lidx)))
+               + HC6*(__h2f0(lvz((2*lidz)+5, lidx))-__h2f0(lvz((2*lidz)-6, lidx)))
                )/DH;
-        vzz.y = (  HC1*(__h2f1(lvz(lidz, lidx))  -__h2f1(lvz(lidz-1, lidx)))
-               + HC2*(__h2f1(lvz(lidz+1, lidx))-__h2f1(lvz(lidz-2, lidx)))
-               + HC3*(__h2f1(lvz(lidz+2, lidx))-__h2f1(lvz(lidz-3, lidx)))
-               + HC4*(__h2f1(lvz(lidz+3, lidx))-__h2f1(lvz(lidz-4, lidx)))
-               + HC5*(__h2f1(lvz(lidz+4, lidx))-__h2f1(lvz(lidz-5, lidx)))
-               + HC6*(__h2f1(lvz(lidz+5, lidx))-__h2f1(lvz(lidz-6, lidx)))
+        vzz.y = (  HC1*(__h2f1(lvz((2*lidz+1), lidx))  -__h2f1(lvz((2*lidz+1)-1, lidx)))
+               + HC2*(__h2f1(lvz((2*lidz+1)+1, lidx))-__h2f1(lvz((2*lidz+1)-2, lidx)))
+               + HC3*(__h2f1(lvz((2*lidz+1)+2, lidx))-__h2f1(lvz((2*lidz+1)-3, lidx)))
+               + HC4*(__h2f1(lvz((2*lidz+1)+3, lidx))-__h2f1(lvz((2*lidz+1)-4, lidx)))
+               + HC5*(__h2f1(lvz((2*lidz+1)+4, lidx))-__h2f1(lvz((2*lidz+1)-5, lidx)))
+               + HC6*(__h2f1(lvz((2*lidz+1)+5, lidx))-__h2f1(lvz((2*lidz+1)-6, lidx)))
                )/DH;
-        vzx.x = (  HC1*(__h2f0(lvz(lidz, lidx+1))-__h2f0(lvz(lidz, lidx)))
-               + HC2*(__h2f0(lvz(lidz, lidx+2))-__h2f0(lvz(lidz, lidx-1)))
-               + HC3*(__h2f0(lvz(lidz, lidx+3))-__h2f0(lvz(lidz, lidx-2)))
-               + HC4*(__h2f0(lvz(lidz, lidx+4))-__h2f0(lvz(lidz, lidx-3)))
-               + HC5*(__h2f0(lvz(lidz, lidx+5))-__h2f0(lvz(lidz, lidx-4)))
-               + HC6*(__h2f0(lvz(lidz, lidx+6))-__h2f0(lvz(lidz, lidx-5)))
+        vzx.x = (  HC1*(__h2f0(lvz((2*lidz), lidx+1))-__h2f0(lvz((2*lidz), lidx)))
+               + HC2*(__h2f0(lvz((2*lidz), lidx+2))-__h2f0(lvz((2*lidz), lidx-1)))
+               + HC3*(__h2f0(lvz((2*lidz), lidx+3))-__h2f0(lvz((2*lidz), lidx-2)))
+               + HC4*(__h2f0(lvz((2*lidz), lidx+4))-__h2f0(lvz((2*lidz), lidx-3)))
+               + HC5*(__h2f0(lvz((2*lidz), lidx+5))-__h2f0(lvz((2*lidz), lidx-4)))
+               + HC6*(__h2f0(lvz((2*lidz), lidx+6))-__h2f0(lvz((2*lidz), lidx-5)))
                )/DH;
-        vzx.y = (  HC1*(__h2f1(lvz(lidz, lidx+1))-__h2f1(lvz(lidz, lidx)))
-               + HC2*(__h2f1(lvz(lidz, lidx+2))-__h2f1(lvz(lidz, lidx-1)))
-               + HC3*(__h2f1(lvz(lidz, lidx+3))-__h2f1(lvz(lidz, lidx-2)))
-               + HC4*(__h2f1(lvz(lidz, lidx+4))-__h2f1(lvz(lidz, lidx-3)))
-               + HC5*(__h2f1(lvz(lidz, lidx+5))-__h2f1(lvz(lidz, lidx-4)))
-               + HC6*(__h2f1(lvz(lidz, lidx+6))-__h2f1(lvz(lidz, lidx-5)))
+        vzx.y = (  HC1*(__h2f1(lvz((2*lidz+1), lidx+1))-__h2f1(lvz((2*lidz+1), lidx)))
+               + HC2*(__h2f1(lvz((2*lidz+1), lidx+2))-__h2f1(lvz((2*lidz+1), lidx-1)))
+               + HC3*(__h2f1(lvz((2*lidz+1), lidx+3))-__h2f1(lvz((2*lidz+1), lidx-2)))
+               + HC4*(__h2f1(lvz((2*lidz+1), lidx+4))-__h2f1(lvz((2*lidz+1), lidx-3)))
+               + HC5*(__h2f1(lvz((2*lidz+1), lidx+5))-__h2f1(lvz((2*lidz+1), lidx-4)))
+               + HC6*(__h2f1(lvz((2*lidz+1), lidx+6))-__h2f1(lvz((2*lidz+1), lidx-5)))
                )/DH;
 #endif
     }
@@ -401,11 +404,11 @@ extern "C" __global__ void update_s(int offcomm,
     // To stop updating if we are outside the model (global id must be a multiple of local id in OpenCL, hence we stop if we have a global id outside the grid)
 #if LOCAL_OFF==0
 #if COMM12==0
-    if (gidz>(NZ-FDOH-1) || (gidx-offcomm)>(NX-FDOH-1-LCOMM) ){
+    if (gidz>(NZ-FDOH/2-1) || (gidx-offcomm)>(NX-FDOH-1-LCOMM) ){
         return;
     }
 #else
-    if (gidz>(NZ-FDOH-1) ){
+    if (gidz>(NZ-FDOH/2-1) ){
         return;
     }
 #endif

@@ -63,7 +63,8 @@
 
 #if LOCAL_OFF==0
 
-#define lvar(z,x)  lvar[(x)*lsizez+(z)]
+#define lvar2(z,x)  lvar2[(x)*lsizez+(z)]
+#define lvar(z,x)  lvar[(x)*lsizez*2+(z)]
 
 #endif
 
@@ -81,8 +82,7 @@
 #define PI (3.141592653589793238462643383279502884197169)
 #define signals(y,x) signals[(y)*NT+(x)]
 
-#define __h2f0(x) __half2float(*((half*)&(x)))
-#define __h2f1(x) __half2float(*((half*)&(x)+1))
+#define __h2f(x) __half2float((x))
 
 extern "C" __global__ void update_v(int offcomm,
                                     half2 *vx,      half2 *vz,
@@ -97,8 +97,8 @@ extern "C" __global__ void update_v(int offcomm,
                                     half2 *psi_sxz_z,  half2 *psi_szz_z)
 {
     
-    extern __shared__ half2 lvar[];
-    
+    extern __shared__ half2 lvar2[];
+    half * lvar = (half*)lvar2;
     
     float2 sxx_x;
     float2 szz_z;
@@ -107,13 +107,16 @@ extern "C" __global__ void update_v(int offcomm,
     
     // If we use local memory
 #if LOCAL_OFF==0
-    int lsizez = blockDim.x+2*FDOH;
+    int lsizez = blockDim.x+FDOH;
     int lsizex = blockDim.y+2*FDOH;
-    int lidz = threadIdx.x+FDOH;
+    int lidz = threadIdx.x+FDOH/2;
     int lidx = threadIdx.y+FDOH;
-    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
+    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH/2;
     int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH+offcomm;
     
+#define lsxx2 lvar2
+#define lszz2 lvar2
+#define lsxz2 lvar2
 #define lsxx lvar
 #define lszz lvar
 #define lsxz lvar
@@ -121,11 +124,11 @@ extern "C" __global__ void update_v(int offcomm,
     // If local memory is turned off
 #elif LOCAL_OFF==1
     
-    int lsizez = blockDim.x+2*FDOH;
+    int lsizez = blockDim.x+FDOH;
     int lsizex = blockDim.y+2*FDOH;
-    int lidz = threadIdx.x+FDOH;
+    int lidz = threadIdx.x+FDOH/2;
     int lidx = threadIdx.y+FDOH;
-    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
+    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH/2;
     int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH+offcomm;
     
 #define lsxx sxx
@@ -139,257 +142,257 @@ extern "C" __global__ void update_v(int offcomm,
     // Calculation of the stresses spatial derivatives
     {
 #if LOCAL_OFF==0
-        lsxx(lidz,lidx)=sxx(gidz, gidx);
+        lsxx2(lidz,lidx)=sxx(gidz, gidx);
         if (lidx<2*FDOH)
-            lsxx(lidz,lidx-FDOH)=sxx(gidz,gidx-FDOH);
+            lsxx2(lidz,lidx-FDOH)=sxx(gidz,gidx-FDOH);
         if (lidx+lsizex-3*FDOH<FDOH)
-            lsxx(lidz,lidx+lsizex-3*FDOH)=sxx(gidz,gidx+lsizex-3*FDOH);
+            lsxx2(lidz,lidx+lsizex-3*FDOH)=sxx(gidz,gidx+lsizex-3*FDOH);
         if (lidx>(lsizex-2*FDOH-1))
-            lsxx(lidz,lidx+FDOH)=sxx(gidz,gidx+FDOH);
+            lsxx2(lidz,lidx+FDOH)=sxx(gidz,gidx+FDOH);
         if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
-            lsxx(lidz,lidx-lsizex+3*FDOH)=sxx(gidz,gidx-lsizex+3*FDOH);
+            lsxx2(lidz,lidx-lsizex+3*FDOH)=sxx(gidz,gidx-lsizex+3*FDOH);
         
         __syncthreads();
 #endif
         
 
 #if   FDOH ==1
-        sxx_x.x = DTDH*HC1*(__h2f0(lsxx(lidz,lidx+1)) - (__h2f0(lsxx(lidz,lidx))));
-        sxx_x.y = DTDH*HC1*(__h2f1(lsxx(lidz,lidx+1)) - (__h2f1(lsxx(lidz,lidx))));
+        sxx_x.x = DTDH*HC1*(__h2f(lsxx((2*lidz),lidx+1)) - (__h2f(lsxx((2*lidz),lidx))));
+        sxx_x.y = DTDH*HC1*(__h2f(lsxx(lidz,lidx+1)) - (__h2f(lsxx(lidz,lidx))));
 #elif FDOH ==2
-        sxx_x.x = DTDH*(HC1*(__h2f0(lsxx(lidz,lidx+1)) - __h2f0(lsxx(lidz,lidx)))
-                      +HC2*(__h2f0(lsxx(lidz,lidx+2)) - __h2f0(lsxx(lidz,lidx-1))));
-        sxx_x.y = DTDH*(HC1*(__h2f1(lsxx(lidz,lidx+1)) - __h2f1(lsxx(lidz,lidx)))
-                      +HC2*(__h2f1(lsxx(lidz,lidx+2)) - __h2f1(lsxx(lidz,lidx-1))));
+        sxx_x.x = DTDH*(HC1*(__h2f(lsxx((2*lidz),lidx+1)) - __h2f(lsxx((2*lidz),lidx)))
+                      +HC2*(__h2f(lsxx((2*lidz),lidx+2)) - __h2f(lsxx((2*lidz),lidx-1))));
+        sxx_x.y = DTDH*(HC1*(__h2f(lsxx(lidz,lidx+1)) - __h2f(lsxx(lidz,lidx)))
+                      +HC2*(__h2f(lsxx(lidz,lidx+2)) - __h2f(lsxx(lidz,lidx-1))));
 #elif FDOH ==3
-        sxx_x.x = DTDH*(HC1*(__h2f0(lsxx(lidz,lidx+1))-__h2f0(lsxx(lidz,lidx)))+
-                      HC2*(__h2f0(lsxx(lidz,lidx+2))-__h2f0(lsxx(lidz,lidx-1)))+
-                      HC3*(__h2f0(lsxx(lidz,lidx+3))-__h2f0(lsxx(lidz,lidx-2))));
-        sxx_x.y = DTDH*(HC1*(__h2f1(lsxx(lidz,lidx+1))-__h2f1(lsxx(lidz,lidx)))+
-                      HC2*(__h2f1(lsxx(lidz,lidx+2))-__h2f1(lsxx(lidz,lidx-1)))+
-                      HC3*(__h2f1(lsxx(lidz,lidx+3))-__h2f1(lsxx(lidz,lidx-2))));
+        sxx_x.x = DTDH*(HC1*(__h2f(lsxx((2*lidz),lidx+1))-__h2f(lsxx((2*lidz),lidx)))+
+                      HC2*(__h2f(lsxx((2*lidz),lidx+2))-__h2f(lsxx((2*lidz),lidx-1)))+
+                      HC3*(__h2f(lsxx((2*lidz),lidx+3))-__h2f(lsxx((2*lidz),lidx-2))));
+        sxx_x.y = DTDH*(HC1*(__h2f(lsxx(lidz,lidx+1))-__h2f(lsxx(lidz,lidx)))+
+                      HC2*(__h2f(lsxx(lidz,lidx+2))-__h2f(lsxx(lidz,lidx-1)))+
+                      HC3*(__h2f(lsxx(lidz,lidx+3))-__h2f(lsxx(lidz,lidx-2))));
 #elif FDOH ==4
-        sxx_x.x = DTDH*(HC1*(__h2f0(lsxx(lidz,lidx+1))-__h2f0(lsxx(lidz,lidx)))+
-                      HC2*(__h2f0(lsxx(lidz,lidx+2))-__h2f0(lsxx(lidz,lidx-1)))+
-                      HC3*(__h2f0(lsxx(lidz,lidx+3))-__h2f0(lsxx(lidz,lidx-2)))+
-                      HC4*(__h2f0(lsxx(lidz,lidx+4))-__h2f0(lsxx(lidz,lidx-3))));
-        sxx_x.y = DTDH*(HC1*(__h2f1(lsxx(lidz,lidx+1))-__h2f1(lsxx(lidz,lidx)))+
-                      HC2*(__h2f1(lsxx(lidz,lidx+2))-__h2f1(lsxx(lidz,lidx-1)))+
-                      HC3*(__h2f1(lsxx(lidz,lidx+3))-__h2f1(lsxx(lidz,lidx-2)))+
-                      HC4*(__h2f1(lsxx(lidz,lidx+4))-__h2f1(lsxx(lidz,lidx-3))));
+        sxx_x.x = DTDH*(HC1*(__h2f(lsxx((2*lidz),lidx+1))-__h2f(lsxx((2*lidz),lidx)))+
+                      HC2*(__h2f(lsxx((2*lidz),lidx+2))-__h2f(lsxx((2*lidz),lidx-1)))+
+                      HC3*(__h2f(lsxx((2*lidz),lidx+3))-__h2f(lsxx((2*lidz),lidx-2)))+
+                      HC4*(__h2f(lsxx((2*lidz),lidx+4))-__h2f(lsxx((2*lidz),lidx-3))));
+        sxx_x.y = DTDH*(HC1*(__h2f(lsxx(lidz,lidx+1))-__h2f(lsxx(lidz,lidx)))+
+                      HC2*(__h2f(lsxx(lidz,lidx+2))-__h2f(lsxx(lidz,lidx-1)))+
+                      HC3*(__h2f(lsxx(lidz,lidx+3))-__h2f(lsxx(lidz,lidx-2)))+
+                      HC4*(__h2f(lsxx(lidz,lidx+4))-__h2f(lsxx(lidz,lidx-3))));
 #elif FDOH ==5
-        sxx_x.x = DTDH*(HC1*(__h2f0(lsxx(lidz,lidx+1))-__h2f0(lsxx(lidz,lidx)))+
-                      HC2*(__h2f0(lsxx(lidz,lidx+2))-__h2f0(lsxx(lidz,lidx-1)))+
-                      HC3*(__h2f0(lsxx(lidz,lidx+3))-__h2f0(lsxx(lidz,lidx-2)))+
-                      HC4*(__h2f0(lsxx(lidz,lidx+4))-__h2f0(lsxx(lidz,lidx-3)))+
-                      HC5*(__h2f0(lsxx(lidz,lidx+5))-__h2f0(lsxx(lidz,lidx-4))));
-        sxx_x.y = DTDH*(HC1*(__h2f1(lsxx(lidz,lidx+1))-__h2f1(lsxx(lidz,lidx)))+
-                      HC2*(__h2f1(lsxx(lidz,lidx+2))-__h2f1(lsxx(lidz,lidx-1)))+
-                      HC3*(__h2f1(lsxx(lidz,lidx+3))-__h2f1(lsxx(lidz,lidx-2)))+
-                      HC4*(__h2f1(lsxx(lidz,lidx+4))-__h2f1(lsxx(lidz,lidx-3)))+
-                      HC5*(__h2f1(lsxx(lidz,lidx+5))-__h2f1(lsxx(lidz,lidx-4))));
+        sxx_x.x = DTDH*(HC1*(__h2f(lsxx((2*lidz),lidx+1))-__h2f(lsxx((2*lidz),lidx)))+
+                      HC2*(__h2f(lsxx((2*lidz),lidx+2))-__h2f(lsxx((2*lidz),lidx-1)))+
+                      HC3*(__h2f(lsxx((2*lidz),lidx+3))-__h2f(lsxx((2*lidz),lidx-2)))+
+                      HC4*(__h2f(lsxx((2*lidz),lidx+4))-__h2f(lsxx((2*lidz),lidx-3)))+
+                      HC5*(__h2f(lsxx((2*lidz),lidx+5))-__h2f(lsxx((2*lidz),lidx-4))));
+        sxx_x.y = DTDH*(HC1*(__h2f(lsxx(lidz,lidx+1))-__h2f(lsxx(lidz,lidx)))+
+                      HC2*(__h2f(lsxx(lidz,lidx+2))-__h2f(lsxx(lidz,lidx-1)))+
+                      HC3*(__h2f(lsxx(lidz,lidx+3))-__h2f(lsxx(lidz,lidx-2)))+
+                      HC4*(__h2f(lsxx(lidz,lidx+4))-__h2f(lsxx(lidz,lidx-3)))+
+                      HC5*(__h2f(lsxx(lidz,lidx+5))-__h2f(lsxx(lidz,lidx-4))));
 #elif FDOH ==6
-        sxx_x.x = DTDH*(HC1*(__h2f0(lsxx(lidz,lidx+1))-__h2f0(lsxx(lidz,lidx)))+
-                      HC2*(__h2f0(lsxx(lidz,lidx+2))-__h2f0(lsxx(lidz,lidx-1)))+
-                      HC3*(__h2f0(lsxx(lidz,lidx+3))-__h2f0(lsxx(lidz,lidx-2)))+
-                      HC4*(__h2f0(lsxx(lidz,lidx+4))-__h2f0(lsxx(lidz,lidx-3)))+
-                      HC5*(__h2f0(lsxx(lidz,lidx+5))-__h2f0(lsxx(lidz,lidx-4)))+
-                      HC6*(__h2f0(lsxx(lidz,lidx+6))-__h2f0(lsxx(lidz,lidx-5))));
-        sxx_x.y = DTDH*(HC1*(__h2f1(lsxx(lidz,lidx+1))-__h2f1(lsxx(lidz,lidx)))+
-                      HC2*(__h2f1(lsxx(lidz,lidx+2))-__h2f1(lsxx(lidz,lidx-1)))+
-                      HC3*(__h2f1(lsxx(lidz,lidx+3))-__h2f1(lsxx(lidz,lidx-2)))+
-                      HC4*(__h2f1(lsxx(lidz,lidx+4))-__h2f1(lsxx(lidz,lidx-3)))+
-                      HC5*(__h2f1(lsxx(lidz,lidx+5))-__h2f1(lsxx(lidz,lidx-4)))+
-                      HC6*(__h2f1(lsxx(lidz,lidx+6))-__h2f1(lsxx(lidz,lidx-5))));
+        sxx_x.x = DTDH*(HC1*(__h2f(lsxx((2*lidz),lidx+1))-__h2f(lsxx((2*lidz),lidx)))+
+                      HC2*(__h2f(lsxx((2*lidz),lidx+2))-__h2f(lsxx((2*lidz),lidx-1)))+
+                      HC3*(__h2f(lsxx((2*lidz),lidx+3))-__h2f(lsxx((2*lidz),lidx-2)))+
+                      HC4*(__h2f(lsxx((2*lidz),lidx+4))-__h2f(lsxx((2*lidz),lidx-3)))+
+                      HC5*(__h2f(lsxx((2*lidz),lidx+5))-__h2f(lsxx((2*lidz),lidx-4)))+
+                      HC6*(__h2f(lsxx((2*lidz),lidx+6))-__h2f(lsxx((2*lidz),lidx-5))));
+        sxx_x.y = DTDH*(HC1*(__h2f(lsxx(lidz,lidx+1))-__h2f(lsxx(lidz,lidx)))+
+                      HC2*(__h2f(lsxx(lidz,lidx+2))-__h2f(lsxx(lidz,lidx-1)))+
+                      HC3*(__h2f(lsxx(lidz,lidx+3))-__h2f(lsxx(lidz,lidx-2)))+
+                      HC4*(__h2f(lsxx(lidz,lidx+4))-__h2f(lsxx(lidz,lidx-3)))+
+                      HC5*(__h2f(lsxx(lidz,lidx+5))-__h2f(lsxx(lidz,lidx-4)))+
+                      HC6*(__h2f(lsxx(lidz,lidx+6))-__h2f(lsxx(lidz,lidx-5))));
 #endif
         
 
 #if LOCAL_OFF==0
         __syncthreads();
-        lszz(lidz,lidx)=szz(gidz, gidx);
-        if (lidz<2*FDOH)
-            lszz(lidz-FDOH,lidx)=szz(gidz-FDOH,gidx);
-        if (lidz>(lsizez-2*FDOH-1))
-            lszz(lidz+FDOH,lidx)=szz(gidz+FDOH,gidx);
+        lszz2(lidz,lidx)=szz(gidz, gidx);
+        if (lidz<FDOH)
+            lszz2(lidz-FDOH,lidx)=szz(gidz-FDOH,gidx);
+        if (lidz>(lsizez-FDOH-1))
+            lszz2(lidz+FDOH,lidx)=szz(gidz+FDOH,gidx);
         __syncthreads();
 #endif
         
 #if   FDOH ==1
-        szz_z.x = DTDH*HC1*(__h2f0(lszz(lidz+1,lidx)) - __h2f0(lszz(lidz,lidx)));
-        szz_z.y = DTDH*HC1*(__h2f1(lszz(lidz+1,lidx)) - __h2f1(lszz(lidz,lidx)));
+        szz_z.x = DTDH*HC1*(__h2f(lszz((2*lidz)+1,lidx)) - __h2f(lszz((2*lidz),lidx)));
+        szz_z.y = DTDH*HC1*(__h2f(lszz((2*lidz+1)+1,lidx)) - __h2f(lszz((2*lidz+1),lidx)));
 #elif FDOH ==2
-        szz_z.x = DTDH*(HC1*(__h2f0(lszz(lidz+1,lidx)) - __h2f0(lszz(lidz,lidx)))
-                      +HC2*(__h2f0(lszz(lidz+2,lidx)) - __h2f0(lszz(lidz-1,lidx))));
-        szz_z.y = DTDH*(HC1*(__h2f1(lszz(lidz+1,lidx)) - __h2f1(lszz(lidz,lidx)))
-                      +HC2*(__h2f1(lszz(lidz+2,lidx)) - __h2f1(lszz(lidz-1,lidx))));
+        szz_z.x = DTDH*(HC1*(__h2f(lszz((2*lidz)+1,lidx)) - __h2f(lszz((2*lidz),lidx)))
+                      +HC2*(__h2f(lszz((2*lidz)+2,lidx)) - __h2f(lszz((2*lidz)-1,lidx))));
+        szz_z.y = DTDH*(HC1*(__h2f(lszz((2*lidz+1)+1,lidx)) - __h2f(lszz((2*lidz+1),lidx)))
+                      +HC2*(__h2f(lszz((2*lidz+1)+2,lidx)) - __h2f(lszz((2*lidz+1)-1,lidx))));
 #elif FDOH ==3
-        szz_z.x = DTDH*(HC1*(__h2f0(lszz(lidz+1,lidx))-__h2f0(lszz(lidz,lidx)))+
-                      HC2*(__h2f0(lszz(lidz+2,lidx))-__h2f0(lszz(lidz-1,lidx)))+
-                      HC3*(__h2f0(lszz(lidz+3,lidx))-__h2f0(lszz(lidz-2,lidx))));
-        szz_z.y = DTDH*(HC1*(__h2f1(lszz(lidz+1,lidx))-__h2f1(lszz(lidz,lidx)))+
-                      HC2*(__h2f1(lszz(lidz+2,lidx))-__h2f1(lszz(lidz-1,lidx)))+
-                      HC3*(__h2f1(lszz(lidz+3,lidx))-__h2f1(lszz(lidz-2,lidx))));
+        szz_z.x = DTDH*(HC1*(__h2f(lszz((2*lidz)+1,lidx))-__h2f(lszz((2*lidz),lidx)))+
+                      HC2*(__h2f(lszz((2*lidz)+2,lidx))-__h2f(lszz((2*lidz)-1,lidx)))+
+                      HC3*(__h2f(lszz((2*lidz)+3,lidx))-__h2f(lszz((2*lidz)-2,lidx))));
+        szz_z.y = DTDH*(HC1*(__h2f(lszz((2*lidz+1)+1,lidx))-__h2f(lszz((2*lidz+1),lidx)))+
+                      HC2*(__h2f(lszz((2*lidz+1)+2,lidx))-__h2f(lszz((2*lidz+1)-1,lidx)))+
+                      HC3*(__h2f(lszz((2*lidz+1)+3,lidx))-__h2f(lszz((2*lidz+1)-2,lidx))));
 #elif FDOH ==4
-        szz_z.x = DTDH*(HC1*(__h2f0(lszz(lidz+1,lidx))-__h2f0(lszz(lidz,lidx)))+
-                      HC2*(__h2f0(lszz(lidz+2,lidx))-__h2f0(lszz(lidz-1,lidx)))+
-                      HC3*(__h2f0(lszz(lidz+3,lidx))-__h2f0(lszz(lidz-2,lidx)))+
-                      HC4*(__h2f0(lszz(lidz+4,lidx))-__h2f0(lszz(lidz-3,lidx))));
-        szz_z.y = DTDH*(HC1*(__h2f1(lszz(lidz+1,lidx))-__h2f1(lszz(lidz,lidx)))+
-                      HC2*(__h2f1(lszz(lidz+2,lidx))-__h2f1(lszz(lidz-1,lidx)))+
-                      HC3*(__h2f1(lszz(lidz+3,lidx))-__h2f1(lszz(lidz-2,lidx)))+
-                      HC4*(__h2f1(lszz(lidz+4,lidx))-__h2f1(lszz(lidz-3,lidx))));
+        szz_z.x = DTDH*(HC1*(__h2f(lszz((2*lidz)+1,lidx))-__h2f(lszz((2*lidz),lidx)))+
+                      HC2*(__h2f(lszz((2*lidz)+2,lidx))-__h2f(lszz((2*lidz)-1,lidx)))+
+                      HC3*(__h2f(lszz((2*lidz)+3,lidx))-__h2f(lszz((2*lidz)-2,lidx)))+
+                      HC4*(__h2f(lszz((2*lidz)+4,lidx))-__h2f(lszz((2*lidz)-3,lidx))));
+        szz_z.y = DTDH*(HC1*(__h2f(lszz((2*lidz+1)+1,lidx))-__h2f(lszz((2*lidz+1),lidx)))+
+                      HC2*(__h2f(lszz((2*lidz+1)+2,lidx))-__h2f(lszz((2*lidz+1)-1,lidx)))+
+                      HC3*(__h2f(lszz((2*lidz+1)+3,lidx))-__h2f(lszz((2*lidz+1)-2,lidx)))+
+                      HC4*(__h2f(lszz((2*lidz+1)+4,lidx))-__h2f(lszz((2*lidz+1)-3,lidx))));
 #elif FDOH ==5
-        szz_z.x = DTDH*(HC1*(__h2f0(lszz(lidz+1,lidx))-__h2f0(lszz(lidz,lidx)))+
-                      HC2*(__h2f0(lszz(lidz+2,lidx))-__h2f0(lszz(lidz-1,lidx)))+
-                      HC3*(__h2f0(lszz(lidz+3,lidx))-__h2f0(lszz(lidz-2,lidx)))+
-                      HC4*(__h2f0(lszz(lidz+4,lidx))-__h2f0(lszz(lidz-3,lidx)))+
-                      HC5*(__h2f0(lszz(lidz+5,lidx))-__h2f0(lszz(lidz-4,lidx))));
-        szz_z.y = DTDH*(HC1*(__h2f1(lszz(lidz+1,lidx))-__h2f1(lszz(lidz,lidx)))+
-                      HC2*(__h2f1(lszz(lidz+2,lidx))-__h2f1(lszz(lidz-1,lidx)))+
-                      HC3*(__h2f1(lszz(lidz+3,lidx))-__h2f1(lszz(lidz-2,lidx)))+
-                      HC4*(__h2f1(lszz(lidz+4,lidx))-__h2f1(lszz(lidz-3,lidx)))+
-                      HC5*(__h2f1(lszz(lidz+5,lidx))-__h2f1(lszz(lidz-4,lidx))));
+        szz_z.x = DTDH*(HC1*(__h2f(lszz((2*lidz)+1,lidx))-__h2f(lszz((2*lidz),lidx)))+
+                      HC2*(__h2f(lszz((2*lidz)+2,lidx))-__h2f(lszz((2*lidz)-1,lidx)))+
+                      HC3*(__h2f(lszz((2*lidz)+3,lidx))-__h2f(lszz((2*lidz)-2,lidx)))+
+                      HC4*(__h2f(lszz((2*lidz)+4,lidx))-__h2f(lszz((2*lidz)-3,lidx)))+
+                      HC5*(__h2f(lszz((2*lidz)+5,lidx))-__h2f(lszz((2*lidz)-4,lidx))));
+        szz_z.y = DTDH*(HC1*(__h2f(lszz((2*lidz+1)+1,lidx))-__h2f(lszz((2*lidz+1),lidx)))+
+                      HC2*(__h2f(lszz((2*lidz+1)+2,lidx))-__h2f(lszz((2*lidz+1)-1,lidx)))+
+                      HC3*(__h2f(lszz((2*lidz+1)+3,lidx))-__h2f(lszz((2*lidz+1)-2,lidx)))+
+                      HC4*(__h2f(lszz((2*lidz+1)+4,lidx))-__h2f(lszz((2*lidz+1)-3,lidx)))+
+                      HC5*(__h2f(lszz((2*lidz+1)+5,lidx))-__h2f(lszz((2*lidz+1)-4,lidx))));
 #elif FDOH ==6
-        szz_z.x = DTDH*(HC1*(__h2f0(lszz(lidz+1,lidx))-__h2f0(lszz(lidz,lidx)))+
-                      HC2*(__h2f0(lszz(lidz+2,lidx))-__h2f0(lszz(lidz-1,lidx)))+
-                      HC3*(__h2f0(lszz(lidz+3,lidx))-__h2f0(lszz(lidz-2,lidx)))+
-                      HC4*(__h2f0(lszz(lidz+4,lidx))-__h2f0(lszz(lidz-3,lidx)))+
-                      HC5*(__h2f0(lszz(lidz+5,lidx))-__h2f0(lszz(lidz-4,lidx)))+
-                      HC6*(__h2f0(lszz(lidz+6,lidx))-__h2f0(lszz(lidz-5,lidx))));
-        szz_z.y = DTDH*(HC1*(__h2f1(lszz(lidz+1,lidx))-__h2f1(lszz(lidz,lidx)))+
-                      HC2*(__h2f1(lszz(lidz+2,lidx))-__h2f1(lszz(lidz-1,lidx)))+
-                      HC3*(__h2f1(lszz(lidz+3,lidx))-__h2f1(lszz(lidz-2,lidx)))+
-                      HC4*(__h2f1(lszz(lidz+4,lidx))-__h2f1(lszz(lidz-3,lidx)))+
-                      HC5*(__h2f1(lszz(lidz+5,lidx))-__h2f1(lszz(lidz-4,lidx)))+
-                      HC6*(__h2f1(lszz(lidz+6,lidx))-__h2f1(lszz(lidz-5,lidx))));
+        szz_z.x = DTDH*(HC1*(__h2f(lszz((2*lidz)+1,lidx))-__h2f(lszz((2*lidz),lidx)))+
+                      HC2*(__h2f(lszz((2*lidz)+2,lidx))-__h2f(lszz((2*lidz)-1,lidx)))+
+                      HC3*(__h2f(lszz((2*lidz)+3,lidx))-__h2f(lszz((2*lidz)-2,lidx)))+
+                      HC4*(__h2f(lszz((2*lidz)+4,lidx))-__h2f(lszz((2*lidz)-3,lidx)))+
+                      HC5*(__h2f(lszz((2*lidz)+5,lidx))-__h2f(lszz((2*lidz)-4,lidx)))+
+                      HC6*(__h2f(lszz((2*lidz)+6,lidx))-__h2f(lszz((2*lidz)-5,lidx))));
+        szz_z.y = DTDH*(HC1*(__h2f(lszz((2*lidz+1)+1,lidx))-__h2f(lszz((2*lidz+1),lidx)))+
+                      HC2*(__h2f(lszz((2*lidz+1)+2,lidx))-__h2f(lszz((2*lidz+1)-1,lidx)))+
+                      HC3*(__h2f(lszz((2*lidz+1)+3,lidx))-__h2f(lszz((2*lidz+1)-2,lidx)))+
+                      HC4*(__h2f(lszz((2*lidz+1)+4,lidx))-__h2f(lszz((2*lidz+1)-3,lidx)))+
+                      HC5*(__h2f(lszz((2*lidz+1)+5,lidx))-__h2f(lszz((2*lidz+1)-4,lidx)))+
+                      HC6*(__h2f(lszz((2*lidz+1)+6,lidx))-__h2f(lszz((2*lidz+1)-5,lidx))));
 #endif
         
 #if LOCAL_OFF==0
         __syncthreads();
-        lsxz(lidz,lidx)=sxz(gidz, gidx);
+        lsxz2(lidz,lidx)=sxz(gidz, gidx);
         
         if (lidx<2*FDOH)
-            lsxz(lidz,lidx-FDOH)=sxz(gidz,gidx-FDOH);
+            lsxz2(lidz,lidx-FDOH)=sxz(gidz,gidx-FDOH);
         if (lidx+lsizex-3*FDOH<FDOH)
-            lsxz(lidz,lidx+lsizex-3*FDOH)=sxz(gidz,gidx+lsizex-3*FDOH);
+            lsxz2(lidz,lidx+lsizex-3*FDOH)=sxz(gidz,gidx+lsizex-3*FDOH);
         if (lidx>(lsizex-2*FDOH-1))
-            lsxz(lidz,lidx+FDOH)=sxz(gidz,gidx+FDOH);
+            lsxz2(lidz,lidx+FDOH)=sxz(gidz,gidx+FDOH);
         if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
-            lsxz(lidz,lidx-lsizex+3*FDOH)=sxz(gidz,gidx-lsizex+3*FDOH);
-        if (lidz<2*FDOH)
-            lsxz(lidz-FDOH,lidx)=sxz(gidz-FDOH,gidx);
-        if (lidz>(lsizez-2*FDOH-1))
-            lsxz(lidz+FDOH,lidx)=sxz(gidz+FDOH,gidx);
+            lsxz2(lidz,lidx-lsizex+3*FDOH)=sxz(gidz,gidx-lsizex+3*FDOH);
+        if (lidz<FDOH)
+            lsxz2(lidz-FDOH,lidx)=sxz(gidz-FDOH,gidx);
+        if (lidz>(lsizez-FDOH-1))
+            lsxz2(lidz+FDOH,lidx)=sxz(gidz+FDOH,gidx);
         __syncthreads();
 #endif
         
 #if   FDOH ==1
-        sxz_z.x = DTDH*HC1*(__h2f0(lsxz(lidz,lidx))   - __h2f0(lsxz(lidz-1,lidx)));
-        sxz_z.y = DTDH*HC1*(__h2f1(lsxz(lidz,lidx))   - __h2f1(lsxz(lidz-1,lidx)));
-        sxz_x.x = DTDH*HC1*(__h2f0(lsxz(lidz,lidx))   - __h2f0(lsxz(lidz,lidx-1)));
-        sxz_x.y = DTDH*HC1*(__h2f1(lsxz(lidz,lidx))   - __h2f1(lsxz(lidz,lidx-1)));
+        sxz_z.x = DTDH*HC1*(__h2f(lsxz((2*lidz),lidx))   - __h2f(lsxz((2*lidz)-1,lidx)));
+        sxz_z.y = DTDH*HC1*(__h2f(lsxz((2*lidz+1),lidx))   - __h2f(lsxz((2*lidz+1)-1,lidx)));
+        sxz_x.x = DTDH*HC1*(__h2f(lsxz((2*lidz),lidx))   - __h2f(lsxz((2*lidz),lidx-1)));
+        sxz_x.y = DTDH*HC1*(__h2f(lsxz((2*lidz+1),lidx))   - __h2f(lsxz((2*lidz+1),lidx-1)));
 #elif FDOH ==2
-        sxz_z.x = DTDH*(HC1*(__h2f0(lsxz(lidz,lidx))   - __h2f0(lsxz(lidz-1,lidx)))
-                      +HC2*(__h2f0(lsxz(lidz+1,lidx)) - __h2f0(lsxz(lidz-2,lidx))));
-        sxz_z.y = DTDH*(HC1*(__h2f1(lsxz(lidz,lidx))   - __h2f1(lsxz(lidz-1,lidx)))
-                      +HC2*(__h2f1(lsxz(lidz+1,lidx)) - __h2f1(lsxz(lidz-2,lidx))));
-        sxz_x.x = DTDH*(HC1*(__h2f0(lsxz(lidz,lidx))   - __h2f0(lsxz(lidz,lidx-1)))
-                      +HC2*(__h2f0(lsxz(lidz,lidx+1)) - __h2f0(lsxz(lidz,lidx-2))));
-        sxz_x.y = DTDH*(HC1*(__h2f1(lsxz(lidz,lidx))   - __h2f1(lsxz(lidz,lidx-1)))
-                      +HC2*(__h2f1(lsxz(lidz,lidx+1)) - __h2f1(lsxz(lidz,lidx-2))));
+        sxz_z.x = DTDH*(HC1*(__h2f(lsxz((2*lidz),lidx))   - __h2f(lsxz((2*lidz)-1,lidx)))
+                      +HC2*(__h2f(lsxz((2*lidz)+1,lidx)) - __h2f(lsxz((2*lidz)-2,lidx))));
+        sxz_z.y = DTDH*(HC1*(__h2f(lsxz((2*lidz+1),lidx))   - __h2f(lsxz((2*lidz+1)-1,lidx)))
+                      +HC2*(__h2f(lsxz((2*lidz+1)+1,lidx)) - __h2f(lsxz((2*lidz+1)-2,lidx))));
+        sxz_x.x = DTDH*(HC1*(__h2f(lsxz((2*lidz),lidx))   - __h2f(lsxz((2*lidz),lidx-1)))
+                      +HC2*(__h2f(lsxz((2*lidz),lidx+1)) - __h2f(lsxz((2*lidz),lidx-2))));
+        sxz_x.y = DTDH*(HC1*(__h2f(lsxz((2*lidz+1),lidx))   - __h2f(lsxz((2*lidz+1),lidx-1)))
+                      +HC2*(__h2f(lsxz((2*lidz+1),lidx+1)) - __h2f(lsxz((2*lidz+1),lidx-2))));
 #elif FDOH ==3
-        sxz_z.x = DTDH*(HC1*(__h2f0(lsxz(lidz,lidx))  -__h2f0(lsxz(lidz-1,lidx)))+
-                      HC2*(__h2f0(lsxz(lidz+1,lidx))-__h2f0(lsxz(lidz-2,lidx)))+
-                      HC3*(__h2f0(lsxz(lidz+2,lidx))-__h2f0(lsxz(lidz-3,lidx))));
-        sxz_z.y = DTDH*(HC1*(__h2f1(lsxz(lidz,lidx))  -__h2f1(lsxz(lidz-1,lidx)))+
-                      HC2*(__h2f1(lsxz(lidz+1,lidx))-__h2f1(lsxz(lidz-2,lidx)))+
-                      HC3*(__h2f1(lsxz(lidz+2,lidx))-__h2f1(lsxz(lidz-3,lidx))));
+        sxz_z.x = DTDH*(HC1*(__h2f(lsxz((2*lidz),lidx))  -__h2f(lsxz((2*lidz)-1,lidx)))+
+                      HC2*(__h2f(lsxz((2*lidz)+1,lidx))-__h2f(lsxz((2*lidz)-2,lidx)))+
+                      HC3*(__h2f(lsxz((2*lidz)+2,lidx))-__h2f(lsxz((2*lidz)-3,lidx))));
+        sxz_z.y = DTDH*(HC1*(__h2f(lsxz((2*lidz+1),lidx))  -__h2f(lsxz((2*lidz+1)-1,lidx)))+
+                      HC2*(__h2f(lsxz((2*lidz+1)+1,lidx))-__h2f(lsxz((2*lidz+1)-2,lidx)))+
+                      HC3*(__h2f(lsxz((2*lidz+1)+2,lidx))-__h2f(lsxz((2*lidz+1)-3,lidx))));
         
-        sxz_x.x = DTDH*(HC1*(__h2f0(lsxz(lidz,lidx))  -__h2f0(lsxz(lidz,lidx-1)))+
-                      HC2*(__h2f0(lsxz(lidz,lidx+1))-__h2f0(lsxz(lidz,lidx-2)))+
-                      HC3*(__h2f0(lsxz(lidz,lidx+2))-__h2f0(lsxz(lidz,lidx-3))));
-        sxz_x.y = DTDH*(HC1*(__h2f1(lsxz(lidz,lidx))  -__h2f1(lsxz(lidz,lidx-1)))+
-                      HC2*(__h2f1(lsxz(lidz,lidx+1))-__h2f1(lsxz(lidz,lidx-2)))+
-                      HC3*(__h2f1(lsxz(lidz,lidx+2))-__h2f1(lsxz(lidz,lidx-3))));
+        sxz_x.x = DTDH*(HC1*(__h2f(lsxz((2*lidz),lidx))  -__h2f(lsxz((2*lidz),lidx-1)))+
+                      HC2*(__h2f(lsxz((2*lidz),lidx+1))-__h2f(lsxz((2*lidz),lidx-2)))+
+                      HC3*(__h2f(lsxz((2*lidz),lidx+2))-__h2f(lsxz((2*lidz),lidx-3))));
+        sxz_x.y = DTDH*(HC1*(__h2f(lsxz((2*lidz+1),lidx))  -__h2f(lsxz((2*lidz+1),lidx-1)))+
+                      HC2*(__h2f(lsxz((2*lidz+1),lidx+1))-__h2f(lsxz((2*lidz+1),lidx-2)))+
+                      HC3*(__h2f(lsxz((2*lidz+1),lidx+2))-__h2f(lsxz((2*lidz+1),lidx-3))));
 #elif FDOH ==4
-        sxz_z.x = DTDH*(HC1*(__h2f0(lsxz(lidz,lidx))  -__h2f0(lsxz(lidz-1,lidx)))+
-                      HC2*(__h2f0(lsxz(lidz+1,lidx))-__h2f0(lsxz(lidz-2,lidx)))+
-                      HC3*(__h2f0(lsxz(lidz+2,lidx))-__h2f0(lsxz(lidz-3,lidx)))+
-                      HC4*(__h2f0(lsxz(lidz+3,lidx))-__h2f0(lsxz(lidz-4,lidx))));
-        sxz_z.y = DTDH*(HC1*(__h2f1(lsxz(lidz,lidx))  -__h2f1(lsxz(lidz-1,lidx)))+
-                      HC2*(__h2f1(lsxz(lidz+1,lidx))-__h2f1(lsxz(lidz-2,lidx)))+
-                      HC3*(__h2f1(lsxz(lidz+2,lidx))-__h2f1(lsxz(lidz-3,lidx)))+
-                      HC4*(__h2f1(lsxz(lidz+3,lidx))-__h2f1(lsxz(lidz-4,lidx))));
+        sxz_z.x = DTDH*(HC1*(__h2f(lsxz((2*lidz),lidx))  -__h2f(lsxz((2*lidz)-1,lidx)))+
+                      HC2*(__h2f(lsxz((2*lidz)+1,lidx))-__h2f(lsxz((2*lidz)-2,lidx)))+
+                      HC3*(__h2f(lsxz((2*lidz)+2,lidx))-__h2f(lsxz((2*lidz)-3,lidx)))+
+                      HC4*(__h2f(lsxz((2*lidz)+3,lidx))-__h2f(lsxz((2*lidz)-4,lidx))));
+        sxz_z.y = DTDH*(HC1*(__h2f(lsxz((2*lidz+1),lidx))  -__h2f(lsxz((2*lidz+1)-1,lidx)))+
+                      HC2*(__h2f(lsxz((2*lidz+1)+1,lidx))-__h2f(lsxz((2*lidz+1)-2,lidx)))+
+                      HC3*(__h2f(lsxz((2*lidz+1)+2,lidx))-__h2f(lsxz((2*lidz+1)-3,lidx)))+
+                      HC4*(__h2f(lsxz((2*lidz+1)+3,lidx))-__h2f(lsxz((2*lidz+1)-4,lidx))));
         
-        sxz_x.x = DTDH*(HC1*(__h2f0(lsxz(lidz,lidx))  -__h2f0(lsxz(lidz,lidx-1)))+
-                      HC2*(__h2f0(lsxz(lidz,lidx+1))-__h2f0(lsxz(lidz,lidx-2)))+
-                      HC3*(__h2f0(lsxz(lidz,lidx+2))-__h2f0(lsxz(lidz,lidx-3)))+
-                      HC4*(__h2f0(lsxz(lidz,lidx+3))-__h2f0(lsxz(lidz,lidx-4))));
-        sxz_x.y = DTDH*(HC1*(__h2f1(lsxz(lidz,lidx))  -__h2f1(lsxz(lidz,lidx-1)))+
-                      HC2*(__h2f1(lsxz(lidz,lidx+1))-__h2f1(lsxz(lidz,lidx-2)))+
-                      HC3*(__h2f1(lsxz(lidz,lidx+2))-__h2f1(lsxz(lidz,lidx-3)))+
-                      HC4*(__h2f1(lsxz(lidz,lidx+3))-__h2f1(lsxz(lidz,lidx-4))));
+        sxz_x.x = DTDH*(HC1*(__h2f(lsxz((2*lidz),lidx))  -__h2f(lsxz((2*lidz),lidx-1)))+
+                      HC2*(__h2f(lsxz((2*lidz),lidx+1))-__h2f(lsxz((2*lidz),lidx-2)))+
+                      HC3*(__h2f(lsxz((2*lidz),lidx+2))-__h2f(lsxz((2*lidz),lidx-3)))+
+                      HC4*(__h2f(lsxz((2*lidz),lidx+3))-__h2f(lsxz((2*lidz),lidx-4))));
+        sxz_x.y = DTDH*(HC1*(__h2f(lsxz((2*lidz+1),lidx))  -__h2f(lsxz((2*lidz+1),lidx-1)))+
+                      HC2*(__h2f(lsxz((2*lidz+1),lidx+1))-__h2f(lsxz((2*lidz+1),lidx-2)))+
+                      HC3*(__h2f(lsxz((2*lidz+1),lidx+2))-__h2f(lsxz((2*lidz+1),lidx-3)))+
+                      HC4*(__h2f(lsxz((2*lidz+1),lidx+3))-__h2f(lsxz((2*lidz+1),lidx-4))));
 #elif FDOH ==5
-        sxz_z.x = DTDH*(HC1*(__h2f0(lsxz(lidz,lidx))  -__h2f0(lsxz(lidz-1,lidx)))+
-                      HC2*(__h2f0(lsxz(lidz+1,lidx))-__h2f0(lsxz(lidz-2,lidx)))+
-                      HC3*(__h2f0(lsxz(lidz+2,lidx))-__h2f0(lsxz(lidz-3,lidx)))+
-                      HC4*(__h2f0(lsxz(lidz+3,lidx))-__h2f0(lsxz(lidz-4,lidx)))+
-                      HC5*(__h2f0(lsxz(lidz+4,lidx))-__h2f0(lsxz(lidz-5,lidx))));
-        sxz_z.y = DTDH*(HC1*(__h2f1(lsxz(lidz,lidx))  -__h2f1(lsxz(lidz-1,lidx)))+
-                      HC2*(__h2f1(lsxz(lidz+1,lidx))-__h2f1(lsxz(lidz-2,lidx)))+
-                      HC3*(__h2f1(lsxz(lidz+2,lidx))-__h2f1(lsxz(lidz-3,lidx)))+
-                      HC4*(__h2f1(lsxz(lidz+3,lidx))-__h2f1(lsxz(lidz-4,lidx)))+
-                      HC5*(__h2f1(lsxz(lidz+4,lidx))-__h2f1(lsxz(lidz-5,lidx))));
+        sxz_z.x = DTDH*(HC1*(__h2f(lsxz((2*lidz),lidx))  -__h2f(lsxz((2*lidz)-1,lidx)))+
+                      HC2*(__h2f(lsxz((2*lidz)+1,lidx))-__h2f(lsxz((2*lidz)-2,lidx)))+
+                      HC3*(__h2f(lsxz((2*lidz)+2,lidx))-__h2f(lsxz((2*lidz)-3,lidx)))+
+                      HC4*(__h2f(lsxz((2*lidz)+3,lidx))-__h2f(lsxz((2*lidz)-4,lidx)))+
+                      HC5*(__h2f(lsxz((2*lidz)+4,lidx))-__h2f(lsxz((2*lidz)-5,lidx))));
+        sxz_z.y = DTDH*(HC1*(__h2f(lsxz((2*lidz+1),lidx))  -__h2f(lsxz((2*lidz+1)-1,lidx)))+
+                      HC2*(__h2f(lsxz((2*lidz+1)+1,lidx))-__h2f(lsxz((2*lidz+1)-2,lidx)))+
+                      HC3*(__h2f(lsxz((2*lidz+1)+2,lidx))-__h2f(lsxz((2*lidz+1)-3,lidx)))+
+                      HC4*(__h2f(lsxz((2*lidz+1)+3,lidx))-__h2f(lsxz((2*lidz+1)-4,lidx)))+
+                      HC5*(__h2f(lsxz((2*lidz+1)+4,lidx))-__h2f(lsxz((2*lidz+1)-5,lidx))));
         
-        sxz_x.x = DTDH*(HC1*(__h2f0(lsxz(lidz,lidx))  -__h2f0(lsxz(lidz,lidx-1)))+
-                      HC2*(__h2f0(lsxz(lidz,lidx+1))-__h2f0(lsxz(lidz,lidx-2)))+
-                      HC3*(__h2f0(lsxz(lidz,lidx+2))-__h2f0(lsxz(lidz,lidx-3)))+
-                      HC4*(__h2f0(lsxz(lidz,lidx+3))-__h2f0(lsxz(lidz,lidx-4)))+
-                      HC5*(__h2f0(lsxz(lidz,lidx+4))-__h2f0(lsxz(lidz,lidx-5))));
-        sxz_x.y = DTDH*(HC1*(__h2f1(lsxz(lidz,lidx))  -__h2f1(lsxz(lidz,lidx-1)))+
-                      HC2*(__h2f1(lsxz(lidz,lidx+1))-__h2f1(lsxz(lidz,lidx-2)))+
-                      HC3*(__h2f1(lsxz(lidz,lidx+2))-__h2f1(lsxz(lidz,lidx-3)))+
-                      HC4*(__h2f1(lsxz(lidz,lidx+3))-__h2f1(lsxz(lidz,lidx-4)))+
-                      HC5*(__h2f1(lsxz(lidz,lidx+4))-__h2f1(lsxz(lidz,lidx-5))));
+        sxz_x.x = DTDH*(HC1*(__h2f(lsxz((2*lidz),lidx))  -__h2f(lsxz((2*lidz),lidx-1)))+
+                      HC2*(__h2f(lsxz((2*lidz),lidx+1))-__h2f(lsxz((2*lidz),lidx-2)))+
+                      HC3*(__h2f(lsxz((2*lidz),lidx+2))-__h2f(lsxz((2*lidz),lidx-3)))+
+                      HC4*(__h2f(lsxz((2*lidz),lidx+3))-__h2f(lsxz((2*lidz),lidx-4)))+
+                      HC5*(__h2f(lsxz((2*lidz),lidx+4))-__h2f(lsxz((2*lidz),lidx-5))));
+        sxz_x.y = DTDH*(HC1*(__h2f(lsxz((2*lidz+1),lidx))  -__h2f(lsxz((2*lidz+1),lidx-1)))+
+                      HC2*(__h2f(lsxz((2*lidz+1),lidx+1))-__h2f(lsxz((2*lidz+1),lidx-2)))+
+                      HC3*(__h2f(lsxz((2*lidz+1),lidx+2))-__h2f(lsxz((2*lidz+1),lidx-3)))+
+                      HC4*(__h2f(lsxz((2*lidz+1),lidx+3))-__h2f(lsxz((2*lidz+1),lidx-4)))+
+                      HC5*(__h2f(lsxz((2*lidz+1),lidx+4))-__h2f(lsxz((2*lidz+1),lidx-5))));
 #elif FDOH ==6
         
-        sxz_z.x = DTDH*(HC1*(__h2f0(lsxz(lidz,lidx))  -__h2f0(lsxz(lidz-1,lidx)))+
-                      HC2*(__h2f0(lsxz(lidz+1,lidx))-__h2f0(lsxz(lidz-2,lidx)))+
-                      HC3*(__h2f0(lsxz(lidz+2,lidx))-__h2f0(lsxz(lidz-3,lidx)))+
-                      HC4*(__h2f0(lsxz(lidz+3,lidx))-__h2f0(lsxz(lidz-4,lidx)))+
-                      HC5*(__h2f0(lsxz(lidz+4,lidx))-__h2f0(lsxz(lidz-5,lidx)))+
-                      HC6*(__h2f0(lsxz(lidz+5,lidx))-__h2f0(lsxz(lidz-6,lidx))));
-        sxz_z.y = DTDH*(HC1*(__h2f1(lsxz(lidz,lidx))  -__h2f1(lsxz(lidz-1,lidx)))+
-                      HC2*(__h2f1(lsxz(lidz+1,lidx))-__h2f1(lsxz(lidz-2,lidx)))+
-                      HC3*(__h2f1(lsxz(lidz+2,lidx))-__h2f1(lsxz(lidz-3,lidx)))+
-                      HC4*(__h2f1(lsxz(lidz+3,lidx))-__h2f1(lsxz(lidz-4,lidx)))+
-                      HC5*(__h2f1(lsxz(lidz+4,lidx))-__h2f1(lsxz(lidz-5,lidx)))+
-                      HC6*(__h2f1(lsxz(lidz+5,lidx))-__h2f1(lsxz(lidz-6,lidx))));
+        sxz_z.x = DTDH*(HC1*(__h2f(lsxz((2*lidz),lidx))  -__h2f(lsxz((2*lidz)-1,lidx)))+
+                      HC2*(__h2f(lsxz((2*lidz)+1,lidx))-__h2f(lsxz((2*lidz)-2,lidx)))+
+                      HC3*(__h2f(lsxz((2*lidz)+2,lidx))-__h2f(lsxz((2*lidz)-3,lidx)))+
+                      HC4*(__h2f(lsxz((2*lidz)+3,lidx))-__h2f(lsxz((2*lidz)-4,lidx)))+
+                      HC5*(__h2f(lsxz((2*lidz)+4,lidx))-__h2f(lsxz((2*lidz)-5,lidx)))+
+                      HC6*(__h2f(lsxz((2*lidz)+5,lidx))-__h2f(lsxz((2*lidz)-6,lidx))));
+        sxz_z.y = DTDH*(HC1*(__h2f(lsxz((2*lidz+1),lidx))  -__h2f(lsxz((2*lidz+1)-1,lidx)))+
+                      HC2*(__h2f(lsxz((2*lidz+1)+1,lidx))-__h2f(lsxz((2*lidz+1)-2,lidx)))+
+                      HC3*(__h2f(lsxz((2*lidz+1)+2,lidx))-__h2f(lsxz((2*lidz+1)-3,lidx)))+
+                      HC4*(__h2f(lsxz((2*lidz+1)+3,lidx))-__h2f(lsxz((2*lidz+1)-4,lidx)))+
+                      HC5*(__h2f(lsxz((2*lidz+1)+4,lidx))-__h2f(lsxz((2*lidz+1)-5,lidx)))+
+                      HC6*(__h2f(lsxz((2*lidz+1)+5,lidx))-__h2f(lsxz((2*lidz+1)-6,lidx))));
         
-        sxz_x.x = DTDH*(HC1*(__h2f0(lsxz(lidz,lidx))  -__h2f0(lsxz(lidz,lidx-1)))+
-                      HC2*(__h2f0(lsxz(lidz,lidx+1))-__h2f0(lsxz(lidz,lidx-2)))+
-                      HC3*(__h2f0(lsxz(lidz,lidx+2))-__h2f0(lsxz(lidz,lidx-3)))+
-                      HC4*(__h2f0(lsxz(lidz,lidx+3))-__h2f0(lsxz(lidz,lidx-4)))+
-                      HC5*(__h2f0(lsxz(lidz,lidx+4))-__h2f0(lsxz(lidz,lidx-5)))+
-                      HC6*(__h2f0(lsxz(lidz,lidx+5))-__h2f0(lsxz(lidz,lidx-6))));
-        sxz_x.y = DTDH*(HC1*(__h2f1(lsxz(lidz,lidx))  -__h2f1(lsxz(lidz,lidx-1)))+
-                      HC2*(__h2f1(lsxz(lidz,lidx+1))-__h2f1(lsxz(lidz,lidx-2)))+
-                      HC3*(__h2f1(lsxz(lidz,lidx+2))-__h2f1(lsxz(lidz,lidx-3)))+
-                      HC4*(__h2f1(lsxz(lidz,lidx+3))-__h2f1(lsxz(lidz,lidx-4)))+
-                      HC5*(__h2f1(lsxz(lidz,lidx+4))-__h2f1(lsxz(lidz,lidx-5)))+
-                      HC6*(__h2f1(lsxz(lidz,lidx+5))-__h2f1(lsxz(lidz,lidx-6))));
+        sxz_x.x = DTDH*(HC1*(__h2f(lsxz((2*lidz),lidx))  -__h2f(lsxz((2*lidz),lidx-1)))+
+                      HC2*(__h2f(lsxz((2*lidz),lidx+1))-__h2f(lsxz((2*lidz),lidx-2)))+
+                      HC3*(__h2f(lsxz((2*lidz),lidx+2))-__h2f(lsxz((2*lidz),lidx-3)))+
+                      HC4*(__h2f(lsxz((2*lidz),lidx+3))-__h2f(lsxz((2*lidz),lidx-4)))+
+                      HC5*(__h2f(lsxz((2*lidz),lidx+4))-__h2f(lsxz((2*lidz),lidx-5)))+
+                      HC6*(__h2f(lsxz((2*lidz),lidx+5))-__h2f(lsxz((2*lidz),lidx-6))));
+        sxz_x.y = DTDH*(HC1*(__h2f(lsxz((2*lidz+1),lidx))  -__h2f(lsxz((2*lidz+1),lidx-1)))+
+                      HC2*(__h2f(lsxz((2*lidz+1),lidx+1))-__h2f(lsxz((2*lidz+1),lidx-2)))+
+                      HC3*(__h2f(lsxz((2*lidz+1),lidx+2))-__h2f(lsxz((2*lidz+1),lidx-3)))+
+                      HC4*(__h2f(lsxz((2*lidz+1),lidx+3))-__h2f(lsxz((2*lidz+1),lidx-4)))+
+                      HC5*(__h2f(lsxz((2*lidz+1),lidx+4))-__h2f(lsxz((2*lidz+1),lidx-5)))+
+                      HC6*(__h2f(lsxz((2*lidz+1),lidx+5))-__h2f(lsxz((2*lidz+1),lidx-6))));
 #endif
     }
 
     // To stop updating if we are outside the model (global id must be a multiple of local id in OpenCL, hence we stop if we have a global id outside the grid)
 #if LOCAL_OFF==0
 #if COMM12==0
-    if (gidz>(NZ-FDOH-1) || (gidx-offcomm)>(NX-FDOH-1-LCOMM) ){
+    if (gidz>(NZ-FDOH/2-1) || (gidx-offcomm)>(NX-FDOH-1-LCOMM) ){
         return;
     }
     
 #else
-    if (gidz>(NZ-FDOH-1) ){
+    if (gidz>(NZ-FDOH/2-1) ){
         return;
     }
 #endif
