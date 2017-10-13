@@ -469,8 +469,8 @@ extern "C" __global__ void update_v(int offcomm,
     {
         float2 lvx = __half22float2(vx(gidz,gidx));
         float2 lvz = __half22float2(vz(gidz,gidx));
-        float2 lrip = rip(gidz,gidx);
-        float2 lrkp = rkp(gidz,gidx);
+        float2 lrip = __half22float2(rip(gidz,gidx));
+        float2 lrkp = __half22float2(rkp(gidz,gidx));
         lvx.x = ((sxx_x.x + sxz_z.x)/lrip.x);
         lvx.y = ((sxx_x.y + sxz_z.y)/lrip.y);
         lvz.x = ((szz_z.x + sxz_x.x)/lrkp.x);

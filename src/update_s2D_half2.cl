@@ -488,23 +488,23 @@ extern "C" __global__ void update_s(int offcomm,
     {
 #if LVE==0
         
-        fipkp=muipkp(gidz, gidx);
+        fipkp=__half22float2(muipkp(gidz, gidx));
         fipkp.x*=DT;
         fipkp.y*=DT;
-        f=mu(gidz, gidx);
+        f=__half22float2(mu(gidz, gidx));
         f.x*=2.0*DT;
         f.y*=2.0*DT;
-        g=M(gidz, gidx);
+        g=__half22float2(M(gidz, gidx));
         g.x*=DT;
         g.y*=DT;
 #else
         
-        lM=M(gidz,gidx);
-        lmu=mu(gidz,gidx);
-        lmuipkp=muipkp(gidz,gidx);
-        ltaup=taup(gidz,gidx);
-        ltaus=taus(gidz,gidx);
-        ltausipkp=tausipkp(gidz,gidx);
+        lM=__half22float2(M(gidz,gidx));
+        lmu=__half22float2(mu(gidz,gidx));
+        lmuipkp=__half22float2(muipkp(gidz,gidx));
+        ltaup=__half22float2(taup(gidz,gidx));
+        ltaus=__half22float2(taus(gidz,gidx));
+        ltausipkp=__half22float2(tausipkp(gidz,gidx));
         
         for (l=0;l<LVE;l++){
             leta[l]=eta[l];
