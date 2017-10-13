@@ -499,9 +499,9 @@ extern "C" __global__ void update_s(int offcomm,
         g.y*=DT;
 #else
         
-        lM= __half22float2( M(gidz,gidx));
-        lmu=__half22float2(mu(gidz,gidx));
-//        lmuipkp=__half22float2(muipkp(gidz,gidx));
+        lM=     __half22float2(     M(gidz,gidx));
+        lmu=    __half22float2(    mu(gidz,gidx));
+        lmuipkp=__half22float2(muipkp(gidz,gidx));
 //        ltaup=__half22float2(taup(gidz,gidx));
 //        ltaus=__half22float2(taus(gidz,gidx));
 //        ltausipkp=__half22float2(tausipkp(gidz,gidx));
