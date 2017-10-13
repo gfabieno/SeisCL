@@ -29,11 +29,11 @@ SeisCL_CL= \
 	update_adjv2D_SH.cl \
 	update_adjv3D.cl \
 	update_s2D.cl \
-    update_s2D_half2.cl \
+	update_s2D_half2.cl \
 	update_s2D_SH.cl \
 	update_s3D.cl \
 	update_v2D.cl \
-    update_v2D_half2.cl \
+	update_v2D_half2.cl \
 	update_v2D_SH.cl \
 	update_v3D.cl
 
