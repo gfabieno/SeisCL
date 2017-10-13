@@ -35,9 +35,9 @@
 #define gradtaup(z,x)  gradtaup[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
 #define gradtaus(z,x)  gradtaus[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
 
-#define taus(z,x)        taus[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define taus(z,x)         taus[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
 #define tausipkp(z,x) tausipkp[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
-#define taup(z,x)        taup[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define taup(z,x)         taup[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
 
 
 #define vx(z,x)  vx[(x)*(NZ)+(z)]
@@ -502,8 +502,8 @@ extern "C" __global__ void update_s(int offcomm,
         lM=     __half22float2(     M(gidz,gidx));
         lmu=    __half22float2(    mu(gidz,gidx));
         lmuipkp=__half22float2(muipkp(gidz,gidx));
-//        ltaup=__half22float2(taup(gidz,gidx));
-//        ltaus=__half22float2(taus(gidz,gidx));
+        ltaup=  __half22float2(  taup(gidz,gidx));
+//        ltaus=    __half22float2(    taus(gidz,gidx));
 //        ltausipkp=__half22float2(tausipkp(gidz,gidx));
         
         for (l=0;l<LVE;l++){
