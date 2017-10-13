@@ -150,65 +150,65 @@ extern "C" __global__ void update_s(int offcomm,
         __syncthreads();
 #endif
         
-//#if   FDOH==1
-//        vxx = HC1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))/DH;
-//        vxz = HC1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))/DH;
-//#elif FDOH==2
-//        vxx = (  HC1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))
-//               + HC2*(lvx(lidz, lidx+1)-lvx(lidz, lidx-2))
-//               )/DH;
-//        vxz = (  HC1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))
-//               + HC2*(lvx(lidz+2, lidx)-lvx(lidz-1, lidx))
-//               )/DH;
-//#elif FDOH==3
-//        vxx = (  HC1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))
-//               + HC2*(lvx(lidz, lidx+1)-lvx(lidz, lidx-2))
-//               + HC3*(lvx(lidz, lidx+2)-lvx(lidz, lidx-3))
-//               )/DH;
-//        vxz = (  HC1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))
-//               + HC2*(lvx(lidz+2, lidx)-lvx(lidz-1, lidx))
-//               + HC3*(lvx(lidz+3, lidx)-lvx(lidz-2, lidx))
-//               )/DH;
-//#elif FDOH==4
-//        vxx = (   HC1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))
-//               + HC2*(lvx(lidz, lidx+1)-lvx(lidz, lidx-2))
-//               + HC3*(lvx(lidz, lidx+2)-lvx(lidz, lidx-3))
-//               + HC4*(lvx(lidz, lidx+3)-lvx(lidz, lidx-4))
-//               )/DH;
-//        vxz = (  HC1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))
-//               + HC2*(lvx(lidz+2, lidx)-lvx(lidz-1, lidx))
-//               + HC3*(lvx(lidz+3, lidx)-lvx(lidz-2, lidx))
-//               + HC4*(lvx(lidz+4, lidx)-lvx(lidz-3, lidx))
-//               )/DH;
-//#elif FDOH==5
-//        vxx = (  HC1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))
-//               + HC2*(lvx(lidz, lidx+1)-lvx(lidz, lidx-2))
-//               + HC3*(lvx(lidz, lidx+2)-lvx(lidz, lidx-3))
-//               + HC4*(lvx(lidz, lidx+3)-lvx(lidz, lidx-4))
-//               + HC5*(lvx(lidz, lidx+4)-lvx(lidz, lidx-5))
-//               )/DH;
-//        vxz = (  HC1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))
-//               + HC2*(lvx(lidz+2, lidx)-lvx(lidz-1, lidx))
-//               + HC3*(lvx(lidz+3, lidx)-lvx(lidz-2, lidx))
-//               + HC4*(lvx(lidz+4, lidx)-lvx(lidz-3, lidx))
-//               + HC5*(lvx(lidz+5, lidx)-lvx(lidz-4, lidx))
-//               )/DH;
-//#elif FDOH==6
-//        vxx = (  HC1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))
-//               + HC2*(lvx(lidz, lidx+1)-lvx(lidz, lidx-2))
-//               + HC3*(lvx(lidz, lidx+2)-lvx(lidz, lidx-3))
-//               + HC4*(lvx(lidz, lidx+3)-lvx(lidz, lidx-4))
-//               + HC5*(lvx(lidz, lidx+4)-lvx(lidz, lidx-5))
-//               + HC6*(lvx(lidz, lidx+5)-lvx(lidz, lidx-6))
-//               )/DH;
-//        vxz = (  HC1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))
-//               + HC2*(lvx(lidz+2, lidx)-lvx(lidz-1, lidx))
-//               + HC3*(lvx(lidz+3, lidx)-lvx(lidz-2, lidx))
-//               + HC4*(lvx(lidz+4, lidx)-lvx(lidz-3, lidx))
-//               + HC5*(lvx(lidz+5, lidx)-lvx(lidz-4, lidx))
-//               + HC6*(lvx(lidz+6, lidx)-lvx(lidz-5, lidx))
-//               )/DH;
-//#endif
+#if   FDOH==1
+        vxx = HC1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))/DH;
+        vxz = HC1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))/DH;
+#elif FDOH==2
+        vxx = (  HC1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))
+               + HC2*(lvx(lidz, lidx+1)-lvx(lidz, lidx-2))
+               )/DH;
+        vxz = (  HC1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))
+               + HC2*(lvx(lidz+2, lidx)-lvx(lidz-1, lidx))
+               )/DH;
+#elif FDOH==3
+        vxx = (  HC1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))
+               + HC2*(lvx(lidz, lidx+1)-lvx(lidz, lidx-2))
+               + HC3*(lvx(lidz, lidx+2)-lvx(lidz, lidx-3))
+               )/DH;
+        vxz = (  HC1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))
+               + HC2*(lvx(lidz+2, lidx)-lvx(lidz-1, lidx))
+               + HC3*(lvx(lidz+3, lidx)-lvx(lidz-2, lidx))
+               )/DH;
+#elif FDOH==4
+        vxx = (   HC1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))
+               + HC2*(lvx(lidz, lidx+1)-lvx(lidz, lidx-2))
+               + HC3*(lvx(lidz, lidx+2)-lvx(lidz, lidx-3))
+               + HC4*(lvx(lidz, lidx+3)-lvx(lidz, lidx-4))
+               )/DH;
+        vxz = (  HC1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))
+               + HC2*(lvx(lidz+2, lidx)-lvx(lidz-1, lidx))
+               + HC3*(lvx(lidz+3, lidx)-lvx(lidz-2, lidx))
+               + HC4*(lvx(lidz+4, lidx)-lvx(lidz-3, lidx))
+               )/DH;
+#elif FDOH==5
+        vxx = (  HC1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))
+               + HC2*(lvx(lidz, lidx+1)-lvx(lidz, lidx-2))
+               + HC3*(lvx(lidz, lidx+2)-lvx(lidz, lidx-3))
+               + HC4*(lvx(lidz, lidx+3)-lvx(lidz, lidx-4))
+               + HC5*(lvx(lidz, lidx+4)-lvx(lidz, lidx-5))
+               )/DH;
+        vxz = (  HC1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))
+               + HC2*(lvx(lidz+2, lidx)-lvx(lidz-1, lidx))
+               + HC3*(lvx(lidz+3, lidx)-lvx(lidz-2, lidx))
+               + HC4*(lvx(lidz+4, lidx)-lvx(lidz-3, lidx))
+               + HC5*(lvx(lidz+5, lidx)-lvx(lidz-4, lidx))
+               )/DH;
+#elif FDOH==6
+        vxx = (  HC1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))
+               + HC2*(lvx(lidz, lidx+1)-lvx(lidz, lidx-2))
+               + HC3*(lvx(lidz, lidx+2)-lvx(lidz, lidx-3))
+               + HC4*(lvx(lidz, lidx+3)-lvx(lidz, lidx-4))
+               + HC5*(lvx(lidz, lidx+4)-lvx(lidz, lidx-5))
+               + HC6*(lvx(lidz, lidx+5)-lvx(lidz, lidx-6))
+               )/DH;
+        vxz = (  HC1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))
+               + HC2*(lvx(lidz+2, lidx)-lvx(lidz-1, lidx))
+               + HC3*(lvx(lidz+3, lidx)-lvx(lidz-2, lidx))
+               + HC4*(lvx(lidz+4, lidx)-lvx(lidz-3, lidx))
+               + HC5*(lvx(lidz+5, lidx)-lvx(lidz-4, lidx))
+               + HC6*(lvx(lidz+6, lidx)-lvx(lidz-5, lidx))
+               )/DH;
+#endif
         
         
 #if LOCAL_OFF==0
@@ -229,65 +229,65 @@ extern "C" __global__ void update_s(int offcomm,
         __syncthreads();
 #endif
         
-//#if   FDOH==1
-//        vzz = HC1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))/DH;
-//        vzx = HC1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))/DH;
-//#elif FDOH==2
-//        vzz = (  HC1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))
-//               + HC2*(lvz(lidz+1, lidx)-lvz(lidz-2, lidx))
-//               )/DH;
-//        vzx = (  HC1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))
-//               + HC2*(lvz(lidz, lidx+2)-lvz(lidz, lidx-1))
-//               )/DH;
-//#elif FDOH==3
-//        vzz = (  HC1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))
-//               + HC2*(lvz(lidz+1, lidx)-lvz(lidz-2, lidx))
-//               + HC3*(lvz(lidz+2, lidx)-lvz(lidz-3, lidx))
-//               )/DH;
-//        vzx = (  HC1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))
-//               + HC2*(lvz(lidz, lidx+2)-lvz(lidz, lidx-1))
-//               + HC3*(lvz(lidz, lidx+3)-lvz(lidz, lidx-2))
-//               )/DH;
-//#elif FDOH==4
-//        vzz = (  HC1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))
-//               + HC2*(lvz(lidz+1, lidx)-lvz(lidz-2, lidx))
-//               + HC3*(lvz(lidz+2, lidx)-lvz(lidz-3, lidx))
-//               + HC4*(lvz(lidz+3, lidx)-lvz(lidz-4, lidx))
-//               )/DH;
-//        vzx = (  HC1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))
-//               + HC2*(lvz(lidz, lidx+2)-lvz(lidz, lidx-1))
-//               + HC3*(lvz(lidz, lidx+3)-lvz(lidz, lidx-2))
-//               + HC4*(lvz(lidz, lidx+4)-lvz(lidz, lidx-3))
-//               )/DH;
-//#elif FDOH==5
-//        vzz = (  HC1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))
-//               + HC2*(lvz(lidz+1, lidx)-lvz(lidz-2, lidx))
-//               + HC3*(lvz(lidz+2, lidx)-lvz(lidz-3, lidx))
-//               + HC4*(lvz(lidz+3, lidx)-lvz(lidz-4, lidx))
-//               + HC5*(lvz(lidz+4, lidx)-lvz(lidz-5, lidx))
-//               )/DH;
-//        vzx = (  HC1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))
-//               + HC2*(lvz(lidz, lidx+2)-lvz(lidz, lidx-1))
-//               + HC3*(lvz(lidz, lidx+3)-lvz(lidz, lidx-2))
-//               + HC4*(lvz(lidz, lidx+4)-lvz(lidz, lidx-3))
-//               + HC5*(lvz(lidz, lidx+5)-lvz(lidz, lidx-4))
-//               )/DH;
-//#elif FDOH==6
-//        vzz = (  HC1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))
-//               + HC2*(lvz(lidz+1, lidx)-lvz(lidz-2, lidx))
-//               + HC3*(lvz(lidz+2, lidx)-lvz(lidz-3, lidx))
-//               + HC4*(lvz(lidz+3, lidx)-lvz(lidz-4, lidx))
-//               + HC5*(lvz(lidz+4, lidx)-lvz(lidz-5, lidx))
-//               + HC6*(lvz(lidz+5, lidx)-lvz(lidz-6, lidx))
-//               )/DH;
-//        vzx = (  HC1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))
-//               + HC2*(lvz(lidz, lidx+2)-lvz(lidz, lidx-1))
-//               + HC3*(lvz(lidz, lidx+3)-lvz(lidz, lidx-2))
-//               + HC4*(lvz(lidz, lidx+4)-lvz(lidz, lidx-3))
-//               + HC5*(lvz(lidz, lidx+5)-lvz(lidz, lidx-4))
-//               + HC6*(lvz(lidz, lidx+6)-lvz(lidz, lidx-5))
-//               )/DH;
-//#endif
+#if   FDOH==1
+        vzz = HC1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))/DH;
+        vzx = HC1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))/DH;
+#elif FDOH==2
+        vzz = (  HC1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))
+               + HC2*(lvz(lidz+1, lidx)-lvz(lidz-2, lidx))
+               )/DH;
+        vzx = (  HC1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))
+               + HC2*(lvz(lidz, lidx+2)-lvz(lidz, lidx-1))
+               )/DH;
+#elif FDOH==3
+        vzz = (  HC1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))
+               + HC2*(lvz(lidz+1, lidx)-lvz(lidz-2, lidx))
+               + HC3*(lvz(lidz+2, lidx)-lvz(lidz-3, lidx))
+               )/DH;
+        vzx = (  HC1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))
+               + HC2*(lvz(lidz, lidx+2)-lvz(lidz, lidx-1))
+               + HC3*(lvz(lidz, lidx+3)-lvz(lidz, lidx-2))
+               )/DH;
+#elif FDOH==4
+        vzz = (  HC1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))
+               + HC2*(lvz(lidz+1, lidx)-lvz(lidz-2, lidx))
+               + HC3*(lvz(lidz+2, lidx)-lvz(lidz-3, lidx))
+               + HC4*(lvz(lidz+3, lidx)-lvz(lidz-4, lidx))
+               )/DH;
+        vzx = (  HC1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))
+               + HC2*(lvz(lidz, lidx+2)-lvz(lidz, lidx-1))
+               + HC3*(lvz(lidz, lidx+3)-lvz(lidz, lidx-2))
+               + HC4*(lvz(lidz, lidx+4)-lvz(lidz, lidx-3))
+               )/DH;
+#elif FDOH==5
+        vzz = (  HC1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))
+               + HC2*(lvz(lidz+1, lidx)-lvz(lidz-2, lidx))
+               + HC3*(lvz(lidz+2, lidx)-lvz(lidz-3, lidx))
+               + HC4*(lvz(lidz+3, lidx)-lvz(lidz-4, lidx))
+               + HC5*(lvz(lidz+4, lidx)-lvz(lidz-5, lidx))
+               )/DH;
+        vzx = (  HC1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))
+               + HC2*(lvz(lidz, lidx+2)-lvz(lidz, lidx-1))
+               + HC3*(lvz(lidz, lidx+3)-lvz(lidz, lidx-2))
+               + HC4*(lvz(lidz, lidx+4)-lvz(lidz, lidx-3))
+               + HC5*(lvz(lidz, lidx+5)-lvz(lidz, lidx-4))
+               )/DH;
+#elif FDOH==6
+        vzz = (  HC1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))
+               + HC2*(lvz(lidz+1, lidx)-lvz(lidz-2, lidx))
+               + HC3*(lvz(lidz+2, lidx)-lvz(lidz-3, lidx))
+               + HC4*(lvz(lidz+3, lidx)-lvz(lidz-4, lidx))
+               + HC5*(lvz(lidz+4, lidx)-lvz(lidz-5, lidx))
+               + HC6*(lvz(lidz+5, lidx)-lvz(lidz-6, lidx))
+               )/DH;
+        vzx = (  HC1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))
+               + HC2*(lvz(lidz, lidx+2)-lvz(lidz, lidx-1))
+               + HC3*(lvz(lidz, lidx+3)-lvz(lidz, lidx-2))
+               + HC4*(lvz(lidz, lidx+4)-lvz(lidz, lidx-3))
+               + HC5*(lvz(lidz, lidx+5)-lvz(lidz, lidx-4))
+               + HC6*(lvz(lidz, lidx+6)-lvz(lidz, lidx-5))
+               )/DH;
+#endif
     }
     
     
