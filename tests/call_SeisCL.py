@@ -44,7 +44,7 @@ csts['src_pos']=np.empty((5,0)) #Position of each shots. 5xnumber of sources. [s
 csts['rec_pos']=np.empty((8,0)) #Position of the receivers. 8xnumber of traces. [gx gy gz srcid recid Not_used Not_used Not_used]. srcid is the source number recid is the trace number in the record
 csts['src']=np.empty((csts['NT'],0))            #Source signals. NTxnumber of sources
 
-csts['abs_type']=1          #Absorbing boundary type: 1: CPML, 2: Absorbing layer of Cerjan
+csts['abs_type']=0          #Absorbing boundary type: 1: CPML, 2: Absorbing layer of Cerjan
 csts['VPPML']=3500          #Vp velocity near CPML boundary
 csts['NPOWER']=2            #Exponent used in CMPL frame update, the larger the more damping
 csts['FPML']=15              #Dominant frequency of the wavefield
