@@ -401,6 +401,7 @@ extern "C" __global__ void update_v(int offcomm,
 //#if ABS_TYPE==1
 //    {
 //        int i,k,ind;
+////        float2 lpsi;
 //        
 //        if (gidz>NZ-NAB-FDOH-1){
 //            
@@ -408,6 +409,7 @@ extern "C" __global__ void update_v(int offcomm,
 //            k =gidz - NZ+NAB+FDOH+NAB;
 //            ind=2*NAB-1-k;
 //            
+////            lpsi = __half22float2(psi_sxz_z(k,i));
 //            psi_sxz_z(k,i) = b_z[ind+1] * psi_sxz_z(k,i) + a_z[ind+1] * sxz_z;
 //            sxz_z = sxz_z / K_z[ind+1] + psi_sxz_z(k,i);
 //            psi_szz_z(k,i) = b_z_half[ind] * psi_szz_z(k,i) + a_z_half[ind] * szz_z;
@@ -459,13 +461,17 @@ extern "C" __global__ void update_v(int offcomm,
 //#endif
 //    }
 //#endif
-//    
+//
 //    // Update the velocities
 //    {
+//        float2 lvx = __half22float2(vx(gidz,gidx));
+//        float2 lvz = __half22float2(vz(gidz,gidx));
+//        lvx.x = ((sxx_x.x + sxz_z.x)/rip(gidz,gidx).x);
+//        lvx.y = ((sxx_x.y + sxz_z.y)/rip(gidz,gidx).y);
 //        vx(gidz,gidx)+= ((sxx_x + sxz_z)/rip(gidz,gidx));
 //        vz(gidz,gidx)+= ((szz_z + sxz_x)/rkp(gidz,gidx));
 //    }
-//    
+    
 //    // Absorbing boundary
 //#if ABS_TYPE==2
 //    {
