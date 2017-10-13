@@ -489,7 +489,9 @@ int Init_CUDA(model * m, device ** dev)  {
 
             }
         }
-        
+        if (di->FP16==1){
+            gsize[0]=gsize[0]/2;
+        }
         //Create the required updates struct and assign the working size
         {
             //Struct for the forward modeling
