@@ -22,22 +22,22 @@
 //Define useful macros to be able to write a matrix formulation in 2D with OpenCl
 #define lbnd (FDOH+NAB)
 
-#define rho(z,x)    rho[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define rip(z,x)    rip[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define rjp(z,x)    rjp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define rkp(z,x)    rkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define muipkp(z,x) muipkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define mu(z,x)        mu[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define M(z,x)      M[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define gradrho(z,x)  gradrho[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define gradM(z,x)  gradM[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define gradmu(z,x)  gradmu[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define gradtaup(z,x)  gradtaup[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define gradtaus(z,x)  gradtaus[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define rho(z,x)    rho[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define rip(z,x)    rip[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define rjp(z,x)    rjp[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define rkp(z,x)    rkp[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define muipkp(z,x) muipkp[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define mu(z,x)        mu[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define M(z,x)      M[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define gradrho(z,x)  gradrho[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define gradM(z,x)  gradM[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define gradmu(z,x)  gradmu[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define gradtaup(z,x)  gradtaup[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define gradtaus(z,x)  gradtaus[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
 
-#define taus(z,x)        taus[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define tausipkp(z,x) tausipkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define taup(z,x)        taup[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define taus(z,x)        taus[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define tausipkp(z,x) tausipkp[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define taup(z,x)        taup[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
 
 #define vx(z,x)  vx[(x)*(NZ)+(z)]
 #define vy(z,x)  vy[(x)*(NZ)+(z)]
@@ -54,11 +54,11 @@
 #define rxy(z,x,l) rxy[(l)*NX*NZ+(x)*NZ+(z)]
 #define ryz(z,x,l) ryz[(l)*NX*NZ+(x)*NZ+(z)]
 
-#define psi_sxx_x(z,x) psi_sxx_x[(x)*(NZ-2*FDOH)+(z)]
-#define psi_sxz_x(z,x) psi_sxz_x[(x)*(NZ-2*FDOH)+(z)]
+#define psi_sxx_x(z,x) psi_sxx_x[(x)*(NZ-FDOH)+(z)]
+#define psi_sxz_x(z,x) psi_sxz_x[(x)*(NZ-FDOH)+(z)]
 #define psi_sxz_z(z,x) psi_sxz_z[(x)*(2*NAB)+(z)]
 #define psi_szz_z(z,x) psi_szz_z[(x)*(2*NAB)+(z)]
-#define psi_sxy_x(z,x) psi_sxy_x[(x)*(NZ-2*FDOH)+(z)]
+#define psi_sxy_x(z,x) psi_sxy_x[(x)*(NZ-FDOH)+(z)]
 #define psi_syz_z(z,x) psi_syz_z[(x)*(2*NAB)+(z)]
 
 #if LOCAL_OFF==0
@@ -465,20 +465,20 @@ extern "C" __global__ void update_v(int offcomm,
 //    }
 //#endif
 //
-//    // Update the velocities
-//    {
-//        float2 lvx = __half22float2(vx(gidz,gidx));
-//        float2 lvz = __half22float2(vz(gidz,gidx));
-//        float2 lrip = rip(gidz,gidx);
-//        float2 lrkp = rkp(gidz,gidx);
-//        lvx.x = ((sxx_x.x + sxz_z.x)/lrip.x);
-//        lvx.y = ((sxx_x.y + sxz_z.y)/lrip.y);
-//        lvz.x = ((szz_z.x + sxz_x.x)/lrkp.x);
-//        lvz.y = ((szz_z.y + sxz_x.y)/lrkp.y);
-//        
-//        vx(gidz,gidx)= __float22half2_rn(lvx);
-//        vz(gidz,gidx)= __float22half2_rn(lvz);
-//    }
+    // Update the velocities
+    {
+        float2 lvx = __half22float2(vx(gidz,gidx));
+        float2 lvz = __half22float2(vz(gidz,gidx));
+        float2 lrip = rip(gidz,gidx);
+        float2 lrkp = rkp(gidz,gidx);
+        lvx.x = ((sxx_x.x + sxz_z.x)/lrip.x);
+        lvx.y = ((sxx_x.y + sxz_z.y)/lrip.y);
+        lvz.x = ((szz_z.x + sxz_x.x)/lrkp.x);
+        lvz.y = ((szz_z.y + sxz_x.y)/lrkp.y);
+        
+        vx(gidz,gidx)= __float22half2_rn(lvx);
+        vz(gidz,gidx)= __float22half2_rn(lvz);
+    }
     
 //    // Absorbing boundary
 //#if ABS_TYPE==2
