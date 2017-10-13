@@ -141,19 +141,19 @@ extern "C" __global__ void update_v(int offcomm,
     
     // Calculation of the stresses spatial derivatives
     {
-#if LOCAL_OFF==0
-        lsxx2(lidz,lidx)=sxx(gidz, gidx);
-        if (lidx<2*FDOH)
-            lsxx2(lidz,lidx-FDOH)=sxx(gidz,gidx-FDOH);
-        if (lidx+lsizex-3*FDOH<FDOH)
-            lsxx2(lidz,lidx+lsizex-3*FDOH)=sxx(gidz,gidx+lsizex-3*FDOH);
-        if (lidx>(lsizex-2*FDOH-1))
-            lsxx2(lidz,lidx+FDOH)=sxx(gidz,gidx+FDOH);
-        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
-            lsxx2(lidz,lidx-lsizex+3*FDOH)=sxx(gidz,gidx-lsizex+3*FDOH);
-        
-        __syncthreads();
-#endif
+//#if LOCAL_OFF==0
+//        lsxx2(lidz,lidx)=sxx(gidz, gidx);
+//        if (lidx<2*FDOH)
+//            lsxx2(lidz,lidx-FDOH)=sxx(gidz,gidx-FDOH);
+//        if (lidx+lsizex-3*FDOH<FDOH)
+//            lsxx2(lidz,lidx+lsizex-3*FDOH)=sxx(gidz,gidx+lsizex-3*FDOH);
+//        if (lidx>(lsizex-2*FDOH-1))
+//            lsxx2(lidz,lidx+FDOH)=sxx(gidz,gidx+FDOH);
+//        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
+//            lsxx2(lidz,lidx-lsizex+3*FDOH)=sxx(gidz,gidx-lsizex+3*FDOH);
+//        
+//        __syncthreads();
+//#endif
         
 
 #if   FDOH ==1
@@ -207,15 +207,15 @@ extern "C" __global__ void update_v(int offcomm,
 #endif
         
 
-#if LOCAL_OFF==0
-        __syncthreads();
-        lszz2(lidz,lidx)=szz(gidz, gidx);
-        if (lidz<FDOH)
-            lszz2(lidz-FDOH,lidx)=szz(gidz-FDOH,gidx);
-        if (lidz>(lsizez-FDOH-1))
-            lszz2(lidz+FDOH,lidx)=szz(gidz+FDOH,gidx);
-        __syncthreads();
-#endif
+//#if LOCAL_OFF==0
+//        __syncthreads();
+//        lszz2(lidz,lidx)=szz(gidz, gidx);
+//        if (lidz<FDOH)
+//            lszz2(lidz-FDOH,lidx)=szz(gidz-FDOH,gidx);
+//        if (lidz>(lsizez-FDOH-1))
+//            lszz2(lidz+FDOH,lidx)=szz(gidz+FDOH,gidx);
+//        __syncthreads();
+//#endif
         
 #if   FDOH ==1
         szz_z.x = DTDH*HC1*(__h2f(lszz((2*lidz)+1,lidx)) - __h2f(lszz((2*lidz),lidx)));
@@ -267,24 +267,24 @@ extern "C" __global__ void update_v(int offcomm,
                       HC6*(__h2f(lszz((2*lidz+1)+6,lidx))-__h2f(lszz((2*lidz+1)-5,lidx))));
 #endif
         
-#if LOCAL_OFF==0
-        __syncthreads();
-        lsxz2(lidz,lidx)=sxz(gidz, gidx);
-        
-        if (lidx<2*FDOH)
-            lsxz2(lidz,lidx-FDOH)=sxz(gidz,gidx-FDOH);
-        if (lidx+lsizex-3*FDOH<FDOH)
-            lsxz2(lidz,lidx+lsizex-3*FDOH)=sxz(gidz,gidx+lsizex-3*FDOH);
-        if (lidx>(lsizex-2*FDOH-1))
-            lsxz2(lidz,lidx+FDOH)=sxz(gidz,gidx+FDOH);
-        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
-            lsxz2(lidz,lidx-lsizex+3*FDOH)=sxz(gidz,gidx-lsizex+3*FDOH);
-        if (lidz<FDOH)
-            lsxz2(lidz-FDOH,lidx)=sxz(gidz-FDOH,gidx);
-        if (lidz>(lsizez-FDOH-1))
-            lsxz2(lidz+FDOH,lidx)=sxz(gidz+FDOH,gidx);
-        __syncthreads();
-#endif
+//#if LOCAL_OFF==0
+//        __syncthreads();
+//        lsxz2(lidz,lidx)=sxz(gidz, gidx);
+//        
+//        if (lidx<2*FDOH)
+//            lsxz2(lidz,lidx-FDOH)=sxz(gidz,gidx-FDOH);
+//        if (lidx+lsizex-3*FDOH<FDOH)
+//            lsxz2(lidz,lidx+lsizex-3*FDOH)=sxz(gidz,gidx+lsizex-3*FDOH);
+//        if (lidx>(lsizex-2*FDOH-1))
+//            lsxz2(lidz,lidx+FDOH)=sxz(gidz,gidx+FDOH);
+//        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
+//            lsxz2(lidz,lidx-lsizex+3*FDOH)=sxz(gidz,gidx-lsizex+3*FDOH);
+//        if (lidz<FDOH)
+//            lsxz2(lidz-FDOH,lidx)=sxz(gidz-FDOH,gidx);
+//        if (lidz>(lsizez-FDOH-1))
+//            lsxz2(lidz+FDOH,lidx)=sxz(gidz+FDOH,gidx);
+//        __syncthreads();
+//#endif
         
 #if   FDOH ==1
         sxz_z.x = DTDH*HC1*(__h2f(lsxz((2*lidz),lidx))   - __h2f(lsxz((2*lidz)-1,lidx)));
