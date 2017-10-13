@@ -22,9 +22,11 @@
 #include "update_adjv2D_SH.hcl"
 #include "update_adjv3D.hcl"
 #include "update_s2D.hcl"
+#include "update_s2D_half2.hcl"
 #include "update_s2D_SH.hcl"
 #include "update_s3D.hcl"
 #include "update_v2D.hcl"
+#include "update_v2D_half2.hcl"
 #include "update_v2D_SH.hcl"
 #include "update_v3D.hcl"
 
@@ -1060,8 +1062,14 @@ int assign_modeling_case(model * m){
         m->nupdates=2;
         GMALLOC(m->ups_f, m->nupdates*sizeof(update));
         ind=0;
-        __GUARD append_update(m->ups_f, &ind, "update_v", update_v2D_source);
-        __GUARD append_update(m->ups_f, &ind, "update_s", update_s2D_source);
+        if (m->FP16==1){
+            __GUARD append_update(m->ups_f, &ind, "update_v", update_v2D_half2_source);
+            __GUARD append_update(m->ups_f, &ind, "update_s", update_s2D_half2_source);
+        }
+        else{
+            __GUARD append_update(m->ups_f, &ind, "update_v", update_v2D_source);
+            __GUARD append_update(m->ups_f, &ind, "update_s", update_s2D_source);
+        }
         if (m->GRADOUT){
             GMALLOC(m->ups_adj, m->nupdates*sizeof(update));
             ind=0;

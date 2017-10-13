@@ -181,7 +181,7 @@ int get_build_options(device *dev,
     
     *n+=1;
     if ( (*dev).FP16==1){
-        sprintf(build_options[*n-1],"-D __typevar=half");
+        sprintf(build_options[*n-1],"-D __typev=half");
     }else{
         sprintf(build_options[*n-1],"-D __typevar=float");
     }
