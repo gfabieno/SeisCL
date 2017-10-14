@@ -688,7 +688,12 @@ int kernel_gradinit(device * dev,
     }
     
     if (dev->npars>0){
-        sprintf(temp2,"    if (gid>%d-1){\n", pars[0].num_ele);
+        if (dev->FP16==1){
+            sprintf(temp2,"    if (gid>%d-1){\n", pars[0].num_ele/2);
+        }
+        else{
+            sprintf(temp2,"    if (gid>%d-1){\n", pars[0].num_ele);
+        }
         strcat(temp,temp2);
         strcat(temp,  "        return;\n"
                       "    };\n\n");
@@ -777,7 +782,12 @@ int kernel_initsavefreqs(device * dev,
     
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
-            sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
+            if (dev->FP16==1){
+                 sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele/2);
+            }
+            else{
+                 sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
+            }
             strcat(temp,ptemp);
             strcat(temp, "    ");
             strcat(temp, "    f");
@@ -882,7 +892,12 @@ int kernel_savefreqs(device * dev,
     
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
-            sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
+            if (dev->FP16==1){
+                sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele/2);
+            }
+            else{
+                sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
+            }
             strcat(temp,ptemp);
             strcat(temp, "    ");
             strcat(temp, "    l");
@@ -905,7 +920,13 @@ int kernel_savefreqs(device * dev,
     
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
-            sprintf(ptemp,"    if (gid<%d){\n", vars[i].num_ele);
+            if (dev->FP16==1){
+                sprintf(ptemp,"    if (gid<%d){\n", vars[i].num_ele/2);
+            }
+            else{
+                sprintf(ptemp,"    if (gid<%d){\n", vars[i].num_ele);
+            }
+            
             strcat(temp,ptemp);
             strcat(temp, "    #pragma unroll\n");
             strcat(temp, "    for (freq=0;freq<NFREQS;freq++){\n");

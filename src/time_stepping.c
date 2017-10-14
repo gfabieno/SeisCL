@@ -459,26 +459,26 @@ int time_stepping(model * m, device ** dev) {
                 }
             }
             
-//            //Save the selected frequency if the gradient is obtained by DFT
-//            if (m->GRADOUT==1
-//                && m->BACK_PROP_TYPE==2
-//                && t>=m->tmin
-//                && (t-m->tmin)%m->DTNYQ==0){
-//                
-//                for (d=0;d<m->NUM_DEVICES;d++){
-//                    thist=(t-m->tmin)/m->DTNYQ;
-//                    (*dev)[d].grads.savefreqs.inputs[(*dev)[d].grads.savefreqs.tinput-1]=&thist;
-//                    __GUARD prog_launch( &(*dev)[d].queue,
-//                                         &(*dev)[d].grads.savefreqs);
-//                }
-//                
-//            }
-//            
-//            // Inject the sources
-//            for (d=0;d<m->NUM_DEVICES;d++){
-//                __GUARD prog_launch( &(*dev)[d].queue,
-//                                    &(*dev)[d].src_recs.sources);
-//            }
+            //Save the selected frequency if the gradient is obtained by DFT
+            if (m->GRADOUT==1
+                && m->BACK_PROP_TYPE==2
+                && t>=m->tmin
+                && (t-m->tmin)%m->DTNYQ==0){
+                
+                for (d=0;d<m->NUM_DEVICES;d++){
+                    thist=(t-m->tmin)/m->DTNYQ;
+                    (*dev)[d].grads.savefreqs.inputs[(*dev)[d].grads.savefreqs.tinput-1]=&thist;
+                    __GUARD prog_launch( &(*dev)[d].queue,
+                                         &(*dev)[d].grads.savefreqs);
+                }
+                
+            }
+            
+            // Inject the sources
+            for (d=0;d<m->NUM_DEVICES;d++){
+                __GUARD prog_launch( &(*dev)[d].queue,
+                                    &(*dev)[d].src_recs.sources);
+            }
 
             // Apply all updates
             __GUARD update_grid(m, dev);
