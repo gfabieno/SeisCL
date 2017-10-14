@@ -80,9 +80,9 @@
 extern "C" __global__ void update_s(int offcomm,
                                     half2 *vx,         half2 *vz,
                                     half2 *sxx,        half2 *szz,        half2 *sxz,
-                                    half2 *M,         half2 *mu,          half2 *muipkp,
+                                    float2 *M,         float2 *mu,          float2 *muipkp,
                                     half2 *rxx,        half2 *rzz,        half2 *rxz,
-                                    half2 *taus,       half2 *tausipkp,   half2 *taup,
+                                    float2 *taus,       float2 *tausipkp,   float2 *taup,
                                     float *eta,         float *taper,
                                     float2 *K_x,        float2 *a_x,          float2 *b_x,
                                     float2 *K_x_half,   float2 *a_x_half,     float2 *b_x_half,
@@ -499,12 +499,18 @@ extern "C" __global__ void update_s(int offcomm,
         g.y*=DT;
 #else
         
-        lM=     __half22float2(     M(gidz,gidx));
-        lmu=    __half22float2(    mu(gidz,gidx));
-        lmuipkp=__half22float2(muipkp(gidz,gidx));
-        ltaup=  __half22float2(  taup(gidz,gidx));
-        ltaus=    __half22float2(    taus(gidz,gidx));
-        ltausipkp=__half22float2(tausipkp(gidz,gidx));
+//        lM=     __half22float2(     M(gidz,gidx));
+//        lmu=    __half22float2(    mu(gidz,gidx));
+//        lmuipkp=__half22float2(muipkp(gidz,gidx));
+//        ltaup=  __half22float2(  taup(gidz,gidx));
+//        ltaus=    __half22float2(    taus(gidz,gidx));
+//        ltausipkp=__half22float2(tausipkp(gidz,gidx));
+        lM=     (     M(gidz,gidx));
+        lmu=    (    mu(gidz,gidx));
+        lmuipkp=(muipkp(gidz,gidx));
+        ltaup=  (  taup(gidz,gidx));
+        ltaus=    (    taus(gidz,gidx));
+        ltausipkp=(tausipkp(gidz,gidx));
 
         
         for (l=0;l<LVE;l++){
