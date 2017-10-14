@@ -286,7 +286,12 @@ int kernel_varinit(device * dev,
     }
     
     for (i=0;i<dev->nvars;i++){
-        sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
+        if (dev->FP16==1){
+            sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele/2);
+        }
+        else{
+            sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
+        }
         strcat(temp,ptemp);
         strcat(temp, "    ");
         strcat(temp, "    ");
