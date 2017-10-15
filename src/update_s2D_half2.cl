@@ -497,7 +497,7 @@ extern "C" __global__ void update_s(int offcomm,
         g=__half22float2(M(gidz, gidx));
         g.x*=DT;
         g.y*=DT;
-        printf("%f\n",g.x);
+        
 #else
         
 //        lM=     __half22float2(     M(gidz,gidx));
@@ -530,6 +530,8 @@ extern "C" __global__ void update_s(int offcomm,
         d.y=2.0*lmu.y*ltaus.y;
         e.x=lM.x*ltaup.x;
         e.y=lM.y*ltaup.y;
+        
+        printf("%f\n",g.x);
         
 #endif
     }
