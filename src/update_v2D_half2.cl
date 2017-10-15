@@ -382,7 +382,7 @@ extern "C" __global__ void update_v(int offcomm,
 //                      HC5*(__h2f(lsxz((2*lidz+1),lidx+4))-__h2f(lsxz((2*lidz+1),lidx-5)))+
 //                      HC6*(__h2f(lsxz((2*lidz+1),lidx+5))-__h2f(lsxz((2*lidz+1),lidx-6))));
 //#endif
-//    }
+    }
 
     // To stop updating if we are outside the model (global id must be a multiple of local id in OpenCL, hence we stop if we have a global id outside the grid)
 #if LOCAL_OFF==0
