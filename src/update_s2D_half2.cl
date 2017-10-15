@@ -556,7 +556,8 @@ extern "C" __global__ void update_s(int offcomm,
         
 #else
         
-        
+        vzz.x=0.0000001;
+        vzz.y=0.0000001;
         /* computing sums of the old memory variables */
         sumrxz.x=sumrxx.x=sumrzz.x=0;
         sumrxz.y=sumrxx.y=sumrzz.y=0;
