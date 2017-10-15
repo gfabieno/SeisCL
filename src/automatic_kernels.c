@@ -151,7 +151,7 @@ int kernel_varout(device * dev,
     strcat(temp, "\n}");
     
     
-//    printf("%s\n\n%lu\n",temp, strlen(temp));
+    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     
     (*prog).src=temp;
@@ -308,7 +308,7 @@ int kernel_varinit(device * dev,
     strcat(temp, "\n}");
     
     
-    printf("%s\n\n%lu\n",temp, strlen(temp));
+//    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     
     (*prog).src=temp;
