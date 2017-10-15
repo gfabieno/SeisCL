@@ -99,11 +99,23 @@ int kernel_varout(device * dev,
     char posstr[100]={0};
     
     if (dev->NDIM==2){
-        sprintf(posstr,"[(i-OFFSET)*N%s+k]",dev->N_names[0]);
+        if (dev->FP16==1){
+            sprintf(posstr,"[(i-OFFSET)*N%s*2+k]",dev->N_names[0]);
+        }
+        else{
+            sprintf(posstr,"[(i-OFFSET)*N%s+k]",dev->N_names[0]);
+        }
     }
     else if (dev->NDIM==3){
-        sprintf(posstr,"[(i-OFFSET)*N%s*N%s+j*(N%s)+k]",
-                dev->N_names[1], dev->N_names[0], dev->N_names[0]);
+        if (dev->FP16==1){
+            sprintf(posstr,"[(i-OFFSET)*N%s*N%s*2+j*(N%s*2)+k]",
+                    dev->N_names[1], dev->N_names[0], dev->N_names[0]);
+        }
+        else{
+            sprintf(posstr,"[(i-OFFSET)*N%s*N%s*2+j*(N%s*2)+k]",
+                    dev->N_names[1], dev->N_names[0], dev->N_names[0]);
+        }
+        
     }
     
     for (i=0;i<dev->nvars;i++){
