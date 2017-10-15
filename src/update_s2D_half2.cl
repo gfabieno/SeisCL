@@ -534,8 +534,6 @@ extern "C" __global__ void update_s(int offcomm,
         
 #endif
     }
-    vxx.x=0.0000001;
-    vxx.y=0.0000001;
     
     // Update the stresses
     {
