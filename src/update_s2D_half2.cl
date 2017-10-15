@@ -402,8 +402,8 @@ extern "C" __global__ void update_s(int offcomm,
 //        vzz.x=__h2f(lvz2(2*lidz, lidx)) - 2.0*(gidz + 1.0) *0.0000001;
 //        vzz.y=__h2f(lvz2(2*lidz+1, lidx))- 2.0*(gidz + 2.0) *0.0000001;
         vzz = __half22float2( vz(gidz, gidx) );
-        vzz.x+= - 2.0*(gidz + 1.0) *0.0000001;
-        vzz.y+= - 2.0*(gidz + 2.0) *0.0000001;
+//        vzz.x+= - 2.0*(gidz + 1.0) *0.0000001;
+//        vzz.y+= - 2.0*(gidz + 2.0) *0.0000001;
     }
     
     
