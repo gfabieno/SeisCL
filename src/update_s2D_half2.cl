@@ -399,8 +399,6 @@ extern "C" __global__ void update_s(int offcomm,
                + HC6*(__h2f(lvz((2*lidz+1), lidx+6))-__h2f(lvz((2*lidz+1), lidx-5)))
                )/DH;
 #endif
-        vzz.x=__h2f(lvz2(2*lidz, lidx)) ;
-        vzz.y=__h2f(lvz2(2*lidz+1, lidx));
 
     }
     
