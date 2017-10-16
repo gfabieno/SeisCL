@@ -473,10 +473,10 @@ extern "C" __global__ void update_v(int offcomm,
 //        float2 lrkp = __half22float2(rkp(gidz,gidx));
         float2 lrip = (rip(gidz,gidx));
         float2 lrkp = (rkp(gidz,gidx));
-        lvx.x = ((sxx_x.x + sxz_z.x)/lrip.x)*10000000000.0;
-        lvx.y = ((sxx_x.y + sxz_z.y)/lrip.y)*10000000000.0;
-        lvz.x = ((szz_z.x + sxz_x.x)/lrkp.x)*10000000000.0;
-        lvz.y = ((szz_z.y + sxz_x.y)/lrkp.y)*10000000000.0;
+        lvx.x += ((sxx_x.x + sxz_z.x)/lrip.x)*10000000000.0;
+        lvx.y += ((sxx_x.y + sxz_z.y)/lrip.y)*10000000000.0;
+        lvz.x += ((szz_z.x + sxz_x.x)/lrkp.x)*10000000000.0;
+        lvz.y += ((szz_z.y + sxz_x.y)/lrkp.y)*10000000000.0;
         
 //        lvx.x=2.0*gidz;
 //        lvx.y=2.0*gidz+1.0;
@@ -486,6 +486,8 @@ extern "C" __global__ void update_v(int offcomm,
         vx(gidz,gidx)= __float2half_rz(lvx);
         vz(gidz,gidx)= __float2half_rz(lvz);
         
+//        vx(gidz,gidx)= __halves2half2( __float2half_rz(lvx.x),__float2half_rz(lvx.y));
+//        vx(gidz,gidx)= __halves2half2( __float2half_rz(lvx.x),__float2half_rz(lvx.y));
     }
     
 //    // Absorbing boundary
