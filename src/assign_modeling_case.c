@@ -870,7 +870,7 @@ int set_scalers( void *mptr){
     }
     
     scaler = 1.0/Mmax;
-    scaler = 0.000000001;
+//    scaler = 0.000000001;
     
     variable * var;
     var = get_var(mptr, "sxx");
