@@ -457,21 +457,21 @@ extern "C" __global__ void update_s(int offcomm,
             i =gidx-FDOH;
             k =gidz-FDOH/2;
             
-//            lpsi_vx_z = __half22float2(psi_vx_z(k,i));
-//            lpsi_vz_z = __half22float2(psi_vz_z(k,i));
-//            
-//            lpsi_vx_z.x = b_z_half[2*k  ] * lpsi_vx_z.x + a_z_half[2*k  ] * vxz.x;
-//            lpsi_vx_z.y = b_z_half[2*k+1] * lpsi_vx_z.y + a_z_half[2*k+1] * vxz.y;
-//            vxz.x = vxz.x / K_z_half[2*k  ] + lpsi_vx_z.x;
-//            vxz.y = vxz.y / K_z_half[2*k+1] + lpsi_vx_z.y;
-//            
-//            lpsi_vz_z.x = b_z[2*k  ] * lpsi_vz_z.x + a_z[2*k  ] * vzz.x;
-//            lpsi_vz_z.y = b_z[2*k+1] * lpsi_vz_z.y + a_z[2*k+1] * vzz.y;
-//            vzz.x = vzz.x / K_z[2*k  ] + lpsi_vz_z.x;
-//            vzz.y = vzz.y / K_z[2*k+1] + lpsi_vz_z.y;
-//            
-//            psi_vz_z(k,i)=__float22half2_rn(lpsi_vz_z);
-//            psi_vx_z(k,i)=__float22half2_rn(lpsi_vx_z);
+            lpsi_vx_z = __half22float2(psi_vx_z(k,i));
+            lpsi_vz_z = __half22float2(psi_vz_z(k,i));
+            
+            lpsi_vx_z.x = b_z_half[2*k  ] * lpsi_vx_z.x + a_z_half[2*k  ] * vxz.x;
+            lpsi_vx_z.y = b_z_half[2*k+1] * lpsi_vx_z.y + a_z_half[2*k+1] * vxz.y;
+            vxz.x = vxz.x / K_z_half[2*k  ] + lpsi_vx_z.x;
+            vxz.y = vxz.y / K_z_half[2*k+1] + lpsi_vx_z.y;
+            
+            lpsi_vz_z.x = b_z[2*k  ] * lpsi_vz_z.x + a_z[2*k  ] * vzz.x;
+            lpsi_vz_z.y = b_z[2*k+1] * lpsi_vz_z.y + a_z[2*k+1] * vzz.y;
+            vzz.x = vzz.x / K_z[2*k  ] + lpsi_vz_z.x;
+            vzz.y = vzz.y / K_z[2*k+1] + lpsi_vz_z.y;
+            
+            psi_vz_z(k,i)=__float22half2_rn(lpsi_vz_z);
+            psi_vx_z(k,i)=__float22half2_rn(lpsi_vx_z);
         }
 #endif
         
