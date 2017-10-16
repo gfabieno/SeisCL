@@ -678,12 +678,12 @@ extern "C" __global__ void update_s(int offcomm,
         }
         
         if (2*gidz>NZ-NAB-FDOH-1){
-            lsxx.x*=taper[NZ-FDOH-2*gidz-1];
-            lsxx.y*=taper[NZ-FDOH-2*gidz-1-1];
-            lszz.x*=taper[NZ-FDOH-2*gidz-1];
-            lszz.y*=taper[NZ-FDOH-2*gidz-1-1];
-            lsxz.x*=taper[NZ-FDOH-2*gidz-1];
-            lsxz.y*=taper[NZ-FDOH-2*gidz-1-1];
+            lsxx.x*=taper[2*NZ-FDOH-2*gidz-1];
+            lsxx.y*=taper[2*NZ-FDOH-2*gidz-1-1];
+            lszz.x*=taper[2*NZ-FDOH-2*gidz-1];
+            lszz.y*=taper[2*NZ-FDOH-2*gidz-1-1];
+            lsxz.x*=taper[2*NZ-FDOH-2*gidz-1];
+            lsxz.y*=taper[2*NZ-FDOH-2*gidz-1-1];
         }
         
 #if DEVID==0 & MYLOCALID==0
