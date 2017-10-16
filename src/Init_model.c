@@ -39,15 +39,29 @@
 int Init_model(model * m) {
 
     int state=0;
-    int i;
+    int i,t;
 
     for (i=0;i<m->npars;i++){
         if (m->pars[i].transform !=NULL){
             m->pars[i].transform( (void*) m);
         }
     }
+    
+    
 
     state = m->check_stability( (void*) m);
+    
+    GMALLOC(m->src_recs.src_scales, sizeof(float)*m->src_recs.ns);
+    for (i=0;i<m->src_recs.ns;i++){
+            for (t=0;t<m->NT*m->src_recs.nsrc[i];t++){
+                if (m->src_recs.src_scales[i]<m->src_recs.src[i][t]){
+                    m->src_recs.src_scales[i]=m->src_recs.src[i][t];
+                }
+                m->src_recs.src_scales[i]=1.0/m->src_recs.src_scales[i]
+                                          /m->dt*m->dh*m->dh*m->dh;
+        }
+    }
+    
     
     if (state && m->MPI_INIT==1)
         MPI_Bcast( &state, 1, MPI_INT, m->MYID, MPI_COMM_WORLD );

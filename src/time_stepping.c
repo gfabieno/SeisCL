@@ -386,6 +386,10 @@ int initialize_grid(model * m, device ** dev, int s){
                 ind=(*dev)[d].progs[i]->nrinput-1;
                 (*dev)[d].progs[i]->inputs[ind]=&m->src_recs.nrec[s];
             }
+            if ((*dev)[d].progs[i]->scinput>0){
+                ind=(*dev)[d].progs[i]->scinput-1;
+                (*dev)[d].progs[i]->inputs[ind]=&m->src_recs.src_scales[s];
+            }
         }
         
         // Implent initial conditions

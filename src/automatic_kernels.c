@@ -389,7 +389,7 @@ int kernel_sources(device * dev,
     }
     
     strcat(temp, "extern \"C\" __global__ void sources(int nt, int nsrc,"
-                 "float * src_pos, float * src, int pdir, ");
+                 "float src_scale, float * src_pos, float * src, int pdir, ");
     for (i=0;i<dev->nvars;i++){
         if (tosources[i]){
             if (dev->FP16==1){
@@ -441,7 +441,7 @@ int kernel_sources(device * dev,
            "        return;\n"
            "    }\n\n"
            "    int source_type= src_pos[4+5*gid];\n"
-           "    float amp=(float)pdir*(DT*src[gid*NT+nt])/(DH*DH*DH)*SCALE;\n\n");
+           "    float amp=(float)pdir*(DT*src[gid*NT+nt])/(DH*DH*DH)*src_scale;\n\n");
     
     char posstr[100]={0};
 
