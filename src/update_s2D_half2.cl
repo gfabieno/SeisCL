@@ -564,6 +564,7 @@ extern "C" __global__ void update_s(int offcomm,
         sxz(gidz,gidx)=__halves2half2(__float2half_rd(lsxz.x), __float2half_rd(lsxz.y));
         sxx(gidz,gidx)=__halves2half2(__float2half_rd(lsxx.x), __float2half_rd(lsxx.y));
         szz(gidz,gidx)=__halves2half2(__float2half_rd(lszz.x), __float2half_rd(lszz.y));
+        
 #else
         /* computing sums of the old memory variables */
         sumrxz.x=sumrxx.x=sumrzz.x=0;
