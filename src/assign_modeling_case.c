@@ -1132,72 +1132,78 @@ int assign_modeling_case(model * m){
             m->trans_vars[0].var2ave[1]="szz";
         }
     }
-//    else if (m->ND==2 && m->L==0){ //2D P-SV elastic isotropic
-//        
-//        //Define the update kernels
-//        m->nupdates=2;
-//        GMALLOC(m->ups_f, m->nupdates*sizeof(update));
-//        ind=0;
-////        __GUARD append_update(m->ups_f, &ind, "update_v", update_v2D_source);
-////        __GUARD append_update(m->ups_f, &ind, "update_s", update_s2D_source);
-////        if (m->GRADOUT){
-////            GMALLOC(m->ups_adj, m->nupdates*sizeof(update));
-////            ind=0;
-////            __GUARD append_update(m->ups_adj, &ind, "update_adjv", update_adjv2D_source);
-////            __GUARD append_update(m->ups_adj, &ind, "update_adjs", update_adjs2D_source);
-////        }
-////        if (m->FREESURF){
-////            __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface2D_source);
-////        }
-////        if (m->GRADOUT && m->BACK_PROP_TYPE==1){
-////            __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd2D_source);
-////        }
-//        
-//        m->npars=6;
-//        
-//        GMALLOC(m->pars, sizeof(parameter)*m->npars);
-//        ind=0;
-//        __GUARD append_par(m, &ind, "mu", "/mu", &mu);
-//        __GUARD append_par(m, &ind, "M", "/M", &M);
-//        __GUARD append_par(m, &ind, "rho", "/rho", NULL);
-//        __GUARD append_par(m, &ind, "rip", NULL, &rip);
-//        __GUARD append_par(m, &ind, "rkp", NULL, &rkp);
-//        __GUARD append_par(m, &ind, "muipkp", NULL, &muipkp);
-//        
-//        m->nvars=5;
-//        if (m->ABS_TYPE==1)
-//        m->nvars+=8;
-//        GMALLOC(m->vars, sizeof(variable)*m->nvars);
-//        ind=0;
-//        __GUARD append_var(m, &ind, "vx", 1, 1, &size_varseis);
-//        __GUARD append_var(m, &ind, "vz", 1, 1, &size_varseis);
-//        __GUARD append_var(m, &ind, "sxx", 1, 1, &size_varseis);
-//        __GUARD append_var(m, &ind, "szz", 1, 1, &size_varseis);
-//        __GUARD append_var(m, &ind, "sxz", 1, 1, &size_varseis);
-//        
-//        if (m->ABS_TYPE==1){
-//            __GUARD append_var(m, &ind, "psi_sxx_x", 0, 0, &size_varcpmlx);
-//            __GUARD append_var(m, &ind, "psi_sxz_x", 0, 0, &size_varcpmlx);
-//            __GUARD append_var(m, &ind, "psi_szz_z", 0, 0, &size_varcpmlz);
-//            __GUARD append_var(m, &ind, "psi_sxz_z", 0, 0, &size_varcpmlz);
-//            __GUARD append_var(m, &ind, "psi_vx_x", 0, 0, &size_varcpmlx);
-//            __GUARD append_var(m, &ind, "psi_vz_x", 0, 0, &size_varcpmlx);
-//            __GUARD append_var(m, &ind, "psi_vx_z", 0, 0, &size_varcpmlz);
-//            __GUARD append_var(m, &ind, "psi_vz_z", 0, 0, &size_varcpmlz);
-//            
-//        }
-//        
-//        m->ntvars=1;
-//        GMALLOC(m->trans_vars, sizeof(variable)*m->ntvars);
-//        if (!state){
-//            m->trans_vars[0].name="p";
-//            m->trans_vars[0].n2ave=2;
-//            GMALLOC(m->trans_vars[0].var2ave, sizeof(char *)*2);
-//            m->trans_vars[0].var2ave[0]="sxx";
-//            m->trans_vars[0].var2ave[1]="szz";
-//        }
-//        
-//    }
+    else if (m->ND==2 && m->L==0){ //2D P-SV elastic isotropic
+        
+        //Define the update kernels
+        m->nupdates=2;
+        GMALLOC(m->ups_f, m->nupdates*sizeof(update));
+        ind=0;
+        if (m->FP16==1){
+            __GUARD append_update(m->ups_f, &ind, "update_v", update_v2D_half2_source);
+            __GUARD append_update(m->ups_f, &ind, "update_s", update_s2D_half2_source);
+        }
+        else{
+            __GUARD append_update(m->ups_f, &ind, "update_v", update_v2D_source);
+            __GUARD append_update(m->ups_f, &ind, "update_s", update_s2D_source);
+        }
+        if (m->GRADOUT){
+            GMALLOC(m->ups_adj, m->nupdates*sizeof(update));
+            ind=0;
+            __GUARD append_update(m->ups_adj, &ind, "update_adjv", update_adjv2D_source);
+            __GUARD append_update(m->ups_adj, &ind, "update_adjs", update_adjs2D_source);
+        }
+        if (m->FREESURF){
+            __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface2D_source);
+        }
+        if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+            __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd2D_source);
+        }
+        
+        m->npars=6;
+        
+        GMALLOC(m->pars, sizeof(parameter)*m->npars);
+        ind=0;
+        __GUARD append_par(m, &ind, "mu", "/mu", &mu);
+        __GUARD append_par(m, &ind, "M", "/M", &M);
+        __GUARD append_par(m, &ind, "rho", "/rho", NULL);
+        __GUARD append_par(m, &ind, "rip", NULL, &rip);
+        __GUARD append_par(m, &ind, "rkp", NULL, &rkp);
+        __GUARD append_par(m, &ind, "muipkp", NULL, &muipkp);
+        
+        m->nvars=5;
+        if (m->ABS_TYPE==1)
+        m->nvars+=8;
+        GMALLOC(m->vars, sizeof(variable)*m->nvars);
+        ind=0;
+        __GUARD append_var(m, &ind, "vx", 1, 1, &size_varseis);
+        __GUARD append_var(m, &ind, "vz", 1, 1, &size_varseis);
+        __GUARD append_var(m, &ind, "sxx", 1, 1, &size_varseis);
+        __GUARD append_var(m, &ind, "szz", 1, 1, &size_varseis);
+        __GUARD append_var(m, &ind, "sxz", 1, 1, &size_varseis);
+        
+        if (m->ABS_TYPE==1){
+            __GUARD append_var(m, &ind, "psi_sxx_x", 0, 0, &size_varcpmlx);
+            __GUARD append_var(m, &ind, "psi_sxz_x", 0, 0, &size_varcpmlx);
+            __GUARD append_var(m, &ind, "psi_szz_z", 0, 0, &size_varcpmlz);
+            __GUARD append_var(m, &ind, "psi_sxz_z", 0, 0, &size_varcpmlz);
+            __GUARD append_var(m, &ind, "psi_vx_x", 0, 0, &size_varcpmlx);
+            __GUARD append_var(m, &ind, "psi_vz_x", 0, 0, &size_varcpmlx);
+            __GUARD append_var(m, &ind, "psi_vx_z", 0, 0, &size_varcpmlz);
+            __GUARD append_var(m, &ind, "psi_vz_z", 0, 0, &size_varcpmlz);
+            
+        }
+        
+        m->ntvars=1;
+        GMALLOC(m->trans_vars, sizeof(variable)*m->ntvars);
+        if (!state){
+            m->trans_vars[0].name="p";
+            m->trans_vars[0].n2ave=2;
+            GMALLOC(m->trans_vars[0].var2ave, sizeof(char *)*2);
+            m->trans_vars[0].var2ave[0]="sxx";
+            m->trans_vars[0].var2ave[1]="szz";
+        }
+        
+    }
 //    else if (m->ND==21 && m->L>0){  //2D SH viscoelastic isotropic
 //        
 //        //Define the update kernels
