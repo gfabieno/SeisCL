@@ -478,14 +478,11 @@ extern "C" __global__ void update_v(int offcomm,
         lvx.y += ((sxx_x.y + sxz_z.y)/lrip.y)/scaler_sxx;
         lvz.x += ((szz_z.x + sxz_x.x)/lrkp.x)/scaler_sxx;
         lvz.y += ((szz_z.y + sxz_x.y)/lrkp.y)/scaler_sxx;
-        
-//        lvx.x=2.0*gidz;
-//        lvx.y=2.0*gidz+1.0;
-//        lvz.x=2.0*gidz;
-//        lvz.y=2.0*gidz+1.0;
-        
-        vx(gidz,gidx)= __float22half2_rn(lvx);
-        vz(gidz,gidx)= __float22half2_rn(lvz);
+
+//        vx(gidz,gidx)= __float22half2_rn(lvx);
+//        vz(gidz,gidx)= __float22half2_rn(lvz);
+        vx(gidz,gidx)=__halves2half2(__float2half_rd(lvx.x), __float2half_rd(lvx.y));
+        vz(gidz,gidx)=__halves2half2(__float2half_rd(lvz.x), __float2half_rd(lvz.y));
         
     }
     
