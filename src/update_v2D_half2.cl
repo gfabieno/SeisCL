@@ -479,14 +479,8 @@ extern "C" __global__ void update_v(int offcomm,
         lvz.x += ((szz_z.x + sxz_x.x)/lrkp.x)/scaler_sxx;
         lvz.y += ((szz_z.y + sxz_x.y)/lrkp.y)/scaler_sxx;
 
-//        vx(gidz,gidx)= __float22half2_rn(lvx);
-//        vz(gidz,gidx)= __float22half2_rn(lvz);
-        half lvxx =__float2half_rz(lvx.x);
-        half lvxy =__float2half_rz(lvx.y);
-        half lvzx =__float2half_rz(lvz.x);
-        half lvzy =__float2half_rz(lvz.y);
-        vx(gidz,gidx)=__halves2half2(lvxx, lvxy);
-        vz(gidz,gidx)=__halves2half2(lvzx, lvzy);
+        vx(gidz,gidx)= __float22half2_rn(lvx);
+        vz(gidz,gidx)= __float22half2_rn(lvz);
         
     }
     
