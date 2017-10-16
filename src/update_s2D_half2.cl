@@ -494,16 +494,16 @@ extern "C" __global__ void update_s(int offcomm,
         
 //        fipkp=__half22float2(muipkp(gidz, gidx));
         fipkp=muipkp(gidz, gidx);
-        fipkp.x*=DT*0.00000000001;
-        fipkp.y*=DT*0.00000000001;
+        fipkp.x*=DT*0.000000000001;
+        fipkp.y*=DT*0.000000000001;
 //        f=__half22float2(mu(gidz, gidx));
         f=mu(gidz, gidx);
-        f.x*=2.0*DT*0.00000000001;
-        f.y*=2.0*DT*0.00000000001;
+        f.x*=2.0*DT*0.000000000001;
+        f.y*=2.0*DT*0.000000000001;
 //        g=__half22float2(M(gidz, gidx));
         g=M(gidz, gidx);
-        g.x*=DT*0.00000000001;
-        g.y*=DT*0.00000000001;
+        g.x*=DT*0.000000000001;
+        g.y*=DT*0.000000000001;
         
 #else
         
@@ -525,18 +525,18 @@ extern "C" __global__ void update_s(int offcomm,
             leta[l]=eta[l];
         }
         
-        fipkp.x=lmuipkp.x*DT*(1.0+ (float)LVE*ltausipkp.x)*0.00000000001;
-        fipkp.y=lmuipkp.y*DT*(1.0+ (float)LVE*ltausipkp.y)*0.00000000001;
-        g.x=lM.x*(1.0+(float)LVE*ltaup.x)*DT*0.00000000001;
-        g.y=lM.y*(1.0+(float)LVE*ltaup.y)*DT*0.00000000001;
-        f.x=2.0*lmu.x*(1.0+(float)LVE*ltaus.x)*DT*0.00000000001;
-        f.y=2.0*lmu.y*(1.0+(float)LVE*ltaus.y)*DT*0.00000000001;
-        dipkp.x=lmuipkp.x*ltausipkp.x*0.00000000001;
-        dipkp.y=lmuipkp.y*ltausipkp.y*0.00000000001;
-        d.x=2.0*lmu.x*ltaus.x*0.00000000001;
-        d.y=2.0*lmu.y*ltaus.y*0.00000000001;
-        e.x=lM.x*ltaup.x*0.00000000001;
-        e.y=lM.y*ltaup.y*0.00000000001;
+        fipkp.x=lmuipkp.x*DT*(1.0+ (float)LVE*ltausipkp.x)*0.000000000001;
+        fipkp.y=lmuipkp.y*DT*(1.0+ (float)LVE*ltausipkp.y)*0.000000000001;
+        g.x=lM.x*(1.0+(float)LVE*ltaup.x)*DT*0.000000000001;
+        g.y=lM.y*(1.0+(float)LVE*ltaup.y)*DT*0.000000000001;
+        f.x=2.0*lmu.x*(1.0+(float)LVE*ltaus.x)*DT*0.000000000001;
+        f.y=2.0*lmu.y*(1.0+(float)LVE*ltaus.y)*DT*0.000000000001;
+        dipkp.x=lmuipkp.x*ltausipkp.x*0.000000000001;
+        dipkp.y=lmuipkp.y*ltausipkp.y*0.000000000001;
+        d.x=2.0*lmu.x*ltaus.x*0.000000000001;
+        d.y=2.0*lmu.y*ltaus.y*0.000000000001;
+        e.x=lM.x*ltaup.x*0.000000000001;
+        e.y=lM.y*ltaup.y*0.000000000001;
 
         
 #endif
