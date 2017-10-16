@@ -211,7 +211,7 @@ extern "C" __global__ void update_v(int offcomm,
         __syncthreads();
         lszz2(lidz,lidx)=szz(gidz, gidx);
         if (lidz<FDOH)
-            lszz2(lidz-FDOH,lidx)=szz(gidz-FDOH,gidx);
+            lszz2(lidz-FDOH/2,lidx)=szz(gidz-FDOH/2,gidx);
         if (lidz>(lsizez-FDOH-1))
             lszz2(lidz+FDOH/2,lidx)=szz(gidz+FDOH/2,gidx);
         __syncthreads();
