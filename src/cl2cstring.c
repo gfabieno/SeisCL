@@ -90,7 +90,7 @@ int main(int argc, char **argv) {
         }
         fprintf(fh, "\";");
     }
-
+    fclose(fh);
     free(program_source);
     free(progname);
     return 0;

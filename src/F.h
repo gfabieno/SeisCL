@@ -140,7 +140,7 @@ typedef struct clprogram {
     CUfunction kernel;
     char ** input_list;
     int ninputs;
-    void * inputs[1000];
+    void * inputs[2000];
     int tinput;
     int pdir;
     int nsinput;
