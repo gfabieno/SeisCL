@@ -185,6 +185,12 @@ int get_build_options(device *dev,
     }else{
         sprintf(build_options[*n-1],"-D __typevar=float");
     }
+    *n+=1;
+    if ( (*dev).FP16==1){
+        sprintf(build_options[*n-1],"-D SCALE=0.00000000001");
+    }else{
+        sprintf(build_options[*n-1],"-D SCALE=1.0");
+    }
     
     
     if (m->N_names[0]){

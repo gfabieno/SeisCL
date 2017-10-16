@@ -441,7 +441,7 @@ int kernel_sources(device * dev,
            "        return;\n"
            "    }\n\n"
            "    int source_type= src_pos[4+5*gid];\n"
-           "    float amp=(float)pdir*(DT*src[gid*NT+nt])/(DH*DH*DH);\n\n");
+           "    float amp=(float)pdir*(DT*src[gid*NT+nt])/(DH*DH*DH)*SCALE;\n\n");
     
     char posstr[100]={0};
 
