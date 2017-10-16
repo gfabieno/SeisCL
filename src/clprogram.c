@@ -188,8 +188,8 @@ int get_build_options(device *dev,
     *n+=1;
     if ( (*dev).FP16==1){
 //        sprintf(build_options[*n-1],"-D SCALE=0.00000000001");
-//        sprintf(build_options[*n-1],"-D SCALE=100000000.0");
-        sprintf(build_options[*n-1],"-D SCALE=1.0");
+        sprintf(build_options[*n-1],"-D SCALE=10000000.0");
+//        sprintf(build_options[*n-1],"-D SCALE=1.0");
     }else{
         sprintf(build_options[*n-1],"-D SCALE=1.0");
     }
