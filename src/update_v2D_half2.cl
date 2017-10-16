@@ -405,7 +405,7 @@ extern "C" __global__ void update_v(int offcomm,
 #if ABS_TYPE==1
     {
         int i,k,ind;
-        float2 lpsi_sxz_z, lpsi_szz_z, psi_sxx_x, psi_sxz_x;
+        float2 lpsi_sxz_z, lpsi_szz_z, lpsi_sxx_x, lpsi_sxz_x;
         
         if (gidz>NZ-NAB/2-FDOH/2-1){
             
