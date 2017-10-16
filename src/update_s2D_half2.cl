@@ -556,12 +556,12 @@ extern "C" __global__ void update_s(int offcomm,
         lszz.x+=(g.x*(vxx.x+vzz.x))-(f.x*vxx.x);
         lszz.y+=(g.y*(vxx.y+vzz.y))-(f.y*vxx.y);
         
-        lsxz.x=vxz.x;
-        lsxz.y=vxz.y;
-        lsxx.x=vxz.x;
-        lsxx.y=vxz.y;
-        lszz.x=vxz.x;
-        lszz.y=vxz.y;
+        lsxz.x=vzz.x;
+        lsxz.y=vzz.y;
+        lsxx.x=vzz.x;
+        lsxx.y=vzz.y;
+        lszz.x=vzz.x;
+        lszz.y=vzz.y;
         sxz(gidz, gidx)=__float22half2_rn(lsxz);
         sxx(gidz, gidx)=__float22half2_rn(lsxx);
         szz(gidz, gidx)=__float22half2_rn(lszz);
