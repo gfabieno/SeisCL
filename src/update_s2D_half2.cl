@@ -423,70 +423,112 @@ extern "C" __global__ void update_s(int offcomm,
     
     // Correct spatial derivatives to implement CPML
     
-//#if ABS_TYPE==1
-//    {
-//        
-//        if (gidz>NZ-NAB-FDOH-1){
-//            
-//            i =gidx-FDOH;
-//            k =gidz - NZ+NAB+FDOH+NAB;
-//            ind=2*NAB-1-k;
-//            
-//            psi_vx_z(k,i) = b_z_half[ind] * psi_vx_z(k,i) + a_z_half[ind] * vxz;
-//            vxz = vxz / K_z_half[ind] + psi_vx_z(k,i);
-//            psi_vz_z(k,i) = b_z[ind+1] * psi_vz_z(k,i) + a_z[ind+1] * vzz;
-//            vzz = vzz / K_z[ind+1] + psi_vz_z(k,i);
-//            
-//        }
-//        
-//#if FREESURF==0
-//        else if (gidz-FDOH<NAB){
-//            
-//            i =gidx-FDOH;
-//            k =gidz-FDOH;
-//            
-//            
-//            psi_vx_z(k,i) = b_z_half[k] * psi_vx_z(k,i) + a_z_half[k] * vxz;
-//            vxz = vxz / K_z_half[k] + psi_vx_z(k,i);
-//            psi_vz_z(k,i) = b_z[k] * psi_vz_z(k,i) + a_z[k] * vzz;
-//            vzz = vzz / K_z[k] + psi_vz_z(k,i);
-//            
-//            
-//        }
-//#endif
-//        
-//#if DEVID==0 & MYLOCALID==0
-//        if (gidx-FDOH<NAB){
-//            
-//            i =gidx-FDOH;
-//            k =gidz-FDOH;
-//            
-//            psi_vx_x(k,i) = b_x[i] * psi_vx_x(k,i) + a_x[i] * vxx;
-//            vxx = vxx / K_x[i] + psi_vx_x(k,i);
-//            psi_vz_x(k,i) = b_x_half[i] * psi_vz_x(k,i) + a_x_half[i] * vzx;
-//            vzx = vzx / K_x_half[i] + psi_vz_x(k,i);
-//            
-//        }
-//#endif
-//        
-//#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-//        if (gidx>NX-NAB-FDOH-1){
-//            
-//            i =gidx - NX+NAB+FDOH+NAB;
-//            k =gidz-FDOH;
-//            ind=2*NAB-1-i;
-//            
-//            
-//            psi_vx_x(k,i) = b_x[ind+1] * psi_vx_x(k,i) + a_x[ind+1] * vxx;
-//            vxx = vxx /K_x[ind+1] + psi_vx_x(k,i);
-//            psi_vz_x(k,i) = b_x_half[ind] * psi_vz_x(k,i) + a_x_half[ind] * vzx;
-//            vzx = vzx / K_x_half[ind]  +psi_vz_x(k,i);
-//            
-//            
-//        }
-//#endif
-//    }
-//#endif
+#if ABS_TYPE==1
+    {
+        float2 psi_vx_x, psi_vx_z, *psi_vz_x, psi_vz_z;
+        
+        if (gidz>NZ-NAB/2-FDOH/2-1){
+            
+            i =gidx-FDOH;
+            k =gidz - NZ+NAB/2+FDOH/2+NAB/2;
+            ind=2*NAB-1-2*k;
+            
+            lpsi_vx_z = __half22float2(psi_vx_z(k,i));
+            lpsi_vz_z = __half22float2(psi_vz_z(k,i));
+            
+            lpsi_vx_z.x = b_z_half[ind  ] * lpsi_vx_z.x + a_z_half[ind  ] * vxz.x;
+            lpsi_vx_z.y = b_z_half[ind-1] * lpsi_vx_z.y + a_z_half[ind-1] * vxz.y;
+            vxz.x = vxz.x / K_z_half[ind  ] + lpsi_vx_z.x;
+            vxz.y = vxz.y / K_z_half[ind-1] + lpsi_vx_z.y;
+            
+            lpsi_vzz.x = b_z[ind+1] * lpsi_vzz.x + a_z[ind+1] * vzz.x;
+            lpsi_vzz.y = b_z[ind  ] * lpsi_vzz.y + a_z[ind  ] * vzz.y;
+            vzz.x = vzz.x / K_z[ind+1] + lpsi_vzz.x;
+            vzz.y = vzz.y / K_z[ind  ] + lpsi_vzz.y;
+            
+            psi_vxz(k,i)=__float22half2_rn(lpsi_vxz);
+            psi_vzz(k,i)=__float22half2_rn(lpsi_vzz);
+            
+        }
+        
+#if FREESURF==0
+        else if (gidz-FDOH/2<NAB/2){
+            
+            i =gidx-FDOH;
+            k =gidz-FDOH/2;
+            
+            lpsi_vx_z = __half22float2(psi_vx_z(k,i));
+            lpsi_vz_z = __half22float2(psi_vz_z(k,i));
+            
+            
+            lpsi_vx_z.x = b_z_half[2*k  ] * lpsi_vx_z.x + a_z_half[2*k  ] * vx_z.x;
+            lpsi_vx_z.y = b_z_half[2*k+1] * lpsi_vx_z.y + a_z_half[2*k+1] * vx_z.y;
+            vxz.x = vxz.x / K_z_half[2*k  ] + lpsi_vx_z.x;
+            vxz.y = vxz.y / K_z_half[2*k+1] + lpsi_vx_z.y;
+            
+            lpsi_vzz.x = b_z[2*k  ] * lpsi_vzz.x + a_z[2*k  ] * vzz.x;
+            lpsi_vzz.y = b_z[2*k+1] * lpsi_vzz.y + a_z[2*k+1] * vzz.y;
+            vzz.x = vzz.x / K_z[2*k  ] + lpsi_vzz.x;
+            vzz.y = vzz.y / K_z[2*k+1] + lpsi_vzz.y;
+            
+            psi_vzz(k,i)=__float22half2_rn(lpsi_vzz);
+            psi_vx_z(k,i)=__float22half2_rn(lpsi_vx_z);
+  
+        }
+#endif
+        
+#if DEVID==0 & MYLOCALID==0
+        if (gidx-FDOH<NAB){
+            
+            i =gidx-FDOH;
+            k =gidz-FDOH/2;
+            
+            lpsi_vz_x = __half22float2(psi_vz_x(k,i));
+            lpsi_vx_x = __half22float2(psi_vx_x(k,i));
+            
+            lpsi_vz_x.x = b_x_half[i] * lpsi_vz_x.x + a_x_half[i] * vz_x.x;
+            lpsi_vz_x.y = b_x_half[i] * lpsi_vz_x.y + a_x_half[i] * vz_x.y;
+            vzx.x = vzx.x / K_x_half[i] + lpsi_vz_x.x;
+            vzx.y = vzx.y / K_x_half[i] + lpsi_vz_x.y;
+            
+            lpsi_vx_x.x = b_x[i] * lpsi_vx_x.x + a_x[i] * vx_x.x;
+            lpsi_vx_x.y = b_x[i] * lpsi_vx_x.y + a_x[i] * vx_x.y;
+            vxx.x = vxx.x / K_x[i] + lpsi_vx_x.x;
+            vxx.y = vxx.y / K_x[i] + lpsi_vx_x.y;
+            
+            psi_vz_x(k,i)=__float22half2_rn(lpsi_vz_x);
+            psi_vx_x(k,i)=__float22half2_rn(lpsi_vx_x);
+            
+        }
+#endif
+        
+#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+        if (gidx>NX-NAB-FDOH-1){
+            
+            i =gidx - NX+NAB+FDOH+NAB;
+            k =gidz-FDOH/2;
+            ind=2*NAB-1-i;
+            
+            lpsi_vz_x = __half22float2(psi_vz_x(k,i));
+            lpsi_vx_x = __half22float2(psi_vx_x(k,i));
+            
+            lpsi_vz_x.x = b_x_half[ind] * lpsi_vz_x.x + a_x_half[ind] * vz_x.x;
+            lpsi_vz_x.y = b_x_half[ind] * lpsi_vz_x.y + a_x_half[ind] * vz_x.y;
+            vzx.x = vzx.x / K_x_half[ind] + lpsi_vz_x.x;
+            vzx.y = vzx.y / K_x_half[ind] + lpsi_vz_x.y;
+            
+            lpsi_vx_x.x = b_x[ind+1] * lpsi_vx_x.x + a_x[ind+1] * vx_x.x;
+            lpsi_vx_x.y = b_x[ind+1] * lpsi_vx_x.y + a_x[ind+1] * vx_x.y;
+            vxx.x = vxx.x / K_x[ind+1] + lpsi_vx_x.x;
+            vxx.y = vxx.y / K_x[ind+1] + lpsi_vx_x.y;
+            
+            psi_vz_x(k,i)=__float22half2_rn(lpsi_vz_x);
+            psi_vx_x(k,i)=__float22half2_rn(lpsi_vx_x);
+            
+        }
+#endif
+    }
+#endif
     
     
     // Read model parameters into local memory

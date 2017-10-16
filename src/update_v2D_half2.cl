@@ -427,7 +427,7 @@ extern "C" __global__ void update_v(int offcomm,
             szz_z.y = szz_z.y / K_z_half[ind-1] + lpsi_szz_z.y;
             
             psi_sxz_z(k,i)=__float22half2_rn(lpsi_sxz_z);
-            psi_sxz_z(k,i)=__float22half2_rn(lpsi_szz_z);
+            psi_szz_z(k,i)=__float22half2_rn(lpsi_szz_z);
             
         }
         
@@ -451,7 +451,7 @@ extern "C" __global__ void update_v(int offcomm,
             szz_z.y = szz_z.y / K_z_half[2*k+1] + lpsi_szz_z.y;
             
             psi_sxz_z(k,i)=__float22half2_rn(lpsi_sxz_z);
-            psi_sxz_z(k,i)=__float22half2_rn(lpsi_szz_z);
+            psi_szz_z(k,i)=__float22half2_rn(lpsi_szz_z);
             
         }
 #endif
