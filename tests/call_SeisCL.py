@@ -106,7 +106,7 @@ for ii in range(0,63,60):
     toappend[1,:]=0
     toappend[2,:]=(csts['nab']+5+2*ii)*csts['dh']
     toappend[3,:]=ii
-    toappend[4,:]=0
+    toappend[4,:]=1
     csts['src_pos']=np.append(csts['src_pos'], toappend, axis=1)
     csts['src']=np.append(csts['src'], ricker  , axis=1)
     for jj in range(0,126):
