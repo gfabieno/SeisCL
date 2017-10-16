@@ -36,7 +36,7 @@ int kernel_varout(device * dev,
     variable * tvars = dev->trans_vars;
     
     strcat(temp, "extern \"C\" __global__ void varsout"
-                 "(int nt, int nrec, float * rec_pos, ");
+                 "(int nt, int nrec, float * rec_pos, float src_scale,");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
             if (dev->FP16==1){
@@ -122,7 +122,7 @@ int kernel_varout(device * dev,
         if (vars[i].to_output){
             strcat(temp, "    ");
             strcat(temp, vars[i].name);
-            strcat(temp, "out[NT*gid+nt]=");
+            strcat(temp, "out[NT*gid+nt]=src_scale*");
             if (dev->FP16==1){
                 strcat(temp, "__half2float(");
             }
@@ -138,7 +138,7 @@ int kernel_varout(device * dev,
         if (tvars[i].to_output){
             strcat(temp, "    ");
             strcat(temp, tvars[i].name);
-            strcat(temp, "out[NT*gid+nt]=(");
+            strcat(temp, "out[NT*gid+nt]=src_scale*(");
             for (j=0;j<tvars->n2ave;j++){
                 if (dev->FP16==1){
                     strcat(temp, "__half2float(");
