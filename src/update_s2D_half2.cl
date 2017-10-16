@@ -561,9 +561,10 @@ extern "C" __global__ void update_s(int offcomm,
 //        sxx(gidz, gidx)=__float22half2_rn(lsxx);
 //        szz(gidz, gidx)=__float22half2_rn(lszz);
         
-        sxz(gidz,gidx)=__halves2half2(__float2half_rd(lsxz.x), __float2half_rd(lsxz.y));
-        sxx(gidz,gidx)=__halves2half2(__float2half_rd(lsxx.x), __float2half_rd(lsxx.y));
-        szz(gidz,gidx)=__halves2half2(__float2half_rd(lszz.x), __float2half_rd(lszz.y));
+
+        sxz(gidz,gidx)=__halves2half2(__float2half_rz(lsxz.x), __float2half_rz(lsxz.y));
+        sxx(gidz,gidx)=__halves2half2(__float2half_rz(lsxx.x), __float2half_rz(lsxx.y));
+        szz(gidz,gidx)=__halves2half2(__float2half_rz(lszz.x), __float2half_rz(lszz.y));
         
 #else
         /* computing sums of the old memory variables */

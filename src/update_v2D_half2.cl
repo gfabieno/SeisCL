@@ -481,10 +481,10 @@ extern "C" __global__ void update_v(int offcomm,
 
 //        vx(gidz,gidx)= __float22half2_rn(lvx);
 //        vz(gidz,gidx)= __float22half2_rn(lvz);
-        half lvxx =__float2half_rd(lvx.x);
-        half lvxy =__float2half_rd(lvx.y);
-        half lvzx =__float2half_rd(lvz.x);
-        half lvzy =__float2half_rd(lvz.y);
+        half lvxx =__float2half_rz(lvx.x);
+        half lvxy =__float2half_rz(lvx.y);
+        half lvzx =__float2half_rz(lvz.x);
+        half lvzy =__float2half_rz(lvz.y);
         vx(gidz,gidx)=__halves2half2(lvxx, lvxy);
         vz(gidz,gidx)=__halves2half2(lvzx, lvzy);
         
