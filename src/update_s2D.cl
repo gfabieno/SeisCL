@@ -378,9 +378,9 @@ extern "C" __global__ void update_s(int offcomm,
 // Read model parameters into local memory
     {
 #if LVE==0
-//        fipkp=muipkp(gidz, gidx)*DT;
-//        f=2.0*mu(gidz, gidx)*DT;
-//        g=M(gidz, gidx)*DT;
+        fipkp=muipkp(gidz, gidx)*DT;
+        f=2.0*mu(gidz, gidx)*DT;
+        g=M(gidz, gidx)*DT;
         
 #else
         
