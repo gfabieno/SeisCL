@@ -443,11 +443,11 @@ extern "C" __global__ void update_s(int offcomm,
             
             lpsi_vz_z.x = b_z[ind+1] * lpsi_vz_z.x + a_z[ind+1] * vzz.x;
             lpsi_vz_z.y = b_z[ind  ] * lpsi_vz_z.y + a_z[ind  ] * vzz.y;
-            vzz.x = vzz.x / K_z[ind+1] + lpsi_vzz.x;
-            vzz.y = vzz.y / K_z[ind  ] + lpsi_vzz.y;
+            vzz.x = vzz.x / K_z[ind+1] + lpsi_vz_z.x;
+            vzz.y = vzz.y / K_z[ind  ] + lpsi_vz_z.y;
             
-            psi_vxz(k,i)=__float22half2_rn(lpsi_vxz);
-            psi_vzz(k,i)=__float22half2_rn(lpsi_vzz);
+            psi_vx_z(k,i)=__float22half2_rn(lpsi_vx_z);
+            psi_vz_z(k,i)=__float22half2_rn(lpsi_vz_z);
             
         }
         
@@ -471,7 +471,7 @@ extern "C" __global__ void update_s(int offcomm,
             vzz.x = vzz.x / K_z[2*k  ] + lpsi_vz_z.x;
             vzz.y = vzz.y / K_z[2*k+1] + lpsi_vz_z.y;
             
-            psi_vzz(k,i)=__float22half2_rn(lpsi_vzz);
+            psi_vz_z(k,i)=__float22half2_rn(lpsi_vz_z);
             psi_vx_z(k,i)=__float22half2_rn(lpsi_vx_z);
   
         }
