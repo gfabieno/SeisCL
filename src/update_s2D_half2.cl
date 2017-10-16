@@ -429,10 +429,10 @@ extern "C" __global__ void update_s(int offcomm,
         
         if (gidz>NZ-NAB/2-FDOH/2-1){
             
-            i =gidx-FDOH;
-            k =gidz - NZ+NAB/2+FDOH/2+NAB/2;
-            ind=2*NAB-1-2*k;
-            
+//            i =gidx-FDOH;
+//            k =gidz - NZ+NAB/2+FDOH/2+NAB/2;
+//            ind=2*NAB-1-2*k;
+//            
 //            lpsi_vx_z = __half22float2(psi_vx_z(k,i));
 //            lpsi_vz_z = __half22float2(psi_vz_z(k,i));
 //            
@@ -481,21 +481,21 @@ extern "C" __global__ void update_s(int offcomm,
             i =gidx-FDOH;
             k =gidz-FDOH/2;
             
-//            lpsi_vz_x = __half22float2(psi_vz_x(k,i));
-//            lpsi_vx_x = __half22float2(psi_vx_x(k,i));
-//            
-//            lpsi_vz_x.x = b_x_half[i] * lpsi_vz_x.x + a_x_half[i] * vzx.x;
-//            lpsi_vz_x.y = b_x_half[i] * lpsi_vz_x.y + a_x_half[i] * vzx.y;
-//            vzx.x = vzx.x / K_x_half[i] + lpsi_vz_x.x;
-//            vzx.y = vzx.y / K_x_half[i] + lpsi_vz_x.y;
-//            
-//            lpsi_vx_x.x = b_x[i] * lpsi_vx_x.x + a_x[i] * vxx.x;
-//            lpsi_vx_x.y = b_x[i] * lpsi_vx_x.y + a_x[i] * vxx.y;
-//            vxx.x = vxx.x / K_x[i] + lpsi_vx_x.x;
-//            vxx.y = vxx.y / K_x[i] + lpsi_vx_x.y;
-//            
-//            psi_vz_x(k,i)=__float22half2_rn(lpsi_vz_x);
-//            psi_vx_x(k,i)=__float22half2_rn(lpsi_vx_x);
+            lpsi_vz_x = __half22float2(psi_vz_x(k,i));
+            lpsi_vx_x = __half22float2(psi_vx_x(k,i));
+            
+            lpsi_vz_x.x = b_x_half[i] * lpsi_vz_x.x + a_x_half[i] * vzx.x;
+            lpsi_vz_x.y = b_x_half[i] * lpsi_vz_x.y + a_x_half[i] * vzx.y;
+            vzx.x = vzx.x / K_x_half[i] + lpsi_vz_x.x;
+            vzx.y = vzx.y / K_x_half[i] + lpsi_vz_x.y;
+            
+            lpsi_vx_x.x = b_x[i] * lpsi_vx_x.x + a_x[i] * vxx.x;
+            lpsi_vx_x.y = b_x[i] * lpsi_vx_x.y + a_x[i] * vxx.y;
+            vxx.x = vxx.x / K_x[i] + lpsi_vx_x.x;
+            vxx.y = vxx.y / K_x[i] + lpsi_vx_x.y;
+            
+            psi_vz_x(k,i)=__float22half2_rn(lpsi_vz_x);
+            psi_vx_x(k,i)=__float22half2_rn(lpsi_vx_x);
             
         }
 #endif
