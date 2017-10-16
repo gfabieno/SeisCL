@@ -27,7 +27,8 @@ int kernel_varout(device * dev,
                   clprogram * prog){
  
     int state=0;
-    int i,j;
+    int i,j,k;
+    float scaler=0;
     
     char temp[MAX_KERN_STR]={0};;
     char temp2[100]={0};
@@ -144,8 +145,14 @@ int kernel_varout(device * dev,
             strcat(temp, tvars[i].name);
             strcat(temp, "out[NT*gid+nt]=1.0/src_scale*(");
             for (j=0;j<tvars->n2ave;j++){
-                if (vars[j].scaler>0){
-                    sprintf(temp2,"/%f*", vars[j].scaler );
+                for (k=0;k<dev->nvars;k++){
+                    if (strcmp(tvars[i].var2ave[j],dev->vars[k].name)==0){
+                        scaler=dev->vars[k].scaler;
+                        break;
+                    }
+                }
+                if (scaler>0){
+                    sprintf(temp2,"/%f*", scaler );
                     strcat(temp, temp2);
                 }
                 if (dev->FP16==1){
