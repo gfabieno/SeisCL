@@ -513,47 +513,57 @@ extern "C" __global__ void update_v(int offcomm,
     {
         float2 lvx = __half22float2(vx(gidz,gidx));
         float2 lvz = __half22float2(vz(gidz,gidx));
-//        float2 lrip = __half22float2(rip(gidz,gidx));
-//        float2 lrkp = __half22float2(rkp(gidz,gidx));
+        //        float2 lrip = __half22float2(rip(gidz,gidx));
+        //        float2 lrkp = __half22float2(rkp(gidz,gidx));
         float2 lrip = (rip(gidz,gidx));
         float2 lrkp = (rkp(gidz,gidx));
         lvx.x += ((sxx_x.x + sxz_z.x)/lrip.x)/scaler_sxx;
         lvx.y += ((sxx_x.y + sxz_z.y)/lrip.y)/scaler_sxx;
         lvz.x += ((szz_z.x + sxz_x.x)/lrkp.x)/scaler_sxx;
         lvz.y += ((szz_z.y + sxz_x.y)/lrkp.y)/scaler_sxx;
-
+        
+        
+        
+        // Absorbing boundary
+#if ABS_TYPE==2
+        {
+            if (2*gidz-FDOH<NAB){
+                lvx.x*=taper[2*gidz-FDOH];
+                lvx.y*=taper[2*gidz+1-FDOH];
+                lvz.x*=taper[2*gidz-FDOH];
+                lvz.y*=taper[2*gidz+1-FDOH];
+            }
+            
+            if (2*gidz>NZ-NAB-FDOH-1){
+                lvx.x*=taper[NZ-FDOH-2*gidz-1];
+                lvx.y*=taper[NZ-FDOH-2*gidz-1-1];
+                lvz.x*=taper[NZ-FDOH-2*gidz-1];
+                lvz.y*=taper[NZ-FDOH-2*gidz-1-1];
+            }
+            
+#if DEVID==0 & MYLOCALID==0
+            if (gidx-FDOH<NAB){
+                lvx.x*=taper[gidx-FDOH];
+                lvx.y*=taper[gidx-FDOH];
+                lvz.x*=taper[gidx-FDOH];
+                lvz.y*=taper[gidx-FDOH];
+            }
+#endif
+            
+#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+            if (gidx>NX-NAB-FDOH-1){
+                lvx.x*=taper[NX-FDOH-gidx-1];
+                lvx.y*=taper[NX-FDOH-gidx-1];
+                lvz.x*=taper[NX-FDOH-gidx-1];
+                lvz.y*=taper[NX-FDOH-gidx-1];
+            }
+#endif
+        }
+#endif
+        
         vx(gidz,gidx)= __float22half2_rn(lvx);
         vz(gidz,gidx)= __float22half2_rn(lvz);
     }
-    
-//    // Absorbing boundary
-//#if ABS_TYPE==2
-//    {
-//        if (gidz-FDOH<NAB){
-//            vx(gidz,gidx)*=taper[gidz-FDOH];
-//            vz(gidz,gidx)*=taper[gidz-FDOH];
-//        }
-//        
-//        if (gidz>NZ-NAB-FDOH-1){
-//            vx(gidz,gidx)*=taper[NZ-FDOH-gidz-1];
-//            vz(gidz,gidx)*=taper[NZ-FDOH-gidz-1];
-//        }
-//        
-//#if DEVID==0 & MYLOCALID==0
-//        if (gidx-FDOH<NAB){
-//            vx(gidz,gidx)*=taper[gidx-FDOH];
-//            vz(gidz,gidx)*=taper[gidx-FDOH];
-//        }
-//#endif
-//        
-//#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-//        if (gidx>NX-NAB-FDOH-1){
-//            vx(gidz,gidx)*=taper[NX-FDOH-gidx-1];
-//            vz(gidz,gidx)*=taper[NX-FDOH-gidx-1];
-//        }
-//#endif 
-//    }
-//#endif
     
 }
 
