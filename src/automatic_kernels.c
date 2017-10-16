@@ -123,6 +123,10 @@ int kernel_varout(device * dev,
             strcat(temp, "    ");
             strcat(temp, vars[i].name);
             strcat(temp, "out[NT*gid+nt]=1.0/src_scale*");
+            if (vars[i].scaler>0){
+                sprintf(temp2,"/%f*", vars[i].scaler );
+                strcat(temp, temp2);
+            }
             if (dev->FP16==1){
                 strcat(temp, "__half2float(");
             }
@@ -140,6 +144,10 @@ int kernel_varout(device * dev,
             strcat(temp, tvars[i].name);
             strcat(temp, "out[NT*gid+nt]=1.0/src_scale*(");
             for (j=0;j<tvars->n2ave;j++){
+                if (vars[j].scaler>0){
+                    sprintf(temp2,"/%f*", vars[j].scaler );
+                    strcat(temp, temp2);
+                }
                 if (dev->FP16==1){
                     strcat(temp, "__half2float(");
                 }
