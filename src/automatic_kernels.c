@@ -152,7 +152,7 @@ int kernel_varout(device * dev,
                     }
                 }
                 if (scaler>0){
-                    sprintf(temp2,"/%f*", scaler );
+                    sprintf(temp2,"1.0/%9.18f*", scaler );
                     strcat(temp, temp2);
                 }
                 if (dev->FP16==1){
