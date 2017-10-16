@@ -100,10 +100,13 @@ extern "C" __global__ void update_s(int offcomm,
     float2 sumrxz, sumrxx, sumrzz;
     float2 e,g,d,f,fipkp,dipkp;
     float b,c;
+#if LVE>0
     float leta[LVE];
+    float2 lrxx[LVE], lrzz[LVE], lrxz[LVE];
+#endif
     float2 lM, lmu, lmuipkp, ltaup, ltaus, ltausipkp;
     float2 lsxx, lszz, lsxz;
-    float2 lrxx[LVE], lrzz[LVE], lrxz[LVE];
+
     
     // If we use local memory
 #if LOCAL_OFF==0
@@ -489,15 +492,15 @@ extern "C" __global__ void update_s(int offcomm,
     {
 #if LVE==0
         
-        fipkp=__half22float2(muipkp(gidz, gidx))*0.00000000001;
-        fipkp.x*=DT;
-        fipkp.y*=DT;
-        f=__half22float2(mu(gidz, gidx))*0.00000000001;
-        f.x*=2.0*DT;
-        f.y*=2.0*DT;
-        g=__half22float2(M(gidz, gidx))*0.00000000001;
-        g.x*=DT;
-        g.y*=DT;
+        fipkp=__half22float2(muipkp(gidz, gidx));
+        fipkp.x*=DT*0.00000000001;
+        fipkp.y*=DT*0.00000000001;
+        f=__half22float2(mu(gidz, gidx));
+        f.x*=2.0*DT*0.00000000001;
+        f.y*=2.0*DT*0.00000000001;
+        g=__half22float2(M(gidz, gidx));
+        g.x*=DT*0.00000000001;
+        g.y*=DT*0.00000000001;
         
 #else
         
