@@ -96,9 +96,9 @@ extern "C" __global__ void update_s(int offcomm,
     int i,k,l,ind;
     float sumrxz, sumrxx, sumrzz;
     float b,c,e,g,d,f,fipkp,dipkp;
-#if LVE>0
-    float leta[LVE];
-#endif
+//#if LVE>0
+//    float leta[LVE];
+//#endif
     float lM, lmu, lmuipkp, ltaup, ltaus, ltausipkp;
     float lsxx, lszz, lsxz;
     
@@ -378,9 +378,9 @@ extern "C" __global__ void update_s(int offcomm,
 // Read model parameters into local memory
     {
 #if LVE==0
-        fipkp=muipkp(gidz, gidx)*DT;
-        f=2.0*mu(gidz, gidx)*DT;
-        g=M(gidz, gidx)*DT;
+//        fipkp=muipkp(gidz, gidx)*DT;
+//        f=2.0*mu(gidz, gidx)*DT;
+//        g=M(gidz, gidx)*DT;
         
 #else
         
@@ -409,11 +409,10 @@ extern "C" __global__ void update_s(int offcomm,
     {
 #if LVE==0
 
-        sxz(gidz, gidx)+=(fipkp*(vxz+vzx));
-        sxx(gidz, gidx)+=(g*(vxx+vzz))-(f*vzz);
-        szz(gidz, gidx)+=(g*(vxx+vzz))-(f*vxx);
-        
-        
+//        sxz(gidz, gidx)+=(fipkp*(vxz+vzx));
+//        sxx(gidz, gidx)+=(g*(vxx+vzz))-(f*vzz);
+//        szz(gidz, gidx)+=(g*(vxx+vzz))-(f*vxx);
+
 #else
         
         
