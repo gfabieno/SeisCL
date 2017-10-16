@@ -54,12 +54,12 @@
 #define rxy(z,x,l) rxy[(l)*NX*NZ+(x)*NZ+(z)]
 #define ryz(z,x,l) ryz[(l)*NX*NZ+(x)*NZ+(z)]
 
-#define psi_sxx_x(z,x) psi_sxx_x[(x)*(NZ-FDOH)+(z)]
-#define psi_sxz_x(z,x) psi_sxz_x[(x)*(NZ-FDOH)+(z)]
-#define psi_sxz_z(z,x) psi_sxz_z[(x)*(2*NAB)+(z)]
-#define psi_szz_z(z,x) psi_szz_z[(x)*(2*NAB)+(z)]
-#define psi_sxy_x(z,x) psi_sxy_x[(x)*(NZ-FDOH)+(z)]
-#define psi_syz_z(z,x) psi_syz_z[(x)*(2*NAB)+(z)]
+#define psi_sxx_x(z,x) psi_sxx_x[(x)*(NZ-FDOH/2)+(z)]
+#define psi_sxz_x(z,x) psi_sxz_x[(x)*(NZ-FDOH/2)+(z)]
+#define psi_sxz_z(z,x) psi_sxz_z[(x)*(NAB)+(z)]
+#define psi_szz_z(z,x) psi_szz_z[(x)*(NAB)+(z)]
+#define psi_sxy_x(z,x) psi_sxy_x[(x)*(NZ-FDOH/2)+(z)]
+#define psi_syz_z(z,x) psi_syz_z[(x)*(NAB)+(z)]
 
 #if LOCAL_OFF==0
 
@@ -401,71 +401,114 @@ extern "C" __global__ void update_v(int offcomm,
     
     
     
-//    // Correct spatial derivatives to implement CPML
-//#if ABS_TYPE==1
-//    {
-//        int i,k,ind;
-////        float2 lpsi;
-//        
-//        if (gidz>NZ-NAB-FDOH-1){
-//            
-//            i =gidx-FDOH;
-//            k =gidz - NZ+NAB+FDOH+NAB;
-//            ind=2*NAB-1-k;
-//            
-////            lpsi = __half22float2(psi_sxz_z(k,i));
-//            psi_sxz_z(k,i) = b_z[ind+1] * psi_sxz_z(k,i) + a_z[ind+1] * sxz_z;
-//            sxz_z = sxz_z / K_z[ind+1] + psi_sxz_z(k,i);
-//            psi_szz_z(k,i) = b_z_half[ind] * psi_szz_z(k,i) + a_z_half[ind] * szz_z;
-//            szz_z = szz_z / K_z_half[ind] + psi_szz_z(k,i);
-//            
-//        }
-//        
-//#if FREESURF==0
-//        else if (gidz-FDOH<NAB){
-//            
-//            i =gidx-FDOH;
-//            k =gidz-FDOH;
-//            
-//            psi_sxz_z(k,i) = b_z[k] * psi_sxz_z(k,i) + a_z[k] * sxz_z;
-//            sxz_z = sxz_z / K_z[k] + psi_sxz_z(k,i);
-//            psi_szz_z(k,i) = b_z_half[k] * psi_szz_z(k,i) + a_z_half[k] * szz_z;
-//            szz_z = szz_z / K_z_half[k] + psi_szz_z(k,i);
-//            
-//        }
-//#endif
-//        
-//#if DEVID==0 & MYLOCALID==0
-//        if (gidx-FDOH<NAB){
-//            
-//            i =gidx-FDOH;
-//            k =gidz-FDOH;
-//            
-//            psi_sxx_x(k,i) = b_x_half[i] * psi_sxx_x(k,i) + a_x_half[i] * sxx_x;
-//            sxx_x = sxx_x / K_x_half[i] + psi_sxx_x(k,i);
-//            psi_sxz_x(k,i) = b_x[i] * psi_sxz_x(k,i) + a_x[i] * sxz_x;
-//            sxz_x = sxz_x / K_x[i] + psi_sxz_x(k,i);
-//            
-//        }
-//#endif
-//        
-//#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-//        if (gidx>NX-NAB-FDOH-1){
-//            
-//            i =gidx - NX+NAB+FDOH+NAB;
-//            k =gidz-FDOH;
-//            ind=2*NAB-1-i;
-//            
-//            psi_sxx_x(k,i) = b_x_half[ind] * psi_sxx_x(k,i) + a_x_half[ind] * sxx_x;
-//            sxx_x = sxx_x / K_x_half[ind] + psi_sxx_x(k,i);
-//            psi_sxz_x(k,i) = b_x[ind+1] * psi_sxz_x(k,i) + a_x[ind+1] * sxz_x;
-//            sxz_x = sxz_x / K_x[ind+1] + psi_sxz_x(k,i);
-//            
-//        }
-//#endif
-//    }
-//#endif
-//
+    // Correct spatial derivatives to implement CPML
+#if ABS_TYPE==1
+    {
+        int i,k,ind;
+        float2 lpsi_sxz_z, lpsi_szz_z, psi_sxx_x, psi_sxz_x;
+        
+        if (gidz>NZ-NAB/2-FDOH/2-1){
+            
+            i =gidx-FDOH;
+            k =gidz - NZ+NAB/2+FDOH/2+NAB/2;
+            ind=2*NAB-1-2*k;
+            
+            lpsi_sxz_z = __half22float2(psi_sxz_z(k,i));
+            lpsi_szz_z = __half22float2(psi_szz_z(k,i));
+            
+            lpsi_sxz_z.x = b_z[ind+1] * lpsi_sxz_z.x + a_z[ind+1] * sxz_z.x;
+            lpsi_sxz_z.y = b_z[ind  ] * lpsi_sxz_z.y + a_z[ind  ] * sxz_z.y;
+            sxz_z.x = sxz_z.x / K_z[ind+1] + lpsi_sxz_z.x;
+            sxz_z.y = sxz_z.y / K_z[ind  ] + lpsi_sxz_z.y;
+            
+            lpsi_szz_z.x = b_z_half[ind  ] * lpsi_szz_z.x + a_z_half[ind  ] * szz_z.x;
+            lpsi_szz_z.y = b_z_half[ind-1] * lpsi_szz_z.y + a_z_half[ind-1] * szz_z.y;
+            szz_z.x = szz_z.x / K_z_half[ind  ] + lpsi_szz_z.x;
+            szz_z.y = szz_z.y / K_z_half[ind-1] + lpsi_szz_z.y;
+            
+            psi_sxz_z(k,i)=__float22half2_rn(lpsi_sxz_z);
+            psi_sxz_z(k,i)=__float22half2_rn(lpsi_szz_z);
+            
+        }
+        
+#if FREESURF==0
+        else if (gidz-FDOH/2<NAB/2){
+            
+            i =gidx-FDOH;
+            k =gidz-FDOH/2;
+            
+            lpsi_sxz_z = __half22float2(psi_sxz_z(k,i));
+            lpsi_szz_z = __half22float2(psi_szz_z(k,i));
+            
+            lpsi_sxz_z.x = b_z[2*k  ] * lpsi_sxz_z.x + a_z[2*k  ] * sxz_z.x;
+            lpsi_sxz_z.y = b_z[2*k+1] * lpsi_sxz_z.y + a_z[2*k+1] * sxz_z.y;
+            sxz_z.x = sxz_z.x / K_z[2*k  ] + lpsi_sxz_z.x;
+            sxz_z.y = sxz_z.y / K_z[2*k+1] + lpsi_sxz_z.y;
+            
+            lpsi_szz_z.x = b_z_half[2*k  ] * lpsi_szz_z.x + a_z_half[2*k  ] * szz_z.x;
+            lpsi_szz_z.y = b_z_half[2*k+1] * lpsi_szz_z.y + a_z_half[2*k+1] * szz_z.y;
+            szz_z.x = szz_z.x / K_z_half[2*k  ] + lpsi_szz_z.x;
+            szz_z.y = szz_z.y / K_z_half[2*k+1] + lpsi_szz_z.y;
+            
+            psi_sxz_z(k,i)=__float22half2_rn(lpsi_sxz_z);
+            psi_sxz_z(k,i)=__float22half2_rn(lpsi_szz_z);
+            
+        }
+#endif
+        
+#if DEVID==0 & MYLOCALID==0
+        if (gidx-FDOH<NAB){
+            
+            i =gidx-FDOH;
+            k =gidz-FDOH/2;
+            
+            lpsi_sxx_x = __half22float2(psi_sxx_x(k,i));
+            lpsi_sxz_x = __half22float2(psi_sxz_x(k,i));
+            
+            lpsi_sxx_x.x = b_x_half[i] * lpsi_sxx_x.x + a_x_half[i] * sxx_x.x;
+            lpsi_sxx_x.y = b_x_half[i] * lpsi_sxx_x.y + a_x_half[i] * sxx_x.y;
+            sxx_x.x = sxx_x.x / K_x_half[i] + lpsi_sxx_x.x;
+            sxx_x.y = sxx_x.y / K_x_half[i] + lpsi_sxx_x.y;
+            
+            lpsi_sxz_x.x = b_x[i] * lpsi_sxz_x.x + a_x[i] * sxz_x.x;
+            lpsi_sxz_x.y = b_x[i] * lpsi_sxz_x.y + a_x[i] * sxz_x.y;
+            sxz_x.x = sxz_x.x / K_x[i] + lpsi_sxz_x.x;
+            sxz_x.y = sxz_x.y / K_x[i] + lpsi_sxz_x.y;
+            
+            psi_sxx_x(k,i)=__float22half2_rn(lpsi_sxx_x);
+            psi_sxz_x(k,i)=__float22half2_rn(lpsi_sxz_x);
+            
+        }
+#endif
+        
+#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+        if (gidx>NX-NAB-FDOH-1){
+            
+            i =gidx - NX+NAB+FDOH+NAB;
+            k =gidz-FDOH/2;
+            ind=2*NAB-1-i;
+            
+            lpsi_sxx_x = __half22float2(psi_sxx_x(k,i));
+            lpsi_sxz_x = __half22float2(psi_sxz_x(k,i));
+            
+            lpsi_sxx_x.x = b_x_half[ind] * lpsi_sxx_x.x + a_x_half[ind] * sxx_x.x;
+            lpsi_sxx_x.y = b_x_half[ind] * lpsi_sxx_x.y + a_x_half[ind] * sxx_x.y;
+            sxx_x.x = sxx_x.x / K_x_half[ind] + lpsi_sxx_x.x;
+            sxx_x.y = sxx_x.y / K_x_half[ind] + lpsi_sxx_x.y;
+            
+            lpsi_sxz_x.x = b_x[ind+1] * lpsi_sxz_x.x + a_x[ind+1] * sxz_x.x;
+            lpsi_sxz_x.y = b_x[ind+1] * lpsi_sxz_x.y + a_x[ind+1] * sxz_x.y;
+            sxz_x.x = sxz_x.x / K_x[ind+1] + lpsi_sxz_x.x;
+            sxz_x.y = sxz_x.y / K_x[ind+1] + lpsi_sxz_x.y;
+            
+            psi_sxx_x(k,i)=__float22half2_rn(lpsi_sxx_x);
+            psi_sxz_x(k,i)=__float22half2_rn(lpsi_sxz_x);
+            
+        }
+#endif
+    }
+#endif
+
     // Update the velocities
     {
         float2 lvx = __half22float2(vx(gidz,gidx));
