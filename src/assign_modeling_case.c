@@ -872,31 +872,33 @@ int set_scalers( void *mptr){
     scaler = 1.0/Mmax/m->dt*m->dh;
     
     variable * var;
-    var = get_var(mptr, "sxx");
-    if (var) var->scaler = scaler;
-    var = get_var(mptr, "syy");
-    if (var) var->scaler = scaler;
-    var = get_var(mptr, "szz");
-    if (var) var->scaler = scaler;
-    var = get_var(mptr, "sxz");
-    if (var) var->scaler = scaler;
-    var = get_var(mptr, "sxy");
-    if (var) var->scaler = scaler;
-    var = get_var(mptr, "syz");
-    if (var) var->scaler = scaler;
-    var = get_var(mptr, "rxx");
-    if (var) var->scaler = scaler;
-    var = get_var(mptr, "ryy");
-    if (var) var->scaler = scaler;
-    var = get_var(mptr, "rzz");
-    if (var) var->scaler = scaler;
-    var = get_var(mptr, "rxz");
-    if (var) var->scaler = scaler;
-    var = get_var(mptr, "rxy");
-    if (var) var->scaler = scaler;
-    var = get_var(mptr, "ryz");
-    if (var) var->scaler = scaler;
-
+    if (m->FP16>0){
+        var = get_var(mptr, "sxx");
+        if (var) var->scaler = scaler;
+        var = get_var(mptr, "syy");
+        if (var) var->scaler = scaler;
+        var = get_var(mptr, "szz");
+        if (var) var->scaler = scaler;
+        var = get_var(mptr, "sxz");
+        if (var) var->scaler = scaler;
+        var = get_var(mptr, "sxy");
+        if (var) var->scaler = scaler;
+        var = get_var(mptr, "syz");
+        if (var) var->scaler = scaler;
+        var = get_var(mptr, "rxx");
+        if (var) var->scaler = scaler;
+        var = get_var(mptr, "ryy");
+        if (var) var->scaler = scaler;
+        var = get_var(mptr, "rzz");
+        if (var) var->scaler = scaler;
+        var = get_var(mptr, "rxz");
+        if (var) var->scaler = scaler;
+        var = get_var(mptr, "rxy");
+        if (var) var->scaler = scaler;
+        var = get_var(mptr, "ryz");
+        if (var) var->scaler = scaler;
+    }
+    
     return state;
 }
 
