@@ -150,6 +150,20 @@ float * get_cst(void * mptr, const char * name){
     return outptr;
     
 }
+variable * get_var(void * mptr, const char * name){
+    
+    int i;
+    variable * outptr=NULL;
+    model * m = (model *) mptr;
+    for (i=0;i<m->nvars;i++){
+        if (strcmp(m->vars[i].name,name)==0){
+            outptr=&m->vars[i];
+        }
+    }
+    
+    return outptr;
+    
+}
 void ave_arithmetic1(float * pin, float * pout, int * N, int ndim, int  dir[3]){
     
     int i,j,k;
@@ -745,11 +759,12 @@ int check_stability( void *mptr){
     
     model * m = (model *) mptr;
     float *mu = get_par(m->pars, m->npars, "mu");
-    int num_ele = get_num_ele(m->pars, m->npars, "mu");
+    int num_ele;
     float *M = get_par(m->pars, m->npars, "M");
     float *rho = get_par(m->pars, m->npars, "rho");
     
     if (mu){
+        num_ele = get_num_ele(m->pars, m->npars, "mu");
         for (i=0;i<num_ele;i++){
             thisvs=sqrt(mu[i]/rho[i]);
             if (vsmax<thisvs) vsmax=thisvs;
@@ -757,6 +772,7 @@ int check_stability( void *mptr){
         }
     }
     if (M){
+        num_ele = get_num_ele(m->pars, m->npars, "M");
         for (i=0;i<num_ele;i++){
             thisvp=sqrt(M[i]/rho[i]);
             if (vpmax<thisvp) vpmax=thisvp;
@@ -825,6 +841,62 @@ int check_stability( void *mptr){
     }
     
     
+    return state;
+}
+
+int set_scalers( void *mptr){
+    
+    int state=0;
+    int i;
+    
+    model * m = (model *) mptr;
+    float *mu = get_par(m->pars, m->npars, "mu");
+    int num_ele;
+    float *M = get_par(m->pars, m->npars, "M");
+    float Mmax=0;
+    float scaler =0;
+    
+    if (M){
+        num_ele = get_num_ele(m->pars, m->npars, "M");
+        for (i=0;i<num_ele;i++){
+            if (Mmax<M[i]) Mmax=M[i];
+        }
+    }
+    else if (mu){
+        num_ele = get_num_ele(m->pars, m->npars, "mu");
+        for (i=0;i<num_ele;i++){
+            if (Mmax<mu[i]) Mmax=mu[i];
+        }
+    }
+    
+    scaler = 1.0/Mmax/m->dt*m->dh;
+    
+    variable * var;
+    var = get_var(mptr, "sxx");
+    if (var) var->scaler = scaler;
+    var = get_var(mptr, "syy");
+    if (var) var->scaler = scaler;
+    var = get_var(mptr, "szz");
+    if (var) var->scaler = scaler;
+    var = get_var(mptr, "sxz");
+    if (var) var->scaler = scaler;
+    var = get_var(mptr, "sxy");
+    if (var) var->scaler = scaler;
+    var = get_var(mptr, "syz");
+    if (var) var->scaler = scaler;
+    var = get_var(mptr, "rxx");
+    if (var) var->scaler = scaler;
+    var = get_var(mptr, "ryy");
+    if (var) var->scaler = scaler;
+    var = get_var(mptr, "rzz");
+    if (var) var->scaler = scaler;
+    var = get_var(mptr, "rxz");
+    if (var) var->scaler = scaler;
+    var = get_var(mptr, "rxy");
+    if (var) var->scaler = scaler;
+    var = get_var(mptr, "ryz");
+    if (var) var->scaler = scaler;
+
     return state;
 }
 

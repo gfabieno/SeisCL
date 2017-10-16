@@ -193,6 +193,7 @@ typedef struct variable{
     float **    gl_varin;
     float   *   gl_mov;
     float **    gl_var_res;
+    float scaler;
 
     
     int       to_output;
@@ -224,6 +225,7 @@ typedef struct parameter{
     float * gl_H;
     int num_ele;
     int active;
+    float scaler;
     
     const char * to_read;
     int to_grad;

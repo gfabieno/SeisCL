@@ -58,7 +58,7 @@ int Init_model(model * m) {
                     m->src_recs.src_scales[i]=m->src_recs.src[i][t];
                 }
                 m->src_recs.src_scales[i]=1.0/m->src_recs.src_scales[i]
-                                          /m->dt*m->dh*m->dh*m->dh;
+                                                       /m->dt*m->dh*m->dh*m->dh;
         }
     }
     

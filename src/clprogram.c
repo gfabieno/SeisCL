@@ -469,6 +469,12 @@ int prog_create(model * m,
                     argfound=1;
                     break;
                 }
+                sprintf(str2comp,"scaler_%s",(*dev).vars[j].name);
+                if (strcmp(str2comp,(*prog).input_list[i])==0){
+                    (*prog).inputs[i]=&(*dev).vars[j].scaler;
+                    argfound=1;
+                    break;
+                }
             }
         }
         if (!argfound){
