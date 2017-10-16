@@ -534,7 +534,7 @@ extern "C" __global__ void update_v(int offcomm,
                 lvz.y*=taper[2*gidz+1-FDOH];
             }
             
-            if (2*gidz>NZ-NAB-FDOH-1){
+            if (2*gidz>2*NZ-NAB-FDOH-1){
                 lvx.x*=taper[2*NZ-FDOH-2*gidz-1];
                 lvx.y*=taper[2*NZ-FDOH-2*gidz-1-1];
                 lvz.x*=taper[2*NZ-FDOH-2*gidz-1];

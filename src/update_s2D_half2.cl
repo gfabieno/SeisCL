@@ -677,7 +677,7 @@ extern "C" __global__ void update_s(int offcomm,
             lsxz.y*=taper[2*gidz+1-FDOH];
         }
         
-        if (2*gidz>NZ-NAB-FDOH-1){
+        if (2*gidz>2*NZ-NAB-FDOH-1){
             lsxx.x*=taper[2*NZ-FDOH-2*gidz-1];
             lsxx.y*=taper[2*NZ-FDOH-2*gidz-1-1];
             lszz.x*=taper[2*NZ-FDOH-2*gidz-1];
