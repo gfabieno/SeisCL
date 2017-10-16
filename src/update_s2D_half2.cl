@@ -153,9 +153,9 @@ extern "C" __global__ void update_s(int offcomm,
         if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
             lvx2(lidz,lidx-lsizex+3*FDOH)=vx(gidz,gidx-lsizex+3*FDOH);
         if (lidz<FDOH)
-            lvx2(lidz-FDOH,lidx)=vx(gidz-FDOH,gidx);
+            lvx2(lidz-FDOH/2,lidx)=vx(gidz-FDOH/2,gidx);
         if (lidz>(lsizez-FDOH-1))
-            lvx2(lidz+FDOH,lidx)=vx(gidz+FDOH,gidx);
+            lvx2(lidz+FDOH/2,lidx)=vx(gidz+FDOH/2,gidx);
         
         __syncthreads();
 #endif
@@ -285,9 +285,9 @@ extern "C" __global__ void update_s(int offcomm,
         if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
             lvz2(lidz,lidx-lsizex+3*FDOH)=vz(gidz,gidx-lsizex+3*FDOH);
         if (lidz<FDOH)
-            lvz2(lidz-FDOH,lidx)=vz(gidz-FDOH,gidx);
+            lvz2(lidz-FDOH/2,lidx)=vz(gidz-FDOH/2,gidx);
         if (lidz>(lsizez-FDOH-1))
-            lvz2(lidz+FDOH,lidx)=vz(gidz+FDOH,gidx);
+            lvz2(lidz+FDOH/2,lidx)=vz(gidz+FDOH/2,gidx);
         __syncthreads();
 #endif
         
