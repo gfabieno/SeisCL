@@ -49,7 +49,8 @@ int Init_model(model * m) {
     
     
 
-    state = m->check_stability( (void*) m);
+    __GUARD m->check_stability( (void*) m);
+    __GUARD m->set_scalers( (void*) m);
     
     GMALLOC(m->src_recs.src_scales, sizeof(float)*m->src_recs.ns);
     for (i=0;i<m->src_recs.ns;i++){

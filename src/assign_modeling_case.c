@@ -870,7 +870,7 @@ int set_scalers( void *mptr){
     }
     
     scaler = 1.0/Mmax;
-    scaler = 0.000000001;
+//    scaler = 0.000000001;
     
     variable * var;
     var = get_var(mptr, "sxx");
@@ -910,6 +910,7 @@ int assign_modeling_case(model * m){
     
     // Check Stability function
     m->check_stability=&check_stability;
+    m->set_scalers=&set_scalers;
     
     /* Arrays of constants size on all devices. The most constants we have 
        here is 23 */

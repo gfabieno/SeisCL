@@ -474,6 +474,7 @@ typedef struct model {
 
     int (*res_calc)(struct model * , int );
     int (*check_stability)(void *);
+    int (*set_scalers)(void *);
 
 } model;
 
