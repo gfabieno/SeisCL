@@ -34,7 +34,7 @@ csts['dh']=10                #Grid spatial spacing
 csts['dt']=0.0008           # Time step size
 csts['NT']=875              #Number of time steps
 csts['freesurf']=0          #Include a free surface at z=0: 0: no, 1: yes
-csts['FDORDER']=4           #Order of the finite difference stencil. Values: 2,4,6,8,10,12
+csts['FDORDER']=8           #Order of the finite difference stencil. Values: 2,4,6,8,10,12
 csts['MAXRELERROR']=1       #Set to 1
 csts['L']=0                 #Number of attenuation mechanism (L=0 elastic)
 csts['f0']=15               #Central frequency for which the relaxation mechanism are corrected to the righ velocity
