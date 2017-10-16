@@ -448,7 +448,6 @@ extern "C" __global__ void update_s(int offcomm,
             
             psi_vx_z(k,i)=__float22half2_rn(lpsi_vx_z);
             psi_vz_z(k,i)=__float22half2_rn(lpsi_vz_z);
-            
         }
         
 #if FREESURF==0
@@ -459,7 +458,6 @@ extern "C" __global__ void update_s(int offcomm,
             
             lpsi_vx_z = __half22float2(psi_vx_z(k,i));
             lpsi_vz_z = __half22float2(psi_vz_z(k,i));
-            
             
             lpsi_vx_z.x = b_z_half[2*k  ] * lpsi_vx_z.x + a_z_half[2*k  ] * vxz.x;
             lpsi_vx_z.y = b_z_half[2*k+1] * lpsi_vx_z.y + a_z_half[2*k+1] * vxz.y;
@@ -473,7 +471,6 @@ extern "C" __global__ void update_s(int offcomm,
             
             psi_vz_z(k,i)=__float22half2_rn(lpsi_vz_z);
             psi_vx_z(k,i)=__float22half2_rn(lpsi_vx_z);
-  
         }
 #endif
         
@@ -524,7 +521,6 @@ extern "C" __global__ void update_s(int offcomm,
             
             psi_vz_x(k,i)=__float22half2_rn(lpsi_vz_x);
             psi_vx_x(k,i)=__float22half2_rn(lpsi_vx_x);
-            
         }
 #endif
     }
