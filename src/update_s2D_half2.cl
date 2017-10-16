@@ -492,13 +492,16 @@ extern "C" __global__ void update_s(int offcomm,
     {
 #if LVE==0
         
-        fipkp=__half22float2(muipkp(gidz, gidx));
+//        fipkp=__half22float2(muipkp(gidz, gidx));
+        fipkp=muipkp(gidz, gidx);
         fipkp.x*=DT*0.00000000001;
         fipkp.y*=DT*0.00000000001;
-        f=__half22float2(mu(gidz, gidx));
+//        f=__half22float2(mu(gidz, gidx));
+        f=mu(gidz, gidx);
         f.x*=2.0*DT*0.00000000001;
         f.y*=2.0*DT*0.00000000001;
-        g=__half22float2(M(gidz, gidx));
+//        g=__half22float2(M(gidz, gidx));
+        g=M(gidz, gidx);
         g.x*=DT*0.00000000001;
         g.y*=DT*0.00000000001;
         
