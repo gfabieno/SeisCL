@@ -448,6 +448,7 @@ extern "C" __global__ void update_s(int offcomm,
             
             psi_vx_z(k,i)=__float22half2_rn(lpsi_vx_z);
             psi_vz_z(k,i)=__float22half2_rn(lpsi_vz_z);
+            
         }
         
 #if FREESURF==0
