@@ -96,9 +96,9 @@ extern "C" __global__ void update_s(int offcomm,
     int i,k,l,ind;
     float sumrxz, sumrxx, sumrzz;
     float b,c,e,g,d,f,fipkp,dipkp;
-//#if LVE>0
-//    float leta[LVE];
-//#endif
+#if LVE>0
+    float leta[LVE];
+#endif
     float lM, lmu, lmuipkp, ltaup, ltaus, ltausipkp;
     float lsxx, lszz, lsxz;
     
