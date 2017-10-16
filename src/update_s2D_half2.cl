@@ -543,12 +543,12 @@ extern "C" __global__ void update_s(int offcomm,
         lszz = __half22float2(szz(gidz, gidx));
         lsxz = __half22float2(sxz(gidz, gidx));
         
-        lsxz.x+=(fipkp.x*(vxz.x+vzx.x));
-        lsxz.y+=(fipkp.y*(vxz.y+vzx.y));
-        lsxx.x+=(g.x*(vxx.x+vzz.x))-(f.x*vzz.x);
-        lsxx.y+=(g.y*(vxx.y+vzz.y))-(f.y*vzz.y);
-        lszz.x+=(g.x*(vxx.x+vzz.x))-(f.x*vxx.x);
-        lszz.y+=(g.y*(vxx.y+vzz.y))-(f.y*vxx.y);
+        lsxz.x+=(fipkp.x*(vxz.x+vzx.x))*0.00000000001;
+        lsxz.y+=(fipkp.y*(vxz.y+vzx.y))*0.00000000001;
+        lsxx.x+=(g.x*(vxx.x+vzz.x))-(f.x*vzz.x)*0.00000000001;
+        lsxx.y+=(g.y*(vxx.y+vzz.y))-(f.y*vzz.y)*0.00000000001;
+        lszz.x+=(g.x*(vxx.x+vzz.x))-(f.x*vxx.x)*0.00000000001;
+        lszz.y+=(g.y*(vxx.y+vzz.y))-(f.y*vxx.y)*0.00000000001;
         
         sxz(gidz, gidx)=__float22half2_rn(lsxz);
         sxx(gidz, gidx)=__float22half2_rn(lsxx);
