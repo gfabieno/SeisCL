@@ -489,13 +489,13 @@ extern "C" __global__ void update_s(int offcomm,
     {
 #if LVE==0
         
-        fipkp=__half22float2(muipkp(gidz, gidx));
+        fipkp=__half22float2(muipkp(gidz, gidx))*0.00000000001;
         fipkp.x*=DT;
         fipkp.y*=DT;
-        f=__half22float2(mu(gidz, gidx));
+        f=__half22float2(mu(gidz, gidx))*0.00000000001;
         f.x*=2.0*DT;
         f.y*=2.0*DT;
-        g=__half22float2(M(gidz, gidx));
+        g=__half22float2(M(gidz, gidx))*0.00000000001;
         g.x*=DT;
         g.y*=DT;
         
@@ -519,18 +519,18 @@ extern "C" __global__ void update_s(int offcomm,
             leta[l]=eta[l];
         }
         
-        fipkp.x=lmuipkp.x*DT*(1.0+ (float)LVE*ltausipkp.x);
-        fipkp.y=lmuipkp.y*DT*(1.0+ (float)LVE*ltausipkp.y);
-        g.x=lM.x*(1.0+(float)LVE*ltaup.x)*DT;
-        g.y=lM.y*(1.0+(float)LVE*ltaup.y)*DT;
-        f.x=2.0*lmu.x*(1.0+(float)LVE*ltaus.x)*DT;
-        f.y=2.0*lmu.y*(1.0+(float)LVE*ltaus.y)*DT;
-        dipkp.x=lmuipkp.x*ltausipkp.x;
-        dipkp.y=lmuipkp.y*ltausipkp.y;
-        d.x=2.0*lmu.x*ltaus.x;
-        d.y=2.0*lmu.y*ltaus.y;
-        e.x=lM.x*ltaup.x;
-        e.y=lM.y*ltaup.y;
+        fipkp.x=lmuipkp.x*DT*(1.0+ (float)LVE*ltausipkp.x)*0.00000000001;
+        fipkp.y=lmuipkp.y*DT*(1.0+ (float)LVE*ltausipkp.y)*0.00000000001;
+        g.x=lM.x*(1.0+(float)LVE*ltaup.x)*DT*0.00000000001;
+        g.y=lM.y*(1.0+(float)LVE*ltaup.y)*DT*0.00000000001;
+        f.x=2.0*lmu.x*(1.0+(float)LVE*ltaus.x)*DT*0.00000000001;
+        f.y=2.0*lmu.y*(1.0+(float)LVE*ltaus.y)*DT*0.00000000001;
+        dipkp.x=lmuipkp.x*ltausipkp.x*0.00000000001;
+        dipkp.y=lmuipkp.y*ltausipkp.y*0.00000000001;
+        d.x=2.0*lmu.x*ltaus.x*0.00000000001;
+        d.y=2.0*lmu.y*ltaus.y*0.00000000001;
+        e.x=lM.x*ltaup.x*0.00000000001;
+        e.y=lM.y*ltaup.y*0.00000000001;
 
         
 #endif
@@ -543,12 +543,12 @@ extern "C" __global__ void update_s(int offcomm,
         lszz = __half22float2(szz(gidz, gidx));
         lsxz = __half22float2(sxz(gidz, gidx));
         
-        lsxz.x+=(fipkp.x*(vxz.x+vzx.x))*0.00000000001;
-        lsxz.y+=(fipkp.y*(vxz.y+vzx.y))*0.00000000001;
-        lsxx.x+=(g.x*(vxx.x+vzz.x))-(f.x*vzz.x)*0.00000000001;
-        lsxx.y+=(g.y*(vxx.y+vzz.y))-(f.y*vzz.y)*0.00000000001;
-        lszz.x+=(g.x*(vxx.x+vzz.x))-(f.x*vxx.x)*0.00000000001;
-        lszz.y+=(g.y*(vxx.y+vzz.y))-(f.y*vxx.y)*0.00000000001;
+        lsxz.x+=(fipkp.x*(vxz.x+vzx.x));
+        lsxz.y+=(fipkp.y*(vxz.y+vzx.y));
+        lsxx.x+=(g.x*(vxx.x+vzz.x))-(f.x*vzz.x);
+        lsxx.y+=(g.y*(vxx.y+vzz.y))-(f.y*vzz.y);
+        lszz.x+=(g.x*(vxx.x+vzz.x))-(f.x*vxx.x);
+        lszz.y+=(g.y*(vxx.y+vzz.y))-(f.y*vxx.y);
         
         sxz(gidz, gidx)=__float22half2_rn(lsxz);
         sxx(gidz, gidx)=__float22half2_rn(lsxx);
