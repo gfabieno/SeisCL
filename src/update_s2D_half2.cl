@@ -562,9 +562,9 @@ extern "C" __global__ void update_s(int offcomm,
 //        lsxx.y=vzz.y;
 //        lszz.x=vzz.x;
 //        lszz.y=vzz.y;
-        sxz(gidz, gidx)=__float2half_rz(lsxz);
-        sxx(gidz, gidx)=__float2half_rz(lsxx);
-        szz(gidz, gidx)=__float2half_rz(lszz);
+        sxz(gidz, gidx)=__float22half2_rn(lsxz);
+        sxx(gidz, gidx)=__float22half2_rn(lsxx);
+        szz(gidz, gidx)=__float22half2_rn(lszz);
         
         
 #else
@@ -629,9 +629,9 @@ extern "C" __global__ void update_s(int offcomm,
         lszz.x+=  (DT2*sumrzz.x);
         lszz.y+=  (DT2*sumrzz.y);
         
-        sxz(gidz, gidx)=__float2half_rz(lsxz);
-        sxx(gidz, gidx)=__float2half_rz(lsxx);
-        szz(gidz, gidx)=__float2half_rz(lszz);
+        sxz(gidz, gidx)=__float22half2_rn(lsxz);
+        sxx(gidz, gidx)=__float22half2_rn(lsxx);
+        szz(gidz, gidx)=__float22half2_rn(lszz);
         
 #endif
     }

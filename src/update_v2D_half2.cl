@@ -483,11 +483,9 @@ extern "C" __global__ void update_v(int offcomm,
 //        lvz.x=2.0*gidz;
 //        lvz.y=2.0*gidz+1.0;
         
-        vx(gidz,gidx)= __float2half_rz(lvx);
-        vz(gidz,gidx)= __float2half_rz(lvz);
+        vx(gidz,gidx)= __float22half2_rn(lvx);
+        vz(gidz,gidx)= __float22half2_rn(lvz);
         
-//        vx(gidz,gidx)= __halves2half2( __float2half_rz(lvx.x),__float2half_rz(lvx.y));
-//        vx(gidz,gidx)= __halves2half2( __float2half_rz(lvx.x),__float2half_rz(lvx.y));
     }
     
 //    // Absorbing boundary
