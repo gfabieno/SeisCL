@@ -343,9 +343,8 @@ int prog_create(model * m,
     
     int state = 0;
     int i,j, argfound;
-    size_t shared_size=sizeof(float);
     char str2comp[50];
-    
+    size_t shared_size;
     int noptions=0;
     char ** build_options=NULL;
         GMALLOC(build_options, sizeof(char*)*50);
@@ -380,6 +379,12 @@ int prog_create(model * m,
         return state;
     }
     
+    if (m->FP16==0){
+        shared_size=2*sizeof(float);
+    }
+    else{
+        shared_size=sizeof(float);
+    }
     /*Define the size of the local variables of the compute device*/
     if (   dev->LOCAL_OFF==0 && (*prog).lsize[0]>0){
         for (i=0;i<m->NDIM;i++){

@@ -356,14 +356,24 @@ int Init_CUDA(model * m, device ** dev)  {
                 for (i=1;i<m->NDIM;i++){
                     lsize[i]=16;
                 }
-                required_local_mem_size =sizeof(float);
+            if (di->FP16==0){
+                required_local_mem_size =2*sizeof(float);
+            }
+            else{
+                required_local_mem_size = sizeof(float);
+            }
                 for (i=0;i<m->NDIM;i++){
                     required_local_mem_size *= (lsize[i]+m->FDORDER);
                 }
                 while ( (lsize[1]>(m->FDORDER)/2
                          &&  required_local_mem_size>local_mem_size)
                          || required_work_size>workgroup_size ){
-                    required_local_mem_size =sizeof(float);
+                    if (di->FP16==0){
+                        required_local_mem_size =2*sizeof(float);
+                    }
+                    else{
+                        required_local_mem_size = sizeof(float);
+                    }
                     required_work_size=1;
                     for (i=0;i<m->NDIM;i++){
                         if (i>0)
@@ -377,7 +387,12 @@ int Init_CUDA(model * m, device ** dev)  {
                         while ( (lsize[j]>(m->FDORDER)/4
                                  &&  required_local_mem_size>local_mem_size)
                                  || required_work_size>workgroup_size ){
-                            required_local_mem_size =sizeof(float);
+                            if (di->FP16==0){
+                                required_local_mem_size =2*sizeof(float);
+                            }
+                            else{
+                                required_local_mem_size = sizeof(float);
+                            }
                             required_work_size=1;
                             for (i=0;i<m->NDIM;i++){
                                 lsize[j]-=2;
@@ -408,6 +423,7 @@ int Init_CUDA(model * m, device ** dev)  {
 
             if (di->LOCAL_OFF==1)
                 lsize[0] = 1;
+
         }
         
         // Define the global work size of the update kernels.
