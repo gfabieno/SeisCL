@@ -115,7 +115,7 @@ extern "C" __global__ void update_v(int offcomm,
 {
     
     extern __shared__ __prec2 lvar2[];
-    __prec * lvar=(__prec*)lvar2;
+    __prec * lvar=(__prec *)lvar2;
     
     float2 sxx_x;
     float2 szz_z;
