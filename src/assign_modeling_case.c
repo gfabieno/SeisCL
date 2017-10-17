@@ -873,7 +873,7 @@ int set_scalers( void *mptr){
 //    scaler = -30;
     
     variable * var;
-    if (m->FP16>0){
+//    if (m->FP16>0){
         var = get_var(mptr, "sxx");
         if (var) var->scaler = scaler;
         var = get_var(mptr, "syy");
@@ -898,7 +898,7 @@ int set_scalers( void *mptr){
         if (var) var->scaler = scaler;
         var = get_var(mptr, "ryz");
         if (var) var->scaler = scaler;
-    }
+//    }
     
     return state;
 }
