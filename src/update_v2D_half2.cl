@@ -86,7 +86,7 @@
 
 #define __h2f(x) __half2float((x))
 #define __h22f2(x) __half22float2((x))
-#define __f22h2 __float22half2_rn((x))
+#define __f22h2(x) __float22half2_rn((x))
 #define __prec half
 #define __prec2 half2
 
