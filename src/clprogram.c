@@ -179,27 +179,11 @@ int get_build_options(device *dev,
     *n+=1;
     sprintf(build_options[*n-1],"--pre-include=cuda_fp16.h");
 
-    *n+=1;
-    if ( (*dev).FP16==1){
-        sprintf(build_options[*n-1],"-D __typev=half");
-    }else{
-        sprintf(build_options[*n-1],"-D __typevar=float");
-    }
-    *n+=1;
-    if ( (*dev).FP16==1){
-//        sprintf(build_options[*n-1],"-D SCALE=0.00000000001");
-        sprintf(build_options[*n-1],"-D SCALE=10000000.0");
-        
-//        sprintf(build_options[*n-1],"-D SCALE=1.0");
-    }else{
-        sprintf(build_options[*n-1],"-D SCALE=1.0");
-    }
-    
     
     if (m->N_names[0]){
         for (i=0;i<m->NDIM;i++){
             *n+=1;
-            if (dev->FP16==1 && i==0){
+            if (i==0){//(dev->FP16==1 && i==0){
                 sprintf(build_options[*n-1],"-D N%s=%d ",
                         m->N_names[i],((*dev).N[i]+m->FDORDER)/2);
             }
