@@ -518,10 +518,10 @@ extern "C" __global__ void update_v(int offcomm,
         float2 lrip = (rip(gidz,gidx));
         float2 lrkp = (rkp(gidz,gidx));
 
-        lvx.x += scalbnf((sxx_x.x + sxz_z.x)/lrip.x, -scaler_sxx)*1000000000.0;
-        lvx.y += scalbnf((sxx_x.y + sxz_z.y)/lrip.y, -scaler_sxx)*1000000000.0;
-        lvz.x += scalbnf((szz_z.x + sxz_x.x)/lrkp.x, -scaler_sxx)*1000000000.0;
-        lvz.y += scalbnf((szz_z.y + sxz_x.y)/lrkp.y, -scaler_sxx)*1000000000.0;
+        lvx.x += scalbnf((sxx_x.x + sxz_z.x)/lrip.x, 0)*1000000000.0;
+        lvx.y += scalbnf((sxx_x.y + sxz_z.y)/lrip.y, 0)*1000000000.0;
+        lvz.x += scalbnf((szz_z.x + sxz_x.x)/lrkp.x, 0)*1000000000.0;
+        lvz.y += scalbnf((szz_z.y + sxz_x.y)/lrkp.y, 0)*1000000000.0;
         
         
         
