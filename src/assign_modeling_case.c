@@ -1219,8 +1219,8 @@ int assign_modeling_case(model * m){
             __GUARD append_update(m->ups_f, &ind, "update_s", update_s2D_half2_source);
         }
         else{
-            __GUARD append_update(m->ups_f, &ind, "update_v", update_v2D_source);
-            __GUARD append_update(m->ups_f, &ind, "update_s", update_s2D_source);
+            __GUARD append_update(m->ups_f, &ind, "update_v", update_v2D_half2_source);
+            __GUARD append_update(m->ups_f, &ind, "update_s", update_s2D_half2_source);
         }
         if (m->GRADOUT){
             GMALLOC(m->ups_adj, m->nupdates*sizeof(update));
