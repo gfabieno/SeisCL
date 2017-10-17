@@ -525,6 +525,7 @@ extern "C" __global__ void update_v(int offcomm,
         
         
         
+        
         // Absorbing boundary
 #if ABS_TYPE==2
         {
