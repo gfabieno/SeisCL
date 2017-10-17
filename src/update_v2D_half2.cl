@@ -95,7 +95,7 @@ extern "C" __global__ void update_v(int offcomm,
                                     float *K_x_half,   float *a_x_half,     float *b_x_half,
                                     half2 *psi_sxx_x,  half2 *psi_sxz_x,
                                     half2 *psi_sxz_z,  half2 *psi_szz_z,
-                                    float scaler_sxx)
+                                    int scaler_sxx)
 {
     
     extern __shared__ half2 lvar2[];
@@ -517,11 +517,11 @@ extern "C" __global__ void update_v(int offcomm,
         //        float2 lrkp = __half22float2(rkp(gidz,gidx));
         float2 lrip = (rip(gidz,gidx));
         float2 lrkp = (rkp(gidz,gidx));
-        float trya = scalbnf(100.0,2);
-        lvx.x += ((sxx_x.x + sxz_z.x)/lrip.x)/scaler_sxx;
-        lvx.y += ((sxx_x.y + sxz_z.y)/lrip.y)/scaler_sxx;
-        lvz.x += ((szz_z.x + sxz_x.x)/lrkp.x)/scaler_sxx;
-        lvz.y += ((szz_z.y + sxz_x.y)/lrkp.y)/scaler_sxx;
+
+        lvx.x += scalbnf((sxx_x.x + sxz_z.x)/lrip.x, -scaler_sxx);
+        lvx.y += scalbnf((sxx_x.y + sxz_z.y)/lrip.y, -scaler_sxx);
+        lvz.x += scalbnf((szz_z.x + sxz_x.x)/lrkp.x, -scaler_sxx);
+        lvz.y += scalbnf((szz_z.y + sxz_x.y)/lrkp.y, -scaler_sxx);
         
         
         

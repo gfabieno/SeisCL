@@ -854,7 +854,7 @@ int set_scalers( void *mptr){
     int num_ele;
     float *M = get_par(m->pars, m->npars, "M");
     float Mmax=0;
-    float scaler =0;
+    int scaler =0;
     
     if (M){
         num_ele = get_num_ele(m->pars, m->npars, "M");
@@ -869,7 +869,7 @@ int set_scalers( void *mptr){
         }
     }
 
-    scaler = 1.0/Mmax/m->dt*m->dh;
+    scaler = log2(1.0/Mmax/m->dt*m->dh);
     
     variable * var;
     if (m->FP16>0){
