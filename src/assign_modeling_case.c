@@ -869,7 +869,7 @@ int set_scalers( void *mptr){
         }
     }
 
-    scaler = -log2(Mmax*m->dt/m->dh);
+    scaler = -log2(Mmax*m->dt/m->dh*10);
 //    scaler = -30;
     
     variable * var;
