@@ -90,7 +90,7 @@ extern "C" __global__ void update_s(int offcomm,
                                     float *K_z_half,   float *a_z_half,     float *b_z_half,
                                     half2 *psi_vx_x,    half2 *psi_vx_z,
                                     half2 *psi_vz_x,    half2 *psi_vz_z,
-                                    float scaler_sxx)
+                                    int scaler_sxx)
 {
     
     extern __shared__ half2 lvar2[];
