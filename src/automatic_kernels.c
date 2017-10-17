@@ -304,6 +304,7 @@ int kernel_varinit(device * dev,
     p[-2]='\0';
     strcat(temp, "){\n\n");
     
+    strcat(temp, "float2 f0 = {0,0};\n\n");
     if (dev->NDIM==2){
        
         strcat(temp,"int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
@@ -333,7 +334,7 @@ int kernel_varinit(device * dev,
             strcat(temp, "[gid]= __float2half2_rn(0);\n");
         }
         else{
-            strcat(temp, "[gid]=0;\n");
+            strcat(temp, "[gid]=f0;\n");
         }
         
     }
