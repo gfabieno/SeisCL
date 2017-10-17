@@ -474,6 +474,7 @@ int prog_create(model * m,
                     (*prog).inputs[i]=&(*dev).vars[j].scaler;
                     argfound=1;
                     break;
+                    fprintf(stdout,"scaler: %d\n",(*dev).vars[j].scaler);
                 }
             }
         }
