@@ -28,7 +28,7 @@ int kernel_varout(device * dev,
  
     int state=0;
     int i,j,k;
-    float scaler=0;
+    int scaler=0;
     
     char temp[MAX_KERN_STR]={0};;
     char temp2[100]={0};
@@ -124,9 +124,8 @@ int kernel_varout(device * dev,
             strcat(temp, "    ");
             strcat(temp, vars[i].name);
             strcat(temp, "out[NT*gid+nt]=1.0/src_scale*");
-            if (vars[i].scaler>0){
-                sprintf(temp2,"/%f*", vars[i].scaler );
-                strcat(temp, temp2);
+            if (abs(vars[i].scaler)>0){
+                strcat(temp, "scalbnf(");
             }
             if (dev->FP16==1){
                 strcat(temp, "__half2float(");
@@ -135,6 +134,10 @@ int kernel_varout(device * dev,
             strcat(temp, posstr);
             if (dev->FP16==1){
                 strcat(temp, ")");
+            }
+            if (abs(vars[i].scaler)>0){
+                sprintf(temp2,", %d)", -vars[i].scaler );
+                strcat(temp, temp2);
             }
             strcat(temp, ";\n");
         }
@@ -151,9 +154,8 @@ int kernel_varout(device * dev,
                         break;
                     }
                 }
-                if (scaler>0){
-                    sprintf(temp2,"1.0/%9.18f*", scaler );
-                    strcat(temp, temp2);
+                if (abs(scaler)>0){
+                    strcat(temp, "scalbnf(");
                 }
                 if (dev->FP16==1){
                     strcat(temp, "__half2float(");
@@ -162,6 +164,10 @@ int kernel_varout(device * dev,
                 strcat(temp, posstr);
                 if (dev->FP16==1){
                     strcat(temp, ")");
+                }
+                if (abs(scaler)>0){
+                    sprintf(temp2,", %d)", -scaler );
+                    strcat(temp, temp2);
                 }
                 strcat(temp, "+");
             }
