@@ -868,7 +868,7 @@ int set_scalers( void *mptr){
             if (Mmax<mu[i]) Mmax=mu[i];
         }
     }
-    
+    Mmax=1500;
     scaler = 1.0/Mmax/m->dt*m->dh;
     
     variable * var;

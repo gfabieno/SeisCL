@@ -595,10 +595,7 @@ extern "C" __global__ void update_s(int offcomm,
         lsxx.y+=(g.y*(vxx.y+vzz.y))-(f.y*vzz.y);
         lszz.x+=(g.x*(vxx.x+vzz.x))-(f.x*vxx.x);
         lszz.y+=(g.y*(vxx.y+vzz.y))-(f.y*vxx.y);
-        
 
-
-        
 #else
         /* computing sums of the old memory variables */
         sumrxz.x=sumrxx.x=sumrzz.x=0;
