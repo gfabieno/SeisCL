@@ -534,16 +534,16 @@ extern "C" __global__ void update_s(int offcomm,
         
 //        fipkp=__half22float2(muipkp(gidz, gidx));
         fipkp=muipkp(gidz, gidx);
-        fipkp.x=scalbnf(fipkp.x*DTDH,0)*0.000000001;
-        fipkp.y=scalbnf(fipkp.y*DTDH,0)*0.000000001;
+        fipkp.x=scalbnf(fipkp.x*DTDH,-20);
+        fipkp.y=scalbnf(fipkp.y*DTDH,-20);
 //        f=__half22float2(mu(gidz, gidx));
         f=mu(gidz, gidx);
-        f.x=scalbnf(f.x*2.0*DTDH,0)*0.000000001;
-        f.y=scalbnf(f.y*2.0*DTDH,0)*0.000000001;
+        f.x=scalbnf(f.x*2.0*DTDH,-20);
+        f.y=scalbnf(f.y*2.0*DTDH,-20);
 //        g=__half22float2(M(gidz, gidx));
         g=M(gidz, gidx);
-        g.x=scalbnf(g.x*DTDH,0)*0.000000001;
-        g.y=scalbnf(g.y*DTDH,0)*0.000000001;
+        g.x=scalbnf(g.x*DTDH,-20);
+        g.y=scalbnf(g.y*DTDH,-20);
         
 #else
         
