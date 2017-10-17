@@ -87,7 +87,7 @@
 
 #define __h2f(x) (x)
 #define __h22f2(x) (x)
-#define __f22h2 (x)
+#define __f22h2(x) (x)
 #define __prec float
 #define __prec2 float2
 
