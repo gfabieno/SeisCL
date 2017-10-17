@@ -542,7 +542,7 @@ extern "C" __global__ void update_s(int offcomm,
         f.y=scalbnf(f.y*2.0*DTDH,scaler_sxx);
 //        g=__half22float2(M(gidz, gidx));
         g=M(gidz, gidx);
-        g.x=scalbnf(gx.*DTDH,scaler_sxx);
+        g.x=scalbnf(g.x*DTDH,scaler_sxx);
         g.y=scalbnf(g.y*DTDH,scaler_sxx);
         
 #else
