@@ -422,6 +422,14 @@ extern "C" __global__ void update_s(int offcomm,
 
     }
     
+    vxx.x = scalbnf(vxx.x,-20);
+    vxx.y = scalbnf(vxx.y,-20);
+    vzz.x = scalbnf(vzz.x,-20);
+    vzz.y = scalbnf(vzz.y,-20);
+    vxz.x = scalbnf(vxz.x,-20);
+    vxz.y = scalbnf(vxz.y,-20);
+    vzx.x = scalbnf(vzx.x,-20);
+    vzx.y = scalbnf(vzx.y,-20);
     
     // To stop updating if we are outside the model (global id must be a multiple of local id in OpenCL, hence we stop if we have a global id outside the grid)
 #if LOCAL_OFF==0
@@ -723,12 +731,7 @@ extern "C" __global__ void update_s(int offcomm,
     }
 #endif
     
-    lsxx.x = scalbnf(lsxx.x,-20);
-    lsxx.x = scalbnf(lsxx.y,-20);
-    lszz.x = scalbnf(lszz.x,-20);
-    lszz.x = scalbnf(lszz.y,-20);
-    lsxz.x = scalbnf(lsxz.x,-20);
-    lsxz.x = scalbnf(lsxz.y,-20);
+
     
     sxz(gidz, gidx)=__f22h2(lsxz);
     sxx(gidz, gidx)=__f22h2(lsxx);
