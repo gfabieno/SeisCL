@@ -392,10 +392,12 @@ int initialize_grid(model * m, device ** dev, int s){
             }
         }
         
-        // Implent initial conditions
+        // Implement initial conditions
         __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].bnd_cnds.init_f);
-        __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].src_recs.varsoutinit);
-
+        if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){
+            __GUARD prog_launch(&(*dev)[d].queue,
+                                &(*dev)[d].src_recs.varsoutinit);
+        }
 
         if (m->GRADOUT==1 && m->BACK_PROP_TYPE==2){
             __GUARD prog_launch( &(*dev)[d].queue,
@@ -502,9 +504,11 @@ int time_stepping(model * m, device ** dev) {
             
             
             // Outputting seismograms
-            for (d=0;d<m->NUM_DEVICES;d++){
-                __GUARD prog_launch( &(*dev)[d].queue,
-                                     &(*dev)[d].src_recs.varsout);
+            if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){
+                for (d=0;d<m->NUM_DEVICES;d++){
+                    __GUARD prog_launch( &(*dev)[d].queue,
+                                        &(*dev)[d].src_recs.varsout);
+                }
             }
 
             // Outputting the movie
@@ -524,7 +528,9 @@ int time_stepping(model * m, device ** dev) {
 //        }
 
         // Aggregate the seismograms in the output variable
-        __GUARD reduce_seis(m, dev, s);
+        if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){
+            __GUARD reduce_seis(m, dev, s);
+        }
 
         //Calculate the residuals
         if (m->GRADOUT || m->RMSOUT || m->RESOUT){

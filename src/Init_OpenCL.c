@@ -904,11 +904,13 @@ int Init_CUDA(model * m, device ** dev)  {
         __GUARD kernel_sources(di,  &di->src_recs.sources);
         __GUARD prog_create(m, di,  &di->src_recs.sources);
         
-        __GUARD kernel_varout(di, &di->src_recs.varsout);
-        __GUARD prog_create(m, di,  &di->src_recs.varsout);
-        
-        __GUARD kernel_varoutinit(di, &di->src_recs.varsoutinit);
-        __GUARD prog_create(m, di,  &di->src_recs.varsoutinit);
+        if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){
+            __GUARD kernel_varout(di, &di->src_recs.varsout);
+            __GUARD prog_create(m, di,  &di->src_recs.varsout);
+            
+            __GUARD kernel_varoutinit(di, &di->src_recs.varsoutinit);
+            __GUARD prog_create(m, di,  &di->src_recs.varsoutinit);
+        }
         
         __GUARD kernel_varinit(di, m, di->vars, &di->bnd_cnds.init_f);
         __GUARD prog_create(m, di,  &di->bnd_cnds.init_f);
