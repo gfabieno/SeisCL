@@ -352,7 +352,7 @@ int Init_CUDA(model * m, device ** dev)  {
         if (!state){
 
 
-                lsize[0]=32;
+                lsize[0]=16;
                 for (i=1;i<m->NDIM;i++){
                     lsize[i]=16;
                 }
