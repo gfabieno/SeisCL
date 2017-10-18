@@ -723,6 +723,13 @@ extern "C" __global__ void update_s(int offcomm,
     }
 #endif
     
+    lsxx.x = scalbnf(lsxx.x,-20);
+    lsxx.x = scalbnf(lsxx.y,-20);
+    lszz.x = scalbnf(lszz.x,-20);
+    lszz.x = scalbnf(lszz.y,-20);
+    lsxz.x = scalbnf(lsxz.x,-20);
+    lsxz.x = scalbnf(lsxz.y,-20);
+    
     sxz(gidz, gidx)=__f22h2(lsxz);
     sxx(gidz, gidx)=__f22h2(lsxx);
     szz(gidz, gidx)=__f22h2(lszz);
