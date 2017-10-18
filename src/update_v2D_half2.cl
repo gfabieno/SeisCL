@@ -100,6 +100,16 @@
 
 #endif
 
+extern "C" __device__ float myfun(int a){
+    
+    float b=1.0;
+    float c = b+a;
+    
+    return c;
+}
+
+
+
 extern "C" __global__ void update_v(int offcomm,
                                     __prec2 *vx,      __prec2 *vz,
                                     __prec2 *sxx,     __prec2 *szz,     __prec2 *sxz,
@@ -117,6 +127,7 @@ extern "C" __global__ void update_v(int offcomm,
     extern __shared__ __prec2 lvar2[];
     __prec * lvar=(__prec *)lvar2;
     
+    float trya = myfun(1);
     float2 sxx_x;
     float2 szz_z;
     float2 sxz_x;
