@@ -657,7 +657,7 @@ int Init_CUDA(model * m, device ** dev)  {
             
             //Create variable buffers for the interior domain
             di->vars[i].cl_var.size=sizeof(float)*di->vars[i].num_ele;
-//            if (m->FP16)
+            if (m->FP16)
                 di->vars[i].cl_var.size/=2;
             __GUARD clbuf_create( &di->vars[i].cl_var);
             
