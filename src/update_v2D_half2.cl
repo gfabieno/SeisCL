@@ -116,6 +116,7 @@ extern "C" __global__ void update_v(int offcomm,
     
     extern __shared__ __prec2 lvar2[];
     __prec * lvar=(__prec *)lvar2;
+    __prec2 var;
     
     float2 sxx_x;
     float2 szz_z;
@@ -159,15 +160,30 @@ extern "C" __global__ void update_v(int offcomm,
     // Calculation of the stresses spatial derivatives
     {
 #if LOCAL_OFF==0
-        lsxx2(lidz,lidx)=sxx(gidz, gidx);
-        if (lidx<2*FDOH)
-            lsxx2(lidz,lidx-FDOH)=sxx(gidz,gidx-FDOH);
-        if (lidx+lsizex-3*FDOH<FDOH)
-            lsxx2(lidz,lidx+lsizex-3*FDOH)=sxx(gidz,gidx+lsizex-3*FDOH);
-        if (lidx>(lsizex-2*FDOH-1))
-            lsxx2(lidz,lidx+FDOH)=sxx(gidz,gidx+FDOH);
-        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
-            lsxx2(lidz,lidx-lsizex+3*FDOH)=sxx(gidz,gidx-lsizex+3*FDOH);
+
+        var = sxx(gidz, gidx);
+        lsxx(2*lidz,lidx)=var.x;
+        lsxx(2*lidz+1,lidx)=var.y;
+        if (lidx<2*FDOH){
+            var = sxx(gidz,gidx-FDOH);
+            lsxx(2*lidz,lidx-FDOH)=var.x;
+            lsxx(2*lidz+1,lidx-FDOH)=var.y;
+        }
+        if (lidx+lsizex-3*FDOH<FDOH){
+            var = sxx(gidz,gidx+lsizex-3*FDOH);
+            lsxx(2*lidz,lidx+lsizex-3*FDOH)=var.x;
+            lsxx(2*lidz+1,lidx+lsizex-3*FDOH)=var.y;
+        }
+        if (lidx>(lsizex-2*FDOH-1)){
+            var = sxx(gidz,gidx+FDOH);
+            lsxx(2*lidz,lidx+FDOH)=var.x;
+            lsxx(2*lidz+1,lidx+FDOH)=var.y;
+        }
+        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1)){
+            var = sxx(gidz,gidx-lsizex+3*FDOH);
+            lsxx(2*lidz,lidx-lsizex+3*FDOH)=var.x;
+            lsxx(2*lidz+1,lidx-lsizex+3*FDOH)=var.y;
+        }
         
         __syncthreads();
 #endif
@@ -226,11 +242,19 @@ extern "C" __global__ void update_v(int offcomm,
 
 #if LOCAL_OFF==0
         __syncthreads();
-        lszz2(lidz,lidx)=szz(gidz, gidx);
-        if (lidz<FDOH)
-            lszz2(lidz-FDOH/2,lidx)=szz(gidz-FDOH/2,gidx);
-        if (lidz>(lsizez-FDOH-1))
-            lszz2(lidz+FDOH/2,lidx)=szz(gidz+FDOH/2,gidx);
+        var = szz(gidz, gidx);
+        lszz(2*lidz,lidx)=var.x;
+        lszz(2*lidz+1,lidx)=var.y;
+        if (lidz<FDOH){
+            var = szz(gidz-FDOH/2,gidx);
+            lszz(2*lidz-FDOH,lidx)=var.x;
+            lszz(2*lidz+1-FDOH,lidx)=var.y;
+        }
+        if (lidz>(lsizez-FDOH-1)){
+            var = szz(gidz+FDOH/2,gidx);
+            lszz(2*lidz+FDOH,lidx)=var.x;
+            lszz(2*lidz+1+FDOH,lidx)=var.y;
+        }
         __syncthreads();
 #endif
         
@@ -286,20 +310,40 @@ extern "C" __global__ void update_v(int offcomm,
         
 #if LOCAL_OFF==0
         __syncthreads();
-        lsxz2(lidz,lidx)=sxz(gidz, gidx);
+        var = sxz(gidz, gidx);
+        lsxz(2*lidz,lidx)=var.x;
+        lsxz(2*lidz+1,lidx)=var.y;
         
-        if (lidx<2*FDOH)
-            lsxz2(lidz,lidx-FDOH)=sxz(gidz,gidx-FDOH);
-        if (lidx+lsizex-3*FDOH<FDOH)
-            lsxz2(lidz,lidx+lsizex-3*FDOH)=sxz(gidz,gidx+lsizex-3*FDOH);
-        if (lidx>(lsizex-2*FDOH-1))
-            lsxz2(lidz,lidx+FDOH)=sxz(gidz,gidx+FDOH);
-        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
-            lsxz2(lidz,lidx-lsizex+3*FDOH)=sxz(gidz,gidx-lsizex+3*FDOH);
-        if (lidz<FDOH)
-            lsxz2(lidz-FDOH/2,lidx)=sxz(gidz-FDOH/2,gidx);
-        if (lidz>(lsizez-FDOH-1))
-            lsxz2(lidz+FDOH/2,lidx)=sxz(gidz+FDOH/2,gidx);
+        if (lidx<2*FDOH){
+            var = sxz(gidz,gidx-FDOH);
+            lsxz(2*lidz,lidx-FDOH)=var.x;
+            lsxz(2*lidz+1,lidx-FDOH)=var.y;
+        }
+        if (lidx+lsizex-3*FDOH<FDOH){
+            var = sxz(gidz,gidx+lsizex-3*FDOH);
+            lsxz(2*lidz,lidx+lsizex-3*FDOH)=var.x;
+            lsxz(2*lidz+1,lidx+lsizex-3*FDOH)=var.y;
+        }
+        if (lidx>(lsizex-2*FDOH-1)){
+            var = sxz(gidz,gidx+FDOH);
+            lsxz(2*lidz,lidx+FDOH)=var.x;
+            lsxz(2*lidz+1,lidx+FDOH)=var.y;
+        }
+        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1)){
+            var = sxz(gidz,gidx-lsizex+3*FDOH);
+            lsxz(2*lidz,lidx-lsizex+3*FDOH)=var.x;
+            lsxz(2*lidz+1,lidx-lsizex+3*FDOH)=var.y;
+        }
+        if (lidz<FDOH){
+            var = sxz(gidz-FDOH/2,gidx);
+            lsxz(2*lidz-FDOH,lidx)=var.x;
+            lsxz(2*lidz+1-FDOH,lidx)=var.y;
+        }
+        if (lidz>(lsizez-FDOH-1)){
+            var = sxz(gidz+FDOH/2,gidx);
+            lsxz(2*lidz+FDOH,lidx)=var.x;
+            lsxz(2*lidz+1+FDOH,lidx)=var.y;
+        }
         __syncthreads();
 #endif
         
