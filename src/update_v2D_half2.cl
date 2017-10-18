@@ -529,8 +529,8 @@ extern "C" __global__ void update_v(int offcomm,
     {
         float2 lvx = __h22f2(vx(gidz,gidx));
         float2 lvz = __h22f2(vz(gidz,gidx));
-        float2 lrip = (rip(gidz,gidx));
-        float2 lrkp = (rkp(gidz,gidx));
+//        float2 lrip = (rip(gidz,gidx));
+//        float2 lrkp = (rkp(gidz,gidx));
 
 //        lvx.x += (sxx_x.x + sxz_z.x)*scalbnf(DTDH/lrip.x, -scaler_sxx);
 //        lvx.y += (sxx_x.y + sxz_z.y)*scalbnf(DTDH/lrip.y, -scaler_sxx);

@@ -560,12 +560,12 @@ extern "C" __global__ void update_s(int offcomm,
         
 #else
         
-        lM=     (     M(gidz,gidx));
-        lmu=    (    mu(gidz,gidx));
-        lmuipkp=(muipkp(gidz,gidx));
-        ltaup=  (  taup(gidz,gidx));
-        ltaus=    (    taus(gidz,gidx));
-        ltausipkp=(tausipkp(gidz,gidx));
+//        lM=     (     M(gidz,gidx));
+//        lmu=    (    mu(gidz,gidx));
+//        lmuipkp=(muipkp(gidz,gidx));
+//        ltaup=  (  taup(gidz,gidx));
+//        ltaus=    (    taus(gidz,gidx));
+//        ltausipkp=(tausipkp(gidz,gidx));
 
         
 //        for (l=0;l<LVE;l++){
