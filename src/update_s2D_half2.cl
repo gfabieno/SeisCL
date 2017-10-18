@@ -548,27 +548,18 @@ extern "C" __global__ void update_s(int offcomm,
     {
 #if LVE==0
         
-//        fipkp=__h22f2(muipkp(gidz, gidx));
         fipkp=muipkp(gidz, gidx);
         fipkp.x=scalbnf(fipkp.x*DTDH,scaler_sxx);
         fipkp.y=scalbnf(fipkp.y*DTDH,scaler_sxx);
-//        f=__h22f2(mu(gidz, gidx));
         f=mu(gidz, gidx);
         f.x=scalbnf(f.x*2.0*DTDH,scaler_sxx);
         f.y=scalbnf(f.y*2.0*DTDH,scaler_sxx);
-//        g=__h22f2(M(gidz, gidx));
         g=M(gidz, gidx);
         g.x=scalbnf(g.x*DTDH,scaler_sxx);
         g.y=scalbnf(g.y*DTDH,scaler_sxx);
         
 #else
         
-//        lM=     __h22f2(     M(gidz,gidx));
-//        lmu=    __h22f2(    mu(gidz,gidx));
-//        lmuipkp=__h22f2(muipkp(gidz,gidx));
-//        ltaup=  __h22f2(  taup(gidz,gidx));
-//        ltaus=    __h22f2(    taus(gidz,gidx));
-//        ltausipkp=__h22f2(tausipkp(gidz,gidx));
         lM=     (     M(gidz,gidx));
         lmu=    (    mu(gidz,gidx));
         lmuipkp=(muipkp(gidz,gidx));
@@ -577,24 +568,23 @@ extern "C" __global__ void update_s(int offcomm,
         ltausipkp=(tausipkp(gidz,gidx));
 
         
-        for (l=0;l<LVE;l++){
-            leta[l]=eta[l];
-        }
-        
-        fipkp.x=scalbnf(lmuipkp.x*DT*(1.0+ (float)LVE*ltausipkp.x),scaler_sxx);
-        fipkp.y=scalbnf(lmuipkp.y*DT*(1.0+ (float)LVE*ltausipkp.y),scaler_sxx);
-        g.x=scalbnf(lM.x*(1.0+(float)LVE*ltaup.x)*DT,scaler_sxx);
-        g.y=scalbnf(lM.y*(1.0+(float)LVE*ltaup.y)*DT,scaler_sxx);
-        f.x=scalbnf(2.0*lmu.x*(1.0+(float)LVE*ltaus.x),scaler_sxx);
-        f.y=scalbnf(2.0*lmu.y*(1.0+(float)LVE*ltaus.y),scaler_sxx);
-        dipkp.x=scalbnf(lmuipkp.x*ltausipkp.x,scaler_sxx);
-        dipkp.y=scalbnf(lmuipkp.y*ltausipkp.y,scaler_sxx);
-        d.x=scalbnf(2.0*lmu.x*ltaus.x,scaler_sxx);
-        d.y=scalbnf(2.0*lmu.y*ltaus.y,scaler_sxx);
-        e.x=scalbnf(lM.x*ltaup.x,scaler_sxx);
-        e.y=scalbnf(lM.y*ltaup.y,scaler_sxx);
+//        for (l=0;l<LVE;l++){
+//            leta[l]=eta[l];
+//        }
+//        
+//        fipkp.x=scalbnf(lmuipkp.x*DT*(1.0+ (float)LVE*ltausipkp.x),scaler_sxx);
+//        fipkp.y=scalbnf(lmuipkp.y*DT*(1.0+ (float)LVE*ltausipkp.y),scaler_sxx);
+//        g.x=scalbnf(lM.x*(1.0+(float)LVE*ltaup.x)*DT,scaler_sxx);
+//        g.y=scalbnf(lM.y*(1.0+(float)LVE*ltaup.y)*DT,scaler_sxx);
+//        f.x=scalbnf(2.0*lmu.x*(1.0+(float)LVE*ltaus.x),scaler_sxx);
+//        f.y=scalbnf(2.0*lmu.y*(1.0+(float)LVE*ltaus.y),scaler_sxx);
+//        dipkp.x=scalbnf(lmuipkp.x*ltausipkp.x,scaler_sxx);
+//        dipkp.y=scalbnf(lmuipkp.y*ltausipkp.y,scaler_sxx);
+//        d.x=scalbnf(2.0*lmu.x*ltaus.x,scaler_sxx);
+//        d.y=scalbnf(2.0*lmu.y*ltaus.y,scaler_sxx);
+//        e.x=scalbnf(lM.x*ltaup.x,scaler_sxx);
+//        e.y=scalbnf(lM.y*ltaup.y,scaler_sxx);
 
-        
 #endif
     }
     
@@ -662,6 +652,10 @@ extern "C" __global__ void update_s(int offcomm,
             sumrxx.y+=lrxx[l].y;
             sumrzz.x+=lrzz[l].x;
             sumrzz.y+=lrzz[l].y;
+            
+            rxx(gidz,gidx,l)=__f22h2(lrxx[l]);
+            rzz(gidz,gidx,l)=__f22h2(lrzz[l]);
+            rxz(gidz,gidx,l)=__f22h2(lrxz[l]);
         }
         
         
