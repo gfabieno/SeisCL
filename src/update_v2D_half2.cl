@@ -100,10 +100,10 @@
 
 #endif
 
-extern "C" __device__ __prec2 Dp(__prec2 * lvar2, int lidx, int lidz, int lsizez){
+extern "C" __device__ float2 Dp(__prec2 * lvar2, int lidx, int lidz, int lsizez){
     
     __prec * lvar=(__prec *)lvar2;
-    __prec2 der;
+    float2 der;
     
 #if   FDOH ==1
     der.x =    HC1*(__h2f(lvar((2*lidz),lidx+1)) - (__h2f(lvar((2*lidz),lidx))));
