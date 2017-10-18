@@ -422,14 +422,6 @@ extern "C" __global__ void update_s(int offcomm,
 
     }
     
-//    vxx.x = scalbnf(vxx.x,-20);
-//    vxx.y = scalbnf(vxx.y,-20);
-//    vzz.x = scalbnf(vzz.x,-20);
-//    vzz.y = scalbnf(vzz.y,-20);
-//    vxz.x = scalbnf(vxz.x,-20);
-//    vxz.y = scalbnf(vxz.y,-20);
-//    vzx.x = scalbnf(vzx.x,-20);
-//    vzx.y = scalbnf(vzx.y,-20);
     
     // To stop updating if we are outside the model (global id must be a multiple of local id in OpenCL, hence we stop if we have a global id outside the grid)
 #if LOCAL_OFF==0
@@ -589,18 +581,18 @@ extern "C" __global__ void update_s(int offcomm,
             leta[l]=eta[l];
         }
         
-        fipkp.x=lmuipkp.x*DT*(1.0+ (float)LVE*ltausipkp.x)*scaler_sxx;
-        fipkp.y=lmuipkp.y*DT*(1.0+ (float)LVE*ltausipkp.y)*scaler_sxx;
-        g.x=lM.x*(1.0+(float)LVE*ltaup.x)*DT*scaler_sxx;
-        g.y=lM.y*(1.0+(float)LVE*ltaup.y)*DT*scaler_sxx;
-        f.x=2.0*lmu.x*(1.0+(float)LVE*ltaus.x)*DT*scaler_sxx;
-        f.y=2.0*lmu.y*(1.0+(float)LVE*ltaus.y)*DT*scaler_sxx;
-        dipkp.x=lmuipkp.x*ltausipkp.x*scaler_sxx;
-        dipkp.y=lmuipkp.y*ltausipkp.y*scaler_sxx;
-        d.x=2.0*lmu.x*ltaus.x*scaler_sxx;
-        d.y=2.0*lmu.y*ltaus.y*scaler_sxx;
-        e.x=lM.x*ltaup.x*scaler_sxx;
-        e.y=lM.y*ltaup.y*scaler_sxx;
+        fipkp.x=scalbnf(lmuipkp.x*DT*(1.0+ (float)LVE*ltausipkp.x),scaler_sxx);
+        fipkp.y=scalbnf(lmuipkp.y*DT*(1.0+ (float)LVE*ltausipkp.y),scaler_sxx);
+        g.x=scalbnf(lM.x*(1.0+(float)LVE*ltaup.x)*DT,scaler_sxx);
+        g.y=scalbnf(lM.y*(1.0+(float)LVE*ltaup.y)*DT,scaler_sxx);
+        f.x=scalbnf(2.0*lmu.x*(1.0+(float)LVE*ltaus.x),scaler_sxx);
+        f.y=scalbnf(2.0*lmu.y*(1.0+(float)LVE*ltaus.y),scaler_sxx);
+        dipkp.x=scalbnf(lmuipkp.x*ltausipkp.x,scaler_sxx);
+        dipkp.y=scalbnf(lmuipkp.y*ltausipkp.y,scaler_sxx);
+        d.x=scalbnf(2.0*lmu.x*ltaus.x,scaler_sxx);
+        d.y=scalbnf(2.0*lmu.y*ltaus.y,scaler_sxx);
+        e.x=scalbnf(lM.x*ltaup.x,scaler_sxx);
+        e.y=scalbnf(lM.y*ltaup.y,scaler_sxx);
 
         
 #endif
@@ -730,9 +722,7 @@ extern "C" __global__ void update_s(int offcomm,
 #endif
     }
 #endif
-    
 
-    
     sxz(gidz, gidx)=__f22h2(lsxz);
     sxx(gidz, gidx)=__f22h2(lsxx);
     szz(gidz, gidx)=__f22h2(lszz);
