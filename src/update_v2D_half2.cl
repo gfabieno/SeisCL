@@ -539,10 +539,10 @@ extern "C" __global__ void update_v(int offcomm,
         lvz.x += (szz_z.x + sxz_x.x)*scalbnf(DTDH/lrkp.x, -scaler_sxx);
         lvz.y += (szz_z.y + sxz_x.y)*scalbnf(DTDH/lrkp.y, -scaler_sxx);
         
-        lvx.x = scalbnf(lvx.x,20);
-        lvx.y = scalbnf(lvx.y,20);
-        lvz.x = scalbnf(lvz.x,20);
-        lvz.y = scalbnf(lvz.y,20);
+//        lvx.x = scalbnf(lvx.x,20);
+//        lvx.y = scalbnf(lvx.y,20);
+//        lvz.x = scalbnf(lvz.x,20);
+//        lvz.y = scalbnf(lvz.y,20);
         
         
         // Absorbing boundary
