@@ -111,7 +111,6 @@ extern "C" __global__ void update_s(int offcomm,
     
     extern __shared__ __prec2 lvar2[];
     __prec * lvar = (__prec *)lvar2;
-    __prec2 var;
     
     float2 vxx, vzz, vzx, vxz;
     int i,k,l,ind;
@@ -161,40 +160,20 @@ extern "C" __global__ void update_s(int offcomm,
     // Calculation of the velocity spatial derivatives
     {
 #if LOCAL_OFF==0
-        var = vx(gidz, gidx);
-        lvx(2*lidz,lidx)=var.x;
-        lvx(2*lidz+1,lidx)=var.y;
-        if (lidx<2*FDOH){
-            var = vx(gidz,gidx-FDOH);
-            lvx(2*lidz,lidx-FDOH)=var.x;
-            lvx(2*lidz+1,lidx-FDOH)=var.y;
-        }
-        if (lidx+lsizex-3*FDOH<FDOH){
-            var = vx(gidz,gidx+lsizex-3*FDOH);
-            lvx(2*lidz,lidx+lsizex-3*FDOH)=var.x;
-            lvx(2*lidz+1,lidx+lsizex-3*FDOH)=var.y;
-        }
-        if (lidx>(lsizex-2*FDOH-1)){
-            var = vx(gidz,gidx+FDOH);
-            lvx(2*lidz,lidx+FDOH)=var.x;
-            lvx(2*lidz+1,lidx+FDOH)=var.y;
-        }
-        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1)){
-            var = vx(gidz,gidx-lsizex+3*FDOH);
-            lvx(2*lidz,lidx-lsizex+3*FDOH)=var.x;
-            lvx(2*lidz+1,lidx-lsizex+3*FDOH)=var.y;
-        }
-        if (lidz<FDOH){
-            var = vx(gidz-FDOH/2,gidx);
-            lvx(2*lidz-FDOH,lidx)=var.x;
-            lvx(2*lidz+1-FDOH,lidx)=var.y;
-        }
-        if (lidz>(lsizez-FDOH-1)){
-            var = vx(gidz+FDOH/2,gidx);
-            lvx(2*lidz+FDOH,lidx)=var.x;
-            lvx(2*lidz+1+FDOH,lidx)=var.y;
-        }
-    
+        lvx2(lidz,lidx)=vx(gidz, gidx);
+        if (lidx<2*FDOH)
+            lvx2(lidz,lidx-FDOH)=vx(gidz,gidx-FDOH);
+        if (lidx+lsizex-3*FDOH<FDOH)
+            lvx2(lidz,lidx+lsizex-3*FDOH)=vx(gidz,gidx+lsizex-3*FDOH);
+        if (lidx>(lsizex-2*FDOH-1))
+            lvx2(lidz,lidx+FDOH)=vx(gidz,gidx+FDOH);
+        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
+            lvx2(lidz,lidx-lsizex+3*FDOH)=vx(gidz,gidx-lsizex+3*FDOH);
+        if (lidz<FDOH)
+            lvx2(lidz-FDOH/2,lidx)=vx(gidz-FDOH/2,gidx);
+        if (lidz>(lsizez-FDOH-1))
+            lvx2(lidz+FDOH/2,lidx)=vx(gidz+FDOH/2,gidx);
+        
         __syncthreads();
 #endif
 
@@ -313,39 +292,19 @@ extern "C" __global__ void update_s(int offcomm,
         
 #if LOCAL_OFF==0
         __syncthreads();
-        var = vz(gidz, gidx);
-        lvz(2*lidz,lidx)=var.x;
-        lvz(2*lidz+1,lidx)=var.y;
-        if (lidx<2*FDOH){
-            var = vz(gidz,gidx-FDOH);
-            lvz(2*lidz,lidx-FDOH)=var.x;
-            lvz(2*lidz+1,lidx-FDOH)=var.y;
-        }
-        if (lidx+lsizex-3*FDOH<FDOH){
-            var = vz(gidz,gidx+lsizex-3*FDOH);
-            lvz(2*lidz,lidx+lsizex-3*FDOH)=var.x;
-            lvz(2*lidz+1,lidx+lsizex-3*FDOH)=var.y;
-        }
-        if (lidx>(lsizex-2*FDOH-1)){
-            var = vz(gidz,gidx+FDOH);
-            lvz(2*lidz,lidx+FDOH)=var.x;
-            lvz(2*lidz+1,lidx+FDOH)=var.y;
-        }
-        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1)){
-            var = vz(gidz,gidx-lsizex+3*FDOH);
-            lvz(2*lidz,lidx-lsizex+3*FDOH)=var.x;
-            lvz(2*lidz+1,lidx-lsizex+3*FDOH)=var.y;
-        }
-        if (lidz<FDOH){
-            var = vz(gidz-FDOH/2,gidx);
-            lvz(2*lidz-FDOH,lidx)=var.x;
-            lvz(2*lidz+1-FDOH,lidx)=var.y;
-        }
-        if (lidz>(lsizez-FDOH-1)){
-            var = vz(gidz+FDOH/2,gidx);
-            lvz(2*lidz+FDOH,lidx)=var.x;
-            lvz(2*lidz+1+FDOH,lidx)=var.y;
-        }
+        lvz2(lidz,lidx)=vz(gidz, gidx);
+        if (lidx<2*FDOH)
+            lvz2(lidz,lidx-FDOH)=vz(gidz,gidx-FDOH);
+        if (lidx+lsizex-3*FDOH<FDOH)
+            lvz2(lidz,lidx+lsizex-3*FDOH)=vz(gidz,gidx+lsizex-3*FDOH);
+        if (lidx>(lsizex-2*FDOH-1))
+            lvz2(lidz,lidx+FDOH)=vz(gidz,gidx+FDOH);
+        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
+            lvz2(lidz,lidx-lsizex+3*FDOH)=vz(gidz,gidx-lsizex+3*FDOH);
+        if (lidz<FDOH)
+            lvz2(lidz-FDOH/2,lidx)=vz(gidz-FDOH/2,gidx);
+        if (lidz>(lsizez-FDOH-1))
+            lvz2(lidz+FDOH/2,lidx)=vz(gidz+FDOH/2,gidx);
         __syncthreads();
 #endif
         
