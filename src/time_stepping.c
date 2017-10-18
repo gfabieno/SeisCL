@@ -484,8 +484,8 @@ int time_stepping(model * m, device ** dev) {
                                     &(*dev)[d].src_recs.sources);
             }
 
-            // Apply all updates
-            __GUARD update_grid(m, dev);
+//            // Apply all updates
+//            __GUARD update_grid(m, dev);
             
             
             // Computing the free surface
