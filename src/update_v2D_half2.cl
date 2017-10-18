@@ -542,8 +542,7 @@ extern "C" __global__ void update_v(int offcomm,
 //        lvx.x = scalbnf(lvx.x,20);
 //        lvx.y = scalbnf(lvx.y,20);
 //        lvz.x = scalbnf(lvz.x,20);
-//        lvz.y = scalbnf(lvz.y,20);
-        
+//        lvz.y = scalbnf(lvz.y,20);       
         
         // Absorbing boundary
 #if ABS_TYPE==2
