@@ -100,12 +100,63 @@
 
 #endif
 
-extern "C" __device__ float myfun(int a){
+extern "C" __device__ __prec2 Dp(__prec2 * lvar2){
     
-    float b=1.0;
-    float c = b+a;
+    __prec * lvar=(__prec *)lvar2;
+    __prec2 der;
     
-    return c;
+#if   FDOH ==1
+    der.x =    HC1*(__h2f(lvar((2*lidz),lidx+1)) - (__h2f(lvar((2*lidz),lidx))));
+    der.y =  HC1*(__h2f(lvar((2*lidz+1),lidx+1)) - (__h2f(lvar((2*lidz+1),lidx))));
+#elif FDOH ==2
+    der.x =  (HC1*(__h2f(lvar((2*lidz),lidx+1)) - __h2f(lvar((2*lidz),lidx)))
+                +HC2*(__h2f(lvar((2*lidz),lidx+2)) - __h2f(lvar((2*lidz),lidx-1))));
+    der.y =  (HC1*(__h2f(lvar((2*lidz+1),lidx+1)) - __h2f(lvar((2*lidz+1),lidx)))
+                +HC2*(__h2f(lvar((2*lidz+1),lidx+2)) - __h2f(lvar((2*lidz+1),lidx-1))));
+#elif FDOH ==3
+    der.x =  (HC1*(__h2f(lvar((2*lidz),lidx+1))-__h2f(lvar((2*lidz),lidx)))+
+                HC2*(__h2f(lvar((2*lidz),lidx+2))-__h2f(lvar((2*lidz),lidx-1)))+
+                HC3*(__h2f(lvar((2*lidz),lidx+3))-__h2f(lvar((2*lidz),lidx-2))));
+    der.y =  (HC1*(__h2f(lvar((2*lidz+1),lidx+1))-__h2f(lvar((2*lidz+1),lidx)))+
+                HC2*(__h2f(lvar((2*lidz+1),lidx+2))-__h2f(lvar((2*lidz+1),lidx-1)))+
+                HC3*(__h2f(lvar((2*lidz+1),lidx+3))-__h2f(lvar((2*lidz+1),lidx-2))));
+#elif FDOH ==4
+    der.x =  (HC1*(__h2f(lvar((2*lidz),lidx+1))-__h2f(lvar((2*lidz),lidx)))+
+                HC2*(__h2f(lvar((2*lidz),lidx+2))-__h2f(lvar((2*lidz),lidx-1)))+
+                HC3*(__h2f(lvar((2*lidz),lidx+3))-__h2f(lvar((2*lidz),lidx-2)))+
+                HC4*(__h2f(lvar((2*lidz),lidx+4))-__h2f(lvar((2*lidz),lidx-3))));
+    der.y =  (HC1*(__h2f(lvar((2*lidz+1),lidx+1))-__h2f(lvar((2*lidz+1),lidx)))+
+                HC2*(__h2f(lvar((2*lidz+1),lidx+2))-__h2f(lvar((2*lidz+1),lidx-1)))+
+                HC3*(__h2f(lvar((2*lidz+1),lidx+3))-__h2f(lvar((2*lidz+1),lidx-2)))+
+                HC4*(__h2f(lvar((2*lidz+1),lidx+4))-__h2f(lvar((2*lidz+1),lidx-3))));
+#elif FDOH ==5
+    der.x =  (HC1*(__h2f(lvar((2*lidz),lidx+1))-__h2f(lvar((2*lidz),lidx)))+
+                HC2*(__h2f(lvar((2*lidz),lidx+2))-__h2f(lvar((2*lidz),lidx-1)))+
+                HC3*(__h2f(lvar((2*lidz),lidx+3))-__h2f(lvar((2*lidz),lidx-2)))+
+                HC4*(__h2f(lvar((2*lidz),lidx+4))-__h2f(lvar((2*lidz),lidx-3)))+
+                HC5*(__h2f(lvar((2*lidz),lidx+5))-__h2f(lvar((2*lidz),lidx-4))));
+    der.y =  (HC1*(__h2f(lvar((2*lidz+1),lidx+1))-__h2f(lvar((2*lidz+1),lidx)))+
+                HC2*(__h2f(lvar((2*lidz+1),lidx+2))-__h2f(lvar((2*lidz+1),lidx-1)))+
+                HC3*(__h2f(lvar((2*lidz+1),lidx+3))-__h2f(lvar((2*lidz+1),lidx-2)))+
+                HC4*(__h2f(lvar((2*lidz+1),lidx+4))-__h2f(lvar((2*lidz+1),lidx-3)))+
+                HC5*(__h2f(lvar((2*lidz+1),lidx+5))-__h2f(lvar((2*lidz+1),lidx-4))));
+#elif FDOH ==6
+    der.x =  (HC1*(__h2f(lvar((2*lidz),lidx+1))-__h2f(lvar((2*lidz),lidx)))+
+                HC2*(__h2f(lvar((2*lidz),lidx+2))-__h2f(lvar((2*lidz),lidx-1)))+
+                HC3*(__h2f(lvar((2*lidz),lidx+3))-__h2f(lvar((2*lidz),lidx-2)))+
+                HC4*(__h2f(lvar((2*lidz),lidx+4))-__h2f(lvar((2*lidz),lidx-3)))+
+                HC5*(__h2f(lvar((2*lidz),lidx+5))-__h2f(lvar((2*lidz),lidx-4)))+
+                HC6*(__h2f(lvar((2*lidz),lidx+6))-__h2f(lvar((2*lidz),lidx-5))));
+    der.y =  (HC1*(__h2f(lvar((2*lidz+1),lidx+1))-__h2f(lvar((2*lidz+1),lidx)))+
+                HC2*(__h2f(lvar((2*lidz+1),lidx+2))-__h2f(lvar((2*lidz+1),lidx-1)))+
+                HC3*(__h2f(lvar((2*lidz+1),lidx+3))-__h2f(lvar((2*lidz+1),lidx-2)))+
+                HC4*(__h2f(lvar((2*lidz+1),lidx+4))-__h2f(lvar((2*lidz+1),lidx-3)))+
+                HC5*(__h2f(lvar((2*lidz+1),lidx+5))-__h2f(lvar((2*lidz+1),lidx-4)))+
+                HC6*(__h2f(lvar((2*lidz+1),lidx+6))-__h2f(lvar((2*lidz+1),lidx-5))));
+#endif
+
+    
+    return der;
 }
 
 
