@@ -360,9 +360,9 @@ int initialize_grid(model * m, device ** dev, int s){
                                                * 8 * (*dev)[d].src_recs.nrec[s];
         (*dev)[d].src_recs.cl_rec_pos.host=(*dev)[d].src_recs.rec_pos[s];
         
-        __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].src_recs.cl_src);
-        __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].src_recs.cl_src_pos);
-        __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].src_recs.cl_rec_pos);
+//        __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].src_recs.cl_src);
+//        __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].src_recs.cl_src_pos);
+//        __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].src_recs.cl_rec_pos);
         
         // Assign work sizes to kernels
         (*dev)[d].src_recs.sources.gsize[0]=(*dev)[d].src_recs.nsrc[s];
@@ -392,17 +392,17 @@ int initialize_grid(model * m, device ** dev, int s){
             }
         }
         
-        // Implement initial conditions
-        __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].bnd_cnds.init_f);
-        if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){
-            __GUARD prog_launch(&(*dev)[d].queue,
-                                &(*dev)[d].src_recs.varsoutinit);
-        }
-
-        if (m->GRADOUT==1 && m->BACK_PROP_TYPE==2){
-            __GUARD prog_launch( &(*dev)[d].queue,
-                                 &(*dev)[d].grads.initsavefreqs);
-        }
+//        // Implement initial conditions
+//        __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].bnd_cnds.init_f);
+//        if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){
+//            __GUARD prog_launch(&(*dev)[d].queue,
+//                                &(*dev)[d].src_recs.varsoutinit);
+//        }
+//
+//        if (m->GRADOUT==1 && m->BACK_PROP_TYPE==2){
+//            __GUARD prog_launch( &(*dev)[d].queue,
+//                                 &(*dev)[d].grads.initsavefreqs);
+//        }
         
 
         
@@ -480,11 +480,11 @@ int time_stepping(model * m, device ** dev) {
                 
             }
             
-            // Inject the sources
-            for (d=0;d<m->NUM_DEVICES;d++){
-                __GUARD prog_launch( &(*dev)[d].queue,
-                                    &(*dev)[d].src_recs.sources);
-            }
+//            // Inject the sources
+//            for (d=0;d<m->NUM_DEVICES;d++){
+//                __GUARD prog_launch( &(*dev)[d].queue,
+//                                    &(*dev)[d].src_recs.sources);
+//            }
 
             // Apply all updates
             __GUARD update_grid(m, dev);
