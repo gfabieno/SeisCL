@@ -100,7 +100,7 @@
 
 #endif
 
-extern "C" __device__ __prec2 Dp(__prec2 * lvar2){
+extern "C" __device__ __prec2 Dp(__prec2 * lvar2, int lidx, int lidz, int lsizez){
     
     __prec * lvar=(__prec *)lvar2;
     __prec2 der;
@@ -178,7 +178,6 @@ extern "C" __global__ void update_v(int offcomm,
     extern __shared__ __prec2 lvar2[];
     __prec * lvar=(__prec *)lvar2;
     
-    float trya = myfun(1);
     float2 sxx_x;
     float2 szz_z;
     float2 sxz_x;
