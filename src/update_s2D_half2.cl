@@ -548,42 +548,36 @@ extern "C" __global__ void update_s(int offcomm,
     {
 #if LVE==0
         
-        fipkp=muipkp(gidz, gidx);
-        fipkp.x=scalbnf(fipkp.x*DTDH,scaler_sxx);
-        fipkp.y=scalbnf(fipkp.y*DTDH,scaler_sxx);
-        f=mu(gidz, gidx);
-        f.x=scalbnf(f.x*2.0*DTDH,scaler_sxx);
-        f.y=scalbnf(f.y*2.0*DTDH,scaler_sxx);
-        g=M(gidz, gidx);
-        g.x=scalbnf(g.x*DTDH,scaler_sxx);
-        g.y=scalbnf(g.y*DTDH,scaler_sxx);
+        lmuipkp=muipkp(gidz, gidx);
+        lmu=mu(gidz, gidx);
+        lM=M(gidz, gidx);
         
 #else
         
-        lM=     (     M(gidz,gidx));
-        lmu=    (    mu(gidz,gidx));
-        lmuipkp=(muipkp(gidz,gidx));
-        ltaup=  (  taup(gidz,gidx));
-        ltaus=    (    taus(gidz,gidx));
-        ltausipkp=(tausipkp(gidz,gidx));
-
-        
-        for (l=0;l<LVE;l++){
-            leta[l]=eta[l];
-        }
-        
-        fipkp.x=scalbnf(lmuipkp.x*DTDH*(1.0+ (float)LVE*ltausipkp.x),scaler_sxx);
-        fipkp.y=scalbnf(lmuipkp.y*DTDH*(1.0+ (float)LVE*ltausipkp.y),scaler_sxx);
-        g.x=scalbnf(lM.x*(1.0+(float)LVE*ltaup.x)*DTDH,scaler_sxx);
-        g.y=scalbnf(lM.y*(1.0+(float)LVE*ltaup.y)*DTDH,scaler_sxx);
-        f.x=scalbnf(2.0*lmu.x*(1.0+(float)LVE*ltaus.x)*DTDH,scaler_sxx);
-        f.y=scalbnf(2.0*lmu.y*(1.0+(float)LVE*ltaus.y)*DTDH,scaler_sxx);
-        dipkp.x=scalbnf(lmuipkp.x*ltausipkp.x/DH,scaler_sxx);
-        dipkp.y=scalbnf(lmuipkp.y*ltausipkp.y/DH,scaler_sxx);
-        d.x=scalbnf(2.0*lmu.x*ltaus.x/DH,scaler_sxx);
-        d.y=scalbnf(2.0*lmu.y*ltaus.y/DH,scaler_sxx);
-        e.x=scalbnf(lM.x*ltaup.x/DH,scaler_sxx);
-        e.y=scalbnf(lM.y*ltaup.y/DH,scaler_sxx);
+//        lM=     (     M(gidz,gidx));
+//        lmu=    (    mu(gidz,gidx));
+//        lmuipkp=(muipkp(gidz,gidx));
+//        ltaup=  (  taup(gidz,gidx));
+//        ltaus=    (    taus(gidz,gidx));
+//        ltausipkp=(tausipkp(gidz,gidx));
+//
+//        
+//        for (l=0;l<LVE;l++){
+//            leta[l]=eta[l];
+//        }
+//        
+//        fipkp.x=scalbnf(lmuipkp.x*DTDH*(1.0+ (float)LVE*ltausipkp.x),scaler_sxx);
+//        fipkp.y=scalbnf(lmuipkp.y*DTDH*(1.0+ (float)LVE*ltausipkp.y),scaler_sxx);
+//        g.x=scalbnf(lM.x*(1.0+(float)LVE*ltaup.x)*DTDH,scaler_sxx);
+//        g.y=scalbnf(lM.y*(1.0+(float)LVE*ltaup.y)*DTDH,scaler_sxx);
+//        f.x=scalbnf(2.0*lmu.x*(1.0+(float)LVE*ltaus.x)*DTDH,scaler_sxx);
+//        f.y=scalbnf(2.0*lmu.y*(1.0+(float)LVE*ltaus.y)*DTDH,scaler_sxx);
+//        dipkp.x=scalbnf(lmuipkp.x*ltausipkp.x/DH,scaler_sxx);
+//        dipkp.y=scalbnf(lmuipkp.y*ltausipkp.y/DH,scaler_sxx);
+//        d.x=scalbnf(2.0*lmu.x*ltaus.x/DH,scaler_sxx);
+//        d.y=scalbnf(2.0*lmu.y*ltaus.y/DH,scaler_sxx);
+//        e.x=scalbnf(lM.x*ltaup.x/DH,scaler_sxx);
+//        e.y=scalbnf(lM.y*ltaup.y/DH,scaler_sxx);
 
 #endif
     }
@@ -595,78 +589,78 @@ extern "C" __global__ void update_s(int offcomm,
         lszz = __h22f2(szz(gidz, gidx));
         lsxz = __h22f2(sxz(gidz, gidx));
         
-        lsxz.x+=(fipkp.x*(vxz.x+vzx.x));
-        lsxz.y+=(fipkp.y*(vxz.y+vzx.y));
-        lsxx.x+=(g.x*(vxx.x+vzz.x))-(f.x*vzz.x);
-        lsxx.y+=(g.y*(vxx.y+vzz.y))-(f.y*vzz.y);
-        lszz.x+=(g.x*(vxx.x+vzz.x))-(f.x*vxx.x);
-        lszz.y+=(g.y*(vxx.y+vzz.y))-(f.y*vxx.y);
+        lsxz.x+=(lmuipkp.x*(vxz.x+vzx.x));
+        lsxz.y+=(lmuipkp.y*(vxz.y+vzx.y));
+        lsxx.x+=(lM.x*(vxx.x+vzz.x))-(2.0*lmu.x*vzz.x);
+        lsxx.y+=(lM.y*(vxx.y+vzz.y))-(2.0*lmu.y*vzz.y);
+        lszz.x+=(lM.x*(vxx.x+vzz.x))-(2.0*lmu.x*vxx.x);
+        lszz.y+=(lM.y*(vxx.y+vzz.y))-(2.0*lmu.y*vxx.y);
 
 #else
-        /* computing sums of the old memory variables */
-        sumrxz.x=sumrxx.x=sumrzz.x=0;
-        sumrxz.y=sumrxx.y=sumrzz.y=0;
-        for (l=0;l<LVE;l++){
-            lrxx[l] = __h22f2(rxx(gidz,gidx,l));
-            lrzz[l] = __h22f2(rzz(gidz,gidx,l));
-            lrxz[l] = __h22f2(rxz(gidz,gidx,l));
-            sumrxz.x+=lrxz[l].x;
-            sumrxz.y+=lrxz[l].y;
-            sumrxx.x+=lrxx[l].x;
-            sumrxx.y+=lrxx[l].y;
-            sumrzz.x+=lrzz[l].x;
-            sumrzz.y+=lrzz[l].y;
-        }
-        
-        
-        /* updating components of the stress tensor, partially */
-        lsxx = __h22f2(sxx(gidz, gidx));
-        lszz = __h22f2(szz(gidz, gidx));
-        lsxz = __h22f2(sxz(gidz, gidx));
-        
-        lsxz.x+=(fipkp.x*(vxz.x+vzx.x))+(DT2*sumrxz.x);
-        lsxz.y+=(fipkp.y*(vxz.y+vzx.y))+(DT2*sumrxz.y);
-        lsxx.x+=((g.x*(vxx.x+vzz.x))-(f.x*vzz.x))+(DT2*sumrxx.x);
-        lsxx.y+=((g.y*(vxx.y+vzz.y))-(f.y*vzz.y))+(DT2*sumrxx.y);
-        lszz.x+=((g.x*(vxx.x+vzz.x))-(f.x*vxx.x))+(DT2*sumrzz.x);
-        lszz.y+=((g.y*(vxx.y+vzz.y))-(f.y*vxx.y))+(DT2*sumrzz.y);
-        
-        
-        /* now updating the memory-variables and sum them up*/
-        sumrxz.x=sumrxx.x=sumrzz.x=0;
-        sumrxz.y=sumrxx.y=sumrzz.y=0;
-        for (l=0;l<LVE;l++){
-            b=1.0/(1.0+(leta[l]*0.5));
-            c=1.0-(leta[l]*0.5);
-            
-            lrxz[l].x=b*(lrxz[l].x*c-leta[l]*(dipkp.x*(vxz.x+vzx.x)));
-            lrxz[l].y=b*(lrxz[l].y*c-leta[l]*(dipkp.y*(vxz.y+vzx.y)));
-            lrxx[l].x=b*(lrxx[l].x*c-leta[l]*((e.x*(vxx.x+vzz.x))-(d.x*vzz.x)));
-            lrxx[l].y=b*(lrxx[l].y*c-leta[l]*((e.y*(vxx.y+vzz.y))-(d.y*vzz.y)));
-            lrzz[l].x=b*(lrzz[l].x*c-leta[l]*((e.x*(vxx.x+vzz.x))-(d.x*vxx.x)));
-            lrzz[l].y=b*(lrzz[l].y*c-leta[l]*((e.y*(vxx.y+vzz.y))-(d.y*vxx.y)));
-            
-            sumrxz.x+=lrxz[l].x;
-            sumrxz.y+=lrxz[l].y;
-            sumrxx.x+=lrxx[l].x;
-            sumrxx.y+=lrxx[l].y;
-            sumrzz.x+=lrzz[l].x;
-            sumrzz.y+=lrzz[l].y;
-            
-            rxx(gidz,gidx,l)=__f22h2(lrxx[l]);
-            rzz(gidz,gidx,l)=__f22h2(lrzz[l]);
-            rxz(gidz,gidx,l)=__f22h2(lrxz[l]);
-        }
-        
-        
-        /* and now the components of the stress tensor are
-         completely updated */
-        lsxz.x+=  (DT2*sumrxz.x);
-        lsxz.y+=  (DT2*sumrxz.y);
-        lsxx.x+=  (DT2*sumrxx.x);
-        lsxx.y+=  (DT2*sumrxx.y);
-        lszz.x+=  (DT2*sumrzz.x);
-        lszz.y+=  (DT2*sumrzz.y);
+//        /* computing sums of the old memory variables */
+//        sumrxz.x=sumrxx.x=sumrzz.x=0;
+//        sumrxz.y=sumrxx.y=sumrzz.y=0;
+//        for (l=0;l<LVE;l++){
+//            lrxx[l] = __h22f2(rxx(gidz,gidx,l));
+//            lrzz[l] = __h22f2(rzz(gidz,gidx,l));
+//            lrxz[l] = __h22f2(rxz(gidz,gidx,l));
+//            sumrxz.x+=lrxz[l].x;
+//            sumrxz.y+=lrxz[l].y;
+//            sumrxx.x+=lrxx[l].x;
+//            sumrxx.y+=lrxx[l].y;
+//            sumrzz.x+=lrzz[l].x;
+//            sumrzz.y+=lrzz[l].y;
+//        }
+//
+//
+//        /* updating components of the stress tensor, partially */
+//        lsxx = __h22f2(sxx(gidz, gidx));
+//        lszz = __h22f2(szz(gidz, gidx));
+//        lsxz = __h22f2(sxz(gidz, gidx));
+//
+//        lsxz.x+=(fipkp.x*(vxz.x+vzx.x))+(DT2*sumrxz.x);
+//        lsxz.y+=(fipkp.y*(vxz.y+vzx.y))+(DT2*sumrxz.y);
+//        lsxx.x+=((g.x*(vxx.x+vzz.x))-(f.x*vzz.x))+(DT2*sumrxx.x);
+//        lsxx.y+=((g.y*(vxx.y+vzz.y))-(f.y*vzz.y))+(DT2*sumrxx.y);
+//        lszz.x+=((g.x*(vxx.x+vzz.x))-(f.x*vxx.x))+(DT2*sumrzz.x);
+//        lszz.y+=((g.y*(vxx.y+vzz.y))-(f.y*vxx.y))+(DT2*sumrzz.y);
+//
+//
+//        /* now updating the memory-variables and sum them up*/
+//        sumrxz.x=sumrxx.x=sumrzz.x=0;
+//        sumrxz.y=sumrxx.y=sumrzz.y=0;
+//        for (l=0;l<LVE;l++){
+//            b=1.0/(1.0+(leta[l]*0.5));
+//            c=1.0-(leta[l]*0.5);
+//
+//            lrxz[l].x=b*(lrxz[l].x*c-leta[l]*(dipkp.x*(vxz.x+vzx.x)));
+//            lrxz[l].y=b*(lrxz[l].y*c-leta[l]*(dipkp.y*(vxz.y+vzx.y)));
+//            lrxx[l].x=b*(lrxx[l].x*c-leta[l]*((e.x*(vxx.x+vzz.x))-(d.x*vzz.x)));
+//            lrxx[l].y=b*(lrxx[l].y*c-leta[l]*((e.y*(vxx.y+vzz.y))-(d.y*vzz.y)));
+//            lrzz[l].x=b*(lrzz[l].x*c-leta[l]*((e.x*(vxx.x+vzz.x))-(d.x*vxx.x)));
+//            lrzz[l].y=b*(lrzz[l].y*c-leta[l]*((e.y*(vxx.y+vzz.y))-(d.y*vxx.y)));
+//
+//            sumrxz.x+=lrxz[l].x;
+//            sumrxz.y+=lrxz[l].y;
+//            sumrxx.x+=lrxx[l].x;
+//            sumrxx.y+=lrxx[l].y;
+//            sumrzz.x+=lrzz[l].x;
+//            sumrzz.y+=lrzz[l].y;
+//
+//            rxx(gidz,gidx,l)=__f22h2(lrxx[l]);
+//            rzz(gidz,gidx,l)=__f22h2(lrzz[l]);
+//            rxz(gidz,gidx,l)=__f22h2(lrxz[l]);
+//        }
+//
+//
+//        /* and now the components of the stress tensor are
+//         completely updated */
+//        lsxz.x+=  (DT2*sumrxz.x);
+//        lsxz.y+=  (DT2*sumrxz.y);
+//        lsxx.x+=  (DT2*sumrxx.x);
+//        lsxx.y+=  (DT2*sumrxx.y);
+//        lszz.x+=  (DT2*sumrzz.x);
+//        lszz.y+=  (DT2*sumrzz.y);
         
         
 #endif

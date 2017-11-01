@@ -288,6 +288,57 @@ void ave_arithmetic2(float *pin, float *pout, int *N, int ndim, int dir[2][3]) {
     
     
 }
+void ave_harmonic1(float * pin, float * pout, int * N, int ndim, int  dir[3]){
+    
+    int i,j,k;
+    int NX, NY, NZ;
+    int NX0=0, NY0=0, NZ0=0;
+    int ind1, ind2;
+    if (ndim==3){
+        NX=N[2];
+        NY=N[1];
+        NZ=N[0];
+    }
+    else
+    {
+        NX=N[1];
+        NY=1;
+        NZ=N[0];
+    }
+    
+    
+    for (k=0;k<NZ-dir[0];k++){
+        for (j=0;j<NY-dir[1];j++){
+            for (i=0;i<NX-dir[2];i++){
+                ind1 = (i  )*NY*NZ+(j)*NZ+(k);
+                ind2 = (i+dir[2])*NY*NZ+(j+dir[1])*NZ+(k+dir[0]);
+                pout[ind1]=2.0*( 1.0/pin[ind1]+1.0/pin[ind2]);
+            }
+        }
+    }
+    
+    if (dir[2]==1){
+        NX0=NX-1;
+    }
+    else if (dir[1]==1){
+        NY0=NY-1;
+    }
+    if (dir[0]==1){
+        NZ0=NZ-1;
+    }
+    
+    for (k=NZ0;k<NZ;k++){
+        for (j=NY0;j<NY;j++){
+            for (i=NX0;i<NX;i++){
+                ind1 = (i  )*NY*NZ+(j)*NZ+(k);
+                pout[ind1]= pin[ind1];
+            }
+        }
+    }
+    
+    
+}
+
 void ave_harmonic(float * pin, float * pout, int * N, int ndim, int dir[2][3]) {
     
     int i,j,k;
@@ -379,12 +430,17 @@ void mu(void * mptr){
     float thisvs, thistaus;
     if (m->par_type==0){
         for (i=0;i<num_ele;i++){
-            mu[i]=powf(mu[i],2)*rho[i];
+            mu[i]=powf(mu[i],2)*rho[i]*m->dt/m->dh;
+        }
+    }
+    else if (m->par_type==1){
+        for (i=0;i<num_ele;i++){
+            mu[i]=mu[i]*m->dt/m->dh;
         }
     }
     else if (m->par_type==2){
         for (i=0;i<num_ele;i++){
-            mu[i]=powf(mu[i]/rho[i],2)*rho[i];
+            mu[i]=powf(mu[i]/rho[i],2)*rho[i]*m->dt/m->dh;
         }
     }
     else if (m->par_type==3){
@@ -398,7 +454,7 @@ void mu(void * mptr){
                 thistaus=0;
                 thisvs=0;
             }
-            mu[i]=powf(thisvs,2)*rho[i];
+            mu[i]=powf(thisvs,2)*rho[i]*m->dt/m->dh;
             taus[i]=thistaus;
         }
         
@@ -428,6 +484,20 @@ void mu(void * mptr){
         free(pts);
     }
     
+    int scaler;
+    variable * var;
+    var = get_var(mptr, "sxz");
+    if (var) scaler = var->scaler;
+    if (!var){
+        __GUARD m->set_scalers( (void*) m);
+    }
+    var = get_var(mptr, "sxz");
+    if (var) scaler = var->scaler;
+
+    for (i=0;i<num_ele;i++){
+        mu[i]*=powf(2,scaler);
+    }
+    
 }
 void M(void * mptr){
     
@@ -440,12 +510,17 @@ void M(void * mptr){
     float thisvp, thistaup;
     if (m->par_type==0){
         for (i=0;i<num_ele;i++){
-            M[i]=powf(M[i],2)*rho[i];
+            M[i]=powf(M[i],2)*rho[i]*m->dt/m->dh;
+        }
+    }
+    if (m->par_type==1){
+        for (i=0;i<num_ele;i++){
+            M[i]=M[i]*m->dt/m->dh;
         }
     }
     else if (m->par_type==2){
         for (i=0;i<num_ele;i++){
-            M[i]=powf(M[i]/rho[i],2)*rho[i];
+            M[i]=powf(M[i]/rho[i],2)*rho[i]*m->dt/m->dh;
         }
     }
     else if (m->par_type==3){
@@ -453,7 +528,7 @@ void M(void * mptr){
             
             thisvp=M[i]-taup[i];
             thistaup=taup[i]/(M[i]-taup[i]);
-            M[i]=powf(thisvp,2)*rho[i];
+            M[i]=powf(thisvp,2)*rho[i]*m->dt/m->dh;
             taup[i]=thistaup;
         }
         
@@ -483,14 +558,47 @@ void M(void * mptr){
         free(pts);
     }
     
+    __GUARD m->set_scalers( (void*) m);
+    int scaler;
+    variable * var;
+    var = get_var(mptr, "sxx");
+    if (var) scaler = var->scaler;
+    var = get_var(mptr, "syy");
+    if (var) scaler = var->scaler;
+    var = get_var(mptr, "szz");
+    if (var) scaler = var->scaler;
+
+    for (i=0;i<num_ele;i++){
+        M[i]*=powf(2,scaler);
+    }
+    
 }
+
+void rho(void * mptr){
+    
+    model * m = (model *) mptr;
+    float *rho = get_par(m->pars, m->npars, "rho");
+    int scaler;
+    variable * var;
+    var = get_var(mptr, "sxx");
+    if (var) scaler = var->scaler;
+    var = get_var(mptr, "sxz");
+    if (var) scaler = var->scaler;
+    
+    int i;
+    int num_ele = get_num_ele(m->pars, m->npars, "rho");
+    for (i=0;i<num_ele;i++){
+        rho[i]=1.0/rho[i]*m->dt/m->dh*powf(2,-scaler);
+    }
+}
+
 void rip(void * mptr){
     
     model * m = (model *) mptr;
     float *rho = get_par(m->pars, m->npars, "rho");
     float *rip = get_par(m->pars, m->npars, "rip");
     int dir[3]={0,0,1};
-    ave_arithmetic1(rho, rip, m->N, m->NDIM, dir);
+    ave_harmonic1(rho, rip, m->N, m->NDIM, dir);
 }
 void rjp(void * mptr){
     
@@ -498,7 +606,7 @@ void rjp(void * mptr){
     float *rho = get_par(m->pars, m->npars, "rho");
     float *rjp = get_par(m->pars, m->npars, "rjp");
     int dir[3]={0,1,0};
-    ave_arithmetic1(rho, rjp, m->N, m->NDIM, dir);
+    ave_harmonic1(rho, rjp, m->N, m->NDIM, dir);
 }
 void rkp(void * mptr){
     
@@ -506,7 +614,7 @@ void rkp(void * mptr){
     float *rho = get_par(m->pars, m->npars, "rho");
     float *rkp = get_par(m->pars, m->npars, "rkp");
     int dir[3]={1,0,0};
-    ave_arithmetic1(rho, rkp, m->N, m->NDIM, dir);
+    ave_harmonic1(rho, rkp, m->N, m->NDIM, dir);
 }
 void muipkp(void * mptr){
     
@@ -766,7 +874,7 @@ int check_stability( void *mptr){
     if (mu){
         num_ele = get_num_ele(m->pars, m->npars, "mu");
         for (i=0;i<num_ele;i++){
-            thisvs=sqrt(mu[i]/rho[i]);
+            thisvs=sqrt(mu[i]*rho[i])/m->dt*m->dh;
             if (vsmax<thisvs) vsmax=thisvs;
             if (vsmin>thisvs && thisvs>0.1) vsmin=thisvs;
         }
@@ -774,7 +882,7 @@ int check_stability( void *mptr){
     if (M){
         num_ele = get_num_ele(m->pars, m->npars, "M");
         for (i=0;i<num_ele;i++){
-            thisvp=sqrt(M[i]/rho[i]);
+            thisvp=sqrt(M[i]*rho[i])/m->dt*m->dh;
             if (vpmax<thisvp) vpmax=thisvp;
             if (vpmin>thisvp && thisvp>0.1) vpmin=thisvp;
         }
@@ -791,7 +899,7 @@ int check_stability( void *mptr){
     else{
         vmax=vpmax;
     }
-     
+    
     switch (m->FDORDER){
         case 2: g=12.0;
             break;
@@ -1161,9 +1269,9 @@ int assign_modeling_case(model * m){
         m->npars=9;
         GMALLOC(m->pars, sizeof(parameter)*m->npars);
         ind=0;
-        __GUARD append_par(m, &ind, "mu", "/mu", &mu);
         __GUARD append_par(m, &ind, "M", "/M", &M);
-        __GUARD append_par(m, &ind, "rho", "/rho", NULL);
+        __GUARD append_par(m, &ind, "mu", "/mu", &mu);
+        __GUARD append_par(m, &ind, "rho", "/rho", &rho);
         __GUARD append_par(m, &ind, "taup", "/taup", NULL);
         __GUARD append_par(m, &ind, "taus", "/taus", NULL);
         __GUARD append_par(m, &ind, "rip", NULL, &rip);
@@ -1238,9 +1346,9 @@ int assign_modeling_case(model * m){
         
         GMALLOC(m->pars, sizeof(parameter)*m->npars);
         ind=0;
-        __GUARD append_par(m, &ind, "mu", "/mu", &mu);
         __GUARD append_par(m, &ind, "M", "/M", &M);
-        __GUARD append_par(m, &ind, "rho", "/rho", NULL);
+        __GUARD append_par(m, &ind, "mu", "/mu", &mu);
+        __GUARD append_par(m, &ind, "rho", "/rho", &rho);
         __GUARD append_par(m, &ind, "rip", NULL, &rip);
         __GUARD append_par(m, &ind, "rkp", NULL, &rkp);
         __GUARD append_par(m, &ind, "muipkp", NULL, &muipkp);

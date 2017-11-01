@@ -551,10 +551,10 @@ extern "C" __global__ void update_v(int offcomm,
         float2 lrip = (rip(gidz,gidx));
         float2 lrkp = (rkp(gidz,gidx));
 
-        lvx.x += (sxx_x.x + sxz_z.x)*scalbnf(DTDH/lrip.x, -scaler_sxx);
-        lvx.y += (sxx_x.y + sxz_z.y)*scalbnf(DTDH/lrip.y, -scaler_sxx);
-        lvz.x += (szz_z.x + sxz_x.x)*scalbnf(DTDH/lrkp.x, -scaler_sxx);
-        lvz.y += (szz_z.y + sxz_x.y)*scalbnf(DTDH/lrkp.y, -scaler_sxx);
+        lvx.x += (sxx_x.x + sxz_z.x)*lrip.x;
+        lvx.y += (sxx_x.y + sxz_z.y)*lrip.y;
+        lvz.x += (szz_z.x + sxz_x.x)*lrkp.x;
+        lvz.y += (szz_z.y + sxz_x.y)*lrkp.y;
      
         
         // Absorbing boundary
