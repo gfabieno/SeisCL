@@ -89,27 +89,27 @@
 
 
 
-extern "C" __device__ ​ float2 add2( const float2 a, const float2 b ){
-    
-    float2 output;
-    output.x = a.x+b.x;
-    output.y = a.y+b.y;
-    return output;
-}
-extern "C" __device__ ​ float2 mul2( const float2 a, const float2 b ){
-    
-    float2 output;
-    output.x = a.x*b.x;
-    output.y = a.y*b.y;
-    return output;
-}
-extern "C" __device__ ​ float2 sub2( const float2 a, const float2 b ){
-    
-    float2 output;
-    output.x = a.x-b.x;
-    output.y = a.y-b.y;
-    return output;
-}
+//extern "C" __device__ ​ float2 add2( const float2 a, const float2 b ){
+//
+//    float2 output;
+//    output.x = a.x+b.x;
+//    output.y = a.y+b.y;
+//    return output;
+//}
+//extern "C" __device__ ​ float2 mul2( const float2 a, const float2 b ){
+//
+//    float2 output;
+//    output.x = a.x*b.x;
+//    output.y = a.y*b.y;
+//    return output;
+//}
+//extern "C" __device__ ​ float2 sub2( const float2 a, const float2 b ){
+//
+//    float2 output;
+//    output.x = a.x-b.x;
+//    output.y = a.y-b.y;
+//    return output;
+//}
 
 
 extern "C" __global__ void update_v(int offcomm,
@@ -201,12 +201,6 @@ extern "C" __global__ void update_v(int offcomm,
                       HC2*(__h2f(lsxx((2*lidz+1),lidx+2))-__h2f(lsxx((2*lidz+1),lidx-1)))+
                       HC3*(__h2f(lsxx((2*lidz+1),lidx+3))-__h2f(lsxx((2*lidz+1),lidx-2))));
 #elif FDOH ==4
-        
-        sxx_x =add2(add2(add2(
-               mul2(hc1, sub2(lsxx2(lidz,lidx+1), lsxx2(lidz,lidx))),
-               mul2(hc2, sub2(lsxx2(lidz,lidx+2), lsxx2(lidz,lidx-1)))),
-               mul2(hc3, sub2(lsxx2(lidz,lidx+3), lsxx2(lidz,lidx-2)))),
-               mul2(hc4, sub2(lsxx2(lidz,lidx+4), lsxx2(lidz,lidx-3))));
                        
         sxx_x.x =  (HC1*(__h2f(lsxx((2*lidz),lidx+1))-__h2f(lsxx((2*lidz),lidx)))+
                       HC2*(__h2f(lsxx((2*lidz),lidx+2))-__h2f(lsxx((2*lidz),lidx-1)))+
