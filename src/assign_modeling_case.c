@@ -791,7 +791,7 @@ int check_stability( void *mptr){
     else{
         vmax=vpmax;
     }
-    
+     
     switch (m->FDORDER){
         case 2: g=12.0;
             break;
