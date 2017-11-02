@@ -95,27 +95,20 @@ extern "C" __device__ float2 add2(float2 a, float2 b ){
     output.y = a.y+b.y;
     return output;
 }
-//extern "C" __device__ ​ float2 add2( float2 a, float2 b ){
-//
-//    float2 output;
-//    output.x = a.x+b.x;
-//    output.y = a.y+b.y;
-//    return output;
-//}
-//extern "C" __device__ ​ float2 mul2( const float2 a, const float2 b ){
-//
-//    float2 output;
-//    output.x = a.x*b.x;
-//    output.y = a.y*b.y;
-//    return output;
-//}
-//extern "C" __device__ ​ float2 sub2( const float2 a, const float2 b ){
-//
-//    float2 output;
-//    output.x = a.x-b.x;
-//    output.y = a.y-b.y;
-//    return output;
-//}
+extern "C" __device__ float2 mul2(float2 a, float2 b ){
+    
+    float2 output;
+    output.x = a.x*b.x;
+    output.y = a.y*b.y;
+    return output;
+}
+extern "C" __device__ float2 sub2(float2 a, float2 b ){
+    
+    float2 output;
+    output.x = a.x-b.x;
+    output.y = a.y-b.y;
+    return output;
+}
 
 
 extern "C" __global__ void update_v(int offcomm,
