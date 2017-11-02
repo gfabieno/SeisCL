@@ -88,7 +88,7 @@
 #endif
 
 
-extern "C" __global__ void update_v2(float a, int b ){
+extern "C" __global__ void update_v2(float2 a, float2 b ){
     
     float output;
 //    output.x = a.x+b.x;
