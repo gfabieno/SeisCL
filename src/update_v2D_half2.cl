@@ -704,8 +704,10 @@ extern "C" __device__ __prec2 __hp(__prec *a ){
 //{
 //
 extern "C" __global__ void update_v(int offcomm,
-                                    float2 *rip,     float2 *rkp,     __prec2 *sxx,     __prec2 *sxz,     __prec2 *szz,
-                                    __prec2 *vx,     __prec2 *vz, float *taper)
+                                    float2 *rip, float2 *rkp,__prec2 *sxx,__prec2 *sxz,__prec2 *szz,
+                                    __prec2 *vx,__prec2 *vz
+                                    )
+
 {
     //Local memory
     extern __shared__ __prec2 lvar2[];
@@ -768,11 +770,6 @@ extern "C" __global__ void update_v(int offcomm,
         szz_z1=add2(
                     mul2( f2h2(HC1), sub2(__h22f2(__hp(&lszz(2*lidz+1,lidx))), __h22f2(__hp(&lszz(2*lidz,lidx))))),
                     mul2( f2h2(HC2), sub2(__h22f2(__hp(&lszz(2*lidz+2,lidx))), __h22f2(__hp(&lszz(2*lidz-1,lidx))))));
-//        szz_z1.x =  (HC1*(__h2f(lszz((2*lidz)+1,lidx)) - __h2f(lszz((2*lidz),lidx)))
-//                    +HC2*(__h2f(lszz((2*lidz)+2,lidx)) - __h2f(lszz((2*lidz)-1,lidx))));
-//        szz_z1.y =  (HC1*(__h2f(lszz((2*lidz+1)+1,lidx)) - __h2f(lszz((2*lidz+1),lidx)))
-//                    +HC2*(__h2f(lszz((2*lidz+1)+2,lidx)) - __h2f(lszz((2*lidz+1)-1,lidx))));
-
 #elif FDOH == 3
         szz_z1=add2(add2(
                          mul2( f2h2(HC1), sub2(__h22f2(__hp(&lszz(2*lidz+1,lidx))), __h22f2(__hp(&lszz(2*lidz,lidx))))),
@@ -859,7 +856,6 @@ extern "C" __global__ void update_v(int offcomm,
         sxz_z2=add2(
                     mul2( f2h2(HC1), sub2(__h22f2(__hp(&lsxz(2*lidz,lidx))), __h22f2(__hp(&lsxz(2*lidz-1,lidx))))),
                     mul2( f2h2(HC2), sub2(__h22f2(__hp(&lsxz(2*lidz+1,lidx))), __h22f2(__hp(&lsxz(2*lidz-2,lidx))))));
-
 #elif FDOH == 3
         sxz_z2=add2(add2(
                          mul2( f2h2(HC1), sub2(__h22f2(__hp(&lsxz(2*lidz,lidx))), __h22f2(__hp(&lsxz(2*lidz-1,lidx))))),
