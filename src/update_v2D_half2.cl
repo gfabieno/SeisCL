@@ -641,7 +641,7 @@
 
 #if FP16!=2
 
-#define __hp *(float2 *)&
+#define __hp *(__prec2 *)&
 #define __cprec float2
 
 extern "C" __device__ float2 add2(float2 a, float2 b ){
