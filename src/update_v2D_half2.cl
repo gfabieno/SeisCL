@@ -88,7 +88,7 @@
 #endif
 
 
-extern "C" __device__ ​ float add2( float a, float b ){
+extern "C" __global__ ​float add2( float a, float b ){
     
     float output;
 //    output.x = a.x+b.x;
