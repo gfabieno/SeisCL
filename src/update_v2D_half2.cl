@@ -689,24 +689,24 @@ extern "C" __device__ __prec2 __hp(__prec *a ){
     return output;
 }
 
-extern "C" __global__ void update_v(int offcomm,
-                                    __prec2 *vx,      __prec2 *vz,
-                                    __prec2 *sxx,     __prec2 *szz,     __prec2 *sxz,
-                                    float2 *rip,     float2 *rkp,
-                                    float *taper,
-                                    float *K_z,        float *a_z,          float *b_z,
-                                    float *K_z_half,   float *a_z_half,     float *b_z_half,
-                                    float *K_x,        float *a_x,          float *b_x,
-                                    float *K_x_half,   float *a_x_half,     float *b_x_half,
-                                    __prec2 *psi_sxx_x,  __prec2 *psi_sxz_x,
-                                    __prec2 *psi_sxz_z,  __prec2 *psi_szz_z,
-                                    int scaler_sxx)
-{
-//
 //extern "C" __global__ void update_v(int offcomm,
-//                                    float2 *rip,     float2 *rkp,     __prec2 *sxx,     __prec2 *sxz,     __prec2 *szz,
-//                                    __prec2 *vx,     __prec2 *vz, float *taper)
+//                                    __prec2 *vx,      __prec2 *vz,
+//                                    __prec2 *sxx,     __prec2 *szz,     __prec2 *sxz,
+//                                    float2 *rip,     float2 *rkp,
+//                                    float *taper,
+//                                    float *K_z,        float *a_z,          float *b_z,
+//                                    float *K_z_half,   float *a_z_half,     float *b_z_half,
+//                                    float *K_x,        float *a_x,          float *b_x,
+//                                    float *K_x_half,   float *a_x_half,     float *b_x_half,
+//                                    __prec2 *psi_sxx_x,  __prec2 *psi_sxz_x,
+//                                    __prec2 *psi_sxz_z,  __prec2 *psi_szz_z,
+//                                    int scaler_sxx)
 //{
+//
+extern "C" __global__ void update_v(int offcomm,
+                                    float2 *rip,     float2 *rkp,     __prec2 *sxx,     __prec2 *sxz,     __prec2 *szz,
+                                    __prec2 *vx,     __prec2 *vz, float *taper)
+{
 
     extern __shared__ __prec2 lvar2[];
     __prec * lvar=(__prec *)lvar2;

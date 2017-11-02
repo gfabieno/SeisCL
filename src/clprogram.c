@@ -116,6 +116,22 @@ int set_args_list(const char *str, char *name, char *** argnames, int * ninputs)
     sprintf(del1,"__global__ void %s(", name);
     
     char * strbeg = strstr(str, del1);
+    char * strchk = strbeg;
+    int cmt=1;
+    while (cmt==1 && strbeg){
+        cmt=0;
+        while ( strchk !='\n' && cmt!=1 && strchk!=str){
+            if (*strchk=='/' && *(strchk-1)=='/'){
+                cmt=1;
+            }
+            strchk-=1;
+        }
+        if (cmt==1){
+            strbeg = strstr(strbeg+strlen(del1), del1);
+            strchk=strbeg;
+        }
+
+    }
     
     if (!strbeg){
         fprintf(stderr, "Could not extract kernel arguments of %s\n",name);
