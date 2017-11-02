@@ -931,43 +931,7 @@ extern "C" __global__ void update_v(int offcomm,
 #endif
 #endif
     
-    // Absorbing boundary
-#if ABS_TYPE==2
-    {
-        if (2*gidz-FDOH<NAB){
-            lvx.x*=taper[2*gidz-FDOH];
-            lvx.y*=taper[2*gidz+1-FDOH];
-            lvz.x*=taper[2*gidz-FDOH];
-            lvz.y*=taper[2*gidz+1-FDOH];
-        }
-        
-        if (2*gidz>2*NZ-NAB-FDOH-1){
-            lvx.x*=taper[2*NZ-FDOH-2*gidz-1];
-            lvx.y*=taper[2*NZ-FDOH-2*gidz-1-1];
-            lvz.x*=taper[2*NZ-FDOH-2*gidz-1];
-            lvz.y*=taper[2*NZ-FDOH-2*gidz-1-1];
-        }
-        
-#if DEVID==0 & MYLOCALID==0
-        if (gidx-FDOH<NAB){
-            lvx.x*=taper[gidx-FDOH];
-            lvx.y*=taper[gidx-FDOH];
-            lvz.x*=taper[gidx-FDOH];
-            lvz.y*=taper[gidx-FDOH];
-        }
-#endif
-        
-#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-        if (gidx>NX-NAB-FDOH-1){
-            lvx.x*=taper[NX-FDOH-gidx-1];
-            lvx.y*=taper[NX-FDOH-gidx-1];
-            lvz.x*=taper[NX-FDOH-gidx-1];
-            lvz.y*=taper[NX-FDOH-gidx-1];
-        }
-#endif
-    }
-#endif
-
+    
     // Update the variables
     lvx=add2(lvx,mul2(add2(sxx_x1,sxz_z2),lrip));
     lvz=add2(lvz,mul2(add2(szz_z1,sxz_x2),lrkp));
@@ -977,4 +941,3 @@ extern "C" __global__ void update_v(int offcomm,
     
     
 }
-

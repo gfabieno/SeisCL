@@ -666,50 +666,50 @@ extern "C" __global__ void update_s(int offcomm,
 #endif
     }
 
-    // Absorbing boundary
-#if ABS_TYPE==2
-    {
-        if (2*gidz-FDOH<NAB){
-            lsxx.x*=taper[2*gidz-FDOH];
-            lsxx.y*=taper[2*gidz+1-FDOH];
-            lszz.x*=taper[2*gidz-FDOH];
-            lszz.y*=taper[2*gidz+1-FDOH];
-            lsxz.x*=taper[2*gidz-FDOH];
-            lsxz.y*=taper[2*gidz+1-FDOH];
-        }
-        
-        if (2*gidz>2*NZ-NAB-FDOH-1){
-            lsxx.x*=taper[2*NZ-FDOH-2*gidz-1];
-            lsxx.y*=taper[2*NZ-FDOH-2*gidz-1-1];
-            lszz.x*=taper[2*NZ-FDOH-2*gidz-1];
-            lszz.y*=taper[2*NZ-FDOH-2*gidz-1-1];
-            lsxz.x*=taper[2*NZ-FDOH-2*gidz-1];
-            lsxz.y*=taper[2*NZ-FDOH-2*gidz-1-1];
-        }
-        
-#if DEVID==0 & MYLOCALID==0
-        if (gidx-FDOH<NAB){
-            lsxx.x*=taper[gidx-FDOH];
-            lsxx.y*=taper[gidx-FDOH];
-            lszz.x*=taper[gidx-FDOH];
-            lszz.y*=taper[gidx-FDOH];
-            lsxz.x*=taper[gidx-FDOH];
-            lsxz.y*=taper[gidx-FDOH];
-        }
-#endif
-        
-#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-        if (gidx>NX-NAB-FDOH-1){
-            lsxx.x*=taper[NX-FDOH-gidx-1];
-            lsxx.y*=taper[NX-FDOH-gidx-1];
-            lszz.x*=taper[NX-FDOH-gidx-1];
-            lszz.y*=taper[NX-FDOH-gidx-1];
-            lsxz.x*=taper[NX-FDOH-gidx-1];
-            lsxz.y*=taper[NX-FDOH-gidx-1];
-        }
-#endif
-    }
-#endif
+//    // Absorbing boundary
+//#if ABS_TYPE==2
+//    {
+//        if (2*gidz-FDOH<NAB){
+//            lsxx.x*=taper[2*gidz-FDOH];
+//            lsxx.y*=taper[2*gidz+1-FDOH];
+//            lszz.x*=taper[2*gidz-FDOH];
+//            lszz.y*=taper[2*gidz+1-FDOH];
+//            lsxz.x*=taper[2*gidz-FDOH];
+//            lsxz.y*=taper[2*gidz+1-FDOH];
+//        }
+//        
+//        if (2*gidz>2*NZ-NAB-FDOH-1){
+//            lsxx.x*=taper[2*NZ-FDOH-2*gidz-1];
+//            lsxx.y*=taper[2*NZ-FDOH-2*gidz-1-1];
+//            lszz.x*=taper[2*NZ-FDOH-2*gidz-1];
+//            lszz.y*=taper[2*NZ-FDOH-2*gidz-1-1];
+//            lsxz.x*=taper[2*NZ-FDOH-2*gidz-1];
+//            lsxz.y*=taper[2*NZ-FDOH-2*gidz-1-1];
+//        }
+//        
+//#if DEVID==0 & MYLOCALID==0
+//        if (gidx-FDOH<NAB){
+//            lsxx.x*=taper[gidx-FDOH];
+//            lsxx.y*=taper[gidx-FDOH];
+//            lszz.x*=taper[gidx-FDOH];
+//            lszz.y*=taper[gidx-FDOH];
+//            lsxz.x*=taper[gidx-FDOH];
+//            lsxz.y*=taper[gidx-FDOH];
+//        }
+//#endif
+//        
+//#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+//        if (gidx>NX-NAB-FDOH-1){
+//            lsxx.x*=taper[NX-FDOH-gidx-1];
+//            lsxx.y*=taper[NX-FDOH-gidx-1];
+//            lszz.x*=taper[NX-FDOH-gidx-1];
+//            lszz.y*=taper[NX-FDOH-gidx-1];
+//            lsxz.x*=taper[NX-FDOH-gidx-1];
+//            lsxz.y*=taper[NX-FDOH-gidx-1];
+//        }
+//#endif
+//    }
+//#endif
 
     sxz(gidz, gidx)=__f22h2(lsxz);
     sxx(gidz, gidx)=__f22h2(lsxx);
