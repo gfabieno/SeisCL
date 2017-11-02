@@ -120,7 +120,7 @@ int set_args_list(const char *str, char *name, char *** argnames, int * ninputs)
     int cmt=1;
     while (cmt==1 && strbeg){
         cmt=0;
-        while ( strchk !='\n' && cmt!=1 && strchk!=str){
+        while ( *strchk !='\n' && cmt!=1 && strchk!=str){
             if (*strchk=='/' && *(strchk-1)=='/'){
                 cmt=1;
             }
