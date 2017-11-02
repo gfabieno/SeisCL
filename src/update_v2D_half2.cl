@@ -88,12 +88,12 @@
 #endif
 
 
-extern "C" __global__ void update_v2(float2 a, float2 b ){
+extern "C" __device__ float2 update_v2(float2 a, float2 b ){
     
-    float output;
+    float2 output;
 //    output.x = a.x+b.x;
 //    output.y = a.y+b.y;
-//    return output;
+    return output;
 }
 //extern "C" __device__ ​ float2 add2( float2 a, float2 b ){
 //
