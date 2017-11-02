@@ -658,7 +658,7 @@
 #endif
 
 
-//#if local_off==0
+//#if LOCAL_OFF==0
 //#define lvar(z,x) lvar[(x)*2*lsizez+(z)]
 //#define lvar2(z,x) lvar2[(x)*lsizez+(z)]
 //#endif
@@ -797,7 +797,7 @@ extern "C" __global__ void update_v(int offcomm,
 
     //Calculation of the spatial derivatives
     {
-#if local_off==0
+#if LOCAL_OFF==0
         lsxx2(lidz,lidx)=sxx(gidz,gidx);
         if (lidx<2*FDOH)
             lsxx2(lidz,lidx-FDOH)=sxx(gidz,gidx-FDOH);
@@ -849,7 +849,7 @@ extern "C" __global__ void update_v(int offcomm,
 //                    mul2( f2h2(HC6), sub2(__h22f2(lsxx2(lidz,lidx+6)), __h22f2(lsxx2(lidz,lidx-5)))));
 //#endif
 
-#if local_off==0
+#if LOCAL_OFF==0
         __syncthreads();
         lsxz2(lidz,lidx)=sxz(gidz,gidx);
         if (lidz<FDOH)
@@ -944,7 +944,7 @@ extern "C" __global__ void update_v(int offcomm,
 //                    mul2( f2h2(HC6), sub2(__h22f2(__hp(&lsxz(2*lidz+5,lidx))), __h22f2(__hp(&lsxz(2*lidz-6,lidx))))));
 //#endif
 
-#if local_off==0
+#if LOCAL_OFF==0
         __syncthreads();
         lszz2(lidz,lidx)=szz(gidz,gidx);
         if (lidz<FDOH)
@@ -995,7 +995,7 @@ extern "C" __global__ void update_v(int offcomm,
 
     }
     // To stop updating if we are outside the model (global id must be amultiple of local id in OpenCL, hence we stop if we have a global idoutside the grid)
-//#if local_off==0
+//#if LOCAL_OFF==0
 //#if comm12==0
 //    if ( gidz>(NZ-FDOH/2-1) ||  (gidx-offcomm)>(NX-FDOH-1-LCOMM) )
 //        return;
