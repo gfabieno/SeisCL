@@ -598,7 +598,7 @@ void rip(void * mptr){
     float *rho = get_par(m->pars, m->npars, "rho");
     float *rip = get_par(m->pars, m->npars, "rip");
     int dir[3]={0,0,1};
-    ave_harmonic1(rho, rip, m->N, m->NDIM, dir);
+    ave_arithmetic1(rho, rip, m->N, m->NDIM, dir);
 }
 void rjp(void * mptr){
     
@@ -606,7 +606,7 @@ void rjp(void * mptr){
     float *rho = get_par(m->pars, m->npars, "rho");
     float *rjp = get_par(m->pars, m->npars, "rjp");
     int dir[3]={0,1,0};
-    ave_harmonic1(rho, rjp, m->N, m->NDIM, dir);
+    ave_arithmetic1(rho, rjp, m->N, m->NDIM, dir);
 }
 void rkp(void * mptr){
     
@@ -614,7 +614,7 @@ void rkp(void * mptr){
     float *rho = get_par(m->pars, m->npars, "rho");
     float *rkp = get_par(m->pars, m->npars, "rkp");
     int dir[3]={1,0,0};
-    ave_harmonic1(rho, rkp, m->N, m->NDIM, dir);
+    ave_arithmetic1(rho, rkp, m->N, m->NDIM, dir);
 }
 void muipkp(void * mptr){
     
