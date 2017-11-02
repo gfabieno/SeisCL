@@ -594,53 +594,23 @@
 //}
 
 //Define useful macros to be able to write a matrix formulation in 2D with OpenCl
-#define lbnd (FDOH+NAB)
+#define rip(z,x) rip[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH/2)]
+#define rkp(z,x) rkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH/2)]
+#define muipkp(z,x) muipkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH/2)]
+#define M(z,x) M[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH/2)]
+#define mu(z,x) mu[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH/2)]
 
-#define rho(z,x)    rho[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
-#define rip(z,x)    rip[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
-#define rjp(z,x)    rjp[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
-#define rkp(z,x)    rkp[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
-#define muipkp(z,x) muipkp[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
-#define mu(z,x)        mu[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
-#define M(z,x)      M[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
-#define gradrho(z,x)  gradrho[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
-#define gradM(z,x)  gradM[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
-#define gradmu(z,x)  gradmu[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
-#define gradtaup(z,x)  gradtaup[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
-#define gradtaus(z,x)  gradtaus[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
-
-#define taus(z,x)        taus[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
-#define tausipkp(z,x) tausipkp[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
-#define taup(z,x)        taup[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
-
-#define vx(z,x)  vx[(x)*(NZ)+(z)]
-#define vy(z,x)  vy[(x)*(NZ)+(z)]
-#define vz(z,x)  vz[(x)*(NZ)+(z)]
-#define sxx(z,x) sxx[(x)*(NZ)+(z)]
-#define szz(z,x) szz[(x)*(NZ)+(z)]
-#define sxz(z,x) sxz[(x)*(NZ)+(z)]
-#define sxy(z,x) sxy[(x)*(NZ)+(z)]
-#define syz(z,x) syz[(x)*(NZ)+(z)]
-
-#define rxx(z,x,l) rxx[(l)*NX*NZ+(x)*NZ+(z)]
-#define rzz(z,x,l) rzz[(l)*NX*NZ+(x)*NZ+(z)]
-#define rxz(z,x,l) rxz[(l)*NX*NZ+(x)*NZ+(z)]
-#define rxy(z,x,l) rxy[(l)*NX*NZ+(x)*NZ+(z)]
-#define ryz(z,x,l) ryz[(l)*NX*NZ+(x)*NZ+(z)]
-
-#define psi_sxx_x(z,x) psi_sxx_x[(x)*(NZ-FDOH/2)+(z)]
-#define psi_sxz_x(z,x) psi_sxz_x[(x)*(NZ-FDOH/2)+(z)]
-#define psi_sxz_z(z,x) psi_sxz_z[(x)*(NAB)+(z)]
-#define psi_szz_z(z,x) psi_szz_z[(x)*(NAB)+(z)]
-#define psi_sxy_x(z,x) psi_sxy_x[(x)*(NZ-FDOH/2)+(z)]
-#define psi_syz_z(z,x) psi_syz_z[(x)*(NAB)+(z)]
+#define sxx(z,x) sxx[(x)*NZ+(z)]
+#define sxz(z,x) sxz[(x)*NZ+(z)]
+#define szz(z,x) szz[(x)*NZ+(z)]
+#define vx(z,x) vx[(x)*NZ+(z)]
+#define vz(z,x) vz[(x)*NZ+(z)]
 
 #if LOCAL_OFF==0
-
-#define lvar2(z,x)  lvar2[(x)*lsizez+(z)]
-#define lvar(z,x)  lvar[(x)*lsizez*2+(z)]
-
+#define lvar(z,x) lvar[(x)*2*lsizez+(z)]
+#define lvar2(z,x) lvar2[(x)*lsizez+(z)]
 #endif
+
 
 
 #if FP16==1
@@ -648,39 +618,74 @@
 #define __h2f(x) __half2float((x))
 #define __h22f2(x) __half22float2((x))
 #define __f22h2(x) __float22half2_rn((x))
-#define __prec half
-#define __prec2 half2
 
 #else
 
 #define __h2f(x) (x)
 #define __h22f2(x) (x)
 #define __f22h2(x) (x)
+
+#endif
+
+#if FP16==0
+
 #define __prec float
 #define __prec2 float2
+
+#else
+
+#define __prec half
+#define __prec2 half2
 
 #endif
 
 
-extern "C" __device__ float2 add2(float2 a, float2 b ){
+#if FP16!=2
 
+#define __cprec float2
+
+extern "C" __device__ float2 add2(float2 a, float2 b ){
+    
     float2 output;
     output.x = a.x+b.x;
     output.y = a.y+b.y;
     return output;
 }
 extern "C" __device__ float2 mul2(float2 a, float2 b ){
-
+    
     float2 output;
     output.x = a.x*b.x;
     output.y = a.y*b.y;
     return output;
 }
 extern "C" __device__ float2 sub2(float2 a, float2 b ){
-
+    
     float2 output;
     output.x = a.x-b.x;
     output.y = a.y-b.y;
+    return output;
+}
+extern "C" __device__ float2 f2h2(float a){
+    
+    float2 output={a,a};
+    return output;
+}
+
+#else
+
+#define __cprec half2
+#define add2 __hadd2
+#define mul2 __hmul2
+#define sub2 __hsub2
+#define f2h2 __float2half2_rn
+
+#endif
+
+extern "C" __device__ __prec2 __hp(__prec *a ){
+    
+    __prec2 output;
+    *(__prec *) (&output) = *a;
+    *(__prec *) (&output+1) = *(a+1);
     return output;
 }
 
