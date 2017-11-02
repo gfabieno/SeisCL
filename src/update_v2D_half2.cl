@@ -671,6 +671,7 @@ extern "C" __device__ float2 f2h2(float a){
 }
 
 #else
+
 #define __cprec half2
 #define add2 __hadd2
 #define mul2 __hmul2
@@ -686,6 +687,7 @@ extern "C" __device__ __prec2 __hp(__prec *a ){
     *(__prec *) (&output+1) = *(a+1);
     return output;
 }
+
 
 
 extern "C" __global__ void update_v(int offcomm,
@@ -741,51 +743,6 @@ extern "C" __global__ void update_v(int offcomm,
     //Calculation of the spatial derivatives
     {
 #if local_off==0
-        __syncthreads();
-        lszz2(lidz,lidx)=szz(gidz,gidx);
-        if (lidz<FDOH)
-            lszz2(lidz-FDOH/2,lidx)=szz(gidz-FDOH/2,gidx);
-        if (lidz>(lsizez-FDOH-1))
-            lszz2(lidz+FDOH/2,lidx)=szz(gidz+FDOH/2,gidx);
-        __syncthreads();
-#endif
-        
-#if   FDOH == 1
-        szz_z1=mul2( f2h2(HC1), sub2(__h22f2(__hp lszz(2*lidz+1,lidx)), __h22f2(__hp lszz(2*lidz,lidx))));
-#elif FDOH == 2
-        szz_z1=add2(
-                    mul2( f2h2(HC1), sub2(__h22f2(__hp(&lszz(2*lidz+1,lidx))), __h22f2(__hp(&lszz(2*lidz,lidx))))),
-                    mul2( f2h2(HC2), sub2(__h22f2(__hp(&lszz(2*lidz+2,lidx))), __h22f2(__hp(&lszz(2*lidz-1,lidx))))));
-#elif FDOH == 3
-        szz_z1=add2(add2(
-                         mul2( f2h2(HC1), sub2(__h22f2(__hp(&lszz(2*lidz+1,lidx))), __h22f2(__hp(&lszz(2*lidz,lidx))))),
-                         mul2( f2h2(HC2), sub2(__h22f2(__hp(&lszz(2*lidz+2,lidx))), __h22f2(__hp(&lszz(2*lidz-1,lidx)))))),
-                    mul2( f2h2(HC3), sub2(__h22f2(__hp(&lszz(2*lidz+3,lidx))), __h22f2(__hp(&lszz(2*lidz-2,lidx))))));
-#elif FDOH == 4
-        szz_z1=add2(add2(add2(
-                              mul2( f2h2(HC1), sub2(__h22f2(__hp lszz(2*lidz+1,lidx)), __h22f2(__hp lszz(2*lidz,lidx)))),
-                              mul2( f2h2(HC2), sub2(__h22f2(__hp lszz(2*lidz+2,lidx)), __h22f2(__hp lszz(2*lidz-1,lidx))))),
-                         mul2( f2h2(HC3), sub2(__h22f2(__hp lszz(2*lidz+3,lidx)), __h22f2(__hp lszz(2*lidz-2,lidx))))),
-                    mul2( f2h2(HC4), sub2(__h22f2(__hp lszz(2*lidz+4,lidx)), __h22f2(__hp lszz(2*lidz-3,lidx)))));
-#elif FDOH == 5
-        szz_z1=add2(add2(add2(add2(
-                                   mul2( f2h2(HC1), sub2(__h22f2(__hp lszz(2*lidz+1,lidx)), __h22f2(__hp lszz(2*lidz,lidx)))),
-                                   mul2( f2h2(HC2), sub2(__h22f2(__hp lszz(2*lidz+2,lidx)), __h22f2(__hp lszz(2*lidz-1,lidx))))),
-                              mul2( f2h2(HC3), sub2(__h22f2(__hp lszz(2*lidz+3,lidx)), __h22f2(__hp lszz(2*lidz-2,lidx))))),
-                         mul2( f2h2(HC4), sub2(__h22f2(__hp lszz(2*lidz+4,lidx)), __h22f2(__hp lszz(2*lidz-3,lidx))))),
-                    mul2( f2h2(HC5), sub2(__h22f2(__hp lszz(2*lidz+5,lidx)), __h22f2(__hp lszz(2*lidz-4,lidx)))));
-#elif FDOH == 6
-        szz_z1=add2(add2(add2(add2(add2(
-                                        mul2( f2h2(HC1), sub2(__h22f2(__hp lszz(2*lidz+1,lidx)), __h22f2(__hp lszz(2*lidz,lidx)))),
-                                        mul2( f2h2(HC2), sub2(__h22f2(__hp lszz(2*lidz+2,lidx)), __h22f2(__hp lszz(2*lidz-1,lidx))))),
-                                   mul2( f2h2(HC3), sub2(__h22f2(__hp lszz(2*lidz+3,lidx)), __h22f2(__hp lszz(2*lidz-2,lidx))))),
-                              mul2( f2h2(HC4), sub2(__h22f2(__hp lszz(2*lidz+4,lidx)), __h22f2(__hp lszz(2*lidz-3,lidx))))),
-                         mul2( f2h2(HC5), sub2(__h22f2(__hp lszz(2*lidz+5,lidx)), __h22f2(__hp lszz(2*lidz-4,lidx))))),
-                    mul2( f2h2(HC6), sub2(__h22f2(__hp lszz(2*lidz+6,lidx)), __h22f2(__hp lszz(2*lidz-5,lidx)))));
-#endif
-        
-#if local_off==0
-        __syncthreads();
         lsxx2(lidz,lidx)=sxx(gidz,gidx);
         if (lidx<2*FDOH)
             lsxx2(lidz,lidx-FDOH)=sxx(gidz,gidx-FDOH);
@@ -885,37 +842,81 @@ extern "C" __global__ void update_v(int offcomm,
 #endif
         
 #if   FDOH == 1
-        sxz_z2=mul2( f2h2(HC1), sub2(__h22f2(__hp lsxz(2*lidz,lidx)), __h22f2(__hp lsxz(2*lidz-1,lidx))));
+        sxz_z2=mul2( f2h2(HC1), sub2(__h22f2(__hp(&lsxz(2*lidz,lidx))), __h22f2(__hp(&lsxz(2*lidz-1,lidx)))));
 #elif FDOH == 2
         sxz_z2=add2(
                     mul2( f2h2(HC1), sub2(__h22f2(__hp(&lsxz(2*lidz,lidx))), __h22f2(__hp(&lsxz(2*lidz-1,lidx))))),
                     mul2( f2h2(HC2), sub2(__h22f2(__hp(&lsxz(2*lidz+1,lidx))), __h22f2(__hp(&lsxz(2*lidz-2,lidx))))));
 #elif FDOH == 3
         sxz_z2=add2(add2(
-                         mul2( f2h2(HC1), sub2(__h22f2(__hp lsxz(2*lidz,lidx)), __h22f2(__hp lsxz(2*lidz-1,lidx)))),
-                         mul2( f2h2(HC2), sub2(__h22f2(__hp lsxz(2*lidz+1,lidx)), __h22f2(__hp lsxz(2*lidz-2,lidx))))),
-                    mul2( f2h2(HC3), sub2(__h22f2(__hp lsxz(2*lidz+2,lidx)), __h22f2(__hp lsxz(2*lidz-3,lidx)))));
+                         mul2( f2h2(HC1), sub2(__h22f2(__hp(&lsxz(2*lidz,lidx))), __h22f2(__hp(&lsxz(2*lidz-1,lidx))))),
+                         mul2( f2h2(HC2), sub2(__h22f2(__hp(&lsxz(2*lidz+1,lidx))), __h22f2(__hp(&lsxz(2*lidz-2,lidx)))))),
+                    mul2( f2h2(HC3), sub2(__h22f2(__hp(&lsxz(2*lidz+2,lidx))), __h22f2(__hp(&lsxz(2*lidz-3,lidx))))));
 #elif FDOH == 4
         sxz_z2=add2(add2(add2(
-                              mul2( f2h2(HC1), sub2(__h22f2(__hp lsxz(2*lidz,lidx)), __h22f2(__hp lsxz(2*lidz-1,lidx)))),
-                              mul2( f2h2(HC2), sub2(__h22f2(__hp lsxz(2*lidz+1,lidx)), __h22f2(__hp lsxz(2*lidz-2,lidx))))),
-                         mul2( f2h2(HC3), sub2(__h22f2(__hp lsxz(2*lidz+2,lidx)), __h22f2(__hp lsxz(2*lidz-3,lidx))))),
-                    mul2( f2h2(HC4), sub2(__h22f2(__hp lsxz(2*lidz+3,lidx)), __h22f2(__hp lsxz(2*lidz-4,lidx)))));
+                              mul2( f2h2(HC1), sub2(__h22f2(__hp(&lsxz(2*lidz,lidx))), __h22f2(__hp(&lsxz(2*lidz-1,lidx))))),
+                              mul2( f2h2(HC2), sub2(__h22f2(__hp(&lsxz(2*lidz+1,lidx))), __h22f2(__hp(&lsxz(2*lidz-2,lidx)))))),
+                         mul2( f2h2(HC3), sub2(__h22f2(__hp(&lsxz(2*lidz+2,lidx))), __h22f2(__hp(&lsxz(2*lidz-3,lidx)))))),
+                    mul2( f2h2(HC4), sub2(__h22f2(__hp(&lsxz(2*lidz+3,lidx))), __h22f2(__hp(&lsxz(2*lidz-4,lidx))))));
 #elif FDOH == 5
         sxz_z2=add2(add2(add2(add2(
-                                   mul2( f2h2(HC1), sub2(__h22f2(__hp lsxz(2*lidz,lidx)), __h22f2(__hp lsxz(2*lidz-1,lidx)))),
-                                   mul2( f2h2(HC2), sub2(__h22f2(__hp lsxz(2*lidz+1,lidx)), __h22f2(__hp lsxz(2*lidz-2,lidx))))),
-                              mul2( f2h2(HC3), sub2(__h22f2(__hp lsxz(2*lidz+2,lidx)), __h22f2(__hp lsxz(2*lidz-3,lidx))))),
-                         mul2( f2h2(HC4), sub2(__h22f2(__hp lsxz(2*lidz+3,lidx)), __h22f2(__hp lsxz(2*lidz-4,lidx))))),
-                    mul2( f2h2(HC5), sub2(__h22f2(__hp lsxz(2*lidz+4,lidx)), __h22f2(__hp lsxz(2*lidz-5,lidx)))));
+                                   mul2( f2h2(HC1), sub2(__h22f2(__hp(&lsxz(2*lidz,lidx))), __h22f2(__hp(&lsxz(2*lidz-1,lidx))))),
+                                   mul2( f2h2(HC2), sub2(__h22f2(__hp(&lsxz(2*lidz+1,lidx))), __h22f2(__hp(&lsxz(2*lidz-2,lidx)))))),
+                              mul2( f2h2(HC3), sub2(__h22f2(__hp(&lsxz(2*lidz+2,lidx))), __h22f2(__hp(&lsxz(2*lidz-3,lidx)))))),
+                         mul2( f2h2(HC4), sub2(__h22f2(__hp(&lsxz(2*lidz+3,lidx))), __h22f2(__hp(&lsxz(2*lidz-4,lidx)))))),
+                    mul2( f2h2(HC5), sub2(__h22f2(__hp(&lsxz(2*lidz+4,lidx))), __h22f2(__hp(&lsxz(2*lidz-5,lidx))))));
 #elif FDOH == 6
         sxz_z2=add2(add2(add2(add2(add2(
-                                        mul2( f2h2(HC1), sub2(__h22f2(__hp lsxz(2*lidz,lidx)), __h22f2(__hp lsxz(2*lidz-1,lidx)))),
-                                        mul2( f2h2(HC2), sub2(__h22f2(__hp lsxz(2*lidz+1,lidx)), __h22f2(__hp lsxz(2*lidz-2,lidx))))),
-                                   mul2( f2h2(HC3), sub2(__h22f2(__hp lsxz(2*lidz+2,lidx)), __h22f2(__hp lsxz(2*lidz-3,lidx))))),
-                              mul2( f2h2(HC4), sub2(__h22f2(__hp lsxz(2*lidz+3,lidx)), __h22f2(__hp lsxz(2*lidz-4,lidx))))),
-                         mul2( f2h2(HC5), sub2(__h22f2(__hp lsxz(2*lidz+4,lidx)), __h22f2(__hp lsxz(2*lidz-5,lidx))))),
-                    mul2( f2h2(HC6), sub2(__h22f2(__hp lsxz(2*lidz+5,lidx)), __h22f2(__hp lsxz(2*lidz-6,lidx)))));
+                                        mul2( f2h2(HC1), sub2(__h22f2(__hp(&lsxz(2*lidz,lidx))), __h22f2(__hp(&lsxz(2*lidz-1,lidx))))),
+                                        mul2( f2h2(HC2), sub2(__h22f2(__hp(&lsxz(2*lidz+1,lidx))), __h22f2(__hp(&lsxz(2*lidz-2,lidx)))))),
+                                   mul2( f2h2(HC3), sub2(__h22f2(__hp(&lsxz(2*lidz+2,lidx))), __h22f2(__hp(&lsxz(2*lidz-3,lidx)))))),
+                              mul2( f2h2(HC4), sub2(__h22f2(__hp(&lsxz(2*lidz+3,lidx))), __h22f2(__hp(&lsxz(2*lidz-4,lidx)))))),
+                         mul2( f2h2(HC5), sub2(__h22f2(__hp(&lsxz(2*lidz+4,lidx))), __h22f2(__hp(&lsxz(2*lidz-5,lidx)))))),
+                    mul2( f2h2(HC6), sub2(__h22f2(__hp(&lsxz(2*lidz+5,lidx))), __h22f2(__hp(&lsxz(2*lidz-6,lidx))))));
+#endif
+        
+#if local_off==0
+        __syncthreads();
+        lszz2(lidz,lidx)=szz(gidz,gidx);
+        if (lidz<FDOH)
+            lszz2(lidz-FDOH/2,lidx)=szz(gidz-FDOH/2,gidx);
+        if (lidz>(lsizez-FDOH-1))
+            lszz2(lidz+FDOH/2,lidx)=szz(gidz+FDOH/2,gidx);
+        __syncthreads();
+#endif
+        
+#if   FDOH == 1
+        szz_z1=mul2( f2h2(HC1), sub2(__h22f2(__hp(&lszz(2*lidz+1,lidx))), __h22f2(__hp(&lszz(2*lidz,lidx)))));
+#elif FDOH == 2
+        szz_z1=add2(
+                    mul2( f2h2(HC1), sub2(__h22f2(__hp(&lszz(2*lidz+1,lidx))), __h22f2(__hp(&lszz(2*lidz,lidx))))),
+                    mul2( f2h2(HC2), sub2(__h22f2(__hp(&lszz(2*lidz+2,lidx))), __h22f2(__hp(&lszz(2*lidz-1,lidx))))));
+#elif FDOH == 3
+        szz_z1=add2(add2(
+                         mul2( f2h2(HC1), sub2(__h22f2(__hp(&lszz(2*lidz+1,lidx))), __h22f2(__hp(&lszz(2*lidz,lidx))))),
+                         mul2( f2h2(HC2), sub2(__h22f2(__hp(&lszz(2*lidz+2,lidx))), __h22f2(__hp(&lszz(2*lidz-1,lidx)))))),
+                    mul2( f2h2(HC3), sub2(__h22f2(__hp(&lszz(2*lidz+3,lidx))), __h22f2(__hp(&lszz(2*lidz-2,lidx))))));
+#elif FDOH == 4
+        szz_z1=add2(add2(add2(
+                              mul2( f2h2(HC1), sub2(__h22f2(__hp(&lszz(2*lidz+1,lidx))), __h22f2(__hp(&lszz(2*lidz,lidx))))),
+                              mul2( f2h2(HC2), sub2(__h22f2(__hp(&lszz(2*lidz+2,lidx))), __h22f2(__hp(&lszz(2*lidz-1,lidx)))))),
+                         mul2( f2h2(HC3), sub2(__h22f2(__hp(&lszz(2*lidz+3,lidx))), __h22f2(__hp(&lszz(2*lidz-2,lidx)))))),
+                    mul2( f2h2(HC4), sub2(__h22f2(__hp(&lszz(2*lidz+4,lidx))), __h22f2(__hp(&lszz(2*lidz-3,lidx))))));
+#elif FDOH == 5
+        szz_z1=add2(add2(add2(add2(
+                                   mul2( f2h2(HC1), sub2(__h22f2(__hp(&lszz(2*lidz+1,lidx))), __h22f2(__hp(&lszz(2*lidz,lidx))))),
+                                   mul2( f2h2(HC2), sub2(__h22f2(__hp(&lszz(2*lidz+2,lidx))), __h22f2(__hp(&lszz(2*lidz-1,lidx)))))),
+                              mul2( f2h2(HC3), sub2(__h22f2(__hp(&lszz(2*lidz+3,lidx))), __h22f2(__hp(&lszz(2*lidz-2,lidx)))))),
+                         mul2( f2h2(HC4), sub2(__h22f2(__hp(&lszz(2*lidz+4,lidx))), __h22f2(__hp(&lszz(2*lidz-3,lidx)))))),
+                    mul2( f2h2(HC5), sub2(__h22f2(__hp(&lszz(2*lidz+5,lidx))), __h22f2(__hp(&lszz(2*lidz-4,lidx))))));
+#elif FDOH == 6
+        szz_z1=add2(add2(add2(add2(add2(
+                                        mul2( f2h2(HC1), sub2(__h22f2(__hp(&lszz(2*lidz+1,lidx))), __h22f2(__hp(&lszz(2*lidz,lidx))))),
+                                        mul2( f2h2(HC2), sub2(__h22f2(__hp(&lszz(2*lidz+2,lidx))), __h22f2(__hp(&lszz(2*lidz-1,lidx)))))),
+                                   mul2( f2h2(HC3), sub2(__h22f2(__hp(&lszz(2*lidz+3,lidx))), __h22f2(__hp(&lszz(2*lidz-2,lidx)))))),
+                              mul2( f2h2(HC4), sub2(__h22f2(__hp(&lszz(2*lidz+4,lidx))), __h22f2(__hp(&lszz(2*lidz-3,lidx)))))),
+                         mul2( f2h2(HC5), sub2(__h22f2(__hp(&lszz(2*lidz+5,lidx))), __h22f2(__hp(&lszz(2*lidz-4,lidx)))))),
+                    mul2( f2h2(HC6), sub2(__h22f2(__hp(&lszz(2*lidz+6,lidx))), __h22f2(__hp(&lszz(2*lidz-5,lidx))))));
 #endif
         
     }
