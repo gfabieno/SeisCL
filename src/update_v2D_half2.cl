@@ -89,13 +89,13 @@
 
 
 
-//extern "C" __device__ ​ float2 add2( const float2 a, const float2 b ){
-//
-//    float2 output;
-//    output.x = a.x+b.x;
-//    output.y = a.y+b.y;
-//    return output;
-//}
+extern "C" __device__ ​ float2 add2( const float2 a, const float2 b ){
+
+    float2 output;
+    output.x = a.x+b.x;
+    output.y = a.y+b.y;
+    return output;
+}
 //extern "C" __device__ ​ float2 mul2( const float2 a, const float2 b ){
 //
 //    float2 output;
