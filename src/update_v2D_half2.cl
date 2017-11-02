@@ -593,17 +593,44 @@
 //
 //}
 
-#define rip(z,x) rip[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH/2)]
-#define rkp(z,x) rkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH/2)]
-#define muipkp(z,x) muipkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH/2)]
-#define M(z,x) M[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH/2)]
-#define mu(z,x) mu[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH/2)]
+//#define rip(z,x) rip[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH/2)]
+//#define rkp(z,x) rkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH/2)]
+//#define muipkp(z,x) muipkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH/2)]
+//#define M(z,x) M[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH/2)]
+//#define mu(z,x) mu[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH/2)]
+//
+//#define sxx(z,x) sxx[(x)*NZ+(z)]
+//#define sxz(z,x) sxz[(x)*NZ+(z)]
+//#define szz(z,x) szz[(x)*NZ+(z)]
+//#define vx(z,x) vx[(x)*NZ+(z)]
+//#define vz(z,x) vz[(x)*NZ+(z)]
 
-#define sxx(z,x) sxx[(x)*NZ+(z)]
-#define sxz(z,x) sxz[(x)*NZ+(z)]
-#define szz(z,x) szz[(x)*NZ+(z)]
-#define vx(z,x) vx[(x)*NZ+(z)]
-#define vz(z,x) vz[(x)*NZ+(z)]
+#define rho(z,x)    rho[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define rip(z,x)    rip[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define rjp(z,x)    rjp[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define rkp(z,x)    rkp[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define muipkp(z,x) muipkp[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define mu(z,x)        mu[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define M(z,x)      M[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define gradrho(z,x)  gradrho[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define gradM(z,x)  gradM[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define gradmu(z,x)  gradmu[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define gradtaup(z,x)  gradtaup[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define gradtaus(z,x)  gradtaus[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+
+#define taus(z,x)        taus[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define tausipkp(z,x) tausipkp[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define taup(z,x)        taup[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+
+#define vx(z,x)  vx[(x)*(NZ)+(z)]
+#define vy(z,x)  vy[(x)*(NZ)+(z)]
+#define vz(z,x)  vz[(x)*(NZ)+(z)]
+#define sxx(z,x) sxx[(x)*(NZ)+(z)]
+#define szz(z,x) szz[(x)*(NZ)+(z)]
+#define sxz(z,x) sxz[(x)*(NZ)+(z)]
+#define sxy(z,x) sxy[(x)*(NZ)+(z)]
+#define syz(z,x) syz[(x)*(NZ)+(z)]
+
 
 #if local_off==0
 #define lvar(z,x) lvar[(x)*2*lsizez+(z)]
