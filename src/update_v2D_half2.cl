@@ -89,7 +89,7 @@
 
 
 
-extern "C" __device__ ​ float2 add2( float2 a, float2 b ){
+__device__ ​ float2 add2( float2 a, float2 b ){
 
     float2 output;
     output.x = a.x+b.x;
