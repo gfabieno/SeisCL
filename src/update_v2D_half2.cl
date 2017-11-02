@@ -695,51 +695,51 @@
 //#if FP16!=2
 //
 //#define __cprec float2
-
-extern "C" __device__ float2 add2(float2 a, float2 b ){
-
-    float2 output;
-    output.x = a.x+b.x;
-    output.y = a.y+b.y;
-    return output;
-}
-extern "C" __device__ float2 mul2(float2 a, float2 b ){
-
-    float2 output;
-    output.x = a.x*b.x;
-    output.y = a.y*b.y;
-    return output;
-}
-extern "C" __device__ float2 sub2(float2 a, float2 b ){
-
-    float2 output;
-    output.x = a.x-b.x;
-    output.y = a.y-b.y;
-    return output;
-}
-extern "C" __device__ float2 f2h2(float a){
-
-    float2 output={a,a};
-    return output;
-}
-
-#else
-
-#define __cprec half2
-#define add2 __hadd2
-#define mul2 __hmul2
-#define sub2 __hsub2
-#define f2h2 __float2half2_rn
-
-#endif
-
-extern "C" __device__ __prec2 __hp(__prec *a ){
-
-    __prec2 output;
-    *(__prec *) (&output) = *a;
-    *(__prec *) (&output+1) = *(a+1);
-    return output;
-}
+//
+//extern "C" __device__ float2 add2(float2 a, float2 b ){
+//
+//    float2 output;
+//    output.x = a.x+b.x;
+//    output.y = a.y+b.y;
+//    return output;
+//}
+//extern "C" __device__ float2 mul2(float2 a, float2 b ){
+//
+//    float2 output;
+//    output.x = a.x*b.x;
+//    output.y = a.y*b.y;
+//    return output;
+//}
+//extern "C" __device__ float2 sub2(float2 a, float2 b ){
+//
+//    float2 output;
+//    output.x = a.x-b.x;
+//    output.y = a.y-b.y;
+//    return output;
+//}
+//extern "C" __device__ float2 f2h2(float a){
+//
+//    float2 output={a,a};
+//    return output;
+//}
+//
+//#else
+//
+//#define __cprec half2
+//#define add2 __hadd2
+//#define mul2 __hmul2
+//#define sub2 __hsub2
+//#define f2h2 __float2half2_rn
+//
+//#endif
+//
+//extern "C" __device__ __prec2 __hp(__prec *a ){
+//
+//    __prec2 output;
+//    *(__prec *) (&output) = *a;
+//    *(__prec *) (&output+1) = *(a+1);
+//    return output;
+//}
 
 
 
