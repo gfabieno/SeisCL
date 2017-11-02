@@ -977,7 +977,7 @@ int set_scalers( void *mptr){
         }
     }
 
-    scaler = -log2(Mmax*m->dt/m->dh*100);
+    scaler = -log2(Mmax*100);
     
     variable * var;
 //    if (m->FP16>0){

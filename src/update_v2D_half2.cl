@@ -201,7 +201,7 @@ extern "C" __global__ void update_v(int offcomm,
                       HC2*(__h2f(lsxx((2*lidz+1),lidx+2))-__h2f(lsxx((2*lidz+1),lidx-1)))+
                       HC3*(__h2f(lsxx((2*lidz+1),lidx+3))-__h2f(lsxx((2*lidz+1),lidx-2))));
 #elif FDOH ==4
-                       
+        
         sxx_x.x =  (HC1*(__h2f(lsxx((2*lidz),lidx+1))-__h2f(lsxx((2*lidz),lidx)))+
                       HC2*(__h2f(lsxx((2*lidz),lidx+2))-__h2f(lsxx((2*lidz),lidx-1)))+
                       HC3*(__h2f(lsxx((2*lidz),lidx+3))-__h2f(lsxx((2*lidz),lidx-2)))+
