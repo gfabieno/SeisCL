@@ -679,7 +679,7 @@ extern "C" __device__ float2 sub2(float2 a, float2 b ){
 
 
 
-extern "C" __device__ (int offcomm,
+extern "C" __global__ void update_v(int offcomm,
                        float2 *rip, float2 *rkp,__prec *sxx,__prec *sxz,__prec *szz,
                        __prec *vx,__prec *vz
                        )
