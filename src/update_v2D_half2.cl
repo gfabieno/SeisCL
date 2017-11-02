@@ -665,6 +665,11 @@ extern "C" __device__ float2 sub2(float2 a, float2 b ){
     output.y = a.y-b.y;
     return output;
 }
+extern "C" __device__ float2 f2h2(float a){
+    
+    float2 output={a,a};
+    return output;
+}
 
 #else
 #define __hp *(half2 *)&
