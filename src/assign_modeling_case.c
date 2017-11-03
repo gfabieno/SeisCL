@@ -1191,7 +1191,7 @@ int assign_modeling_case(model * m){
         __GUARD append_par(m, &ind, "muipkp", NULL, &muipkp);
         __GUARD append_par(m, &ind, "muipjp", NULL, &muipjp);
         __GUARD append_par(m, &ind, "mujpkp", NULL, &mujpkp);
-        
+        fprintf(stderr, "%d\n", m->npars);
         m->nvars=9;
         if (m->ABS_TYPE==1)
         m->nvars+=18;
