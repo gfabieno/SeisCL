@@ -25,11 +25,12 @@
 #include "update_s2D_half2.hcl"
 #include "update_s2D_SH.hcl"
 #include "update_s3D.hcl"
+#include "update_s3D_half2.hcl"
 #include "update_v2D.hcl"
 #include "update_v2D_half2.hcl"
 #include "update_v2D_SH.hcl"
 #include "update_v3D.hcl"
-
+#include "update_v3D_half2.hcl"
 
 float * get_par(parameter * pars, int npars, const char * name){
     
@@ -1061,184 +1062,183 @@ int assign_modeling_case(model * m){
 
 
     /* Definition of each seismic modeling case that has been implemented */
-//    if (m->ND==3 && m->L>0){ //3D viscoelastic isotropic
-//        
-//        //Define the update kernels
-//        m->nupdates=2;
-//        GMALLOC(m->ups_f, m->nupdates*sizeof(update));
-//        ind=0;
-////        __GUARD append_update(m->ups_f, &ind, "update_v", update_v3D_source);
-////        __GUARD append_update(m->ups_f, &ind, "update_s", update_s3D_source);
-////        
-////        if (m->GRADOUT){
-////            GMALLOC(m->ups_adj, m->nupdates*sizeof(update));
-////            ind=0;
-////            __GUARD append_update(m->ups_adj, &ind, "update_adjv", update_adjv3D_source);
-////            __GUARD append_update(m->ups_adj, &ind, "update_adjs", update_adjs3D_source);
-////        }
-////        if (m->FREESURF){
-////            __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface3D_source);
-////        }
-////        if (m->GRADOUT && m->BACK_PROP_TYPE==1){
-////            __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd3D_source);
-////        }
-//        
-//        m->npars=14;
-//        GMALLOC(m->pars, sizeof(parameter)*m->npars);
-//        ind=0;
-//        __GUARD append_par(m, &ind, "mu", "/mu", &mu);
-//        __GUARD append_par(m, &ind, "M", "/M", &M);
-//        __GUARD append_par(m, &ind, "rho", "/rho", NULL);
-//        __GUARD append_par(m, &ind, "taup", "/taup", NULL);
-//        __GUARD append_par(m, &ind, "taus", "/taus", NULL);
-//        __GUARD append_par(m, &ind, "rip", NULL, &rip);
-//        __GUARD append_par(m, &ind, "rjp", NULL, &rjp);
-//        __GUARD append_par(m, &ind, "rkp", NULL, &rkp);
-//        __GUARD append_par(m, &ind, "muipkp", NULL, &muipkp);
-//        __GUARD append_par(m, &ind, "muipjp", NULL, &muipjp);
-//        __GUARD append_par(m, &ind, "mujpkp", NULL, &mujpkp);
-//        __GUARD append_par(m, &ind, "tausipkp", NULL, &tausipkp);
-//        __GUARD append_par(m, &ind, "tausipjp", NULL, &tausipjp);
-//        __GUARD append_par(m, &ind, "tausjpkp", NULL, &tausjpkp);
-//        
-//        
-//        m->nvars=15;
-//        if (m->ABS_TYPE==1)
-//        m->nvars+=18;
-//        GMALLOC(m->vars, sizeof(variable)*m->nvars);
-//        
-//        ind=0;
-//        __GUARD append_var(m, &ind, "vx", 1, 1, &size_varseis);
-//        __GUARD append_var(m, &ind, "vy", 1, 1, &size_varseis);
-//        __GUARD append_var(m, &ind, "vz", 1, 1, &size_varseis);
-//        __GUARD append_var(m, &ind, "sxx", 1, 1, &size_varseis);
-//        __GUARD append_var(m, &ind, "syy", 1, 1, &size_varseis);
-//        __GUARD append_var(m, &ind, "szz", 1, 1, &size_varseis);
-//        __GUARD append_var(m, &ind, "sxy", 1, 1, &size_varseis);
-//        __GUARD append_var(m, &ind, "sxz", 1, 1, &size_varseis);
-//        __GUARD append_var(m, &ind, "syz", 1, 1, &size_varseis);
-//        __GUARD append_var(m, &ind, "rxx", 1, 0, &size_varmem);
-//        __GUARD append_var(m, &ind, "ryy", 1, 0, &size_varmem);
-//        __GUARD append_var(m, &ind, "rzz", 1, 0, &size_varmem);
-//        __GUARD append_var(m, &ind, "rxy", 1, 0, &size_varmem);
-//        __GUARD append_var(m, &ind, "rxz", 1, 0, &size_varmem);
-//        __GUARD append_var(m, &ind, "ryz", 1, 0, &size_varmem);
-//        
-//        if (m->ABS_TYPE==1){
-//            __GUARD append_var(m, &ind, "psi_sxx_x", 0, 0, &size_varcpmlx);
-//            __GUARD append_var(m, &ind, "psi_sxy_x", 0, 0, &size_varcpmlx);
-//            __GUARD append_var(m, &ind, "psi_sxz_x", 0, 0, &size_varcpmlx);
-//            __GUARD append_var(m, &ind, "psi_syy_y", 0, 0, &size_varcpmly);
-//            __GUARD append_var(m, &ind, "psi_sxy_y", 0, 0, &size_varcpmly);
-//            __GUARD append_var(m, &ind, "psi_syz_y", 0, 0, &size_varcpmly);
-//            __GUARD append_var(m, &ind, "psi_szz_z", 0, 0, &size_varcpmlz);
-//            __GUARD append_var(m, &ind, "psi_sxz_z", 0, 0, &size_varcpmlz);
-//            __GUARD append_var(m, &ind, "psi_syz_z", 0, 0, &size_varcpmlz);
-//            __GUARD append_var(m, &ind, "psi_vx_x", 0, 0, &size_varcpmlx);
-//            __GUARD append_var(m, &ind, "psi_vy_x", 0, 0, &size_varcpmlx);
-//            __GUARD append_var(m, &ind, "psi_vz_x", 0, 0, &size_varcpmlx);
-//            __GUARD append_var(m, &ind, "psi_vx_y", 0, 0, &size_varcpmly);
-//            __GUARD append_var(m, &ind, "psi_vy_y", 0, 0, &size_varcpmly);
-//            __GUARD append_var(m, &ind, "psi_vz_y", 0, 0, &size_varcpmly);
-//            __GUARD append_var(m, &ind, "psi_vx_z", 0, 0, &size_varcpmlz);
-//            __GUARD append_var(m, &ind, "psi_vy_z", 0, 0, &size_varcpmlz);
-//            __GUARD append_var(m, &ind, "psi_vz_z", 0, 0, &size_varcpmlz);
-//            
-//        }
-//        
-//        m->ntvars=1;
-//        GMALLOC(m->trans_vars, sizeof(variable)*m->ntvars);
-//        m->trans_vars[0].name="p";
-//        m->trans_vars[0].n2ave=3;
-//        GMALLOC(m->trans_vars[0].var2ave, sizeof(char *)*3);
-//        m->trans_vars[0].var2ave[0]="sxx";
-//        m->trans_vars[0].var2ave[1]="syy";
-//        m->trans_vars[0].var2ave[2]="szz";
-//        
-//        
-//    }
-//    else if (m->ND==3 && m->L==0){ //3D elastic isotropic
-//        
-//        //Define the update kernels
-//        m->nupdates=2;
-//        GMALLOC(m->ups_f, m->nupdates*sizeof(update));
-//        ind=0;
-////        __GUARD append_update(m->ups_f, &ind, "update_v", update_v3D_source);
-////        __GUARD append_update(m->ups_f, &ind, "update_s", update_s3D_source);
-////        
-////        if (m->GRADOUT){
-////            GMALLOC(m->ups_adj, m->nupdates*sizeof(update));
-////            ind=0;
-////            __GUARD append_update(m->ups_adj, &ind, "update_adjv", update_adjv3D_source);
-////            __GUARD append_update(m->ups_adj, &ind, "update_adjs", update_adjs3D_source);
-////        }
-////        if (m->FREESURF){
-////            __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface3D_source);
-////        }
-////        if (m->GRADOUT && m->BACK_PROP_TYPE==1){
-////            __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd3D_source);
-////        }
-//        
-//        
-//        m->npars=9;
-//        GMALLOC(m->pars, sizeof(parameter)*m->npars);
-//        __GUARD append_par(m, &ind, "mu", "/mu", &mu);
-//        __GUARD append_par(m, &ind, "M", "/M", &M);
-//        __GUARD append_par(m, &ind, "rho", "/rho", NULL);
-//        __GUARD append_par(m, &ind, "rip", NULL, &rip);
-//        __GUARD append_par(m, &ind, "rjp", NULL, &rjp);
-//        __GUARD append_par(m, &ind, "rkp", NULL, &rkp);
-//        __GUARD append_par(m, &ind, "muipkp", NULL, &muipkp);
-//        __GUARD append_par(m, &ind, "muipjp", NULL, &muipjp);
-//        __GUARD append_par(m, &ind, "mujpkp", NULL, &mujpkp);
-//        
-//        m->nvars=9;
-//        if (m->ABS_TYPE==1)
-//        m->nvars+=18;
-//        GMALLOC(m->vars, sizeof(variable)*m->nvars);
-//        ind=0;
-//        __GUARD append_var(m, &ind, "vx", 1, 1, &size_varseis);
-//        __GUARD append_var(m, &ind, "vy", 1, 1, &size_varseis);
-//        __GUARD append_var(m, &ind, "vz", 1, 1, &size_varseis);
-//        __GUARD append_var(m, &ind, "sxx", 1, 1, &size_varseis);
-//        __GUARD append_var(m, &ind, "syy", 1, 1, &size_varseis);
-//        __GUARD append_var(m, &ind, "szz", 1, 1, &size_varseis);
-//        __GUARD append_var(m, &ind, "sxy", 1, 1, &size_varseis);
-//        __GUARD append_var(m, &ind, "sxz", 1, 1, &size_varseis);
-//        __GUARD append_var(m, &ind, "syz", 1, 1, &size_varseis);
-//        
-//        if (m->ABS_TYPE==1){
-//            __GUARD append_var(m, &ind, "psi_sxx_x", 0, 0, &size_varcpmlx);
-//            __GUARD append_var(m, &ind, "psi_sxy_x", 0, 0, &size_varcpmlx);
-//            __GUARD append_var(m, &ind, "psi_sxz_x", 0, 0, &size_varcpmlx);
-//            __GUARD append_var(m, &ind, "psi_syy_y", 0, 0, &size_varcpmly);
-//            __GUARD append_var(m, &ind, "psi_sxy_y", 0, 0, &size_varcpmly);
-//            __GUARD append_var(m, &ind, "psi_syz_y", 0, 0, &size_varcpmly);
-//            __GUARD append_var(m, &ind, "psi_szz_z", 0, 0, &size_varcpmlz);
-//            __GUARD append_var(m, &ind, "psi_sxz_z", 0, 0, &size_varcpmlz);
-//            __GUARD append_var(m, &ind, "psi_syz_z", 0, 0, &size_varcpmlz);
-//            __GUARD append_var(m, &ind, "psi_vx_x", 0, 0, &size_varcpmlx);
-//            __GUARD append_var(m, &ind, "psi_vy_x", 0, 0, &size_varcpmlx);
-//            __GUARD append_var(m, &ind, "psi_vz_x", 0, 0, &size_varcpmlx);
-//            __GUARD append_var(m, &ind, "psi_vx_y", 0, 0, &size_varcpmly);
-//            __GUARD append_var(m, &ind, "psi_vy_y", 0, 0, &size_varcpmly);
-//            __GUARD append_var(m, &ind, "psi_vz_y", 0, 0, &size_varcpmly);
-//            __GUARD append_var(m, &ind, "psi_vx_z", 0, 0, &size_varcpmlz);
-//            __GUARD append_var(m, &ind, "psi_vy_z", 0, 0, &size_varcpmlz);
-//            __GUARD append_var(m, &ind, "psi_vz_z", 0, 0, &size_varcpmlz);
-//            
-//        }
-//        
-//        
-//        m->ntvars=1;
-//        GMALLOC(m->trans_vars, sizeof(variable)*m->ntvars);
-//        m->trans_vars[0].name="p";
-//        m->trans_vars[0].n2ave=3;
-//        GMALLOC(m->trans_vars[0].var2ave, sizeof(char *)*3);
-//        m->trans_vars[0].var2ave[0]="sxx";
-//        m->trans_vars[0].var2ave[1]="syy";
-//        m->trans_vars[0].var2ave[2]="szz";
-//    }
+    if (m->ND==3 && m->L>0){ //3D viscoelastic isotropic
+        
+        //Define the update kernels
+        m->nupdates=2;
+        GMALLOC(m->ups_f, m->nupdates*sizeof(update));
+        ind=0;
+        __GUARD append_update(m->ups_f, &ind, "update_v", update_v3D_half2_source);
+        __GUARD append_update(m->ups_f, &ind, "update_s", update_s3D_half2_source);
+
+        if (m->GRADOUT){
+            GMALLOC(m->ups_adj, m->nupdates*sizeof(update));
+            ind=0;
+            __GUARD append_update(m->ups_adj, &ind, "update_adjv", update_adjv3D_half2_source);
+            __GUARD append_update(m->ups_adj, &ind, "update_adjs", update_adjs3D_half2_source);
+        }
+        if (m->FREESURF){
+            __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface3D_source);
+        }
+        if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+            __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd3D_source);
+        }
+        
+        m->npars=14;
+        GMALLOC(m->pars, sizeof(parameter)*m->npars);
+        ind=0;
+        __GUARD append_par(m, &ind, "M", "/M", &M);
+        __GUARD append_par(m, &ind, "mu", "/mu", &mu);
+        __GUARD append_par(m, &ind, "rho", "/rho", NULL);
+        __GUARD append_par(m, &ind, "taup", "/taup", NULL);
+        __GUARD append_par(m, &ind, "taus", "/taus", NULL);
+        __GUARD append_par(m, &ind, "rip", NULL, &rip);
+        __GUARD append_par(m, &ind, "rjp", NULL, &rjp);
+        __GUARD append_par(m, &ind, "rkp", NULL, &rkp);
+        __GUARD append_par(m, &ind, "muipkp", NULL, &muipkp);
+        __GUARD append_par(m, &ind, "muipjp", NULL, &muipjp);
+        __GUARD append_par(m, &ind, "mujpkp", NULL, &mujpkp);
+        __GUARD append_par(m, &ind, "tausipkp", NULL, &tausipkp);
+        __GUARD append_par(m, &ind, "tausipjp", NULL, &tausipjp);
+        __GUARD append_par(m, &ind, "tausjpkp", NULL, &tausjpkp);
+        
+        
+        m->nvars=15;
+        if (m->ABS_TYPE==1)
+        m->nvars+=18;
+        GMALLOC(m->vars, sizeof(variable)*m->nvars);
+        
+        ind=0;
+        __GUARD append_var(m, &ind, "vx", 1, 1, &size_varseis);
+        __GUARD append_var(m, &ind, "vy", 1, 1, &size_varseis);
+        __GUARD append_var(m, &ind, "vz", 1, 1, &size_varseis);
+        __GUARD append_var(m, &ind, "sxx", 1, 1, &size_varseis);
+        __GUARD append_var(m, &ind, "syy", 1, 1, &size_varseis);
+        __GUARD append_var(m, &ind, "szz", 1, 1, &size_varseis);
+        __GUARD append_var(m, &ind, "sxy", 1, 1, &size_varseis);
+        __GUARD append_var(m, &ind, "sxz", 1, 1, &size_varseis);
+        __GUARD append_var(m, &ind, "syz", 1, 1, &size_varseis);
+        __GUARD append_var(m, &ind, "rxx", 1, 0, &size_varmem);
+        __GUARD append_var(m, &ind, "ryy", 1, 0, &size_varmem);
+        __GUARD append_var(m, &ind, "rzz", 1, 0, &size_varmem);
+        __GUARD append_var(m, &ind, "rxy", 1, 0, &size_varmem);
+        __GUARD append_var(m, &ind, "rxz", 1, 0, &size_varmem);
+        __GUARD append_var(m, &ind, "ryz", 1, 0, &size_varmem);
+        
+        if (m->ABS_TYPE==1){
+            __GUARD append_var(m, &ind, "psi_sxx_x", 0, 0, &size_varcpmlx);
+            __GUARD append_var(m, &ind, "psi_sxy_x", 0, 0, &size_varcpmlx);
+            __GUARD append_var(m, &ind, "psi_sxz_x", 0, 0, &size_varcpmlx);
+            __GUARD append_var(m, &ind, "psi_syy_y", 0, 0, &size_varcpmly);
+            __GUARD append_var(m, &ind, "psi_sxy_y", 0, 0, &size_varcpmly);
+            __GUARD append_var(m, &ind, "psi_syz_y", 0, 0, &size_varcpmly);
+            __GUARD append_var(m, &ind, "psi_szz_z", 0, 0, &size_varcpmlz);
+            __GUARD append_var(m, &ind, "psi_sxz_z", 0, 0, &size_varcpmlz);
+            __GUARD append_var(m, &ind, "psi_syz_z", 0, 0, &size_varcpmlz);
+            __GUARD append_var(m, &ind, "psi_vx_x", 0, 0, &size_varcpmlx);
+            __GUARD append_var(m, &ind, "psi_vy_x", 0, 0, &size_varcpmlx);
+            __GUARD append_var(m, &ind, "psi_vz_x", 0, 0, &size_varcpmlx);
+            __GUARD append_var(m, &ind, "psi_vx_y", 0, 0, &size_varcpmly);
+            __GUARD append_var(m, &ind, "psi_vy_y", 0, 0, &size_varcpmly);
+            __GUARD append_var(m, &ind, "psi_vz_y", 0, 0, &size_varcpmly);
+            __GUARD append_var(m, &ind, "psi_vx_z", 0, 0, &size_varcpmlz);
+            __GUARD append_var(m, &ind, "psi_vy_z", 0, 0, &size_varcpmlz);
+            __GUARD append_var(m, &ind, "psi_vz_z", 0, 0, &size_varcpmlz);
+            
+        }
+        
+        m->ntvars=1;
+        GMALLOC(m->trans_vars, sizeof(variable)*m->ntvars);
+        m->trans_vars[0].name="p";
+        m->trans_vars[0].n2ave=3;
+        GMALLOC(m->trans_vars[0].var2ave, sizeof(char *)*3);
+        m->trans_vars[0].var2ave[0]="sxx";
+        m->trans_vars[0].var2ave[1]="syy";
+        m->trans_vars[0].var2ave[2]="szz";
+        
+        
+    }
+    else if (m->ND==3 && m->L==0){ //3D elastic isotropic
+        
+        //Define the update kernels
+        m->nupdates=2;
+        GMALLOC(m->ups_f, m->nupdates*sizeof(update));
+        ind=0;
+        __GUARD append_update(m->ups_f, &ind, "update_v", update_v3D_half2_source);
+        __GUARD append_update(m->ups_f, &ind, "update_s", update_s3D_half2_source);
+
+        if (m->GRADOUT){
+            GMALLOC(m->ups_adj, m->nupdates*sizeof(update));
+            ind=0;
+            __GUARD append_update(m->ups_adj, &ind, "update_adjv", update_adjv3D_half2_source);
+            __GUARD append_update(m->ups_adj, &ind, "update_adjs", update_adjs3D_half2_source);
+        }
+        if (m->FREESURF){
+            __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface3D_source);
+        }
+        if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+            __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd3D_source);
+        }
+
+        m->npars=9;
+        GMALLOC(m->pars, sizeof(parameter)*m->npars);
+        __GUARD append_par(m, &ind, "M", "/M", &M);
+        __GUARD append_par(m, &ind, "mu", "/mu", &mu);
+        __GUARD append_par(m, &ind, "rho", "/rho", NULL);
+        __GUARD append_par(m, &ind, "rip", NULL, &rip);
+        __GUARD append_par(m, &ind, "rjp", NULL, &rjp);
+        __GUARD append_par(m, &ind, "rkp", NULL, &rkp);
+        __GUARD append_par(m, &ind, "muipkp", NULL, &muipkp);
+        __GUARD append_par(m, &ind, "muipjp", NULL, &muipjp);
+        __GUARD append_par(m, &ind, "mujpkp", NULL, &mujpkp);
+        
+        m->nvars=9;
+        if (m->ABS_TYPE==1)
+        m->nvars+=18;
+        GMALLOC(m->vars, sizeof(variable)*m->nvars);
+        ind=0;
+        __GUARD append_var(m, &ind, "vx", 1, 1, &size_varseis);
+        __GUARD append_var(m, &ind, "vy", 1, 1, &size_varseis);
+        __GUARD append_var(m, &ind, "vz", 1, 1, &size_varseis);
+        __GUARD append_var(m, &ind, "sxx", 1, 1, &size_varseis);
+        __GUARD append_var(m, &ind, "syy", 1, 1, &size_varseis);
+        __GUARD append_var(m, &ind, "szz", 1, 1, &size_varseis);
+        __GUARD append_var(m, &ind, "sxy", 1, 1, &size_varseis);
+        __GUARD append_var(m, &ind, "sxz", 1, 1, &size_varseis);
+        __GUARD append_var(m, &ind, "syz", 1, 1, &size_varseis);
+        
+        if (m->ABS_TYPE==1){
+            __GUARD append_var(m, &ind, "psi_sxx_x", 0, 0, &size_varcpmlx);
+            __GUARD append_var(m, &ind, "psi_sxy_x", 0, 0, &size_varcpmlx);
+            __GUARD append_var(m, &ind, "psi_sxz_x", 0, 0, &size_varcpmlx);
+            __GUARD append_var(m, &ind, "psi_syy_y", 0, 0, &size_varcpmly);
+            __GUARD append_var(m, &ind, "psi_sxy_y", 0, 0, &size_varcpmly);
+            __GUARD append_var(m, &ind, "psi_syz_y", 0, 0, &size_varcpmly);
+            __GUARD append_var(m, &ind, "psi_szz_z", 0, 0, &size_varcpmlz);
+            __GUARD append_var(m, &ind, "psi_sxz_z", 0, 0, &size_varcpmlz);
+            __GUARD append_var(m, &ind, "psi_syz_z", 0, 0, &size_varcpmlz);
+            __GUARD append_var(m, &ind, "psi_vx_x", 0, 0, &size_varcpmlx);
+            __GUARD append_var(m, &ind, "psi_vy_x", 0, 0, &size_varcpmlx);
+            __GUARD append_var(m, &ind, "psi_vz_x", 0, 0, &size_varcpmlx);
+            __GUARD append_var(m, &ind, "psi_vx_y", 0, 0, &size_varcpmly);
+            __GUARD append_var(m, &ind, "psi_vy_y", 0, 0, &size_varcpmly);
+            __GUARD append_var(m, &ind, "psi_vz_y", 0, 0, &size_varcpmly);
+            __GUARD append_var(m, &ind, "psi_vx_z", 0, 0, &size_varcpmlz);
+            __GUARD append_var(m, &ind, "psi_vy_z", 0, 0, &size_varcpmlz);
+            __GUARD append_var(m, &ind, "psi_vz_z", 0, 0, &size_varcpmlz);
+            
+        }
+        
+        
+        m->ntvars=1;
+        GMALLOC(m->trans_vars, sizeof(variable)*m->ntvars);
+        m->trans_vars[0].name="p";
+        m->trans_vars[0].n2ave=3;
+        GMALLOC(m->trans_vars[0].var2ave, sizeof(char *)*3);
+        m->trans_vars[0].var2ave[0]="sxx";
+        m->trans_vars[0].var2ave[1]="syy";
+        m->trans_vars[0].var2ave[2]="szz";
+    }
     if (m->ND==2 && m->L>0){  //2D P-SV viscoelastic isotropic
         
         //Define the update kernels
