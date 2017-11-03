@@ -1738,9 +1738,9 @@ extern "C" __global__ void update_s(int offcomm,
     lsxy=add2(lsxy,mul2(lmipjp,add2(vx_y1,vy_x1)));
     lsyz=add2(lsyz,mul2(lmjpkp,add2(vy_z1,vz_y1)));
     lsxz=add2(lsxz,mul2(lmjpkp,add2(vx_z1,vz_x1)));
-    lsxx=sub2(add2(lsxx,mul2(lM,add2(add2(vx_x2,vy_y2),vz_z2))),mul2(mul2(f2h2(2.0),lmu),add2(vy_y2,vz_z2)));
-    lsyy=sub2(add2(lsyy,mul2(lM,add2(add2(vx_x2,vy_y2),vz_z2))),mul2(mul2(f2h2(2.0),lmu),add2(vx_x2,vz_z2)));
-    lszz=sub2(add2(lszz,mul2(lM,add2(add2(vx_x2,vy_y2),vz_z2))),mul2(mul2(f2h2(2.0),lmu),add2(vx_x2,vy_y2)));
+    lsxx=sub2(add2(lsxx,mul2(lM,add2(add2(vx_x2,vy_y2),vz_z2))),mul2(mul2(__f2h2(2.0),lmu),add2(vy_y2,vz_z2)));
+    lsyy=sub2(add2(lsyy,mul2(lM,add2(add2(vx_x2,vy_y2),vz_z2))),mul2(mul2(__f2h2(2.0),lmu),add2(vx_x2,vz_z2)));
+    lszz=sub2(add2(lszz,mul2(lM,add2(add2(vx_x2,vy_y2),vz_z2))),mul2(mul2(__f2h2(2.0),lmu),add2(vx_x2,vy_y2)));
     //Write updated values to global memory
     sxx(gidz,gidy,gidx) = __f22h2(lsxx);
     sxy(gidz,gidy,gidx) = __f22h2(lsxy);
