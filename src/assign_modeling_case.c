@@ -1239,7 +1239,7 @@ int assign_modeling_case(model * m){
         m->trans_vars[0].var2ave[1]="syy";
         m->trans_vars[0].var2ave[2]="szz";
     }
-    if (m->ND==2 && m->L>0){  //2D P-SV viscoelastic isotropic
+    else if (m->ND==2 && m->L>0){  //2D P-SV viscoelastic isotropic
         
         //Define the update kernels
         m->nupdates=2;
@@ -1387,6 +1387,11 @@ int assign_modeling_case(model * m){
         }
         
     }
+    else {
+        state=1;
+        fprintf(stderr, "No valid modeling case chosen\n");
+        fprintf(stderr, "%d %d\n", m->ND, m->L);
+    }
 //    else if (m->ND==21 && m->L>0){  //2D SH viscoelastic isotropic
 //
 //        //Define the update kernels
@@ -1490,11 +1495,7 @@ int assign_modeling_case(model * m){
 //        
 //
 //    }
-    else {
-        state=1;
-        fprintf(stderr, "No valid modeling case chosen\n");
-        fprintf(stderr, "%d %d\n", m->ND, m->L);
-    }
+
 
     //Create adjoint variables if necessary
     if (m->GRADOUT && m->BACK_PROP_TYPE==1){
