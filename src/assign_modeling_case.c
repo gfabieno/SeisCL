@@ -1510,44 +1510,44 @@ int assign_modeling_case(model * m){
         m->N_names[1]="X";
     }
 
-    //Check the name of variable to read depending on the chosen parametrization
-    if (!state){
-
-        if (m->par_type==2){
-            for (i=0;i<m->npars;i++){
-                if (strcmp(m->pars[i].name,"M")==0)
-                    m->pars[i].to_read="/Ip";
-                if (strcmp(m->pars[i].name,"mu")==0)
-                    m->pars[i].to_read="/Is";
-            }
-        }
-        else if (m->par_type==3){
-            if (m->L==0) {
-                state=1;
-                fprintf(stderr,"par_type=3 requires Viscoelastic modeling \n");
-            }
-            for (i=0;i<m->npars;i++){
-                if (strcmp(m->pars[i].name,"M")==0)
-                    m->pars[i].to_read="/vpR";
-                if (strcmp(m->pars[i].name,"mu")==0)
-                    m->pars[i].to_read="/vsR";
-                if (strcmp(m->pars[i].name,"taup")==0)
-                    m->pars[i].to_read="/vpI";
-                if (strcmp(m->pars[i].name,"taus")==0)
-                    m->pars[i].to_read="/vsI";
-            }
-        }
-        else {
-            m->par_type=0;
-            for (i=0;i<m->npars;i++){
-                if (strcmp(m->pars[i].name,"M")==0)
-                    m->pars[i].to_read="/vp";
-                if (strcmp(m->pars[i].name,"mu")==0)
-                    m->pars[i].to_read="/vs";
-            }
-        }
-    }
-    
+//    //Check the name of variable to read depending on the chosen parametrization
+//    if (!state){
+//
+//        if (m->par_type==2){
+//            for (i=0;i<m->npars;i++){
+//                if (strcmp(m->pars[i].name,"M")==0)
+//                    m->pars[i].to_read="/Ip";
+//                if (strcmp(m->pars[i].name,"mu")==0)
+//                    m->pars[i].to_read="/Is";
+//            }
+//        }
+//        else if (m->par_type==3){
+//            if (m->L==0) {
+//                state=1;
+//                fprintf(stderr,"par_type=3 requires Viscoelastic modeling \n");
+//            }
+//            for (i=0;i<m->npars;i++){
+//                if (strcmp(m->pars[i].name,"M")==0)
+//                    m->pars[i].to_read="/vpR";
+//                if (strcmp(m->pars[i].name,"mu")==0)
+//                    m->pars[i].to_read="/vsR";
+//                if (strcmp(m->pars[i].name,"taup")==0)
+//                    m->pars[i].to_read="/vpI";
+//                if (strcmp(m->pars[i].name,"taus")==0)
+//                    m->pars[i].to_read="/vsI";
+//            }
+//        }
+//        else {
+//            m->par_type=0;
+//            for (i=0;i<m->npars;i++){
+//                if (strcmp(m->pars[i].name,"M")==0)
+//                    m->pars[i].to_read="/vp";
+//                if (strcmp(m->pars[i].name,"mu")==0)
+//                    m->pars[i].to_read="/vs";
+//            }
+//        }
+//    }
+//    
 //    //Flag variables to output
 //    if (!state){
 //        if (m->VARSOUT==1){
@@ -1610,7 +1610,7 @@ int assign_modeling_case(model * m){
 //        }
 //    }
 //
-//    
+//
 //    //Allocate memory of variables
 //    for (i=0;i<m->nvars;i++){
 //        if (m->vars[i].to_output){
