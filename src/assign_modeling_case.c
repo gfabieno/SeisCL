@@ -1548,69 +1548,69 @@ int assign_modeling_case(model * m){
         }
     }
     
-    //Flag variables to output
-    if (!state){
-        if (m->VARSOUT==1){
-            for (i=0;i<m->nvars;i++){
-                if (strcmp(m->vars[i].name,"vx")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"vy")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"vz")==0)
-                    m->vars[i].to_output=1;
-            }
-        }
-        if (m->VARSOUT==2){
-            for (i=0;i<m->ntvars;i++){
-                if (strcmp(m->trans_vars[i].name,"p")==0)
-                    m->trans_vars[i].to_output=1;
-            }
-        }
-        if (m->VARSOUT==3){
-            for (i=0;i<m->nvars;i++){
-                if (strcmp(m->vars[i].name,"sxx")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"syy")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"szz")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"sxx")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"syy")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"szz")==0)
-                    m->vars[i].to_output=1;
-            }
-        }
-        if (m->VARSOUT==4){
-            for (i=0;i<m->nvars;i++){
-                if (strcmp(m->vars[i].name,"vx")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"vy")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"vz")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"sxx")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"syy")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"szz")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"sxx")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"syy")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"szz")==0)
-                    m->vars[i].to_output=1;
-            }
-            for (i=0;i<m->ntvars;i++){
-                if (strcmp(m->trans_vars[i].name,"p")==0)
-                    m->trans_vars[i].to_output=1;
-            }
-        }
-    }
-
-    
+//    //Flag variables to output
+//    if (!state){
+//        if (m->VARSOUT==1){
+//            for (i=0;i<m->nvars;i++){
+//                if (strcmp(m->vars[i].name,"vx")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"vy")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"vz")==0)
+//                    m->vars[i].to_output=1;
+//            }
+//        }
+//        if (m->VARSOUT==2){
+//            for (i=0;i<m->ntvars;i++){
+//                if (strcmp(m->trans_vars[i].name,"p")==0)
+//                    m->trans_vars[i].to_output=1;
+//            }
+//        }
+//        if (m->VARSOUT==3){
+//            for (i=0;i<m->nvars;i++){
+//                if (strcmp(m->vars[i].name,"sxx")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"syy")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"szz")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"sxx")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"syy")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"szz")==0)
+//                    m->vars[i].to_output=1;
+//            }
+//        }
+//        if (m->VARSOUT==4){
+//            for (i=0;i<m->nvars;i++){
+//                if (strcmp(m->vars[i].name,"vx")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"vy")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"vz")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"sxx")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"syy")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"szz")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"sxx")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"syy")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"szz")==0)
+//                    m->vars[i].to_output=1;
+//            }
+//            for (i=0;i<m->ntvars;i++){
+//                if (strcmp(m->trans_vars[i].name,"p")==0)
+//                    m->trans_vars[i].to_output=1;
+//            }
+//        }
+//    }
+//
+//    
 //    //Allocate memory of variables
 //    for (i=0;i<m->nvars;i++){
 //        if (m->vars[i].to_output){
@@ -1626,7 +1626,7 @@ int assign_modeling_case(model * m){
 //            var_alloc_out(&m->trans_vars[i].gl_varout, m);
 //        }
 //    }
-//    
+//
 //    if (m->GRADSRCOUT==1){
 //        GMALLOC(m->src_recs.gradsrc,sizeof(float*)*m->src_recs.ns);
 //        GMALLOC(m->src_recs.gradsrc[0],sizeof(float)*m->src_recs.allns*m->NT);
