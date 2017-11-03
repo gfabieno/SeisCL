@@ -1192,7 +1192,7 @@ int assign_modeling_case(model * m){
         __GUARD append_par(m, &ind, "muipkp", NULL, &muipkp);
         __GUARD append_par(m, &ind, "muipjp", NULL, &muipjp);
         __GUARD append_par(m, &ind, "mujpkp", NULL, &mujpkp);
-        fprintf(stderr, "%d\n", m->npars);
+
         m->nvars=9;
         if (m->ABS_TYPE==1)
         m->nvars+=18;
@@ -1391,7 +1391,6 @@ int assign_modeling_case(model * m){
     else {
         state=1;
         fprintf(stderr, "No valid modeling case chosen\n");
-        fprintf(stderr, "%d %d\n", m->ND, m->L);
     }
 //    else if (m->ND==21 && m->L>0){  //2D SH viscoelastic isotropic
 //
@@ -1517,34 +1516,34 @@ int assign_modeling_case(model * m){
         m->N_names[1]="X";
     }
 
-//    //Check the name of variable to read depending on the chosen parametrization
-//    if (!state){
-//
-//        if (m->par_type==2){
-//            for (i=0;i<m->npars;i++){
-//                if (strcmp(m->pars[i].name,"M")==0)
-//                    m->pars[i].to_read="/Ip";
-//                if (strcmp(m->pars[i].name,"mu")==0)
-//                    m->pars[i].to_read="/Is";
-//            }
-//        }
-//        else if (m->par_type==3){
-//            if (m->L==0) {
-//                state=1;
-//                fprintf(stderr,"par_type=3 requires Viscoelastic modeling \n");
-//            }
-//            for (i=0;i<m->npars;i++){
-//                if (strcmp(m->pars[i].name,"M")==0)
-//                    m->pars[i].to_read="/vpR";
-//                if (strcmp(m->pars[i].name,"mu")==0)
-//                    m->pars[i].to_read="/vsR";
-//                if (strcmp(m->pars[i].name,"taup")==0)
-//                    m->pars[i].to_read="/vpI";
-//                if (strcmp(m->pars[i].name,"taus")==0)
-//                    m->pars[i].to_read="/vsI";
-//            }
-//        }
-//        else {
+    //Check the name of variable to read depending on the chosen parametrization
+    if (!state){
+
+        if (m->par_type==2){
+            for (i=0;i<m->npars;i++){
+                if (strcmp(m->pars[i].name,"M")==0)
+                    m->pars[i].to_read="/Ip";
+                if (strcmp(m->pars[i].name,"mu")==0)
+                    m->pars[i].to_read="/Is";
+            }
+        }
+        else if (m->par_type==3){
+            if (m->L==0) {
+                state=1;
+                fprintf(stderr,"par_type=3 requires Viscoelastic modeling \n");
+            }
+            for (i=0;i<m->npars;i++){
+                if (strcmp(m->pars[i].name,"M")==0)
+                    m->pars[i].to_read="/vpR";
+                if (strcmp(m->pars[i].name,"mu")==0)
+                    m->pars[i].to_read="/vsR";
+                if (strcmp(m->pars[i].name,"taup")==0)
+                    m->pars[i].to_read="/vpI";
+                if (strcmp(m->pars[i].name,"taus")==0)
+                    m->pars[i].to_read="/vsI";
+            }
+        }
+        else {
             m->par_type=0;
             for (i=0;i<m->npars;i++){
                 if (strcmp(m->pars[i].name,"M")==0)
@@ -1552,96 +1551,96 @@ int assign_modeling_case(model * m){
                 if (strcmp(m->pars[i].name,"mu")==0)
                     m->pars[i].to_read="/vs";
             }
-//        }
-//    }
-//
-//    //Flag variables to output
-//    if (!state){
-//        if (m->VARSOUT==1){
-//            for (i=0;i<m->nvars;i++){
-//                if (strcmp(m->vars[i].name,"vx")==0)
-//                    m->vars[i].to_output=1;
-//                if (strcmp(m->vars[i].name,"vy")==0)
-//                    m->vars[i].to_output=1;
-//                if (strcmp(m->vars[i].name,"vz")==0)
-//                    m->vars[i].to_output=1;
-//            }
-//        }
-//        if (m->VARSOUT==2){
-//            for (i=0;i<m->ntvars;i++){
-//                if (strcmp(m->trans_vars[i].name,"p")==0)
-//                    m->trans_vars[i].to_output=1;
-//            }
-//        }
-//        if (m->VARSOUT==3){
-//            for (i=0;i<m->nvars;i++){
-//                if (strcmp(m->vars[i].name,"sxx")==0)
-//                    m->vars[i].to_output=1;
-//                if (strcmp(m->vars[i].name,"syy")==0)
-//                    m->vars[i].to_output=1;
-//                if (strcmp(m->vars[i].name,"szz")==0)
-//                    m->vars[i].to_output=1;
-//                if (strcmp(m->vars[i].name,"sxx")==0)
-//                    m->vars[i].to_output=1;
-//                if (strcmp(m->vars[i].name,"syy")==0)
-//                    m->vars[i].to_output=1;
-//                if (strcmp(m->vars[i].name,"szz")==0)
-//                    m->vars[i].to_output=1;
-//            }
-//        }
-//        if (m->VARSOUT==4){
-//            for (i=0;i<m->nvars;i++){
-//                if (strcmp(m->vars[i].name,"vx")==0)
-//                    m->vars[i].to_output=1;
-//                if (strcmp(m->vars[i].name,"vy")==0)
-//                    m->vars[i].to_output=1;
-//                if (strcmp(m->vars[i].name,"vz")==0)
-//                    m->vars[i].to_output=1;
-//                if (strcmp(m->vars[i].name,"sxx")==0)
-//                    m->vars[i].to_output=1;
-//                if (strcmp(m->vars[i].name,"syy")==0)
-//                    m->vars[i].to_output=1;
-//                if (strcmp(m->vars[i].name,"szz")==0)
-//                    m->vars[i].to_output=1;
-//                if (strcmp(m->vars[i].name,"sxx")==0)
-//                    m->vars[i].to_output=1;
-//                if (strcmp(m->vars[i].name,"syy")==0)
-//                    m->vars[i].to_output=1;
-//                if (strcmp(m->vars[i].name,"szz")==0)
-//                    m->vars[i].to_output=1;
-//            }
-//            for (i=0;i<m->ntvars;i++){
-//                if (strcmp(m->trans_vars[i].name,"p")==0)
-//                    m->trans_vars[i].to_output=1;
-//            }
-//        }
-//    }
-//
-//
-//    //Allocate memory of variables
-//    for (i=0;i<m->nvars;i++){
-//        if (m->vars[i].to_output){
-//            var_alloc_out(&m->vars[i].gl_varout, m);
-//            if (m->MOVOUT>0){
-//                GMALLOC(m->vars[i].gl_mov,sizeof(float)*
-//                             m->src_recs.ns*m->vars[i].num_ele*m->NT/m->MOVOUT);
-//            }
-//        }
-//    }
-//    for (i=0;i<m->ntvars;i++){
-//        if (m->trans_vars[i].to_output){
-//            var_alloc_out(&m->trans_vars[i].gl_varout, m);
-//        }
-//    }
-//
-//    if (m->GRADSRCOUT==1){
-//        GMALLOC(m->src_recs.gradsrc,sizeof(float*)*m->src_recs.ns);
-//        GMALLOC(m->src_recs.gradsrc[0],sizeof(float)*m->src_recs.allns*m->NT);
-//        for (i=1;i<m->src_recs.ns;i++){
-//            m->src_recs.gradsrc[i]=m->src_recs.gradsrc[i-1]
-//                                  +m->src_recs.nsrc[i-1]*m->NT;
-//        }
-//    }
+        }
+    }
+
+    //Flag variables to output
+    if (!state){
+        if (m->VARSOUT==1){
+            for (i=0;i<m->nvars;i++){
+                if (strcmp(m->vars[i].name,"vx")==0)
+                    m->vars[i].to_output=1;
+                if (strcmp(m->vars[i].name,"vy")==0)
+                    m->vars[i].to_output=1;
+                if (strcmp(m->vars[i].name,"vz")==0)
+                    m->vars[i].to_output=1;
+            }
+        }
+        if (m->VARSOUT==2){
+            for (i=0;i<m->ntvars;i++){
+                if (strcmp(m->trans_vars[i].name,"p")==0)
+                    m->trans_vars[i].to_output=1;
+            }
+        }
+        if (m->VARSOUT==3){
+            for (i=0;i<m->nvars;i++){
+                if (strcmp(m->vars[i].name,"sxx")==0)
+                    m->vars[i].to_output=1;
+                if (strcmp(m->vars[i].name,"syy")==0)
+                    m->vars[i].to_output=1;
+                if (strcmp(m->vars[i].name,"szz")==0)
+                    m->vars[i].to_output=1;
+                if (strcmp(m->vars[i].name,"sxx")==0)
+                    m->vars[i].to_output=1;
+                if (strcmp(m->vars[i].name,"syy")==0)
+                    m->vars[i].to_output=1;
+                if (strcmp(m->vars[i].name,"szz")==0)
+                    m->vars[i].to_output=1;
+            }
+        }
+        if (m->VARSOUT==4){
+            for (i=0;i<m->nvars;i++){
+                if (strcmp(m->vars[i].name,"vx")==0)
+                    m->vars[i].to_output=1;
+                if (strcmp(m->vars[i].name,"vy")==0)
+                    m->vars[i].to_output=1;
+                if (strcmp(m->vars[i].name,"vz")==0)
+                    m->vars[i].to_output=1;
+                if (strcmp(m->vars[i].name,"sxx")==0)
+                    m->vars[i].to_output=1;
+                if (strcmp(m->vars[i].name,"syy")==0)
+                    m->vars[i].to_output=1;
+                if (strcmp(m->vars[i].name,"szz")==0)
+                    m->vars[i].to_output=1;
+                if (strcmp(m->vars[i].name,"sxx")==0)
+                    m->vars[i].to_output=1;
+                if (strcmp(m->vars[i].name,"syy")==0)
+                    m->vars[i].to_output=1;
+                if (strcmp(m->vars[i].name,"szz")==0)
+                    m->vars[i].to_output=1;
+            }
+            for (i=0;i<m->ntvars;i++){
+                if (strcmp(m->trans_vars[i].name,"p")==0)
+                    m->trans_vars[i].to_output=1;
+            }
+        }
+    }
+
+
+    //Allocate memory of variables
+    for (i=0;i<m->nvars;i++){
+        if (m->vars[i].to_output){
+            var_alloc_out(&m->vars[i].gl_varout, m);
+            if (m->MOVOUT>0){
+                GMALLOC(m->vars[i].gl_mov,sizeof(float)*
+                             m->src_recs.ns*m->vars[i].num_ele*m->NT/m->MOVOUT);
+            }
+        }
+    }
+    for (i=0;i<m->ntvars;i++){
+        if (m->trans_vars[i].to_output){
+            var_alloc_out(&m->trans_vars[i].gl_varout, m);
+        }
+    }
+
+    if (m->GRADSRCOUT==1){
+        GMALLOC(m->src_recs.gradsrc,sizeof(float*)*m->src_recs.ns);
+        GMALLOC(m->src_recs.gradsrc[0],sizeof(float)*m->src_recs.allns*m->NT);
+        for (i=1;i<m->src_recs.ns;i++){
+            m->src_recs.gradsrc[i]=m->src_recs.gradsrc[i-1]
+                                  +m->src_recs.nsrc[i-1]*m->NT;
+        }
+    }
     
 
     return state;
