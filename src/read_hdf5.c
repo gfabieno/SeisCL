@@ -631,142 +631,142 @@ int readhdf5(struct filenames files, model * m) {
     }
 
     //Assign parameters list depending on which case of modeling is desired
-    __GUARD assign_modeling_case(m);
-    
-    //Read active constants
-    for (i=0;i<m->ncsts;i++){
-        if (m->csts[i].to_read  ){
-            __GUARD checkexists(file_id,m->csts[i].to_read);
-            GMALLOC(m->csts[i].gl_cst,sizeof(float)*m->csts[i].num_ele);
-            __GUARD readvar(file_id,
-                            H5T_NATIVE_FLOAT,
-                            m->csts[i].to_read,
-                            m->csts[i].gl_cst);
-        }
-    }
-
-    if (file_id>=0) H5Fclose(file_id);
-    file_id=0;
-    
-    
-    /* Model file__________________________________
-     __________________________________________________________________*/
-    
-
-
-    
-
-    /* Open the model file. */
-    if (!state) file_id = H5Fopen(files.model, H5F_ACC_RDWR, H5P_DEFAULT);
-    if (!state) if (file_id<0) {
-        state=1;fprintf(stderr, "Could not open the input file model");
-    }
-    
-    /* Read parameters. */
-    for (i=0;i<m->npars;i++){
-        if (m->pars[i].to_read){
-            __GUARD checkexists(file_id,m->pars[i].to_read);
-            GMALLOC(m->pars[i].gl_par,sizeof(float)*m->pars[i].num_ele);
-            if (!state){
-                if (checkmatNDIM(file_id, m->pars[i].to_read, m->NDIM, dimsND)){
-                    state=1;
-                    fprintf(stderr, "Variable %s must have dimensions in N\n",
-                            m->pars[i].to_read);
-                }
-            }
-            __GUARD readvar(file_id,
-                            H5T_NATIVE_FLOAT,
-                            m->pars[i].to_read,
-                            m->pars[i].gl_par);
-        }
-    }
-    
-    /* Close files. */
-    if (file_id>=0) H5Fclose(file_id);
-    file_id=0;
-    
-
-    /* Data in file__________________________________
-     __________________________________________________________________*/
-    
-    /* Open the data file. */
-    if (m->RMSOUT==1 || m->RESOUT || m->GRADOUT==1){
-        file_id = H5Fopen(files.din, H5F_ACC_RDWR, H5P_DEFAULT);
-        if (!state) if (file_id<0 && m->GRADOUT) {
-            state=1;
-            fprintf(stderr, "Could not open the input file for data_in\n");
-        }
-        
-        int anyout=0;
-        if (file_id>=0){
-
-            dims2D[0]=m->src_recs.allng;dims2D[1]=m->NT;
-            for (i=0;i<m->nvars;i++){
-                if (1==H5Lexists( file_id, m->vars[i].name, H5P_DEFAULT)){
-                    m->vars[i].to_output=1;
-                    if (!state){
-                        if (checkmatNDIM_atleast(file_id, m->vars[i].name, 2, dims2D)){
-                            state=1;
-                            fprintf(stderr, "Variable %s must be nt x number of"
-                                       "recording stations\n",m->vars[i].name );
-                        }
-                    }
-                    var_alloc_out(&m->vars[i].gl_varin, m);
-                    if (m->RESOUT || m->GRADOUT){
-                        var_alloc_out(&m->vars[i].gl_var_res, m);
-                    }
-                    __GUARD read_seis(file_id,
-                                      H5T_NATIVE_FLOAT,
-                                      m->vars[i].name,
-                                      m->vars[i].gl_varin[0],
-                                      m->src_recs.rec_pos[0],
-                                      m->src_recs.allng,
-                                      m->NT);
-                    anyout=1;
-                }
-            }
-            for (i=0;i<m->ntvars;i++){
-                if (1==H5Lexists( file_id, m->trans_vars[i].name, H5P_DEFAULT)){
-                    m->trans_vars[i].to_output=1;
-                    if (!state){
-                        if (checkmatNDIM_atleast(file_id, m->trans_vars[i].name,2, dims2D)) {
-                            state=1;
-                            fprintf(stderr, "Variable %s must be nt x number of"
-                                    "recording stations\n",m->trans_vars[i].name);
-                        }
-                    }
-                    var_alloc_out(&m->trans_vars[i].gl_varin, m);
-                    if (m->RESOUT){
-                        var_alloc_out(&m->trans_vars[i].gl_var_res, m);
-                    }
-                    __GUARD read_seis(file_id,
-                                      H5T_NATIVE_FLOAT,
-                                      m->trans_vars[i].name,
-                                      m->trans_vars[i].gl_varin[0],
-                                      m->src_recs.rec_pos[0],
-                                      m->src_recs.allng,
-                                      m->NT);
-                    anyout=1;
-                }
-            }
-            
-            H5Fclose(file_id);
-            
-        }
-
-        if (!anyout){
-            state=1;
-            fprintf(stderr, "Cannot output gradient, rms or residuals without "
-                            "reference data\n");
-        }
-        
-    }
-    
-    if (state && m->MPI_INIT==1) MPI_Bcast( &state,
-                                           1,
-                                           MPI_INT,
-                                           m->MYID,
-                                           MPI_COMM_WORLD );
+//    __GUARD assign_modeling_case(m);
+//    
+//    //Read active constants
+//    for (i=0;i<m->ncsts;i++){
+//        if (m->csts[i].to_read  ){
+//            __GUARD checkexists(file_id,m->csts[i].to_read);
+//            GMALLOC(m->csts[i].gl_cst,sizeof(float)*m->csts[i].num_ele);
+//            __GUARD readvar(file_id,
+//                            H5T_NATIVE_FLOAT,
+//                            m->csts[i].to_read,
+//                            m->csts[i].gl_cst);
+//        }
+//    }
+//
+//    if (file_id>=0) H5Fclose(file_id);
+//    file_id=0;
+//    
+//    
+//    /* Model file__________________________________
+//     __________________________________________________________________*/
+//    
+//
+//
+//    
+//
+//    /* Open the model file. */
+//    if (!state) file_id = H5Fopen(files.model, H5F_ACC_RDWR, H5P_DEFAULT);
+//    if (!state) if (file_id<0) {
+//        state=1;fprintf(stderr, "Could not open the input file model");
+//    }
+//    
+//    /* Read parameters. */
+//    for (i=0;i<m->npars;i++){
+//        if (m->pars[i].to_read){
+//            __GUARD checkexists(file_id,m->pars[i].to_read);
+//            GMALLOC(m->pars[i].gl_par,sizeof(float)*m->pars[i].num_ele);
+//            if (!state){
+//                if (checkmatNDIM(file_id, m->pars[i].to_read, m->NDIM, dimsND)){
+//                    state=1;
+//                    fprintf(stderr, "Variable %s must have dimensions in N\n",
+//                            m->pars[i].to_read);
+//                }
+//            }
+//            __GUARD readvar(file_id,
+//                            H5T_NATIVE_FLOAT,
+//                            m->pars[i].to_read,
+//                            m->pars[i].gl_par);
+//        }
+//    }
+//    
+//    /* Close files. */
+//    if (file_id>=0) H5Fclose(file_id);
+//    file_id=0;
+//    
+//
+//    /* Data in file__________________________________
+//     __________________________________________________________________*/
+//    
+//    /* Open the data file. */
+//    if (m->RMSOUT==1 || m->RESOUT || m->GRADOUT==1){
+//        file_id = H5Fopen(files.din, H5F_ACC_RDWR, H5P_DEFAULT);
+//        if (!state) if (file_id<0 && m->GRADOUT) {
+//            state=1;
+//            fprintf(stderr, "Could not open the input file for data_in\n");
+//        }
+//        
+//        int anyout=0;
+//        if (file_id>=0){
+//
+//            dims2D[0]=m->src_recs.allng;dims2D[1]=m->NT;
+//            for (i=0;i<m->nvars;i++){
+//                if (1==H5Lexists( file_id, m->vars[i].name, H5P_DEFAULT)){
+//                    m->vars[i].to_output=1;
+//                    if (!state){
+//                        if (checkmatNDIM_atleast(file_id, m->vars[i].name, 2, dims2D)){
+//                            state=1;
+//                            fprintf(stderr, "Variable %s must be nt x number of"
+//                                       "recording stations\n",m->vars[i].name );
+//                        }
+//                    }
+//                    var_alloc_out(&m->vars[i].gl_varin, m);
+//                    if (m->RESOUT || m->GRADOUT){
+//                        var_alloc_out(&m->vars[i].gl_var_res, m);
+//                    }
+//                    __GUARD read_seis(file_id,
+//                                      H5T_NATIVE_FLOAT,
+//                                      m->vars[i].name,
+//                                      m->vars[i].gl_varin[0],
+//                                      m->src_recs.rec_pos[0],
+//                                      m->src_recs.allng,
+//                                      m->NT);
+//                    anyout=1;
+//                }
+//            }
+//            for (i=0;i<m->ntvars;i++){
+//                if (1==H5Lexists( file_id, m->trans_vars[i].name, H5P_DEFAULT)){
+//                    m->trans_vars[i].to_output=1;
+//                    if (!state){
+//                        if (checkmatNDIM_atleast(file_id, m->trans_vars[i].name,2, dims2D)) {
+//                            state=1;
+//                            fprintf(stderr, "Variable %s must be nt x number of"
+//                                    "recording stations\n",m->trans_vars[i].name);
+//                        }
+//                    }
+//                    var_alloc_out(&m->trans_vars[i].gl_varin, m);
+//                    if (m->RESOUT){
+//                        var_alloc_out(&m->trans_vars[i].gl_var_res, m);
+//                    }
+//                    __GUARD read_seis(file_id,
+//                                      H5T_NATIVE_FLOAT,
+//                                      m->trans_vars[i].name,
+//                                      m->trans_vars[i].gl_varin[0],
+//                                      m->src_recs.rec_pos[0],
+//                                      m->src_recs.allng,
+//                                      m->NT);
+//                    anyout=1;
+//                }
+//            }
+//            
+//            H5Fclose(file_id);
+//            
+//        }
+//
+//        if (!anyout){
+//            state=1;
+//            fprintf(stderr, "Cannot output gradient, rms or residuals without "
+//                            "reference data\n");
+//        }
+//        
+//    }
+//    
+//    if (state && m->MPI_INIT==1) MPI_Bcast( &state,
+//                                           1,
+//                                           MPI_INT,
+//                                           m->MYID,
+//                                           MPI_COMM_WORLD );
     
     return state;
     
