@@ -1490,14 +1490,18 @@ int assign_modeling_case(model * m){
 //        
 //
 //    }
+    else {
+        state=1
+        fprintf(stderr, "No valid modeling case chosen\n");
+    }
 
-//    //Create adjoint variables if necessary
-//    if (m->GRADOUT && m->BACK_PROP_TYPE==1){
-//        GMALLOC(m->vars_adj, sizeof(variable)*m->nvars);
-//        for (i=0;i<m->nvars;i++){
-//            m->vars_adj[i]=m->vars[i];
-//        }
-//    }
+    //Create adjoint variables if necessary
+    if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+        GMALLOC(m->vars_adj, sizeof(variable)*m->nvars);
+        for (i=0;i<m->nvars;i++){
+            m->vars_adj[i]=m->vars[i];
+        }
+    }
 
     //Assign dimensions name
     if (m->ND==3){
