@@ -1182,6 +1182,7 @@ int assign_modeling_case(model * m){
 
         m->npars=9;
         GMALLOC(m->pars, sizeof(parameter)*m->npars);
+        ind=0;
         __GUARD append_par(m, &ind, "M", "/M", &M);
         __GUARD append_par(m, &ind, "mu", "/mu", &mu);
         __GUARD append_par(m, &ind, "rho", "/rho", &rho);
@@ -1545,9 +1546,7 @@ int assign_modeling_case(model * m){
 //        }
 //        else {
             m->par_type=0;
-    fprintf(stderr, "%d\n", m->npars);
             for (i=0;i<m->npars;i++){
-                fprintf(stderr, "%d\n", i);
                 if (strcmp(m->pars[i].name,"M")==0)
                     m->pars[i].to_read="/vp";
                 if (strcmp(m->pars[i].name,"mu")==0)
