@@ -1493,6 +1493,7 @@ int assign_modeling_case(model * m){
     else {
         state=1;
         fprintf(stderr, "No valid modeling case chosen\n");
+        fprintf(stderr, "%d %d\n", m->ND, m->L);
     }
 
     //Create adjoint variables if necessary
