@@ -1545,6 +1545,7 @@ int assign_modeling_case(model * m){
 //        }
 //        else {
             m->par_type=0;
+    fprintf(stderr, "%d\n", m->npars);
             for (i=0;i<m->npars;i++){
                 if (strcmp(m->pars[i].name,"M")==0)
                     m->pars[i].to_read="/vp";
