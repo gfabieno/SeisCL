@@ -81,12 +81,12 @@ int main(int argc, char **argv) {
     time2=MPI_Wtime();
     
     // Initiate and transfer data on all process
-    __GUARD Init_MPI(&m);
+//    __GUARD Init_MPI(&m);
 //    __GUARD Init_cst(&m);
 //    __GUARD Init_model(&m);
-//    
+//
 //    time3=MPI_Wtime();
-//    
+//
 //    __GUARD Init_CUDA(&m, &dev);
 //
 //    time4=MPI_Wtime();
@@ -95,38 +95,38 @@ int main(int argc, char **argv) {
 //    __GUARD time_stepping(&m, &dev);
 //
 //    time5=MPI_Wtime();
-//    
+//
 //    //Reduce to process 0 all required outputs
 //    __GUARD Out_MPI(&m);
-//    
+//
 //    // Write the ouputs to hdf5 files
 //    if (m.MYID==0){
 //        __GUARD writehdf5(file, &m) ;
 //    }
 //    time6=MPI_Wtime();
-//    
+//
 //    //Output time for each part of the program
 //    {
 //        double * times=NULL;
-//        
+//
 //        if (m.MYID==0){
 //            times=malloc(sizeof(double)*6*m.NP);
 //        }
-//        
+//
 //        double t1=time2-time1;
 //        double t2=time3-time2;
 //        double t3=time4-time3;
 //        double t4=(time5-time4);
 //        double t5=(time6-time5);
 //        double t6=(time6-time1);
-//        
+//
 //        if (!state) MPI_Gather(&t1, 1, MPI_DOUBLE , &times[0]     , 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 //        if (!state) MPI_Gather(&t2, 1, MPI_DOUBLE , &times[  m.NP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 //        if (!state) MPI_Gather(&t3, 1, MPI_DOUBLE , &times[2*m.NP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 //        if (!state) MPI_Gather(&t4, 1, MPI_DOUBLE , &times[3*m.NP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 //        if (!state) MPI_Gather(&t5, 1, MPI_DOUBLE , &times[4*m.NP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 //        if (!state) MPI_Gather(&t6, 1, MPI_DOUBLE , &times[5*m.NP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-//        
+//
 //        if (m.MYID==0){
 //            fprintf(stdout,"\nRun time for each process:\n\n");
 //            for (i=0;i<m.NP;i++){
