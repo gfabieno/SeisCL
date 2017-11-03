@@ -1538,16 +1538,16 @@ int assign_modeling_case(model * m){
 //            }
 //        }
 //        else {
-//            m->par_type=0;
-//            for (i=0;i<m->npars;i++){
-//                if (strcmp(m->pars[i].name,"M")==0)
-//                    m->pars[i].to_read="/vp";
-//                if (strcmp(m->pars[i].name,"mu")==0)
-//                    m->pars[i].to_read="/vs";
-//            }
+            m->par_type=0;
+            for (i=0;i<m->npars;i++){
+                if (strcmp(m->pars[i].name,"M")==0)
+                    m->pars[i].to_read="/vp";
+                if (strcmp(m->pars[i].name,"mu")==0)
+                    m->pars[i].to_read="/vs";
+            }
 //        }
 //    }
-//    
+//
 //    //Flag variables to output
 //    if (!state){
 //        if (m->VARSOUT==1){
