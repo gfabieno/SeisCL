@@ -631,8 +631,8 @@ int readhdf5(struct filenames files, model * m) {
     }
 
     //Assign parameters list depending on which case of modeling is desired
-//    __GUARD assign_modeling_case(m);
-//    
+    __GUARD assign_modeling_case(m);
+//
 //    //Read active constants
 //    for (i=0;i<m->ncsts;i++){
 //        if (m->csts[i].to_read  ){
@@ -647,21 +647,21 @@ int readhdf5(struct filenames files, model * m) {
 //
 //    if (file_id>=0) H5Fclose(file_id);
 //    file_id=0;
-//    
-//    
+//
+//
 //    /* Model file__________________________________
 //     __________________________________________________________________*/
-//    
 //
 //
-//    
+//
+//
 //
 //    /* Open the model file. */
 //    if (!state) file_id = H5Fopen(files.model, H5F_ACC_RDWR, H5P_DEFAULT);
 //    if (!state) if (file_id<0) {
 //        state=1;fprintf(stderr, "Could not open the input file model");
 //    }
-//    
+//
 //    /* Read parameters. */
 //    for (i=0;i<m->npars;i++){
 //        if (m->pars[i].to_read){
@@ -680,15 +680,15 @@ int readhdf5(struct filenames files, model * m) {
 //                            m->pars[i].gl_par);
 //        }
 //    }
-//    
+//
 //    /* Close files. */
 //    if (file_id>=0) H5Fclose(file_id);
 //    file_id=0;
-//    
+//
 //
 //    /* Data in file__________________________________
 //     __________________________________________________________________*/
-//    
+//
 //    /* Open the data file. */
 //    if (m->RMSOUT==1 || m->RESOUT || m->GRADOUT==1){
 //        file_id = H5Fopen(files.din, H5F_ACC_RDWR, H5P_DEFAULT);
@@ -696,7 +696,7 @@ int readhdf5(struct filenames files, model * m) {
 //            state=1;
 //            fprintf(stderr, "Could not open the input file for data_in\n");
 //        }
-//        
+//
 //        int anyout=0;
 //        if (file_id>=0){
 //
@@ -749,9 +749,9 @@ int readhdf5(struct filenames files, model * m) {
 //                    anyout=1;
 //                }
 //            }
-//            
+//
 //            H5Fclose(file_id);
-//            
+//
 //        }
 //
 //        if (!anyout){
@@ -759,9 +759,9 @@ int readhdf5(struct filenames files, model * m) {
 //            fprintf(stderr, "Cannot output gradient, rms or residuals without "
 //                            "reference data\n");
 //        }
-//        
+//
 //    }
-//    
+//
 //    if (state && m->MPI_INIT==1) MPI_Bcast( &state,
 //                                           1,
 //                                           MPI_INT,

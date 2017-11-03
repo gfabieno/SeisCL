@@ -1089,7 +1089,7 @@ int assign_modeling_case(model * m){
         ind=0;
         __GUARD append_par(m, &ind, "M", "/M", &M);
         __GUARD append_par(m, &ind, "mu", "/mu", &mu);
-        __GUARD append_par(m, &ind, "rho", "/rho", NULL);
+        __GUARD append_par(m, &ind, "rho", "/rho", &rho);
         __GUARD append_par(m, &ind, "taup", "/taup", NULL);
         __GUARD append_par(m, &ind, "taus", "/taus", NULL);
         __GUARD append_par(m, &ind, "rip", NULL, &rip);
@@ -1184,7 +1184,7 @@ int assign_modeling_case(model * m){
         GMALLOC(m->pars, sizeof(parameter)*m->npars);
         __GUARD append_par(m, &ind, "M", "/M", &M);
         __GUARD append_par(m, &ind, "mu", "/mu", &mu);
-        __GUARD append_par(m, &ind, "rho", "/rho", NULL);
+        __GUARD append_par(m, &ind, "rho", "/rho", &rho);
         __GUARD append_par(m, &ind, "rip", NULL, &rip);
         __GUARD append_par(m, &ind, "rjp", NULL, &rjp);
         __GUARD append_par(m, &ind, "rkp", NULL, &rkp);
@@ -1387,254 +1387,254 @@ int assign_modeling_case(model * m){
         }
         
     }
-//    else if (m->ND==21 && m->L>0){  //2D SH viscoelastic isotropic
-//        
-//        //Define the update kernels
-//        m->nupdates=2;
-//        GMALLOC(m->ups_f, m->nupdates*sizeof(update));
-//        ind=0;
-////        __GUARD append_update(m->ups_f, &ind, "update_v", update_v2D_SH_source);
-////        __GUARD append_update(m->ups_f, &ind, "update_s", update_s2D_SH_source);
-////        if (m->GRADOUT){
-////            GMALLOC(m->ups_adj, m->nupdates*sizeof(update));
-////            ind=0;
-////            __GUARD append_update(m->ups_adj, &ind, "update_adjv", update_adjv2D_SH_source);
-////            __GUARD append_update(m->ups_adj, &ind, "update_adjs", update_adjs2D_SH_source);
+////    else if (m->ND==21 && m->L>0){  //2D SH viscoelastic isotropic
+////        
+////        //Define the update kernels
+////        m->nupdates=2;
+////        GMALLOC(m->ups_f, m->nupdates*sizeof(update));
+////        ind=0;
+//////        __GUARD append_update(m->ups_f, &ind, "update_v", update_v2D_SH_source);
+//////        __GUARD append_update(m->ups_f, &ind, "update_s", update_s2D_SH_source);
+//////        if (m->GRADOUT){
+//////            GMALLOC(m->ups_adj, m->nupdates*sizeof(update));
+//////            ind=0;
+//////            __GUARD append_update(m->ups_adj, &ind, "update_adjv", update_adjv2D_SH_source);
+//////            __GUARD append_update(m->ups_adj, &ind, "update_adjs", update_adjs2D_SH_source);
+//////        }
+//////        if (m->FREESURF){
+//////            __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface2D_source);
+//////        }
+//////        if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+//////            __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd2D_source);
+//////        }
+////        
+////        m->npars=7;
+////        
+////        GMALLOC(m->pars, sizeof(parameter)*m->npars);
+////        ind=0;
+////        __GUARD append_par(m, &ind, "mu", "/mu", &mu);
+////        __GUARD append_par(m, &ind, "rho", "/rho", NULL);
+////        __GUARD append_par(m, &ind, "taus", "/taus", NULL);
+////        __GUARD append_par(m, &ind, "rip", NULL, &rip);
+////        __GUARD append_par(m, &ind, "rkp", NULL, &rkp);
+////        __GUARD append_par(m, &ind, "muipkp", NULL, &muipkp);
+////        __GUARD append_par(m, &ind, "tausipkp", NULL, &tausipkp);
+////        
+////        m->nvars=5;
+////        if (m->ABS_TYPE==1)
+////        m->vars+=4;
+////        GMALLOC(m->vars, sizeof(variable)*m->nvars);
+////        ind=0;
+////        __GUARD append_var(m, &ind, "vy", 1, 1, &size_varseis);
+////        __GUARD append_var(m, &ind, "sxy", 1, 1, &size_varseis);
+////        __GUARD append_var(m, &ind, "syz", 1, 1, &size_varseis);
+////        __GUARD append_var(m, &ind, "rxy", 1, 0, &size_varmem);
+////        __GUARD append_var(m, &ind, "ryz", 1, 0, &size_varmem);
+////        
+////        if (m->ABS_TYPE==1){
+////            __GUARD append_var(m, &ind, "psi_sxy_x", 0, 0, &size_varcpmlx);
+////            __GUARD append_var(m, &ind, "psi_sxy_z", 0, 0, &size_varcpmlz);
+////            __GUARD append_var(m, &ind, "psi_vy_x", 0, 0, &size_varcpmlx);
+////            __GUARD append_var(m, &ind, "psi_vy_z", 0, 0, &size_varcpmlz);
+////            
 ////        }
-////        if (m->FREESURF){
-////            __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface2D_source);
+////        
+////    }
+////    else if (m->ND==21 && m->L==0){  //2D SH elastic isotropic
+////        
+////        //Define the update kernels
+////        m->nupdates=2;
+////        GMALLOC(m->ups_f, m->nupdates*sizeof(update));
+////        ind=0;
+//////        __GUARD append_update(m->ups_f, &ind, "update_v", update_v2D_SH_source);
+//////        __GUARD append_update(m->ups_f, &ind, "update_s", update_s2D_SH_source);
+//////        if (m->GRADOUT){
+//////            GMALLOC(m->ups_adj, m->nupdates*sizeof(update));
+//////            ind=0;
+//////            __GUARD append_update(m->ups_adj, &ind, "update_adjv", update_adjv2D_SH_source);
+//////            __GUARD append_update(m->ups_adj, &ind, "update_adjs", update_adjs2D_SH_source);
+//////        }
+//////        if (m->FREESURF){
+//////            __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface2D_source);
+//////        }
+//////        if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+//////            __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd2D_source);
+//////        }
+////        
+////        m->npars=5;
+////        
+////        GMALLOC(m->pars, sizeof(parameter)*m->npars);
+////        ind=0;
+////        __GUARD append_par(m, &ind, "mu", "/mu", &mu);
+////        __GUARD append_par(m, &ind, "rho", "/rho", NULL);
+////        __GUARD append_par(m, &ind, "rip", NULL, &rip);
+////        __GUARD append_par(m, &ind, "rkp", NULL, &rkp);
+////        __GUARD append_par(m, &ind, "muipkp", NULL, &muipkp);
+////        
+////        m->nvars=3;
+////        if (m->ABS_TYPE==1)
+////        m->nvars+=4;
+////        GMALLOC(m->vars, sizeof(variable)*m->nvars);
+////        ind=0;
+////        __GUARD append_var(m, &ind, "vy", 1, 1, &size_varseis);
+////        __GUARD append_var(m, &ind, "sxy", 1, 1, &size_varseis);
+////        __GUARD append_var(m, &ind, "syz", 1, 1, &size_varseis);
+////        
+////        if (m->ABS_TYPE==1){
+////            __GUARD append_var(m, &ind, "psi_sxy_x", 0, 0, &size_varcpmlx);
+////            __GUARD append_var(m, &ind, "psi_sxy_z", 0, 0, &size_varcpmlz);
+////            __GUARD append_var(m, &ind, "psi_vy_x", 0, 0, &size_varcpmlx);
+////            __GUARD append_var(m, &ind, "psi_vy_z", 0, 0, &size_varcpmlz);
+////            
 ////        }
-////        if (m->GRADOUT && m->BACK_PROP_TYPE==1){
-////            __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd2D_source);
+////        
+////        
+////    }
+//
+////    //Create adjoint variables if necessary
+////    if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+////        GMALLOC(m->vars_adj, sizeof(variable)*m->nvars);
+////        for (i=0;i<m->nvars;i++){
+////            m->vars_adj[i]=m->vars[i];
 ////        }
-//        
-//        m->npars=7;
-//        
-//        GMALLOC(m->pars, sizeof(parameter)*m->npars);
-//        ind=0;
-//        __GUARD append_par(m, &ind, "mu", "/mu", &mu);
-//        __GUARD append_par(m, &ind, "rho", "/rho", NULL);
-//        __GUARD append_par(m, &ind, "taus", "/taus", NULL);
-//        __GUARD append_par(m, &ind, "rip", NULL, &rip);
-//        __GUARD append_par(m, &ind, "rkp", NULL, &rkp);
-//        __GUARD append_par(m, &ind, "muipkp", NULL, &muipkp);
-//        __GUARD append_par(m, &ind, "tausipkp", NULL, &tausipkp);
-//        
-//        m->nvars=5;
-//        if (m->ABS_TYPE==1)
-//        m->vars+=4;
-//        GMALLOC(m->vars, sizeof(variable)*m->nvars);
-//        ind=0;
-//        __GUARD append_var(m, &ind, "vy", 1, 1, &size_varseis);
-//        __GUARD append_var(m, &ind, "sxy", 1, 1, &size_varseis);
-//        __GUARD append_var(m, &ind, "syz", 1, 1, &size_varseis);
-//        __GUARD append_var(m, &ind, "rxy", 1, 0, &size_varmem);
-//        __GUARD append_var(m, &ind, "ryz", 1, 0, &size_varmem);
-//        
-//        if (m->ABS_TYPE==1){
-//            __GUARD append_var(m, &ind, "psi_sxy_x", 0, 0, &size_varcpmlx);
-//            __GUARD append_var(m, &ind, "psi_sxy_z", 0, 0, &size_varcpmlz);
-//            __GUARD append_var(m, &ind, "psi_vy_x", 0, 0, &size_varcpmlx);
-//            __GUARD append_var(m, &ind, "psi_vy_z", 0, 0, &size_varcpmlz);
-//            
-//        }
-//        
+////    }
+//
+//    //Assign dimensions name
+//    if (m->ND==3){
+//        m->N_names[0]="Z";
+//        m->N_names[1]="Y";
+//        m->N_names[2]="X";
 //    }
-//    else if (m->ND==21 && m->L==0){  //2D SH elastic isotropic
-//        
-//        //Define the update kernels
-//        m->nupdates=2;
-//        GMALLOC(m->ups_f, m->nupdates*sizeof(update));
-//        ind=0;
-////        __GUARD append_update(m->ups_f, &ind, "update_v", update_v2D_SH_source);
-////        __GUARD append_update(m->ups_f, &ind, "update_s", update_s2D_SH_source);
-////        if (m->GRADOUT){
-////            GMALLOC(m->ups_adj, m->nupdates*sizeof(update));
-////            ind=0;
-////            __GUARD append_update(m->ups_adj, &ind, "update_adjv", update_adjv2D_SH_source);
-////            __GUARD append_update(m->ups_adj, &ind, "update_adjs", update_adjs2D_SH_source);
-////        }
-////        if (m->FREESURF){
-////            __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface2D_source);
-////        }
-////        if (m->GRADOUT && m->BACK_PROP_TYPE==1){
-////            __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd2D_source);
-////        }
-//        
-//        m->npars=5;
-//        
-//        GMALLOC(m->pars, sizeof(parameter)*m->npars);
-//        ind=0;
-//        __GUARD append_par(m, &ind, "mu", "/mu", &mu);
-//        __GUARD append_par(m, &ind, "rho", "/rho", NULL);
-//        __GUARD append_par(m, &ind, "rip", NULL, &rip);
-//        __GUARD append_par(m, &ind, "rkp", NULL, &rkp);
-//        __GUARD append_par(m, &ind, "muipkp", NULL, &muipkp);
-//        
-//        m->nvars=3;
-//        if (m->ABS_TYPE==1)
-//        m->nvars+=4;
-//        GMALLOC(m->vars, sizeof(variable)*m->nvars);
-//        ind=0;
-//        __GUARD append_var(m, &ind, "vy", 1, 1, &size_varseis);
-//        __GUARD append_var(m, &ind, "sxy", 1, 1, &size_varseis);
-//        __GUARD append_var(m, &ind, "syz", 1, 1, &size_varseis);
-//        
-//        if (m->ABS_TYPE==1){
-//            __GUARD append_var(m, &ind, "psi_sxy_x", 0, 0, &size_varcpmlx);
-//            __GUARD append_var(m, &ind, "psi_sxy_z", 0, 0, &size_varcpmlz);
-//            __GUARD append_var(m, &ind, "psi_vy_x", 0, 0, &size_varcpmlx);
-//            __GUARD append_var(m, &ind, "psi_vy_z", 0, 0, &size_varcpmlz);
-//            
-//        }
-//        
-//        
+//    else{
+//        m->N_names[0]="Z";
+//        m->N_names[1]="X";
 //    }
-
-//    //Create adjoint variables if necessary
-//    if (m->GRADOUT && m->BACK_PROP_TYPE==1){
-//        GMALLOC(m->vars_adj, sizeof(variable)*m->nvars);
-//        for (i=0;i<m->nvars;i++){
-//            m->vars_adj[i]=m->vars[i];
+//
+//    //Check the name of variable to read depending on the chosen parametrization
+//    if (!state){
+//
+//        if (m->par_type==2){
+//            for (i=0;i<m->npars;i++){
+//                if (strcmp(m->pars[i].name,"M")==0)
+//                    m->pars[i].to_read="/Ip";
+//                if (strcmp(m->pars[i].name,"mu")==0)
+//                    m->pars[i].to_read="/Is";
+//            }
+//        }
+//        else if (m->par_type==3){
+//            if (m->L==0) {
+//                state=1;
+//                fprintf(stderr,"par_type=3 requires Viscoelastic modeling \n");
+//            }
+//            for (i=0;i<m->npars;i++){
+//                if (strcmp(m->pars[i].name,"M")==0)
+//                    m->pars[i].to_read="/vpR";
+//                if (strcmp(m->pars[i].name,"mu")==0)
+//                    m->pars[i].to_read="/vsR";
+//                if (strcmp(m->pars[i].name,"taup")==0)
+//                    m->pars[i].to_read="/vpI";
+//                if (strcmp(m->pars[i].name,"taus")==0)
+//                    m->pars[i].to_read="/vsI";
+//            }
+//        }
+//        else {
+//            m->par_type=0;
+//            for (i=0;i<m->npars;i++){
+//                if (strcmp(m->pars[i].name,"M")==0)
+//                    m->pars[i].to_read="/vp";
+//                if (strcmp(m->pars[i].name,"mu")==0)
+//                    m->pars[i].to_read="/vs";
+//            }
 //        }
 //    }
-
-    //Assign dimensions name
-    if (m->ND==3){
-        m->N_names[0]="Z";
-        m->N_names[1]="Y";
-        m->N_names[2]="X";
-    }
-    else{
-        m->N_names[0]="Z";
-        m->N_names[1]="X";
-    }
-
-    //Check the name of variable to read depending on the chosen parametrization
-    if (!state){
-
-        if (m->par_type==2){
-            for (i=0;i<m->npars;i++){
-                if (strcmp(m->pars[i].name,"M")==0)
-                    m->pars[i].to_read="/Ip";
-                if (strcmp(m->pars[i].name,"mu")==0)
-                    m->pars[i].to_read="/Is";
-            }
-        }
-        else if (m->par_type==3){
-            if (m->L==0) {
-                state=1;
-                fprintf(stderr,"par_type=3 requires Viscoelastic modeling \n");
-            }
-            for (i=0;i<m->npars;i++){
-                if (strcmp(m->pars[i].name,"M")==0)
-                    m->pars[i].to_read="/vpR";
-                if (strcmp(m->pars[i].name,"mu")==0)
-                    m->pars[i].to_read="/vsR";
-                if (strcmp(m->pars[i].name,"taup")==0)
-                    m->pars[i].to_read="/vpI";
-                if (strcmp(m->pars[i].name,"taus")==0)
-                    m->pars[i].to_read="/vsI";
-            }
-        }
-        else {
-            m->par_type=0;
-            for (i=0;i<m->npars;i++){
-                if (strcmp(m->pars[i].name,"M")==0)
-                    m->pars[i].to_read="/vp";
-                if (strcmp(m->pars[i].name,"mu")==0)
-                    m->pars[i].to_read="/vs";
-            }
-        }
-    }
-    
-    //Flag variables to output
-    if (!state){
-        if (m->VARSOUT==1){
-            for (i=0;i<m->nvars;i++){
-                if (strcmp(m->vars[i].name,"vx")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"vy")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"vz")==0)
-                    m->vars[i].to_output=1;
-            }
-        }
-        if (m->VARSOUT==2){
-            for (i=0;i<m->ntvars;i++){
-                if (strcmp(m->trans_vars[i].name,"p")==0)
-                    m->trans_vars[i].to_output=1;
-            }
-        }
-        if (m->VARSOUT==3){
-            for (i=0;i<m->nvars;i++){
-                if (strcmp(m->vars[i].name,"sxx")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"syy")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"szz")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"sxx")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"syy")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"szz")==0)
-                    m->vars[i].to_output=1;
-            }
-        }
-        if (m->VARSOUT==4){
-            for (i=0;i<m->nvars;i++){
-                if (strcmp(m->vars[i].name,"vx")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"vy")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"vz")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"sxx")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"syy")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"szz")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"sxx")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"syy")==0)
-                    m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"szz")==0)
-                    m->vars[i].to_output=1;
-            }
-            for (i=0;i<m->ntvars;i++){
-                if (strcmp(m->trans_vars[i].name,"p")==0)
-                    m->trans_vars[i].to_output=1;
-            }
-        }
-    }
-
-    
-    //Allocate memory of variables
-    for (i=0;i<m->nvars;i++){
-        if (m->vars[i].to_output){
-            var_alloc_out(&m->vars[i].gl_varout, m);
-            if (m->MOVOUT>0){
-                GMALLOC(m->vars[i].gl_mov,sizeof(float)*
-                             m->src_recs.ns*m->vars[i].num_ele*m->NT/m->MOVOUT);
-            }
-        }
-    }
-    for (i=0;i<m->ntvars;i++){
-        if (m->trans_vars[i].to_output){
-            var_alloc_out(&m->trans_vars[i].gl_varout, m);
-        }
-    }
-    
-    if (m->GRADSRCOUT==1){
-        GMALLOC(m->src_recs.gradsrc,sizeof(float*)*m->src_recs.ns);
-        GMALLOC(m->src_recs.gradsrc[0],sizeof(float)*m->src_recs.allns*m->NT);
-        for (i=1;i<m->src_recs.ns;i++){
-            m->src_recs.gradsrc[i]=m->src_recs.gradsrc[i-1]
-                                  +m->src_recs.nsrc[i-1]*m->NT;
-        }
-    }
+//    
+//    //Flag variables to output
+//    if (!state){
+//        if (m->VARSOUT==1){
+//            for (i=0;i<m->nvars;i++){
+//                if (strcmp(m->vars[i].name,"vx")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"vy")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"vz")==0)
+//                    m->vars[i].to_output=1;
+//            }
+//        }
+//        if (m->VARSOUT==2){
+//            for (i=0;i<m->ntvars;i++){
+//                if (strcmp(m->trans_vars[i].name,"p")==0)
+//                    m->trans_vars[i].to_output=1;
+//            }
+//        }
+//        if (m->VARSOUT==3){
+//            for (i=0;i<m->nvars;i++){
+//                if (strcmp(m->vars[i].name,"sxx")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"syy")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"szz")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"sxx")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"syy")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"szz")==0)
+//                    m->vars[i].to_output=1;
+//            }
+//        }
+//        if (m->VARSOUT==4){
+//            for (i=0;i<m->nvars;i++){
+//                if (strcmp(m->vars[i].name,"vx")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"vy")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"vz")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"sxx")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"syy")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"szz")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"sxx")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"syy")==0)
+//                    m->vars[i].to_output=1;
+//                if (strcmp(m->vars[i].name,"szz")==0)
+//                    m->vars[i].to_output=1;
+//            }
+//            for (i=0;i<m->ntvars;i++){
+//                if (strcmp(m->trans_vars[i].name,"p")==0)
+//                    m->trans_vars[i].to_output=1;
+//            }
+//        }
+//    }
+//
+//    
+//    //Allocate memory of variables
+//    for (i=0;i<m->nvars;i++){
+//        if (m->vars[i].to_output){
+//            var_alloc_out(&m->vars[i].gl_varout, m);
+//            if (m->MOVOUT>0){
+//                GMALLOC(m->vars[i].gl_mov,sizeof(float)*
+//                             m->src_recs.ns*m->vars[i].num_ele*m->NT/m->MOVOUT);
+//            }
+//        }
+//    }
+//    for (i=0;i<m->ntvars;i++){
+//        if (m->trans_vars[i].to_output){
+//            var_alloc_out(&m->trans_vars[i].gl_varout, m);
+//        }
+//    }
+//    
+//    if (m->GRADSRCOUT==1){
+//        GMALLOC(m->src_recs.gradsrc,sizeof(float*)*m->src_recs.ns);
+//        GMALLOC(m->src_recs.gradsrc[0],sizeof(float)*m->src_recs.allns*m->NT);
+//        for (i=1;i<m->src_recs.ns;i++){
+//            m->src_recs.gradsrc[i]=m->src_recs.gradsrc[i-1]
+//                                  +m->src_recs.nsrc[i-1]*m->NT;
+//        }
+//    }
     
 
     return state;
