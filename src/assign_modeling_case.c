@@ -1491,7 +1491,7 @@ int assign_modeling_case(model * m){
 //
 //    }
     else {
-        state=1
+        state=1;
         fprintf(stderr, "No valid modeling case chosen\n");
     }
 
