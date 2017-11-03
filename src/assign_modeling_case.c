@@ -1074,8 +1074,8 @@ int assign_modeling_case(model * m){
         if (m->GRADOUT){
             GMALLOC(m->ups_adj, m->nupdates*sizeof(update));
             ind=0;
-            __GUARD append_update(m->ups_adj, &ind, "update_adjv", update_adjv3D_half2_source);
-            __GUARD append_update(m->ups_adj, &ind, "update_adjs", update_adjs3D_half2_source);
+            __GUARD append_update(m->ups_adj, &ind, "update_adjv", update_adjv3D_source);
+            __GUARD append_update(m->ups_adj, &ind, "update_adjs", update_adjs3D_source);
         }
         if (m->FREESURF){
             __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface3D_source);
@@ -1170,8 +1170,8 @@ int assign_modeling_case(model * m){
         if (m->GRADOUT){
             GMALLOC(m->ups_adj, m->nupdates*sizeof(update));
             ind=0;
-            __GUARD append_update(m->ups_adj, &ind, "update_adjv", update_adjv3D_half2_source);
-            __GUARD append_update(m->ups_adj, &ind, "update_adjs", update_adjs3D_half2_source);
+            __GUARD append_update(m->ups_adj, &ind, "update_adjv", update_adjv3D_source);
+            __GUARD append_update(m->ups_adj, &ind, "update_adjs", update_adjs3D_source);
         }
         if (m->FREESURF){
             __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface3D_source);
