@@ -833,12 +833,12 @@ extern "C" __global__ void update_s(int offcomm,
     int gidx = blockIdx.y*blockDim.y+threadIdx.y+FDOH+offcomm;
     
     //Define and load private parameters and variables
-//    __cprec lsxx = __h22f2(sxx(gidz,gidx));
-//    __cprec lsxz = __h22f2(sxz(gidz,gidx));
-//    __cprec lszz = __h22f2(szz(gidz,gidx));
-//    float2 lM = M(gidz,gidx);
-//    float2 lmu = mu(gidz,gidx);
-//    float2 lmuipkp = muipkp(gidz,gidx);
+    __cprec lsxx = __h22f2(sxx(gidz,gidx));
+    __cprec lsxz = __h22f2(sxz(gidz,gidx));
+    __cprec lszz = __h22f2(szz(gidz,gidx));
+    float2 lM = M(gidz,gidx);
+    float2 lmu = mu(gidz,gidx);
+    float2 lmuipkp = muipkp(gidz,gidx);
     
     //Define private derivatives
     __cprec vx_x2;
@@ -866,29 +866,29 @@ extern "C" __global__ void update_s(int offcomm,
     //Calculation of the spatial derivatives
     {
 #if LOCAL_OFF==0
-//        __syncthreads();
-//        lvx2(lidz,lidx)=vx(gidz,gidx);
-//        if (lidz<FDOH)
-//            lvx2(lidz-FDOH/2,lidx)=vx(gidz-FDOH/2,gidx);
-//        if (lidz>(lsizez-FDOH-1))
-//            lvx2(lidz+FDOH/2,lidx)=vx(gidz+FDOH/2,gidx);
-//        if (lidx<2*FDOH)
-//            lvx2(lidz,lidx-FDOH)=vx(gidz,gidx-FDOH);
-//        if (lidx+lsizex-3*FDOH<FDOH)
-//            lvx2(lidz,lidx+lsizex-3*FDOH)=vx(gidz,gidx+lsizex-3*FDOH);
-//        if (lidx>(lsizex-2*FDOH-1))
-//            lvx2(lidz,lidx+FDOH)=vx(gidz,gidx+FDOH);
-//        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
-//            lvx2(lidz,lidx-lsizex+3*FDOH)=vx(gidz,gidx-lsizex+3*FDOH);
-//        __syncthreads();
+        __syncthreads();
+        lvx2(lidz,lidx)=vx(gidz,gidx);
+        if (lidz<FDOH)
+            lvx2(lidz-FDOH/2,lidx)=vx(gidz-FDOH/2,gidx);
+        if (lidz>(lsizez-FDOH-1))
+            lvx2(lidz+FDOH/2,lidx)=vx(gidz+FDOH/2,gidx);
+        if (lidx<2*FDOH)
+            lvx2(lidz,lidx-FDOH)=vx(gidz,gidx-FDOH);
+        if (lidx+lsizex-3*FDOH<FDOH)
+            lvx2(lidz,lidx+lsizex-3*FDOH)=vx(gidz,gidx+lsizex-3*FDOH);
+        if (lidx>(lsizex-2*FDOH-1))
+            lvx2(lidz,lidx+FDOH)=vx(gidz,gidx+FDOH);
+        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
+            lvx2(lidz,lidx-lsizex+3*FDOH)=vx(gidz,gidx-lsizex+3*FDOH);
+        __syncthreads();
 #endif
         
 #if   FDOH == 1
         vx_x2=mul2( f2h2(HC1), sub2(__h22f2(lvx2(lidz,lidx)), __h22f2(lvx2(lidz,lidx-1))));
 #elif FDOH == 2
-//        vx_x2=add2(
-//                   mul2( f2h2(HC1), sub2(__h22f2(lvx2(lidz,lidx)), __h22f2(lvx2(lidz,lidx-1)))),
-//                   mul2( f2h2(HC2), sub2(__h22f2(lvx2(lidz,lidx+1)), __h22f2(lvx2(lidz,lidx-2)))));
+        vx_x2=add2(
+                   mul2( f2h2(HC1), sub2(__h22f2(lvx2(lidz,lidx)), __h22f2(lvx2(lidz,lidx-1)))),
+                   mul2( f2h2(HC2), sub2(__h22f2(lvx2(lidz,lidx+1)), __h22f2(lvx2(lidz,lidx-2)))));
 #elif FDOH == 3
         vx_x2=add2(add2(
                         mul2( f2h2(HC1), sub2(__h22f2(lvx2(lidz,lidx)), __h22f2(lvx2(lidz,lidx-1)))),
@@ -920,9 +920,9 @@ extern "C" __global__ void update_s(int offcomm,
 #if   FDOH == 1
         vx_z1=mul2( f2h2(HC1), sub2(__h22f2(__hp(&lvx(2*lidz+1,lidx))), __h22f2(__hp(&lvx(2*lidz,lidx)))));
 #elif FDOH == 2
-//        vx_z1=add2(
-//                   mul2( f2h2(HC1), sub2(__h22f2(__hp(&lvx(2*lidz+1,lidx))), __h22f2(__hp(&lvx(2*lidz,lidx))))),
-//                   mul2( f2h2(HC2), sub2(__h22f2(__hp(&lvx(2*lidz+2,lidx))), __h22f2(__hp(&lvx(2*lidz-1,lidx))))));
+        vx_z1=add2(
+                   mul2( f2h2(HC1), sub2(__h22f2(__hp(&lvx(2*lidz+1,lidx))), __h22f2(__hp(&lvx(2*lidz,lidx))))),
+                   mul2( f2h2(HC2), sub2(__h22f2(__hp(&lvx(2*lidz+2,lidx))), __h22f2(__hp(&lvx(2*lidz-1,lidx))))));
 #elif FDOH == 3
         vx_z1=add2(add2(
                         mul2( f2h2(HC1), sub2(__h22f2(__hp(&lvx(2*lidz+1,lidx))), __h22f2(__hp(&lvx(2*lidz,lidx))))),
@@ -952,29 +952,29 @@ extern "C" __global__ void update_s(int offcomm,
 #endif
         
 #if LOCAL_OFF==0
-//        __syncthreads();
-//        lvz2(lidz,lidx)=vz(gidz,gidx);
-//        if (lidz<FDOH)
-//            lvz2(lidz-FDOH/2,lidx)=vz(gidz-FDOH/2,gidx);
-//        if (lidz>(lsizez-FDOH-1))
-//            lvz2(lidz+FDOH/2,lidx)=vz(gidz+FDOH/2,gidx);
-//        if (lidx<2*FDOH)
-//            lvz2(lidz,lidx-FDOH)=vz(gidz,gidx-FDOH);
-//        if (lidx+lsizex-3*FDOH<FDOH)
-//            lvz2(lidz,lidx+lsizex-3*FDOH)=vz(gidz,gidx+lsizex-3*FDOH);
-//        if (lidx>(lsizex-2*FDOH-1))
-//            lvz2(lidz,lidx+FDOH)=vz(gidz,gidx+FDOH);
-//        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
-//            lvz2(lidz,lidx-lsizex+3*FDOH)=vz(gidz,gidx-lsizex+3*FDOH);
-//        __syncthreads();
+        __syncthreads();
+        lvz2(lidz,lidx)=vz(gidz,gidx);
+        if (lidz<FDOH)
+            lvz2(lidz-FDOH/2,lidx)=vz(gidz-FDOH/2,gidx);
+        if (lidz>(lsizez-FDOH-1))
+            lvz2(lidz+FDOH/2,lidx)=vz(gidz+FDOH/2,gidx);
+        if (lidx<2*FDOH)
+            lvz2(lidz,lidx-FDOH)=vz(gidz,gidx-FDOH);
+        if (lidx+lsizex-3*FDOH<FDOH)
+            lvz2(lidz,lidx+lsizex-3*FDOH)=vz(gidz,gidx+lsizex-3*FDOH);
+        if (lidx>(lsizex-2*FDOH-1))
+            lvz2(lidz,lidx+FDOH)=vz(gidz,gidx+FDOH);
+        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
+            lvz2(lidz,lidx-lsizex+3*FDOH)=vz(gidz,gidx-lsizex+3*FDOH);
+        __syncthreads();
 #endif
         
 #if   FDOH == 1
         vz_x1=mul2( f2h2(HC1), sub2(__h22f2(lvz2(lidz,lidx+1)), __h22f2(lvz2(lidz,lidx))));
 #elif FDOH == 2
-//        vz_x1=add2(
-//                   mul2( f2h2(HC1), sub2(__h22f2(lvz2(lidz,lidx+1)), __h22f2(lvz2(lidz,lidx)))),
-//                   mul2( f2h2(HC2), sub2(__h22f2(lvz2(lidz,lidx+2)), __h22f2(lvz2(lidz,lidx-1)))));
+        vz_x1=add2(
+                   mul2( f2h2(HC1), sub2(__h22f2(lvz2(lidz,lidx+1)), __h22f2(lvz2(lidz,lidx)))),
+                   mul2( f2h2(HC2), sub2(__h22f2(lvz2(lidz,lidx+2)), __h22f2(lvz2(lidz,lidx-1)))));
 #elif FDOH == 3
         vz_x1=add2(add2(
                         mul2( f2h2(HC1), sub2(__h22f2(lvz2(lidz,lidx+1)), __h22f2(lvz2(lidz,lidx)))),
@@ -1006,9 +1006,9 @@ extern "C" __global__ void update_s(int offcomm,
 #if   FDOH == 1
         vz_z2=mul2( f2h2(HC1), sub2(__h22f2(__hp(&lvz(2*lidz,lidx))), __h22f2(__hp(&lvz(2*lidz-1,lidx)))));
 #elif FDOH == 2
-//        vz_z2=add2(
-//                   mul2( f2h2(HC1), sub2(__h22f2(__hp(&lvz(2*lidz,lidx))), __h22f2(__hp(&lvz(2*lidz-1,lidx))))),
-//                   mul2( f2h2(HC2), sub2(__h22f2(__hp(&lvz(2*lidz+1,lidx))), __h22f2(__hp(&lvz(2*lidz-2,lidx))))));
+        vz_z2=add2(
+                   mul2( f2h2(HC1), sub2(__h22f2(__hp(&lvz(2*lidz,lidx))), __h22f2(__hp(&lvz(2*lidz-1,lidx))))),
+                   mul2( f2h2(HC2), sub2(__h22f2(__hp(&lvz(2*lidz+1,lidx))), __h22f2(__hp(&lvz(2*lidz-2,lidx))))));
 #elif FDOH == 3
         vz_z2=add2(add2(
                         mul2( f2h2(HC1), sub2(__h22f2(__hp(&lvz(2*lidz,lidx))), __h22f2(__hp(&lvz(2*lidz-1,lidx))))),
@@ -1050,14 +1050,14 @@ extern "C" __global__ void update_s(int offcomm,
 #endif
     
     // Update the variables
-//    lsxz=add2(lsxz,mul2(__float22half2_rn(lmuipkp),add2(vx_z1,vz_x1)));
-//    lsxx=sub2(add2(lsxx,mul2(__float22half2_rn(lM),add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),__float22half2_rn(lmu)),vz_z2));
-//    lszz=sub2(add2(lszz,mul2(__float22half2_rn(lM),add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),__float22half2_rn(lmu)),vx_x2));
+    lsxz=add2(lsxz,mul2(__float22half2_rn(lmuipkp),add2(vx_z1,vz_x1)));
+    lsxx=sub2(add2(lsxx,mul2(__float22half2_rn(lM),add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),__float22half2_rn(lmu)),vz_z2));
+    lszz=sub2(add2(lszz,mul2(__float22half2_rn(lM),add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),__float22half2_rn(lmu)),vx_x2));
 
     //Write updated values to global memory
-//    sxx(gidz,gidx) = __f22h2(lsxx);
-//    sxz(gidz,gidx) = __f22h2(lsxz);
-//    szz(gidz,gidx) = __f22h2(lszz);
+    sxx(gidz,gidx) = __f22h2(lsxx);
+    sxz(gidz,gidx) = __f22h2(lsxz);
+    szz(gidz,gidx) = __f22h2(lszz);
     
     
 }
