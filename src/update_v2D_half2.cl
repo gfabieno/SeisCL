@@ -757,7 +757,7 @@ extern "C" __global__ void update_v(int offcomm,
 //            lsxx2(lidz,lidx-lsizex+3*FDOH)=sxx(gidz,gidx-lsizex+3*FDOH);
 //        __syncthreads();
 //#endif
-//        
+//
 //#if   FDOH == 1
 //        sxx_x1=mul2( f2h2(HC1), sub2(__h22f2(lsxx2(lidz,lidx+1)), __h22f2(lsxx2(lidz,lidx))));
 //#elif FDOH == 2
@@ -791,7 +791,7 @@ extern "C" __global__ void update_v(int offcomm,
 //                         mul2( f2h2(HC5), sub2(__h22f2(lsxx2(lidz,lidx+5)), __h22f2(lsxx2(lidz,lidx-4))))),
 //                    mul2( f2h2(HC6), sub2(__h22f2(lsxx2(lidz,lidx+6)), __h22f2(lsxx2(lidz,lidx-5)))));
 //#endif
-//        
+//
 //#if LOCAL_OFF==0
 //        __syncthreads();
 //        lszz2(lidz,lidx)=szz(gidz,gidx);
@@ -801,7 +801,7 @@ extern "C" __global__ void update_v(int offcomm,
 //            lszz2(lidz+FDOH/2,lidx)=szz(gidz+FDOH/2,gidx);
 //        __syncthreads();
 //#endif
-//        
+//
 //#if   FDOH == 1
 //        szz_z1=mul2( f2h2(HC1), sub2(__h22f2(__hp(&lszz(2*lidz+1,lidx))), __h22f2(__hp(&lszz(2*lidz,lidx)))));
 //#elif FDOH == 2
@@ -835,7 +835,7 @@ extern "C" __global__ void update_v(int offcomm,
 //                         mul2( f2h2(HC5), sub2(__h22f2(__hp(&lszz(2*lidz+5,lidx))), __h22f2(__hp(&lszz(2*lidz-4,lidx)))))),
 //                    mul2( f2h2(HC6), sub2(__h22f2(__hp(&lszz(2*lidz+6,lidx))), __h22f2(__hp(&lszz(2*lidz-5,lidx))))));
 //#endif
-//        
+//
 //#if LOCAL_OFF==0
 //        __syncthreads();
 //        lsxz2(lidz,lidx)=sxz(gidz,gidx);
@@ -853,7 +853,7 @@ extern "C" __global__ void update_v(int offcomm,
 //            lsxz2(lidz,lidx-lsizex+3*FDOH)=sxz(gidz,gidx-lsizex+3*FDOH);
 //        __syncthreads();
 //#endif
-//        
+//
 //#if   FDOH == 1
 //        sxz_x2=mul2( f2h2(HC1), sub2(__h22f2(lsxz2(lidz,lidx)), __h22f2(lsxz2(lidz,lidx-1))));
 //#elif FDOH == 2
@@ -887,7 +887,7 @@ extern "C" __global__ void update_v(int offcomm,
 //                         mul2( f2h2(HC5), sub2(__h22f2(lsxz2(lidz,lidx+4)), __h22f2(lsxz2(lidz,lidx-5))))),
 //                    mul2( f2h2(HC6), sub2(__h22f2(lsxz2(lidz,lidx+5)), __h22f2(lsxz2(lidz,lidx-6)))));
 //#endif
-//        
+//
 //#if   FDOH == 1
 //        sxz_z2=mul2( f2h2(HC1), sub2(__h22f2(__hp(&lsxz(2*lidz,lidx))), __h22f2(__hp(&lsxz(2*lidz-1,lidx)))));
 //#elif FDOH == 2
@@ -921,7 +921,7 @@ extern "C" __global__ void update_v(int offcomm,
 //                         mul2( f2h2(HC5), sub2(__h22f2(__hp(&lsxz(2*lidz+4,lidx))), __h22f2(__hp(&lsxz(2*lidz-5,lidx)))))),
 //                    mul2( f2h2(HC6), sub2(__h22f2(__hp(&lsxz(2*lidz+5,lidx))), __h22f2(__hp(&lsxz(2*lidz-6,lidx))))));
 //#endif
-//        
+//
 //    }
     // To stop updating if we are outside the model (global id must be amultiple of local id in OpenCL, hence we stop if we have a global idoutside the grid)
 #if  LOCAL_OFF==0
