@@ -942,6 +942,8 @@ extern "C" __global__ void update_v(int offcomm,
 //    //Write updated values to global memory
 //    vx(gidz,gidx) = __f22h2(lvx);
 //    vz(gidz,gidx) = __f22h2(lvz);
+        rip(gidz,gidx) = __f22h2(lvx);
+        rkp(gidz,gidx) = __f22h2(lvz);
     
     
 }
