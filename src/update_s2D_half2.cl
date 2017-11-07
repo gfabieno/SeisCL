@@ -1055,7 +1055,7 @@ extern "C" __global__ void update_s(int offcomm,
 //    lszz=sub2(add2(lszz,mul2(lM,add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),lmu),vx_x2));
     half2 a;
     half2 b;
-    half2 c = __hadd2 ( a, b );
+    half2 c = __hadd2( a, b );
     
     
     //Write updated values to global memory
