@@ -833,9 +833,9 @@ extern "C" __global__ void update_s(int offcomm,
     int gidx = blockIdx.y*blockDim.y+threadIdx.y+FDOH+offcomm;
     
     //Define and load private parameters and variables
-    __cprec lsxx = __h22f2(sxx(gidz,gidx));
-    __cprec lsxz = __h22f2(sxz(gidz,gidx));
-    __cprec lszz = __h22f2(szz(gidz,gidx));
+//    __cprec lsxx = __h22f2(sxx(gidz,gidx));
+//    __cprec lsxz = __h22f2(sxz(gidz,gidx));
+//    __cprec lszz = __h22f2(szz(gidz,gidx));
 //    float2 lM = M(gidz,gidx);
 //    float2 lmu = mu(gidz,gidx);
 //    float2 lmuipkp = muipkp(gidz,gidx);

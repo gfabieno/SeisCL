@@ -708,8 +708,8 @@ extern "C" __global__ void update_v(int offcomm,
     int gidx = blockIdx.y*blockDim.y+threadIdx.y+FDOH+offcomm;
     
     //Define and load private parameters and variables
-    __cprec lvx = __h22f2(vx(gidz,gidx));
-    __cprec lvz = __h22f2(vz(gidz,gidx));
+//    __cprec lvx = __h22f2(vx(gidz,gidx));
+//    __cprec lvz = __h22f2(vz(gidz,gidx));
 //    float2 lrip = rip(gidz,gidx);
 //    float2 lrkp = rkp(gidz,gidx);
     
