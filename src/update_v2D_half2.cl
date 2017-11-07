@@ -710,8 +710,8 @@ extern "C" __global__ void update_v(int offcomm,
     //Define and load private parameters and variables
     __cprec lvx = __h22f2(vx(gidz,gidx));
     __cprec lvz = __h22f2(vz(gidz,gidx));
-    float2 lrip = rip(gidz,gidx);
-    float2 lrkp = rkp(gidz,gidx);
+//    float2 lrip = rip(gidz,gidx);
+//    float2 lrkp = rkp(gidz,gidx);
     
     //Define private derivatives
     __cprec sxx_x1;
