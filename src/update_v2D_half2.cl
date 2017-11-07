@@ -694,7 +694,7 @@ extern "C" __device__ __prec2 __hp(__prec *a ){
 
 
 extern "C" __global__ void update_v(int offcomm,
-                                    float2 *rip, float2 *rkp,__prec2 *sxx,__prec2 *sxz,__prec2 *szz,
+                                    __prec2 *rip, __prec2 *rkp,__prec2 *sxx,__prec2 *sxz,__prec2 *szz,
                                     __prec2 *vx,__prec2 *vz
                                     )
 
@@ -712,10 +712,12 @@ extern "C" __global__ void update_v(int offcomm,
     int gidx = blockIdx.y*blockDim.y+threadIdx.y+FDOH+offcomm;
     
     //Define and load private parameters and variables
-    __cprec lvx = __h22f2(vx(gidz,gidx));
-    __cprec lvz = __h22f2(vz(gidz,gidx));
-    __cprec lrip ;//= __f22h2c(rip(gidz,gidx));
-    __cprec lrkp ;//= __f22h2c(rkp(gidz,gidx));
+//    __cprec lvx = __h22f2(vx(gidz,gidx));
+//    __cprec lvz = __h22f2(vz(gidz,gidx));
+//    __cprec lrip = __f22h2c(rip(gidz,gidx));
+//    __cprec lrkp = __f22h2c(rkp(gidz,gidx));
+    __cprec lrip = __h22f2(rip(gidz,gidx));
+    __cprec lrkp = __h22f2(rkp(gidz,gidx));
     
     //Define private derivatives
     __cprec sxx_x1;
@@ -937,9 +939,9 @@ extern "C" __global__ void update_v(int offcomm,
     // Update the variables
     lvx=add2(lvx,mul2(add2(sxx_x1,sxz_z2),lrip));
     lvz=add2(lvz,mul2(add2(szz_z1,sxz_x2),lrkp));
-    //Write updated values to global memory
-    vx(gidz,gidx) = __f22h2(lvx);
-    vz(gidz,gidx) = __f22h2(lvz);
+//    //Write updated values to global memory
+//    vx(gidz,gidx) = __f22h2(lvx);
+//    vz(gidz,gidx) = __f22h2(lvz);
     
     
 }
