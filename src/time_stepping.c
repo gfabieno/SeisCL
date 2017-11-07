@@ -393,11 +393,11 @@ int initialize_grid(model * m, device ** dev, int s){
         }
         
         // Implement initial conditions
-        __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].bnd_cnds.init_f);
-        if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){
-            __GUARD prog_launch(&(*dev)[d].queue,
-                                &(*dev)[d].src_recs.varsoutinit);
-        }
+//        __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].bnd_cnds.init_f);
+//        if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){
+//            __GUARD prog_launch(&(*dev)[d].queue,
+//                                &(*dev)[d].src_recs.varsoutinit);
+//        }
 
         if (m->GRADOUT==1 && m->BACK_PROP_TYPE==2){
             __GUARD prog_launch( &(*dev)[d].queue,
