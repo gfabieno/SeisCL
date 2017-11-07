@@ -175,9 +175,6 @@ int connect_devices(device ** dev, model * m)
     __GUARD cuInit(0);
     __GUARD cuDeviceGetCount ( &nalldevices );
 
-    
-    
-    
     // Find the number of prefered devices
     GMALLOC(allow_devs,sizeof(int)*nalldevices);
     //Collect all allowed devices
@@ -198,6 +195,9 @@ int connect_devices(device ** dev, model * m)
         }
     }
     m->NUM_DEVICES = n;
+    if (m->NUM_DEVICES > m->nmax_dev){
+        m->NUM_DEVICES=m->nmax_dev;
+    }
     GMALLOC(*dev, sizeof(device)*m->NUM_DEVICES);
     
     
