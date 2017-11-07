@@ -765,6 +765,7 @@
 #if FP16!=2
 
 #define __cprec float2
+#define __f22h2c(x) (x)
 
 extern "C" __device__ float2 add2(float2 a, float2 b ){
     
@@ -800,14 +801,15 @@ extern "C" __device__ float2 f2h2(float a){
 #define mul2 __hmul2
 #define sub2 __hsub2
 #define f2h2 __float2half2_rn
+#define __f22h2c(x) __float22half2_rn((x))
 
 #endif
 
 extern "C" __device__ __prec2 __hp(__prec *a ){
     
     __prec2 output;
-    *(__prec *) (&output) = *a;
-    *(__prec *) (&output+1) = *(a+1);
+    *((__prec *)&output) = *a;
+    *((__prec *)&output+1) = *(a+1);
     return output;
 }
 
@@ -836,9 +838,9 @@ extern "C" __global__ void update_s(int offcomm,
     __cprec lsxx = __h22f2(sxx(gidz,gidx));
     __cprec lsxz = __h22f2(sxz(gidz,gidx));
     __cprec lszz = __h22f2(szz(gidz,gidx));
-    float2 lM = M(gidz,gidx);
-    float2 lmu = mu(gidz,gidx);
-    float2 lmuipkp = muipkp(gidz,gidx);
+    __cprec lM = __f22h2c(M(gidz,gidx));
+    __cprec lmu = __f22h2c(mu(gidz,gidx));
+    __cprec lmuipkp = __f22h2c(muipkp(gidz,gidx));
     
     //Define private derivatives
     __cprec vx_x2;
@@ -1050,10 +1052,9 @@ extern "C" __global__ void update_s(int offcomm,
 #endif
     
     // Update the variables
-    lsxz=add2(lsxz,mul2(__float22half2_rn(lmuipkp),add2(vx_z1,vz_x1)));
-    lsxx=sub2(add2(lsxx,mul2(__float22half2_rn(lM),add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),__float22half2_rn(lmu)),vz_z2));
-    lszz=sub2(add2(lszz,mul2(__float22half2_rn(lM),add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),__float22half2_rn(lmu)),vx_x2));
-
+    lsxz=add2(lsxz,mul2(lmuipkp,add2(vx_z1,vz_x1)));
+    lsxx=sub2(add2(lsxx,mul2(lM,add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),lmu),vz_z2));
+    lszz=sub2(add2(lszz,mul2(lM,add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),lmu),vx_x2));
     //Write updated values to global memory
     sxx(gidz,gidx) = __f22h2(lsxx);
     sxz(gidz,gidx) = __f22h2(lsxz);
@@ -1061,4 +1062,3 @@ extern "C" __global__ void update_s(int offcomm,
     
     
 }
-
