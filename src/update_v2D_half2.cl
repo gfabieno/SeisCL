@@ -937,8 +937,8 @@ extern "C" __global__ void update_v(int offcomm,
 #endif
     
     // Update the variables
-    lvx=add2(lvx,mul2(add2(sxx_x1,sxz_z2),lrip));
-    lvz=add2(lvz,mul2(add2(szz_z1,sxz_x2),lrkp));
+    __cprec lvx=add2(lvx,mul2(add2(sxx_x1,sxz_z2),lrip));
+    __cprec lvz=add2(lvz,mul2(add2(szz_z1,sxz_x2),lrkp));
 //    //Write updated values to global memory
 //    vx(gidz,gidx) = __f22h2(lvx);
 //    vz(gidz,gidx) = __f22h2(lvz);
