@@ -1053,6 +1053,11 @@ extern "C" __global__ void update_s(int offcomm,
 //    lsxz=add2(lsxz,mul2(lmuipkp,add2(vx_z1,vz_x1)));
 //    lsxx=sub2(add2(lsxx,mul2(lM,add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),lmu),vz_z2));
 //    lszz=sub2(add2(lszz,mul2(lM,add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),lmu),vx_x2));
+    half2 a;
+    half2 b;
+    half2 c = __hadd2 ( a, b );
+    
+    
     //Write updated values to global memory
     sxx(gidz,gidx) = __f22h2(lsxx);
     sxz(gidz,gidx) = __f22h2(lsxz);
