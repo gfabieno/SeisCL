@@ -1050,9 +1050,9 @@ extern "C" __global__ void update_s(int offcomm,
 #endif
     
     // Update the variables
-    lsxz=add2(lsxz,mul2(__float22half2_rn(lmuipkp),add2(vx_z1,vz_x1)));
-    lsxx=sub2(add2(lsxx,mul2(__float22half2_rn(lM),add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),__float22half2_rn(lmu)),vz_z2));
-    lszz=sub2(add2(lszz,mul2(__float22half2_rn(lM),add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),__float22half2_rn(lmu)),vx_x2));
+//    lsxz=add2(lsxz,mul2(__float22half2_rn(lmuipkp),add2(vx_z1,vz_x1)));
+//    lsxx=sub2(add2(lsxx,mul2(__float22half2_rn(lM),add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),__float22half2_rn(lmu)),vz_z2));
+//    lszz=sub2(add2(lszz,mul2(__float22half2_rn(lM),add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),__float22half2_rn(lmu)),vx_x2));
 
     //Write updated values to global memory
     sxx(gidz,gidx) = __f22h2(lsxx);
