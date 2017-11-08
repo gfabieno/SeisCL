@@ -51,7 +51,7 @@ int Init_model(model * m) {
             fprintf(stdout,"par %s: FP32:%f, FP16: %f\n",
                     m->pars[i].name,
                     m->pars[i].gl_par[0],
-                    half_to_float(approx_float_to_half(m->pars[i].gl_par[0]) ))
+                    half_to_float(approx_float_to_half(m->pars[i].gl_par[0]) ));
             
         }
     }
