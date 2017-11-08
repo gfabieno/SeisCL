@@ -827,7 +827,7 @@ extern "C" __device__ __prec2 __hp(__prec *a ){
 
 #define __pconv(x) __half22float2((x))
 
-#elif FP==3
+#elif FP16==3
 
 #define __pconv(x) __float22half2_rn((x))
 
