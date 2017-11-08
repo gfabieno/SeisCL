@@ -813,10 +813,32 @@ extern "C" __device__ __prec2 __hp(__prec *a ){
     return output;
 }
 
+#if FP16==2 || FP16==4
 
+#define __pprec half2
+
+#else
+
+#define __pprec float2
+
+#endif
+
+#if FP16==2
+
+#define __pconv(x) __half22float2((x))
+
+#elif FP==3
+
+#define __pconv(x) __float22half2_rn((x))
+
+#else
+
+#define __pconv(x) (x)
+
+#endif
 
 extern "C" __global__ void update_s(int offcomm,
-                                    __prec2 *muipkp, __prec2 *M, __prec2 *mu,
+                                    __pprec *muipkp, __pprec *M, __pprec *mu,
                                     __prec2 *sxx,__prec2 *sxz,__prec2 *szz,
                                     __prec2 *vx,__prec2 *vz
                                     )
@@ -838,9 +860,9 @@ extern "C" __global__ void update_s(int offcomm,
     __cprec lsxx = __h22f2(sxx(gidz,gidx));
     __cprec lsxz = __h22f2(sxz(gidz,gidx));
     __cprec lszz = __h22f2(szz(gidz,gidx));
-    __cprec lM = __h22f2(M(gidz,gidx));
-    __cprec lmu = __h22f2(mu(gidz,gidx));
-    __cprec lmuipkp = __h22f2(muipkp(gidz,gidx));
+    __pprec lM = __pconv(M(gidz,gidx));
+    __pprec lmu = __pconv(mu(gidz,gidx));
+    __pprec lmuipkp = __pconv(muipkp(gidz,gidx));
     
     //Define private derivatives
     __cprec vx_x2;

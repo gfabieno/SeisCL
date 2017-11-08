@@ -691,10 +691,33 @@ extern "C" __device__ __prec2 __hp(__prec *a ){
     return output;
 }
 
+#if FP16==2 || FP16==4
+
+#define __pprec half2
+
+#else
+
+#define __pprec float2
+
+#endif
+
+#if FP16==2
+
+#define __pconv(x) __half22float2((x))
+
+#elif FP==3
+
+#define __pconv(x) __float22half2_rn((x))
+
+#else
+
+#define __pconv(x) (x)
+
+#endif
 
 
 extern "C" __global__ void update_v(int offcomm,
-                                    __prec2 *rip, __prec2 *rkp,__prec2 *sxx,__prec2 *sxz,__prec2 *szz,
+                                    __pprec *rip, __pprec *rkp,__prec2 *sxx,__prec2 *sxz,__prec2 *szz,
                                     __prec2 *vx,__prec2 *vz
                                     )
 
@@ -714,8 +737,8 @@ extern "C" __global__ void update_v(int offcomm,
     //Define and load private parameters and variables
     __cprec lvx = __h22f2(vx(gidz,gidx));
     __cprec lvz = __h22f2(vz(gidz,gidx));
-    __cprec lrip = __h22f2(rip(gidz,gidx));
-    __cprec lrkp = __h22f2(rkp(gidz,gidx));
+    __pprec lrip = __pconv(rip(gidz,gidx));
+    __pprec lrkp = __pconv(rkp(gidz,gidx));
     
     //Define private derivatives
     __cprec sxx_x1;
