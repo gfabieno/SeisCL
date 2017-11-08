@@ -699,9 +699,9 @@ extern "C" __global__ void update_v(int offcomm,
                                     )
 
 {
-    //Local memory
-    extern __shared__ __prec2 lvar2[];
-    __prec * lvar=(__prec *)lvar2;
+//    //Local memory
+//    extern __shared__ __prec2 lvar2[];
+//    __prec * lvar=(__prec *)lvar2;
     
     //Grid position
     int lsizez = blockDim.x+FDOH;
