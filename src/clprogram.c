@@ -194,10 +194,12 @@ int get_build_options(device *dev,
     sprintf(build_options[*n-1],"--include-path=%s/include",value);
     *n+=1;
     sprintf(build_options[*n-1],"--pre-include=cuda_fp16.h");
-    if (m->FP16==2){
-        *n+=1;
-        sprintf(build_options[*n-1],"--gpu-architecture=compute_60");
-    }
+    *n+=1;
+    sprintf(build_options[*n-1],"--gpu-architecture=compute_60");
+//    if (m->FP16==2){
+//        *n+=1;
+//        sprintf(build_options[*n-1],"--gpu-architecture=compute_60");
+//    }
     if (m->N_names[0]){
         for (i=0;i<m->NDIM;i++){
             *n+=1;
