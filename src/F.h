@@ -46,6 +46,8 @@
 // includes CUDA Runtime
 #include <cuda.h>
 #include <nvrtc.h>
+#include <cuda_fp16.h>
+#include "fp16_conversion.h"
 
 #include <mpi.h>
 #include <hdf5.h>
