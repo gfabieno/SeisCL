@@ -360,9 +360,9 @@ int initialize_grid(model * m, device ** dev, int s){
                                                * 8 * (*dev)[d].src_recs.nrec[s];
         (*dev)[d].src_recs.cl_rec_pos.host=(*dev)[d].src_recs.rec_pos[s];
         
-        __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].src_recs.cl_src);
-        __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].src_recs.cl_src_pos);
-        __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].src_recs.cl_rec_pos);
+//        __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].src_recs.cl_src);
+//        __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].src_recs.cl_src_pos);
+//        __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].src_recs.cl_rec_pos);
         
         // Assign work sizes to kernels
         (*dev)[d].src_recs.sources.gsize[0]=(*dev)[d].src_recs.nsrc[s];
@@ -392,17 +392,17 @@ int initialize_grid(model * m, device ** dev, int s){
             }
         }
         
-        // Implement initial conditions
-        __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].bnd_cnds.init_f);
-        if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){
-            __GUARD prog_launch(&(*dev)[d].queue,
-                                &(*dev)[d].src_recs.varsoutinit);
-        }
-
-        if (m->GRADOUT==1 && m->BACK_PROP_TYPE==2){
-            __GUARD prog_launch( &(*dev)[d].queue,
-                                 &(*dev)[d].grads.initsavefreqs);
-        }
+//        // Implement initial conditions
+//        __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].bnd_cnds.init_f);
+//        if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){
+//            __GUARD prog_launch(&(*dev)[d].queue,
+//                                &(*dev)[d].src_recs.varsoutinit);
+//        }
+//
+//        if (m->GRADOUT==1 && m->BACK_PROP_TYPE==2){
+//            __GUARD prog_launch( &(*dev)[d].queue,
+//                                 &(*dev)[d].grads.initsavefreqs);
+//        }
         
 
         
@@ -465,55 +465,55 @@ int time_stepping(model * m, device ** dev) {
                 }
             }
             
-            //Save the selected frequency if the gradient is obtained by DFT
-            if (m->GRADOUT==1
-                && m->BACK_PROP_TYPE==2
-                && t>=m->tmin
-                && (t-m->tmin)%m->DTNYQ==0){
-                
-                for (d=0;d<m->NUM_DEVICES;d++){
-                    thist=(t-m->tmin)/m->DTNYQ;
-                    (*dev)[d].grads.savefreqs.inputs[(*dev)[d].grads.savefreqs.tinput-1]=&thist;
-                    __GUARD prog_launch( &(*dev)[d].queue,
-                                         &(*dev)[d].grads.savefreqs);
-                }
-                
-            }
+//            //Save the selected frequency if the gradient is obtained by DFT
+//            if (m->GRADOUT==1
+//                && m->BACK_PROP_TYPE==2
+//                && t>=m->tmin
+//                && (t-m->tmin)%m->DTNYQ==0){
+//
+//                for (d=0;d<m->NUM_DEVICES;d++){
+//                    thist=(t-m->tmin)/m->DTNYQ;
+//                    (*dev)[d].grads.savefreqs.inputs[(*dev)[d].grads.savefreqs.tinput-1]=&thist;
+//                    __GUARD prog_launch( &(*dev)[d].queue,
+//                                         &(*dev)[d].grads.savefreqs);
+//                }
+//
+//            }
             
-            // Inject the sources
-            for (d=0;d<m->NUM_DEVICES;d++){
-                __GUARD prog_launch( &(*dev)[d].queue,
-                                    &(*dev)[d].src_recs.sources);
-            }
+//            // Inject the sources
+//            for (d=0;d<m->NUM_DEVICES;d++){
+//                __GUARD prog_launch( &(*dev)[d].queue,
+//                                    &(*dev)[d].src_recs.sources);
+//            }
 
             // Apply all updates
             __GUARD update_grid(m, dev);
             
             
-            // Computing the free surface
-            if (m->FREESURF==1){
-                for (d=0;d<m->NUM_DEVICES;d++){
-                    __GUARD prog_launch( &(*dev)[d].queue,
-                                        &(*dev)[d].bnd_cnds.surf);
-                }
-            }
-            
-            // Save the boundaries
-            if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1)
-                __GUARD save_bnd( m, dev, t);
-            
-            
-            // Outputting seismograms
-            if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){
-                for (d=0;d<m->NUM_DEVICES;d++){
-                    __GUARD prog_launch( &(*dev)[d].queue,
-                                        &(*dev)[d].src_recs.varsout);
-                }
-            }
-
-            // Outputting the movie
-            if (m->MOVOUT>0 && (t+1)%m->MOVOUT==0 && state==0)
-                movout( m, dev, t, s);
+//            // Computing the free surface
+//            if (m->FREESURF==1){
+//                for (d=0;d<m->NUM_DEVICES;d++){
+//                    __GUARD prog_launch( &(*dev)[d].queue,
+//                                        &(*dev)[d].bnd_cnds.surf);
+//                }
+//            }
+//
+//            // Save the boundaries
+//            if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1)
+//                __GUARD save_bnd( m, dev, t);
+//
+//
+//            // Outputting seismograms
+//            if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){
+//                for (d=0;d<m->NUM_DEVICES;d++){
+//                    __GUARD prog_launch( &(*dev)[d].queue,
+//                                        &(*dev)[d].src_recs.varsout);
+//                }
+//            }
+//
+//            // Outputting the movie
+//            if (m->MOVOUT>0 && (t+1)%m->MOVOUT==0 && state==0)
+//                movout( m, dev, t, s);
 
 
             
@@ -527,10 +527,10 @@ int time_stepping(model * m, device ** dev) {
 //            }
 //        }
 
-        // Aggregate the seismograms in the output variable
-        if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){
-            __GUARD reduce_seis(m, dev, s);
-        }
+//        // Aggregate the seismograms in the output variable
+//        if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){
+//            __GUARD reduce_seis(m, dev, s);
+//        }
 
         //Calculate the residuals
         if (m->GRADOUT || m->RMSOUT || m->RESOUT){
