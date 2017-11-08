@@ -372,25 +372,25 @@ int initialize_grid(model * m, device ** dev, int s){
         (*dev)[d].src_recs.init_gradsrc.gsize[0]=(*dev)[d].src_recs.nsrc[s]
                                                                         * m->NT;
         //Assign the some arg to kernels
-        int pdir=1;
-        for (i=0;i<(*dev)[d].nprogs;i++){
-            if ((*dev)[d].progs[i]->pdir>0){
-                ind =(*dev)[d].progs[i]->pdir-1;
-                (*dev)[d].progs[i]->inputs[ind]=&pdir;
-            }
-            if ((*dev)[d].progs[i]->nsinput>0){
-                ind =(*dev)[d].progs[i]->nsinput-1;
-                (*dev)[d].progs[i]->inputs[ind]=&m->src_recs.nsrc[s];
-            }
-            if ((*dev)[d].progs[i]->nrinput>0){
-                ind=(*dev)[d].progs[i]->nrinput-1;
-                (*dev)[d].progs[i]->inputs[ind]=&m->src_recs.nrec[s];
-            }
-            if ((*dev)[d].progs[i]->scinput>0){
-                ind=(*dev)[d].progs[i]->scinput-1;
-                (*dev)[d].progs[i]->inputs[ind]=&m->src_recs.src_scales[s];
-            }
-        }
+//        int pdir=1;
+//        for (i=0;i<(*dev)[d].nprogs;i++){
+//            if ((*dev)[d].progs[i]->pdir>0){
+//                ind =(*dev)[d].progs[i]->pdir-1;
+//                (*dev)[d].progs[i]->inputs[ind]=&pdir;
+//            }
+//            if ((*dev)[d].progs[i]->nsinput>0){
+//                ind =(*dev)[d].progs[i]->nsinput-1;
+//                (*dev)[d].progs[i]->inputs[ind]=&m->src_recs.nsrc[s];
+//            }
+//            if ((*dev)[d].progs[i]->nrinput>0){
+//                ind=(*dev)[d].progs[i]->nrinput-1;
+//                (*dev)[d].progs[i]->inputs[ind]=&m->src_recs.nrec[s];
+//            }
+//            if ((*dev)[d].progs[i]->scinput>0){
+//                ind=(*dev)[d].progs[i]->scinput-1;
+//                (*dev)[d].progs[i]->inputs[ind]=&m->src_recs.src_scales[s];
+//            }
+//        }
         
 //        // Implement initial conditions
 //        __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].bnd_cnds.init_f);
