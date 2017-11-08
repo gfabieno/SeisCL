@@ -88,7 +88,7 @@ int main(int argc, char **argv) {
                     fputc(ch, fh);
             }
         }
-        fprintf(fh, "\";");
+        fprintf(fh, "\";  ");
     }
     fclose(fh);
     free(program_source);
