@@ -32,6 +32,7 @@
 // It is recommended to use the more robust versions in production code.
 
 typedef unsigned uint;
+#include <stdint.h>
 typedef uint16_t half;
 
 union FP32u
