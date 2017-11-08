@@ -860,9 +860,9 @@ extern "C" __global__ void update_s(int offcomm,
     __cprec lsxx = __h22f2(sxx(gidz,gidx));
     __cprec lsxz = __h22f2(sxz(gidz,gidx));
     __cprec lszz = __h22f2(szz(gidz,gidx));
-    __pprec lM = __pconv(M(gidz,gidx));
-    __pprec lmu = __pconv(mu(gidz,gidx));
-    __pprec lmuipkp = __pconv(muipkp(gidz,gidx));
+    __cprec lM = __pconv(M(gidz,gidx));
+    __cprec lmu = __pconv(mu(gidz,gidx));
+    __cprec lmuipkp = __pconv(muipkp(gidz,gidx));
     
     //Define private derivatives
     __cprec vx_x2;
