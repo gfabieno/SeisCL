@@ -686,8 +686,8 @@ extern "C" __device__ float2 f2h2(float a){
 extern "C" __device__ __prec2 __hp(__prec *a ){
     
     __prec2 output;
-    *(__prec *) (&output) = *a;
-    *(__prec *) (&output+1) = *(a+1);
+    *((__prec *)&output) = *a;
+    *((__prec *)&output+1) = *(a+1);
     return output;
 }
 
@@ -964,5 +964,6 @@ extern "C" __global__ void update_v(int offcomm,
     //Write updated values to global memory
     vx(gidz,gidx) = __f22h2(lvx);
     vz(gidz,gidx) = __f22h2(lvz);
+
     
 }
