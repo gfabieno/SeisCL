@@ -867,23 +867,23 @@ extern "C" __global__ void update_s(int offcomm,
     
     //Calculation of the spatial derivatives
     {
-#if LOCAL_OFF==0
-        __syncthreads();
-        lvx2(lidz,lidx)=vx(gidz,gidx);
-        if (lidz<FDOH)
-            lvx2(lidz-FDOH/2,lidx)=vx(gidz-FDOH/2,gidx);
-        if (lidz>(lsizez-FDOH-1))
-            lvx2(lidz+FDOH/2,lidx)=vx(gidz+FDOH/2,gidx);
-        if (lidx<2*FDOH)
-            lvx2(lidz,lidx-FDOH)=vx(gidz,gidx-FDOH);
-        if (lidx+lsizex-3*FDOH<FDOH)
-            lvx2(lidz,lidx+lsizex-3*FDOH)=vx(gidz,gidx+lsizex-3*FDOH);
-        if (lidx>(lsizex-2*FDOH-1))
-            lvx2(lidz,lidx+FDOH)=vx(gidz,gidx+FDOH);
-        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
-            lvx2(lidz,lidx-lsizex+3*FDOH)=vx(gidz,gidx-lsizex+3*FDOH);
-        __syncthreads();
-#endif
+//#if LOCAL_OFF==0
+//        __syncthreads();
+//        lvx2(lidz,lidx)=vx(gidz,gidx);
+//        if (lidz<FDOH)
+//            lvx2(lidz-FDOH/2,lidx)=vx(gidz-FDOH/2,gidx);
+//        if (lidz>(lsizez-FDOH-1))
+//            lvx2(lidz+FDOH/2,lidx)=vx(gidz+FDOH/2,gidx);
+//        if (lidx<2*FDOH)
+//            lvx2(lidz,lidx-FDOH)=vx(gidz,gidx-FDOH);
+//        if (lidx+lsizex-3*FDOH<FDOH)
+//            lvx2(lidz,lidx+lsizex-3*FDOH)=vx(gidz,gidx+lsizex-3*FDOH);
+//        if (lidx>(lsizex-2*FDOH-1))
+//            lvx2(lidz,lidx+FDOH)=vx(gidz,gidx+FDOH);
+//        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
+//            lvx2(lidz,lidx-lsizex+3*FDOH)=vx(gidz,gidx-lsizex+3*FDOH);
+//        __syncthreads();
+//#endif
         
 #if   FDOH == 1
         vx_x2=mul2( f2h2(HC1), sub2(__h22f2(lvx2(lidz,lidx)), __h22f2(lvx2(lidz,lidx-1))));
@@ -953,23 +953,23 @@ extern "C" __global__ void update_s(int offcomm,
                    mul2( f2h2(HC6), sub2(__h22f2(__hp(&lvx(2*lidz+6,lidx))), __h22f2(__hp(&lvx(2*lidz-5,lidx))))));
 #endif
         
-#if LOCAL_OFF==0
-        __syncthreads();
-        lvz2(lidz,lidx)=vz(gidz,gidx);
-        if (lidz<FDOH)
-            lvz2(lidz-FDOH/2,lidx)=vz(gidz-FDOH/2,gidx);
-        if (lidz>(lsizez-FDOH-1))
-            lvz2(lidz+FDOH/2,lidx)=vz(gidz+FDOH/2,gidx);
-        if (lidx<2*FDOH)
-            lvz2(lidz,lidx-FDOH)=vz(gidz,gidx-FDOH);
-        if (lidx+lsizex-3*FDOH<FDOH)
-            lvz2(lidz,lidx+lsizex-3*FDOH)=vz(gidz,gidx+lsizex-3*FDOH);
-        if (lidx>(lsizex-2*FDOH-1))
-            lvz2(lidz,lidx+FDOH)=vz(gidz,gidx+FDOH);
-        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
-            lvz2(lidz,lidx-lsizex+3*FDOH)=vz(gidz,gidx-lsizex+3*FDOH);
-        __syncthreads();
-#endif
+//#if LOCAL_OFF==0
+//        __syncthreads();
+//        lvz2(lidz,lidx)=vz(gidz,gidx);
+//        if (lidz<FDOH)
+//            lvz2(lidz-FDOH/2,lidx)=vz(gidz-FDOH/2,gidx);
+//        if (lidz>(lsizez-FDOH-1))
+//            lvz2(lidz+FDOH/2,lidx)=vz(gidz+FDOH/2,gidx);
+//        if (lidx<2*FDOH)
+//            lvz2(lidz,lidx-FDOH)=vz(gidz,gidx-FDOH);
+//        if (lidx+lsizex-3*FDOH<FDOH)
+//            lvz2(lidz,lidx+lsizex-3*FDOH)=vz(gidz,gidx+lsizex-3*FDOH);
+//        if (lidx>(lsizex-2*FDOH-1))
+//            lvz2(lidz,lidx+FDOH)=vz(gidz,gidx+FDOH);
+//        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
+//            lvz2(lidz,lidx-lsizex+3*FDOH)=vz(gidz,gidx-lsizex+3*FDOH);
+//        __syncthreads();
+//#endif
         
 #if   FDOH == 1
         vz_x1=mul2( f2h2(HC1), sub2(__h22f2(lvz2(lidz,lidx+1)), __h22f2(lvz2(lidz,lidx))));
