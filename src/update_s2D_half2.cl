@@ -822,9 +822,9 @@ extern "C" __global__ void update_s(int offcomm,
                                     )
 
 {
-//    //Local memory
-//    extern __shared__ __prec2 lvar2[];
-//    __prec * lvar=(__prec *)lvar2;
+    //Local memory
+    extern __shared__ __prec2 lvar2[];
+    __prec * lvar=(__prec *)lvar2;
     
     //Grid position
     int lsizez = blockDim.x+FDOH;
@@ -835,21 +835,21 @@ extern "C" __global__ void update_s(int offcomm,
     int gidx = blockIdx.y*blockDim.y+threadIdx.y+FDOH+offcomm;
     
     //Define and load private parameters and variables
-    __prec2 lsxx ;//= __h22f2(sxx(gidz,gidx));
-    __prec2 lsxz ;//= __h22f2(sxz(gidz,gidx));
-    __prec2 lszz ;//= __h22f2(szz(gidz,gidx));
+    __cprec lsxx ;//= __h22f2(sxx(gidz,gidx));
+    __cprec lsxz ;//= __h22f2(sxz(gidz,gidx));
+    __cprec lszz ;//= __h22f2(szz(gidz,gidx));
 //    __cprec lM = __f22h2c(M(gidz,gidx));
 //    __cprec lmu = __f22h2c(mu(gidz,gidx));
 //    __cprec lmuipkp = __f22h2c(muipkp(gidz,gidx));
-    __prec2 lM = (M(gidz,gidx));
-    __prec2 lmu = (mu(gidz,gidx));
-    __prec2 lmuipkp = (muipkp(gidz,gidx));
+    __cprec lM = __h22f2(M(gidz,gidx));
+    __cprec lmu = __h22f2(mu(gidz,gidx));
+    __cprec lmuipkp = __h22f2(muipkp(gidz,gidx));
     
-//    //Define private derivatives
-//    __cprec vx_x2;
-//    __cprec vx_z1;
-//    __cprec vz_x1;
-//    __cprec vz_z2;
+    //Define private derivatives
+    __cprec vx_x2;
+    __cprec vx_z1;
+    __cprec vz_x1;
+    __cprec vz_z2;
     
     //Local memory definitions if local is used
 #if LOCAL_OFF==0
@@ -1055,16 +1055,16 @@ extern "C" __global__ void update_s(int offcomm,
 #endif
     
     // Update the variables
-//    lsxz=add2(lsxz,mul2(lmuipkp,add2(vx_z1,vz_x1)));
-//    lsxx=sub2(add2(lsxx,mul2(lM,add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),lmu),vz_z2));
-//    lszz=sub2(add2(lszz,mul2(lM,add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),lmu),vx_x2));
+    lsxz=add2(lsxz,mul2(lmuipkp,add2(vx_z1,vz_x1)));
+    lsxx=sub2(add2(lsxx,mul2(lM,add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),lmu),vz_z2));
+    lszz=sub2(add2(lszz,mul2(lM,add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),lmu),vx_x2));
 //    //Write updated values to global memory
 //    sxx(gidz,gidx) = __f22h2(lsxx);
 //    sxz(gidz,gidx) = __f22h2(lsxz);
 //    szz(gidz,gidx) = __f22h2(lszz);
-    muipkp(gidz,gidx) =(lsxx);
-    mu(gidz,gidx) = (lsxz);
-    M(gidz,gidx) = (lszz);
+    muipkp(gidz,gidx) = __f22h2(lsxx);
+    mu(gidz,gidx) = __f22h2(lsxz);
+    M(gidz,gidx) = __f22h2(lszz);
     
     
 }
