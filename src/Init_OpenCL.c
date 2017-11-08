@@ -341,6 +341,12 @@ int Init_CUDA(model * m, device ** dev)  {
             __GUARD  cuDeviceGetAttribute(&local_mem_size,
                                           CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK,
                                           di->cudev );
+            __GUARD  cuDeviceGetAttribute(&di->cuda_arc[0],
+                                          CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+                                          di->cudev );
+            __GUARD  cuDeviceGetAttribute(&di->cuda_arc[1],
+                                          CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
+                                          di->cudev );
 
             if (state !=CUDA_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
             

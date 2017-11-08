@@ -345,6 +345,7 @@ typedef struct device {
     
     int LOCAL_OFF;
     int FP16;
+    int cuda_arc[2];
     
     clprogram * progs[MAX_KERNELS];
     int nprogs;
