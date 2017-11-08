@@ -201,7 +201,7 @@ int get_build_options(device *dev,
     if (m->N_names[0]){
         for (i=0;i<m->NDIM;i++){
             *n+=1;
-            if (i==0){//(dev->FP16==1 && i==0){
+            if (i==0){
                 sprintf(build_options[*n-1],"-D N%s=%d ",
                         m->N_names[i],((*dev).N[i]+m->FDORDER)/2);
             }

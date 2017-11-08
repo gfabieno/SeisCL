@@ -981,32 +981,30 @@ int set_scalers( void *mptr){
     scaler = -log2(Mmax*100);
     
     variable * var;
-//    if (m->FP16>0){
-        var = get_var(mptr, "sxx");
-        if (var) var->scaler = scaler;
-        var = get_var(mptr, "syy");
-        if (var) var->scaler = scaler;
-        var = get_var(mptr, "szz");
-        if (var) var->scaler = scaler;
-        var = get_var(mptr, "sxz");
-        if (var) var->scaler = scaler;
-        var = get_var(mptr, "sxy");
-        if (var) var->scaler = scaler;
-        var = get_var(mptr, "syz");
-        if (var) var->scaler = scaler;
-        var = get_var(mptr, "rxx");
-        if (var) var->scaler = scaler;
-        var = get_var(mptr, "ryy");
-        if (var) var->scaler = scaler;
-        var = get_var(mptr, "rzz");
-        if (var) var->scaler = scaler;
-        var = get_var(mptr, "rxz");
-        if (var) var->scaler = scaler;
-        var = get_var(mptr, "rxy");
-        if (var) var->scaler = scaler;
-        var = get_var(mptr, "ryz");
-        if (var) var->scaler = scaler;
-//    }
+    var = get_var(mptr, "sxx");
+    if (var) var->scaler = scaler;
+    var = get_var(mptr, "syy");
+    if (var) var->scaler = scaler;
+    var = get_var(mptr, "szz");
+    if (var) var->scaler = scaler;
+    var = get_var(mptr, "sxz");
+    if (var) var->scaler = scaler;
+    var = get_var(mptr, "sxy");
+    if (var) var->scaler = scaler;
+    var = get_var(mptr, "syz");
+    if (var) var->scaler = scaler;
+    var = get_var(mptr, "rxx");
+    if (var) var->scaler = scaler;
+    var = get_var(mptr, "ryy");
+    if (var) var->scaler = scaler;
+    var = get_var(mptr, "rzz");
+    if (var) var->scaler = scaler;
+    var = get_var(mptr, "rxz");
+    if (var) var->scaler = scaler;
+    var = get_var(mptr, "rxy");
+    if (var) var->scaler = scaler;
+    var = get_var(mptr, "ryz");
+    if (var) var->scaler = scaler;
     
     return state;
 }
@@ -1246,14 +1244,9 @@ int assign_modeling_case(model * m){
         m->nupdates=2;
         GMALLOC(m->ups_f, m->nupdates*sizeof(update));
         ind=0;
-        if (m->FP16==1){
-            __GUARD append_update(m->ups_f, &ind, "update_v", update_v2D_half2_source);
-            __GUARD append_update(m->ups_f, &ind, "update_s", update_s2D_half2_source);
-        }
-        else{
-            __GUARD append_update(m->ups_f, &ind, "update_v", update_v2D_half2_source);
-            __GUARD append_update(m->ups_f, &ind, "update_s", update_s2D_half2_source);
-        }
+        __GUARD append_update(m->ups_f, &ind, "update_v", update_v2D_half2_source);
+        __GUARD append_update(m->ups_f, &ind, "update_s", update_s2D_half2_source);
+
         if (m->GRADOUT){
             GMALLOC(m->ups_adj, m->nupdates*sizeof(update));
             ind=0;
@@ -1322,14 +1315,9 @@ int assign_modeling_case(model * m){
         m->nupdates=2;
         GMALLOC(m->ups_f, m->nupdates*sizeof(update));
         ind=0;
-        if (m->FP16==1){
-            __GUARD append_update(m->ups_f, &ind, "update_v", update_v2D_half2_source);
-            __GUARD append_update(m->ups_f, &ind, "update_s", update_s2D_half2_source);
-        }
-        else{
-            __GUARD append_update(m->ups_f, &ind, "update_v", update_v2D_half2_source);
-            __GUARD append_update(m->ups_f, &ind, "update_s", update_s2D_half2_source);
-        }
+        __GUARD append_update(m->ups_f, &ind, "update_v", update_v2D_half2_source);
+        __GUARD append_update(m->ups_f, &ind, "update_s", update_s2D_half2_source);
+
         if (m->GRADOUT){
             GMALLOC(m->ups_adj, m->nupdates*sizeof(update));
             ind=0;

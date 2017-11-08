@@ -613,7 +613,7 @@
 
 
 
-#if FP16==1
+#if FP16==1 || FP16==2
 
 #define __h2f(x) __half2float((x))
 #define __h22f2(x) __half22float2((x))
@@ -640,7 +640,7 @@
 #endif
 
 
-#if FP16!=2
+#if FP16<!=2>3
 
 #define __cprec float2
 #define __f22h2c(x) (x)

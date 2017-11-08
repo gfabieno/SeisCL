@@ -430,6 +430,7 @@ int Init_CUDA(model * m, device ** dev)  {
         // To overlap computations and communications, we have 3 kernels:
         // One for the interior (no communications) and 2 for the front and back
         // We define here de sizes of those region (offcom1, offcom2)
+        //Because we use float2 and half2, we must divide by 2 the worksize
         if (!state){
             if (di->LOCAL_OFF==1){
                 // If we turn off local memory usage, use one dimension worksize
@@ -437,23 +438,23 @@ int Init_CUDA(model * m, device ** dev)  {
                 offcom1=0;
                 offcom2=0;
                 if (d>0 || m->MYLOCALID>0){
-                    gsize_com1[0] = slicesize*m->FDOH;
+                    gsize_com1[0] = slicesize*m->FDOH/2;
                     LCOMM+=m->FDOH;
                     offcom1=m->FDOH;
                     
                 }
                 if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
-                    gsize_com2[0] = slicesize*m->FDOH;
+                    gsize_com2[0] = slicesize*m->FDOH/2;
                     LCOMM+=m->FDOH;
                     offcom2=di->N[m->NDIM-1]-m->FDOH;
                 }
                 if (d>0 || m->MYLOCALID>0
                         || d<m->NUM_DEVICES-1
                         || m->MYLOCALID<m->NLOCALP-1){
-                    gsize_fcom[0] = slicesize*m->FDOH;
+                    gsize_fcom[0] = slicesize*m->FDOH/2;
                 }
                 
-                gsize[0] = (di->N[m->NDIM-1]-LCOMM)*slicesize;
+                gsize[0] = (di->N[m->NDIM-1]-LCOMM)*slicesize/2;
                 
                 workdim=1;
                 
@@ -462,7 +463,11 @@ int Init_CUDA(model * m, device ** dev)  {
 
                 // When using local work sizes in OpenCL,
                 // global work size must be a multiple of local work size
-                for (i=0;i<m->NDIM-1;i++){
+                
+                //We use half2 and float2 in kernels, and must divide by 2 the
+                //global size of dim 0
+                gsize[0]=di->N[0]/2+((lsize[0]-di->N[0]/2)%lsize[0])%lsize[0];
+                for (i=1;i<m->NDIM-1;i++){
                     gsize[i]=di->N[i]
                             +(lsize[i]-di->N[i]%lsize[i])%lsize[i];
                 }
@@ -505,9 +510,7 @@ int Init_CUDA(model * m, device ** dev)  {
 
             }
         }
-//        if (di->FP16==1){
-            gsize[0]=gsize[0]/2;
-//        }
+
         //Create the required updates struct and assign the working size
         {
             //Struct for the forward modeling
@@ -657,7 +660,7 @@ int Init_CUDA(model * m, device ** dev)  {
             
             //Create variable buffers for the interior domain
             di->vars[i].cl_var.size=sizeof(float)*di->vars[i].num_ele;
-            if (m->FP16)
+            if (m->FP16>0)
                 di->vars[i].cl_var.size/=2;
             __GUARD clbuf_create( &di->vars[i].cl_var);
             
