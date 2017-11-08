@@ -234,6 +234,7 @@ int Init_CUDA(model * m, device ** dev)  {
        host. All OpenCL buffers and kernels are created and are contained in a
        device structure (one for each devices)
      */
+    //TODO domain decomposition for float2 and half2
     int state=0;
     int i,j,d;
     int parsize=0;
@@ -613,6 +614,9 @@ int Init_CUDA(model * m, device ** dev)  {
                 for (i=0;i<m->npars;i++){
                     di->pars[i].num_ele=parsize;
                     di->pars[i].cl_par.size=sizeof(float)*parsize;
+                    if (m->FP16==2 || m->FP16==4){
+                        di->pars[i].cl_par.size/=2;
+                    }
                     __GUARD clbuf_create(&di->pars[i].cl_par);
                     __GUARD clbuf_send(&di->queue,&di->pars[i].cl_par);
                     if (m->GRADOUT && m->BACK_PROP_TYPE==1){
