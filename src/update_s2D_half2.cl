@@ -845,11 +845,11 @@ extern "C" __global__ void update_s(int offcomm,
     __cprec lmu = __h22f2(mu(gidz,gidx));
     __cprec lmuipkp = __h22f2(muipkp(gidz,gidx));
     
-    //Define private derivatives
-    __cprec vx_x2;
-    __cprec vx_z1;
-    __cprec vz_x1;
-    __cprec vz_z2;
+//    //Define private derivatives
+//    __cprec vx_x2;
+//    __cprec vx_z1;
+//    __cprec vz_x1;
+//    __cprec vz_z2;
     
     //Local memory definitions if local is used
 #if LOCAL_OFF==0
@@ -1055,9 +1055,9 @@ extern "C" __global__ void update_s(int offcomm,
 #endif
     
     // Update the variables
-    lsxz=add2(lsxz,mul2(lmuipkp,add2(vx_z1,vz_x1)));
-    lsxx=sub2(add2(lsxx,mul2(lM,add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),lmu),vz_z2));
-    lszz=sub2(add2(lszz,mul2(lM,add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),lmu),vx_x2));
+    lsxz=add2(lsxz,lmuipkp);
+    lsxx=(lsxx,lM);
+    lszz=add2(lszz,lmu);
 //    //Write updated values to global memory
 //    sxx(gidz,gidx) = __f22h2(lsxx);
 //    sxz(gidz,gidx) = __f22h2(lsxz);
