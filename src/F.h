@@ -37,6 +37,7 @@
 
 #include "kiss_fft.h"
 #include "kiss_fftr.h"
+#include <stdint.h>
 
 //#ifdef __APPLE__
 //#include <OpenCL/opencl.h>
