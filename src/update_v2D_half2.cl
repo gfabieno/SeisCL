@@ -640,7 +640,7 @@
 #endif
 
 
-#if FP16<!=2>3
+#if FP16<3
 
 #define __cprec float2
 #define __f22h2c(x) (x)
