@@ -838,7 +838,7 @@ extern "C" __device__ __prec2 __hp(__prec *a ){
 #endif
 
 extern "C" __global__ void update_s(int offcomm,
-                                    float2 *muipkp, float2 *M, float2 *mu,
+                                    __pprec *muipkp, __pprec *M, __pprec *mu,
                                     __prec2 *sxx,__prec2 *sxz,__prec2 *szz,
                                     __prec2 *vx,__prec2 *vz
                                     )
@@ -860,9 +860,10 @@ extern "C" __global__ void update_s(int offcomm,
     __cprec lsxx = __h22f2(sxx(gidz,gidx));
     __cprec lsxz = __h22f2(sxz(gidz,gidx));
     __cprec lszz = __h22f2(szz(gidz,gidx));
-    float2 lM = M(gidz,gidx);
-    float2 lmu = mu(gidz,gidx);
-    float2 lmuipkp = muipkp(gidz,gidx);
+    __cprec lM = __pconv(M(gidz,gidx));
+    __cprec lmu = __pconv(mu(gidz,gidx));
+    __cprec lmuipkp = __pconv(muipkp(gidz,gidx));
+    
     
     //Define private derivatives
     __cprec vx_x2;
