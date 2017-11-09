@@ -863,6 +863,7 @@ extern "C" __global__ void update_s(int offcomm,
     __cprec lM = __pconv(M(gidz,gidx));
     __cprec lmu = __pconv(mu(gidz,gidx));
     __cprec lmuipkp = __pconv(muipkp(gidz,gidx));
+
     
     
     //Define private derivatives
@@ -1083,4 +1084,6 @@ extern "C" __global__ void update_s(int offcomm,
     sxx(gidz,gidx) = __f22h2(lsxx);
     sxz(gidz,gidx) = __f22h2(lsxz);
     szz(gidz,gidx) = __f22h2(lszz);
+    
+    
 }
