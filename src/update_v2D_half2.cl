@@ -717,7 +717,7 @@ extern "C" __device__ __prec2 __hp(__prec *a ){
 
 
 extern "C" __global__ void update_v(int offcomm,
-                                    __pprec *rip, __pprec *rkp,__prec2 *sxx,__prec2 *sxz,__prec2 *szz,
+                                    float2 *rip, float2 *rkp,__prec2 *sxx,__prec2 *sxz,__prec2 *szz,
                                     __prec2 *vx,__prec2 *vz
                                     )
 
@@ -737,10 +737,8 @@ extern "C" __global__ void update_v(int offcomm,
     //Define and load private parameters and variables
     __cprec lvx = __h22f2(vx(gidz,gidx));
     __cprec lvz = __h22f2(vz(gidz,gidx));
-//    __cprec lrip = __pconv(rip(gidz,gidx));
-//    __cprec lrkp = __pconv(rkp(gidz,gidx));
-    __cprec lrip = __pconv(rip(gidz,gidx));
-    __cprec lrkp = __pconv(rkp(gidz,gidx));
+    float2 lrip = rip(gidz,gidx);
+    float2 lrkp = rkp(gidz,gidx);
     
     //Define private derivatives
     __cprec sxx_x1;
