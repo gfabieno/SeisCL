@@ -40,11 +40,11 @@ int kernel_varout(device * dev,
                  "(int nt, int nrec, float * rec_pos, float src_scale,");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
-            if (dev->FP16==0){
-                strcat(temp, "float * ");
+            if (dev->FP16==1){
+                strcat(temp, "half * ");
             }
             else{
-                strcat(temp, "half * ");
+                strcat(temp, "float * ");
             }
             strcat(temp, vars[i].name);
             strcat(temp, ", ");
@@ -56,11 +56,11 @@ int kernel_varout(device * dev,
     for (i=0;i<dev->ntvars;i++){
         if (tvars[i].to_output){
             for (j=0;j<tvars[i].n2ave;j++){
-                if (dev->FP16==0){
-                    strcat(temp, "float * ");
+                if (dev->FP16==1){
+                    strcat(temp, "half * ");
                 }
                 else{
-                    strcat(temp, "half * ");
+                    strcat(temp, "float * ");
                 }
                 strcat(temp, tvars[i].var2ave[j]);
                 strcat(temp, ", ");
@@ -100,11 +100,22 @@ int kernel_varout(device * dev,
     char posstr[100]={0};
     
     if (dev->NDIM==2){
-        sprintf(posstr,"[(i-OFFSET)*N%s*2+k]",dev->N_names[0]);
+//        if (dev->FP16==1){
+            sprintf(posstr,"[(i-OFFSET)*N%s*2+k]",dev->N_names[0]);
+//        }
+//        else{
+//            sprintf(posstr,"[(i-OFFSET)*N%s+k]",dev->N_names[0]);
+//        }
     }
     else if (dev->NDIM==3){
-        sprintf(posstr,"[(i-OFFSET)*N%s*N%s*2+j*(N%s*2)+k]",
-                dev->N_names[1], dev->N_names[0], dev->N_names[0]);
+//        if (dev->FP16==1){
+            sprintf(posstr,"[(i-OFFSET)*N%s*N%s*2+j*(N%s*2)+k]",
+                    dev->N_names[1], dev->N_names[0], dev->N_names[0]);
+//        }
+//        else{
+//            sprintf(posstr,"[(i-OFFSET)*N%s*N%s*2+j*(N%s*2)+k]",
+//                    dev->N_names[1], dev->N_names[0], dev->N_names[0]);
+//        }
         
     }
     
@@ -116,12 +127,12 @@ int kernel_varout(device * dev,
             if (abs(vars[i].scaler)>0){
                 strcat(temp, "scalbnf(");
             }
-            if (dev->FP16!=0){
+            if (dev->FP16==1){
                 strcat(temp, "__half2float(");
             }
             strcat(temp, vars[i].name);
             strcat(temp, posstr);
-            if (dev->FP16!=0){
+            if (dev->FP16==1){
                 strcat(temp, ")");
             }
             if (abs(vars[i].scaler)>0){
@@ -146,12 +157,12 @@ int kernel_varout(device * dev,
                 if (abs(scaler)>0){
                     strcat(temp, "scalbnf(");
                 }
-                if (dev->FP16!=0){
+                if (dev->FP16==1){
                     strcat(temp, "__half2float(");
                 }
                 strcat(temp, tvars[i].var2ave[j]);
                 strcat(temp, posstr);
-                if (dev->FP16!=0){
+                if (dev->FP16==1){
                     strcat(temp, ")");
                 }
                 if (abs(scaler)>0){
@@ -279,11 +290,11 @@ int kernel_varinit(device * dev,
     
     strcat(temp, "extern \"C\" __global__ void vars_init(");
     for (i=0;i<dev->nvars;i++){
-        if (dev->FP16==0){
-            strcat(temp, "float2 * ");
+        if (dev->FP16==1){
+            strcat(temp, "half2 * ");
         }
         else{
-            strcat(temp, "half2 * ");
+            strcat(temp, "float2 * ");
         }
             strcat(temp, vars[i].name);
             strcat(temp, ", ");
@@ -309,17 +320,21 @@ int kernel_varinit(device * dev,
     }
     
     for (i=0;i<dev->nvars;i++){
-        sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele/2);
-
+//        if (dev->FP16==1){
+            sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele/2);
+//        }
+//        else{
+//            sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
+//        }
         strcat(temp,ptemp);
         strcat(temp, "    ");
         strcat(temp, "    ");
         strcat(temp, vars[i].name);
-        if (dev->FP16==0){
-            strcat(temp, "[gid]=f0;\n");
+        if (dev->FP16==1){
+            strcat(temp, "[gid]= __float2half2_rn(0);\n");
         }
         else{
-            strcat(temp, "[gid]= __float2half2_rn(0);\n");
+            strcat(temp, "[gid]=f0;\n");
         }
         
     }
@@ -334,7 +349,12 @@ int kernel_varinit(device * dev,
     
     __GUARD prog_source(prog, "vars_init", (*prog).src);
     
-    prog->gsize[0]=dev->N[0]/2+m->FDOH;
+//    if (dev->FP16==1){
+        prog->gsize[0]=dev->N[0]/2+m->FDOH;
+//    }
+//    else{
+//        prog->gsize[0]=dev->N[0]+m->FDORDER;
+//    }
     prog->gsize[1]=dev->N[1]+m->FDORDER;
     if (dev->NDIM==3){
         prog->gsize[2]=dev->N[2]+m->FDORDER;
@@ -394,12 +414,11 @@ int kernel_sources(device * dev,
                  "float src_scale, float * src_pos, float * src, int pdir, ");
     for (i=0;i<dev->nvars;i++){
         if (tosources[i]){
-            if (dev->FP16==0){
-                strcat(temp, "float * ");
-                
+            if (dev->FP16==1){
+                strcat(temp, "half * ");
             }
             else{
-                strcat(temp, "half * ");
+                strcat(temp, "float * ");
             }
             strcat(temp, vars[i].name);
             strcat(temp, ", ");
@@ -408,11 +427,11 @@ int kernel_sources(device * dev,
     for (i=0;i<dev->ntvars;i++){
         if (tosources2[i]){
             for (j=0;j<tvars[i].n2ave;j++){
-                if (dev->FP16==0){
-                    strcat(temp, "float * ");
+                if (dev->FP16==1){
+                    strcat(temp, "half * ");
                 }
                 else{
-                    strcat(temp, "half * ");
+                    strcat(temp, "float * ");
                 }
                 strcat(temp, tvars[i].var2ave[j]);
                 strcat(temp, ", ");
@@ -451,13 +470,23 @@ int kernel_sources(device * dev,
 
     
     if (dev->NDIM==2){
-        sprintf(posstr,"[(i-OFFSET)*N%s*2+k]",dev->N_names[0]);
-
+//        if (dev->FP16==1){
+            sprintf(posstr,"[(i-OFFSET)*N%s*2+k]",dev->N_names[0]);
+//        }
+//        else{
+//            sprintf(posstr,"[(i-OFFSET)*N%s+k]",dev->N_names[0]);
+//        }
     }
     else if (dev->NDIM==3){
-
-        sprintf(posstr,"[(i-OFFSET)*N%s*N%s*2+j*(N%s*2)+k]",
-                dev->N_names[1], dev->N_names[0], dev->N_names[0]);
+//        if (dev->FP16==1){
+            sprintf(posstr,"[(i-OFFSET)*N%s*N%s*2+j*(N%s*2)+k]",
+                    dev->N_names[1], dev->N_names[0], dev->N_names[0]);
+//        }
+//        else{
+//            sprintf(posstr,"[(i-OFFSET)*N%s*N%s*2+j*(N%s*2)+k]",
+//                    dev->N_names[1], dev->N_names[0], dev->N_names[0]);
+//        }
+        
     }
     else{
         state=1;
@@ -477,14 +506,14 @@ int kernel_sources(device * dev,
             strcat(temp, "    ");
             strcat(temp, vars[i].name);
             strcat(temp, posstr);
-            if (dev->FP16==0){
-                strcat(temp, "+=amp;\n");
-            }
-            else{
+            if (dev->FP16==1){
                 strcat(temp, "=__float2half(__half2float(");
                 strcat(temp, vars[i].name);
                 strcat(temp, posstr);
                 strcat(temp, ")+amp);\n");
+            }
+            else{
+                strcat(temp, "+=amp;\n");
             }
 
             
@@ -502,15 +531,15 @@ int kernel_sources(device * dev,
                 strcat(temp, "    ");
                 strcat(temp, tvars[i].var2ave[j]);
                 strcat(temp, posstr);
-                if (dev->FP16==0){
-                    sprintf(temp2,"+=amp/%f;\n", (float)tvars[i].n2ave);
-                    strcat(temp, temp2);
-                }
-                else{
+                if (dev->FP16==1){
                     strcat(temp, "=__float2half(__half2float(");
                     strcat(temp, tvars[i].var2ave[j]);
                     strcat(temp, posstr);
                     sprintf(temp2,")+amp/%f);\n", (float)tvars[i].n2ave);
+                    strcat(temp, temp2);
+                }
+                else{
+                    sprintf(temp2,"+=amp/%f;\n", (float)tvars[i].n2ave);
                     strcat(temp, temp2);
                 }
             }
@@ -609,11 +638,23 @@ int kernel_residuals(device * dev,
     char posstr[100]={0};
 
     if (dev->NDIM==2){
+//        if (dev->FP16==1){
             sprintf(posstr,"[(i-OFFSET)*N%s*2+k]",dev->N_names[0]);
+//        }
+//        else{
+//            sprintf(posstr,"[(i-OFFSET)*N%s+k]",dev->N_names[0]);
+//        }
     }
     else if (dev->NDIM==3){
+//        if (dev->FP16==1){
             sprintf(posstr,"[(i-OFFSET)*N%s*N%s*2+j*(N%s*2)+k]",
                     dev->N_names[1], dev->N_names[0], dev->N_names[0]);
+//        }
+//        else{
+//            sprintf(posstr,"[(i-OFFSET)*N%s*N%s*2+j*(N%s*2)+k]",
+//                    dev->N_names[1], dev->N_names[0], dev->N_names[0]);
+//        }
+        
     }
 
     
@@ -706,7 +747,12 @@ int kernel_gradinit(device * dev,
     }
     
     if (dev->npars>0){
-        sprintf(temp2,"    if (gid>%d-1){\n", pars[0].num_ele/2);
+//        if (dev->FP16==1){
+            sprintf(temp2,"    if (gid>%d-1){\n", pars[0].num_ele/2);
+//        }
+//        else{
+//            sprintf(temp2,"    if (gid>%d-1){\n", pars[0].num_ele);
+//        }
         strcat(temp,temp2);
         strcat(temp,  "        return;\n"
                       "    };\n\n");
@@ -725,9 +771,15 @@ int kernel_gradinit(device * dev,
    (*prog).src=temp;
     
     __GUARD prog_source(prog, "gradinit", (*prog).src);
-
-    prog->gsize[0]=dev->N[0]/2;
-
+    
+//    printf("%s\n\n%lu\n",temp, strlen(temp));
+    
+//    if (dev->FP16==1){
+        prog->gsize[0]=dev->N[0]/2;
+//    }
+//    else{
+//        prog->gsize[0]=dev->N[0];
+//    }
     prog->gsize[1]=dev->N[1];
     if (dev->NDIM==3){
         prog->gsize[2]=dev->N[2];
@@ -789,8 +841,12 @@ int kernel_initsavefreqs(device * dev,
     
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
-            sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele/2);
-
+//            if (dev->FP16==1){
+                 sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele/2);
+//            }
+//            else{
+//                 sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
+//            }
             strcat(temp,ptemp);
             strcat(temp, "    ");
             strcat(temp, "    f");
@@ -807,8 +863,12 @@ int kernel_initsavefreqs(device * dev,
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
     
-    prog->gsize[0]=dev->N[0]/2;
-
+//    if (dev->FP16==1){
+        prog->gsize[0]=dev->N[0]/2;
+//    }
+//    else{
+//        prog->gsize[0]=dev->N[0];
+//    }
     prog->gsize[1]=dev->N[1];
     if (dev->NDIM==3){
         prog->gsize[2]=dev->N[2];
@@ -891,8 +951,12 @@ int kernel_savefreqs(device * dev,
     
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
-            sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele/2);
-
+//            if (dev->FP16==1){
+                sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele/2);
+//            }
+//            else{
+//                sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
+//            }
             strcat(temp,ptemp);
             strcat(temp, "    ");
             strcat(temp, "    l");
@@ -915,7 +979,12 @@ int kernel_savefreqs(device * dev,
     
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
-            sprintf(ptemp,"    if (gid<%d){\n", vars[i].num_ele/2);
+//            if (dev->FP16==1){
+                sprintf(ptemp,"    if (gid<%d){\n", vars[i].num_ele/2);
+//            }
+//            else{
+//                sprintf(ptemp,"    if (gid<%d){\n", vars[i].num_ele);
+//            }
             
             strcat(temp,ptemp);
             strcat(temp, "    #pragma unroll\n");
@@ -939,7 +1008,12 @@ int kernel_savefreqs(device * dev,
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
     
-    prog->gsize[0]=dev->N[0]/2;
+//    if (dev->FP16==1){
+        prog->gsize[0]=dev->N[0]/2;
+//    }
+//    else{
+//        prog->gsize[0]=dev->N[0];
+//    }
     prog->gsize[1]=dev->N[1];
     if (dev->NDIM==3){
         prog->gsize[2]=dev->N[2];
