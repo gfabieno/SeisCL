@@ -91,6 +91,13 @@ extern "C" __device__ float2 mul2(float2 a, float2 b ){
     output.y = a.y*b.y;
     return output;
 }
+extern "C" __device__ float2 div2(float2 a, float2 b ){
+    
+    float2 output;
+    output.x = a.x/b.x;
+    output.y = a.y/b.y;
+    return output;
+}
 extern "C" __device__ float2 sub2(float2 a, float2 b ){
     
     float2 output;
@@ -109,6 +116,7 @@ extern "C" __device__ float2 f2h2(float a){
 #define __cprec half2
 #define add2 __hadd2
 #define mul2 __hmul2
+#define mul2 __h2div
 #define sub2 __hsub2
 #define f2h2 __float2half2_rn
 #define __f22h2c(x) __float22half2_rn((x))
@@ -716,7 +724,7 @@ extern "C" __global__ void update_adjs(int offcomm,
         lsxx=add2(sub2(lsxx,mul2(lM,add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),lmu),vz_z2));
         lszz=add2(sub2(lszz,mul2(lM,add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),lmu),vx_x2));
 
-        m=evarm(gidz, gidx);
+        int m=evarm(gidz, gidx);
         if (m!=-1){
             lsxx= sxxbnd[m];
             lszz= szzbnd[m];
