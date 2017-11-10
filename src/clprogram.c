@@ -497,7 +497,7 @@ int prog_create(model * m,
         }
         if (!argfound){
             for (j=0;j<m->nvars;j++){
-                sprintf(str2comp,"%s_r",(*dev).vars[j].name);
+                sprintf(str2comp,"%sr",(*dev).vars[j].name);
                 if (strcmp(str2comp,(*prog).input_list[i])==0){
                     //TODO this is a hack for how adj kernels are written,
                     //     think of a better way
