@@ -45,7 +45,7 @@
 extern "C" __global__ void savebnd(__prec2 *sxx,__prec2 *sxz,__prec2 *szz,
                                    __prec2 *vx,__prec2 *vz,
                                    __prec2 *sxxbnd,__prec2 *sxzbnd,__prec2 *szzbnd,
-                                   __prec2 *vxbnd,__prec2 *vzbnd,)
+                                   __prec2 *vxbnd,__prec2 *vzbnd)
 {
     
 #if NUM_DEVICES==1 & NLOCALP==1
