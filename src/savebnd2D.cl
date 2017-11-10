@@ -30,14 +30,24 @@
 #define syz(z,x) syz[(x)*(NZ)+(z)]
 #define lbnd (FDOH+NAB)
 
+#if FP16==0
 
+#define __prec float
+#define __prec2 float2
 
-__kernel void savebnd(__global float *vx,         __global float *vy,      __global float *vz,
-                      __global float *sxx,        __global float *syy,     __global float *szz,
-                      __global float *sxy,        __global float *syz,     __global float *sxz,
-                      __global float *vxbnd,      __global float *vybnd,   __global float *vzbnd,
-                      __global float *sxxbnd,     __global float *syybnd,  __global float *szzbnd,
-                      __global float *sxybnd,     __global float *syzbnd,  __global float *sxzbnd)
+#else
+
+#define __prec half
+#define __prec2 half2
+
+#endif
+
+extern "C" __global__ savebnd(__prec *vx,         __prec *vy,      __prec *vz,
+                              __prec *sxx,        __prec *syy,     __prec *szz,
+                              __prec *sxy,        __prec *syz,     __prec *sxz,
+                              __prec *vxbnd,      __prec *vybnd,   __prec *vzbnd,
+                              __prec *sxxbnd,     __prec *syybnd,  __prec *szzbnd,
+                              __prec *sxybnd,     __prec *syzbnd,  __prec *sxzbnd)
 {
     
 #if NUM_DEVICES==1 & NLOCALP==1
