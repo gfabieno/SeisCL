@@ -869,7 +869,7 @@ extern "C" __global__ void update_s(int offcomm,
     //Define private derivatives
     __cprec vxx;
     __cprec vxz;
-    __cprec czx;
+    __cprec vzx;
     __cprec vzz;
     
     //Local memory definitions if local is used
