@@ -81,7 +81,7 @@ int clbuf_readpin(CUstream *inqueue,
     int err = 0;
     
     /*Read memory from device to the host*/
-    err= cuMemcpyDtoHAsync(bufpin->host, buf->mem,buf->size, *inqueue);
+    err= cuMemcpyDtoHAsync(&bufpin->host[offset], buf->mem,buf->size, *inqueue);
     
     if (err !=CUDA_SUCCESS) fprintf(stderr,
                                     "Error clbuf_readpin: %s\n",
