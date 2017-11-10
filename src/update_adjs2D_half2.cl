@@ -761,7 +761,7 @@ extern "C" __global__ void update_adjs(int offcomm,
     
     lsxzr=mul2(lmuipkp,add2(vxr_z1,vzr_x1));
     lsxxr=sub2(mul2(lM,add2(vxr_x2,vzr_z2)),mul2(mul2(f2h2(2.0),lmu),vzr_z2));
-    lszzr=sub2(lszzr,mul2(lM,add2(vxr_x2,vzr_z2)),mul2(mul2(f2h2(2.0),lmu),vxr_x2));
+    lszzr=sub2(mul2(lM,add2(vxr_x2,vzr_z2)),mul2(mul2(f2h2(2.0),lmu),vxr_x2));
 
     float2 dM=mul2(c1,mul2(add2(lsxx,lszz), add2(lsxxr,lszzr) ) );
 
