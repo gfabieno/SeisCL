@@ -39,15 +39,15 @@
 int Init_model(model * m) {
 
     int state=0;
-    int i,t;
+    int i,j,t;
+    half * hpar;
 
     for (i=0;i<m->npars;i++){
         if (m->pars[i].transform !=NULL){
             m->pars[i].transform( (void*) m);
         }
     }
-    
-    
+   
 
     __GUARD m->check_stability( (void*) m);
     __GUARD m->set_scalers( (void*) m);
@@ -61,6 +61,17 @@ int Init_model(model * m) {
                 m->src_recs.src_scales[i]=1.0/m->src_recs.src_scales[i]
                                                        /m->dt*m->dh*m->dh*m->dh;
                 m->src_recs.src_scales[i]=1.0;
+        }
+    }
+    
+    
+    if (m->FP16==2 || m->FP16==4){
+        for (i=0;i<m->npars;i++){
+            hpar = (half*)m->pars[i].gl_par;
+            for (j=0;j<m->pars[i].num_ele;j++){
+                hpar[j] =approx_float_to_half(m->pars[i].gl_par[j]);
+            }
+
         }
     }
     
