@@ -390,6 +390,10 @@ int readhdf5(struct filenames files, model * m) {
     for (i=0;i<m->NDIM;i++){
         dimsND[i]=m->N[m->NDIM-1-i];
     }
+    // N[0] should be a multiple of 2 because we use float2 in kernels
+    if (m->N[0]%2!=0){
+        state=1;fprintf(stderr, "Error: N[0] must be a multiple of 2\n");
+    }
     
     m->FDOH=m->FDORDER/2;
     
