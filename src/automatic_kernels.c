@@ -105,7 +105,7 @@ int kernel_varout(device * dev,
     else if (dev->NDIM==3){
 //        sprintf(posstr,"[(i-OFFSET)*N%s*N%s*2+j*(N%s*2)+k]",
 //                dev->N_names[1], dev->N_names[0], dev->N_names[0]);
-        sprintf(posstr,"[0]");
+        sprintf(posstr,"[5730815]");
     }
     
     for (i=0;i<dev->nvars;i++){
