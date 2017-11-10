@@ -739,16 +739,19 @@ extern "C" __global__ void update_adjv(int offcomm,
         // Update the variables
         lvx=sub2(lvx,mul2(add2(sxx_x1,sxz_z2),lrip));
         lvz=sub2(lvz,mul2(add2(szz_z1,sxz_x2),lrkp));
-        //Write updated values to global memory
-        vx(gidz,gidx) = __f22h2(lvx);
-        vz(gidz,gidx) = __f22h2(lvz);
         
         // Inject the boundary values
         int m=evarm(gidz, gidx);
         if (m!=-1){
-            vx(gidz, gidx)= __h22f2(vxbnd[m]);
-            vz(gidz, gidx)= __h22f2(vzbnd[m]);
+            lvx= __h22f2(vxbnd[m]);
+            lvz= __h22f2(vzbnd[m]);
         }
+
+        //Write updated values to global memory
+        vx(gidz,gidx) = __f22h2(lvx);
+        vz(gidz,gidx) = __f22h2(lvz);
+        
+
     }
 #endif
 
