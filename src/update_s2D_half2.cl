@@ -837,6 +837,8 @@ extern "C" __device__ __prec2 __hp(__prec *a ){
 
 #endif
 
+
+
 extern "C" __global__ void update_s(int offcomm,
                                     __pprec *muipkp, __pprec *M, __pprec *mu,
                                     __prec2 *sxx,__prec2 *sxz,__prec2 *szz,
@@ -863,8 +865,6 @@ extern "C" __global__ void update_s(int offcomm,
     __cprec lM = __pconv(M(gidz,gidx));
     __cprec lmu = __pconv(mu(gidz,gidx));
     __cprec lmuipkp = __pconv(muipkp(gidz,gidx));
-
-    
     
     //Define private derivatives
     __cprec vx_x2;
@@ -1075,7 +1075,6 @@ extern "C" __global__ void update_s(int offcomm,
 #endif
 #endif
     
-    
     // Update the variables
     lsxz=add2(lsxz,mul2(lmuipkp,add2(vx_z1,vz_x1)));
     lsxx=sub2(add2(lsxx,mul2(lM,add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),lmu),vz_z2));
@@ -1087,3 +1086,4 @@ extern "C" __global__ void update_s(int offcomm,
     
     
 }
+
