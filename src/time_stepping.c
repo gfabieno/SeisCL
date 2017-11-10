@@ -185,7 +185,7 @@ int save_bnd(model * m, device ** dev, int t){
 //        (*dev)[d].vars[l0].cl_varbnd.waits_r=&(*dev)[d].grads.savebnd.event;
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].to_comm){
-                __GUARD clbuf_readpin(&(*dev)[d].queuecomm,
+                __GUARD clbuf_readpin(&(*dev)[d].queue,
                                       &(*dev)[d].vars[i].cl_varbnd,
                                       &(*dev)[d].vars[i].cl_varbnd,
                                       (*dev)[d].NBND*t);
