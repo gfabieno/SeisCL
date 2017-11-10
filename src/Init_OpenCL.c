@@ -849,11 +849,6 @@ int Init_CUDA(model * m, device ** dev)  {
                         di->vars[i].cl_varbnd.sizepin/=2;
                     }
                     __GUARD clbuf_create_pin( &di->vars[i].cl_varbnd);
-                    __GUARD clbuf_readpin(&(*dev)[d].queue,
-                                          &(*dev)[d].vars[i].cl_varbnd,
-                                          &(*dev)[d].vars[i].cl_varbnd,
-                                          0);
-                    fprintf(stdout, "pin read %zu\n", (*dev)[d].vars[i].cl_varbnd.size);
                     
                 }
             }

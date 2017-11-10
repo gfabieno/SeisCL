@@ -163,7 +163,7 @@ int save_bnd(model * m, device ** dev, int t){
     int d,i;
     int lv=-1;
     int l0=-1;
-
+    int offset;
     
     for (d=0;d<m->NUM_DEVICES;d++){
         (*dev)[d].grads.savebnd.outevent=1;
@@ -183,12 +183,12 @@ int save_bnd(model * m, device ** dev, int t){
 //        (*dev)[d].vars[lv].cl_varbnd.outevent_r=1;
 //        (*dev)[d].vars[l0].cl_varbnd.nwait_r=1;
 //        (*dev)[d].vars[l0].cl_varbnd.waits_r=&(*dev)[d].grads.savebnd.event;
-        int offset;
+        
         if (m->FP16>0){
             offset =(*dev)[d].NBND*t/2;
         }
         else{
-            offset =(*dev)[d].NBND;
+            offset =(*dev)[d].NBND*t;
         }
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].to_comm){
@@ -212,17 +212,23 @@ int inject_bnd(model * m, device ** dev, int t){
 //TODO overlapped comm and a kernel to inject the wavefield
     int state=0;
     int d,i;
-   
+    int offset;
     
     for (d=0;d<m->NUM_DEVICES;d++){
         
+        if (m->FP16>0){
+            offset =(*dev)[d].NBND*t/2;
+        }
+        else{
+            offset =(*dev)[d].NBND;
+        }
 
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].to_comm){
                 __GUARD clbuf_sendpin(&(*dev)[d].queue,
                                       &(*dev)[d].vars[i].cl_varbnd,
                                       &(*dev)[d].vars[i].cl_varbnd,
-                                      (*dev)[d].NBND*t);
+                                      offset);
             }
         }
         
