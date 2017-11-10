@@ -736,7 +736,7 @@ int time_stepping(model * m, device ** dev) {
             __GUARD cuStreamSynchronize((*dev)[d].queue);
         }
         
-        __GUARD transf_grad(m);
+//        __GUARD transf_grad(m);
     }
     
     if (state && m->MPI_INIT==1)
