@@ -190,7 +190,6 @@ int save_bnd(model * m, device ** dev, int t){
         else{
             offset =(*dev)[d].NBND;
         }
-        offset=0;
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].to_comm){
                 __GUARD clbuf_readpin(&(*dev)[d].queue,
