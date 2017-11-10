@@ -853,7 +853,7 @@ int Init_CUDA(model * m, device ** dev)  {
                                           &(*dev)[d].vars[i].cl_varbnd,
                                           &(*dev)[d].vars[i].cl_varbnd,
                                           0);
-                    fprintf(stdout, "pin read\n");
+                    fprintf(stdout, "pin read %p\n", (*dev)[d].vars[i].cl_varbnd.pin);
                     
                 }
             }
