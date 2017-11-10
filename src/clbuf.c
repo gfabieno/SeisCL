@@ -81,7 +81,7 @@ int clbuf_readpin(CUstream *inqueue,
     int err = 0;
     
     /*Read memory from device to the host*/
-    err= cuMemcpyDtoHAsync(&bufpin->host[offset], buf->mem,buf->size, *inqueue);
+    err= cuMemcpyDtoHAsync(&bufpin->pin[offset], buf->mem,buf->size, *inqueue);
     
     if (err !=CUDA_SUCCESS) fprintf(stderr,
                                     "Error clbuf_readpin: %s\n",
@@ -116,9 +116,7 @@ int clbuf_create_pin(clbuf * buf)
     else{
         sizepin=(*buf).size;
     }
-    //err = cuMemAllocHost((void**)&(*buf).pin, sizepin);
-    int state = err;
-    GMALLOC((*buf).pin, sizepin);
+    err = cuMemAllocHost((void**)&(*buf).pin, sizepin);
     
     if (err !=CUDA_SUCCESS) fprintf(stderr,
                                     "Error clbuf_create_pin: %s\n",
