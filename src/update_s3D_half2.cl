@@ -1769,12 +1769,12 @@ extern "C" __global__ void update_s(int offcomm,
     lsyy=sub2(add2(lsyy,mul2(lM,add2(add2(vx_x2,vy_y2),vz_z2))),mul2(mul2(f2h2(2.0),lmu),add2(vx_x2,vz_z2)));
     lszz=sub2(add2(lszz,mul2(lM,add2(add2(vx_x2,vy_y2),vz_z2))),mul2(mul2(f2h2(2.0),lmu),add2(vx_x2,vy_y2)));
     //Write updated values to global memory
-//    sxx(gidz,gidy,gidx) = __f22h2(lsxx);
-//    sxy(gidz,gidy,gidx) = __f22h2(lsxy);
-//    sxz(gidz,gidy,gidx) = __f22h2(lsxz);
-//    syy(gidz,gidy,gidx) = __f22h2(lsyy);
-//    syz(gidz,gidy,gidx) = __f22h2(lsyz);
-//    szz(gidz,gidy,gidx) = __f22h2(lszz);
+    sxx(gidz,gidy,gidx) = __f22h2(lsxx);
+    sxy(gidz,gidy,gidx) = __f22h2(lsxy);
+    sxz(gidz,gidy,gidx) = __f22h2(lsxz);
+    syy(gidz,gidy,gidx) = __f22h2(lsyy);
+    syz(gidz,gidy,gidx) = __f22h2(lsyz);
+    szz(gidz,gidy,gidx) = __f22h2(lszz);
     
     
 }
