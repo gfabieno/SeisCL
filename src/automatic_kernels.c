@@ -302,7 +302,7 @@ int kernel_varinit(device * dev,
     else if (dev->NDIM==3){
         strcat(temp,"int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
                     "int gidy = blockIdx.y*blockDim.y + threadIdx.y;\n"
-                    "int gidx = blockIdx.y*blockDim.z + threadIdx.z;\n"
+                    "int gidx = blockIdx.z*blockDim.z + threadIdx.z;\n"
                     "int gid = gidx*blockDim.x*gridDim.x*blockDim.y*gridDim.y"
                     "+gidy*blockDim.x*gridDim.x +gidz;\n");
     }
