@@ -56,7 +56,7 @@ csts['nmax_dev']=9999       #Maximum number of devices that can be used
 csts['no_use_GPUs']=np.empty( (1,0) )  #Array of device numbers that should not be used for computation
 csts['MPI_NPROC_SHOT']=1    #Maximum number of MPI process (nodes) per shot involved in domain decomposition
 
-csts['back_prop_type']=2    #Type of gradient calculation: 1: backpropagation (elastic only) 2: Discrete Fourier transform
+csts['back_prop_type']=1    #Type of gradient calculation: 1: backpropagation (elastic only) 2: Discrete Fourier transform
 csts['par_type']=0        #Type of paretrization: 0:(rho,vp,vs,taup,taus), 1:(rho, M, mu, taup, taus), 2:(rho, Ip, Is, taup, taus)
 csts['gradfreqs']=np.empty((1,0)) #Array of frequencies in Hz to calculate the gradient with DFT
 csts['tmax']=csts['NT']*csts['dt']#Maximum time for which the gradient is to be computed
