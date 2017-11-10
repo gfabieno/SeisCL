@@ -504,12 +504,12 @@ int time_stepping(model * m, device ** dev) {
 
 
             // Outputting seismograms
-            if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){
-                for (d=0;d<m->NUM_DEVICES;d++){
-                    __GUARD prog_launch( &(*dev)[d].queue,
-                                        &(*dev)[d].src_recs.varsout);
-                }
-            }
+//            if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){
+//                for (d=0;d<m->NUM_DEVICES;d++){
+//                    __GUARD prog_launch( &(*dev)[d].queue,
+//                                        &(*dev)[d].src_recs.varsout);
+//                }
+//            }
 
             // Outputting the movie
             if (m->MOVOUT>0 && (t+1)%m->MOVOUT==0 && state==0)
