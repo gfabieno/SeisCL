@@ -525,6 +525,7 @@ int Init_CUDA(model * m, device ** dev)  {
 
             }
         }
+        fprintf(stdout, "gsize: %d %d \n", gsize[0], gsize[1]);
         
         //Create the required updates struct and assign the working size
         {
