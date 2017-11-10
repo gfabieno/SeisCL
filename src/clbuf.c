@@ -116,7 +116,9 @@ int clbuf_create_pin(clbuf * buf)
     else{
         sizepin=(*buf).size;
     }
-    err = cuMemAllocHost((void**)&(*buf).pin, sizepin);
+    //err = cuMemAllocHost((void**)&(*buf).pin, sizepin);
+    int state = err;
+    GMALLOC((*buf).pin, sizepin);
     
     if (err !=CUDA_SUCCESS) fprintf(stderr,
                                     "Error clbuf_create_pin: %s\n",
