@@ -726,9 +726,9 @@ extern "C" __global__ void update_adjs(int offcomm,
 
         int m=evarm(gidz, gidx);
         if (m!=-1){
-            lsxx= sxxbnd[m];
-            lszz= szzbnd[m];
-            lsxz= sxzbnd[m];
+            lsxx= __h22f2(sxxbnd[m]);
+            lszz= __h22f2(szzbnd[m]);
+            lsxz= __h22f2(sxzbnd[m]);
         }
         
         //Write updated values to global memory
