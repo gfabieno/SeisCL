@@ -1167,10 +1167,11 @@
 //}
 
 #define rip(z,y,x) rip[((x)-FDOH)*(NZ-FDOH)*(NY-2*FDOH)+((y)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
-#define rjo(z,y,x) rjo[((x)-FDOH)*(NZ-FDOH)*(NY-2*FDOH)+((y)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
-#define rko(z,y,x) rko[((x)-FDOH)*(NZ-FDOH)*(NY-2*FDOH)+((y)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
-#define mipjp(z,y,x) mipjp[((x)-FDOH)*(NZ-FDOH)*(NY-2*FDOH)+((y)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
-#define mjpkp(z,y,x) mjpkp[((x)-FDOH)*(NZ-FDOH)*(NY-2*FDOH)+((y)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define rjp(z,y,x) rjp[((x)-FDOH)*(NZ-FDOH)*(NY-2*FDOH)+((y)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define rkp(z,y,x) rkp[((x)-FDOH)*(NZ-FDOH)*(NY-2*FDOH)+((y)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define muipjp(z,y,x) muipjp[((x)-FDOH)*(NZ-FDOH)*(NY-2*FDOH)+((y)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define mujpkp(z,y,x) mujpkp[((x)-FDOH)*(NZ-FDOH)*(NY-2*FDOH)+((y)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define muipkp(z,y,x) muipkp[((x)-FDOH)*(NZ-FDOH)*(NY-2*FDOH)+((y)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
 #define M(z,y,x) M[((x)-FDOH)*(NZ-FDOH)*(NY-2*FDOH)+((y)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
 #define mu(z,y,x) mu[((x)-FDOH)*(NZ-FDOH)*(NY-2*FDOH)+((y)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
 
@@ -1296,8 +1297,8 @@ extern "C" __device__ __prec2 __hp(__prec *a ){
 
 
 extern "C" __global__ void update_s(int offcomm,
-                                    __pprec *mipjp, __pprec *mjpkp, __pprec *M,
-                                    __pprec *mu,__prec2 *sxx,__prec2 *sxy,__prec2 *sxz,
+                                    __pprec *muipjp, __pprec *mujpkp, __pprec *muipkp,
+                                    __pprec *M, __pprec *mu,__prec2 *sxx,__prec2 *sxy,__prec2 *sxz,
                                     __prec2 *syy,__prec2 *syz,__prec2 *szz,
                                     __prec2 *vx,__prec2 *vy,__prec2 *vz
                                     )
@@ -1326,9 +1327,10 @@ extern "C" __global__ void update_s(int offcomm,
     __cprec lsyz = __h22f2(syz(gidz,gidy,gidx));
     __cprec lszz = __h22f2(szz(gidz,gidy,gidx));
     __cprec lM = __pconv(M(gidz,gidy,gidx));
-    __cprec lmipjp = __pconv(mipjp(gidz,gidy,gidx));
-    __cprec lmjpkp = __pconv(mjpkp(gidz,gidy,gidx));
     __cprec lmu = __pconv(mu(gidz,gidy,gidx));
+    __cprec lmuipjp = __pconv(muipjp(gidz,gidy,gidx));
+    __cprec lmuipkp = __pconv(muipkp(gidz,gidy,gidx));
+    __cprec lmujpkp = __pconv(mujpkp(gidz,gidy,gidx));
     
     //Define private derivatives
     __cprec vx_x2;
@@ -1365,7 +1367,6 @@ extern "C" __global__ void update_s(int offcomm,
     //Calculation of the spatial derivatives
     {
 #if LOCAL_OFF==0
-        __syncthreads();
         lvz2(lidz,lidy,lidx)=vz(gidz,gidy,gidx);
         if (lidz<FDOH)
             lvz2(lidz-FDOH/2,lidy,lidx)=vz(gidz-FDOH/2,gidy,gidx);
@@ -1761,9 +1762,9 @@ extern "C" __global__ void update_s(int offcomm,
 #endif
     
     // Update the variables
-    lsxy=add2(lsxy,mul2(lmipjp,add2(vx_y1,vy_x1)));
-    lsyz=add2(lsyz,mul2(lmjpkp,add2(vy_z1,vz_y1)));
-    lsxz=add2(lsxz,mul2(lmjpkp,add2(vx_z1,vz_x1)));
+    lsxy=add2(lsxy,mul2(lmuipjp,add2(vx_y1,vy_x1)));
+    lsyz=add2(lsyz,mul2(lmujpkp,add2(vy_z1,vz_y1)));
+    lsxz=add2(lsxz,mul2(lmuipkp,add2(vx_z1,vz_x1)));
     lsxx=sub2(add2(lsxx,mul2(lM,add2(add2(vx_x2,vy_y2),vz_z2))),mul2(mul2(f2h2(2.0),lmu),add2(vy_y2,vz_z2)));
     lsyy=sub2(add2(lsyy,mul2(lM,add2(add2(vx_x2,vy_y2),vz_z2))),mul2(mul2(f2h2(2.0),lmu),add2(vx_x2,vz_z2)));
     lszz=sub2(add2(lszz,mul2(lM,add2(add2(vx_x2,vy_y2),vz_z2))),mul2(mul2(f2h2(2.0),lmu),add2(vx_x2,vy_y2)));
@@ -1777,4 +1778,3 @@ extern "C" __global__ void update_s(int offcomm,
     
     
 }
-
