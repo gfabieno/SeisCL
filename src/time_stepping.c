@@ -183,12 +183,19 @@ int save_bnd(model * m, device ** dev, int t){
 //        (*dev)[d].vars[lv].cl_varbnd.outevent_r=1;
 //        (*dev)[d].vars[l0].cl_varbnd.nwait_r=1;
 //        (*dev)[d].vars[l0].cl_varbnd.waits_r=&(*dev)[d].grads.savebnd.event;
+        int offset;
+        if (m->FP16>0){
+            offset =(*dev)[d].NBND*t/2;
+        }
+        else{
+            offset =(*dev)[d].NBND;
+        }
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].to_comm){
                 __GUARD clbuf_readpin(&(*dev)[d].queue,
                                       &(*dev)[d].vars[i].cl_varbnd,
                                       &(*dev)[d].vars[i].cl_varbnd,
-                                      (*dev)[d].NBND*t);
+                                      offset);
             }
         }
 //        (*dev)[d].grads.savebnd.nwait=1;
