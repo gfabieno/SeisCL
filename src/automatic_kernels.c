@@ -558,7 +558,7 @@ int kernel_residuals(device * dev,
             strcat(temp, "float * ");
             strcat(temp, vars[i].name);
             if (BACK_PROP_TYPE==1)
-                strcat(temp, "_r");
+                strcat(temp, "r");
             strcat(temp, ", ");
             strcat(temp, "float * ");
             strcat(temp, vars[i].name);
@@ -571,7 +571,7 @@ int kernel_residuals(device * dev,
                 strcat(temp, "float * ");
                 strcat(temp, tvars[i].var2ave[j]);
                 if (BACK_PROP_TYPE==1)
-                    strcat(temp, "_r");
+                    strcat(temp, "r");
                 strcat(temp, ", ");
             }
             
@@ -622,7 +622,7 @@ int kernel_residuals(device * dev,
             strcat(temp, "        ");
             strcat(temp, vars[i].name);
             if (BACK_PROP_TYPE==1)
-                strcat(temp, "_r");
+                strcat(temp, "r");
             strcat(temp, posstr);
             strcat(temp, "+=");
             strcat(temp, vars[i].name);
@@ -636,7 +636,7 @@ int kernel_residuals(device * dev,
                 strcat(temp, "        ");
                 strcat(temp, tvars[i].var2ave[j]);
                 if (BACK_PROP_TYPE==1)
-                    strcat(temp, "_r");
+                    strcat(temp, "r");
                 strcat(temp, posstr);
                 strcat(temp, "+=");
                 strcat(temp, tvars[i].name);

@@ -871,7 +871,7 @@ extern "C" __global__ void update_s(int offcomm,
     __cprec vx_z1;
     __cprec vz_x1;
     __cprec vz_z2;
-    
+
     //Local memory definitions if local is used
 #if LOCAL_OFF==0
 #define lvx lvar

@@ -844,6 +844,10 @@ int Init_CUDA(model * m, device ** dev)  {
                 if (di->vars[i].to_comm){
                     di->vars[i].cl_varbnd.size=sizeof(float) * di->NBND;
                     di->vars[i].cl_varbnd.sizepin=sizeof(float) *di->NBND*m->NT;
+                    if (m->FP16>0){
+                        di->vars[i].cl_varbnd.size/=2;
+                        di->vars[i].cl_varbnd.sizepin/=2;
+                    }
                     __GUARD clbuf_create_pin( &di->vars[i].cl_varbnd);
                 }
             }
