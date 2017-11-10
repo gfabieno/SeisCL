@@ -270,7 +270,7 @@ extern "C" __device__ int evarm( int k, int i){
 }
 
 extern "C" __global__ void update_adjs(int offcomm,
-                           __pprec *rip, __pprec *rkp,
+                           __pprec *muipkp, __pprec *M, __pprec *mu,
                            __prec2 *sxx,__prec2 *sxz,__prec2 *szz,
                            __prec2 *vx,__prec2 *vz,
                            __prec2 *sxxbnd,__prec2 *sxzbnd,__prec2 *szzbnd,
