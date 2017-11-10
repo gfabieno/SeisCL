@@ -23,9 +23,11 @@ SeisCL_CL= \
 	surface2D_SH.cl \
 	surface3D.cl \
 	update_adjs2D.cl \
+    update_adjs2D_half2.cl \
 	update_adjs2D_SH.cl \
 	update_adjs3D.cl \
 	update_adjv2D.cl \
+    update_adjv2D_half2.cl \
 	update_adjv2D_SH.cl \
 	update_adjv3D.cl \
 	update_s2D.cl \
