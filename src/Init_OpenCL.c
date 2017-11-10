@@ -661,7 +661,7 @@ int Init_CUDA(model * m, device ** dev)  {
             di->vars[i]=m->vars[i];
             //Set the size of the local variables
             di->vars[i].set_size(di->N, (void*) m, &di->vars[i]);
-            fprintf(stdout,"%nele:%d", di->vars[i].num_ele);
+            fprintf(stdout,"nele:%d\n", di->vars[i].num_ele);
         }
         for (i=0;i<m->ntvars;i++){
             di->trans_vars[i]=m->trans_vars[i];
