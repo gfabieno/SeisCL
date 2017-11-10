@@ -220,7 +220,7 @@ int inject_bnd(model * m, device ** dev, int t){
             offset =(*dev)[d].NBND*t/2;
         }
         else{
-            offset =(*dev)[d].NBND;
+            offset =(*dev)[d].NBND*t;
         }
 
         for (i=0;i<m->nvars;i++){
