@@ -42,7 +42,7 @@
 
 #endif
 
-extern "C" __global__ savebnd(__prec *vx,         __prec *vy,      __prec *vz,
+extern "C" __global__ void savebnd(__prec *vx,         __prec *vy,      __prec *vz,
                               __prec *sxx,        __prec *syy,     __prec *szz,
                               __prec *sxy,        __prec *syz,     __prec *sxz,
                               __prec *vxbnd,      __prec *vybnd,   __prec *vzbnd,
