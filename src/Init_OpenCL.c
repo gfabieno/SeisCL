@@ -705,12 +705,12 @@ int Init_CUDA(model * m, device ** dev)  {
                 GMALLOC(di->vars[i].cl_varout.host, di->vars[i].cl_varout.size);
                 di->vars[i].cl_varout.free_host=1;
                 
-                //Create also a buffer for the residuals
-                if (m->vars[i].gl_var_res){
-                    di->vars[i].cl_var_res.size=sizeof(float)
-                                               * m->NT * m->src_recs.ngmax;
-                    __GUARD clbuf_create( &di->vars[i].cl_var_res);
-                }
+//                //Create also a buffer for the residuals
+//                if (m->vars[i].gl_var_res){
+//                    di->vars[i].cl_var_res.size=sizeof(float)
+//                                               * m->NT * m->src_recs.ngmax;
+//                    __GUARD clbuf_create( &di->vars[i].cl_var_res);
+//                }
             }
             
             // If we use the DFT for gradient computation,
@@ -754,12 +754,12 @@ int Init_CUDA(model * m, device ** dev)  {
                 GMALLOC(di->trans_vars[i].cl_varout.host, di->trans_vars[i].cl_varout.size);
                 di->trans_vars[i].cl_varout.free_host=1;
                 
-                //Create also a buffer for the residuals
-                if (m->trans_vars[i].gl_var_res){
-                    di->trans_vars[i].cl_var_res.size=sizeof(float)
-                    * m->NT * m->src_recs.ngmax;
-                    __GUARD clbuf_create(  &di->trans_vars[i].cl_var_res);
-                }
+//                //Create also a buffer for the residuals
+//                if (m->trans_vars[i].gl_var_res){
+//                    di->trans_vars[i].cl_var_res.size=sizeof(float)
+//                    * m->NT * m->src_recs.ngmax;
+//                    __GUARD clbuf_create(  &di->trans_vars[i].cl_var_res);
+//                }
 
             }
         }

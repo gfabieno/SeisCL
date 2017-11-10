@@ -562,7 +562,7 @@ int time_stepping(model * m, device ** dev) {
                     if ( (*dev)[d].vars[i].to_output){
                         (*dev)[d].vars[i].cl_var_res.size=sizeof(float)
                                                   * m->NT * m->src_recs.nrec[s];
-                        (*dev)[d].vars[i].cl_var_res.host=
+                        (*dev)[d].vars[i].cl_var_res.pin=
                                                 (*dev)[d].vars[i].gl_var_res[s];
                         __GUARD clbuf_sendpin(&(*dev)[d].queue,
                                               &(*dev)[d].vars[i].cl_varout,
@@ -574,7 +574,7 @@ int time_stepping(model * m, device ** dev) {
                     if ( (*dev)[d].trans_vars[i].to_output){
                         (*dev)[d].trans_vars[i].cl_var_res.size=sizeof(float)
                         * m->NT * m->src_recs.nrec[s];
-                        (*dev)[d].trans_vars[i].cl_var_res.host=
+                        (*dev)[d].trans_vars[i].cl_var_res.pin=
                         (*dev)[d].trans_vars[i].gl_var_res[s];
                         __GUARD clbuf_sendpin(&(*dev)[d].queue,
                                               &(*dev)[d].trans_vars[i].cl_varout,
