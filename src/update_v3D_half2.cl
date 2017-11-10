@@ -1567,9 +1567,9 @@ extern "C" __global__ void update_v(int offcomm,
 #endif
     
     // Update the variables
-    lvx=add2(lvx,mul2(add2(add2(sxx_x1,sxy_y2),sxz_z2),lrip));
-    lvy=add2(lvy,mul2(add2(add2(syy_y1,sxy_x2),syz_z2),lrjp));
-    lvz=add2(lvz,mul2(add2(add2(szz_z1,sxz_x2),syz_y2),lrkp));
+//    lvx=add2(lvx,mul2(add2(add2(sxx_x1,sxy_y2),sxz_z2),lrip));
+//    lvy=add2(lvy,mul2(add2(add2(syy_y1,sxy_x2),syz_z2),lrjp));
+//    lvz=add2(lvz,mul2(add2(add2(szz_z1,sxz_x2),syz_y2),lrkp));
     //Write updated values to global memory
     vx(gidz,gidy,gidx) = __f22h2(lvx);
     vy(gidz,gidy,gidx) = __f22h2(lvy);
