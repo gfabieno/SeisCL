@@ -754,7 +754,9 @@ extern "C" __global__ void update_adjv(int offcomm,
     
 // Density gradient calculation on the fly
 #if BACK_PROP_TYPE==1
-    gradrho(gidz,gidx)+=-vx(gidz,gidx)*lvx-vz(gidz,gidx)*lvz;
+    lvxr=mul2(add2(sxxr_x1,sxzr_z2),lrip);
+    lvzr=mul2(add2(szzr_z1,sxzr_x2),lrkp);
+    gradrho(gidz,gidx)+=sub2(sub2(gradrho(gidz,gidx), mul2(lvx, lvxr)), mul2(lvz,lvzr));
 #endif
 
 }
