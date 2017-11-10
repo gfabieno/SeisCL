@@ -769,7 +769,7 @@ extern "C" __global__ void update_adjv(int offcomm,
     lvxr=mul2(add2(sxxr_x1,sxzr_z2),lrip);
     lvzr=mul2(add2(szzr_z1,sxzr_x2),lrkp);
 //    gradrho(gidz,gidx)=sub2(sub2(gradrho(gidz,gidx), mul2(lvx, lvxr)), mul2(lvz,lvzr));
-    gradrho(gidz,gidx)=sub2(sub2(gradrho(gidz,gidx), mul2(lvxr, lvxr)), mul2(lvzr,lvzr));
+    gradrho(gidz,gidx)=sub2(sub2(gradrho(gidz,gidx), mul2(lvx, lvx)), mul2(lvz,lvz));
 #endif
 
 }
