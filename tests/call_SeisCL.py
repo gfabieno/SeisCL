@@ -135,32 +135,32 @@ while (pipes.poll() is None):
 sys.stdout.write('Forward calculation completed \n')
 sys.stdout.flush()
 
-#dout = h5mat.loadmat(filenames['dout'])
-#din={}
-#din['src_pos']=dout['src_pos']
-#din['rec_pos']=dout['rec_pos']
-##din['vx']=dout['vxout']
-##din['vz']=dout['vzout']
-#din['p']=np.transpose(dout['pout'])
-#h5mat.savemat(filenames['din'], din , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
-#
-#
-##________________Calculate gradient______________
-#model['vp'][70:90,65:85]= 3500
-#model['taup'][110:130,65:85]= 0.02
-#csts['gradout']=1
-#csts['resout']=1
-#csts['gradfreqs']=np.append(csts['gradfreqs'], csts['f0'])
-#h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
-#h5mat.savemat(filenames['model'], model , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
-#              
-#filepath=os.getcwd()
-#cmdlaunch='cd ../src/; mpirun -np 1 ./SeisCL_MPI '+filepath+'/SeisCL > ../tests/out 2>../tests/err'
-#print(cmdlaunch)
-#pipes = subprocess.Popen(cmdlaunch,stdout=subprocess.PIPE, stderr=subprocess.PIPE,shell=True)
-#while (pipes.poll() is None):
-#    time.sleep(1)
-#sys.stdout.write('Gradient calculation completed \n')
-#sys.stdout.flush()
+dout = h5mat.loadmat(filenames['dout'])
+din={}
+din['src_pos']=dout['src_pos']
+din['rec_pos']=dout['rec_pos']
+#din['vx']=dout['vxout']
+#din['vz']=dout['vzout']
+din['p']=np.transpose(dout['pout'])
+h5mat.savemat(filenames['din'], din , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
+
+
+#________________Calculate gradient______________
+model['vp'][70:90,65:85]= 3500
+model['taup'][110:130,65:85]= 0.02
+csts['gradout']=1
+csts['resout']=1
+csts['gradfreqs']=np.append(csts['gradfreqs'], csts['f0'])
+h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
+h5mat.savemat(filenames['model'], model , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
+
+filepath=os.getcwd()
+cmdlaunch='cd ../src/; mpirun -np 1 ./SeisCL_MPI '+filepath+'/SeisCL > ../tests/out 2>../tests/err'
+print(cmdlaunch)
+pipes = subprocess.Popen(cmdlaunch,stdout=subprocess.PIPE, stderr=subprocess.PIPE,shell=True)
+while (pipes.poll() is None):
+    time.sleep(1)
+sys.stdout.write('Gradient calculation completed \n')
+sys.stdout.flush()
 
 
