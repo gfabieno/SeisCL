@@ -282,7 +282,9 @@ extern "C" __global__ void update_adjv(int offcomm,
                           float2 *gradrho)
 {
 
-    extern __shared__ float lvar[];
+    //Local memory
+    extern __shared__ __prec2 lvar2[];
+    __prec * lvar=(__prec *)lvar2;
     
     //Grid position
     int lsizez = blockDim.x+FDOH;
