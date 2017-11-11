@@ -748,9 +748,9 @@ extern "C" __global__ void update_adjs(int offcomm,
         lsxxr=sub2(add2(lsxxr,mul2(lM,add2(vxr_x2,vzr_z2))),mul2(mul2(f2h2(2.0),lmu),vzr_z2));
         lszzr=sub2(add2(lszzr,mul2(lM,add2(vxr_x2,vzr_z2))),mul2(mul2(f2h2(2.0),lmu),vxr_x2));
         //Write updated values to global memory
-        sxxr(gidz,gidx) = __f22h2(lsxxr);
-        sxzr(gidz,gidx) = __f22h2(lsxzr);
-        szzr(gidz,gidx) = __f22h2(lszzr);
+//        sxxr(gidz,gidx) = __f22h2(lsxxr);
+//        sxzr(gidz,gidx) = __f22h2(lsxzr);
+//        szzr(gidz,gidx) = __f22h2(lszzr);
     }
 
     // Shear wave modulus and P-wave modulus gradient calculation on the fly
