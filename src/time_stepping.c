@@ -629,7 +629,7 @@ int time_stepping(model * m, device ** dev) {
                 for (d=0;d<m->NUM_DEVICES;d++){
                     for (i=0;i<(*dev)[d].nprogs;i++){
                         if ((*dev)[d].progs[i]->tinput>0){
-                            (*dev)[d].progs[i]->inputs[(*dev)[d].progs[i]->tinput-1]=&(t-1);
+                            (*dev)[d].progs[i]->inputs[(*dev)[d].progs[i]->tinput-1]=&t;
                         }
                     }
                 }
@@ -639,13 +639,13 @@ int time_stepping(model * m, device ** dev) {
                     __GUARD inject_bnd( m, dev, t);
                 }
                 
-                // Inject the sources with negative sign
-                if (m->BACK_PROP_TYPE==1){
-                    for (d=0;d<m->NUM_DEVICES;d++){
-                        __GUARD prog_launch( &(*dev)[d].queue,
-                                            &(*dev)[d].src_recs.sources);
-                    }
-                }
+//                // Inject the sources with negative sign
+//                if (m->BACK_PROP_TYPE==1){
+//                    for (d=0;d<m->NUM_DEVICES;d++){
+//                        __GUARD prog_launch( &(*dev)[d].queue,
+//                                            &(*dev)[d].src_recs.sources);
+//                    }
+//                }
                 
                 // Inject the residuals
                 for (d=0;d<m->NUM_DEVICES;d++){
