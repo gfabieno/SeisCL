@@ -634,10 +634,10 @@ int time_stepping(model * m, device ** dev) {
                     }
                 }
                 
-                // Inject the forward variables boundaries
-                if (m->BACK_PROP_TYPE==1){
-                    __GUARD inject_bnd( m, dev, t);
-                }
+//                // Inject the forward variables boundaries
+//                if (m->BACK_PROP_TYPE==1){
+//                    __GUARD inject_bnd( m, dev, t);
+//                }
                 
 //                // Inject the sources with negative sign
 //                if (m->BACK_PROP_TYPE==1){
