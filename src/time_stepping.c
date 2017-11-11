@@ -586,8 +586,6 @@ int time_stepping(model * m, device ** dev) {
                 if (m->BACK_PROP_TYPE==1){
                     __GUARD prog_launch( &(*dev)[d].queue,
                                          &(*dev)[d].bnd_cnds.init_adj);
-                    __GUARD prog_launch( &(*dev)[d].queue,
-                                        &(*dev)[d].bnd_cnds.init_f);
                 }
                 // Initialized the source gradient
                 if (m->GRADSRCOUT==1){

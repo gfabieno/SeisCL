@@ -749,8 +749,8 @@ extern "C" __global__ void update_adjv(int offcomm,
 
         
         //Write updated values to global memory
-        vx(gidz,gidx) = __f22h2(lvx);
-        vz(gidz,gidx) = __f22h2(lvz);
+//        vx(gidz,gidx) = __f22h2(lvx);
+//        vz(gidz,gidx) = __f22h2(lvz);
         
 
     }
