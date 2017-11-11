@@ -760,8 +760,8 @@ extern "C" __global__ void update_adjv(int offcomm,
     lvxr=add2(lvxr,mul2(add2(sxxr_x1,sxzr_z2),lrip));
     lvzr=add2(lvzr,mul2(add2(szzr_z1,sxzr_x2),lrkp));
     //Write updated values to global memory
-//    vxr(gidz,gidx) = __f22h2(lvxr);
-//    vzr(gidz,gidx) = __f22h2(lvzr);
+    vxr(gidz,gidx) = __f22h2(lvxr);
+    vzr(gidz,gidx) = __f22h2(lvzr);
     
     
 // Density gradient calculation on the fly

@@ -647,11 +647,11 @@ int time_stepping(model * m, device ** dev) {
                     }
                 }
                 
-//                // Inject the residuals
-//                for (d=0;d<m->NUM_DEVICES;d++){
-//                    __GUARD prog_launch( &(*dev)[d].queue,
-//                                         &(*dev)[d].src_recs.residuals);
-//                }
+                // Inject the residuals
+                for (d=0;d<m->NUM_DEVICES;d++){
+                    __GUARD prog_launch( &(*dev)[d].queue,
+                                         &(*dev)[d].src_recs.residuals);
+                }
                 
                 // Update the adjoint wavefield and perform back-propagation of
                 // forward wavefield
