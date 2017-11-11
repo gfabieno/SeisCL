@@ -756,7 +756,7 @@ extern "C" __global__ void update_adjs(int offcomm,
 
     // Shear wave modulus and P-wave modulus gradient calculation on the fly
 #if BACK_PROP_TYPE==1
-    float2 c1= f2h2(1.0);//div2(f2h2(1.0), mul2(mul2(f2h2(2.0), sub2(lM,lmu)),mul2(f2h2(2.0), sub2(lM,lmu))));
+    float2 c1= div2(f2h2(1.0), mul2(mul2(f2h2(2.0), sub2(lM,lmu)),mul2(f2h2(2.0), sub2(lM,lmu))));
     float2 c3=div2(f2h2(1.0), mul2(lmu,lmu));
     float2 c5=mul2(f2h2(0.25), c3);
     
@@ -766,7 +766,7 @@ extern "C" __global__ void update_adjs(int offcomm,
 
     float2 dM=mul2(c1,mul2(add2(lsxx,lszz), add2(lsxxr,lszzr) ) );
 
-    gradM(gidz,gidx)=sub2(gradM(gidz,gidx), dM);
+    gradM(gidz,gidx)=lsxx;//sub2(gradM(gidz,gidx), dM);
     gradmu(gidz,gidx)=sub2(sub2(add2(gradM(gidz,gidx), dM), mul2(c3, mul2(lsxz,lsxzr))), mul2(c5,mul2( sub2(lsxx,lszz), sub2(lsxxr,lszzr))));
     
     
