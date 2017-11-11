@@ -629,7 +629,7 @@ int time_stepping(model * m, device ** dev) {
                 for (d=0;d<m->NUM_DEVICES;d++){
                     for (i=0;i<(*dev)[d].nprogs;i++){
                         if ((*dev)[d].progs[i]->tinput>0){
-                            (*dev)[d].progs[i]->inputs[(*dev)[d].progs[i]->tinput-1]=&t;
+                            (*dev)[d].progs[i]->inputs[(*dev)[d].progs[i]->tinput-1]=&(t-1);
                         }
                     }
                 }
