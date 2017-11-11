@@ -735,6 +735,7 @@ extern "C" __global__ void update_adjs(int offcomm,
 //        sxx(gidz,gidx) = __f22h2(lsxx);
 //        sxz(gidz,gidx) = __f22h2(lsxz);
 //        szz(gidz,gidx) = __f22h2(lszz);
+        
     }
 #endif
 
