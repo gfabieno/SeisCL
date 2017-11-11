@@ -333,7 +333,7 @@ int kernel_varinit(device * dev,
     strcat(temp, "\n}");
     
     
-    printf("%s\n\n%lu\n",temp, strlen(temp));
+//    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     
     (*prog).src=temp;
@@ -532,7 +532,7 @@ int kernel_sources(device * dev,
     
     __GUARD prog_source(prog, "sources", (*prog).src);
     
-    printf("%s\n\n%lu\n",temp, strlen(temp));
+//    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     free(tosources);
     free(tosources2);
@@ -661,7 +661,7 @@ int kernel_residuals(device * dev,
     
     __GUARD prog_source(prog, "residuals", (*prog).src);
 
-//    printf("%s\n\n%lu\n",temp, strlen(temp));
+    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     prog->wdim=1;
     
