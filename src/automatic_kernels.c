@@ -172,7 +172,7 @@ int kernel_varout(device * dev,
     strcat(temp, "\n}");
     
     
-    printf("%s\n\n%lu\n",temp, strlen(temp));
+//    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     
     (*prog).src=temp;
@@ -259,7 +259,7 @@ int kernel_varinit(device * dev,
                    model * m,
                    variable * vars,
                    clprogram * prog,
-                   int adj){
+                   int BACK_PROP_TYPE){
     
     int state=0;
     int i;
@@ -286,7 +286,7 @@ int kernel_varinit(device * dev,
             strcat(temp, "half2 * ");
         }
         strcat(temp, vars[i].name);
-        if (adj==1){
+        if (BACK_PROP_TYPE==1){
             strcat(temp, "r");
         }
         strcat(temp, ", ");
@@ -318,7 +318,7 @@ int kernel_varinit(device * dev,
         strcat(temp, "    ");
         strcat(temp, "    ");
         strcat(temp, vars[i].name);
-        if (adj==1){
+        if (BACK_PROP_TYPE==1){
             strcat(temp, "r");
         }
         if (dev->FP16==0){
@@ -661,7 +661,7 @@ int kernel_residuals(device * dev,
     
     __GUARD prog_source(prog, "residuals", (*prog).src);
 
-    printf("%s\n\n%lu\n",temp, strlen(temp));
+//    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     prog->wdim=1;
     

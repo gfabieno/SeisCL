@@ -534,7 +534,7 @@ int kernel_varinit(device * dev,
                    model * m,
                    variable * vars,
                    clprogram * prog,
-                   int adj);
+                   int BACK_PROP_TYPE);
 
 int kernel_residuals(device * dev,
                      clprogram * prog,
