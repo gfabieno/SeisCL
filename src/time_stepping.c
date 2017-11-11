@@ -634,18 +634,18 @@ int time_stepping(model * m, device ** dev) {
                     }
                 }
                 
-//                // Inject the forward variables boundaries
-//                if (m->BACK_PROP_TYPE==1){
-//                    __GUARD inject_bnd( m, dev, t);
-//                }
+                // Inject the forward variables boundaries
+                if (m->BACK_PROP_TYPE==1){
+                    __GUARD inject_bnd( m, dev, t);
+                }
                 
-//                // Inject the sources with negative sign
-//                if (m->BACK_PROP_TYPE==1){
-//                    for (d=0;d<m->NUM_DEVICES;d++){
-//                        __GUARD prog_launch( &(*dev)[d].queue,
-//                                            &(*dev)[d].src_recs.sources);
-//                    }
-//                }
+                // Inject the sources with negative sign
+                if (m->BACK_PROP_TYPE==1){
+                    for (d=0;d<m->NUM_DEVICES;d++){
+                        __GUARD prog_launch( &(*dev)[d].queue,
+                                            &(*dev)[d].src_recs.sources);
+                    }
+                }
                 
                 // Inject the residuals
                 for (d=0;d<m->NUM_DEVICES;d++){
