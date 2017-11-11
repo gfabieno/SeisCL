@@ -258,7 +258,8 @@ int kernel_varoutinit(device * dev,
 int kernel_varinit(device * dev,
                    model * m,
                    variable * vars,
-                   clprogram * prog){
+                   clprogram * prog,
+                   int adj){
     
     int state=0;
     int i;
@@ -284,8 +285,11 @@ int kernel_varinit(device * dev,
         else{
             strcat(temp, "half2 * ");
         }
-            strcat(temp, vars[i].name);
-            strcat(temp, ", ");
+        strcat(temp, vars[i].name);
+        if (adj==1){
+            strcat(temp, "r");
+        }
+        strcat(temp, ", ");
     }
     while (*p)
         p++;
@@ -314,6 +318,9 @@ int kernel_varinit(device * dev,
         strcat(temp, "    ");
         strcat(temp, "    ");
         strcat(temp, vars[i].name);
+        if (adj==1){
+            strcat(temp, "r");
+        }
         if (dev->FP16==0){
             strcat(temp, "[gid]=f0;\n");
         }

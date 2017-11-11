@@ -923,7 +923,7 @@ int Init_CUDA(model * m, device ** dev)  {
             __GUARD prog_create(m, di,  &di->src_recs.varsoutinit);
         }
         
-        __GUARD kernel_varinit(di, m, di->vars, &di->bnd_cnds.init_f);
+        __GUARD kernel_varinit(di, m, di->vars, &di->bnd_cnds.init_f, 0);
         __GUARD prog_create(m, di,  &di->bnd_cnds.init_f);
    
         
@@ -934,7 +934,9 @@ int Init_CUDA(model * m, device ** dev)  {
             __GUARD prog_create(m, di,  &di->src_recs.residuals);
             
             if (m->BACK_PROP_TYPE==1){
-                __GUARD kernel_varinit(di,m, di->vars_adj, &di->bnd_cnds.init_adj);
+                __GUARD kernel_varinit(di,m,
+                                       di->vars_adj,
+                                       &di->bnd_cnds.init_adj, 1);
                 __GUARD prog_create(m, di,  &di->bnd_cnds.init_adj);
                 
                 

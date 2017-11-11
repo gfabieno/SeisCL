@@ -533,7 +533,8 @@ int kernel_varoutinit(device * dev,
 int kernel_varinit(device * dev,
                    model * m,
                    variable * vars,
-                   clprogram * prog);
+                   clprogram * prog,
+                   int adj);
 
 int kernel_residuals(device * dev,
                      clprogram * prog,
