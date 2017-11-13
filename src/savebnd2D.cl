@@ -65,13 +65,13 @@ extern "C" __global__ void savebnd(__prec2 *sxx,__prec2 *sxz,__prec2 *szz,
         i=gidf/(NZbnd)+NXbnd+NAB;
         k=gidf%NZbnd+lbnd/2;
     }
-    else if (gid<NZbnd*FDOH+(NXbnd - 2*FDOH)*FDOH){//up
+    else if (gid<NZbnd*FDOH+(NXbnd - 2*FDOH)*FDOH/2){//up
         gidf=gid-NZbnd*FDOH;
         i=gidf%(NXbnd - 2*FDOH)+lbnd+FDOH;
         k=gidf/(NXbnd- 2*FDOH)/2+lbnd/2;
     }
-    else if (gid<NZbnd*FDOH+(NXbnd- 2*FDOH)*2*FDOH){//bottom
-        gidf=gid-NZbnd*FDOH-(NXbnd- 2*FDOH)*FDOH;
+    else if (gid<NZbnd*FDOH+(NXbnd- 2*FDOH)*FDOH){//bottom
+        gidf=gid-NZbnd*FDOH-(NXbnd- 2*FDOH)*FDOH/2;
         i=gidf%(NXbnd- 2*FDOH)+lbnd+FDOH;
         k=gidf/(NXbnd- 2*FDOH)/2+NZbnd+NAB/2;
     }
