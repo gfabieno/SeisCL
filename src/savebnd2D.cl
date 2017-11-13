@@ -76,9 +76,9 @@ extern "C" __global__ void savebnd(__prec2 *sxx,__prec2 *sxz,__prec2 *szz,
         k=gidf/(NXbnd- 2*FDOH)/2+NZbnd+NAB/2;
     }
 
-//    else{
-//        return;
-//    }
+    else{
+        return;
+    }
     
 
 #elif DEVID==0 & MYGROUPID==0
