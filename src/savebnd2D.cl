@@ -42,38 +42,38 @@
 
 #endif
 
-extern "C" __global__ void savebnd(__prec *sxx,__prec *sxz,__prec *szz,
-                                   __prec *vx,__prec *vz,
-                                   __prec *sxxbnd,__prec *sxzbnd,__prec *szzbnd,
-                                   __prec *vxbnd,__prec *vzbnd)
+extern "C" __global__ void savebnd(__prec2 *sxx,__prec2 *sxz,__prec2 *szz,
+                                   __prec2 *vx,__prec2 *vz,
+                                   __prec2 *sxxbnd,__prec2 *sxzbnd,__prec2 *szzbnd,
+                                   __prec2 *vxbnd,__prec2 *vzbnd)
 {
     
 #if NUM_DEVICES==1 & NLOCALP==1
     int gid = blockIdx.x*blockDim.x + threadIdx.x;
     int NXbnd = (NX- 2*FDOH- 2*NAB);
-    int NZbnd = (NZ*2- 2*FDOH- 2*NAB);
+    int NZbnd = (NZ- FDOH- NAB);
     int i=0,k=0;
     int gidf;
     
-    if (gid<NZbnd*FDOH){//front
+    if (gid<NZbnd*FDOH/2){//front
         gidf=gid;
         i=gidf/NZbnd+lbnd;
-        k=gidf%NZbnd+lbnd;
+        k=gidf%NZbnd+lbnd/2;
     }
-    else if (gid<NZbnd*2*FDOH){//back
-        gidf=gid-NZbnd*FDOH;
+    else if (gid<NZbnd*FDOH){//back
+        gidf=gid-NZbnd*FDOH/2;
         i=gidf/(NZbnd)+NXbnd+NAB;
-        k=gidf%NZbnd+lbnd;
+        k=gidf%NZbnd+lbnd/2;
     }
-    else if (gid<NZbnd*2*FDOH+(NXbnd - 2*FDOH)*FDOH){//up
-        gidf=gid-NZbnd*2*FDOH;
+    else if (gid<NZbnd*FDOH+(NXbnd - 2*FDOH)*FDOH){//up
+        gidf=gid-NZbnd*FDOH;
         i=gidf%(NXbnd - 2*FDOH)+lbnd+FDOH;
-        k=gidf/(NXbnd- 2*FDOH)+lbnd;
+        k=gidf/(NXbnd- 2*FDOH)/2+lbnd/2;
     }
-    else if (gid<NZbnd*2*FDOH+(NXbnd- 2*FDOH)*2*FDOH){//bottom
-        gidf=gid-NZbnd*2*FDOH-(NXbnd- 2*FDOH)*FDOH;
+    else if (gid<NZbnd*FDOH+(NXbnd- 2*FDOH)*2*FDOH){//bottom
+        gidf=gid-NZbnd*FDOH-(NXbnd- 2*FDOH)*FDOH;
         i=gidf%(NXbnd- 2*FDOH)+lbnd+FDOH;
-        k=gidf/(NXbnd- 2*FDOH)+NZbnd+NAB;
+        k=gidf/(NXbnd- 2*FDOH)/2+NZbnd+NAB/2;
     }
 
     else{
