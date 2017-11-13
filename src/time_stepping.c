@@ -224,9 +224,12 @@ int inject_bnd(model * m, device ** dev, int t){
         else{
             offset =(*dev)[d].NBND*t;
         }
-
+        int j;
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].to_comm){
+                for (j=0;j<(*dev)[d].NBND;j++){
+                    (*dev)[d].vars[i].cl_varbnd.pin[offset+j]=1;
+                }
                 __GUARD clbuf_sendpin(&(*dev)[d].queue,
                                       &(*dev)[d].vars[i].cl_varbnd,
                                       &(*dev)[d].vars[i].cl_varbnd,
