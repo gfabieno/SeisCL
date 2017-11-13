@@ -44,10 +44,9 @@ int clbuf_sendpin(CUstream *inqueue,
     
     int err = 0;
     /*Transfer memory from host to the device*/
-    err = cuMemcpyHtoDAsync ( buf->mem,
+    err = cuMemcpyHtoD ( buf->mem,
                              (void*)&bufpin->pin[offset],
-                             buf->size,
-                             *inqueue );
+                             buf->size);
     if (err !=CUDA_SUCCESS) fprintf(stderr,
                                     "Error clbuf_sendpin: %s\n",
                                     clerrors(err));
@@ -81,7 +80,7 @@ int clbuf_readpin(CUstream *inqueue,
     int err = 0;
     
     /*Read memory from device to the host*/
-    err= cuMemcpyDtoHAsync(&bufpin->pin[offset], buf->mem,buf->size, *inqueue);
+    err= cuMemcpyDtoH(&bufpin->pin[offset], buf->mem,buf->size);
     
     if (err !=CUDA_SUCCESS) fprintf(stderr,
                                     "Error clbuf_readpin: %s\n",
