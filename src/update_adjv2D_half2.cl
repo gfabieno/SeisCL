@@ -744,7 +744,7 @@ extern "C" __global__ void update_adjv(int offcomm,
         // Inject the boundary values
         int m=evarm(gidz, gidx);
         if (m!=-1){
-            lvx= f2h2(m);//__h22f2(vxbnd[m]);
+            lvx= __h22f2(vxbnd[m]);
             lvz= __h22f2(vzbnd[m]);
         }
 
