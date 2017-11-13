@@ -170,7 +170,7 @@ extern "C" __device__ int evarm( int k, int i){
 #if NUM_DEVICES==1 & NLOCALP==1
     
     int NXbnd = (NX-2*FDOH-2*NAB);
-    int NZbnd = (NZ-2*FDOH-2*NAB);
+    int NZbnd = (NZ*2-2*FDOH-2*NAB);
     
     int m=-1;
     i-=lbnd;
@@ -202,7 +202,7 @@ extern "C" __device__ int evarm( int k, int i){
 #elif DEVID==0 & MYGROUPID==0
     
     int NXbnd = (NX-2*FDOH-NAB);
-    int NZbnd = (NZ-2*FDOH-2*NAB);
+    int NZbnd = (NZ*2-2*FDOH-2*NAB);
     
     int m=-1;
     i-=lbnd;
@@ -227,7 +227,7 @@ extern "C" __device__ int evarm( int k, int i){
     
 #elif DEVID==NUM_DEVICES-1 & MYGROUPID==NLOCALP-1
     int NXbnd = (NX-2*FDOH-NAB);
-    int NZbnd = (NZ-2*FDOH-2*NAB);
+    int NZbnd = (NZ*2-2*FDOH-2*NAB);
     
     int m=-1;
     i-=FDOH;
@@ -252,7 +252,7 @@ extern "C" __device__ int evarm( int k, int i){
 #else
     
     int NXbnd = (NX-2*FDOH);
-    int NZbnd = (NZ-2*FDOH-2*NAB);
+    int NZbnd = (NZ*2-2*FDOH-2*NAB);
     
     int m=-1;
     i-=FDOH;;
