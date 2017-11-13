@@ -100,7 +100,7 @@ t[:,0]=tmin+np.arange(0,csts['NT']*csts['dt'],csts['dt'] )
 pf=math.pow(math.pi,2)*math.pow(csts['f0'],2)
 ricker=np.multiply( (1.0-2.0*pf*np.power(t,2)), np.exp(-pf*np.power(t,2) )  )
 
-for ii in range(0,63,60):
+for ii in range(0,63,8):
     toappend=np.zeros((5,1))
     toappend[0,:]=(csts['nab']+5)*csts['dh']
     toappend[1,:]=0
