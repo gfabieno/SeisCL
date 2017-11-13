@@ -982,7 +982,7 @@ int Init_CUDA(model * m, device ** dev)  {
         
     }
     
-    fprintf(stdout,"%d %d \n",m->NUM_DEVICES, m->NLOCALP)è
+    fprintf(stdout,"%d %d \n",m->NUM_DEVICES, m->NLOCALP);
     
 
     if (state && m->MPI_INIT==1)
