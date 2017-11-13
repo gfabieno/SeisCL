@@ -741,6 +741,8 @@ int kernel_gradinit(device * dev,
     
     prog->wdim=dev->NDIM;
     
+        printf("%s\n\n%lu\n",temp, strlen(temp));
+    
     return state;
     
 }
