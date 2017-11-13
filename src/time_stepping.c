@@ -221,7 +221,7 @@ int inject_bnd(model * m, device ** dev, int t){
             offset =(*dev)[d].NBND*t/2;
         }
         else{
-            offset =(*dev)[d].NBND*t;
+            offset =(*dev)[d].NBND*(t-1);
         }
 
         for (i=0;i<m->nvars;i++){
@@ -624,7 +624,7 @@ int time_stepping(model * m, device ** dev) {
             }
 
             // Inverse time stepping
-            for (t=m->tmax-1;t>=m->tmin; t--){
+            for (t=m->tmax-1;t>m->tmin; t--){
 
                 //Assign the time step value to kernels
                 for (d=0;d<m->NUM_DEVICES;d++){
