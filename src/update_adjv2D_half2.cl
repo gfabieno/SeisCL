@@ -280,6 +280,7 @@ extern "C" __device__ int evarm( int k, int i){
 }
 
 
+
 extern "C" __global__ void update_adjv(int offcomm,
                            __pprec *rip, __pprec *rkp,
                            __prec2 *sxx,__prec2 *sxz,__prec2 *szz,
