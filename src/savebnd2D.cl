@@ -20,14 +20,14 @@
 /*Kernels to save boundary wavefield in 2D if backpropagation is used in the computation of the gradient */
 
 /*Define useful macros to be able to write a matrix formulation in 2D with OpenCl */
-#define vx(z,x)  vx[(x)*(NZ*2)+(z)]
-#define vy(z,x)  vy[(x)*(NZ*2)+(z)]
-#define vz(z,x)  vz[(x)*(NZ*2)+(z)]
-#define sxx(z,x) sxx[(x)*(NZ*2)+(z)]
-#define szz(z,x) szz[(x)*(NZ*2)+(z)]
-#define sxz(z,x) sxz[(x)*(NZ*2)+(z)]
-#define sxy(z,x) sxy[(x)*(NZ*2)+(z)]
-#define syz(z,x) syz[(x)*(NZ*2)+(z)]
+#define vx(z,x)  vx[(x)*NZ+(z)]
+#define vy(z,x)  vy[(x)*NZ+(z)]
+#define vz(z,x)  vz[(x)*NZ+(z)]
+#define sxx(z,x) sxx[(x)*NZ+(z)]
+#define szz(z,x) szz[(x)*NZ+(z)]
+#define sxz(z,x) sxz[(x)*NZ+(z)]
+#define sxy(z,x) sxy[(x)*NZ+(z)]
+#define syz(z,x) syz[(x)*NZ+(z)]
 #define lbnd (FDOH+NAB)
 
 #if FP16==0

@@ -753,8 +753,7 @@ extern "C" __global__ void update_adjv(int offcomm,
         vx(gidz,gidx) = __f22h2(lvx);
         vz(gidz,gidx) = __f22h2(lvz);
 
-        
-
+    
     }
 #endif
 
