@@ -106,9 +106,9 @@ extern "C" __global__ void savebnd(__prec2 *sxx,__prec2 *sxz,__prec2 *szz,
         k=gidf/(NXbnd-FDOH)+NZbnd+NAB;
     }
     
-    else{
-        return;
-    }
+//    else{
+//        return;
+//    }
 
 #elif DEVID==NUM_DEVICES-1 & MYGROUPID==NLOCALP-1
     
@@ -135,9 +135,9 @@ extern "C" __global__ void savebnd(__prec2 *sxx,__prec2 *sxz,__prec2 *szz,
         k=gidf/(NXbnd-FDOH)+NZbnd+NAB;
     }
     
-    else{
-        return;
-    }
+//    else{
+//        return;
+//    }
     
     
 #else 
@@ -160,9 +160,9 @@ extern "C" __global__ void savebnd(__prec2 *sxx,__prec2 *sxz,__prec2 *szz,
         k=gidf/(NXbnd)+NZbnd+NAB;
     }
     
-    else{
-        return;
-    }
+//    else{
+//        return;
+//    }
     
 #endif
 
