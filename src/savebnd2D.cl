@@ -160,9 +160,9 @@ extern "C" __global__ void savebnd(__prec2 *sxx,__prec2 *sxz,__prec2 *szz,
         k=gidf/(NXbnd)+NZbnd+NAB;
     }
     
-//    else{
-//        return;
-//    }
+    else{
+        return;
+    }
     
 #endif
 
