@@ -824,8 +824,6 @@ int Init_CUDA(model * m, device ** dev)  {
                     di->NBND= (di->N[1])*2*m->FDOH;
             }
             
-            di->grads.savebnd.gsize[0]=di->NBND;
-
             for (i=0;i<m->nvars;i++){
                 if (di->vars[i].to_comm){
                     di->vars[i].cl_varbnd.size=sizeof(float) * di->NBND;
