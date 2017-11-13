@@ -222,7 +222,6 @@ int inject_bnd(model * m, device ** dev, int t){
         else{
             offset =(*dev)[d].NBND*t;
         }
-        offset=0;
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].to_comm){
                 __GUARD clbuf_sendpin(&(*dev)[d].queue,
@@ -512,9 +511,9 @@ int time_stepping(model * m, device ** dev) {
             }
 
             // Save the boundaries
-            if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1)
+            if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1){
                 __GUARD save_bnd( m, dev, t);
-
+            }
 
             // Outputting seismograms
             if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){
