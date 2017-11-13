@@ -111,7 +111,7 @@ for ii in range(0,63,60):
     csts['src']=np.append(csts['src'], ricker  , axis=1)
     for jj in range(0,126):
         toappend=np.zeros((8,1))
-        toappend[0,:]=(csts['nab']+5)*csts['dh']
+        toappend[0,:]=(csts['N'][0]-csts['nab']-5)*csts['dh']
         toappend[1,:]=0
         toappend[2,:]=(csts['nab']+5+jj)*csts['dh']
         toappend[3,:]=ii
