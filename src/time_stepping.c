@@ -167,7 +167,7 @@ int save_bnd(model * m, device ** dev, int t){
     
     for (d=0;d<m->NUM_DEVICES;d++){
         (*dev)[d].grads.savebnd.outevent=1;
-        fprintf(stdout,"%d\n", (*dev)[d].NBND);
+        
         __GUARD prog_launch(&(*dev)[d].queue, &(*dev)[d].grads.savebnd);
 //        if ((*dev)[d].grads.savebnd.waits)
 //            __GUARD clReleaseEvent(*(*dev)[d].grads.savebnd.waits);
@@ -191,6 +191,7 @@ int save_bnd(model * m, device ** dev, int t){
         else{
             offset =(*dev)[d].NBND*t;
         }
+        fprintf(stdout,"%d\n", offset);
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].to_comm){
                 __GUARD clbuf_readpin(&(*dev)[d].queue,
@@ -223,6 +224,7 @@ int inject_bnd(model * m, device ** dev, int t){
         else{
             offset =(*dev)[d].NBND*t;
         }
+        fprintf(stdout,"%d\n", offset);
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].to_comm){
                 __GUARD clbuf_sendpin(&(*dev)[d].queue,
