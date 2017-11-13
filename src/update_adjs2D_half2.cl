@@ -766,7 +766,7 @@ extern "C" __global__ void update_adjs(int offcomm,
 
     float2 dM=mul2(c1,mul2(add2(lsxx,lszz), add2(lsxxr,lszzr) ) );
 
-    gradM(gidz,gidx)=add2(lsxx,lszz);//sub2(gradM(gidz,gidx), mul2(add2(lsxx,lszz), add2(lsxxr,lszzr) ));
+    gradM(gidz,gidx)=sub2(gradM(gidz,gidx),dM);
     
     
     gradmu(gidz,gidx)=sub2(sub2(add2(gradmu(gidz,gidx), dM), mul2(c3, mul2(lsxz,lsxzr))), mul2(c5,mul2( sub2(lsxx,lszz), sub2(lsxxr,lszzr))));
