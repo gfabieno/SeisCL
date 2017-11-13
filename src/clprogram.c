@@ -605,6 +605,9 @@ int prog_launch( CUstream *inqueue, clprogram * prog){
 
     unsigned int bsize[] ={1,1,1};
     unsigned int tsize[] ={BLOCK_SIZE,1,1};
+    if (prog->wdim<1){
+        prog->wdim=1;
+    }
     for (i=0;i<prog->wdim;i++){
         if (prog->lsize[i]>0)
             tsize[i]=(unsigned int)prog->lsize[i];
