@@ -191,7 +191,7 @@ int save_bnd(model * m, device ** dev, int t){
         else{
             offset =(*dev)[d].NBND*t;
         }
-        fprintf(stdout,"%d\n", offset);
+
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].to_comm){
                 __GUARD clbuf_readpin(&(*dev)[d].queue,
@@ -224,7 +224,7 @@ int inject_bnd(model * m, device ** dev, int t){
         else{
             offset =(*dev)[d].NBND*t;
         }
-        fprintf(stdout,"%d\n", offset);
+
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].to_comm){
                 __GUARD clbuf_sendpin(&(*dev)[d].queue,
