@@ -42,10 +42,10 @@
 
 #endif
 
-extern "C" __global__ void savebnd(__prec2 *sxx,__prec2 *sxz,__prec2 *szz,
-                                   __prec2 *vx,__prec2 *vz,
-                                   __prec2 *sxxbnd,__prec2 *sxzbnd,__prec2 *szzbnd,
-                                   __prec2 *vxbnd,__prec2 *vzbnd)
+extern "C" __global__ void savebnd(__prec *sxx,__prec *sxz,__prec *szz,
+                                   __prec *vx,__prec *vz,
+                                   __prec *sxxbnd,__prec *sxzbnd,__prec *szzbnd,
+                                   __prec *vxbnd,__prec *vzbnd)
 {
     
 #if NUM_DEVICES==1 & NLOCALP==1
