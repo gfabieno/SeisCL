@@ -167,7 +167,7 @@ int save_bnd(model * m, device ** dev, int t){
     
     for (d=0;d<m->NUM_DEVICES;d++){
         (*dev)[d].grads.savebnd.outevent=1;
-        fprintf(stdout,"%f\n", (*dev)[d].grads.savebnd.gsize[0]);
+        fprintf(stdout,"%fd\n", (*dev)[d].grads.savebnd.gsize[0]);
         __GUARD prog_launch(&(*dev)[d].queue, &(*dev)[d].grads.savebnd);
 //        if ((*dev)[d].grads.savebnd.waits)
 //            __GUARD clReleaseEvent(*(*dev)[d].grads.savebnd.waits);
