@@ -164,19 +164,20 @@ extern "C" __device__ __prec2 __hp(__prec *a ){
 
 
 // Find boundary indice for boundary injection in backpropagation
+// Find boundary indice for boundary injection in backpropagation
 extern "C" __device__ int evarm( int k, int i){
     
     
 #if NUM_DEVICES==1 & NLOCALP==1
-
+    
     int NXbnd = (NX-2*FDOH-2*NAB);
-    int NZbnd = (NZ-FDOH-NAB);
-
+    int NZbnd = (NZ-2*FDOH-2*NAB);
+    
     int m=-1;
     i-=lbnd;
-    k-=lbnd/2;
+    k-=lbnd;
     
-    if ( (k>FDOH/2-1 && k<NZbnd-FDOH/2)  && (i>FDOH-1 && i<NXbnd-FDOH) )
+    if ( (k>FDOH-1 && k<NZbnd-FDOH)  && (i>FDOH-1 && i<NXbnd-FDOH) )
         m=-1;
     else if (k<0 || k>NZbnd-1 || i<0 || i>NXbnd-1 )
         m=-1;
@@ -187,53 +188,53 @@ extern "C" __device__ int evarm( int k, int i){
         i=i-NXbnd+FDOH;
         m=NZbnd*FDOH+i*NZbnd+k;
     }
-    else if (k<FDOH/2){//up
+    else if (k<FDOH){//up
         i=i-FDOH;
         m=NZbnd*FDOH*2+i+k*(NXbnd-2.0*FDOH);
     }
     else {//down
         i=i-FDOH;
-        k=k-NZbnd+FDOH/2;
-        m=NZbnd*FDOH*2+(NXbnd-2*FDOH)*FDOH/2+i+k*(NXbnd-2.0*FDOH);
+        k=k-NZbnd+FDOH;
+        m=NZbnd*FDOH*2+(NXbnd-2*FDOH)*FDOH+i+k*(NXbnd-2.0*FDOH);
     }
     
     
-
+    
 #elif DEVID==0 & MYGROUPID==0
     
     int NXbnd = (NX-2*FDOH-NAB);
-    int NZbnd = (NZ-FDOH-NAB);
+    int NZbnd = (NZ-2*FDOH-2*NAB);
     
     int m=-1;
     i-=lbnd;
-    k-=lbnd/2;
+    k-=lbnd;
     
-    if ( (k>FDOH/2-1 && k<NZbnd-FDOH/2)  && i>FDOH-1  )
+    if ( (k>FDOH-1 && k<NZbnd-FDOH)  && i>FDOH-1  )
         m=-1;
     else if (k<0 || k>NZbnd-1 || i<0 || i>NXbnd-1 )
         m=-1;
     else if (i<FDOH){//front
         m=i*NZbnd+k;
     }
-    else if (k<FDOH/2){//up
+    else if (k<FDOH){//up
         i=i-FDOH;
         m=NZbnd*FDOH+i+k*(NXbnd-FDOH);
     }
     else {//down
         i=i-FDOH;
-        k=k-NZbnd+FDOH/2;
+        k=k-NZbnd+FDOH;
         m=NZbnd*FDOH+(NXbnd-FDOH)*FDOH+i+k*(NXbnd-FDOH);
     }
-
+    
 #elif DEVID==NUM_DEVICES-1 & MYGROUPID==NLOCALP-1
     int NXbnd = (NX-2*FDOH-NAB);
-    int NZbnd = (NZ-FDOH-NAB);
+    int NZbnd = (NZ-2*FDOH-2*NAB);
     
     int m=-1;
     i-=FDOH;
-    k-=lbnd/2;
+    k-=lbnd;
     
-    if ( (k>FDOH/2-1 && k<NZbnd-FDOH/2) && i<NXbnd-FDOH )
+    if ( (k>FDOH-1 && k<NZbnd-FDOH) && i<NXbnd-FDOH )
         m=-1;
     else if (k<0 || k>NZbnd-1 || i>NXbnd-1 )
         m=-1;
@@ -241,32 +242,32 @@ extern "C" __device__ int evarm( int k, int i){
         i=i-NXbnd+FDOH;
         m=i*NZbnd+k;
     }
-    else if (k<FDOH/2){//up
+    else if (k<FDOH){//up
         m=NZbnd*FDOH+i+k*(NXbnd-FDOH);
     }
     else {//down
-        k=k-NZbnd+FDOH/2;
+        k=k-NZbnd+FDOH;
         m=NZbnd*FDOH+(NXbnd-FDOH)*FDOH+i+k*(NXbnd-FDOH);
     }
     
 #else
     
     int NXbnd = (NX-2*FDOH);
-    int NZbnd = (NZ-FDOH-NAB);
+    int NZbnd = (NZ-2*FDOH-2*NAB);
     
     int m=-1;
-    i-=FDOH;
-    k-=lbnd/2;
+    i-=FDOH;;
+    k-=lbnd;
     
-    if ( (k>FDOH/2-1 && k<NZbnd-FDOH/2) )
+    if ( (k>FDOH-1 && k<NZbnd-FDOH) )
         m=-1;
     else if (k<0 || k>NZbnd-1 || i<0 || i>NXbnd-1 )
         m=-1;
-    else if (k<FDOH/2){//up
+    else if (k<FDOH){//up
         m=i+k*(NXbnd);
     }
     else {//down
-        k=k-NZbnd+FDOH/2;
+        k=k-NZbnd+FDOH;
         m=(NXbnd)*FDOH+i+k*(NXbnd);
     }
     
@@ -275,7 +276,7 @@ extern "C" __device__ int evarm( int k, int i){
     
     
     return m;
- 
+    
 }
 
 
@@ -741,10 +742,10 @@ extern "C" __global__ void update_adjv(int offcomm,
         lvz=sub2(lvz,mul2(add2(szz_z1,sxz_x2),lrkp));
         
         // Inject the boundary values
-        int m=evarm(gidz, gidx);
+        int m=evarm(2*gidz, gidx);
         if (m!=-1){
-            lvx= __h22f2(vxbnd[m]);
-            lvz= __h22f2(vzbnd[m]);
+            lvx= __h22f2(vxbnd[m/2]);
+            lvz= __h22f2(vzbnd[m/2]);
         }
 
         
