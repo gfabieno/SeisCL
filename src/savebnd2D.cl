@@ -48,141 +48,141 @@ extern "C" __global__ void savebnd(__prec2 *sxx,__prec2 *sxz,__prec2 *szz,
                                    __prec2 *vxbnd,__prec2 *vzbnd)
 {
     
-#if NUM_DEVICES==1 & NLOCALP==1
+//#if NUM_DEVICES==1 & NLOCALP==1
     int gid = blockIdx.x*blockDim.x + threadIdx.x;
-    int NXbnd = (NX- 2*FDOH- 2*NAB);
-    int NZbnd = (NZ- FDOH- NAB);
-    int i=0,k=0;
-    int gidf;
-    
-    if (gid<NZbnd*FDOH/2){//front
-        gidf=gid;
-        i=gidf/NZbnd+lbnd;
-        k=gidf%NZbnd+lbnd/2;
-    }
-    else if (gid<NZbnd*FDOH){//back
-        gidf=gid-NZbnd*FDOH/2;
-        i=gidf/(NZbnd)+NXbnd+NAB;
-        k=gidf%NZbnd+lbnd/2;
-    }
-    else if (gid<NZbnd*FDOH+(NXbnd - 2*FDOH)*FDOH){//up
-        gidf=gid-NZbnd*FDOH;
-        i=gidf%(NXbnd - 2*FDOH)+lbnd+FDOH;
-        k=gidf/(NXbnd- 2*FDOH)/2+lbnd/2;
-    }
-    else if (gid<NZbnd*FDOH+(NXbnd- 2*FDOH)*2*FDOH){//bottom
-        gidf=gid-NZbnd*FDOH-(NXbnd- 2*FDOH)*FDOH;
-        i=gidf%(NXbnd- 2*FDOH)+lbnd+FDOH;
-        k=gidf/(NXbnd- 2*FDOH)/2+NZbnd+NAB/2;
-    }
-
-    else{
-        return;
-    }
-    
-
-#elif DEVID==0 & MYGROUPID==0
-    
-    int gid = blockIdx.x*blockDim.x + threadIdx.x;
-    int NXbnd = (NX- 2*FDOH- NAB);
-    int NZbnd = (NZ*2- 2*FDOH-2*NAB);
-    int i,k;
-    int gidf;
-    
-    if (gid<NZbnd*FDOH){//front
-        gidf=gid;
-        i=gidf/NZbnd+lbnd;
-        k=gidf%NZbnd+lbnd;
-    }
-
-    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*FDOH){//up
-        gidf=gid-NZbnd*FDOH;
-        i=gidf%(NXbnd-FDOH)+lbnd+FDOH;
-        k=gidf/(NXbnd-FDOH)+lbnd;
-    }
-    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*2*FDOH){//bottom
-        gidf=gid-NZbnd*FDOH-(NXbnd-FDOH)*FDOH;
-        i=gidf%(NXbnd-FDOH)+lbnd+FDOH;
-        k=gidf/(NXbnd-FDOH)+NZbnd+NAB;
-    }
-    
-    else{
-        return;
-    }
-
-#elif DEVID==NUM_DEVICES-1 & MYGROUPID==NLOCALP-1
-    
-    int gid = blockIdx.x*blockDim.x + threadIdx.x;
-    int NXbnd = (NX- 2*FDOH- NAB);
-    int NZbnd = (NZ*2- 2*FDOH-2*NAB);
-    int i,k;
-    int gidf;
-    
-    if (gid<NZbnd*FDOH){//back
-        gidf=gid;
-        i=gidf/(NZbnd)+NXbnd;//+NAB;
-        k=gidf%NZbnd+lbnd;
-    }
-    
-    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*FDOH){//up
-        gidf=gid-NZbnd*FDOH;
-        i=gidf%(NXbnd-FDOH)+FDOH;
-        k=gidf/(NXbnd-FDOH)+lbnd;
-    }
-    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*2*FDOH){//bottom
-        gidf=gid-NZbnd*FDOH-(NXbnd-FDOH)*FDOH;
-        i=gidf%(NXbnd-FDOH)+FDOH;
-        k=gidf/(NXbnd-FDOH)+NZbnd+NAB;
-    }
-    
-    else{
-        return;
-    }
-    
-    
-#else 
-    
-    int gid = blockIdx.x*blockDim.x + threadIdx.x;
-    int NXbnd = (NX- 2*FDOH);
-    int NZbnd = (NZ*2- 2*FDOH-2*NAB);
-    int i,k;
-    int gidf;
-    
-
-    if (gid<(NXbnd)*FDOH){//up
-        gidf=gid;
-        i=gidf%(NXbnd)+FDOH;
-        k=gidf/(NXbnd)+lbnd;
-    }
-    else if (gid<NZbnd*FDOH+(NXbnd)*2*FDOH){//bottom
-        gidf=gid-(NXbnd)*FDOH;
-        i=gidf%(NXbnd)+FDOH;
-        k=gidf/(NXbnd)+NZbnd+NAB;
-    }
-    
-    else{
-        return;
-    }
-    
-#endif
-
-    
-#if ND==2
+//    int NXbnd = (NX- 2*FDOH- 2*NAB);
+//    int NZbnd = (NZ- FDOH- NAB);
+//    int i=0,k=0;
+//    int gidf;
+//
+//    if (gid<NZbnd*FDOH/2){//front
+//        gidf=gid;
+//        i=gidf/NZbnd+lbnd;
+//        k=gidf%NZbnd+lbnd/2;
+//    }
+//    else if (gid<NZbnd*FDOH){//back
+//        gidf=gid-NZbnd*FDOH/2;
+//        i=gidf/(NZbnd)+NXbnd+NAB;
+//        k=gidf%NZbnd+lbnd/2;
+//    }
+//    else if (gid<NZbnd*FDOH+(NXbnd - 2*FDOH)*FDOH){//up
+//        gidf=gid-NZbnd*FDOH;
+//        i=gidf%(NXbnd - 2*FDOH)+lbnd+FDOH;
+//        k=gidf/(NXbnd- 2*FDOH)/2+lbnd/2;
+//    }
+//    else if (gid<NZbnd*FDOH+(NXbnd- 2*FDOH)*2*FDOH){//bottom
+//        gidf=gid-NZbnd*FDOH-(NXbnd- 2*FDOH)*FDOH;
+//        i=gidf%(NXbnd- 2*FDOH)+lbnd+FDOH;
+//        k=gidf/(NXbnd- 2*FDOH)/2+NZbnd+NAB/2;
+//    }
+//
+//    else{
+//        return;
+//    }
+//
+//
+//#elif DEVID==0 & MYGROUPID==0
+//
+//    int gid = blockIdx.x*blockDim.x + threadIdx.x;
+//    int NXbnd = (NX- 2*FDOH- NAB);
+//    int NZbnd = (NZ*2- 2*FDOH-2*NAB);
+//    int i,k;
+//    int gidf;
+//
+//    if (gid<NZbnd*FDOH){//front
+//        gidf=gid;
+//        i=gidf/NZbnd+lbnd;
+//        k=gidf%NZbnd+lbnd;
+//    }
+//
+//    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*FDOH){//up
+//        gidf=gid-NZbnd*FDOH;
+//        i=gidf%(NXbnd-FDOH)+lbnd+FDOH;
+//        k=gidf/(NXbnd-FDOH)+lbnd;
+//    }
+//    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*2*FDOH){//bottom
+//        gidf=gid-NZbnd*FDOH-(NXbnd-FDOH)*FDOH;
+//        i=gidf%(NXbnd-FDOH)+lbnd+FDOH;
+//        k=gidf/(NXbnd-FDOH)+NZbnd+NAB;
+//    }
+//
+//    else{
+//        return;
+//    }
+//
+//#elif DEVID==NUM_DEVICES-1 & MYGROUPID==NLOCALP-1
+//
+//    int gid = blockIdx.x*blockDim.x + threadIdx.x;
+//    int NXbnd = (NX- 2*FDOH- NAB);
+//    int NZbnd = (NZ*2- 2*FDOH-2*NAB);
+//    int i,k;
+//    int gidf;
+//
+//    if (gid<NZbnd*FDOH){//back
+//        gidf=gid;
+//        i=gidf/(NZbnd)+NXbnd;//+NAB;
+//        k=gidf%NZbnd+lbnd;
+//    }
+//
+//    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*FDOH){//up
+//        gidf=gid-NZbnd*FDOH;
+//        i=gidf%(NXbnd-FDOH)+FDOH;
+//        k=gidf/(NXbnd-FDOH)+lbnd;
+//    }
+//    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*2*FDOH){//bottom
+//        gidf=gid-NZbnd*FDOH-(NXbnd-FDOH)*FDOH;
+//        i=gidf%(NXbnd-FDOH)+FDOH;
+//        k=gidf/(NXbnd-FDOH)+NZbnd+NAB;
+//    }
+//
+//    else{
+//        return;
+//    }
+//
+//
+//#else
+//
+//    int gid = blockIdx.x*blockDim.x + threadIdx.x;
+//    int NXbnd = (NX- 2*FDOH);
+//    int NZbnd = (NZ*2- 2*FDOH-2*NAB);
+//    int i,k;
+//    int gidf;
+//
+//
+//    if (gid<(NXbnd)*FDOH){//up
+//        gidf=gid;
+//        i=gidf%(NXbnd)+FDOH;
+//        k=gidf/(NXbnd)+lbnd;
+//    }
+//    else if (gid<NZbnd*FDOH+(NXbnd)*2*FDOH){//bottom
+//        gidf=gid-(NXbnd)*FDOH;
+//        i=gidf%(NXbnd)+FDOH;
+//        k=gidf/(NXbnd)+NZbnd+NAB;
+//    }
+//
+//    else{
+//        return;
+//    }
+//
+//#endif
+//
+//
+//#if ND==2
     float2 out;
     out.x = 0;
     out.y = 0;
     
     vxbnd[gid]=out;//vx(k,i);
-    vzbnd[gid]=vz(k,i);
-    sxxbnd[gid]=sxx(k,i);
-    szzbnd[gid]=szz(k,i);
-    sxzbnd[gid]=sxz(k,i);
-#endif
-#if ND==21
-    vybnd[gid]=vy(k,i);
-    sxybnd[gid]=sxy(k,i);
-    syzbnd[gid]=syz(k,i);
-#endif
+//    vzbnd[gid]=vz(k,i);
+//    sxxbnd[gid]=sxx(k,i);
+//    szzbnd[gid]=szz(k,i);
+//    sxzbnd[gid]=sxz(k,i);
+//#endif
+//#if ND==21
+//    vybnd[gid]=vy(k,i);
+//    sxybnd[gid]=sxy(k,i);
+//    syzbnd[gid]=syz(k,i);
+//#endif
     
 }
 

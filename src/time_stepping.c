@@ -198,7 +198,6 @@ int save_bnd(model * m, device ** dev, int t){
                                       &(*dev)[d].vars[i].cl_varbnd,
                                       &(*dev)[d].vars[i].cl_varbnd,
                                       offset);
-                fprintf(stdout,"%zu\n",(*dev)[d].vars[i].cl_varbnd.size);
                 for (j=0;j<(*dev)[d].NBND;j++){
                     (*dev)[d].vars[i].cl_varbnd.pin[offset+j]=1;
                 }
