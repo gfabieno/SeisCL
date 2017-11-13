@@ -724,11 +724,11 @@ extern "C" __global__ void update_adjs(int offcomm,
         lsxx=add2(sub2(lsxx,mul2(lM,add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),lmu),vz_z2));
         lszz=add2(sub2(lszz,mul2(lM,add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),lmu),vx_x2));
 
-        int m=evarm(2*gidz, gidx);
+        int m=evarm(gidz, gidx);
         if (m!=-1){
-            lsxx= __h22f2(sxxbnd[m/2]);
-            lszz= __h22f2(szzbnd[m/2]);
-            lsxz= __h22f2(sxzbnd[m/2]);
+            lsxx= __h22f2(sxxbnd[m]);
+            lszz= __h22f2(szzbnd[m]);
+            lsxz= __h22f2(sxzbnd[m]);
         }
         
         //Write updated values to global memory

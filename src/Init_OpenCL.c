@@ -978,7 +978,7 @@ int Init_CUDA(model * m, device ** dev)  {
         if (m->GRADOUT && m->BACK_PROP_TYPE==1){
             di->grads.savebnd=m->grads.savebnd;
             __GUARD prog_create(m, di,  &di->grads.savebnd);
-            di->grads.savebnd.gsize[0]=di->NBND;
+            di->grads.savebnd.gsize[0]=di->NBND/2;
             
         }
         
