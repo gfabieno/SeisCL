@@ -743,10 +743,10 @@ extern "C" __global__ void update_adjv(int offcomm,
         
         // Inject the boundary values
         int m=evarm(gidz, gidx);
-        if (m!=-1){
-            lvx= __h22f2(vxbnd[m]);
-            lvz= __h22f2(vzbnd[m]);
-        }
+//        if (m!=-1){
+//            lvx= __h22f2(vxbnd[m]);
+//            lvz= __h22f2(vzbnd[m]);
+//        }
 
         
 //        //Write updated values to global memory
