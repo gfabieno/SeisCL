@@ -712,7 +712,7 @@ int kernel_gradinit(device * dev,
     }
     
     if (dev->npars>0){
-        sprintf(temp2,"    if (gid>%d-1){\n", pars[0].num_ele/2);
+        sprintf(temp2,"    if (gid>%d-1){\n", pars[0].num_ele);
         strcat(temp,temp2);
         strcat(temp,  "        return;\n"
                       "    };\n\n");
@@ -732,7 +732,7 @@ int kernel_gradinit(device * dev,
     
     __GUARD prog_source(prog, "gradinit", (*prog).src);
 
-    prog->gsize[0]=dev->N[0]/2;
+    prog->gsize[0]=dev->N[0];
 
     prog->gsize[1]=dev->N[1];
     if (dev->NDIM==3){
