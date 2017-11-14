@@ -652,7 +652,7 @@ int kernel_residuals(device * dev,
                 if (BACK_PROP_TYPE==1)
                     strcat(temp, "r");
                 strcat(temp, posstr);
-                strcat(temp, ")");
+                strcat(temp, ")+");
             }
             strcat(temp, vars[i].name);
             strcat(temp, "out[NT*gid+nt]");
@@ -678,11 +678,11 @@ int kernel_residuals(device * dev,
                 }
                 else{
                     strcat(temp, "=__float2half(__half2float(");
-                    strcat(temp, vars[i].name);
+                    strcat(temp, tvars[i].var2ave[j]);
                     if (BACK_PROP_TYPE==1)
                         strcat(temp, "r");
                     strcat(temp, posstr);
-                    strcat(temp, ")");
+                    strcat(temp, ")+");
                 }
                 strcat(temp, tvars[i].name);
                 strcat(temp, "out[NT*gid+nt]/");
