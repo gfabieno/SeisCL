@@ -104,7 +104,7 @@ for ii in range(0,csts['N'][0]-2*csts['nab']-10,10):
     toappend=np.zeros((5,1))
     toappend[0,:]=(csts['nab']+5)*csts['dh']
     toappend[1,:]=0
-    toappend[2,:]=(csts['nab']+5+2*ii)*csts['dh']
+    toappend[2,:]=(csts['nab']+5+ii)*csts['dh']
     toappend[3,:]=ii
     toappend[4,:]=1
     csts['src_pos']=np.append(csts['src_pos'], toappend, axis=1)
