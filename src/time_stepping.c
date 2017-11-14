@@ -624,7 +624,7 @@ int time_stepping(model * m, device ** dev) {
             }
 
             // Inverse time stepping
-            for (t=m->tmax-1;t>=m->tmin; t--){
+            for (t=m->tmax-1;t>=m->tmax-2; t--){
 
                 //Assign the time step value to kernels
                 for (d=0;d<m->NUM_DEVICES;d++){
