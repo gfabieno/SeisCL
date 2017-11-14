@@ -104,7 +104,9 @@ int append_update(update * up, int * ind, char * name, const char * source){
 constants * get_cst(constants * csts, int ncsts, const char * name){
     
     int i;
-    constants * outptr=NULL;
+    constants zerocst;
+    memset(&zerocst, 0, sizeof(constants));
+    constants * outptr=&zerocst;
     for (i=0;i<ncsts;i++){
         if (strcmp(csts[i].name,name)==0){
             outptr=&csts[i];
@@ -117,7 +119,9 @@ constants * get_cst(constants * csts, int ncsts, const char * name){
 variable * get_var(variable * vars, int nvars, const char * name){
     
     int i;
-    variable * outptr=NULL;
+    variable zerovar;
+    memset(&zerovar, 0, sizeof(variable));
+    variable * outptr=&zerovar;
     for (i=0;i<nvars;i++){
         if (strcmp(vars[i].name,name)==0){
             outptr=&vars[i];
@@ -130,7 +134,9 @@ variable * get_var(variable * vars, int nvars, const char * name){
 parameter * get_par(parameter * pars, int npars, const char * name){
     
     int i;
-    parameter * outptr=NULL;
+    parameter zeropar;
+    memset(&zeropar, 0, sizeof(parameter));
+    parameter * outptr=&zeropar;
     for (i=0;i<npars;i++){
         if (strcmp(pars[i].name,name)==0){
             outptr=&pars[i];
