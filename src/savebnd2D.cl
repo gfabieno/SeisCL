@@ -75,7 +75,6 @@ extern "C" __global__ void savebnd(__prec2 *sxx,__prec2 *sxz,__prec2 *szz,
         gidf=gid-NZbnd*FDOH-(NXbnd- 2*FDOH)*FDOH/2;
         i=gidf%(NXbnd- 2*FDOH)+lbnd+FDOH;
         k=gidf/(NXbnd- 2*FDOH)/2+NZbnd+NAB/2;
-        k=400;
     }
 
     else{
