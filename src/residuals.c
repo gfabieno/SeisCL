@@ -399,7 +399,7 @@ int var_res_raw(model * m, int s)
                         pos = x*m->N[0]*m->N[1]+y*m->N[0]+z;
                     }
                     for (t=0;t<tmax;t++){
-                        m->vars[i].gl_var_res[s][g*NT+t]*=1/par[pos];
+                        m->vars[i].gl_var_res[s][g*NT+t]*=1/par[pos]*pow(10,6);
                     }
                 }
             }
