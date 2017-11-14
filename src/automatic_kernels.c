@@ -562,7 +562,13 @@ int kernel_residuals(device * dev,
                  "float * rec_pos,");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
-            strcat(temp, "float * ");
+            if (dev->FP16==0){
+                strcat(temp, "float * ");
+                
+            }
+            else{
+                strcat(temp, "half * ");
+            }
             strcat(temp, vars[i].name);
             if (BACK_PROP_TYPE==1)
                 strcat(temp, "r");
@@ -575,7 +581,13 @@ int kernel_residuals(device * dev,
     for (i=0;i<dev->ntvars;i++){
         if (tvars[i].to_output){
             for (j=0;j<tvars[i].n2ave;j++){
-                strcat(temp, "float * ");
+                if (dev->FP16==0){
+                    strcat(temp, "float * ");
+                    
+                }
+                else{
+                    strcat(temp, "half * ");
+                }
                 strcat(temp, tvars[i].var2ave[j]);
                 if (BACK_PROP_TYPE==1)
                     strcat(temp, "r");
@@ -631,9 +643,25 @@ int kernel_residuals(device * dev,
             if (BACK_PROP_TYPE==1)
                 strcat(temp, "r");
             strcat(temp, posstr);
-            strcat(temp, "+=");
+            if (dev->FP16==0){
+                strcat(temp, "+=");
+            }
+            else{
+                strcat(temp, "=__float2half(__half2float(");
+                strcat(temp, vars[i].name);
+                if (BACK_PROP_TYPE==1)
+                    strcat(temp, "r");
+                strcat(temp, posstr);
+                strcat(temp, ")");
+            }
             strcat(temp, vars[i].name);
-            strcat(temp, "out[NT*gid+nt];\n");
+            strcat(temp, "out[NT*gid+nt]");
+            if (dev->FP16==0){
+                strcat(temp, ";\n");
+            }
+            else{
+                strcat(temp, ");\n");
+            }
 
         }
     }
@@ -645,12 +673,27 @@ int kernel_residuals(device * dev,
                 if (BACK_PROP_TYPE==1)
                     strcat(temp, "r");
                 strcat(temp, posstr);
-                strcat(temp, "+=");
+                if (dev->FP16==0){
+                    strcat(temp, "+=");
+                }
+                else{
+                    strcat(temp, "=__float2half(__half2float(");
+                    strcat(temp, vars[i].name);
+                    if (BACK_PROP_TYPE==1)
+                        strcat(temp, "r");
+                    strcat(temp, posstr);
+                    strcat(temp, ")");
+                }
                 strcat(temp, tvars[i].name);
                 strcat(temp, "out[NT*gid+nt]/");
                 sprintf(temp2,"%d",tvars[i].n2ave);
                 strcat(temp, temp2);
-                strcat(temp, ";\n");
+                if (dev->FP16==0){
+                    strcat(temp, ";\n");
+                }
+                else{
+                    strcat(temp, ");\n");
+                }
             }
         }
     }
