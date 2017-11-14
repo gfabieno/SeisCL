@@ -169,10 +169,7 @@ extern "C" __global__ void savebnd(__prec2 *sxx,__prec2 *sxz,__prec2 *szz,
 
 
 #if ND==2
-    float2 out;
-    out.x=k;
-    out.y=k;
-    vxbnd[gid]=out;//vx(k,i);
+    vxbnd[gid]=vx(k,i);
     vzbnd[gid]=vz(k,i);
     sxxbnd[gid]=sxx(k,i);
     szzbnd[gid]=szz(k,i);
