@@ -640,13 +640,7 @@ int time_stepping(model * m, device ** dev) {
                     __GUARD inject_bnd( m, dev, t);
                 }
                 
-                // Inject the sources with negative sign
-                if (m->BACK_PROP_TYPE==1){
-                    for (d=0;d<m->NUM_DEVICES;d++){
-                        __GUARD prog_launch( &(*dev)[d].queue,
-                                            &(*dev)[d].src_recs.sources);
-                    }
-                }
+
                 
                 // Inject the residuals
                 for (d=0;d<m->NUM_DEVICES;d++){
@@ -657,6 +651,14 @@ int time_stepping(model * m, device ** dev) {
                 // Update the adjoint wavefield and perform back-propagation of
                 // forward wavefield
                 __GUARD update_grid_adj(m, dev);
+                
+                // Inject the sources with negative sign
+                if (m->BACK_PROP_TYPE==1){
+                    for (d=0;d<m->NUM_DEVICES;d++){
+                        __GUARD prog_launch( &(*dev)[d].queue,
+                                            &(*dev)[d].src_recs.sources);
+                    }
+                }
                 
                 //Save the selected frequency if the gradient is obtained by DFT
                 if (m->BACK_PROP_TYPE==2 && (t-m->tmin)%m->DTNYQ==0){
