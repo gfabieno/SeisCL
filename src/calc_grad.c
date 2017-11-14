@@ -972,20 +972,10 @@ int transf_grad(model * m) {
     float * rho = get_par(m->pars, m->npars, "rho")->gl_par;
     float * gradrho = get_par(m->pars, m->npars, "rho")->gl_grad;
     num_ele = get_par(m->pars, m->npars, "rho")->num_ele;
-    parameter *Mv =get_par(m->pars, m->npars, "M");
-    float *M=NULL;
-    float * gradM=NULL;
-    if (Mv){
-        M=Mv->gl_par;
-        gradM=Mv->gl_grad;
-    }
-    parameter *muv =get_par(m->pars, m->npars, "mu");
-    float *mu=NULL;
-    float * gradmu=NULL;
-    if (muv){
-        mu=muv->gl_par;
-        gradmu=muv->gl_grad;
-    }
+    float * M = get_par(m->pars, m->npars, "M")->gl_par;
+    float * gradM = get_par(m->pars, m->npars, "M")->gl_grad;
+    float * mu = get_par(m->pars, m->npars, "mu")->gl_par;
+    float * gradmu = get_par(m->pars, m->npars, "mu")->gl_grad;
 
     int scaler=0;
     variable * var;
