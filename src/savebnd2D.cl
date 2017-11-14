@@ -58,7 +58,7 @@ extern "C" __global__ void savebnd(__prec2 *sxx,__prec2 *sxz,__prec2 *szz,
     if (gid<NZbnd*FDOH){//front
         gidf=gid;
         i=gidf/NZbnd+lbnd;
-        k=gidf%NZbnd+lbnd/2;
+        k=gidf%NZbnd+(lbnd)/2;
     }
     else if (gid<NZbnd*FDOH*2){//back
         gidf=gid-NZbnd*FDOH/2;
