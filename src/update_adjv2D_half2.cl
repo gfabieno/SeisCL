@@ -176,7 +176,7 @@ extern "C" __device__ int evarm( int k, int i){
     i-=lbnd;
     k-=lbnd/2;
     
-    if ( (k>FDOH/2 && k<NZbnd-FDOH/2)  && (i>FDOH-1 && i<NXbnd-FDOH) )
+    if ( (k>FDOH/2-1 && k<NZbnd-FDOH/2)  && (i>FDOH-1 && i<NXbnd-FDOH) )
         m=-1;
     else if (k<0 || k>NZbnd-1 || i<0 || i>NXbnd-1 )
         m=-1;
