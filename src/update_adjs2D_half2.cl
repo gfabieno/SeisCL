@@ -284,7 +284,7 @@ extern "C" __global__ void update_adjs(int offcomm,
                            __prec2 *sxxbnd,__prec2 *sxzbnd,__prec2 *szzbnd,
                            __prec2 *vxbnd,__prec2 *vzbnd,
                            __prec2 *sxxr,__prec2 *sxzr,__prec2 *szzr,
-                           __prec2 *vxr,__prec2 *vzr, float *taper
+                           __prec2 *vxr,__prec2 *vzr, float *taper,
                           float2 *gradrho,    float2 *gradM,     float2 *gradmu)
 {
 
