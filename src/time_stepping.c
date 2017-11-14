@@ -218,7 +218,7 @@ int inject_bnd(model * m, device ** dev, int t){
     for (d=0;d<m->NUM_DEVICES;d++){
         
         if (m->FP16>0){
-            offset =(*dev)[d].NBND*t/2;
+            offset =(*dev)[d].NBND*(t-1)/2;
         }
         else{
             offset =(*dev)[d].NBND*(t-1);
