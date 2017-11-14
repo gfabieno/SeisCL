@@ -661,7 +661,7 @@ int kernel_residuals(device * dev,
     
     __GUARD prog_source(prog, "residuals", (*prog).src);
 
-//    printf("%s\n\n%lu\n",temp, strlen(temp));
+    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     prog->wdim=1;
     
@@ -741,7 +741,7 @@ int kernel_gradinit(device * dev,
     
     prog->wdim=dev->NDIM;
     
-        printf("%s\n\n%lu\n",temp, strlen(temp));
+//        printf("%s\n\n%lu\n",temp, strlen(temp));
     
     return state;
     
