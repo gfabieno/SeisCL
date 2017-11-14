@@ -1098,7 +1098,7 @@ extern "C" __global__ void update_s(int offcomm,
 //            lsxz.x*=taper[2*gidz-FDOH];
 //            lsxz.y*=taper[2*gidz+1-FDOH];
 //        }
-//        
+//
 //        if (2*gidz>2*NZ-NAB-FDOH-1){
 //            lsxx.x*=taper[2*NZ-FDOH-2*gidz-1];
 //            lsxx.y*=taper[2*NZ-FDOH-2*gidz-1-1];
@@ -1107,7 +1107,7 @@ extern "C" __global__ void update_s(int offcomm,
 //            lsxz.x*=taper[2*NZ-FDOH-2*gidz-1];
 //            lsxz.y*=taper[2*NZ-FDOH-2*gidz-1-1];
 //        }
-//        
+//
 //#if DEVID==0 & MYLOCALID==0
 //        if (gidx-FDOH<NAB){
 //            lsxx.x*=taper[gidx-FDOH];
@@ -1118,7 +1118,7 @@ extern "C" __global__ void update_s(int offcomm,
 //            lsxz.y*=taper[gidx-FDOH];
 //        }
 //#endif
-//        
+//
 //#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
 //        if (gidx>NX-NAB-FDOH-1){
 //            lsxx.x*=taper[NX-FDOH-gidx-1];
