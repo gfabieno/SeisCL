@@ -727,7 +727,7 @@ extern "C" __device__ __prec2 __hp(__prec *a ){
 
 extern "C" __global__ void update_v(int offcomm,
                                     __pprec *rip, __pprec *rkp,__prec2 *sxx,__prec2 *sxz,__prec2 *szz,
-                                    __prec2 *vx,__prec2 *vz
+                                    __prec2 *vx,__prec2 *vz, float *taper
                                     )
 
 {

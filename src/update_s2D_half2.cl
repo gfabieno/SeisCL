@@ -850,7 +850,7 @@ extern "C" __device__ __prec2 __hp(__prec *a ){
 extern "C" __global__ void update_s(int offcomm,
                                     __pprec *muipkp, __pprec *M, __pprec *mu,
                                     __prec2 *sxx,__prec2 *sxz,__prec2 *szz,
-                                    __prec2 *vx,__prec2 *vz
+                                    __prec2 *vx,__prec2 *vz, float *taper
                                     )
 
 {
@@ -1087,6 +1087,52 @@ extern "C" __global__ void update_s(int offcomm,
     lsxz=add2(lsxz,mul2(lmuipkp,add2(vx_z1,vz_x1)));
     lsxx=sub2(add2(lsxx,mul2(lM,add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),lmu),vz_z2));
     lszz=sub2(add2(lszz,mul2(lM,add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),lmu),vx_x2));
+    
+#if ABS_TYPE==2
+    {
+        if (2*gidz-FDOH<NAB){
+            lsxx.x*=taper[2*gidz-FDOH];
+            lsxx.y*=taper[2*gidz+1-FDOH];
+            lszz.x*=taper[2*gidz-FDOH];
+            lszz.y*=taper[2*gidz+1-FDOH];
+            lsxz.x*=taper[2*gidz-FDOH];
+            lsxz.y*=taper[2*gidz+1-FDOH];
+        }
+        
+        if (2*gidz>2*NZ-NAB-FDOH-1){
+            lsxx.x*=taper[2*NZ-FDOH-2*gidz-1];
+            lsxx.y*=taper[2*NZ-FDOH-2*gidz-1-1];
+            lszz.x*=taper[2*NZ-FDOH-2*gidz-1];
+            lszz.y*=taper[2*NZ-FDOH-2*gidz-1-1];
+            lsxz.x*=taper[2*NZ-FDOH-2*gidz-1];
+            lsxz.y*=taper[2*NZ-FDOH-2*gidz-1-1];
+        }
+        
+#if DEVID==0 & MYLOCALID==0
+        if (gidx-FDOH<NAB){
+            lsxx.x*=taper[gidx-FDOH];
+            lsxx.y*=taper[gidx-FDOH];
+            lszz.x*=taper[gidx-FDOH];
+            lszz.y*=taper[gidx-FDOH];
+            lsxz.x*=taper[gidx-FDOH];
+            lsxz.y*=taper[gidx-FDOH];
+        }
+#endif
+        
+#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+        if (gidx>NX-NAB-FDOH-1){
+            lsxx.x*=taper[NX-FDOH-gidx-1];
+            lsxx.y*=taper[NX-FDOH-gidx-1];
+            lszz.x*=taper[NX-FDOH-gidx-1];
+            lszz.y*=taper[NX-FDOH-gidx-1];
+            lsxz.x*=taper[NX-FDOH-gidx-1];
+            lsxz.y*=taper[NX-FDOH-gidx-1];
+        }
+#endif
+    }
+#endif
+    
+    
     //Write updated values to global memory
     sxx(gidz,gidx) = __f22h2(lsxx);
     sxz(gidz,gidx) = __f22h2(lsxz);
