@@ -71,11 +71,11 @@ extern "C" __global__ void savebnd(__prec2 *sxx,__prec2 *sxz,__prec2 *szz,
         i=gidf%(NXbnd - 2*FDOH)+lbnd+FDOH;
         k=gidf/(NXbnd- 2*FDOH)/2+lbnd/2;
     }
-//    else if (gid<NZbnd*FDOH*2+(NXbnd- 2*FDOH)*FDOH){//bottom
-//        gidf=gid-NZbnd*FDOH*2-(NXbnd- 2*FDOH)*FDOH/2;
-//        i=gidf%(NXbnd- 2*FDOH)+lbnd+FDOH;
-//        k=gidf/(NXbnd- 2*FDOH)/2+NZbnd+NAB/2;
-//    }
+    else if (gid<NZbnd*FDOH*2+(NXbnd- 2*FDOH)*FDOH){//bottom
+        gidf=gid-NZbnd*FDOH*2-(NXbnd- 2*FDOH)*FDOH/2;
+        i=gidf%(NXbnd- 2*FDOH)+lbnd+FDOH;
+        k=gidf/(NXbnd- 2*FDOH)/2+NZbnd+NAB/2;
+    }
 
     else{
         return;
@@ -169,10 +169,10 @@ extern "C" __global__ void savebnd(__prec2 *sxx,__prec2 *sxz,__prec2 *szz,
 
 
 #if ND==2
-//    float2 out;
-//    out.x=k;
-//    out.y=k;
-    vxbnd[gid]=vx(k,i);
+    float2 out;
+    out.x=i;
+    out.y=i;
+    vxbnd[gid]=out;//vx(k,i);
     vzbnd[gid]=vz(k,i);
     sxxbnd[gid]=sxx(k,i);
     szzbnd[gid]=szz(k,i);
