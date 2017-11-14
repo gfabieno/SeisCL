@@ -238,9 +238,6 @@ typedef struct parameter{
 
 int calc_grad(struct model * m, struct device * dev);
 int transf_grad(struct model * m);
-float * get_par(parameter * pars, int npars, const char * name);
-int get_num_ele(parameter * pars, int npars, const char * name);
-
 
 /* ____Structure for constants, which vectors broadcasted to all devices______*/
 typedef struct constants{
@@ -255,8 +252,6 @@ typedef struct constants{
     void (*transform)(void *, void *, int);
     
 } constants;
-
-float * get_cst( void * m, const char * name);
 
 /* ______________Structure that control sources and receivers ________________*/
 typedef struct sources_records{
@@ -481,6 +476,26 @@ typedef struct model {
 
 } model;
 
+int append_update(update * up, int * ind, char * name, const char * source);
+int append_var(model * m,
+               int *ind,
+               const char * name,
+               int for_grad,
+               int to_comm,
+               void (*set_size)(int* , void *, void *));
+int append_par(model * m,
+               int *ind,
+               const char * name,
+               const char * to_read,
+               void (*transform)(void *));
+int append_cst(model * m,
+               const char * name,
+               const char * to_read,
+               int num_ele,
+               void (*transform)(void *, void *, int));
+constants * get_cst(constants * csts, int ncsts, const char * name);
+parameter * get_par(parameter * pars, int npars, const char * name);
+variable * get_var(variable * vars, int nvars, const char * name);
 
 /* __________________________SeisCL functions________________________________*/
 

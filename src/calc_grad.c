@@ -965,46 +965,67 @@ int calc_grad(model * m, device * dev)  {
 
 
 int transf_grad(model * m) {
-    
+    //TODO perform forward and back transform to replace Init_model and trans_grad
     int state=0;
     int i, num_ele=0;
     
-    float * rho = get_par(m->pars, m->npars, "rho");
-    float * M = get_par(m->pars, m->npars, "M");
-    float * mu = get_par(m->pars, m->npars, "mu");
-    float * gradrho=NULL;
-    for (i=0;i<m->npars;i++){
-        if (strcmp(m->pars[i].name,"rho")==0){
-            gradrho=m->pars[i].gl_grad;
-        }
-    }
+    float * rho = get_par(m->pars, m->npars, "rho")->gl_par;
+    float * gradrho = get_par(m->pars, m->npars, "rho")->gl_grad;
+    num_ele = get_par(m->pars, m->npars, "rho")->num_ele;
+    parameter *Mv =get_par(m->pars, m->npars, "M");
+    float *M=NULL;
     float * gradM=NULL;
-    for (i=0;i<m->npars;i++){
-        if (strcmp(m->pars[i].name,"M")==0){
-            gradM=m->pars[i].gl_grad;
-        }
+    if (Mv){
+        M=Mv->gl_par;
+        gradM=Mv->gl_grad;
     }
+    parameter *muv =get_par(m->pars, m->npars, "mu");
+    float *mu=NULL;
     float * gradmu=NULL;
-    for (i=0;i<m->npars;i++){
-        if (strcmp(m->pars[i].name,"mu")==0){
-            gradmu=m->pars[i].gl_grad;
-            num_ele = m->pars[i].num_ele;
+    if (muv){
+        mu=muv->gl_par;
+        gradmu=muv->gl_grad;
+    }
+
+    int scaler=0;
+    variable * var;
+    var = get_var(m->vars,m->nvars, "sxx");
+    if (var) scaler = var->scaler;
+    var = get_var(m->vars,m->nvars, "sxz");
+    if (var) scaler = var->scaler;
+    
+    for (i=0;i<num_ele;i++){
+        rho[i]= 1.0/rho[i]*m->dh/m->dt*powf(2,scaler);
+        gradrho[i]/=m->dt;
+    }
+    if (M){
+        for (i=0;i<num_ele;i++){
+            M[i]*=m->dh/m->dt*powf(2,-scaler);
+            gradM[i]*=powf(2,-2*scaler)/m->dt;
         }
     }
-    
-    
-    
+    if (mu){
+        for (i=0;i<num_ele;i++){
+            mu[i]*=m->dh/m->dt*powf(2,-scaler);
+            gradmu[i]*=powf(2,-2*scaler)/m->dt;
+        }
+    }
+
     if (m->par_type==0){
         
         for (i=0;i<num_ele;i++){
-            
             gradrho[i]= gradrho[i]+M[i]/rho[i]*gradM[i]+mu[i]/rho[i]*gradmu[i];
-            
-            gradM[i]  = 2.0*sqrt((double)rho[i]*(double)M[i])*gradM[i];
-            gradmu[i] = 2.0*sqrt((double)rho[i]*(double)mu[i])*gradmu[i];
-            
         }
-
+        if (M){
+            for (i=0;i<num_ele;i++){
+                gradM[i]  = 2.0*sqrt((double)rho[i]*(double)M[i])*gradM[i];
+            }
+        }
+        if (mu){
+            for (i=0;i<num_ele;i++){
+                gradmu[i] = 2.0*sqrt((double)rho[i]*(double)mu[i])*gradmu[i];
+            }
+        }
     }
     else if (m->par_type==1){
         
@@ -1012,9 +1033,16 @@ int transf_grad(model * m) {
     else if (m->par_type==2){
         for (i=0;i<num_ele;i++){
             gradrho[i]= gradrho[i]+M[i]/rho[i]*gradM[i]+mu[i]/rho[i]*gradmu[i];
-            
-            gradM[i]  = 2.0*sqrt((double)M[i]/(double)rho[i])*gradM[i];
-            gradmu[i] = 2.0*sqrt((double)mu[i]/(double)rho[i])*gradmu[i];
+        }
+        if (M){
+            for (i=0;i<num_ele;i++){
+                gradM[i]  = 2.0*sqrt((double)M[i]/(double)rho[i])*gradM[i];
+            }
+        }
+        if (mu){
+            for (i=0;i<num_ele;i++){
+                gradmu[i] = 2.0*sqrt((double)mu[i]/(double)rho[i])*gradmu[i];
+            }
         }
     }
     else{

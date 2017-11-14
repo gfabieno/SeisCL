@@ -34,139 +34,7 @@
 #include "update_v3D.hcl"
 #include "update_v3D_half2.hcl"
 
-float * get_par(parameter * pars, int npars, const char * name){
-    
-    int i;
-    float * outptr=NULL;
-    for (i=0;i<npars;i++){
-        if (strcmp(pars[i].name,name)==0){
-            outptr=pars[i].gl_par;
-        }
-    }
-    
-    return outptr;
- 
-}
-int append_cst(model * m,
-               const char * name,
-               const char * to_read,
-               int num_ele,
-               void (*transform)(void *, void *, int)){
-    
-    int state=0;
-    int ind = m->ncsts;
-    m->csts[ind].name=name;
-    m->csts[ind].to_read=to_read;
-    m->csts[ind].num_ele=num_ele;
-    m->csts[ind].transform=transform;
 
-    
-    //Allocate memory of parameters
-    GMALLOC(m->csts[ind].gl_cst, sizeof(float)*m->csts[ind].num_ele);
-    
-    m->ncsts+=1;
-    
-    return state;
-}
-int append_par(model * m,
-                int *ind,
-                const char * name,
-                const char * to_read,
-                void (*transform)(void *)){
-    
-    int state=0;
-    m->pars[*ind].name=name;
-    m->pars[*ind].to_read=to_read;
-    m->pars[*ind].transform=transform;
-    int i;
-    int sizepars=1;
-    for (i=0;i<m->NDIM;i++){
-        sizepars*=m->N[i];
-    }
-    m->pars[*ind].num_ele=sizepars;
-    
-    //Allocate memory of parameters
-    GMALLOC(m->pars[*ind].gl_par, sizeof(float)*m->pars[*ind].num_ele);
-    if (m->GRADOUT && m->pars[*ind].to_read){
-        m->pars[*ind].to_grad=1;
-        GMALLOC(m->pars[*ind].gl_grad, sizeof(double)*m->pars[*ind].num_ele);
-        if (m->HOUT){
-            GMALLOC(m->pars[*ind].gl_H, sizeof(double)*m->pars[*ind].num_ele);
-        }
-    }
-
-    *ind+=1;
-
-    return state;
-}
-int append_var(model * m,
-                int *ind,
-                const char * name,
-                int for_grad,
-                int to_comm,
-                void (*set_size)(int* , void *, void *)){
-    int state=0;
-    m->vars[*ind].name=name;
-    m->vars[*ind].for_grad=for_grad;
-    m->vars[*ind].to_comm=to_comm;
-    m->vars[*ind].set_size=set_size;
-    
-    //Assign the number of elements of the parameters
-    m->vars[*ind].set_size(m->N, (void*) m, &m->vars[*ind]);
-
-    *ind+=1;
-    
-    return state;
-}
-int append_update(update * up, int * ind, char * name, const char * source){
-    int state =0;
-    __GUARD prog_source(&up[*ind].center, name, source);
-    __GUARD prog_source(&up[*ind].com1, name, source);
-    __GUARD prog_source(&up[*ind].com2, name, source);
-    *ind+=1;
-    return state;
-}
-int get_num_ele(parameter * pars, int npars, const char * name){
-    
-    int i;
-    int output=0;
-    for (i=0;i<npars;i++){
-        if (strcmp(pars[i].name,name)==0){
-            output=pars[i].num_ele;
-        }
-    }
-    
-    return output;
-    
-}
-float * get_cst(void * mptr, const char * name){
-    
-    int i;
-    float * outptr=NULL;
-    model * m = (model *) mptr;
-    for (i=0;i<m->ncsts;i++){
-        if (strcmp(m->csts[i].name,name)==0){
-            outptr=m->csts[i].gl_cst;
-        }
-    }
-    
-    return outptr;
-    
-}
-variable * get_var(void * mptr, const char * name){
-    
-    int i;
-    variable * outptr=NULL;
-    model * m = (model *) mptr;
-    for (i=0;i<m->nvars;i++){
-        if (strcmp(m->vars[i].name,name)==0){
-            outptr=&m->vars[i];
-        }
-    }
-    
-    return outptr;
-    
-}
 void ave_arithmetic1(float * pin, float * pout, int * N, int ndim, int  dir[3]){
     
     int i,j,k;
@@ -426,10 +294,10 @@ void mu(void * mptr){
     
     int i,l, state=0;
     model * m = (model *) mptr;
-    float *mu = get_par(m->pars, m->npars, "mu");
-    int num_ele = get_num_ele(m->pars, m->npars, "mu");
-    float *rho = get_par(m->pars, m->npars, "rho");
-    float *taus = get_par(m->pars, m->npars, "taus");
+    float *mu = get_par(m->pars, m->npars, "mu")->gl_par;
+    int num_ele = get_par(m->pars, m->npars, "mu")->num_ele;
+    float *rho = get_par(m->pars, m->npars, "rho")->gl_par;
+    float *taus = get_par(m->pars, m->npars, "taus")->gl_par;
     float thisvs, thistaus;
     if (m->par_type==0){
         for (i=0;i<num_ele;i++){
@@ -467,7 +335,7 @@ void mu(void * mptr){
         float *pts=NULL;
         /* vector for maxwellbodies */
         GMALLOC(pts,m->L*sizeof(float));
-        float * eta = get_cst( (void*)m, "eta");
+        float * eta = get_cst( m->csts,m->ncsts, "eta")->gl_cst;
         for (l=0;l<m->L;l++) {
             pts[l]=m->dt/eta[l];
         }
@@ -489,12 +357,12 @@ void mu(void * mptr){
     
     int scaler;
     variable * var;
-    var = get_var(mptr, "sxz");
+    var = get_var(m->vars,m->nvars, "sxz");
     if (var) scaler = var->scaler;
     if (!var){
         __GUARD m->set_scalers( (void*) m);
     }
-    var = get_var(mptr, "sxz");
+    var = get_var(m->vars,m->nvars, "sxz");
     if (var) scaler = var->scaler;
 
     for (i=0;i<num_ele;i++){
@@ -506,10 +374,10 @@ void M(void * mptr){
     
     int i,l, state=0;
     model * m = (model *) mptr;
-    float *M = get_par(m->pars, m->npars, "M");
-    int num_ele = get_num_ele(m->pars, m->npars, "M");
-    float *rho = get_par(m->pars, m->npars, "rho");
-    float *taup = get_par(m->pars, m->npars, "taup");
+    float *M = get_par(m->pars, m->npars, "M")->gl_par;
+    int num_ele = get_par(m->pars, m->npars, "M")->num_ele;
+    float *rho = get_par(m->pars, m->npars, "rho")->gl_par;
+    float *taup = get_par(m->pars, m->npars, "taup")->gl_par;
     float thisvp, thistaup;
     if (m->par_type==0){
         for (i=0;i<num_ele;i++){
@@ -541,7 +409,7 @@ void M(void * mptr){
         float *pts=NULL;
         /* vector for maxwellbodies */
         GMALLOC(pts,m->L*sizeof(float));
-        float * eta = get_cst( (void*)m, "eta");
+        float * eta = get_cst(m->csts,m->ncsts, "eta")->gl_cst;
         for (l=0;l<m->L;l++) {
             pts[l]=m->dt/eta[l];
         }
@@ -564,11 +432,11 @@ void M(void * mptr){
     __GUARD m->set_scalers( (void*) m);
     int scaler;
     variable * var;
-    var = get_var(mptr, "sxx");
+    var = get_var(m->vars,m->nvars, "sxx");
     if (var) scaler = var->scaler;
-    var = get_var(mptr, "syy");
+    var = get_var(m->vars,m->nvars, "syy");
     if (var) scaler = var->scaler;
-    var = get_var(mptr, "szz");
+    var = get_var(m->vars,m->nvars, "szz");
     if (var) scaler = var->scaler;
 
     for (i=0;i<num_ele;i++){
@@ -580,16 +448,16 @@ void M(void * mptr){
 void rho(void * mptr){
     
     model * m = (model *) mptr;
-    float *rho = get_par(m->pars, m->npars, "rho");
+    float *rho = get_par(m->pars, m->npars, "rho")->gl_par;
     int scaler;
     variable * var;
-    var = get_var(mptr, "sxx");
+    var = get_var(m->vars,m->nvars, "sxx");
     if (var) scaler = var->scaler;
-    var = get_var(mptr, "sxz");
+    var = get_var(m->vars,m->nvars, "sxz");
     if (var) scaler = var->scaler;
     
     int i;
-    int num_ele = get_num_ele(m->pars, m->npars, "rho");
+    int num_ele = get_par(m->pars, m->npars, "rho")->num_ele;
     for (i=0;i<num_ele;i++){
         rho[i]=1.0/rho[i]*m->dt/m->dh*powf(2,-scaler);
     }
@@ -598,81 +466,81 @@ void rho(void * mptr){
 void rip(void * mptr){
     
     model * m = (model *) mptr;
-    float *rho = get_par(m->pars, m->npars, "rho");
-    float *rip = get_par(m->pars, m->npars, "rip");
+    float *rho = get_par(m->pars, m->npars, "rho")->gl_par;
+    float *rip = get_par(m->pars, m->npars, "rip")->gl_par;
     int dir[3]={0,0,1};
     ave_arithmetic1(rho, rip, m->N, m->NDIM, dir);
 }
 void rjp(void * mptr){
     
     model * m = (model *) mptr;
-    float *rho = get_par(m->pars, m->npars, "rho");
-    float *rjp = get_par(m->pars, m->npars, "rjp");
+    float *rho = get_par(m->pars, m->npars, "rho")->gl_par;
+    float *rjp = get_par(m->pars, m->npars, "rjp")->gl_par;
     int dir[3]={0,1,0};
     ave_arithmetic1(rho, rjp, m->N, m->NDIM, dir);
 }
 void rkp(void * mptr){
     
     model * m = (model *) mptr;
-    float *rho = get_par(m->pars, m->npars, "rho");
-    float *rkp = get_par(m->pars, m->npars, "rkp");
+    float *rho = get_par(m->pars, m->npars, "rho")->gl_par;
+    float *rkp = get_par(m->pars, m->npars, "rkp")->gl_par;
     int dir[3]={1,0,0};
     ave_arithmetic1(rho, rkp, m->N, m->NDIM, dir);
 }
 void muipkp(void * mptr){
     
     model * m = (model *) mptr;
-    float *mu = get_par(m->pars, m->npars, "mu");
-    float *muipkp = get_par(m->pars, m->npars, "muipkp");
+    float *mu = get_par(m->pars, m->npars, "mu")->gl_par;
+    float *muipkp = get_par(m->pars, m->npars, "muipkp")->gl_par;
     int dir[2][3]={{0,0,1},{1,0,0}};
     ave_harmonic(mu, muipkp, m->N, m->NDIM, dir);
 }
 void mujpkp(void * mptr){
     
     model * m = (model *) mptr;
-    float *mu = get_par(m->pars, m->npars, "mu");
-    float *mujpkp = get_par(m->pars, m->npars, "mujpkp");
+    float *mu = get_par(m->pars, m->npars, "mu")->gl_par;
+    float *mujpkp = get_par(m->pars, m->npars, "mujpkp")->gl_par;
     int dir[2][3]={{0,1,0},{1,0,0}};
     ave_harmonic(mu, mujpkp, m->N, m->NDIM, dir);
 }
 void muipjp(void * mptr){
     
     model * m = (model *) mptr;
-    float *mu = get_par(m->pars, m->npars, "mu");
-    float *muipjp = get_par(m->pars, m->npars, "muipjp");
+    float *mu = get_par(m->pars, m->npars, "mu")->gl_par;
+    float *muipjp = get_par(m->pars, m->npars, "muipjp")->gl_par;
     int dir[2][3]={{0,0,1},{0,1,0}};
     ave_harmonic(mu, muipjp, m->N, m->NDIM, dir);
 }
 void tausipkp(void * mptr){
     
     model * m = (model *) mptr;
-    float *taus = get_par(m->pars, m->npars, "taus");
-    float *tausipkp = get_par(m->pars, m->npars, "tausipkp");
+    float *taus = get_par(m->pars, m->npars, "taus")->gl_par;
+    float *tausipkp = get_par(m->pars, m->npars, "tausipkp")->gl_par;
     int dir[2][3]={{0,0,1},{1,0,0}};
     ave_arithmetic2(taus, tausipkp, m->N, m->NDIM, dir);
 }
 void tausjpkp(void * mptr){
     
     model * m = (model *) mptr;
-    float *taus = get_par(m->pars, m->npars, "taus");
-    float *tausjpkp = get_par(m->pars, m->npars, "tausjpkp");
+    float *taus = get_par(m->pars, m->npars, "taus")->gl_par;
+    float *tausjpkp = get_par(m->pars, m->npars, "tausjpkp")->gl_par;
     int dir[2][3]={{0,1,0},{1,0,0}};
     ave_arithmetic2(taus, tausjpkp, m->N, m->NDIM, dir);
 }
 void tausipjp(void * mptr){
     
     model * m = (model *) mptr;
-    float *taus = get_par(m->pars, m->npars, "taus");
-    float *tausipjp = get_par(m->pars, m->npars, "tausipjp");
+    float *taus = get_par(m->pars, m->npars, "taus")->gl_par;
+    float *tausipjp = get_par(m->pars, m->npars, "tausipjp")->gl_par;
     int dir[2][3]={{0,0,1},{0,1,0}};
     ave_arithmetic2(taus, tausipjp, m->N, m->NDIM, dir);
 }
 void eta( void *mptr, void *cstptr, int ncst){
     //Viscoelastic constants initialization
     int l;
-    float * eta=get_cst(mptr, "eta");
-    float * FL =get_cst(mptr, "FL" );
     model * m = (model *) mptr;
+    float * eta=get_cst(m->csts,m->ncsts, "eta")->gl_cst;
+    float * FL =get_cst(m->csts,m->ncsts, "FL" )->gl_cst;
     if (m->L>0){
         for (l=0;l<m->L;l++) {
             eta[l]=(2.0*PI*FL[l])*m->dt;
@@ -683,9 +551,10 @@ void eta( void *mptr, void *cstptr, int ncst){
 void gradfreqsn( void *mptr, void *cstptr, int ncst){
     //Viscoelastic constants initialization
     int j;
-    float * gradfreqs=get_cst(mptr, "gradfreqs");
-    float * gradfreqsn =get_cst(mptr, "gradfreqsn" );
     model * m = (model *) mptr;
+    float * gradfreqs=get_cst(m->csts,m->ncsts, "gradfreqs")->gl_cst;
+    float * gradfreqsn =get_cst(m->csts,m->ncsts, "gradfreqsn" )->gl_cst;
+    
     
     float fmaxout=0;
     for (j=0;j<m->NFREQS;j++){
@@ -704,8 +573,9 @@ void gradfreqsn( void *mptr, void *cstptr, int ncst){
 void taper( void *mptr, void *cstptr, int ncst){
     //Viscoelastic constants initialization
     int i;
-    float * taper=get_cst(mptr, "taper");
     model * m = (model *) mptr;
+    float * taper=get_cst(m->csts,m->ncsts, "taper")->gl_cst;
+    
     
     float amp=1-m->abpc/100;
     float a=sqrt(-log(amp)/((m->NAB-1)*(m->NAB-1)));
@@ -717,13 +587,14 @@ void taper( void *mptr, void *cstptr, int ncst){
 
 void CPML_z( void *mptr, void *cstptr, int ncst){
     //Viscoelastic constants initialization
-    float * K_i=get_cst(mptr, "K_z");
-    float * a_i=get_cst(mptr, "a_z");
-    float * b_i=get_cst(mptr, "b_z");
-    float * K_i_half=get_cst(mptr, "K_z_half");
-    float * a_i_half=get_cst(mptr, "a_z_half");
-    float * b_i_half=get_cst(mptr, "b_z_half");
-    model * m = (model *) mptr;
+    model *m  = (model*)mptr;
+    float * K_i=get_cst(m->csts,m->ncsts, "K_z")->gl_cst;
+    float * a_i=get_cst(m->csts,m->ncsts, "a_z")->gl_cst;
+    float * b_i=get_cst(m->csts,m->ncsts, "b_z")->gl_cst;
+    float * K_i_half=get_cst(m->csts,m->ncsts, "K_z_half")->gl_cst;
+    float * a_i_half=get_cst(m->csts,m->ncsts, "a_z_half")->gl_cst;
+    float * b_i_half=get_cst(m->csts,m->ncsts, "b_z_half")->gl_cst;
+
     CPML_coeff(m->NPOWER,
                m->K_MAX_CPML,
                m->FPML,
@@ -741,13 +612,14 @@ void CPML_z( void *mptr, void *cstptr, int ncst){
 }
 void CPML_x( void *mptr, void *cstptr, int ncst){
     //Viscoelastic constants initialization
-    float * K_i=get_cst(mptr, "K_x");
-    float * a_i=get_cst(mptr, "a_x");
-    float * b_i=get_cst(mptr, "b_x");
-    float * K_i_half=get_cst(mptr, "K_x_half");
-    float * a_i_half=get_cst(mptr, "a_x_half");
-    float * b_i_half=get_cst(mptr, "b_x_half");
     model * m = (model *) mptr;
+    float * K_i=get_cst(m->csts,m->ncsts, "K_x")->gl_cst;
+    float * a_i=get_cst(m->csts,m->ncsts, "a_x")->gl_cst;
+    float * b_i=get_cst(m->csts,m->ncsts, "b_x")->gl_cst;
+    float * K_i_half=get_cst(m->csts,m->ncsts, "K_x_half")->gl_cst;
+    float * a_i_half=get_cst(m->csts,m->ncsts, "a_x_half")->gl_cst;
+    float * b_i_half=get_cst(m->csts,m->ncsts, "b_x_half")->gl_cst;
+    
     CPML_coeff(m->NPOWER,
                m->K_MAX_CPML,
                m->FPML,
@@ -765,13 +637,14 @@ void CPML_x( void *mptr, void *cstptr, int ncst){
 }
 void CPML_y( void *mptr, void *cstptr, int ncst){
     //Viscoelastic constants initialization
-    float * K_i=get_cst(mptr, "K_y");
-    float * a_i=get_cst(mptr, "a_y");
-    float * b_i=get_cst(mptr, "b_y");
-    float * K_i_half=get_cst(mptr, "K_y_half");
-    float * a_i_half=get_cst(mptr, "a_y_half");
-    float * b_i_half=get_cst(mptr, "b_y_half");
     model * m = (model *) mptr;
+    float * K_i=get_cst(m->csts,m->ncsts, "K_y")->gl_cst;
+    float * a_i=get_cst(m->csts,m->ncsts, "a_y")->gl_cst;
+    float * b_i=get_cst(m->csts,m->ncsts, "b_y")->gl_cst;
+    float * K_i_half=get_cst(m->csts,m->ncsts, "K_y_half")->gl_cst;
+    float * a_i_half=get_cst(m->csts,m->ncsts, "a_y_half")->gl_cst;
+    float * b_i_half=get_cst(m->csts,m->ncsts, "b_y_half")->gl_cst;
+    
     CPML_coeff(m->NPOWER,
                m->K_MAX_CPML,
                m->FPML,
@@ -869,13 +742,13 @@ int check_stability( void *mptr){
     float g, gamma, dtstable;
     
     model * m = (model *) mptr;
-    float *mu = get_par(m->pars, m->npars, "mu");
+    float *mu = get_par(m->pars, m->npars, "mu")->gl_par;
     int num_ele;
-    float *M = get_par(m->pars, m->npars, "M");
-    float *rho = get_par(m->pars, m->npars, "rho");
+    float *M = get_par(m->pars, m->npars, "M")->gl_par;
+    float *rho = get_par(m->pars, m->npars, "rho")->gl_par;
     
     if (mu){
-        num_ele = get_num_ele(m->pars, m->npars, "mu");
+        num_ele = get_par(m->pars, m->npars, "mu")->num_ele;
         for (i=0;i<num_ele;i++){
             thisvs=sqrt(mu[i]*rho[i])/m->dt*m->dh;
             if (vsmax<thisvs) vsmax=thisvs;
@@ -883,7 +756,7 @@ int check_stability( void *mptr){
         }
     }
     if (M){
-        num_ele = get_num_ele(m->pars, m->npars, "M");
+        num_ele = get_par(m->pars, m->npars, "M")->num_ele;
         for (i=0;i<num_ele;i++){
             thisvp=sqrt(M[i]*rho[i])/m->dt*m->dh;
             if (vpmax<thisvp) vpmax=thisvp;
@@ -961,20 +834,20 @@ int set_scalers( void *mptr){
     int i;
     
     model * m = (model *) mptr;
-    float *mu = get_par(m->pars, m->npars, "mu");
+    float *mu = get_par(m->pars, m->npars, "mu")->gl_par;
     int num_ele;
-    float *M = get_par(m->pars, m->npars, "M");
+    float *M = get_par(m->pars, m->npars, "M")->gl_par;
     float Mmax=0;
     int scaler =0;
     
     if (M){
-        num_ele = get_num_ele(m->pars, m->npars, "M");
+        num_ele = get_par(m->pars, m->npars, "M")->num_ele;
         for (i=0;i<num_ele;i++){
             if (Mmax<M[i]) Mmax=M[i];
         }
     }
     else if (mu){
-        num_ele = get_num_ele(m->pars, m->npars, "mu");
+        num_ele = get_par(m->pars, m->npars, "mu")->num_ele;
         for (i=0;i<num_ele;i++){
             if (Mmax<mu[i]) Mmax=mu[i];
         }
@@ -983,29 +856,29 @@ int set_scalers( void *mptr){
     scaler = -log2(Mmax*100);
     
     variable * var;
-    var = get_var(mptr, "sxx");
+    var = get_var(m->vars,m->nvars, "sxx");
     if (var) var->scaler = scaler;
-    var = get_var(mptr, "syy");
+    var = get_var(m->vars,m->nvars, "syy");
     if (var) var->scaler = scaler;
-    var = get_var(mptr, "szz");
+    var = get_var(m->vars,m->nvars, "szz");
     if (var) var->scaler = scaler;
-    var = get_var(mptr, "sxz");
+    var = get_var(m->vars,m->nvars, "sxz");
     if (var) var->scaler = scaler;
-    var = get_var(mptr, "sxy");
+    var = get_var(m->vars,m->nvars, "sxy");
     if (var) var->scaler = scaler;
-    var = get_var(mptr, "syz");
+    var = get_var(m->vars,m->nvars, "syz");
     if (var) var->scaler = scaler;
-    var = get_var(mptr, "rxx");
+    var = get_var(m->vars,m->nvars, "rxx");
     if (var) var->scaler = scaler;
-    var = get_var(mptr, "ryy");
+    var = get_var(m->vars,m->nvars, "ryy");
     if (var) var->scaler = scaler;
-    var = get_var(mptr, "rzz");
+    var = get_var(m->vars,m->nvars, "rzz");
     if (var) var->scaler = scaler;
-    var = get_var(mptr, "rxz");
+    var = get_var(m->vars,m->nvars, "rxz");
     if (var) var->scaler = scaler;
-    var = get_var(mptr, "rxy");
+    var = get_var(m->vars,m->nvars, "rxy");
     if (var) var->scaler = scaler;
-    var = get_var(mptr, "ryz");
+    var = get_var(m->vars,m->nvars, "ryz");
     if (var) var->scaler = scaler;
     
     return state;

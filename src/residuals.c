@@ -346,7 +346,7 @@ int var_res_raw(model * m, int s)
                 }
             }
             
-            gradfreqs = get_cst( (void*)m, "gradfreqs");
+            gradfreqs = get_cst( m->csts, m->ncsts, "gradfreqs")->gl_cst;
             for (f=0;f<m->NFREQS;f++){
                 thisfreq=gradfreqs[f]*nfft*m->dt+1;
                 n=0;

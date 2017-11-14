@@ -51,6 +51,7 @@ SeisCL_MPI_SRC= \
     clbuf.c \
     clerrors.c \
     clprogram.c \
+    clmodel.c \
 	comm.c\
     event_dependency.c \
 	Free_OpenCL.c \
