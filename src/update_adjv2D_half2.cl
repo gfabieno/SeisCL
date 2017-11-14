@@ -761,41 +761,41 @@ extern "C" __global__ void update_adjv(int offcomm,
     lvxr=add2(lvxr,mul2(add2(sxxr_x1,sxzr_z2),lrip));
     lvzr=add2(lvzr,mul2(add2(szzr_z1,sxzr_x2),lrkp));
     
-#if ABS_TYPE==2
-    {
-        if (2*gidz-FDOH<NAB){
-            lvxr.x*=taper[2*gidz-FDOH];
-            lvxr.y*=taper[2*gidz+1-FDOH];
-            lvzr.x*=taper[2*gidz-FDOH];
-            lvzr.y*=taper[2*gidz+1-FDOH];
-        }
-        
-        if (2*gidz>2*NZ-NAB-FDOH-1){
-            lvxr.x*=taper[2*NZ-FDOH-2*gidz-1];
-            lvxr.y*=taper[2*NZ-FDOH-2*gidz-1-1];
-            lvzr.x*=taper[2*NZ-FDOH-2*gidz-1];
-            lvzr.y*=taper[2*NZ-FDOH-2*gidz-1-1];
-        }
-        
-#if DEVID==0 & MYLOCALID==0
-        if (gidx-FDOH<NAB){
-            lvxr.x*=taper[gidx-FDOH];
-            lvxr.y*=taper[gidx-FDOH];
-            lvzr.x*=taper[gidx-FDOH];
-            lvzr.y*=taper[gidx-FDOH];
-        }
-#endif
-        
-#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-        if (gidx>NX-NAB-FDOH-1){
-            lvxr.x*=taper[NX-FDOH-gidx-1];
-            lvxr.y*=taper[NX-FDOH-gidx-1];
-            lvzr.x*=taper[NX-FDOH-gidx-1];
-            lvzr.y*=taper[NX-FDOH-gidx-1];
-        }
-#endif
-    }
-#endif
+//#if ABS_TYPE==2
+//    {
+//        if (2*gidz-FDOH<NAB){
+//            lvxr.x*=taper[2*gidz-FDOH];
+//            lvxr.y*=taper[2*gidz+1-FDOH];
+//            lvzr.x*=taper[2*gidz-FDOH];
+//            lvzr.y*=taper[2*gidz+1-FDOH];
+//        }
+//        
+//        if (2*gidz>2*NZ-NAB-FDOH-1){
+//            lvxr.x*=taper[2*NZ-FDOH-2*gidz-1];
+//            lvxr.y*=taper[2*NZ-FDOH-2*gidz-1-1];
+//            lvzr.x*=taper[2*NZ-FDOH-2*gidz-1];
+//            lvzr.y*=taper[2*NZ-FDOH-2*gidz-1-1];
+//        }
+//        
+//#if DEVID==0 & MYLOCALID==0
+//        if (gidx-FDOH<NAB){
+//            lvxr.x*=taper[gidx-FDOH];
+//            lvxr.y*=taper[gidx-FDOH];
+//            lvzr.x*=taper[gidx-FDOH];
+//            lvzr.y*=taper[gidx-FDOH];
+//        }
+//#endif
+//        
+//#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+//        if (gidx>NX-NAB-FDOH-1){
+//            lvxr.x*=taper[NX-FDOH-gidx-1];
+//            lvxr.y*=taper[NX-FDOH-gidx-1];
+//            lvzr.x*=taper[NX-FDOH-gidx-1];
+//            lvzr.y*=taper[NX-FDOH-gidx-1];
+//        }
+//#endif
+//    }
+//#endif
     
     //Write updated values to global memory
     vxr(gidz,gidx) = __f22h2(lvxr);
