@@ -215,12 +215,12 @@ void device_free(device * dev){
         }
         GFree(dev->vars);
     }
-    if (dev->vars_adj){
-        for (i=0;i<dev->nvars;i++){
-            variable_freeCL(dev, &dev->vars_adj[i]);
-        }
-        GFree(dev->vars_adj);
-    }
+//    if (dev->vars_adj){
+//        for (i=0;i<dev->nvars;i++){
+//            variable_freeCL(dev, &dev->vars_adj[i]);
+//        }
+//        GFree(dev->vars_adj);
+//    }
     if (dev->pars){
         for (i=0;i<dev->npars;i++){
             parameter_freeCL(dev, &dev->pars[i]);
@@ -245,12 +245,12 @@ void device_free(device * dev){
         }
         GFree(dev->ups_f);
     }
-    if (dev->ups_adj){
-        for (i=0;i<dev->nupdates;i++){
-            update_freeCL(&dev->ups_adj[i]);
-        }
-        GFree(dev->ups_adj);
-    }
+//    if (dev->ups_adj){
+//        for (i=0;i<dev->nupdates;i++){
+//            update_freeCL(&dev->ups_adj[i]);
+//        }
+//        GFree(dev->ups_adj);
+//    }
     
     sources_records_freeCL(dev, &dev->src_recs);
     gradients_freeCL(&dev->grads);
@@ -322,12 +322,12 @@ void model_free(model * m){
 int Free_OpenCL(model * m, device ** dev)  {
     // Free all memory contained in all structures listed in F.h
     int d;
-//    if (*dev){
-//        for (d=0;d<m->NUM_DEVICES;d++){
-//            device_free(dev[d]);
-//        }
-//    }
-//    GFree(*dev);
+    if (*dev){
+        for (d=0;d<m->NUM_DEVICES;d++){
+            device_free(dev[d]);
+        }
+    }
+    GFree(*dev);
     model_free(m);
     
     return 0;
