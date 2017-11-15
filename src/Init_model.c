@@ -55,12 +55,11 @@ int Init_model(model * m) {
     GMALLOC(m->src_recs.src_scales, sizeof(float)*m->src_recs.ns);
     for (i=0;i<m->src_recs.ns;i++){
             for (t=0;t<m->NT*m->src_recs.nsrc[i];t++){
-                if (m->src_recs.src_scales[i]<m->src_recs.src[i][t]){
-                    m->src_recs.src_scales[i]=m->src_recs.src[i][t];
+                if (m->src_recs.src_scales[i]<fabsf(m->src_recs.src[i][t])){
+                    m->src_recs.src_scales[i]=fabsf(m->src_recs.src[i][t]);
                 }
-                m->src_recs.src_scales[i]=1.0/m->src_recs.src_scales[i]
-                                                       /m->dt*m->dh*m->dh*m->dh;
-                m->src_recs.src_scales[i]=1.0;
+                m->src_recs.src_scales[i]=1.0/m->src_recs.src_scales[i]/m->dt;
+//                m->src_recs.src_scales[i]=1.0;
         }
     }
     
