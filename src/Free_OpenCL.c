@@ -217,7 +217,7 @@ void device_free(device * dev){
     }
     if (dev->vars_adj){
         for (i=0;i<dev->nvars;i++){
-            variable_freeCL(dev, &dev->vars_adj[i]);
+//            variable_freeCL(dev, &dev->vars_adj[i]);
         }
         GFree(dev->vars_adj);
     }
@@ -245,12 +245,12 @@ void device_free(device * dev){
         }
         GFree(dev->ups_f);
     }
-//    if (dev->ups_adj){
-//        for (i=0;i<dev->nupdates;i++){
-//            update_freeCL(&dev->ups_adj[i]);
-//        }
-//        GFree(dev->ups_adj);
-//    }
+    if (dev->ups_adj){
+        for (i=0;i<dev->nupdates;i++){
+            update_freeCL(&dev->ups_adj[i]);
+        }
+        GFree(dev->ups_adj);
+    }
     
     sources_records_freeCL(dev, &dev->src_recs);
     gradients_freeCL(&dev->grads);
