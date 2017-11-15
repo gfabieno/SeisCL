@@ -328,7 +328,7 @@ int Free_OpenCL(model * m, device ** dev)  {
         }
     }
     GFree(*dev);
-    model_free(m);
+//    model_free(m);
     
     return 0;
 }
