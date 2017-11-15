@@ -71,7 +71,7 @@ csts['weight']=None         # NTxnumber of geophones or 1x number of geophones. 
 
 csts['gradout']=0           #Output gradient 1:yes, 0: no
 csts['gradsrcout']=0        #Output source gradient 1:yes, 0: no
-csts['seisout']=2           #Output seismograms 1:velocities, 2: pressure, 3: velocities and pressure, 4: velocities and stresses
+csts['seisout']=1           #Output seismograms 1:velocities, 2: pressure, 3: velocities and pressure, 4: velocities and stresses
 csts['resout']=0            #Output residuals 1:yes, 0: no
 csts['rmsout']=0            #Output rms value 1:yes, 0: no
 csts['movout']=0            #Output movie 1:yes, 0: no
