@@ -322,13 +322,13 @@ void model_free(model * m){
 int Free_OpenCL(model * m, device ** dev)  {
     // Free all memory contained in all structures listed in F.h
     int d;
-    if (*dev){
-        for (d=0;d<m->NUM_DEVICES;d++){
-            device_free(dev[d]);
-        }
-    }
-    GFree(*dev);
-//    model_free(m);
+//    if (*dev){
+//        for (d=0;d<m->NUM_DEVICES;d++){
+//            device_free(dev[d]);
+//        }
+//    }
+//    GFree(*dev);
+    model_free(m);
     
     return 0;
 }
