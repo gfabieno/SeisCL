@@ -215,12 +215,12 @@ void device_free(device * dev){
         }
         GFree(dev->vars);
     }
-//    if (dev->vars_adj){
-//        for (i=0;i<dev->nvars;i++){
-//            variable_freeCL(dev, &dev->vars_adj[i]);
-//        }
-//        GFree(dev->vars_adj);
-//    }
+    if (dev->vars_adj){
+        for (i=0;i<dev->nvars;i++){
+            variable_freeCL(dev, &dev->vars_adj[i]);
+        }
+        GFree(dev->vars_adj);
+    }
     if (dev->pars){
         for (i=0;i<dev->npars;i++){
             parameter_freeCL(dev, &dev->pars[i]);
