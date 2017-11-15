@@ -143,8 +143,8 @@ void sources_records_freeGL(device *dev, sources_records * src_rec){
         GFree(src_rec->rec_pos[0]);
     }
     GFree(src_rec->rec_pos);
-//    GFree(src_rec->src_scales);
-//    GFree(src_rec->res_scales);
+    GFree(src_rec->src_scales);
+    GFree(src_rec->res_scales);
     
 }
 
