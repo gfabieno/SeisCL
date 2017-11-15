@@ -35,21 +35,20 @@ int clbuf_send(CUstream *inqueue, clbuf * buf)
     return err;
 }
 
-int clbuf_sendpin(CUstream *inqueue,
-                  clbuf * buf,
-                  clbuf * bufpin,
-                  int offset)
+int clbuf_sendfrom(CUstream *inqueue,
+                   clbuf * buf,
+                   void * ptr)
 {
     /*Routine to allocate memory buffers to the device*/
     
     int err = 0;
     /*Transfer memory from host to the device*/
-    err = cuMemcpyHtoDAsync ( buf->mem,
-                             (void*)&bufpin->pin[offset],
+    err = cuMemcpyHtoDAsync (buf->mem,
+                             ptr,
                              buf->size,
                              *inqueue );
     if (err !=CUDA_SUCCESS) fprintf(stderr,
-                                    "Error clbuf_sendpin: %s\n",
+                                    "Error clbuf_sendfrom: %s\n",
                                     clerrors(err));
     
     return err;
@@ -71,20 +70,19 @@ int clbuf_read(CUstream *inqueue, clbuf * buf)
     return err;
 }
 
-int clbuf_readpin(CUstream *inqueue,
+int clbuf_readto(CUstream *inqueue,
                   clbuf * buf,
-                  clbuf * bufpin,
-                  int offset)
+                  void * ptr)
 {
     /*Routine to read memory buffers from the device*/
     
     int err = 0;
     
     /*Read memory from device to the host*/
-    err= cuMemcpyDtoHAsync(&bufpin->pin[offset], buf->mem,buf->size, *inqueue);
+    err= cuMemcpyDtoHAsync(ptr, buf->mem, buf->size, *inqueue);
     
     if (err !=CUDA_SUCCESS) fprintf(stderr,
-                                    "Error clbuf_readpin: %s\n",
+                                    "Error clbuf_readto: %s\n",
                                     clerrors(err));
     
     return err;

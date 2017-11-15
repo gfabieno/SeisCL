@@ -151,17 +151,15 @@
 //        //All buffers reading must output an event for MPI communications
 //        if (adj && m->BACK_PROP_TYPE==1){
 //            for (i=0;i<m->ups_adj[ui].nvcom;i++){
-//                __GUARD clbuf_readpin(&(*dev)[0].queuecomm,
+//                __GUARD clbuf_readto(&(*dev)[0].queuecomm,
 //                                      &(*dev)[0].ups_adj[ui].v2com[i]->cl_buf1,
-//                                      &(*dev)[0].ups_adj[ui].v2com[i]->cl_buf1,
-//                                      0);
+//                                      &(*dev)[0].ups_adj[ui].v2com[i]->cl_buf1.pin);
 //            }
 //        }
 //        for (i=0;i<m->ups_f[ui].nvcom;i++){
-//            __GUARD clbuf_readpin(&(*dev)[0].queuecomm,
+//            __GUARD clbuf_readto(&(*dev)[0].queuecomm,
 //                                  &(*dev)[0].ups_f[ui].v2com[i]->cl_buf1,
-//                                  &(*dev)[0].ups_f[ui].v2com[i]->cl_buf1,
-//                                  0);
+//                                  &(*dev)[0].ups_f[ui].v2com[i]->cl_buf1.pin);
 //        }
 //        //We can realease the fcom1 event, it is no longer needed.
 //        if (adj){
@@ -182,18 +180,15 @@
 //        //All buffers reading must output an event for MPI communications
 //        if (adj && m->BACK_PROP_TYPE==1){
 //            for (i=0;i<m->ups_adj[ui].nvcom;i++){
-//                __GUARD clbuf_readpin(&(*dev)[ld].queuecomm,
+//                __GUARD clbuf_readto(&(*dev)[ld].queuecomm,
 //                                      &(*dev)[ld].ups_adj[ui].v2com[i]->cl_buf2,
-//                                      &(*dev)[ld].ups_adj[ui].v2com[i]->cl_buf2,
-//                                      0
-//                                      );
+//                                      &(*dev)[ld].ups_adj[ui].v2com[i]->cl_buf2.pin);
 //            }
 //        }
 //        for (i=0;i<m->ups_f[ui].nvcom;i++){
-//            __GUARD clbuf_readpin( &(*dev)[ld].queuecomm,
+//            __GUARD clbuf_readto( &(*dev)[ld].queuecomm,
 //                                  &(*dev)[ld].ups_f[ui].v2com[i]->cl_buf2,
-//                                  &(*dev)[ld].ups_f[ui].v2com[i]->cl_buf2,
-//                                  0);
+//                                  &(*dev)[ld].ups_f[ui].v2com[i]->cl_buf2.pin);
 //        }
 //        //We can realease the fcom2 event, it is no longer needed.
 //        if (adj){
@@ -216,18 +211,16 @@
 //            //The last buf2 in the list must output an event
 //            if (adj && m->BACK_PROP_TYPE==1){
 //                for (i=0;i<m->ups_adj[ui].nvcom;i++){
-//                    __GUARD clbuf_readpin(
+//                    __GUARD clbuf_readto(
 //                                    &(*dev)[d-1].queuecomm,
 //                                    &(*dev)[d-1].ups_adj[ui].v2com[i]->cl_buf2,
-//                                          &(*dev)[d  ].ups_adj[ui].v2com[i]->cl_buf1,
-//                                          0);
+//                                          &(*dev)[d  ].ups_adj[ui].v2com[i]->cl_buf1.pin);
 //                }
 //            }
 //            for (i=0;i<m->ups_f[ui].nvcom;i++){
-//                __GUARD clbuf_readpin(&(*dev)[d-1].queuecomm,
+//                __GUARD clbuf_readto(&(*dev)[d-1].queuecomm,
 //                                      &(*dev)[d-1].ups_f[ui].v2com[i]->cl_buf2,
-//                                      &(*dev)[d  ].ups_f[ui].v2com[i]->cl_buf1,
-//                                      0);
+//                                      &(*dev)[d  ].ups_f[ui].v2com[i]->cl_buf1.pin);
 //            }
 //            //We can realease the fcom2 event, it is no longer needed.
 //            if (adj){
@@ -247,18 +240,16 @@
 //            
 //            if (adj && m->BACK_PROP_TYPE==1){
 //                for (i=0;i<m->ups_adj[ui].nvcom;i++){
-//                    __GUARD clbuf_readpin(
+//                    __GUARD clbuf_readto(
 //                                    &(*dev)[d+1].queuecomm,
 //                                    &(*dev)[d+1].ups_adj[ui].v2com[i]->cl_buf1,
-//                                    &(*dev)[d  ].ups_adj[ui].v2com[i]->cl_buf2,
-//                                    0);
+//                                    &(*dev)[d  ].ups_adj[ui].v2com[i]->cl_buf2.pin);
 //                }
 //            }
 //            for (i=0;i<m->ups_f[ui].nvcom;i++){
-//                __GUARD clbuf_readpin(&(*dev)[d+1].queuecomm,
+//                __GUARD clbuf_readto(&(*dev)[d+1].queuecomm,
 //                                      &(*dev)[d+1].ups_f[ui].v2com[i]->cl_buf1,
-//                                      &(*dev)[d  ].ups_f[ui].v2com[i]->cl_buf2,
-//                                      0);
+//                                      &(*dev)[d  ].ups_f[ui].v2com[i]->cl_buf2.pin);
 //            }
 //            //We can realease the fcom1 event, it is no longer needed.
 //            if (adj){

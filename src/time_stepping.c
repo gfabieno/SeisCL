@@ -193,10 +193,9 @@ int save_bnd(model * m, device ** dev, int t){
         }
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].to_comm){
-                __GUARD clbuf_readpin(&(*dev)[d].queue,
-                                      &(*dev)[d].vars[i].cl_varbnd,
-                                      &(*dev)[d].vars[i].cl_varbnd,
-                                      offset);
+                __GUARD clbuf_readto(&(*dev)[d].queue,
+                                     &(*dev)[d].vars[i].cl_varbnd,
+                                     &(*dev)[d].vars[i].cl_varbnd.pin[offset]);
             }
         }
 //        (*dev)[d].grads.savebnd.nwait=1;
@@ -226,10 +225,9 @@ int inject_bnd(model * m, device ** dev, int t){
 
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].to_comm){
-                __GUARD clbuf_sendpin(&(*dev)[d].queue,
-                                      &(*dev)[d].vars[i].cl_varbnd,
-                                      &(*dev)[d].vars[i].cl_varbnd,
-                                      offset);
+                __GUARD clbuf_sendfrom(&(*dev)[d].queue,
+                                       &(*dev)[d].vars[i].cl_varbnd,
+                                       &(*dev)[d].vars[i].cl_varbnd.pin[offset]);
             }
         }
         
@@ -562,26 +560,16 @@ int time_stepping(model * m, device ** dev) {
                 // Transfer the residuals to the gpus
                 for (i=0;i<m->nvars;i++){
                     if ( (*dev)[d].vars[i].to_output){
-                        (*dev)[d].vars[i].cl_var_res.size=sizeof(float)
-                                                  * m->NT * m->src_recs.nrec[s];
-                        (*dev)[d].vars[i].cl_var_res.pin=
-                                                (*dev)[d].vars[i].gl_var_res[s];
-                        __GUARD clbuf_sendpin(&(*dev)[d].queue,
-                                              &(*dev)[d].vars[i].cl_varout,
-                                              &(*dev)[d].vars[i].cl_var_res,
-                                              0);
+                        __GUARD clbuf_sendfrom(&(*dev)[d].queue,
+                                               &(*dev)[d].vars[i].cl_varout,
+                                               &(*dev)[d].vars[i].gl_var_res[s]);
                     }
                 }
                 for (i=0;i<m->ntvars;i++){
                     if ( (*dev)[d].trans_vars[i].to_output){
-                        (*dev)[d].trans_vars[i].cl_var_res.size=sizeof(float)
-                        * m->NT * m->src_recs.nrec[s];
-                        (*dev)[d].trans_vars[i].cl_var_res.pin=
-                        (*dev)[d].trans_vars[i].gl_var_res[s];
-                        __GUARD clbuf_sendpin(&(*dev)[d].queue,
+                        __GUARD clbuf_sendfrom(&(*dev)[d].queue,
                                               &(*dev)[d].trans_vars[i].cl_varout,
-                                              &(*dev)[d].trans_vars[i].cl_var_res,
-                                              0);
+                                              &(*dev)[d].trans_vars[i].gl_var_res[s]);
                     }
                 }
                 // Initialize the backpropagation of the forward variables
@@ -700,10 +688,9 @@ int time_stepping(model * m, device ** dev) {
                 for (d=0;d<m->NUM_DEVICES;d++){
                     for (i=0;i<(*dev)[d].nvars;i++){
                         if ((*dev)[d].vars[i].for_grad){
-                            __GUARD clbuf_readpin(&(*dev)[d].queue,
-                                                  &(*dev)[d].vars[i].cl_fvar,
-                                                  &(*dev)[d].vars[i].cl_fvar_adj,
-                                                  0);
+                            __GUARD clbuf_readto(&(*dev)[d].queue,
+                                                 &(*dev)[d].vars[i].cl_fvar,
+                                                 &(*dev)[d].vars[i].cl_fvar_adj.pin);
                         }
                         
                     }

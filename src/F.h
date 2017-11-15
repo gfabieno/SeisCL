@@ -113,17 +113,13 @@ typedef struct clbuf {
 
 int clbuf_send(CUstream *inqueue,  clbuf * buf);
 
-int clbuf_sendpin(CUstream *inqueue,
-                  clbuf * buf,
-                  clbuf * bufpin,
-                  int offset);
+int clbuf_sendfrom(CUstream *inqueue, clbuf * buf, void * ptr);
 
 int clbuf_read(CUstream *inqueue, clbuf * buf);
 
-int clbuf_readpin(CUstream *inqueue,
-                  clbuf * buf,
-                  clbuf * bufpin,
-                  int offset);
+int clbuf_readto(CUstream *inqueue,
+                 clbuf * buf,
+                 void * ptr);
 
 int clbuf_create(clbuf * buf);
 
