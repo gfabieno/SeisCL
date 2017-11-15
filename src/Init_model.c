@@ -61,7 +61,7 @@ int Init_model(model * m) {
                 m->src_recs.src_scales[i]=1.0/m->src_recs.src_scales[i]/m->dt;
         }
     }
-    if (m->GRADOUT){
+    if (m->GRADOUT==1){
         GMALLOC(m->src_recs.res_scales, sizeof(float)*m->src_recs.ns);
     }
     
