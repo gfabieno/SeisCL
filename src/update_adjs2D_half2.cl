@@ -76,6 +76,7 @@
 
 #define __cprec float2
 #define __f22h2c(x) (x)
+#define __h22f2c(x) (x)
 
 extern "C" __device__ float2 add2(float2 a, float2 b ){
     
@@ -120,6 +121,7 @@ extern "C" __device__ float2 f2h2(float a){
 #define sub2 __hsub2
 #define f2h2 __float2half2_rn
 #define __f22h2c(x) __float22half2_rn((x))
+#define __h22f2c(x) __half22float2((x))
 
 #endif
 
@@ -815,10 +817,10 @@ extern "C" __global__ void update_adjs(int offcomm,
 
     float2 dM=mul2(c1,mul2(add2(lsxx,lszz), add2(lsxxr,lszzr) ) );
 
-    gradM(gidz,gidx)=sub2(gradM(gidz,gidx),mul2(dM,f2h2(1.0/src_scale/res_scale)));   
+    gradM(gidz,gidx)=sub2(gradM(gidz,gidx),__h22f2c(mul2(dM,f2h2(1.0/src_scale/res_scale))));
     gradmu(gidz,gidx)=add2(gradmu(gidz,gidx),
-                           mul2(sub2(sub2( dM, mul2(c3, mul2(lsxz,lsxzr))), mul2(c5,mul2( sub2(lsxx,lszz), sub2(lsxxr,lszzr)))),
-                                f2h2(1.0/src_scale/res_scale)));
+                           __h22f2c(mul2(sub2(sub2( dM, mul2(c3, mul2(lsxz,lsxzr))), mul2(c5,mul2( sub2(lsxx,lszz), sub2(lsxxr,lszzr)))),
+                                f2h2(1.0/src_scale/res_scale))));
     
     
 #endif

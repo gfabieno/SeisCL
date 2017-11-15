@@ -76,6 +76,7 @@
 
 #define __cprec float2
 #define __f22h2c(x) (x)
+#define __h22f2c(x) (x)
 
 extern "C" __device__ float2 add2(float2 a, float2 b ){
     
@@ -120,6 +121,7 @@ extern "C" __device__ float2 f2h2(float a){
 #define sub2 __hsub2
 #define f2h2 __float2half2_rn
 #define __f22h2c(x) __float22half2_rn((x))
+#define __h22f2c(x) __half22float2((x))
 
 #endif
 
@@ -806,7 +808,8 @@ extern "C" __global__ void update_adjv(int offcomm,
 #if BACK_PROP_TYPE==1
     lvxr=mul2(add2(sxxr_x1,sxzr_z2),lrip);
     lvzr=mul2(add2(szzr_z1,sxzr_x2),lrkp);
-    gradrho(gidz,gidx)=sub2( gradrho(gidz,gidx), mul2(add2( mul2( lvx, lvxr), mul2( lvz, lvzr) ), f2h2(1.0/src_scale/res_scale) ));
+
+    gradrho(gidz,gidx)=sub2( gradrho(gidz,gidx), __h22f2c(mul2(add2( mul2( lvx, lvxr), mul2( lvz, lvzr) ), f2h2(1.0/src_scale/res_scale) )));
     
     
     

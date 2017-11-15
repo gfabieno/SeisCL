@@ -766,6 +766,7 @@
 
 #define __cprec float2
 #define __f22h2c(x) (x)
+#define __h22f2c(x) (x)
 
 extern "C" __device__ float2 add2(float2 a, float2 b ){
     
@@ -810,6 +811,7 @@ extern "C" __device__ float2 f2h2(float a){
 #define sub2 __hsub2
 #define f2h2 __float2half2_rn
 #define __f22h2c(x) __float22half2_rn((x))
+#define __h22f2c(x) __half22float2((x))
 
 #endif
 
