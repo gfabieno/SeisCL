@@ -581,6 +581,12 @@ int prog_create(model * m,
                 argfound=1;
             }
         }
+        if (!argfound){
+            if (strcmp("res_scale"  ,(*prog).input_list[i])==0){
+                prog->rcinput=i+1;
+                argfound=1;
+            }
+        }
         
         if (!argfound){
             fprintf(stdout,"Warning: input %s undefined for kernel %s\n",

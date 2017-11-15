@@ -59,10 +59,11 @@ int Init_model(model * m) {
                     m->src_recs.src_scales[i]=fabsf(m->src_recs.src[i][t]);
                 }
                 m->src_recs.src_scales[i]=1.0/m->src_recs.src_scales[i]/m->dt;
-//                m->src_recs.src_scales[i]=1.0;
         }
     }
-    
+    if (m->GRADOUT){
+        GMALLOC(m->src_recs.res_scales, sizeof(float)*m->src_recs.ns);
+    }
     
     if (m->FP16==2 || m->FP16==4){
         for (i=0;i<m->npars;i++){

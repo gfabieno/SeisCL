@@ -285,7 +285,8 @@ extern "C" __global__ void update_adjs(int offcomm,
                            __prec2 *vxbnd,__prec2 *vzbnd,
                            __prec2 *sxxr,__prec2 *sxzr,__prec2 *szzr,
                            __prec2 *vxr,__prec2 *vzr, float *taper,
-                          float2 *gradrho,    float2 *gradM,     float2 *gradmu)
+                          float2 *gradrho,    float2 *gradM,     float2 *gradmu,
+                           float res_scale, float src_scale)
 {
 
     //Local memory
@@ -806,14 +807,18 @@ extern "C" __global__ void update_adjs(int offcomm,
     float2 c3=div2(f2h2(1.0), mul2(lmu,lmu));
     float2 c5=mul2(f2h2(0.25), c3);
     
+    
+    
     lsxzr=mul2(lmuipkp,add2(vxr_z1,vzr_x1));
     lsxxr=sub2(mul2(lM,add2(vxr_x2,vzr_z2)),mul2(mul2(f2h2(2.0),lmu),vzr_z2));
     lszzr=sub2(mul2(lM,add2(vxr_x2,vzr_z2)),mul2(mul2(f2h2(2.0),lmu),vxr_x2));
 
     float2 dM=mul2(c1,mul2(add2(lsxx,lszz), add2(lsxxr,lszzr) ) );
 
-    gradM(gidz,gidx)=sub2(gradM(gidz,gidx),dM);   
-    gradmu(gidz,gidx)=sub2(sub2(add2(gradmu(gidz,gidx), dM), mul2(c3, mul2(lsxz,lsxzr))), mul2(c5,mul2( sub2(lsxx,lszz), sub2(lsxxr,lszzr))));
+    gradM(gidz,gidx)=sub2(gradM(gidz,gidx),mul2(dM,f2h2(1.0/src_scale/res_scale)));   
+    gradmu(gidz,gidx)=add2(gradmu(gidz,gidx),
+                           mul2(sub2(sub2( dM, mul2(c3, mul2(lsxz,lsxzr))), mul2(c5,mul2( sub2(lsxx,lszz), sub2(lsxxr,lszzr)))),
+                                f2h2(1.0/src_scale/res_scale)));
     
     
 #endif

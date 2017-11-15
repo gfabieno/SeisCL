@@ -386,6 +386,7 @@ int var_res_raw(model * m, int s)
     var = get_var(m->vars,m->nvars, "sxz");
     if (var) scaler = var->scaler;
     
+    
     for (i=0;i<m->nvars;i++){
         if (m->vars[i].to_output){
             if (strcmp(m->vars[i].name,"vx")==0 ||
@@ -415,6 +416,9 @@ int var_res_raw(model * m, int s)
                     for (t=0;t<tmax;t++){
                         parscal = 1.0/par[pos]*m->dh/m->dt*powf(2,scaler);
                         m->vars[i].gl_var_res[s][g*NT+t]*=1.0/parscal*m->dt ;
+                        if (m->src_recs.res_scales[s]<fabsf(m->vars[i].gl_var_res[s][g*NT+t])){
+                            m->src_recs.res_scales[s]=fabsf(m->vars[i].gl_var_res[s][g*NT+t]);
+                        }
                     }
                 }
             }
@@ -442,13 +446,15 @@ int var_res_raw(model * m, int s)
                         parscal = -2.0*(par[pos]-par2[pos])
                                                   *m->dh/m->dt*powf(2,-scaler);
                         m->trans_vars[i].gl_var_res[s][g*NT+t]*=parscal*m->dt;
-                        
+                        if (m->src_recs.res_scales[s]<fabsf(m->trans_vars[i].gl_var_res[s][g*NT+t])){
+                            m->src_recs.res_scales[s]=fabsf(m->trans_vars[i].gl_var_res[s][g*NT+t]);
+                        }
                     }
                 }
             }
         }
     }
-    
+    m->src_recs.res_scales[s]=1.0/m->src_recs.res_scales[s];
     // Free memory of FFTs
     if (m->BACK_PROP_TYPE==2){
         free(stf);

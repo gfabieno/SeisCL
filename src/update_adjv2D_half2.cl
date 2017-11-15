@@ -288,7 +288,7 @@ extern "C" __global__ void update_adjv(int offcomm,
                            __prec2 *vxbnd,__prec2 *vzbnd,
                            __prec2 *sxxr,__prec2 *sxzr,__prec2 *szzr,
                            __prec2 *vxr,__prec2 *vzr, float *taper,
-                          float2 *gradrho)
+                           float2 *gradrho, float res_scale, float src_scale)
 {
 
     //Local memory
@@ -806,7 +806,7 @@ extern "C" __global__ void update_adjv(int offcomm,
 #if BACK_PROP_TYPE==1
     lvxr=mul2(add2(sxxr_x1,sxzr_z2),lrip);
     lvzr=mul2(add2(szzr_z1,sxzr_x2),lrkp);
-    gradrho(gidz,gidx)=sub2( gradrho(gidz,gidx), add2( mul2( lvx, lvxr), mul2( lvz, lvzr) ) );
+    gradrho(gidz,gidx)=sub2( gradrho(gidz,gidx), mul2(add2( mul2( lvx, lvxr), mul2( lvz, lvzr) ), f2h2(1.0/src_scale/res_scale) ));
     
 #endif
 

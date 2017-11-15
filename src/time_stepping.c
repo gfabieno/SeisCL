@@ -432,6 +432,7 @@ int time_stepping(model * m, device ** dev) {
     int state=0;
     
     int t,s,i,d, thist;
+    int ind;
    
 
     // Calculate what shots belong to the group this processing element
@@ -610,13 +611,17 @@ int time_stepping(model * m, device ** dev) {
                     __GUARD prog_launch( &(*dev)[d].queue,
                                          &(*dev)[d].bnd_cnds.init_f);
                 }
-                
-                //Assign the propagation direction to kernels
+                //Assign the some args to kernels
                 int pdir=-1;
                 for (d=0;d<m->NUM_DEVICES;d++){
                     for (i=0;i<(*dev)[d].nprogs;i++){
                         if ((*dev)[d].progs[i]->pdir>0){
-                            (*dev)[d].progs[i]->inputs[(*dev)[d].progs[i]->pdir-1]=&pdir;
+                            ind=(*dev)[d].progs[i]->pdir-1;
+                            (*dev)[d].progs[i]->inputs[ind]=&pdir;
+                        }
+                        if ((*dev)[d].progs[i]->rcinput>0){
+                            ind=(*dev)[d].progs[i]->rcinput-1;
+                            (*dev)[d].progs[i]->inputs[ind]=&m->src_recs.res_scales[s];
                         }
                     }
                 }

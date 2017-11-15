@@ -559,7 +559,7 @@ int kernel_residuals(device * dev,
    
     
     strcat(temp, "extern \"C\" __global__ void residuals(int nt, int nrec,"
-                 "float * rec_pos,");
+                 "float * rec_pos, float res_scale, ");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
             if (dev->FP16==0){
@@ -657,10 +657,10 @@ int kernel_residuals(device * dev,
             strcat(temp, vars[i].name);
             strcat(temp, "out[NT*gid+nt]");
             if (dev->FP16==0){
-                strcat(temp, ";\n");
+                strcat(temp, "*res_scale;\n");
             }
             else{
-                strcat(temp, ");\n");
+                strcat(temp, ")*res_scale;\n");
             }
 
         }
@@ -689,10 +689,10 @@ int kernel_residuals(device * dev,
                 sprintf(temp2,"%d",tvars[i].n2ave);
                 strcat(temp, temp2);
                 if (dev->FP16==0){
-                    strcat(temp, ";\n");
+                    strcat(temp, "*res_scale;\n");
                 }
                 else{
-                    strcat(temp, ");\n");
+                    strcat(temp, ")*res_scale;\n");
                 }
             }
         }

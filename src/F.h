@@ -148,6 +148,7 @@ typedef struct clprogram {
     int nsinput;
     int nrinput;
     int scinput;
+    int rcinput;
     size_t lsize[MAX_DIMS];
     size_t gsize[MAX_DIMS];
     size_t bsize[MAX_DIMS];
@@ -277,6 +278,7 @@ typedef struct sources_records{
     int *nsrc;
     int *nrec;
     float * src_scales;
+    float * res_scales;
     float **src;
     float **gradsrc;
     float **src_pos;
