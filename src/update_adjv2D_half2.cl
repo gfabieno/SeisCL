@@ -808,6 +808,8 @@ extern "C" __global__ void update_adjv(int offcomm,
     lvzr=mul2(add2(szzr_z1,sxzr_x2),lrkp);
     gradrho(gidz,gidx)=sub2( gradrho(gidz,gidx), mul2(add2( mul2( lvx, lvxr), mul2( lvz, lvzr) ), f2h2(1.0/src_scale/res_scale) ));
     
+    
+    
 #endif
 
 }
