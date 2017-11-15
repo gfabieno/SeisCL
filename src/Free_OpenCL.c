@@ -56,7 +56,7 @@ void variable_freeCL(device *dev, variable * var){
     clbuf_free(dev, &var->cl_fvar_adj);
     clbuf_free(dev, &var->cl_buf1);
     clbuf_free(dev, &var->cl_buf2);
-    clbuf_free(dev, &var->cl_var_res);
+//    clbuf_free(dev, &var->cl_var_res);
     
 }
 
@@ -217,7 +217,7 @@ void device_free(device * dev){
     }
     if (dev->vars_adj){
         for (i=0;i<dev->nvars;i++){
-//            variable_freeCL(dev, &dev->vars_adj[i]);
+            variable_freeCL(dev, &dev->vars_adj[i]);
         }
         GFree(dev->vars_adj);
     }
