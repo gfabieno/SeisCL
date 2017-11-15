@@ -140,8 +140,8 @@ dout = h5mat.loadmat(filenames['dout'])
 din={}
 din['src_pos']=dout['src_pos']
 din['rec_pos']=dout['rec_pos']
-din['vx']=dout['vxout']
-din['vz']=dout['vzout']
+din['vx']=np.transpose(dout['vxout'])
+din['vz']=np.transpose(dout['vzout'])
 #din['p']=np.transpose(dout['pout'])
 h5mat.savemat(filenames['din'], din , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
 
