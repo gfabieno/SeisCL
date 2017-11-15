@@ -45,7 +45,9 @@ int var_res_raw(model * m, int s)
     int tmin=m->tmin;
     int nrec=(m->src_recs.nrec[s]);
     float * par=NULL;
+    float * par2 = NULL;
     float * gradfreqs;
+    float parscal;
     
     
     //  The data is filtered between the maximum and minimum frequencies
@@ -377,15 +379,27 @@ int var_res_raw(model * m, int s)
     
     
     // Scale by the material parameters
+    int scaler=0;
+    variable * var;
+    var = get_var(m->vars,m->nvars, "sxx");
+    if (var) scaler = var->scaler;
+    var = get_var(m->vars,m->nvars, "sxz");
+    if (var) scaler = var->scaler;
+    
     for (i=0;i<m->nvars;i++){
         if (m->vars[i].to_output){
             if (strcmp(m->vars[i].name,"vx")==0 ||
                 strcmp(m->vars[i].name,"vy")==0 ||
                 strcmp(m->vars[i].name,"vz")==0 ){
-                for (j=0;j<m->npars;j++){
-                    if (strcmp(m->pars[j].name,"rho")==0){
-                        par = m->pars[j].gl_par;
-                    }
+                
+                if (strcmp(m->vars[i].name,"vx")==0){
+                    par = get_par(m->pars, m->npars, "rip")->gl_par;
+                }
+                else if (strcmp(m->vars[i].name,"vy")==0){
+                    par = get_par(m->pars, m->npars, "rjp")->gl_par;
+                }
+                else {
+                    par = get_par(m->pars, m->npars, "rkp")->gl_par;
                 }
                 for (g=0;g<nrec;g++){
                     
@@ -399,20 +413,20 @@ int var_res_raw(model * m, int s)
                         pos = x*m->N[0]*m->N[1]+y*m->N[0]+z;
                     }
                     for (t=0;t<tmax;t++){
-                        m->vars[i].gl_var_res[s][g*NT+t]*=1/par[pos];
+                        parscal = 1.0/par[pos]*m->dh/m->dt*powf(2,scaler)
+                        m->vars[i].gl_var_res[s][g*NT+t]*=1.0/parscal*m->dt;
                     }
                 }
             }
+            
         }
     }
     for (i=0;i<m->ntvars;i++){
         if (m->trans_vars[i].to_output){
             if (strcmp(m->trans_vars[i].name,"p")==0){
-                for (j=0;j<m->npars;j++){
-                    if (strcmp(m->pars[j].name,"M")==0){
-                        par = m->pars[j].gl_par;
-                    }
-                }
+                par = get_par(m->pars, m->npars, "M")->gl_par;
+                par2 = get_par(m->pars, m->npars, "mu")->gl_par;
+
                 for (g=0;g<nrec;g++){
                     
                     x = m->src_recs.rec_pos[s][0+8*g]/m->dh;
@@ -425,7 +439,9 @@ int var_res_raw(model * m, int s)
                         pos = x*m->N[0]*m->N[1]+y*m->N[0]+z;
                     }
                     for (t=0;t<tmax;t++){
-                        m->trans_vars[i].gl_var_res[s][g*NT+t]*=-par[pos];
+                        parscal = -2.0*(par[pos]-par2[pos])
+                                                  *m->dh/m->dt*powf(2,-scaler);
+                        m->trans_vars[i].gl_var_res[s][g*NT+t]*=parscal*m->dt;
                         
                     }
                 }
