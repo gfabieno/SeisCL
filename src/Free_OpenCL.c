@@ -49,7 +49,6 @@ void clprogram_freeGL(clprogram * prog){
 
 void variable_freeCL(variable * var){
     
-    fprintf(stdout,"freeing %s \n", var->name );
     clbuf_free(&var->cl_var);
     clbuf_free(&var->cl_varout);
     clbuf_free(&var->cl_varbnd);
