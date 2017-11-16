@@ -558,20 +558,20 @@ int time_stepping(model * m, device ** dev) {
             for (d=0;d<m->NUM_DEVICES;d++){
                
                 // Transfer the residuals to the gpus
-//                for (i=0;i<m->nvars;i++){
-//                    if ( (*dev)[d].vars[i].to_output){
-//                        __GUARD clbuf_sendfrom(&(*dev)[d].queue,
-//                                               &(*dev)[d].vars[i].cl_varout,
-//                                               &(*dev)[d].vars[i].gl_var_res[s]);
-//                    }
-//                }
-//                for (i=0;i<m->ntvars;i++){
-//                    if ( (*dev)[d].trans_vars[i].to_output){
-//                        __GUARD clbuf_sendfrom(&(*dev)[d].queue,
-//                                              &(*dev)[d].trans_vars[i].cl_varout,
-//                                              &(*dev)[d].trans_vars[i].gl_var_res[s]);
-//                    }
-//                }
+                for (i=0;i<m->nvars;i++){
+                    if ( (*dev)[d].vars[i].to_output){
+                        __GUARD clbuf_sendfrom(&(*dev)[d].queue,
+                                               &(*dev)[d].vars[i].cl_varout,
+                                               (*dev)[d].vars[i].gl_var_res[s]);
+                    }
+                }
+                for (i=0;i<m->ntvars;i++){
+                    if ( (*dev)[d].trans_vars[i].to_output){
+                        __GUARD clbuf_sendfrom(&(*dev)[d].queue,
+                                              &(*dev)[d].trans_vars[i].cl_varout,
+                                              (*dev)[d].trans_vars[i].gl_var_res[s]);
+                    }
+                }
                 // Initialize the backpropagation of the forward variables
                 if (m->BACK_PROP_TYPE==1){
                     __GUARD prog_launch( &(*dev)[d].queue,
