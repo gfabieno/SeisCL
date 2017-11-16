@@ -65,13 +65,13 @@ csts['scalerms']=0          #Scale each modeled and recorded traces according to
 csts['scalermsnorm']=0      #Scale each modeled and recorded traces according to its rms value, normalized
 csts['scaleshot']=0         #Scale all of the traces in each shot by the shot total rms value
 csts['fmin']=0              #Maximum frequency for the gradient computation
-csts['fmax']=5              #Minimum frequency for the gradient computation
+csts['fmax']=45              #Minimum frequency for the gradient computation
 csts['mute']=None           #Muting matrix 5xnumber of traces. [t1 t2 t3 t4 flag] t1 to t4 are mute time with cosine tapers, flag 0: keep data in window, 1: mute data in window
 csts['weight']=None         # NTxnumber of geophones or 1x number of geophones. Weight each sample, or trace, according to the value of weight for gradient calculation.
 
 csts['gradout']=0           #Output gradient 1:yes, 0: no
 csts['gradsrcout']=0        #Output source gradient 1:yes, 0: no
-csts['seisout']=1           #Output seismograms 1:velocities, 2: pressure, 3: velocities and pressure, 4: velocities and stresses
+csts['seisout']=2           #Output seismograms 1:velocities, 2: pressure, 3: velocities and pressure, 4: velocities and stresses
 csts['resout']=0            #Output residuals 1:yes, 0: no
 csts['rmsout']=0            #Output rms value 1:yes, 0: no
 csts['movout']=0            #Output movie 1:yes, 0: no
@@ -140,9 +140,9 @@ dout = h5mat.loadmat(filenames['dout'])
 din={}
 din['src_pos']=dout['src_pos']
 din['rec_pos']=dout['rec_pos']
-din['vx']=np.transpose(dout['vxout'])
-din['vz']=np.transpose(dout['vzout'])
-#din['p']=np.transpose(dout['pout'])
+#din['vx']=np.transpose(dout['vxout'])
+#din['vz']=np.transpose(dout['vzout'])
+din['p']=np.transpose(dout['pout'])
 h5mat.savemat(filenames['din'], din , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
 
 
@@ -151,7 +151,7 @@ model['vp'][70:90,65:85]= 3500
 model['taup'][110:130,65:85]= 0.02
 csts['gradout']=1
 csts['resout']=1
-csts['FP16']=0
+csts['FP16']=1
 csts['gradfreqs']=np.append(csts['gradfreqs'], csts['f0'])
 h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
 h5mat.savemat(filenames['model'], model , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
