@@ -772,7 +772,7 @@ int Init_CUDA(model * m, device ** dev)  {
             GMALLOC(di->vars_adj, sizeof(variable)*m->nvars);
             for (i=0;i<m->nvars;i++){
                 di->vars_adj[i]=di->vars[i];
-                di->vars_adj[i].cl_varout.free_host=1;
+                di->vars_adj[i].cl_varout.free_host=0;
             }
             
             for (i=0;i<m->nvars;i++){
