@@ -660,7 +660,7 @@ int kernel_residuals(device * dev,
                 strcat(temp, "*res_scale;\n");
             }
             else{
-                strcat(temp, ")*res_scale;\n");
+                strcat(temp, "*res_scale);\n");
             }
 
         }
@@ -692,7 +692,7 @@ int kernel_residuals(device * dev,
                     strcat(temp, "*res_scale;\n");
                 }
                 else{
-                    strcat(temp, ")*res_scale;\n");
+                    strcat(temp, "*res_scale);\n");
                 }
             }
         }
