@@ -151,7 +151,7 @@ model['vp'][70:90,65:85]= 3500
 model['taup'][110:130,65:85]= 0.02
 csts['gradout']=1
 csts['resout']=1
-csts['FP16']=1
+csts['FP16']=0
 csts['gradfreqs']=np.append(csts['gradfreqs'], csts['f0'])
 h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
 h5mat.savemat(filenames['model'], model , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
