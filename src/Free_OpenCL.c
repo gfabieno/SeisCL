@@ -218,7 +218,7 @@ void device_free(device * dev){
     }
     if (dev->vars_adj){
         for (i=0;i<dev->nvars;i++){
-//            variable_freeCL(&dev->vars_adj[i]);
+            variable_freeCL(&dev->vars_adj[i]);
         }
         GFree(dev->vars_adj);
     }
