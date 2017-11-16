@@ -65,7 +65,7 @@ csts['scalerms']=0          #Scale each modeled and recorded traces according to
 csts['scalermsnorm']=0      #Scale each modeled and recorded traces according to its rms value, normalized
 csts['scaleshot']=0         #Scale all of the traces in each shot by the shot total rms value
 csts['fmin']=0              #Maximum frequency for the gradient computation
-csts['fmax']=45              #Minimum frequency for the gradient computation
+csts['fmax']=5              #Minimum frequency for the gradient computation
 csts['mute']=None           #Muting matrix 5xnumber of traces. [t1 t2 t3 t4 flag] t1 to t4 are mute time with cosine tapers, flag 0: keep data in window, 1: mute data in window
 csts['weight']=None         # NTxnumber of geophones or 1x number of geophones. Weight each sample, or trace, according to the value of weight for gradient calculation.
 
