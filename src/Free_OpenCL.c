@@ -24,9 +24,9 @@ void clbuf_free(clbuf *buf){
 
     if (buf->mem) cuMemFree(buf->mem);
     if (buf->pin) cuMemFreeHost(buf->pin);
-//    else if (buf->free_host){
-//         GFree(buf->host);
-//    }
+    if (buf->free_host){
+         GFree(buf->host);
+    }
 
 }
 
@@ -218,7 +218,7 @@ void device_free(device * dev){
     }
     if (dev->vars_adj){
         for (i=0;i<dev->nvars;i++){
-            variable_freeCL(&dev->vars_adj[i]);
+//            variable_freeCL(&dev->vars_adj[i]);
         }
         GFree(dev->vars_adj);
     }
