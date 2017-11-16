@@ -23,10 +23,10 @@
 void clbuf_free(clbuf *buf){
 
     if (buf->mem) cuMemFree(buf->mem);
-    if (buf->pin) cuMemFreeHost(buf->pin);
-    else if (buf->free_host){
-         GFree(buf->host);
-    }
+//    if (buf->pin) cuMemFreeHost(buf->pin);
+//    else if (buf->free_host){
+//         GFree(buf->host);
+//    }
 
 }
 
@@ -51,7 +51,7 @@ void variable_freeCL(variable * var){
     
     fprintf(stdout,"freeing %s \n", var->name );
     clbuf_free(&var->cl_var);
-//    clbuf_free(&var->cl_varout);
+    clbuf_free(&var->cl_varout);
     clbuf_free(&var->cl_varbnd);
     clbuf_free(&var->cl_fvar);
     clbuf_free(&var->cl_fvar_adj);
