@@ -59,6 +59,7 @@ int Init_model(model * m) {
                     m->src_recs.src_scales[i]=fabsf(m->src_recs.src[i][t]);
                 }
                 m->src_recs.src_scales[i]=1.0/m->src_recs.src_scales[i]/m->dt;
+                m->src_recs.src_scales[i]=1;
         }
     }
     if (m->GRADOUT==1){
