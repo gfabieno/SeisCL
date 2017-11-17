@@ -52,14 +52,16 @@ int Init_model(model * m) {
     __GUARD m->check_stability( (void*) m);
     __GUARD m->set_scalers( (void*) m);
     
-    GMALLOC(m->src_recs.src_scales, sizeof(float)*m->src_recs.ns);
+    GMALLOC(m->src_recs.src_scales, sizeof(int)*m->src_recs.ns);
+    float srcmax;
     for (i=0;i<m->src_recs.ns;i++){
+        srcmax=0;
             for (t=0;t<m->NT*m->src_recs.nsrc[i];t++){
-                if (m->src_recs.src_scales[i]<fabsf(m->src_recs.src[i][t])){
-                    m->src_recs.src_scales[i]=fabsf(m->src_recs.src[i][t]);
+                if (srcmax<fabsf(m->src_recs.src[i][t])){
+                    srcmax=fabsf(m->src_recs.src[i][t]);
                 }
-                m->src_recs.src_scales[i]=1.0/m->src_recs.src_scales[i]/m->dt;
-                m->src_recs.src_scales[i]=1;
+//                m->src_recs.src_scales[i]=1.0/m->src_recs.src_scales[i]/m->dt;
+                m->src_recs.src_scales[i]=-log2(srcmax*100);;
         }
     }
     if (m->GRADOUT==1){

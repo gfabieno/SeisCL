@@ -37,7 +37,7 @@ int kernel_varout(device * dev,
     variable * tvars = dev->trans_vars;
     
     strcat(temp, "extern \"C\" __global__ void varsout"
-                 "(int nt, int nrec, float * rec_pos, float src_scale,");
+                 "(int nt, int nrec, float * rec_pos, int src_scale,");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
             if (dev->FP16==0){
@@ -111,10 +111,7 @@ int kernel_varout(device * dev,
         if (vars[i].to_output){
             strcat(temp, "    ");
             strcat(temp, vars[i].name);
-            strcat(temp, "out[NT*gid+nt]=1.0/src_scale*");
-            if (abs(vars[i].scaler)>0){
-                strcat(temp, "scalbnf(");
-            }
+            strcat(temp, "out[NT*gid+nt]=scalbnf(");
             if (dev->FP16!=0){
                 strcat(temp, "__half2float(");
             }
@@ -123,27 +120,25 @@ int kernel_varout(device * dev,
             if (dev->FP16!=0){
                 strcat(temp, ")");
             }
+            sprintf(temp,", -src_scale")
             if (abs(vars[i].scaler)>0){
-                sprintf(temp2,", %d)", -vars[i].scaler );
+                sprintf(temp2,"+ %d)", -vars[i].scaler );
                 strcat(temp, temp2);
             }
-            strcat(temp, ";\n");
+            strcat(temp, ");\n");
         }
     }
     for (i=0;i<dev->ntvars;i++){
         if (tvars[i].to_output){
             strcat(temp, "    ");
             strcat(temp, tvars[i].name);
-            strcat(temp, "out[NT*gid+nt]=1.0/src_scale*(");
+            strcat(temp, "out[NT*gid+nt]=scalbnf(");
             for (j=0;j<tvars->n2ave;j++){
                 for (k=0;k<dev->nvars;k++){
                     if (strcmp(tvars[i].var2ave[j],dev->vars[k].name)==0){
                         scaler=dev->vars[k].scaler;
                         break;
                     }
-                }
-                if (abs(scaler)>0){
-                    strcat(temp, "scalbnf(");
                 }
                 if (dev->FP16!=0){
                     strcat(temp, "__half2float(");
@@ -153,11 +148,12 @@ int kernel_varout(device * dev,
                 if (dev->FP16!=0){
                     strcat(temp, ")");
                 }
+                sprintf(temp,", -src_scale")
                 if (abs(scaler)>0){
-                    sprintf(temp2,", %d)", -scaler );
+                    sprintf(temp2,"+ %d", -scaler );
                     strcat(temp, temp2);
                 }
-                strcat(temp, "+");
+                strcat(temp, ")+");
             }
             while (*p)
                 p++;
@@ -397,7 +393,7 @@ int kernel_sources(device * dev,
     }
     
     strcat(temp, "extern \"C\" __global__ void sources(int nt, int nsrc,"
-                 "float src_scale, float * src_pos, float * src, int pdir, ");
+                 "int src_scale, float * src_pos, float * src, int pdir, ");
     for (i=0;i<dev->nvars;i++){
         if (tosources[i]){
             if (dev->FP16==0){
@@ -450,8 +446,8 @@ int kernel_sources(device * dev,
            "        return;\n"
            "    }\n\n"
            "    int source_type= src_pos[4+5*gid];\n"
-           "    float amp=(float)pdir*src[gid*NT+nt];\n\n");
-//           "    float amp=(float)pdir*(DT*src[gid*NT+nt])*src_scale;\n\n");
+//           "    float amp=(float)pdir*src[gid*NT+nt];\n\n");
+           "    float amp=scalbnf((float)pdir*(DT*src[gid*NT+nt]), src_scale);\n\n");
     
     char posstr[100]={0};
 
