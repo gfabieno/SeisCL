@@ -132,6 +132,13 @@ extern "C" __device__ __prec2 __hp(__prec *a ){
     *((__prec *)&output+1) = *(a+1);
     return output;
 }
+extern "C" __device__ float2 scalbnf2 (float2 a ){
+    
+    float2 output;
+    output.x  = scalbnf(a.x);
+    output.y  = scalbnf(a.y);
+    return output;
+}
 
 #if FP16==2 || FP16==4
 
@@ -288,7 +295,7 @@ extern "C" __global__ void update_adjs(int offcomm,
                            __prec2 *sxxr,__prec2 *sxzr,__prec2 *szzr,
                            __prec2 *vxr,__prec2 *vzr, float *taper,
                           float2 *gradrho,    float2 *gradM,     float2 *gradmu,
-                           float res_scale, int src_scale)
+                           int res_scale, int src_scale)
 {
 
     //Local memory
@@ -815,12 +822,12 @@ extern "C" __global__ void update_adjs(int offcomm,
     lsxxr=sub2(mul2(lM,add2(vxr_x2,vzr_z2)),mul2(mul2(f2h2(2.0),lmu),vzr_z2));
     lszzr=sub2(mul2(lM,add2(vxr_x2,vzr_z2)),mul2(mul2(f2h2(2.0),lmu),vxr_x2));
 
-    float2 dM=mul2(c1,mul2(add2(lsxx,lszz), add2(lsxxr,lszzr) ) );
+    __cprec dM=mul2(c1,mul2(add2(lsxx,lszz), add2(lsxxr,lszzr) ) );
 
-//    gradM(gidz,gidx)=sub2(gradM(gidz,gidx),__h22f2c(mul2(dM,f2h2(1.0/src_scale/res_scale))));
-//    gradmu(gidz,gidx)=add2(gradmu(gidz,gidx),
-//                           __h22f2c(mul2(sub2(sub2( dM, mul2(c3, mul2(lsxz,lsxzr))), mul2(c5,mul2( sub2(lsxx,lszz), sub2(lsxxr,lszzr)))),
-//                                f2h2(1.0/src_scale/res_scale))));
+    gradM(gidz,gidx)=sub2(gradM(gidz,gidx), scalbnf2(__h22f2c(dM), -src_scale - res_scale));
+    gradmu(gidz,gidx)=add2(gradmu(gidz,gidx),
+                           scalbnf2(__h22f2c(sub2(sub2( dM, mul2(c3, mul2(lsxz,lsxzr))), mul2(c5,mul2( sub2(lsxx,lszz), sub2(lsxxr,lszzr))))),
+                                -src_scale-res_scale));
     
     
 #endif

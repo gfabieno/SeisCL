@@ -60,12 +60,11 @@ int Init_model(model * m) {
                 if (srcmax<fabsf(m->src_recs.src[i][t])){
                     srcmax=fabsf(m->src_recs.src[i][t]);
                 }
-//                m->src_recs.src_scales[i]=1.0/m->src_recs.src_scales[i]/m->dt;
                 m->src_recs.src_scales[i]=-log2(srcmax*m->dt/100);
         }
     }
     if (m->GRADOUT==1){
-        GMALLOC(m->src_recs.res_scales, sizeof(float)*m->src_recs.ns);
+        GMALLOC(m->src_recs.res_scales, sizeof(int)*m->src_recs.ns);
     }
     
     if (m->FP16==2 || m->FP16==4){

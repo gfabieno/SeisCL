@@ -132,6 +132,13 @@ extern "C" __device__ __prec2 __hp(__prec *a ){
     *((__prec *)&output+1) = *(a+1);
     return output;
 }
+extern "C" __device__ float2 scalbnf2(float2 a ){
+    
+    float2 output;
+    output.x  = scalbnf(a.x);
+    output.y  = scalbnf(a.y);
+    return output;
+}
 
 #if FP16==2 || FP16==4
 
@@ -290,7 +297,7 @@ extern "C" __global__ void update_adjv(int offcomm,
                            __prec2 *vxbnd,__prec2 *vzbnd,
                            __prec2 *sxxr,__prec2 *sxzr,__prec2 *szzr,
                            __prec2 *vxr,__prec2 *vzr, float *taper,
-                           float2 *gradrho, float res_scale, int src_scale)
+                           float2 *gradrho, int res_scale, int src_scale)
 {
 
     //Local memory
@@ -809,7 +816,7 @@ extern "C" __global__ void update_adjv(int offcomm,
     lvxr=mul2(add2(sxxr_x1,sxzr_z2),lrip);
     lvzr=mul2(add2(szzr_z1,sxzr_x2),lrkp);
 
-//    gradrho(gidz,gidx)=sub2( gradrho(gidz,gidx), __h22f2c(mul2(add2( mul2( lvx, lvxr), mul2( lvz, lvzr) ), f2h2(1.0/src_scale/res_scale) )));
+    gradrho(gidz,gidx)=sub2( gradrho(gidz,gidx), scalbnf2(__h22f2c(add2( mul2( lvx, lvxr), mul2( lvz, lvzr) )), -src_scale - res_scale) );
     
 #endif
 

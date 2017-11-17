@@ -274,7 +274,7 @@ typedef struct sources_records{
     int *nsrc;
     int *nrec;
     int * src_scales;
-    float * res_scales;
+    int * res_scales;
     float **src;
     float **gradsrc;
     float **src_pos;
