@@ -140,8 +140,9 @@ int kernel_varout(device * dev,
                         break;
                     }
                 }
+                strcat(temp, "scalbnf(");
                 if (dev->FP16!=0){
-                    strcat(temp, "scalbnf(__half2float(");
+                    strcat(temp, "__half2float(");
                 }
                 strcat(temp, tvars[i].var2ave[j]);
                 strcat(temp, posstr);
