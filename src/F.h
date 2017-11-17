@@ -273,7 +273,7 @@ typedef struct sources_records{
     int smax;
     int *nsrc;
     int *nrec;
-    float * src_scales;
+    int * src_scales;
     float * res_scales;
     float **src;
     float **gradsrc;
