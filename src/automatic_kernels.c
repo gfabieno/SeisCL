@@ -132,7 +132,7 @@ int kernel_varout(device * dev,
         if (tvars[i].to_output){
             strcat(temp, "    ");
             strcat(temp, tvars[i].name);
-            strcat(temp, "out[NT*gid+nt]=scalbnf(");
+            strcat(temp, "out[NT*gid+nt]=");
             for (j=0;j<tvars->n2ave;j++){
                 for (k=0;k<dev->nvars;k++){
                     if (strcmp(tvars[i].var2ave[j],dev->vars[k].name)==0){
@@ -141,7 +141,7 @@ int kernel_varout(device * dev,
                     }
                 }
                 if (dev->FP16!=0){
-                    strcat(temp, "__half2float(");
+                    strcat(temp, "scalbnf(__half2float(");
                 }
                 strcat(temp, tvars[i].var2ave[j]);
                 strcat(temp, posstr);
