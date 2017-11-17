@@ -132,7 +132,7 @@ int kernel_varout(device * dev,
         if (tvars[i].to_output){
             strcat(temp, "    ");
             strcat(temp, tvars[i].name);
-            strcat(temp, "out[NT*gid+nt]=");
+            strcat(temp, "out[NT*gid+nt]=(");
             for (j=0;j<tvars->n2ave;j++){
                 for (k=0;k<dev->nvars;k++){
                     if (strcmp(tvars[i].var2ave[j],dev->vars[k].name)==0){
