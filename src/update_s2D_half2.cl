@@ -822,11 +822,11 @@ extern "C" __device__ __prec2 __hp(__prec *a ){
     *((__prec *)&output+1) = *(a+1);
     return output;
 }
-extern "C" __device__ float2 scalbnf2 (float2 a ){
+extern "C" __device__ float2 scalbnf2(float2 a, int scaler ){
     
     float2 output;
-    output.x  = scalbnf(a.x);
-    output.y  = scalbnf(a.y);
+    output.x  = scalbnf(a.x, scaler);
+    output.y  = scalbnf(a.y, scaler);
     return output;
 }
 
