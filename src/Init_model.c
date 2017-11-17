@@ -61,7 +61,7 @@ int Init_model(model * m) {
                     srcmax=fabsf(m->src_recs.src[i][t]);
                 }
 //                m->src_recs.src_scales[i]=1.0/m->src_recs.src_scales[i]/m->dt;
-                m->src_recs.src_scales[i]=-log2(srcmax*m->dt);
+                m->src_recs.src_scales[i]=-log2(srcmax*m->dt/10);
         }
     }
     if (m->GRADOUT==1){
