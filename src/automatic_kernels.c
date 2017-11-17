@@ -120,7 +120,7 @@ int kernel_varout(device * dev,
             if (dev->FP16!=0){
                 strcat(temp, ")");
             }
-            sprintf(temp,", -src_scale")
+            sprintf(temp,", -src_scale");
             if (abs(vars[i].scaler)>0){
                 sprintf(temp2,"+ %d)", -vars[i].scaler );
                 strcat(temp, temp2);
@@ -148,7 +148,7 @@ int kernel_varout(device * dev,
                 if (dev->FP16!=0){
                     strcat(temp, ")");
                 }
-                sprintf(temp,", -src_scale")
+                sprintf(temp,", -src_scale");
                 if (abs(scaler)>0){
                     sprintf(temp2,"+ %d", -scaler );
                     strcat(temp, temp2);
