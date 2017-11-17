@@ -169,7 +169,7 @@ int kernel_varout(device * dev,
     strcat(temp, "\n}");
     
     
-    printf("%s\n\n%lu\n",temp, strlen(temp));
+//    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     
     (*prog).src=temp;
@@ -641,15 +641,15 @@ int kernel_residuals(device * dev,
                 strcat(temp, "r");
             strcat(temp, posstr);
             if (dev->FP16==0){
-                strcat(temp, "+=");
+                strcat(temp, "+=scalbnf(");
             }
             else{
-                strcat(temp, "=scalbnf(__float2half(__half2float(");
+                strcat(temp, "=__float2half(__half2float(");
                 strcat(temp, vars[i].name);
                 if (BACK_PROP_TYPE==1)
                     strcat(temp, "r");
                 strcat(temp, posstr);
-                strcat(temp, ")+");
+                strcat(temp, ")+scalbnf(");
             }
             strcat(temp, vars[i].name);
             strcat(temp, "out[NT*gid+nt]");
@@ -671,7 +671,7 @@ int kernel_residuals(device * dev,
                     strcat(temp, "r");
                 strcat(temp, posstr);
                 if (dev->FP16==0){
-                    strcat(temp, "+=");
+                    strcat(temp, "+=scalbnf(");
                 }
                 else{
                     strcat(temp, "=__float2half(__half2float(");
