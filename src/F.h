@@ -467,6 +467,7 @@ typedef struct model {
 //    cl_device_type device_type;
     int NUM_DEVICES;
     int FP16;
+    int halfpar;
 
     int (*res_calc)(struct model * , int );
     int (*check_stability)(void *);

@@ -76,6 +76,16 @@ int Init_model(model * m) {
 
         }
     }
+    if (m->FP16==0 && m->halfpar==1){
+        for (i=0;i<m->npars;i++){
+            hpar = (half*)m->pars[i].gl_par;
+            for (j=0;j<m->pars[i].num_ele;j++){
+                hpar[j] =half_to_float(approx_float_to_half(m->pars[i].gl_par[j]));
+            }
+            
+        }
+    }
+    
     
     
     if (state && m->MPI_INIT==1)
