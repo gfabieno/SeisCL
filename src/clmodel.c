@@ -64,7 +64,7 @@ int append_par(model * m,
     if (m->GRADOUT && m->pars[*ind].to_read){
         m->pars[*ind].to_grad=1;
         GMALLOC(m->pars[*ind].gl_grad, sizeof(double)*m->pars[*ind].num_ele);
-        if (m->HOUT==1){
+        if (m->HOUT){
             GMALLOC(m->pars[*ind].gl_H, sizeof(double)*m->pars[*ind].num_ele);
         }
     }
