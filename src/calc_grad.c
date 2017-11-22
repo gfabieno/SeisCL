@@ -971,11 +971,14 @@ int transf_grad(model * m) {
     
     float * rho = get_par(m->pars, m->npars, "rho")->gl_par;
     float * gradrho = get_par(m->pars, m->npars, "rho")->gl_grad;
+    float * Hrho = get_par(m->pars, m->npars, "rho")->gl_H;
     num_ele = get_par(m->pars, m->npars, "rho")->num_ele;
     float * M = get_par(m->pars, m->npars, "M")->gl_par;
     float * gradM = get_par(m->pars, m->npars, "M")->gl_grad;
+    float * HM = get_par(m->pars, m->npars, "M")->gl_H;
     float * mu = get_par(m->pars, m->npars, "mu")->gl_par;
     float * gradmu = get_par(m->pars, m->npars, "mu")->gl_grad;
+    float * Hmu = get_par(m->pars, m->npars, "mu")->gl_H;
 
     int scaler=0;
     variable * var;
@@ -1006,14 +1009,29 @@ int transf_grad(model * m) {
         for (i=0;i<num_ele;i++){
             gradrho[i]= gradrho[i]+M[i]/rho[i]*gradM[i]+mu[i]/rho[i]*gradmu[i];
         }
+        if (Hrho){
+            for (i=0;i<num_ele;i++){
+                Hrho[i]= Hrho[i]+M[i]/rho[i]*HM[i]+mu[i]/rho[i]*Hmu[i];
+            }
+        }
         if (M){
             for (i=0;i<num_ele;i++){
                 gradM[i]  = 2.0*sqrt((double)rho[i]*(double)M[i])*gradM[i];
             }
         }
+        if (HM){
+            for (i=0;i<num_ele;i++){
+                HM[i]  = 2.0*sqrt((double)rho[i]*(double)M[i])*HM[i];
+            }
+        }
         if (mu){
             for (i=0;i<num_ele;i++){
                 gradmu[i] = 2.0*sqrt((double)rho[i]*(double)mu[i])*gradmu[i];
+            }
+        }
+        if (Hmu){
+            for (i=0;i<num_ele;i++){
+                Hmu[i] = 2.0*sqrt((double)rho[i]*(double)mu[i])*Hmu[i];
             }
         }
     }
@@ -1024,14 +1042,29 @@ int transf_grad(model * m) {
         for (i=0;i<num_ele;i++){
             gradrho[i]= gradrho[i]+M[i]/rho[i]*gradM[i]+mu[i]/rho[i]*gradmu[i];
         }
+        if (Hrho){
+            for (i=0;i<num_ele;i++){
+                Hrho[i]= Hrho[i]+M[i]/rho[i]*HM[i]+mu[i]/rho[i]*Hmu[i];
+            }
+        }
         if (M){
             for (i=0;i<num_ele;i++){
                 gradM[i]  = 2.0*sqrt((double)M[i]/(double)rho[i])*gradM[i];
             }
         }
+        if (HM){
+            for (i=0;i<num_ele;i++){
+                HM[i]  = 2.0*sqrt((double)M[i]/(double)rho[i])*HM[i];
+            }
+        }
         if (mu){
             for (i=0;i<num_ele;i++){
                 gradmu[i] = 2.0*sqrt((double)mu[i]/(double)rho[i])*gradmu[i];
+            }
+        }
+        if (Hmu){
+            for (i=0;i<num_ele;i++){
+                Hmu[i] = 2.0*sqrt((double)mu[i]/(double)rho[i])*Hmu[i];
             }
         }
     }
