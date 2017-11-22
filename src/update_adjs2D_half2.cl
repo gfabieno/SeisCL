@@ -295,6 +295,7 @@ extern "C" __global__ void update_adjs(int offcomm,
                            __prec2 *sxxr,__prec2 *sxzr,__prec2 *szzr,
                            __prec2 *vxr,__prec2 *vzr, float *taper,
                           float2 *gradrho,    float2 *gradM,     float2 *gradmu,
+                           float2 *Hrho,    float2 *HM,     float2 *Hmu,
                            int res_scale, int src_scale)
 {
 
@@ -829,6 +830,13 @@ extern "C" __global__ void update_adjs(int offcomm,
                            scalbnf2(__h22f2c(sub2(sub2( dM, mul2(c3, mul2(lsxz,lsxzr))), mul2(c5,mul2( sub2(lsxx,lszz), sub2(lsxxr,lszzr))))),
                                 -src_scale-res_scale));
     
+#if HOUT==1
+    __cprec dM=mul2(c1,mul2(add2(lsxx,lszz), add2(lsxx,lszz) ) );
+    HM(gidz,gidx)=add2(HM(gidz,gidx), scalbnf2(__h22f2c(dM), -2.0*src_scale));
+    Hmu(gidz,gidx)=add2(Hmu(gidz,gidx),
+                        scalbnf2(__h22f2c(add2(sub2( mul2(c3, mul2(lsxz,lsxz)), dM ), mul2(c5,mul2( sub2(lsxx,lszz), sub2(lsxx,lszz))))),
+                                 -2.0*src_scale));
+#endif
     
 #endif
 

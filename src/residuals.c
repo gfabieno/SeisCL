@@ -264,14 +264,14 @@ int var_res_raw(model * m, int s)
                     if (m->vars[i].to_output){
                        m->rms+=pow(-m->vars[i].gl_varout[s][g*NT+t]
                                    +m->vars[i].gl_varin[s][g*NT+t],2);
-                        m->rms+=pow(m->vars[i].gl_varin[s][g*NT+t],2);
+                        m->rmsnorm+=pow(m->vars[i].gl_varin[s][g*NT+t],2);
                     }
                 }
                 for (i=0;i<m->ntvars;i++){
                     if (m->trans_vars[i].to_output){
                         m->rms+=pow(-m->trans_vars[i].gl_varout[s][g*NT+t]
                                     +m->trans_vars[i].gl_varin[s][g*NT+t],2);
-                        m->rms+=pow(m->trans_vars[i].gl_varin[s][g*NT+t],2);
+                        m->rmsnorm+=pow(m->trans_vars[i].gl_varin[s][g*NT+t],2);
                     }
                 }
             }

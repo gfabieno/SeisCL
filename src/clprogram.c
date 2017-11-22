@@ -432,7 +432,7 @@ int prog_create(model * m,
                 break;
             }
             sprintf(str2comp,"H%s",(*dev).pars[j].name);
-            if (strcmp(str2comp,(*prog).input_list[i])==0){
+            if (strcmp(str2comp,(*prog).input_list[i])==0 && m->HOUT==1){
                 (*prog).inputs[i]=&(*dev).pars[j].cl_H.mem;
                 argfound=1;
                 
