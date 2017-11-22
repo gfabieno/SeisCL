@@ -601,8 +601,9 @@ int Init_CUDA(model * m, device ** dev)  {
                     di->pars[i].num_ele=parsize;
                     if (m->pars[i].to_grad){
                         di->pars[i].cl_grad.host=&m->pars[i].gl_grad[di->OFFSET];
-                        if (m->pars[i].gl_H)
+                        if (m->pars[i].gl_H){
                             di->pars[i].cl_H.host=&m->pars[i].gl_H[di->OFFSET];
+                        }
                     }
                 }
                 
