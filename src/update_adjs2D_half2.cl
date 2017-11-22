@@ -834,8 +834,7 @@ extern "C" __global__ void update_adjs(int offcomm,
     
 #if HOUT==1
     __cprec dMH=mul2(c1,mul2(add2(lsxx,lszz), add2(lsxx,lszz) ) );
-    float2 dum = {1,1};
-    HM(gidz,gidx)=dum;//add2(HM(gidz,gidx), scalbnf2(__h22f2c(dMH), -2.0*src_scale));
+    HM(gidz,gidx)=add2(HM(gidz,gidx), scalbnf2(__h22f2c(dMH), -2.0*src_scale));
     Hmu(gidz,gidx)=add2(Hmu(gidz,gidx),
                         scalbnf2(__h22f2c(add2(sub2( mul2(c3, mul2(lsxz,lsxz)), dMH ), mul2(c5,mul2( sub2(lsxx,lszz), sub2(lsxx,lszz))))),
                                  -2.0*src_scale));

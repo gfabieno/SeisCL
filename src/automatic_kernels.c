@@ -729,6 +729,11 @@ int kernel_gradinit(device * dev,
             strcat(temp, "float * grad");
             strcat(temp, pars[i].name);
             strcat(temp, ", ");
+            if (pars[i].cl_H.host){
+                strcat(temp, "float * H");
+                strcat(temp, pars[i].name);
+                strcat(temp, ", ");
+            }
         }
     }
     while (*p)
@@ -763,6 +768,11 @@ int kernel_gradinit(device * dev,
             strcat(temp, "    grad");
             strcat(temp, pars[i].name);
             strcat(temp, "[gid]=0;\n");
+            if (pars[i].cl_H.host){
+                strcat(temp, "    H");
+                strcat(temp, pars[i].name);
+                strcat(temp, "[gid]=0;\n");
+            }
         }
     }
 
