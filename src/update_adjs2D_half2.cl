@@ -169,7 +169,9 @@ extern "C" __device__ float2 scalbnf2(float2 a, int scaler ){
 #define gradrho(z,x) gradrho[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
 #define gradmu(z,x) gradmu[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
 #define gradM(z,x) gradM[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
-
+#define HM(z,x) HM[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define Hmu(z,x) Hmu[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
+#define Hrho(z,x) Hrho[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
 
 // Find boundary indice for boundary injection in backpropagation
 extern "C" __device__ int evarm( int k, int i){
