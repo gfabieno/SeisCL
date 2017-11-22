@@ -967,7 +967,8 @@ int calc_grad(model * m, device * dev)  {
 int transf_grad(model * m) {
     //TODO perform forward and back transform to replace Init_model and trans_grad
     int state=0;
-    int i, num_ele=0;
+    int i, j, num_ele=0;
+    half * hpar;
     
     float * rho = get_par(m->pars, m->npars, "rho")->gl_par;
     float * gradrho = get_par(m->pars, m->npars, "rho")->gl_grad;
@@ -986,6 +987,16 @@ int transf_grad(model * m) {
     if (var) scaler = var->scaler;
     var = get_var(m->vars,m->nvars, "sxz");
     if (var) scaler = var->scaler;
+    
+    if (m->FP16==2 || m->FP16==4){
+        for (i=0;i<m->npars;i++){
+            hpar = (half*)m->pars[i].gl_par;
+            for (j=m->pars[i].num_ele-1;j>=0;j--){
+                m->pars[i].gl_par[j] = half_to_float(hpar[j]);
+            }
+            
+        }
+    }
     
     for (i=0;i<num_ele;i++){
         rho[i]= 1.0/rho[i]*m->dh/m->dt*powf(2,scaler);
