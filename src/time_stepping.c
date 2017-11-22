@@ -716,11 +716,11 @@ int time_stepping(model * m, device ** dev) {
         for (d=0;d<m->NUM_DEVICES;d++){
             for (i=0;i<m->npars;i++){
                 if ((*dev)[d].pars[i].to_grad){
-                    __GUARD clbuf_read( &(*dev)[d].queue,
+                    __GUARD clbuf_read(&(*dev)[d].queue,
                                        &(*dev)[d].pars[i].cl_grad);
                 }
                 if (m->HOUT==1 && (*dev)[d].pars[i].to_grad){
-                    __GUARD clbuf_read( &(*dev)[d].queue,
+                    __GUARD clbuf_read(&(*dev)[d].queue,
                                        &(*dev)[d].pars[i].cl_H);
                 }
             }
