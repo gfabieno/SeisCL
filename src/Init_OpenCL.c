@@ -482,7 +482,6 @@ int Init_CUDA(model * m, device ** dev)  {
                 //We use half2 and float2 in kernels, and must divide by 2 the
                 //global size of dim 0
                 gsize[0]=di->N[0]/2+(lsize[0]-(di->N[0]/2)%lsize[0])%lsize[0];
-                gsize[0]=di->N[0]/2+((lsize[0]-di->N[0]/2)%lsize[0])%lsize[0];
                 for (i=1;i<m->NDIM-1;i++){
                     gsize[i]=di->N[i]
                             +(lsize[i]-di->N[i]%lsize[i])%lsize[i];
