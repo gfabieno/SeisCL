@@ -975,9 +975,9 @@ extern "C" __global__ void update_v(int offcomm,
 #endif
 #endif
     
-//    // Update the variables
-//    lvx=add2(lvx,mul2(add2(sxx_x1,sxz_z2),lrip));
-//    lvz=add2(lvz,mul2(add2(szz_z1,sxz_x2),lrkp));
+    // Update the variables
+    lvx=add2(lvx,mul2(add2(sxx_x1,sxz_z2),lrip));
+    lvz=add2(lvz,mul2(add2(szz_z1,sxz_x2),lrkp));
     
 //#if ABS_TYPE==2
 //    {
