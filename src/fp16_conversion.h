@@ -88,7 +88,60 @@ static half approx_float_to_half(float fl)
     o.u |= sign >> 16;
     return *((half*)&o);
 }
+// Same as above, but with full round-to-nearest-even.
+static half float_to_half_full_rtne(float fl)
+{
+    union FP16u o = { 0 };
+    union FP32u f = *((union FP32u*)&fl);
+    
+    // Based on ISPC reference code (with minor modifications)
+    if (f.Exponent == 0) // Signed zero/denormal (which will underflow)
+    o.Exponent = 0;
+    else if (f.Exponent == 255) // Inf or NaN (all exponent bits set)
+    {
+        o.Exponent = 31;
+        o.Mantissa = f.Mantissa ? 0x200 : 0; // NaN->qNaN and Inf->Inf
+    }
+    else // Normalized number
+    {
+        // Exponent unbias the single, then bias the halfp
+        int newexp = f.Exponent - 127 + 15;
+        if (newexp >= 31) // Overflow, return signed infinity
+        o.Exponent = 31;
+        else if (newexp <= 0) // Underflow
+        {
+            if ((14 - newexp) <= 24) // Mantissa might be non-zero
+            {
+                uint mant = f.Mantissa | 0x800000; // Hidden 1 bit
+                uint shift = 14 - newexp;
+                o.Mantissa = mant >> shift;
+                
+                uint lowmant = mant & ((1 << shift) - 1);
+                uint halfway = 1 << (shift - 1);
+                
+                if (lowmant >= halfway) // Check for rounding
+                {
+                    if (lowmant > halfway || (o.Mantissa & 1)) // if above halfway point or unrounded result is odd
+                    o.u++; // Round, might overflow into exp bit, but this is OK
+                }
+            }
+        }
+        else
+        {
+            o.Exponent = newexp;
+            o.Mantissa = f.Mantissa >> 13;
+            if (f.Mantissa & 0x1000) // Check for rounding
+            {
+                if (((f.Mantissa & 0x1fff) > 0x1000) || (o.Mantissa & 1)) // if above halfway point or unrounded result is odd
+                o.u++; // Round, might overflow to inf, this is OK
+            }
+        }
+    }
 
+    o.Sign = f.Sign;
+    return *((half*)&o);
+}
+    
 // from half->float code - just for verification.
 static float half_to_float(half hf)
 {
