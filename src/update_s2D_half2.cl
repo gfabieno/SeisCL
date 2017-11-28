@@ -766,6 +766,7 @@
 
 #define __cprec float2
 #define __f22h2c(x) (x)
+#define __h22f2c(x) (x)
 
 extern "C" __device__ float2 add2(float2 a, float2 b ){
     
@@ -779,6 +780,13 @@ extern "C" __device__ float2 mul2(float2 a, float2 b ){
     float2 output;
     output.x = a.x*b.x;
     output.y = a.y*b.y;
+    return output;
+}
+extern "C" __device__ float2 div2(float2 a, float2 b ){
+    
+    float2 output;
+    output.x = a.x/b.x;
+    output.y = a.y/b.y;
     return output;
 }
 extern "C" __device__ float2 sub2(float2 a, float2 b ){
@@ -799,9 +807,11 @@ extern "C" __device__ float2 f2h2(float a){
 #define __cprec half2
 #define add2 __hadd2
 #define mul2 __hmul2
+#define mul2 __h2div
 #define sub2 __hsub2
 #define f2h2 __float2half2_rn
 #define __f22h2c(x) __float22half2_rn((x))
+#define __h22f2c(x) __half22float2((x))
 
 #endif
 
@@ -810,6 +820,13 @@ extern "C" __device__ __prec2 __hp(__prec *a ){
     __prec2 output;
     *((__prec *)&output) = *a;
     *((__prec *)&output+1) = *(a+1);
+    return output;
+}
+extern "C" __device__ float2 scalbnf2(float2 a, int scaler ){
+    
+    float2 output;
+    output.x  = scalbnf(a.x, scaler);
+    output.y  = scalbnf(a.y, scaler);
     return output;
 }
 
@@ -842,7 +859,7 @@ extern "C" __device__ __prec2 __hp(__prec *a ){
 extern "C" __global__ void update_s(int offcomm,
                                     __pprec *muipkp, __pprec *M, __pprec *mu,
                                     __prec2 *sxx,__prec2 *sxz,__prec2 *szz,
-                                    __prec2 *vx,__prec2 *vz
+                                    __prec2 *vx,__prec2 *vz, float *taper
                                     )
 
 {
@@ -871,7 +888,7 @@ extern "C" __global__ void update_s(int offcomm,
     __cprec vx_z1;
     __cprec vz_x1;
     __cprec vz_z2;
-    
+
     //Local memory definitions if local is used
 #if LOCAL_OFF==0
 #define lvx lvar
@@ -908,7 +925,7 @@ extern "C" __global__ void update_s(int offcomm,
             lvx2(lidz,lidx-lsizex+3*FDOH)=vx(gidz,gidx-lsizex+3*FDOH);
         __syncthreads();
 #endif
-        
+
 #if   FDOH == 1
         vx_x2=mul2( f2h2(HC1), sub2(__h22f2(lvx2(lidz,lidx)), __h22f2(lvx2(lidz,lidx-1))));
 #elif FDOH == 2
@@ -942,7 +959,7 @@ extern "C" __global__ void update_s(int offcomm,
                         mul2( f2h2(HC5), sub2(__h22f2(lvx2(lidz,lidx+4)), __h22f2(lvx2(lidz,lidx-5))))),
                    mul2( f2h2(HC6), sub2(__h22f2(lvx2(lidz,lidx+5)), __h22f2(lvx2(lidz,lidx-6)))));
 #endif
-        
+
 #if   FDOH == 1
         vx_z1=mul2( f2h2(HC1), sub2(__h22f2(__hp(&lvx(2*lidz+1,lidx))), __h22f2(__hp(&lvx(2*lidz,lidx)))));
 #elif FDOH == 2
@@ -976,7 +993,7 @@ extern "C" __global__ void update_s(int offcomm,
                         mul2( f2h2(HC5), sub2(__h22f2(__hp(&lvx(2*lidz+5,lidx))), __h22f2(__hp(&lvx(2*lidz-4,lidx)))))),
                    mul2( f2h2(HC6), sub2(__h22f2(__hp(&lvx(2*lidz+6,lidx))), __h22f2(__hp(&lvx(2*lidz-5,lidx))))));
 #endif
-        
+
 #if LOCAL_OFF==0
         __syncthreads();
         lvz2(lidz,lidx)=vz(gidz,gidx);
@@ -994,7 +1011,7 @@ extern "C" __global__ void update_s(int offcomm,
             lvz2(lidz,lidx-lsizex+3*FDOH)=vz(gidz,gidx-lsizex+3*FDOH);
         __syncthreads();
 #endif
-        
+
 #if   FDOH == 1
         vz_x1=mul2( f2h2(HC1), sub2(__h22f2(lvz2(lidz,lidx+1)), __h22f2(lvz2(lidz,lidx))));
 #elif FDOH == 2
@@ -1028,7 +1045,7 @@ extern "C" __global__ void update_s(int offcomm,
                         mul2( f2h2(HC5), sub2(__h22f2(lvz2(lidz,lidx+5)), __h22f2(lvz2(lidz,lidx-4))))),
                    mul2( f2h2(HC6), sub2(__h22f2(lvz2(lidz,lidx+6)), __h22f2(lvz2(lidz,lidx-5)))));
 #endif
-        
+
 #if   FDOH == 1
         vz_z2=mul2( f2h2(HC1), sub2(__h22f2(__hp(&lvz(2*lidz,lidx))), __h22f2(__hp(&lvz(2*lidz-1,lidx)))));
 #elif FDOH == 2
@@ -1079,6 +1096,52 @@ extern "C" __global__ void update_s(int offcomm,
     lsxz=add2(lsxz,mul2(lmuipkp,add2(vx_z1,vz_x1)));
     lsxx=sub2(add2(lsxx,mul2(lM,add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),lmu),vz_z2));
     lszz=sub2(add2(lszz,mul2(lM,add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),lmu),vx_x2));
+    
+#if ABS_TYPE==2
+    {
+        if (2*gidz-FDOH<NAB){
+            lsxx.x*=taper[2*gidz-FDOH];
+            lsxx.y*=taper[2*gidz+1-FDOH];
+            lszz.x*=taper[2*gidz-FDOH];
+            lszz.y*=taper[2*gidz+1-FDOH];
+            lsxz.x*=taper[2*gidz-FDOH];
+            lsxz.y*=taper[2*gidz+1-FDOH];
+        }
+        
+        if (2*gidz>2*NZ-NAB-FDOH-1){
+            lsxx.x*=taper[2*NZ-FDOH-2*gidz-1];
+            lsxx.y*=taper[2*NZ-FDOH-2*gidz-1-1];
+            lszz.x*=taper[2*NZ-FDOH-2*gidz-1];
+            lszz.y*=taper[2*NZ-FDOH-2*gidz-1-1];
+            lsxz.x*=taper[2*NZ-FDOH-2*gidz-1];
+            lsxz.y*=taper[2*NZ-FDOH-2*gidz-1-1];
+        }
+        
+#if DEVID==0 & MYLOCALID==0
+        if (gidx-FDOH<NAB){
+            lsxx.x*=taper[gidx-FDOH];
+            lsxx.y*=taper[gidx-FDOH];
+            lszz.x*=taper[gidx-FDOH];
+            lszz.y*=taper[gidx-FDOH];
+            lsxz.x*=taper[gidx-FDOH];
+            lsxz.y*=taper[gidx-FDOH];
+        }
+#endif
+        
+#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+        if (gidx>NX-NAB-FDOH-1){
+            lsxx.x*=taper[NX-FDOH-gidx-1];
+            lsxx.y*=taper[NX-FDOH-gidx-1];
+            lszz.x*=taper[NX-FDOH-gidx-1];
+            lszz.y*=taper[NX-FDOH-gidx-1];
+            lsxz.x*=taper[NX-FDOH-gidx-1];
+            lsxz.y*=taper[NX-FDOH-gidx-1];
+        }
+#endif
+    }
+#endif
+    
+    
     //Write updated values to global memory
     sxx(gidz,gidx) = __f22h2(lsxx);
     sxz(gidz,gidx) = __f22h2(lsxz);
