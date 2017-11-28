@@ -470,7 +470,7 @@ int var_res_raw(model * m, int s)
             }
         }
     }
-    m->src_recs.res_scales[s]=-log2(resmax/100);
+    m->src_recs.res_scales[s]=-log2(resmax/10);
     // Free memory of FFTs
     if (m->BACK_PROP_TYPE==2){
         free(stf);
