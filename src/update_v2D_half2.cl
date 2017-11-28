@@ -700,6 +700,13 @@ extern "C" __device__ __prec2 __hp(__prec *a ){
     *((__prec *)&output+1) = *(a+1);
     return output;
 }
+extern "C" __device__ float2 scalbnf2(float2 a, int scaler ){
+    
+    float2 output;
+    output.x  = scalbnf(a.x, scaler);
+    output.y  = scalbnf(a.y, scaler);
+    return output;
+}
 
 #if FP16==2 || FP16==4
 
@@ -729,7 +736,7 @@ extern "C" __device__ __prec2 __hp(__prec *a ){
 
 extern "C" __global__ void update_v(int offcomm,
                                     __pprec *rip, __pprec *rkp,__prec2 *sxx,__prec2 *sxz,__prec2 *szz,
-                                    __prec2 *vx,__prec2 *vz
+                                    __prec2 *vx,__prec2 *vz, float *taper
                                     )
 
 {
@@ -971,6 +978,45 @@ extern "C" __global__ void update_v(int offcomm,
     // Update the variables
     lvx=add2(lvx,mul2(add2(sxx_x1,sxz_z2),lrip));
     lvz=add2(lvz,mul2(add2(szz_z1,sxz_x2),lrkp));
+    
+#if ABS_TYPE==2
+    {
+        if (2*gidz-FDOH<NAB){
+            lvx.x*=taper[2*gidz-FDOH];
+            lvx.y*=taper[2*gidz+1-FDOH];
+            lvz.x*=taper[2*gidz-FDOH];
+            lvz.y*=taper[2*gidz+1-FDOH];
+        }
+
+        if (2*gidz>2*NZ-NAB-FDOH-1){
+            lvx.x*=taper[2*NZ-FDOH-2*gidz-1];
+            lvx.y*=taper[2*NZ-FDOH-2*gidz-1-1];
+            lvz.x*=taper[2*NZ-FDOH-2*gidz-1];
+            lvz.y*=taper[2*NZ-FDOH-2*gidz-1-1];
+        }
+
+#if DEVID==0 & MYLOCALID==0
+        if (gidx-FDOH<NAB){
+            lvx.x*=taper[gidx-FDOH];
+            lvx.y*=taper[gidx-FDOH];
+            lvz.x*=taper[gidx-FDOH];
+            lvz.y*=taper[gidx-FDOH];
+        }
+#endif
+
+#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+        if (gidx>NX-NAB-FDOH-1){
+            lvx.x*=taper[NX-FDOH-gidx-1];
+            lvx.y*=taper[NX-FDOH-gidx-1];
+            lvz.x*=taper[NX-FDOH-gidx-1];
+            lvz.y*=taper[NX-FDOH-gidx-1];
+        }
+#endif
+    }
+#endif
+
+    
+    
     //Write updated values to global memory
     vx(gidz,gidx) = __f22h2(lvx);
     vz(gidz,gidx) = __f22h2(lvz);
