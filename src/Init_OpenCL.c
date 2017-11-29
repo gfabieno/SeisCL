@@ -367,7 +367,7 @@ int Init_CUDA(model * m, device ** dev)  {
         if (!state){
             
             workgroup_size=workgroup_size-1;
-            lsize[0]=32;
+            lsize[0]=16;
             for (i=1;i<m->NDIM;i++){
                 lsize[i]=16;
             }
