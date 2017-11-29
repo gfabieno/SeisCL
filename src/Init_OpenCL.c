@@ -367,36 +367,37 @@ int Init_CUDA(model * m, device ** dev)  {
         if (!state){
 
 
-                lsize[0]=24;
-                for (i=1;i<m->NDIM;i++){
-                    lsize[i]=16;
-                }
+            lsize[0]=24;
+            for (i=1;i<m->NDIM;i++){
+                lsize[i]=16;
+            }
             if (di->FP16==0){
                 required_local_mem_size =2*sizeof(float);
             }
             else{
                 required_local_mem_size = sizeof(float);
             }
-                for (i=0;i<m->NDIM;i++){
-                    required_local_mem_size *= (lsize[i]+m->FDORDER);
-                }
-                while ( lsize[1]>(m->FDORDER)/2
-                         &&  (required_local_mem_size>local_mem_size
-                              || required_work_size>workgroup_size) ){
-                    if (di->FP16==0){
-                        required_local_mem_size =2*sizeof(float);
-                    }
-                    else{
-                        required_local_mem_size = sizeof(float);
-                    }
-                    required_work_size=1;
-                    for (i=0;i<m->NDIM;i++){
-                        if (i>0)
-                            lsize[i]-=2;
-                        required_local_mem_size *= (lsize[i]+m->FDORDER);
-                        required_work_size*=lsize[i];
-                    }
-                }
+            for (i=0;i<m->NDIM;i++){
+                required_local_mem_size *= (lsize[i]+m->FDORDER);
+            }
+            while ( lsize[1]>(m->FDORDER)/2
+                   &&  (required_local_mem_size>local_mem_size
+                        || required_work_size>workgroup_size) ){
+                       if (di->FP16==0){
+                           required_local_mem_size =2*sizeof(float);
+                       }
+                       else{
+                           required_local_mem_size = sizeof(float);
+                       }
+                       required_work_size=1;
+                       for (i=0;i<m->NDIM;i++){
+                           if (i>0){
+                               lsize[i]-=2;
+                           }
+                           required_local_mem_size *= (lsize[i]+m->FDORDER);
+                           required_work_size*=lsize[i];
+                       }
+                   }
                 fprintf(stderr,"required work size %d\n",required_work_size);
                 for (j=0;j<m->NDIM;j++){
                     if (required_local_mem_size>local_mem_size){
