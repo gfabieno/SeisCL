@@ -366,7 +366,7 @@ int Init_CUDA(model * m, device ** dev)  {
         //Local memory usage must fit the size of local memory of the device
         if (!state){
             
-            
+            workgroup_size=workgroup_size/2;
             lsize[0]=64;
             for (i=1;i<m->NDIM;i++){
                 lsize[i]=16;
