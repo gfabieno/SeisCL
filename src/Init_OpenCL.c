@@ -365,8 +365,8 @@ int Init_CUDA(model * m, device ** dev)  {
         //By default, it is 32 elements long to have coalesced memory in cuda
         //Local memory usage must fit the size of local memory of the device
         if (!state){
-
-
+            
+            
             lsize[0]=24;
             for (i=1;i<m->NDIM;i++){
                 lsize[i]=16;
@@ -398,49 +398,48 @@ int Init_CUDA(model * m, device ** dev)  {
                            required_work_size*=lsize[i];
                        }
                    }
-                fprintf(stderr,"required work size %d\n",required_local_mem_size);
-                for (j=0;j<m->NDIM;j++){
-                    if (required_local_mem_size>local_mem_size){
-                        while ( (lsize[j]>(m->FDORDER)/4
-                                 &&  required_local_mem_size>local_mem_size)
-                                 || required_work_size>workgroup_size ){
-                            if (di->FP16==0){
-                                required_local_mem_size =2*sizeof(float);
-                            }
-                            else{
-                                required_local_mem_size = sizeof(float);
-                            }
-                            required_work_size=1;
-                            lsize[j]-=2;
-                            for (i=0;i<m->NDIM;i++){
-                                required_local_mem_size*=(lsize[i]+m->FDORDER);
-                                required_work_size*=lsize[i];
-                            }
+            fprintf(stderr,"required work size %d\n",m->NDIM);
+            for (j=0;j<m->NDIM;j++){
+                if (required_local_mem_size>local_mem_size){
+                    while ( (lsize[j]>(m->FDORDER)/4
+                             &&  required_local_mem_size>local_mem_size)
+                           || required_work_size>workgroup_size ){
+                        if (di->FP16==0){
+                            required_local_mem_size =2*sizeof(float);
+                        }
+                        else{
+                            required_local_mem_size = sizeof(float);
+                        }
+                        required_work_size=1;
+                        lsize[j]-=2;
+                        for (i=0;i<m->NDIM;i++){
+                            required_local_mem_size*=(lsize[i]+m->FDORDER);
+                            required_work_size*=lsize[i];
                         }
                     }
-//                }
-                
-                //Check if too many GPUS are used in the domain decomposition
-                if  (di->N[m->NDIM-1]<3*lsize[m->NDIM-1]){
-                    di->LOCAL_OFF = 1;
-                    fprintf(stderr,"Too many GPUs for domain decompositon,"
-                                   "Switching off local memory optimization\n");
                 }
-                //Check if the local memory is big enough, else turn it off
-                if (required_local_mem_size>local_mem_size){
-                    fprintf(stderr,"Local memory needed to perform seismic "
-                                   "modeling (%d bits) exceeds the local "
-                                   "memory capacity of device %d (%d bits)\n"
-                                   "Switching off local memory optimization\n",
-                                   required_local_mem_size, d, local_mem_size );
-                    di->LOCAL_OFF = 1;
-                }
-                
             }
-
+            
+            //Check if too many GPUS are used in the domain decomposition
+            if  (di->N[m->NDIM-1]<3*lsize[m->NDIM-1]){
+                di->LOCAL_OFF = 1;
+                fprintf(stderr,"Too many GPUs for domain decompositon,"
+                        "Switching off local memory optimization\n");
+            }
+            //Check if the local memory is big enough, else turn it off
+            if (required_local_mem_size>local_mem_size){
+                fprintf(stderr,"Local memory needed to perform seismic "
+                        "modeling (%d bits) exceeds the local "
+                        "memory capacity of device %d (%d bits)\n"
+                        "Switching off local memory optimization\n",
+                        required_local_mem_size, d, local_mem_size );
+                di->LOCAL_OFF = 1;
+            }
+            
+            
             if (di->LOCAL_OFF==1)
-                lsize[0] = 1;
-
+            lsize[0] = 1;
+            
         }
         
         // Define the global work size of the update kernels.
