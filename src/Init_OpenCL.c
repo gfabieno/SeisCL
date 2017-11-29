@@ -367,7 +367,7 @@ int Init_CUDA(model * m, device ** dev)  {
         if (!state){
             
             
-            lsize[0]=24;
+            lsize[0]=16;
             for (i=1;i<m->NDIM;i++){
                 lsize[i]=16;
             }
@@ -379,6 +379,10 @@ int Init_CUDA(model * m, device ** dev)  {
             }
             for (i=0;i<m->NDIM;i++){
                 required_local_mem_size *= (lsize[i]+m->FDORDER);
+            }
+            required_work_size=1;
+            for (i=0;i<m->NDIM;i++){
+                required_work_size*=lsize[i];
             }
             while ( lsize[1]>(m->FDORDER)/2
                    &&  (required_local_mem_size>local_mem_size
@@ -398,8 +402,6 @@ int Init_CUDA(model * m, device ** dev)  {
                            required_work_size*=lsize[i];
                        }
                    }
-            fprintf(stderr,"local_mem_size %d\n",local_mem_size);
-            fprintf(stderr,"workgroup_size %d\n",workgroup_size);
             for (j=0;j<m->NDIM;j++){
                 if (required_local_mem_size>local_mem_size){
                     while ( (lsize[j]>(m->FDORDER)/4
@@ -438,8 +440,9 @@ int Init_CUDA(model * m, device ** dev)  {
             }
             
             
-            if (di->LOCAL_OFF==1)
-            lsize[0] = 1;
+            if (di->LOCAL_OFF==1){
+                lsize[0] = 1;
+            }
             
         }
         
