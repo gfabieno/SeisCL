@@ -367,7 +367,7 @@ int Init_CUDA(model * m, device ** dev)  {
         if (!state){
             
             workgroup_size=workgroup_size-1;
-            lsize[0]=16;
+            lsize[0]=64;
             for (i=1;i<m->NDIM;i++){
                 lsize[i]=16;
             }
@@ -422,7 +422,9 @@ int Init_CUDA(model * m, device ** dev)  {
                     }
                 }
             }
-            
+            lsize[0]=64;
+            lsize[1]=4;
+            lsize[2]=3;
             //Check if too many GPUS are used in the domain decomposition
             if  (di->N[m->NDIM-1]<3*lsize[m->NDIM-1]){
                 di->LOCAL_OFF = 1;
