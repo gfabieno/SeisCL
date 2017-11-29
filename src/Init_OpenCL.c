@@ -398,7 +398,7 @@ int Init_CUDA(model * m, device ** dev)  {
                            required_work_size*=lsize[i];
                        }
                    }
-                fprintf(stderr,"required work size %d\n",required_work_size);
+                fprintf(stderr,"required work size %d\n",required_local_mem_size);
                 for (j=0;j<m->NDIM;j++){
                     if (required_local_mem_size>local_mem_size){
                         while ( (lsize[j]>(m->FDORDER)/4
