@@ -360,7 +360,7 @@ int Init_CUDA(model * m, device ** dev)  {
             if (state !=CUDA_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
             
         }
-        fprintf(stderr,"workgroup:  %d\n",workgroup_size);
+
         // Define the local work size of the update kernels.
         //By default, it is 32 elements long to have coalesced memory in cuda
         //Local memory usage must fit the size of local memory of the device
@@ -380,9 +380,9 @@ int Init_CUDA(model * m, device ** dev)  {
                 for (i=0;i<m->NDIM;i++){
                     required_local_mem_size *= (lsize[i]+m->FDORDER);
                 }
-                while ( (lsize[1]>(m->FDORDER)/2
-                         &&  required_local_mem_size>local_mem_size)
-                         || required_work_size>workgroup_size ){
+                while ( lsize[1]>(m->FDORDER)/2
+                         &&  (required_local_mem_size>local_mem_size
+                              || required_work_size>workgroup_size) ){
                     if (di->FP16==0){
                         required_local_mem_size =2*sizeof(float);
                     }
@@ -397,6 +397,7 @@ int Init_CUDA(model * m, device ** dev)  {
                         required_work_size*=lsize[i];
                     }
                 }
+                fprintf(stderr,"required work size %d\n",required_work_size);
                 for (j=0;j<m->NDIM;j++){
                     if (required_local_mem_size>local_mem_size){
                         while ( (lsize[j]>(m->FDORDER)/4
@@ -409,8 +410,8 @@ int Init_CUDA(model * m, device ** dev)  {
                                 required_local_mem_size = sizeof(float);
                             }
                             required_work_size=1;
+                            lsize[j]-=2;
                             for (i=0;i<m->NDIM;i++){
-                                lsize[j]-=2;
                                 required_local_mem_size*=(lsize[i]+m->FDORDER);
                                 required_work_size*=lsize[i];
                             }
