@@ -463,8 +463,8 @@ int time_stepping(model * m, device ** dev) {
     // Main loop over shots of this group
     for (s= m->src_recs.smin;s< m->src_recs.smax;s++){
 
-        // Initialization of the seismic variables
-        __GUARD initialize_grid(m, dev, s);
+//        // Initialization of the seismic variables
+//        __GUARD initialize_grid(m, dev, s);
         
         // Loop for forward time stepping
         for (t=0;t<m->tmax; t++){
