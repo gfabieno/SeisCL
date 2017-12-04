@@ -751,13 +751,7 @@ extern "C" __global__ void update_v(int offcomm,
     int lidx = threadIdx.y+FDOH;
     int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/2;
     int gidx = blockIdx.y*blockDim.y+threadIdx.y+FDOH+offcomm;
-    
-    //Define and load private parameters and variables
-    __cprec lvx = __h22f2(vx(gidz,gidx));
-    __cprec lvz = __h22f2(vz(gidz,gidx));
-    __cprec lrip = __pconv(rip(gidz,gidx));
-    __cprec lrkp = __pconv(rkp(gidz,gidx));
-    
+
     //Define private derivatives
     __cprec sxx_x1;
     __cprec sxz_x2;
@@ -974,6 +968,12 @@ extern "C" __global__ void update_v(int offcomm,
         return;
 #endif
 #endif
+    
+    //Define and load private parameters and variables
+    __cprec lvx = __h22f2(vx(gidz,gidx));
+    __cprec lvz = __h22f2(vz(gidz,gidx));
+    __cprec lrip = __pconv(rip(gidz,gidx));
+    __cprec lrkp = __pconv(rkp(gidz,gidx));
     
     // Update the variables
     lvx=add2(lvx,mul2(add2(sxx_x1,sxz_z2),lrip));
