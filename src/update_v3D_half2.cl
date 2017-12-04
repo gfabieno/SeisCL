@@ -1566,16 +1566,16 @@ extern "C" __global__ void update_v(int offcomm,
 #endif
         
     }
-    // To stop updating if we are outside the model (global id must be amultiple of local id in OpenCL, hence we stop if we have a global idoutside the grid)
-#if  LOCAL_OFF==0
-#if COMM12==0
-    if ( gidz>(NZ-FDOH/2-1) ||  gidy>(NY-FDOH-1) ||  (gidx-offcomm)>(NX-FDOH-1-LCOMM) )
-        return;
-#else
-    if ( gidz>(NZ-FDOH/2-1) ||  gidy>(NY-FDOH-1)  )
-        return;
-#endif
-#endif
+//    // To stop updating if we are outside the model (global id must be amultiple of local id in OpenCL, hence we stop if we have a global idoutside the grid)
+//#if  LOCAL_OFF==0
+//#if COMM12==0
+//    if ( gidz>(NZ-FDOH/2-1) ||  gidy>(NY-FDOH-1) ||  (gidx-offcomm)>(NX-FDOH-1-LCOMM) )
+//        return;
+//#else
+//    if ( gidz>(NZ-FDOH/2-1) ||  gidy>(NY-FDOH-1)  )
+//        return;
+//#endif
+//#endif
     
     //Define and load private parameters and variables
     __cprec lvx = __h22f2(vx(gidz,gidy,gidx));
