@@ -366,9 +366,9 @@ int Init_CUDA(model * m, device ** dev)  {
         //Local memory usage must fit the size of local memory of the device
         if (!state){
             
-            lsize[0]=16;
+            lsize[0]=32;
             for (i=1;i<m->NDIM;i++){
-                lsize[i]=16;
+                lsize[i]=32;
             }
             if (di->FP16==0){
                 required_local_mem_size =2*sizeof(float);
