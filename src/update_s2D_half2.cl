@@ -911,6 +911,7 @@ extern "C" __global__ void update_s(int offcomm,
     //Calculation of the spatial derivatives
     {
 #if LOCAL_OFF==0
+        __syncthreads();
         lvx2(lidz,lidx)=vx(gidz,gidx);
         if (lidz<FDOH)
             lvx2(lidz-FDOH/2,lidx)=vx(gidz-FDOH/2,gidx);
