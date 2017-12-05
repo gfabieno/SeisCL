@@ -372,7 +372,7 @@ int Init_CUDA(model * m, device ** dev)  {
             }
             else{
                 for (i=1;i<m->NDIM;i++){
-                    lsize[i]=16;//(m->FDORDER)/2;
+                    lsize[i]=(m->FDORDER)/2;
                 }
             }
             if (di->FP16==0){

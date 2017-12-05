@@ -1164,7 +1164,6 @@ extern "C" __global__ void update_v(int offcomm,
     //Calculation of the spatial derivatives
     {
 #if LOCAL_OFF==0
-        __syncthreads();
         lszz2(lidz,lidy,lidx)=szz(gidz,gidy,gidx);
         if (lidz<FDOH)
             lszz2(lidz-FDOH/2,lidy,lidx)=szz(gidz-FDOH/2,gidy,gidx);
