@@ -1164,13 +1164,13 @@ extern "C" __global__ void update_v(int offcomm,
     //Calculation of the spatial derivatives
     {
 #if LOCAL_OFF==0
-//        __syncthreads();
+        __syncthreads();
         lszz2(lidz,lidy,lidx)=szz(gidz,gidy,gidx);
         if (lidz<FDOH)
             lszz2(lidz-FDOH/2,lidy,lidx)=szz(gidz-FDOH/2,gidy,gidx);
         if (lidz>(lsizez-FDOH-1))
             lszz2(lidz+FDOH/2,lidy,lidx)=szz(gidz+FDOH/2,gidy,gidx);
-//        __syncthreads();
+        __syncthreads();
 #endif
         
 #if   FDOH == 1
@@ -1208,7 +1208,7 @@ extern "C" __global__ void update_v(int offcomm,
 #endif
         
 #if LOCAL_OFF==0
-//        __syncthreads();
+        __syncthreads();
         lsxx2(lidz,lidy,lidx)=sxx(gidz,gidy,gidx);
         if (lidx<2*FDOH)
             lsxx2(lidz,lidy,lidx-FDOH)=sxx(gidz,gidy,gidx-FDOH);
@@ -1218,7 +1218,7 @@ extern "C" __global__ void update_v(int offcomm,
             lsxx2(lidz,lidy,lidx+FDOH)=sxx(gidz,gidy,gidx+FDOH);
         if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
             lsxx2(lidz,lidy,lidx-lsizex+3*FDOH)=sxx(gidz,gidy,gidx-lsizex+3*FDOH);
-//        __syncthreads();
+        __syncthreads();
 #endif
         
 #if   FDOH == 1
@@ -1256,7 +1256,7 @@ extern "C" __global__ void update_v(int offcomm,
 #endif
         
 #if LOCAL_OFF==0
-//        __syncthreads();
+        __syncthreads();
         lsxz2(lidz,lidy,lidx)=sxz(gidz,gidy,gidx);
         if (lidz<FDOH)
             lsxz2(lidz-FDOH/2,lidy,lidx)=sxz(gidz-FDOH/2,gidy,gidx);
@@ -1270,7 +1270,7 @@ extern "C" __global__ void update_v(int offcomm,
             lsxz2(lidz,lidy,lidx+FDOH)=sxz(gidz,gidy,gidx+FDOH);
         if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
             lsxz2(lidz,lidy,lidx-lsizex+3*FDOH)=sxz(gidz,gidy,gidx-lsizex+3*FDOH);
-//        __syncthreads();
+        __syncthreads();
 #endif
         
 #if   FDOH == 1
@@ -1342,7 +1342,7 @@ extern "C" __global__ void update_v(int offcomm,
 #endif
         
 #if LOCAL_OFF==0
-//        __syncthreads();
+        __syncthreads();
         lsyz2(lidz,lidy,lidx)=syz(gidz,gidy,gidx);
         if (lidz<FDOH)
             lsyz2(lidz-FDOH/2,lidy,lidx)=syz(gidz-FDOH/2,gidy,gidx);
@@ -1356,7 +1356,7 @@ extern "C" __global__ void update_v(int offcomm,
             lsyz2(lidz,lidy+FDOH,lidx)=syz(gidz,gidy+FDOH,gidx);
         if (lidy-lsizey+3*FDOH>(lsizey-FDOH-1))
             lsyz2(lidz,lidy-lsizey+3*FDOH,lidx)=syz(gidz,gidy-lsizey+3*FDOH,gidx);
-//        __syncthreads();
+        __syncthreads();
 #endif
         
 #if   FDOH == 1
@@ -1428,7 +1428,7 @@ extern "C" __global__ void update_v(int offcomm,
 #endif
         
 #if LOCAL_OFF==0
-//        __syncthreads();
+        __syncthreads();
         lsyy2(lidz,lidy,lidx)=syy(gidz,gidy,gidx);
         if (lidy<2*FDOH)
             lsyy2(lidz,lidy-FDOH,lidx)=syy(gidz,gidy-FDOH,gidx);
@@ -1438,7 +1438,7 @@ extern "C" __global__ void update_v(int offcomm,
             lsyy2(lidz,lidy+FDOH,lidx)=syy(gidz,gidy+FDOH,gidx);
         if (lidy-lsizey+3*FDOH>(lsizey-FDOH-1))
             lsyy2(lidz,lidy-lsizey+3*FDOH,lidx)=syy(gidz,gidy-lsizey+3*FDOH,gidx);
-//        __syncthreads();
+        __syncthreads();
 #endif
         
 #if   FDOH == 1
@@ -1476,7 +1476,7 @@ extern "C" __global__ void update_v(int offcomm,
 #endif
         
 #if LOCAL_OFF==0
-//        __syncthreads();
+        __syncthreads();
         lsxy2(lidz,lidy,lidx)=sxy(gidz,gidy,gidx);
         if (lidy<2*FDOH)
             lsxy2(lidz,lidy-FDOH,lidx)=sxy(gidz,gidy-FDOH,gidx);
@@ -1494,7 +1494,7 @@ extern "C" __global__ void update_v(int offcomm,
             lsxy2(lidz,lidy,lidx+FDOH)=sxy(gidz,gidy,gidx+FDOH);
         if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
             lsxy2(lidz,lidy,lidx-lsizex+3*FDOH)=sxy(gidz,gidy,gidx-lsizex+3*FDOH);
-//        __syncthreads();
+        __syncthreads();
 #endif
         
 #if   FDOH == 1
@@ -1566,16 +1566,16 @@ extern "C" __global__ void update_v(int offcomm,
 #endif
         
     }
-//    // To stop updating if we are outside the model (global id must be amultiple of local id in OpenCL, hence we stop if we have a global idoutside the grid)
-//#if  LOCAL_OFF==0
-//#if COMM12==0
-//    if ( gidz>(NZ-FDOH/2-1) ||  gidy>(NY-FDOH-1) ||  (gidx-offcomm)>(NX-FDOH-1-LCOMM) )
-//        return;
-//#else
-//    if ( gidz>(NZ-FDOH/2-1) ||  gidy>(NY-FDOH-1)  )
-//        return;
-//#endif
-//#endif
+    // To stop updating if we are outside the model (global id must be amultiple of local id in OpenCL, hence we stop if we have a global idoutside the grid)
+#if  LOCAL_OFF==0
+#if COMM12==0
+    if ( gidz>(NZ-FDOH/2-1) ||  gidy>(NY-FDOH-1) ||  (gidx-offcomm)>(NX-FDOH-1-LCOMM) )
+        return;
+#else
+    if ( gidz>(NZ-FDOH/2-1) ||  gidy>(NY-FDOH-1)  )
+        return;
+#endif
+#endif
     
     
     //Define and load private parameters and variables
