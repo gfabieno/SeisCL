@@ -1577,6 +1577,7 @@ extern "C" __global__ void update_v(int offcomm,
 //#endif
 //#endif
     
+    
     //Define and load private parameters and variables
     __cprec lvx = __h22f2(vx(gidz,gidy,gidx));
     __cprec lvy = __h22f2(vy(gidz,gidy,gidx));

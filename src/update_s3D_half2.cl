@@ -1764,6 +1764,7 @@ extern "C" __global__ void update_s(int offcomm,
 //        return;
 //#endif
 //#endif
+    
     //Define and load private parameters and variables
     __cprec lsxx = __h22f2(sxx(gidz,gidy,gidx));
     __cprec lsxy = __h22f2(sxy(gidz,gidy,gidx));
