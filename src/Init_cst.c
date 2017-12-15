@@ -340,6 +340,11 @@ int Init_cst(model * m) {
     
     
     __GUARD holbergcoeff(m);
+    if (m->halfpar>0){
+        for (i=0;i<7;i++){
+            m->hc[i] =half_to_float(float_to_half_full_rtne(m->hc[i]));
+        }
+    }
 
     for (i=0;i<m->ncsts;i++){
         if (m->csts[i].transform !=NULL){
