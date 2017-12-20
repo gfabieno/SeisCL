@@ -76,7 +76,7 @@ int Init_model(model * m) {
 
         }
     }
-    if (m->FP16==0 && m->halfpar==1){
+    if (m->FP16==0 && m->halfpar>0){
         for (i=0;i<m->npars;i++){
             for (j=0;j<m->pars[i].num_ele;j++){
                 m->pars[i].gl_par[j] =half_to_float(float_to_half_full_rtne(m->pars[i].gl_par[j]));
