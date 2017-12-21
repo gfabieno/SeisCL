@@ -819,9 +819,9 @@ extern "C" __global__ void update_adjs(int offcomm,
 
     // Shear wave modulus and P-wave modulus gradient calculation on the fly
 #if BACK_PROP_TYPE==1
-    float2 c1= div2(f2h2(1.0), mul2(mul2(f2h2(2.0), sub2(lM,lmu)),mul2(f2h2(2.0), sub2(lM,lmu))));
-    float2 c3=div2(f2h2(1.0), mul2(lmu,lmu));
-    float2 c5=mul2(f2h2(0.25), c3);
+    __cprec c1= div2(f2h2(1.0), mul2(mul2(f2h2(2.0), sub2(lM,lmu)),mul2(f2h2(2.0), sub2(lM,lmu))));
+    __cprec c3=div2(f2h2(1.0), mul2(lmu,lmu));
+    __cprec c5=mul2(f2h2(0.25), c3);
     
     
     
