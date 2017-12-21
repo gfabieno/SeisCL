@@ -43,7 +43,39 @@
 #define lvar2(z,x) lvar2[(x)*lsizez+(z)]
 #endif
 
-
+extern "C" __device__ float2 add2f(float2 a, float2 b ){
+    
+    float2 output;
+    output.x = a.x+b.x;
+    output.y = a.y+b.y;
+    return output;
+}
+extern "C" __device__ float2 mul2f(float2 a, float2 b ){
+    
+    float2 output;
+    output.x = a.x*b.x;
+    output.y = a.y*b.y;
+    return output;
+}
+extern "C" __device__ float2 div2f(float2 a, float2 b ){
+    
+    float2 output;
+    output.x = a.x/b.x;
+    output.y = a.y/b.y;
+    return output;
+}
+extern "C" __device__ float2 sub2f(float2 a, float2 b ){
+    
+    float2 output;
+    output.x = a.x-b.x;
+    output.y = a.y-b.y;
+    return output;
+}
+extern "C" __device__ float2 f2h2f(float a){
+    
+    float2 output={a,a};
+    return output;
+}
 
 #if FP16==1 || FP16==2
 
@@ -78,39 +110,11 @@
 #define __f22h2c(x) (x)
 #define __h22f2c(x) (x)
 
-extern "C" __device__ float2 add2(float2 a, float2 b ){
-    
-    float2 output;
-    output.x = a.x+b.x;
-    output.y = a.y+b.y;
-    return output;
-}
-extern "C" __device__ float2 mul2(float2 a, float2 b ){
-    
-    float2 output;
-    output.x = a.x*b.x;
-    output.y = a.y*b.y;
-    return output;
-}
-extern "C" __device__ float2 div2(float2 a, float2 b ){
-    
-    float2 output;
-    output.x = a.x/b.x;
-    output.y = a.y/b.y;
-    return output;
-}
-extern "C" __device__ float2 sub2(float2 a, float2 b ){
-    
-    float2 output;
-    output.x = a.x-b.x;
-    output.y = a.y-b.y;
-    return output;
-}
-extern "C" __device__ float2 f2h2(float a){
-    
-    float2 output={a,a};
-    return output;
-}
+#define add2 add2f
+#define mul2 mul2f
+#define div2 div2f
+#define sub2 sub2f
+#define f2h2 f2h2f
 
 #else
 
@@ -827,15 +831,15 @@ extern "C" __global__ void update_adjs(int offcomm,
 
     __cprec dM=mul2(c1,mul2(add2(lsxx,lszz), add2(lsxxr,lszzr) ) );
 
-    gradM(gidz,gidx)=sub2(gradM(gidz,gidx), scalbnf2(__h22f2c(dM), -src_scale - res_scale));
-    gradmu(gidz,gidx)=add2(gradmu(gidz,gidx),
+    gradM(gidz,gidx)=sub2f(gradM(gidz,gidx), scalbnf2(__h22f2c(dM), -src_scale - res_scale));
+    gradmu(gidz,gidx)=add2f(gradmu(gidz,gidx),
                            scalbnf2(__h22f2c(sub2(sub2( dM, mul2(c3, mul2(lsxz,lsxzr))), mul2(c5,mul2( sub2(lsxx,lszz), sub2(lsxxr,lszzr))))),
                                 -src_scale-res_scale));
     
 #if HOUT==1
     __cprec dMH=mul2(c1,mul2(add2(lsxx,lszz), add2(lsxx,lszz) ) );
-    HM(gidz,gidx)=add2(HM(gidz,gidx), scalbnf2(__h22f2c(dMH), -2.0*src_scale));
-    Hmu(gidz,gidx)=add2(Hmu(gidz,gidx),
+    HM(gidz,gidx)=add2f(HM(gidz,gidx), scalbnf2(__h22f2c(dMH), -2.0*src_scale));
+    Hmu(gidz,gidx)=add2f(Hmu(gidz,gidx),
                         scalbnf2(__h22f2c(add2(sub2( mul2(c3, mul2(lsxz,lsxz)), dMH ), mul2(c5,mul2( sub2(lsxx,lszz), sub2(lsxx,lszz))))),
                                  -2.0*src_scale));
 #endif
