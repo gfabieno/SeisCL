@@ -44,6 +44,41 @@
 #endif
 
 
+extern "C" __device__ float2 add2f(float2 a, float2 b ){
+    
+    float2 output;
+    output.x = a.x+b.x;
+    output.y = a.y+b.y;
+    return output;
+}
+extern "C" __device__ float2 mul2f(float2 a, float2 b ){
+    
+    float2 output;
+    output.x = a.x*b.x;
+    output.y = a.y*b.y;
+    return output;
+}
+extern "C" __device__ float2 div2f(float2 a, float2 b ){
+    
+    float2 output;
+    output.x = a.x/b.x;
+    output.y = a.y/b.y;
+    return output;
+}
+extern "C" __device__ float2 sub2f(float2 a, float2 b ){
+    
+    float2 output;
+    output.x = a.x-b.x;
+    output.y = a.y-b.y;
+    return output;
+}
+extern "C" __device__ float2 f2h2f(float a){
+    
+    float2 output={a,a};
+    return output;
+}
+
+
 
 #if FP16==1 || FP16==2
 
@@ -78,39 +113,11 @@
 #define __f22h2c(x) (x)
 #define __h22f2c(x) (x)
 
-extern "C" __device__ float2 add2(float2 a, float2 b ){
-    
-    float2 output;
-    output.x = a.x+b.x;
-    output.y = a.y+b.y;
-    return output;
-}
-extern "C" __device__ float2 mul2(float2 a, float2 b ){
-    
-    float2 output;
-    output.x = a.x*b.x;
-    output.y = a.y*b.y;
-    return output;
-}
-extern "C" __device__ float2 div2(float2 a, float2 b ){
-    
-    float2 output;
-    output.x = a.x/b.x;
-    output.y = a.y/b.y;
-    return output;
-}
-extern "C" __device__ float2 sub2(float2 a, float2 b ){
-    
-    float2 output;
-    output.x = a.x-b.x;
-    output.y = a.y-b.y;
-    return output;
-}
-extern "C" __device__ float2 f2h2(float a){
-    
-    float2 output={a,a};
-    return output;
-}
+#define add2 add2f
+#define mul2 mul2f
+#define div2 div2f
+#define sub2 sub2f
+#define f2h2 f2h2f
 
 #else
 
@@ -819,9 +826,9 @@ extern "C" __global__ void update_adjv(int offcomm,
     lvxr=mul2(add2(sxxr_x1,sxzr_z2),lrip);
     lvzr=mul2(add2(szzr_z1,sxzr_x2),lrkp);
 
-    gradrho(gidz,gidx)=sub2( gradrho(gidz,gidx), scalbnf2(__h22f2c(add2( mul2( lvx, lvxr), mul2( lvz, lvzr) )), -src_scale - res_scale) );
+    gradrho(gidz,gidx)=sub2f( gradrho(gidz,gidx), scalbnf2(__h22f2c(add2( mul2( lvx, lvxr), mul2( lvz, lvzr) )), -src_scale - res_scale) );
     #if HOUT==1
-        Hrho(gidz,gidx)= sub2( Hrho(gidz,gidx), scalbnf2(__h22f2c(add2( mul2( lvx, lvx), mul2( lvz, lvz) )), -2.0*src_scale) );
+        Hrho(gidz,gidx)= sub2f( Hrho(gidz,gidx), scalbnf2(__h22f2c(add2( mul2( lvx, lvx), mul2( lvz, lvz) )), -2.0*src_scale) );
     #endif
     
 #endif
