@@ -826,9 +826,9 @@ extern "C" __global__ void update_adjv(int offcomm,
     lvxr=mul2(add2(sxxr_x1,sxzr_z2),lrip);
     lvzr=mul2(add2(szzr_z1,sxzr_x2),lrkp);
 
-    gradrho(gidz,gidx)=sub2f( gradrho(gidz,gidx), scalbnf2(__h22f2c(add2( mul2( lvx, lvxr), mul2( lvz, lvzr) )), -src_scale - res_scale) );
+    gradrho(gidz,gidx)=sub2f( gradrho(gidz,gidx), scalbnf2(add2f( mul2f( __h22f2c(lvx), __h22f2c(lvxr)), mul2f( __h22f2c(lvz), __h22f2c(lvzr)) ), -src_scale - res_scale) );
     #if HOUT==1
-        Hrho(gidz,gidx)= sub2f( Hrho(gidz,gidx), scalbnf2(__h22f2c(add2( mul2( lvx, lvx), mul2( lvz, lvz) )), -2.0*src_scale) );
+        Hrho(gidz,gidx)= sub2f( Hrho(gidz,gidx), scalbnf2(add2f( mul2f( __h22f2c(lvx), __h22f2c(lvx)), mul2f( __h22f2c(lvz), __h22f2c(lvz)) ), -2.0*src_scale) );
     #endif
     
 #endif
