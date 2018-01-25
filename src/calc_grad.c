@@ -963,6 +963,10 @@ int calc_grad(model * m, device * dev)  {
     return 0;
     
 }
+#else
+int calc_grad(struct model * m, struct device * dev){
+    return 0;
+}
 #endif
 
 int transf_grad(model * m) {

@@ -336,6 +336,14 @@ int comm(model * m, device ** dev, int adj, int ui){
     return state;
     
 }
+#else
+
+int comm(model * m, device ** dev, int adj, int ui){
+    
+    return 0;
+    
+}
+
 #endif
 
 
