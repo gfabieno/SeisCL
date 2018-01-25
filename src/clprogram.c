@@ -101,7 +101,7 @@ char * extract_name(const char *str){
     return output;
 }
 
-int set_args_list(const char *str, char *name, char *** argnames, int * ninputs){
+int prog_args_list(const char *str, char *name, char *** argnames, int * ninputs){
     
     int state=0;
     int c = 0;
@@ -112,8 +112,7 @@ int set_args_list(const char *str, char *name, char *** argnames, int * ninputs)
     
     
     char del1[100];
-    
-    sprintf(del1,"__global__ void %s(", name);
+    sprintf(del1,"void %s(", name);
     
     char * strbeg = strstr(str, del1);
     char * strchk = strbeg;
@@ -134,14 +133,14 @@ int set_args_list(const char *str, char *name, char *** argnames, int * ninputs)
     }
     
     if (!strbeg){
-        fprintf(stderr, "Could not extract kernel arguments of %s\n",name);
+        fprintf(stderr, "Error: Could not extract kernel arguments of %s\n",name);
         return 1;
     }
     
     char * strend = strstr(strbeg, del2);
     
     if (!strend){
-        fprintf(stderr, "Could not extract kernel arguments of %s\n",name);
+        fprintf(stderr, "Error: Could not extract kernel arguments of %s\n",name);
         return 1;
     }
     
@@ -167,7 +166,99 @@ int set_args_list(const char *str, char *name, char *** argnames, int * ninputs)
     
     return state;
 }
+#ifdef __SEISCL__
+char *get_build_options(device *dev,
+                        model *m,
+                        int LCOMM,
+                        int comm,
+                        int DIRPROP)
+{
+    int i;
+    static char build_options [6000]={0};
+    char src[50];
+    
+    build_options[0]=0;
+    if (m->N_names[0]){
+        for (i=0;i<m->NDIM;i++){
+            sprintf(src,"-D N%s=%d ",m->N_names[i],(*dev).N[i]+m->FDORDER);
+            strcat(build_options,src);
+            
+        }
+    }
+    else{
+        for (i=0;i<m->NDIM;i++){
+            sprintf(src,"-D N%d=%d ",i,(*dev).N[i]+m->FDORDER);
+            strcat(build_options,src);
+            
+        }
+    }
+    for (i=0;i<m->FDOH;i++){
+        sprintf(src,"-D hc%d=%9.9f ",i+1,m->hc[i+1]);
+        strcat(build_options,src);
+        
+    }
+    
+    char src2[2000];
+    sprintf(src2,"-D NDIM=%d -D OFFSET=%d -D FDOH=%d -D DTDH=%9.9f -D DH=%9.9f "
+            "-D DT=%9.9f -D DT2=%9.9f -D NT=%d -D NAB=%d -D NBND=%d "
+            "-D LOCAL_OFF=%d -D LVE=%d -D DEVID=%d -D NUM_DEVICES=%d "
+            "-D ND=%d -D ABS_TYPE=%d -D FREESURF=%d -D LCOMM=%d "
+            "-D MYLOCALID=%d -D NLOCALP=%d -D NFREQS=%d "
+            "-D BACK_PROP_TYPE=%d -D COMM12=%d -D NTNYQ=%d -D DTNYQ=%d "
+            "-D VARSOUT=%d -D RESOUT=%d  -D RMSOUT=%d -D MOVOUT=%d "
+            "-D GRADOUT=%d -D HOUT=%d -D GRADSRCOUT=%d -D DIRPROP=%d",
+            (*m).NDIM, (*dev).NX0, (*m).FDOH, (*m).dt/(*m).dh, (*m).dh,
+            (*m).dt, (*m).dt/2.0, (*m).NT, (*m).NAB, (*dev).NBND,
+            (*dev).LOCAL_OFF, (*m).L, (*dev).DEVID, (*m).NUM_DEVICES,
+            (*m).ND, (*m).ABS_TYPE, (*m).FREESURF, LCOMM,
+            (*m).MYLOCALID, (*m).NLOCALP, (*m).NFREQS,
+            (*m).BACK_PROP_TYPE, comm, (*m).NTNYQ, (*m).DTNYQ,
+            (*m).VARSOUT, (*m).RESOUT, (*m).RMSOUT, (*m).MOVOUT,
+            (*m).GRADOUT, (*m).HOUT, (*m).GRADSRCOUT, DIRPROP  );
+    
+    strcat(build_options,src2);
+    
+    //Make it all uppercase
+    char *s = build_options;
+    while (*s) {
+        *s = toupper((unsigned char) *s);
+        s++;
+    }
+    
+    return build_options;
+}
 
+int compile(const char *program_source,
+            cl_program *program,
+            cl_context *context,
+            cl_kernel *kernel,
+            const char * program_name,
+            const char * build_options)
+{
+    /* Routine to build a kernel from the source file contained in a c string*/
+    
+    int state = 0;
+    
+    if (!*program){
+        *program = clCreateProgramWithSource(*context,
+                                             1,
+                                             &program_source,
+                                             NULL,
+                                             &state);
+        if (state !=CL_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
+        
+        state = clBuildProgram(*program, 0, NULL, build_options, NULL, NULL);
+        if (state !=CL_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
+    }
+    // Now create the kernel "objects"
+    *kernel = clCreateKernel(*program, program_name, &state);
+    if (state !=CL_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
+    
+    
+    return state;
+    
+}
+#else
 int add_option( char ** build_options, int * n){
     int state=0;
     GMALLOC(build_options[*n], sizeof(char)*30);
@@ -292,14 +383,13 @@ int get_build_options(device *dev,
     
     return state;
 }
-
 int compile(const char *program_source,
-                    char * program,
-                    CUmodule *module,
-                    CUfunction *kernel,
-                    const char * program_name,
-                    char ** build_options,
-                    int noptions)
+            char * program,
+            CUmodule *module,
+            CUfunction *kernel,
+            const char * program_name,
+            char ** build_options,
+            int noptions)
 {
     /* Routine to build a kernel from the source file contained in a c string*/
     
@@ -308,14 +398,14 @@ int compile(const char *program_source,
     nvrtcProgram cuprog;
     if (!program){
         __GUARD nvrtcCreateProgram(&cuprog,
-                           program_source,
-                           program_name,
-                           0,
-                           NULL,
-                           NULL);
-        if (state !=CUDA_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
+                                   program_source,
+                                   program_name,
+                                   0,
+                                   NULL,
+                                   NULL);
+        if (state !=CUDA_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
         __GUARD nvrtcCompileProgram(cuprog,noptions,(const char * const*)build_options);
-        if (state !=NVRTC_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
+        if (state !=NVRTC_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
         size_t logSize;
         nvrtcGetProgramLogSize(cuprog, &logSize);
         if (state){
@@ -325,8 +415,8 @@ int compile(const char *program_source,
             fprintf(stdout,"%s",log);
             free(log);
         }
-
-        if (state !=NVRTC_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
+        
+        if (state !=NVRTC_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
         __GUARD nvrtcGetPTXSize(cuprog, &ptxSize);
         GMALLOC(program, sizeof(char)*ptxSize);
         __GUARD nvrtcGetPTX(cuprog, program);
@@ -336,22 +426,34 @@ int compile(const char *program_source,
     
     // Now create the kernel "objects"
     __GUARD cuModuleGetFunction(kernel, *module, program_name);
-    if (state !=CUDA_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
+    if (state !=CUDA_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
     
     
     return state;
     
 }
+#endif
+
 
 int prog_source(clprogram * prog, char* name, const char * source){
     int state =0;
     (*prog).src=source;
     (*prog).name=name;
-    state =set_args_list(source,
+    state =prog_args_list(source,
                         (char *)(*prog).name ,
                         &(*prog).input_list,
                         &(*prog).ninputs);
     
+    return state;
+}
+int prog_arg(clprogram * prog, int i, void * mem, int size){
+    int state =0;
+    
+    #ifdef __SEISCL__
+    state = clSetKernelArg((*prog).kernel, i, size, mem);
+    #else
+    (*prog).inputs[i]=mem;
+    #endif
     return state;
 }
 
@@ -362,8 +464,23 @@ int prog_create(model * m,
     int state = 0;
     int i,j, argfound;
     char str2comp[50];
-    size_t shared_size;
+    int shared_size = 0;
+    int memsize = 0;
     int noptions=0;
+    #ifdef __SEISCL__
+    const char * build_options = get_build_options(dev,
+                                                   m,
+                                                   prog->LCOMM,
+                                                   prog->COMM,
+                                                   prog->DIRPROP);
+    state = compile( (*prog).src,
+                    &(*prog).prog,
+                    &m->context,
+                    &(*prog).kernel,
+                    (*prog).name,
+                    build_options);
+    
+    #else
     char ** build_options=NULL;
         GMALLOC(build_options, sizeof(char*)*50);
     for (i=0;i<50;i++){
@@ -389,20 +506,21 @@ int prog_create(model * m,
         }
         GFree(build_options);
     }
-    
+    #endif
     
     if (state){
         printf("Error: Could not build kernel %s\n", (*prog).name);
         
         return state;
     }
-    
-    if (m->FP16==0){
+
+    if (m->FP16==1){
         shared_size=2*sizeof(float);
     }
     else{
         shared_size=sizeof(float);
     }
+
     /*Define the size of the local variables of the compute device*/
     if (   dev->LOCAL_OFF==0 && (*prog).lsize[0]>0){
         for (i=0;i<m->NDIM;i++){
@@ -410,7 +528,9 @@ int prog_create(model * m,
         }
         (*prog).shared_size=shared_size;
     }
-    
+    #ifdef __SEISCL__
+    memsize = sizeof(cl_mem);
+    #endif
 
     /*Define the arguments for this kernel */
     
@@ -419,21 +539,21 @@ int prog_create(model * m,
         //        printf("%s\n",(*prog).input_list[i]);
         for (j=0;j<m->npars;j++){
             if (strcmp((*dev).pars[j].name,(*prog).input_list[i])==0){
-                (*prog).inputs[i]=&(*dev).pars[j].cl_par.mem;
+                prog_arg(prog, i, &(*dev).pars[j].cl_par.mem, memsize);
                 argfound=1;
 
                 break;
             }
             sprintf(str2comp,"grad%s",(*dev).pars[j].name);
             if (strcmp(str2comp,(*prog).input_list[i])==0){
-                (*prog).inputs[i]=&(*dev).pars[j].cl_grad.mem;
+                prog_arg(prog, i, &(*dev).pars[j].cl_grad.mem, memsize);
                 argfound=1;
                 
                 break;
             }
             sprintf(str2comp,"H%s",(*dev).pars[j].name);
             if (strcmp(str2comp,(*prog).input_list[i])==0 && m->HOUT==1){
-                (*prog).inputs[i]=&(*dev).pars[j].cl_H.mem;
+                prog_arg(prog, i, &(*dev).pars[j].cl_H.mem, memsize);
                 argfound=1;
                 
                 break;
@@ -442,43 +562,43 @@ int prog_create(model * m,
         if (!argfound){
             for (j=0;j<m->nvars;j++){
                 if (strcmp((*dev).vars[j].name,(*prog).input_list[i])==0){
-                    (*prog).inputs[i]=&(*dev).vars[j].cl_var.mem;
+                    prog_arg(prog, i, &(*dev).vars[j].cl_var.mem, memsize);
                     argfound=1;
                     break;
                 }
                 sprintf(str2comp,"%sout",(*dev).vars[j].name);
                 if (strcmp(str2comp,(*prog).input_list[i])==0){
-                    (*prog).inputs[i]=&(*dev).vars[j].cl_varout.mem;
+                    prog_arg(prog, i, &(*dev).vars[j].cl_varout.mem, memsize);
                     argfound=1;
                     break;
                 }
                 sprintf(str2comp,"%sbnd",(*dev).vars[j].name);
                 if (strcmp(str2comp,(*prog).input_list[i])==0){
-                    (*prog).inputs[i]=&(*dev).vars[j].cl_varbnd.mem;
+                    prog_arg(prog, i, &(*dev).vars[j].cl_varbnd.mem, memsize);
                     argfound=1;
                     break;
                 }
                 sprintf(str2comp,"f%s",(*dev).vars[j].name);
                 if (strcmp(str2comp,(*prog).input_list[i])==0){
-                    (*prog).inputs[i]=&(*dev).vars[j].cl_fvar.mem;
+                    prog_arg(prog, i, &(*dev).vars[j].cl_fvar.mem, memsize);
                     argfound=1;
                     break;
                 }
                 sprintf(str2comp,"%s_buf1",(*dev).vars[j].name);
                 if (strcmp(str2comp,(*prog).input_list[i])==0){
-                    (*prog).inputs[i]=&(*dev).vars[j].cl_buf1.mem;
+                    prog_arg(prog, i, &(*dev).vars[j].cl_buf1.mem, memsize);
                     argfound=1;
                     break;
                 }
                 sprintf(str2comp,"%s_buf2",(*dev).vars[j].name);
                 if (strcmp(str2comp,(*prog).input_list[i])==0){
-                    (*prog).inputs[i]=&(*dev).vars[j].cl_buf2.mem;
+                    prog_arg(prog, i, &(*dev).vars[j].cl_buf2.mem, memsize);
                     argfound=1;
                     break;
                 }
                 sprintf(str2comp,"scaler_%s",(*dev).vars[j].name);
                 if (strcmp(str2comp,(*prog).input_list[i])==0){
-                    (*prog).inputs[i]=&(*dev).vars[j].scaler;
+                    prog_arg(prog, i, &(*dev).vars[j].scaler, sizeof(int));
                     argfound=1;
                     break;
                 }
@@ -488,7 +608,7 @@ int prog_create(model * m,
             for (j=0;j<m->ntvars;j++){
                 sprintf(str2comp,"%sout",(*dev).trans_vars[j].name);
                 if (strcmp(str2comp,(*prog).input_list[i])==0){
-                    (*prog).inputs[i]=&(*dev).trans_vars[j].cl_varout.mem;
+                    prog_arg(prog, i, &(*dev).trans_vars[j].cl_varout.mem, memsize);
                     argfound=1;
                     break;
                 }
@@ -502,10 +622,10 @@ int prog_create(model * m,
                     //TODO this is a hack for how adj kernels are written,
                     //     think of a better way
                     if (m->BACK_PROP_TYPE==1){
-                        (*prog).inputs[i]=&(*dev).vars_adj[j].cl_var.mem;
+                        prog_arg(prog, i, &(*dev).vars_adj[j].cl_var.mem, memsize);
                     }
                     else if (m->BACK_PROP_TYPE==2){
-                        (*prog).inputs[i]=&(*dev).vars[j].cl_var.mem;
+                        prog_arg(prog, i, &(*dev).vars[j].cl_var.mem, memsize);
                     }
                     argfound=1;
 
@@ -516,7 +636,7 @@ int prog_create(model * m,
         if (!argfound){
             for (j=0;j<m->ncsts;j++){
                 if (strcmp((*dev).csts[j].name,(*prog).input_list[i])==0){
-                    (*prog).inputs[i]=&(*dev).csts[j].cl_cst.mem;
+                    prog_arg(prog, i, &(*dev).csts[j].cl_cst.mem, memsize);
                     argfound=1;
 
                     break;
@@ -525,31 +645,41 @@ int prog_create(model * m,
         }
         if (!argfound){
             if (strcmp("src" ,(*prog).input_list[i])==0){
-                (*prog).inputs[i]=&(*dev).src_recs.cl_src.mem;
+                prog_arg(prog, i, &(*dev).src_recs.cl_src.mem, memsize);
                 argfound=1;
             }
             else if (strcmp("src_pos" ,(*prog).input_list[i])==0){
-                (*prog).inputs[i]=&(*dev).src_recs.cl_src_pos.mem;
+                prog_arg(prog, i, &(*dev).src_recs.cl_src_pos.mem, memsize);
                 argfound=1;
             }
             else if (strcmp("rec_pos" ,(*prog).input_list[i])==0){
-                (*prog).inputs[i]=&(*dev).src_recs.cl_rec_pos.mem;
+                prog_arg(prog, i, &(*dev).src_recs.cl_rec_pos.mem, memsize);
                 argfound=1;
             }
             else if (strcmp("grad_src" ,(*prog).input_list[i])==0){
-                (*prog).inputs[i]=&(*dev).src_recs.cl_grad_src.mem;
+                prog_arg(prog, i, &(*dev).src_recs.cl_grad_src.mem, memsize);
                 argfound=1;
             }
         }
 
         if (!argfound){
             if (strcmp("offcomm",(*prog).input_list[i])==0){
-                (*prog).inputs[i]=&prog->OFFCOMM;
+                prog_arg(prog, i, &prog->OFFCOMM, sizeof(int));
                 argfound=1;
             }
         }
         
-
+        if (!argfound){
+            if (strcmp("lvar",(*prog).input_list[i])==0){
+                #ifdef __SEISCL__
+                prog_arg(prog, i, NULL, shared_size);
+                #else
+                prog_arg(prog, i, &dev->cuda_null, memsize);
+                #endif
+                argfound=1;
+                //                printf("%s\n",(*prog).input_list[i]);
+            }
+        }
         
         if (!argfound){
             if (strcmp("nt"  ,(*prog).input_list[i])==0){
@@ -591,7 +721,7 @@ int prog_create(model * m,
         if (!argfound){
             fprintf(stdout,"Warning: input %s undefined for kernel %s\n",
                              (*prog).input_list[i], (*prog).name);
-            (*prog).inputs[i]=&dev->cuda_null;
+            prog_arg(prog, i, &dev->cuda_null, memsize);
         }
 
     }
@@ -603,12 +733,30 @@ int prog_create(model * m,
     return state;
 }
 
-int prog_launch( CUstream *inqueue, clprogram * prog){
+int prog_launch( QUEUE *inqueue, clprogram * prog){
     
     /*Launch a kernel and check for errors */
-    int i;
     int state = 0;
-
+    
+    #ifdef __SEISCL__
+    cl_event * event=NULL;
+    size_t * lsize=NULL;
+    if (prog->outevent)
+        event=&prog->event;
+    if (prog->lsize[0]!=0)
+        lsize=prog->lsize;
+    
+    state = clEnqueueNDRangeKernel(*inqueue,
+                                   prog->kernel,
+                                   prog->wdim,
+                                   NULL,
+                                   prog->gsize,
+                                   lsize,
+                                   prog->nwait,
+                                   prog->waits,
+                                   event);
+    #else
+    int i;
     unsigned int bsize[] ={1,1,1};
     unsigned int tsize[] ={BLOCK_SIZE,1,1};
     if (prog->wdim<1){
@@ -616,10 +764,10 @@ int prog_launch( CUstream *inqueue, clprogram * prog){
     }
     for (i=0;i<prog->wdim;i++){
         if (prog->lsize[i]>0)
-            tsize[i]=(unsigned int)prog->lsize[i];
+        tsize[i]=(unsigned int)prog->lsize[i];
         bsize[i]=(unsigned int)(prog->gsize[i]+tsize[i]-1)/tsize[i];
     }
-
+    
     state = cuLaunchKernel (prog->kernel,
                             bsize[0],
                             bsize[1],
@@ -631,15 +779,11 @@ int prog_launch( CUstream *inqueue, clprogram * prog){
                             *inqueue,
                             prog->inputs,
                             NULL );
-
-    if (state !=CUDA_SUCCESS) {fprintf(stderr,"Error launching %s: %s\n",
-                                       prog->name,clerrors(state));
+    #endif
     
-        fprintf(stderr,"bsize: %d %d %d\n",bsize[0], bsize[1],bsize[2]);
-        fprintf(stderr,"tsize: %d %d %d\n",tsize[0], tsize[1],tsize[2]);
-        fprintf(stderr,"shared_size: %d \n",(unsigned int)prog->shared_size);
-    }
+
+    if (state !=CUCL_SUCCESS) {fprintf(stderr,"Error launching %s: %s\n",
+                                       prog->name,clerrors(state));    }
     
     return state;
-    
 }

@@ -35,7 +35,7 @@ int main(int argc, char **argv) {
     fh = fopen(filename, "r");
     if (fh==NULL){
         
-        fprintf(stderr,"Could not open the file: %s \n", filename);
+        fprintf(stderr,"Error: Could not open the file: %s \n", filename);
     }
     else{
         stat(filename, &statbuf);
@@ -48,7 +48,7 @@ int main(int argc, char **argv) {
     fh = fopen(filename, "w");
     if (fh==NULL){
         
-        fprintf(stderr,"Could not open the file: %s \n", filename);
+        fprintf(stderr,"Error: Could not open the file: %s \n", filename);
     }
     else{
         fprintf(fh, "const char * ");

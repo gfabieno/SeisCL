@@ -61,7 +61,7 @@ int Init_MPI(model * m) {
         MPI_Bcast( &m->dt, 1, MPI_FLOAT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->dh, 1, MPI_FLOAT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->abpc, 1, MPI_FLOAT, 0, MPI_COMM_WORLD );
-//        MPI_Bcast( &m->pref_device_type, 1, MPI_INT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->pref_device_type, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->nmax_dev, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->n_no_use_GPUs, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->MPI_NPROC_SHOT, 1, MPI_INT, 0, MPI_COMM_WORLD );

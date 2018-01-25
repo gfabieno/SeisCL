@@ -109,27 +109,27 @@ __kernel void surface(        __global float *vx,         __global float *vz,
     
 #if   FDOH==1
     {
-        vxx = (vx(gidz,gidx)-vx(gidz,gidx-1))/DH;
-        vzz = (vz(gidz,gidx)-vz(gidz-1,gidx))/DH;
+        vxx = (vx(gidz,gidx)-vx(gidz,gidx-1));
+        vzz = (vz(gidz,gidx)-vz(gidz-1,gidx));
     }
 #elif FDOH==2
     {
         vxx = (HC1*(vx(gidz,gidx)  -vx(gidz,gidx-1))+
-               HC2*(vx(gidz,gidx+1)-vx(gidz,gidx-2)))/DH;
+               HC2*(vx(gidz,gidx+1)-vx(gidz,gidx-2)));
         
         
         vzz = (HC1*(vz(gidz,gidx)  -vz(gidz-1,gidx))+
-               HC2*(vz(gidz+1,gidx)-vz(gidz-2,gidx)))/DH;
+               HC2*(vz(gidz+1,gidx)-vz(gidz-2,gidx)));
     }
 #elif FDOH==3
     {
         vxx = (HC1*(vx(gidz,gidx)  -vx(gidz,gidx-1))+
                HC2*(vx(gidz,gidx+1)-vx(gidz,gidx-2))+
-               HC3*(vx(gidz,gidx+2)-vx(gidz,gidx-3)))/DH;
+               HC3*(vx(gidz,gidx+2)-vx(gidz,gidx-3)));
         
         vzz = (HC1*(vz(gidz,gidx)-vz(gidz-1,gidx))+
                HC2*(vz(gidz+1,gidx)-vz(gidz-2,gidx))+
-               HC3*(vz(gidz+2,gidx)-vz(gidz-3,gidx)))/DH;
+               HC3*(vz(gidz+2,gidx)-vz(gidz-3,gidx)));
         
     }
 #elif FDOH==4
@@ -137,12 +137,12 @@ __kernel void surface(        __global float *vx,         __global float *vz,
         vxx = (HC1*(vx(gidz,gidx)  -vx(gidz,gidx-1))+
                HC2*(vx(gidz,gidx+1)-vx(gidz,gidx-2))+
                HC3*(vx(gidz,gidx+2)-vx(gidz,gidx-3))+
-               HC4*(vx(gidz,gidx+3)-vx(gidz,gidx-4)))/DH;
+               HC4*(vx(gidz,gidx+3)-vx(gidz,gidx-4)));
         
         vzz = (HC1*(vz(gidz,gidx)  -vz(gidz-1,gidx))+
                HC2*(vz(gidz+1,gidx)-vz(gidz-2,gidx))+
                HC3*(vz(gidz+2,gidx)-vz(gidz-3,gidx))+
-               HC4*(vz(gidz+3,gidx)-vz(gidz-4,gidx)))/DH;
+               HC4*(vz(gidz+3,gidx)-vz(gidz-4,gidx)));
     }
 #elif FDOH==5
     {
@@ -150,14 +150,14 @@ __kernel void surface(        __global float *vx,         __global float *vz,
                HC2*(vx(gidz,gidx+1)-vx(gidz,gidx-2))+
                HC3*(vx(gidz,gidx+2)-vx(gidz,gidx-3))+
                HC4*(vx(gidz,gidx+3)-vx(gidz,gidx-4))+
-               HC5*(vx(gidz,gidx+4)-vx(gidz,gidx-5)))/DH;
+               HC5*(vx(gidz,gidx+4)-vx(gidz,gidx-5)));
         
         
         vzz = (HC1*(vz(gidz,gidx)  -vz(gidz-1,gidx))+
                HC2*(vz(gidz+1,gidx)-vz(gidz-2,gidx))+
                HC3*(vz(gidz+2,gidx)-vz(gidz-3,gidx))+
                HC4*(vz(gidz+3,gidx)-vz(gidz-4,gidx))+
-               HC5*(vz(gidz+4,gidx)-vz(gidz-5,gidx)))/DH;
+               HC5*(vz(gidz+4,gidx)-vz(gidz-5,gidx)));
         
         
     }
@@ -168,7 +168,7 @@ __kernel void surface(        __global float *vx,         __global float *vz,
                HC3*(vx(gidz,gidx+2)-vx(gidz,gidx-3))+
                HC4*(vx(gidz,gidx+3)-vx(gidz,gidx-4))+
                HC5*(vx(gidz,gidx+4)-vx(gidz,gidx-5))+
-               HC6*(vx(gidz,gidx+5)-vx(gidz,gidx-6)))/DH;
+               HC6*(vx(gidz,gidx+5)-vx(gidz,gidx-6)));
         
         
         vzz = (HC1*(vz(gidz,gidx)  -vz(gidz-1,gidx))+
@@ -176,7 +176,7 @@ __kernel void surface(        __global float *vx,         __global float *vz,
                HC3*(vz(gidz+2,gidx)-vz(gidz-3,gidx))+
                HC4*(vz(gidz+3,gidx)-vz(gidz-4,gidx))+
                HC5*(vz(gidz+4,gidx)-vz(gidz-5,gidx))+
-               HC6*(vz(gidz+5,gidx)-vz(gidz-6,gidx)))/DH;
+               HC6*(vz(gidz+5,gidx)-vz(gidz-6,gidx)));
     }
 #endif
     
@@ -228,14 +228,14 @@ __kernel void surface(        __global float *vx,         __global float *vz,
 #if LVE==0
 				f=mu(gidz,  gidx)*2.0;
 				g=M(gidz,  gidx);
-				h=-(DT*(g-f)*(g-f)*(vxx)/g)-(DT*(g-f)*vzz);
+				h=-((g-f)*(g-f)*(vxx)/g)-((g-f)*vzz);
 				sxx(gidz,  gidx)+=h;
 #else
     float b,d,e;
     /* partially updating sxx  in the same way*/
     f=mu(gidz,  gidx)*2.0*(1.0+L*taus(gidz,  gidx));
     g=M(gidz,  gidx)*(1.0+L*taup(gidz,  gidx));
-    h=-(DT*(g-f)*(g-f)*(vxx)/g)-(DT*(g-f)*vzz);
+    h=-((g-f)*(g-f)*(vxx)/g)-((g-f)*vzz);
     sxx(gidz,  gidx)+=h-(DT/2.0*rxx(gidz,  gidx));
     
     /* updating the memory-variable rxx at the free surface */

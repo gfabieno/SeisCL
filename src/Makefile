@@ -4,17 +4,24 @@
 UNAME_S := $(shell uname -s)
 
 
-    ifeq ($(UNAME_S),Linux)
-        CC=mpicc
-	LFLAGS= -lm -ldl -lz -lmpi -lhdf5 -L/cm/extra/apps/HDF5/1.8.14/GCC-4.8.5_MPICH-3.1.3/lib/ -L/usr/local/hdf5/lib -L/usr/lib64/ -L$CUDA_PATH/lib64 -lnvrtc -lcuda -Wl,-rpath,$CUDA_PATH/lib64
-	CFLAGS= -g -I/usr/local/hdf5/include -I$CUDA_PATH/include
-    endif
-    ifeq ($(UNAME_S),Darwin)
-        CC=mpicc
-	LFLAGS= -lm -lmpi -lhdf5 -framework opencl -L/opt/local/lib
-	CFLAGS= -Wall -O3 -I/opt/local/include
-    endif
+ifeq ($(UNAME_S),Linux)
+    CC=mpicc
+LFLAGS= -lm -ldl -lz -lmpi -lhdf5 -L/cm/extra/apps/HDF5/1.8.14/GCC-4.8.5_MPICH-3.1.3/lib/ -L/usr/local/hdf5/lib -L/usr/lib64/ -L$CUDA_PATH/lib64 -lnvrtc -lcuda -Wl,-rpath,$CUDA_PATH/lib64
+CFLAGS= -g -I/usr/local/hdf5/include -I$CUDA_PATH/include
+endif
+ifeq ($(UNAME_S),Darwin)
+    CC=mpicc
+LFLAGS= -lm -lmpi -lhdf5 -framework opencl -L/opt/local/lib
+CFLAGS= -Wall -O3 -I/opt/local/include
+endif
 
+# Option to choose cuda or OpenCL
+ifeq ($(api),cuda)
+$(info Building SeisCL with CUDA)
+else
+CFLAGS+= -D__SEISCL__
+$(info Building SeisCL with OpenCL)
+endif
 
 SeisCL_CL= \
 	savebnd2D.cl \
@@ -78,7 +85,7 @@ SeisCL_MPI_OBJ = $(SeisCL_MPI_SRC:%.c=%.o)
 	./cl2cstring $< $@
 
 
-SeisCL_MPI:	$(SeisCL_CL_Headers) $(SeisCL_MPI_OBJ) 
+SeisCL_MPI:	$(SeisCL_CL_Headers) $(SeisCL_MPI_OBJ)
 	$(CC) $(SeisCL_MPI_OBJ) $(LFLAGS) -o SeisCL_MPI
 	
 clean:

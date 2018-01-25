@@ -25,7 +25,7 @@ int checkexists(hid_t file_id, const char * invar){
     
     int state=0;
     
-    if (1!=H5Lexists( file_id, invar, H5P_DEFAULT))          {state=1;fprintf(stderr, "Variable %s is not defined\n",invar);}
+    if (1!=H5Lexists( file_id, invar, H5P_DEFAULT))          {state=1;fprintf(stderr, "Error: Variable %s is not defined\n",invar);}
     
     return state;
 }
@@ -42,8 +42,8 @@ int checkscalar(hid_t file_id, const char * invar){
     dataspace_id = H5Dget_space( dataset_id );
     rank=H5Sget_simple_extent_ndims(dataspace_id);
     H5Sget_simple_extent_dims(dataspace_id, dims2, NULL );
-    if (rank!=2)                    {state=1;fprintf(stderr, "Variable %s must be of rank 2\n",invar);};
-    if (dims2[0]!=1 || dims2[1]!=1) {state=1;fprintf(stderr, "Variable %s must be of size 1x1 (scalar)\n", &invar[1]);};
+    if (rank!=2)                    {state=1;fprintf(stderr, "Error: Variable %s must be of rank 2\n",invar);};
+    if (dims2[0]!=1 || dims2[1]!=1) {state=1;fprintf(stderr, "Error: Variable %s must be of size 1x1 (scalar)\n", &invar[1]);};
     
     if (dataset_id) H5Dclose(dataset_id);
     
@@ -77,7 +77,7 @@ int read_seis(hid_t file_id, hid_t memtype, const char * invar, float * varptr, 
 
         memspace = H5Screate_simple(2,count,NULL);
         state = H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, OFFSET, NULL, count, NULL);
-        if (0>H5Dread(dataset_id, memtype, memspace, dataspace, H5P_DEFAULT, &varptr[n*NT])) {state=1;fprintf(stderr, "Cannot read variable %s\n", &invar[1]);};
+        if (0>H5Dread(dataset_id, memtype, memspace, dataspace, H5P_DEFAULT, &varptr[n*NT])) {state=1;fprintf(stderr, "Error: Cannot read variable %s\n", &invar[1]);};
         
         n=ii;
         count[0]=1;
@@ -86,7 +86,7 @@ int read_seis(hid_t file_id, hid_t memtype, const char * invar, float * varptr, 
     }
     memspace = H5Screate_simple(2,count,NULL);
     state = H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, OFFSET, NULL, count, NULL);
-    if (0>H5Dread(dataset_id, memtype, memspace, dataspace, H5P_DEFAULT, &varptr[n*NT])) {state=1;fprintf(stderr, "Cannot read variable %s\n", &invar[1]);};
+    if (0>H5Dread(dataset_id, memtype, memspace, dataspace, H5P_DEFAULT, &varptr[n*NT])) {state=1;fprintf(stderr, "Error: Cannot read variable %s\n", &invar[1]);};
 
     if (dataset_id) H5Dclose(dataset_id);
     
@@ -101,7 +101,7 @@ int readvar(hid_t file_id, hid_t memtype, const char * invar, void * varptr){
     hid_t dataset_id=0;
     
     dataset_id = H5Dopen2(file_id, invar, H5P_DEFAULT);
-    if (0>H5Dread(dataset_id, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, varptr)) {state=1;fprintf(stderr, "Cannot read variable %s\n", &invar[1]);};
+    if (0>H5Dread(dataset_id, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, varptr)) {state=1;fprintf(stderr, "Error: Cannot read variable %s\n", &invar[1]);};
     
     if (dataset_id) H5Dclose(dataset_id);
     
@@ -120,7 +120,7 @@ int getdimmat(hid_t file_id, const char * invar, int NDIM, hsize_t * dims1){
     dataset_id = H5Dopen2(file_id, invar, H5P_DEFAULT);
     dataspace_id = H5Dget_space( dataset_id );
     rank=H5Sget_simple_extent_ndims(dataspace_id);
-    if (rank!=NDIM) {state=1;fprintf(stderr, "Variable %s must have %d dimensions\n",invar, NDIM);};
+    if (rank!=NDIM) {state=1;fprintf(stderr, "Error: Variable %s must have %d dimensions\n",invar, NDIM);};
     if (!state) H5Sget_simple_extent_dims(dataspace_id, dims1, NULL );
     
     if (dataspace_id) H5Sclose(dataspace_id);
@@ -159,12 +159,12 @@ int checkmatNDIM(hid_t file_id, const char * invar, int NDIM, hsize_t * dims1){
     dataset_id = H5Dopen2(file_id, invar, H5P_DEFAULT);
     dataspace_id = H5Dget_space( dataset_id );
     rank=H5Sget_simple_extent_ndims(dataspace_id);
-    if (rank!=NDIM) {state=1;fprintf(stderr, "Variable %s must have %d dimensions\n",invar, NDIM);};
+    if (rank!=NDIM) {state=1;fprintf(stderr, "Error: Variable %s must have %d dimensions\n",invar, NDIM);};
     if (!state) H5Sget_simple_extent_dims(dataspace_id, dims2, NULL );
     
     
     for (i=0;i<NDIM;i++){
-        if (dims2[i]!=dims1[i]) {state=1;fprintf(stderr, "Dimension %d of variable %s should be %llu, got %llu\n",i,invar, dims1[i], dims2[i]);};
+        if (dims2[i]!=dims1[i]) {state=1;fprintf(stderr, "Error: Dimension %d of variable %s should be %llu, got %llu\n",i,invar, dims1[i], dims2[i]);};
     }
     
     free(dims2);
@@ -203,7 +203,7 @@ int checkmatNDIM_atleast(hid_t file_id, const char * invar, int NDIM, hsize_t * 
     dataset_id = H5Dopen2(file_id, invar, H5P_DEFAULT);
     dataspace_id = H5Dget_space( dataset_id );
     rank=H5Sget_simple_extent_ndims(dataspace_id);
-    if (rank!=NDIM) {state=1;fprintf(stderr, "Variable %s must have %d dimensions\n",invar, NDIM);};
+    if (rank!=NDIM) {state=1;fprintf(stderr, "Error: Variable %s must have %d dimensions\n",invar, NDIM);};
     if (!state) H5Sget_simple_extent_dims(dataspace_id, dims2, NULL );
     
     
@@ -231,8 +231,9 @@ int readhdf5(struct filenames files, model * m) {
 
     
     /* Open the input file. */
+    file_id = -1;
     file_id = H5Fopen(files.csts, H5F_ACC_RDWR, H5P_DEFAULT);
-    if (!state) if (file_id<0) {state=1;fprintf(stderr, "Could not open the input file csts");};
+    if (!state) if (file_id<0) {state=1;fprintf(stderr, "Error: Could not open the input file csts");};
     
     
     /* Basic variables__________________________________
@@ -298,6 +299,7 @@ int readhdf5(struct filenames files, model * m) {
     __GUARD readvar(file_id, H5T_NATIVE_INT,   "/seisout", &m->VARSOUT);
     __GUARD readvar(file_id, H5T_NATIVE_INT,   "/resout", &m->RESOUT);
     __GUARD readvar(file_id, H5T_NATIVE_INT,   "/rmsout", &m->RMSOUT);
+    __GUARD readvar(file_id, H5T_NATIVE_INT,   "/pref_device_type", &m->pref_device_type);
     __GUARD readvar(file_id, H5T_NATIVE_INT,   "/nmax_dev", &m->nmax_dev);
     __GUARD readvar(file_id, H5T_NATIVE_INT,   "/MPI_NPROC_SHOT", &m->MPI_NPROC_SHOT);
     
@@ -372,6 +374,12 @@ int readhdf5(struct filenames files, model * m) {
         __GUARD checkscalar(file_id, "/FP16");
         __GUARD readvar(file_id, H5T_NATIVE_INT, "/FP16", &m->FP16);
     }
+#ifdef __SEISCL__
+    if (m->FP16!=0){
+        state = 1;
+        fprintf(stderr, "Error: The OpenCL version only supports FP16=0\n");
+    }
+#endif
     if (H5Lexists( file_id, "/halfpar", H5P_DEFAULT) ){
         __GUARD checkscalar(file_id, "/halfpar");
         __GUARD readvar(file_id, H5T_NATIVE_INT, "/halfpar", &m->halfpar);
@@ -387,17 +395,19 @@ int readhdf5(struct filenames files, model * m) {
     __GUARD checkexists(file_id,"/N");
     __GUARD getdimmat(file_id, "/N", 2, dims2D);
     if (m->NDIM!=dims2D[0]*dims2D[1]){
-        state=1;fprintf(stderr, "Number of dimensions mismatch\n");
+        state=1;fprintf(stderr, "Error: Number of dimensions mismatch\n");
     }
     __GUARD readvar(file_id, H5T_NATIVE_INT, "/N", m->N);
 
     for (i=0;i<m->NDIM;i++){
         dimsND[i]=m->N[m->NDIM-1-i];
     }
+    #ifndef __SeisCL__
     // N[0] should be a multiple of 2 because we use float2 in kernels
     if (m->N[0]%2!=0){
         state=1;fprintf(stderr, "Error: N[0] must be a multiple of 2\n");
     }
+    #endif
     
     m->FDOH=m->FDORDER/2;
     
@@ -429,7 +439,7 @@ int readhdf5(struct filenames files, model * m) {
     if (!(m->BACK_PROP_TYPE ==1
         || m->BACK_PROP_TYPE ==2)) {
         state=1;
-        fprintf(stderr, "bac_prop_type must be 1 or 2\n");
+        fprintf(stderr, "Error: bac_prop_type must be 1 or 2\n");
     }
     
     if (m->BACK_PROP_TYPE==2 && m->GRADOUT==1){
@@ -445,7 +455,7 @@ int readhdf5(struct filenames files, model * m) {
         m->res_calc = &var_res_raw;
     }
     else{
-        state=1;fprintf(stderr, "Unknown restype\n");
+        state=1;fprintf(stderr, "Error: Unknown restype\n");
     }
     
     /*Absorbing boundary variables*/
@@ -475,7 +485,7 @@ int readhdf5(struct filenames files, model * m) {
     }
     else if (!state){
         state=1;
-        fprintf(stderr, "Variable ABS_TYPE allowed values are 0, 1 and 2\n");
+        fprintf(stderr, "Error: Variable ABS_TYPE allowed values are 0, 1 and 2\n");
     }
     
     
@@ -501,7 +511,7 @@ int readhdf5(struct filenames files, model * m) {
     if (!state){
         if(dims2D[1]!=5) {
             state=1;
-            fprintf(stderr, "src_pos dimension 1 must be 5\n");
+            fprintf(stderr, "Error: src_pos dimension 1 must be 5\n");
         }
     }
     m->src_recs.allns=(int)dims2D[0];
@@ -509,7 +519,7 @@ int readhdf5(struct filenames files, model * m) {
     if (!state){
         if (checkmatNDIM(file_id, "/src",  2, dims2D)){
             state=1;
-            fprintf(stderr, "Variable src must be nt x number of sources\n");
+            fprintf(stderr, "Error: Variable src must be nt x number of sources\n");
         }
     }
     
@@ -518,7 +528,7 @@ int readhdf5(struct filenames files, model * m) {
     if (!state){
         if(dims2D[1]!=8) {
             state=1;
-            fprintf(stderr, "rec_pos dimension 1 must be 8\n");
+            fprintf(stderr, "Error: rec_pos dimension 1 must be 8\n");
         }
     }
     m->src_recs.allng=(int)dims2D[0];
@@ -568,7 +578,7 @@ int readhdf5(struct filenames files, model * m) {
         if (!state){
             if (nsg!=m->src_recs.ns){
                 state=1;
-                fprintf(stderr, "Number of sources ids in src_pos and rec_pos "
+                fprintf(stderr, "Error: Number of sources ids in src_pos and rec_pos "
                                 "are not the same\n");
             }
         }
@@ -640,7 +650,7 @@ int readhdf5(struct filenames files, model * m) {
 
     //Assign parameters list depending on which case of modeling is desired
     __GUARD assign_modeling_case(m);
-
+    
     //Read active constants
     for (i=0;i<m->ncsts;i++){
         if (m->csts[i].to_read  ){
@@ -655,21 +665,22 @@ int readhdf5(struct filenames files, model * m) {
 
     if (file_id>=0) H5Fclose(file_id);
     file_id=0;
-
-
+    
+    
     /* Model file__________________________________
      __________________________________________________________________*/
+    
 
 
-
-
+    
 
     /* Open the model file. */
+    file_id = -1;
     if (!state) file_id = H5Fopen(files.model, H5F_ACC_RDWR, H5P_DEFAULT);
     if (!state) if (file_id<0) {
-        state=1;fprintf(stderr, "Could not open the input file model");
+        state=1;fprintf(stderr, "Error: Could not open the input file model");
     }
-
+    
     /* Read parameters. */
     for (i=0;i<m->npars;i++){
         if (m->pars[i].to_read){
@@ -678,7 +689,7 @@ int readhdf5(struct filenames files, model * m) {
             if (!state){
                 if (checkmatNDIM(file_id, m->pars[i].to_read, m->NDIM, dimsND)){
                     state=1;
-                    fprintf(stderr, "Variable %s must have dimensions in N\n",
+                    fprintf(stderr, "Error: Variable %s must have dimensions in N\n",
                             m->pars[i].to_read);
                 }
             }
@@ -688,23 +699,24 @@ int readhdf5(struct filenames files, model * m) {
                             m->pars[i].gl_par);
         }
     }
-
+    
     /* Close files. */
     if (file_id>=0) H5Fclose(file_id);
-    file_id=0;
-
+    file_id=-1;
+    
 
     /* Data in file__________________________________
      __________________________________________________________________*/
-
+    
     /* Open the data file. */
     if (m->RMSOUT==1 || m->RESOUT || m->GRADOUT==1){
+        file_id = -1;
         file_id = H5Fopen(files.din, H5F_ACC_RDWR, H5P_DEFAULT);
         if (!state) if (file_id<0 && m->GRADOUT) {
             state=1;
-            fprintf(stderr, "Could not open the input file for data_in\n");
+            fprintf(stderr, "Error: Could not open the input file for data_in\n");
         }
-
+        
         int anyout=0;
         if (file_id>=0){
 
@@ -715,7 +727,7 @@ int readhdf5(struct filenames files, model * m) {
                     if (!state){
                         if (checkmatNDIM_atleast(file_id, m->vars[i].name, 2, dims2D)){
                             state=1;
-                            fprintf(stderr, "Variable %s must be nt x number of"
+                            fprintf(stderr, "Error: Variable %s must be nt x number of"
                                        "recording stations\n",m->vars[i].name );
                         }
                     }
@@ -739,7 +751,7 @@ int readhdf5(struct filenames files, model * m) {
                     if (!state){
                         if (checkmatNDIM_atleast(file_id, m->trans_vars[i].name,2, dims2D)) {
                             state=1;
-                            fprintf(stderr, "Variable %s must be nt x number of"
+                            fprintf(stderr, "Error: Variable %s must be nt x number of"
                                     "recording stations\n",m->trans_vars[i].name);
                         }
                     }
@@ -757,19 +769,19 @@ int readhdf5(struct filenames files, model * m) {
                     anyout=1;
                 }
             }
-
+            
             H5Fclose(file_id);
-
+            
         }
 
         if (!anyout){
             state=1;
-            fprintf(stderr, "Cannot output gradient, rms or residuals without "
+            fprintf(stderr, "Error: Cannot output gradient, rms or residuals without "
                             "reference data\n");
         }
-
+        
     }
-
+    
     if (state && m->MPI_INIT==1) MPI_Bcast( &state,
                                            1,
                                            MPI_INT,

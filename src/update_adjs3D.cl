@@ -405,84 +405,84 @@ __kernel void update_adjs(int offcomm,
 #endif
     
 #if   FDOH==1
-    vxx = (lvx(lidz,lidy,lidx)-lvx(lidz,lidy,lidx-1))/DH;
-    vxy = (lvx(lidz,lidy+1,lidx)-lvx(lidz,lidy,lidx))/DH;
-    vxz = (lvx(lidz+1,lidy,lidx)-lvx(lidz,lidy,lidx))/DH;
+    vxx = (lvx(lidz,lidy,lidx)-lvx(lidz,lidy,lidx-1));
+    vxy = (lvx(lidz,lidy+1,lidx)-lvx(lidz,lidy,lidx));
+    vxz = (lvx(lidz+1,lidy,lidx)-lvx(lidz,lidy,lidx));
 #elif FDOH==2
     vxx = (HC1*(lvx(lidz,lidy,lidx)  -lvx(lidz,lidy,lidx-1))+
-           HC2*(lvx(lidz,lidy,lidx+1)-lvx(lidz,lidy,lidx-2)))/DH;
+           HC2*(lvx(lidz,lidy,lidx+1)-lvx(lidz,lidy,lidx-2)));
     
     vxy = (HC1*(lvx(lidz,lidy+1,lidx)-lvx(lidz,lidy,lidx))+
-           HC2*(lvx(lidz,lidy+2,lidx)-lvx(lidz,lidy-1,lidx)))/DH;
+           HC2*(lvx(lidz,lidy+2,lidx)-lvx(lidz,lidy-1,lidx)));
     
     vxz = (HC1*(lvx(lidz+1,lidy,lidx)-lvx(lidz,lidy,lidx))+
-           HC2*(lvx(lidz+2,lidy,lidx)-lvx(lidz-1,lidy,lidx)))/DH;
+           HC2*(lvx(lidz+2,lidy,lidx)-lvx(lidz-1,lidy,lidx)));
 #elif FDOH==3
     vxx = (HC1*(lvx(lidz,lidy,lidx)  -lvx(lidz,lidy,lidx-1))+
            HC2*(lvx(lidz,lidy,lidx+1)-lvx(lidz,lidy,lidx-2))+
-           HC3*(lvx(lidz,lidy,lidx+2)-lvx(lidz,lidy,lidx-3)))/DH;
+           HC3*(lvx(lidz,lidy,lidx+2)-lvx(lidz,lidy,lidx-3)));
     
     vxy = (HC1*(lvx(lidz,lidy+1,lidx)-lvx(lidz,lidy,lidx))+
            HC2*(lvx(lidz,lidy+2,lidx)-lvx(lidz,lidy-1,lidx))+
-           HC3*(lvx(lidz,lidy+3,lidx)-lvx(lidz,lidy-2,lidx)))/DH;
+           HC3*(lvx(lidz,lidy+3,lidx)-lvx(lidz,lidy-2,lidx)));
     
     vxz = (HC1*(lvx(lidz+1,lidy,lidx)-lvx(lidz,lidy,lidx))+
            HC2*(lvx(lidz+2,lidy,lidx)-lvx(lidz-1,lidy,lidx))+
-           HC3*(lvx(lidz+3,lidy,lidx)-lvx(lidz-2,lidy,lidx)))/DH;
+           HC3*(lvx(lidz+3,lidy,lidx)-lvx(lidz-2,lidy,lidx)));
 #elif FDOH==4
     vxx = (HC1*(lvx(lidz,lidy,lidx)  -lvx(lidz,lidy,lidx-1))+
            HC2*(lvx(lidz,lidy,lidx+1)-lvx(lidz,lidy,lidx-2))+
            HC3*(lvx(lidz,lidy,lidx+2)-lvx(lidz,lidy,lidx-3))+
-           HC4*(lvx(lidz,lidy,lidx+3)-lvx(lidz,lidy,lidx-4)))/DH;
+           HC4*(lvx(lidz,lidy,lidx+3)-lvx(lidz,lidy,lidx-4)));
     
     vxy = (HC1*(lvx(lidz,lidy+1,lidx)-lvx(lidz,lidy,lidx))+
            HC2*(lvx(lidz,lidy+2,lidx)-lvx(lidz,lidy-1,lidx))+
            HC3*(lvx(lidz,lidy+3,lidx)-lvx(lidz,lidy-2,lidx))+
-           HC4*(lvx(lidz,lidy+4,lidx)-lvx(lidz,lidy-3,lidx)))/DH;
+           HC4*(lvx(lidz,lidy+4,lidx)-lvx(lidz,lidy-3,lidx)));
     
     vxz = (HC1*(lvx(lidz+1,lidy,lidx)-lvx(lidz,lidy,lidx))+
            HC2*(lvx(lidz+2,lidy,lidx)-lvx(lidz-1,lidy,lidx))+
            HC3*(lvx(lidz+3,lidy,lidx)-lvx(lidz-2,lidy,lidx))+
-           HC4*(lvx(lidz+4,lidy,lidx)-lvx(lidz-3,lidy,lidx)))/DH;
+           HC4*(lvx(lidz+4,lidy,lidx)-lvx(lidz-3,lidy,lidx)));
 #elif FDOH==5
     vxx = (HC1*(lvx(lidz,lidy,lidx)  -lvx(lidz,lidy,lidx-1))+
            HC2*(lvx(lidz,lidy,lidx+1)-lvx(lidz,lidy,lidx-2))+
            HC3*(lvx(lidz,lidy,lidx+2)-lvx(lidz,lidy,lidx-3))+
            HC4*(lvx(lidz,lidy,lidx+3)-lvx(lidz,lidy,lidx-4))+
-           HC5*(lvx(lidz,lidy,lidx+4)-lvx(lidz,lidy,lidx-5)))/DH;
+           HC5*(lvx(lidz,lidy,lidx+4)-lvx(lidz,lidy,lidx-5)));
     
     vxy = (HC1*(lvx(lidz,lidy+1,lidx)-lvx(lidz,lidy,lidx))+
            HC2*(lvx(lidz,lidy+2,lidx)-lvx(lidz,lidy-1,lidx))+
            HC3*(lvx(lidz,lidy+3,lidx)-lvx(lidz,lidy-2,lidx))+
            HC4*(lvx(lidz,lidy+4,lidx)-lvx(lidz,lidy-3,lidx))+
-           HC5*(lvx(lidz,lidy+5,lidx)-lvx(lidz,lidy-4,lidx)))/DH;
+           HC5*(lvx(lidz,lidy+5,lidx)-lvx(lidz,lidy-4,lidx)));
     
     vxz = (HC1*(lvx(lidz+1,lidy,lidx)-lvx(lidz,lidy,lidx))+
            HC2*(lvx(lidz+2,lidy,lidx)-lvx(lidz-1,lidy,lidx))+
            HC3*(lvx(lidz+3,lidy,lidx)-lvx(lidz-2,lidy,lidx))+
            HC4*(lvx(lidz+4,lidy,lidx)-lvx(lidz-3,lidy,lidx))+
-           HC5*(lvx(lidz+5,lidy,lidx)-lvx(lidz-4,lidy,lidx)))/DH;
+           HC5*(lvx(lidz+5,lidy,lidx)-lvx(lidz-4,lidy,lidx)));
 #elif FDOH==6
     vxx = (HC1*(lvx(lidz,lidy,lidx)  -lvx(lidz,lidy,lidx-1))+
            HC2*(lvx(lidz,lidy,lidx+1)-lvx(lidz,lidy,lidx-2))+
            HC3*(lvx(lidz,lidy,lidx+2)-lvx(lidz,lidy,lidx-3))+
            HC4*(lvx(lidz,lidy,lidx+3)-lvx(lidz,lidy,lidx-4))+
            HC5*(lvx(lidz,lidy,lidx+4)-lvx(lidz,lidy,lidx-5))+
-           HC6*(lvx(lidz,lidy,lidx+5)-lvx(lidz,lidy,lidx-6)))/DH;
+           HC6*(lvx(lidz,lidy,lidx+5)-lvx(lidz,lidy,lidx-6)));
     
     vxy = (HC1*(lvx(lidz,lidy+1,lidx)-lvx(lidz,lidy,lidx))+
            HC2*(lvx(lidz,lidy+2,lidx)-lvx(lidz,lidy-1,lidx))+
            HC3*(lvx(lidz,lidy+3,lidx)-lvx(lidz,lidy-2,lidx))+
            HC4*(lvx(lidz,lidy+4,lidx)-lvx(lidz,lidy-3,lidx))+
            HC5*(lvx(lidz,lidy+5,lidx)-lvx(lidz,lidy-4,lidx))+
-           HC6*(lvx(lidz,lidy+6,lidx)-lvx(lidz,lidy-5,lidx)))/DH;
+           HC6*(lvx(lidz,lidy+6,lidx)-lvx(lidz,lidy-5,lidx)));
     
     vxz = (HC1*(lvx(lidz+1,lidy,lidx)-lvx(lidz,lidy,lidx))+
            HC2*(lvx(lidz+2,lidy,lidx)-lvx(lidz-1,lidy,lidx))+
            HC3*(lvx(lidz+3,lidy,lidx)-lvx(lidz-2,lidy,lidx))+
            HC4*(lvx(lidz+4,lidy,lidx)-lvx(lidz-3,lidy,lidx))+
            HC5*(lvx(lidz+5,lidy,lidx)-lvx(lidz-4,lidy,lidx))+
-           HC6*(lvx(lidz+6,lidy,lidx)-lvx(lidz-5,lidy,lidx)))/DH;
+           HC6*(lvx(lidz+6,lidy,lidx)-lvx(lidz-5,lidy,lidx)));
 #endif
     
     
@@ -513,84 +513,84 @@ __kernel void update_adjs(int offcomm,
 #endif
     
 #if   FDOH==1
-    vyx = (lvy(lidz,lidy,lidx+1)-lvy(lidz,lidy,lidx))/DH;
-    vyy = (lvy(lidz,lidy,lidx)-lvy(lidz,lidy-1,lidx))/DH;
-    vyz = (lvy(lidz+1,lidy,lidx)-lvy(lidz,lidy,lidx))/DH;
+    vyx = (lvy(lidz,lidy,lidx+1)-lvy(lidz,lidy,lidx));
+    vyy = (lvy(lidz,lidy,lidx)-lvy(lidz,lidy-1,lidx));
+    vyz = (lvy(lidz+1,lidy,lidx)-lvy(lidz,lidy,lidx));
 #elif FDOH==2
     vyx = (HC1*(lvy(lidz,lidy,lidx+1)-lvy(lidz,lidy,lidx))+
-           HC2*(lvy(lidz,lidy,lidx+2)-lvy(lidz,lidy,lidx-1)))/DH;
+           HC2*(lvy(lidz,lidy,lidx+2)-lvy(lidz,lidy,lidx-1)));
     
     vyy = (HC1*(lvy(lidz,lidy,lidx)  -lvy(lidz,lidy-1,lidx))+
-           HC2*(lvy(lidz,lidy+1,lidx)-lvy(lidz,lidy-2,lidx)))/DH;
+           HC2*(lvy(lidz,lidy+1,lidx)-lvy(lidz,lidy-2,lidx)));
     
     vyz = (HC1*(lvy(lidz+1,lidy,lidx)-lvy(lidz,lidy,lidx))+
-           HC2*(lvy(lidz+2,lidy,lidx)-lvy(lidz-1,lidy,lidx)))/DH;
+           HC2*(lvy(lidz+2,lidy,lidx)-lvy(lidz-1,lidy,lidx)));
 #elif FDOH==3
     vyx = (HC1*(lvy(lidz,lidy,lidx+1)-lvy(lidz,lidy,lidx))+
            HC2*(lvy(lidz,lidy,lidx+2)-lvy(lidz,lidy,lidx-1))+
-           HC3*(lvy(lidz,lidy,lidx+3)-lvy(lidz,lidy,lidx-2)))/DH;
+           HC3*(lvy(lidz,lidy,lidx+3)-lvy(lidz,lidy,lidx-2)));
     
     vyy = (HC1*(lvy(lidz,lidy,lidx)-lvy(lidz,lidy-1,lidx))+
            HC2*(lvy(lidz,lidy+1,lidx)-lvy(lidz,lidy-2,lidx))+
-           HC3*(lvy(lidz,lidy+2,lidx)-lvy(lidz,lidy-3,lidx)))/DH;
+           HC3*(lvy(lidz,lidy+2,lidx)-lvy(lidz,lidy-3,lidx)));
     
     vyz = (HC1*(lvy(lidz+1,lidy,lidx)-lvy(lidz,lidy,lidx))+
            HC2*(lvy(lidz+2,lidy,lidx)-lvy(lidz-1,lidy,lidx))+
-           HC3*(lvy(lidz+3,lidy,lidx)-lvy(lidz-2,lidy,lidx)))/DH;
+           HC3*(lvy(lidz+3,lidy,lidx)-lvy(lidz-2,lidy,lidx)));
 #elif FDOH==4
     vyx = (HC1*(lvy(lidz,lidy,lidx+1)-lvy(lidz,lidy,lidx))+
            HC2*(lvy(lidz,lidy,lidx+2)-lvy(lidz,lidy,lidx-1))+
            HC3*(lvy(lidz,lidy,lidx+3)-lvy(lidz,lidy,lidx-2))+
-           HC4*(lvy(lidz,lidy,lidx+4)-lvy(lidz,lidy,lidx-3)))/DH;
+           HC4*(lvy(lidz,lidy,lidx+4)-lvy(lidz,lidy,lidx-3)));
     
     vyy = (HC1*(lvy(lidz,lidy,lidx)  -lvy(lidz,lidy-1,lidx))+
            HC2*(lvy(lidz,lidy+1,lidx)-lvy(lidz,lidy-2,lidx))+
            HC3*(lvy(lidz,lidy+2,lidx)-lvy(lidz,lidy-3,lidx))+
-           HC4*(lvy(lidz,lidy+3,lidx)-lvy(lidz,lidy-4,lidx)))/DH;
+           HC4*(lvy(lidz,lidy+3,lidx)-lvy(lidz,lidy-4,lidx)));
     
     vyz = (HC1*(lvy(lidz+1,lidy,lidx)-lvy(lidz,lidy,lidx))+
            HC2*(lvy(lidz+2,lidy,lidx)-lvy(lidz-1,lidy,lidx))+
            HC3*(lvy(lidz+3,lidy,lidx)-lvy(lidz-2,lidy,lidx))+
-           HC4*(lvy(lidz+4,lidy,lidx)-lvy(lidz-3,lidy,lidx)))/DH;
+           HC4*(lvy(lidz+4,lidy,lidx)-lvy(lidz-3,lidy,lidx)));
 #elif FDOH==5
     vyx = (HC1*(lvy(lidz,lidy,lidx+1)-lvy(lidz,lidy,lidx))+
            HC2*(lvy(lidz,lidy,lidx+2)-lvy(lidz,lidy,lidx-1))+
            HC3*(lvy(lidz,lidy,lidx+3)-lvy(lidz,lidy,lidx-2))+
            HC4*(lvy(lidz,lidy,lidx+4)-lvy(lidz,lidy,lidx-3))+
-           HC5*(lvy(lidz,lidy,lidx+5)-lvy(lidz,lidy,lidx-4)))/DH;
+           HC5*(lvy(lidz,lidy,lidx+5)-lvy(lidz,lidy,lidx-4)));
     
     vyy = (HC1*(lvy(lidz,lidy,lidx)  -lvy(lidz,lidy-1,lidx))+
            HC2*(lvy(lidz,lidy+1,lidx)-lvy(lidz,lidy-2,lidx))+
            HC3*(lvy(lidz,lidy+2,lidx)-lvy(lidz,lidy-3,lidx))+
            HC4*(lvy(lidz,lidy+3,lidx)-lvy(lidz,lidy-4,lidx))+
-           HC5*(lvy(lidz,lidy+4,lidx)-lvy(lidz,lidy-5,lidx)))/DH;
+           HC5*(lvy(lidz,lidy+4,lidx)-lvy(lidz,lidy-5,lidx)));
     
     vyz = (HC1*(lvy(lidz+1,lidy,lidx)-lvy(lidz,lidy,lidx))+
            HC2*(lvy(lidz+2,lidy,lidx)-lvy(lidz-1,lidy,lidx))+
            HC3*(lvy(lidz+3,lidy,lidx)-lvy(lidz-2,lidy,lidx))+
            HC4*(lvy(lidz+4,lidy,lidx)-lvy(lidz-3,lidy,lidx))+
-           HC5*(lvy(lidz+5,lidy,lidx)-lvy(lidz-4,lidy,lidx)))/DH;
+           HC5*(lvy(lidz+5,lidy,lidx)-lvy(lidz-4,lidy,lidx)));
 #elif FDOH==6
     vyx = (HC1*(lvy(lidz,lidy,lidx+1)-lvy(lidz,lidy,lidx))+
            HC2*(lvy(lidz,lidy,lidx+2)-lvy(lidz,lidy,lidx-1))+
            HC3*(lvy(lidz,lidy,lidx+3)-lvy(lidz,lidy,lidx-2))+
            HC4*(lvy(lidz,lidy,lidx+4)-lvy(lidz,lidy,lidx-3))+
            HC5*(lvy(lidz,lidy,lidx+5)-lvy(lidz,lidy,lidx-4))+
-           HC6*(lvy(lidz,lidy,lidx+6)-lvy(lidz,lidy,lidx-5)))/DH;
+           HC6*(lvy(lidz,lidy,lidx+6)-lvy(lidz,lidy,lidx-5)));
     
     vyy = (HC1*(lvy(lidz,lidy,lidx)  -lvy(lidz,lidy-1,lidx))+
            HC2*(lvy(lidz,lidy+1,lidx)-lvy(lidz,lidy-2,lidx))+
            HC3*(lvy(lidz,lidy+2,lidx)-lvy(lidz,lidy-3,lidx))+
            HC4*(lvy(lidz,lidy+3,lidx)-lvy(lidz,lidy-4,lidx))+
            HC5*(lvy(lidz,lidy+4,lidx)-lvy(lidz,lidy-5,lidx))+
-           HC6*(lvy(lidz,lidy+5,lidx)-lvy(lidz,lidy-6,lidx)))/DH;
+           HC6*(lvy(lidz,lidy+5,lidx)-lvy(lidz,lidy-6,lidx)));
     
     vyz = (HC1*(lvy(lidz+1,lidy,lidx)-lvy(lidz,lidy,lidx))+
            HC2*(lvy(lidz+2,lidy,lidx)-lvy(lidz-1,lidy,lidx))+
            HC3*(lvy(lidz+3,lidy,lidx)-lvy(lidz-2,lidy,lidx))+
            HC4*(lvy(lidz+4,lidy,lidx)-lvy(lidz-3,lidy,lidx))+
            HC5*(lvy(lidz+5,lidy,lidx)-lvy(lidz-4,lidy,lidx))+
-           HC6*(lvy(lidz+6,lidy,lidx)-lvy(lidz-5,lidy,lidx)))/DH;
+           HC6*(lvy(lidz+6,lidy,lidx)-lvy(lidz-5,lidy,lidx)));
 #endif
     
     
@@ -624,85 +624,85 @@ __kernel void update_adjs(int offcomm,
     
     
 #if   FDOH==1
-    vzx = (lvz(lidz,lidy,lidx+1)-lvz(lidz,lidy,lidx))/DH;
-    vzy = (lvz(lidz,lidy+1,lidx)-lvz(lidz,lidy,lidx))/DH;
-    vzz = (lvz(lidz,lidy,lidx)-lvz(lidz-1,lidy,lidx))/DH;
+    vzx = (lvz(lidz,lidy,lidx+1)-lvz(lidz,lidy,lidx));
+    vzy = (lvz(lidz,lidy+1,lidx)-lvz(lidz,lidy,lidx));
+    vzz = (lvz(lidz,lidy,lidx)-lvz(lidz-1,lidy,lidx));
 #elif FDOH==2
     
     vzx = (HC1*(lvz(lidz,lidy,lidx+1)-lvz(lidz,lidy,lidx))+
-           HC2*(lvz(lidz,lidy,lidx+2)-lvz(lidz,lidy,lidx-1)))/DH;
+           HC2*(lvz(lidz,lidy,lidx+2)-lvz(lidz,lidy,lidx-1)));
     
     vzy = (HC1*(lvz(lidz,lidy+1,lidx)-lvz(lidz,lidy,lidx))+
-           HC2*(lvz(lidz,lidy+2,lidx)-lvz(lidz,lidy-1,lidx)))/DH;
+           HC2*(lvz(lidz,lidy+2,lidx)-lvz(lidz,lidy-1,lidx)));
     
     vzz = (HC1*(lvz(lidz,lidy,lidx)  -lvz(lidz-1,lidy,lidx))+
-           HC2*(lvz(lidz+1,lidy,lidx)-lvz(lidz-2,lidy,lidx)))/DH;
+           HC2*(lvz(lidz+1,lidy,lidx)-lvz(lidz-2,lidy,lidx)));
 #elif FDOH==3
     vzx = (HC1*(lvz(lidz,lidy,lidx+1)-lvz(lidz,lidy,lidx))+
            HC2*(lvz(lidz,lidy,lidx+2)-lvz(lidz,lidy,lidx-1))+
-           HC3*(lvz(lidz,lidy,lidx+3)-lvz(lidz,lidy,lidx-2)))/DH;
+           HC3*(lvz(lidz,lidy,lidx+3)-lvz(lidz,lidy,lidx-2)));
     
     vzy = (HC1*(lvz(lidz,lidy+1,lidx)-lvz(lidz,lidy,lidx))+
            HC2*(lvz(lidz,lidy+2,lidx)-lvz(lidz,lidy-1,lidx))+
-           HC3*(lvz(lidz,lidy+3,lidx)-lvz(lidz,lidy-2,lidx)))/DH;
+           HC3*(lvz(lidz,lidy+3,lidx)-lvz(lidz,lidy-2,lidx)));
     
     vzz = (HC1*(lvz(lidz,lidy,lidx)-lvz(lidz-1,lidy,lidx))+
            HC2*(lvz(lidz+1,lidy,lidx)-lvz(lidz-2,lidy,lidx))+
-           HC3*(lvz(lidz+2,lidy,lidx)-lvz(lidz-3,lidy,lidx)))/DH;
+           HC3*(lvz(lidz+2,lidy,lidx)-lvz(lidz-3,lidy,lidx)));
 #elif FDOH==4
     vzx = (HC1*(lvz(lidz,lidy,lidx+1)-lvz(lidz,lidy,lidx))+
            HC2*(lvz(lidz,lidy,lidx+2)-lvz(lidz,lidy,lidx-1))+
            HC3*(lvz(lidz,lidy,lidx+3)-lvz(lidz,lidy,lidx-2))+
-           HC4*(lvz(lidz,lidy,lidx+4)-lvz(lidz,lidy,lidx-3)))/DH;
+           HC4*(lvz(lidz,lidy,lidx+4)-lvz(lidz,lidy,lidx-3)));
     
     vzy = (HC1*(lvz(lidz,lidy+1,lidx)-lvz(lidz,lidy,lidx))+
            HC2*(lvz(lidz,lidy+2,lidx)-lvz(lidz,lidy-1,lidx))+
            HC3*(lvz(lidz,lidy+3,lidx)-lvz(lidz,lidy-2,lidx))+
-           HC4*(lvz(lidz,lidy+4,lidx)-lvz(lidz,lidy-3,lidx)))/DH;
+           HC4*(lvz(lidz,lidy+4,lidx)-lvz(lidz,lidy-3,lidx)));
     
     vzz = (HC1*(lvz(lidz,lidy,lidx)  -lvz(lidz-1,lidy,lidx))+
            HC2*(lvz(lidz+1,lidy,lidx)-lvz(lidz-2,lidy,lidx))+
            HC3*(lvz(lidz+2,lidy,lidx)-lvz(lidz-3,lidy,lidx))+
-           HC4*(lvz(lidz+3,lidy,lidx)-lvz(lidz-4,lidy,lidx)))/DH;
+           HC4*(lvz(lidz+3,lidy,lidx)-lvz(lidz-4,lidy,lidx)));
 #elif FDOH==5
     vzx = (HC1*(lvz(lidz,lidy,lidx+1)-lvz(lidz,lidy,lidx))+
            HC2*(lvz(lidz,lidy,lidx+2)-lvz(lidz,lidy,lidx-1))+
            HC3*(lvz(lidz,lidy,lidx+3)-lvz(lidz,lidy,lidx-2))+
            HC4*(lvz(lidz,lidy,lidx+4)-lvz(lidz,lidy,lidx-3))+
-           HC5*(lvz(lidz,lidy,lidx+5)-lvz(lidz,lidy,lidx-4)))/DH;
+           HC5*(lvz(lidz,lidy,lidx+5)-lvz(lidz,lidy,lidx-4)));
     
     vzy = (HC1*(lvz(lidz,lidy+1,lidx)-lvz(lidz,lidy,lidx))+
            HC2*(lvz(lidz,lidy+2,lidx)-lvz(lidz,lidy-1,lidx))+
            HC3*(lvz(lidz,lidy+3,lidx)-lvz(lidz,lidy-2,lidx))+
            HC4*(lvz(lidz,lidy+4,lidx)-lvz(lidz,lidy-3,lidx))+
-           HC5*(lvz(lidz,lidy+5,lidx)-lvz(lidz,lidy-4,lidx)))/DH;
+           HC5*(lvz(lidz,lidy+5,lidx)-lvz(lidz,lidy-4,lidx)));
     
     vzz = (HC1*(lvz(lidz,lidy,lidx)  -lvz(lidz-1,lidy,lidx))+
            HC2*(lvz(lidz+1,lidy,lidx)-lvz(lidz-2,lidy,lidx))+
            HC3*(lvz(lidz+2,lidy,lidx)-lvz(lidz-3,lidy,lidx))+
            HC4*(lvz(lidz+3,lidy,lidx)-lvz(lidz-4,lidy,lidx))+
-           HC5*(lvz(lidz+4,lidy,lidx)-lvz(lidz-5,lidy,lidx)))/DH;
+           HC5*(lvz(lidz+4,lidy,lidx)-lvz(lidz-5,lidy,lidx)));
 #elif FDOH==6
     vzx = (HC1*(lvz(lidz,lidy,lidx+1)-lvz(lidz,lidy,lidx))+
            HC2*(lvz(lidz,lidy,lidx+2)-lvz(lidz,lidy,lidx-1))+
            HC3*(lvz(lidz,lidy,lidx+3)-lvz(lidz,lidy,lidx-2))+
            HC4*(lvz(lidz,lidy,lidx+4)-lvz(lidz,lidy,lidx-3))+
            HC5*(lvz(lidz,lidy,lidx+5)-lvz(lidz,lidy,lidx-4))+
-           HC6*(lvz(lidz,lidy,lidx+6)-lvz(lidz,lidy,lidx-5)))/DH;
+           HC6*(lvz(lidz,lidy,lidx+6)-lvz(lidz,lidy,lidx-5)));
     
     vzy = (HC1*(lvz(lidz,lidy+1,lidx)-lvz(lidz,lidy,lidx))+
            HC2*(lvz(lidz,lidy+2,lidx)-lvz(lidz,lidy-1,lidx))+
            HC3*(lvz(lidz,lidy+3,lidx)-lvz(lidz,lidy-2,lidx))+
            HC4*(lvz(lidz,lidy+4,lidx)-lvz(lidz,lidy-3,lidx))+
            HC5*(lvz(lidz,lidy+5,lidx)-lvz(lidz,lidy-4,lidx))+
-           HC6*(lvz(lidz,lidy+6,lidx)-lvz(lidz,lidy-5,lidx)))/DH;
+           HC6*(lvz(lidz,lidy+6,lidx)-lvz(lidz,lidy-5,lidx)));
     
     vzz = (HC1*(lvz(lidz,lidy,lidx)  -lvz(lidz-1,lidy,lidx))+
            HC2*(lvz(lidz+1,lidy,lidx)-lvz(lidz-2,lidy,lidx))+
            HC3*(lvz(lidz+2,lidy,lidx)-lvz(lidz-3,lidy,lidx))+
            HC4*(lvz(lidz+3,lidy,lidx)-lvz(lidz-4,lidy,lidx))+
            HC5*(lvz(lidz+4,lidy,lidx)-lvz(lidz-5,lidy,lidx))+
-           HC6*(lvz(lidz+5,lidy,lidx)-lvz(lidz-6,lidy,lidx)))/DH;
+           HC6*(lvz(lidz+5,lidy,lidx)-lvz(lidz-6,lidy,lidx)));
 #endif
 
         barrier(CLK_LOCAL_MEM_FENCE);
@@ -737,84 +737,84 @@ __kernel void update_adjs(int offcomm,
 #endif
     
 #if   FDOH==1
-    vxx_r = (lvx_r(lidz,lidy,lidx)-lvx_r(lidz,lidy,lidx-1))/DH;
-    vxy_r = (lvx_r(lidz,lidy+1,lidx)-lvx_r(lidz,lidy,lidx))/DH;
-    vxz_r = (lvx_r(lidz+1,lidy,lidx)-lvx_r(lidz,lidy,lidx))/DH;
+    vxx_r = (lvx_r(lidz,lidy,lidx)-lvx_r(lidz,lidy,lidx-1));
+    vxy_r = (lvx_r(lidz,lidy+1,lidx)-lvx_r(lidz,lidy,lidx));
+    vxz_r = (lvx_r(lidz+1,lidy,lidx)-lvx_r(lidz,lidy,lidx));
 #elif FDOH==2
     vxx_r = (HC1*(lvx_r(lidz,lidy,lidx)  -lvx_r(lidz,lidy,lidx-1))+
-           HC2*(lvx_r(lidz,lidy,lidx+1)-lvx_r(lidz,lidy,lidx-2)))/DH;
+           HC2*(lvx_r(lidz,lidy,lidx+1)-lvx_r(lidz,lidy,lidx-2)));
     
     vxy_r = (HC1*(lvx_r(lidz,lidy+1,lidx)-lvx_r(lidz,lidy,lidx))+
-           HC2*(lvx_r(lidz,lidy+2,lidx)-lvx_r(lidz,lidy-1,lidx)))/DH;
+           HC2*(lvx_r(lidz,lidy+2,lidx)-lvx_r(lidz,lidy-1,lidx)));
     
     vxz_r = (HC1*(lvx_r(lidz+1,lidy,lidx)-lvx_r(lidz,lidy,lidx))+
-           HC2*(lvx_r(lidz+2,lidy,lidx)-lvx_r(lidz-1,lidy,lidx)))/DH;
+           HC2*(lvx_r(lidz+2,lidy,lidx)-lvx_r(lidz-1,lidy,lidx)));
 #elif FDOH==3
     vxx_r = (HC1*(lvx_r(lidz,lidy,lidx)  -lvx_r(lidz,lidy,lidx-1))+
            HC2*(lvx_r(lidz,lidy,lidx+1)-lvx_r(lidz,lidy,lidx-2))+
-           HC3*(lvx_r(lidz,lidy,lidx+2)-lvx_r(lidz,lidy,lidx-3)))/DH;
+           HC3*(lvx_r(lidz,lidy,lidx+2)-lvx_r(lidz,lidy,lidx-3)));
     
     vxy_r = (HC1*(lvx_r(lidz,lidy+1,lidx)-lvx_r(lidz,lidy,lidx))+
            HC2*(lvx_r(lidz,lidy+2,lidx)-lvx_r(lidz,lidy-1,lidx))+
-           HC3*(lvx_r(lidz,lidy+3,lidx)-lvx_r(lidz,lidy-2,lidx)))/DH;
+           HC3*(lvx_r(lidz,lidy+3,lidx)-lvx_r(lidz,lidy-2,lidx)));
     
     vxz_r = (HC1*(lvx_r(lidz+1,lidy,lidx)-lvx_r(lidz,lidy,lidx))+
            HC2*(lvx_r(lidz+2,lidy,lidx)-lvx_r(lidz-1,lidy,lidx))+
-           HC3*(lvx_r(lidz+3,lidy,lidx)-lvx_r(lidz-2,lidy,lidx)))/DH;
+           HC3*(lvx_r(lidz+3,lidy,lidx)-lvx_r(lidz-2,lidy,lidx)));
 #elif FDOH==4
     vxx_r = (HC1*(lvx_r(lidz,lidy,lidx)  -lvx_r(lidz,lidy,lidx-1))+
            HC2*(lvx_r(lidz,lidy,lidx+1)-lvx_r(lidz,lidy,lidx-2))+
            HC3*(lvx_r(lidz,lidy,lidx+2)-lvx_r(lidz,lidy,lidx-3))+
-           HC4*(lvx_r(lidz,lidy,lidx+3)-lvx_r(lidz,lidy,lidx-4)))/DH;
+           HC4*(lvx_r(lidz,lidy,lidx+3)-lvx_r(lidz,lidy,lidx-4)));
     
     vxy_r = (HC1*(lvx_r(lidz,lidy+1,lidx)-lvx_r(lidz,lidy,lidx))+
            HC2*(lvx_r(lidz,lidy+2,lidx)-lvx_r(lidz,lidy-1,lidx))+
            HC3*(lvx_r(lidz,lidy+3,lidx)-lvx_r(lidz,lidy-2,lidx))+
-           HC4*(lvx_r(lidz,lidy+4,lidx)-lvx_r(lidz,lidy-3,lidx)))/DH;
+           HC4*(lvx_r(lidz,lidy+4,lidx)-lvx_r(lidz,lidy-3,lidx)));
     
     vxz_r = (HC1*(lvx_r(lidz+1,lidy,lidx)-lvx_r(lidz,lidy,lidx))+
            HC2*(lvx_r(lidz+2,lidy,lidx)-lvx_r(lidz-1,lidy,lidx))+
            HC3*(lvx_r(lidz+3,lidy,lidx)-lvx_r(lidz-2,lidy,lidx))+
-           HC4*(lvx_r(lidz+4,lidy,lidx)-lvx_r(lidz-3,lidy,lidx)))/DH;
+           HC4*(lvx_r(lidz+4,lidy,lidx)-lvx_r(lidz-3,lidy,lidx)));
 #elif FDOH==5
     vxx_r = (HC1*(lvx_r(lidz,lidy,lidx)  -lvx_r(lidz,lidy,lidx-1))+
            HC2*(lvx_r(lidz,lidy,lidx+1)-lvx_r(lidz,lidy,lidx-2))+
            HC3*(lvx_r(lidz,lidy,lidx+2)-lvx_r(lidz,lidy,lidx-3))+
            HC4*(lvx_r(lidz,lidy,lidx+3)-lvx_r(lidz,lidy,lidx-4))+
-           HC5*(lvx_r(lidz,lidy,lidx+4)-lvx_r(lidz,lidy,lidx-5)))/DH;
+           HC5*(lvx_r(lidz,lidy,lidx+4)-lvx_r(lidz,lidy,lidx-5)));
     
     vxy_r = (HC1*(lvx_r(lidz,lidy+1,lidx)-lvx_r(lidz,lidy,lidx))+
            HC2*(lvx_r(lidz,lidy+2,lidx)-lvx_r(lidz,lidy-1,lidx))+
            HC3*(lvx_r(lidz,lidy+3,lidx)-lvx_r(lidz,lidy-2,lidx))+
            HC4*(lvx_r(lidz,lidy+4,lidx)-lvx_r(lidz,lidy-3,lidx))+
-           HC5*(lvx_r(lidz,lidy+5,lidx)-lvx_r(lidz,lidy-4,lidx)))/DH;
+           HC5*(lvx_r(lidz,lidy+5,lidx)-lvx_r(lidz,lidy-4,lidx)));
     
     vxz_r = (HC1*(lvx_r(lidz+1,lidy,lidx)-lvx_r(lidz,lidy,lidx))+
            HC2*(lvx_r(lidz+2,lidy,lidx)-lvx_r(lidz-1,lidy,lidx))+
            HC3*(lvx_r(lidz+3,lidy,lidx)-lvx_r(lidz-2,lidy,lidx))+
            HC4*(lvx_r(lidz+4,lidy,lidx)-lvx_r(lidz-3,lidy,lidx))+
-           HC5*(lvx_r(lidz+5,lidy,lidx)-lvx_r(lidz-4,lidy,lidx)))/DH;
+           HC5*(lvx_r(lidz+5,lidy,lidx)-lvx_r(lidz-4,lidy,lidx)));
 #elif FDOH==6
     vxx_r = (HC1*(lvx_r(lidz,lidy,lidx)  -lvx_r(lidz,lidy,lidx-1))+
            HC2*(lvx_r(lidz,lidy,lidx+1)-lvx_r(lidz,lidy,lidx-2))+
            HC3*(lvx_r(lidz,lidy,lidx+2)-lvx_r(lidz,lidy,lidx-3))+
            HC4*(lvx_r(lidz,lidy,lidx+3)-lvx_r(lidz,lidy,lidx-4))+
            HC5*(lvx_r(lidz,lidy,lidx+4)-lvx_r(lidz,lidy,lidx-5))+
-           HC6*(lvx_r(lidz,lidy,lidx+5)-lvx_r(lidz,lidy,lidx-6)))/DH;
+           HC6*(lvx_r(lidz,lidy,lidx+5)-lvx_r(lidz,lidy,lidx-6)));
     
     vxy_r = (HC1*(lvx_r(lidz,lidy+1,lidx)-lvx_r(lidz,lidy,lidx))+
            HC2*(lvx_r(lidz,lidy+2,lidx)-lvx_r(lidz,lidy-1,lidx))+
            HC3*(lvx_r(lidz,lidy+3,lidx)-lvx_r(lidz,lidy-2,lidx))+
            HC4*(lvx_r(lidz,lidy+4,lidx)-lvx_r(lidz,lidy-3,lidx))+
            HC5*(lvx_r(lidz,lidy+5,lidx)-lvx_r(lidz,lidy-4,lidx))+
-           HC6*(lvx_r(lidz,lidy+6,lidx)-lvx_r(lidz,lidy-5,lidx)))/DH;
+           HC6*(lvx_r(lidz,lidy+6,lidx)-lvx_r(lidz,lidy-5,lidx)));
     
     vxz_r = (HC1*(lvx_r(lidz+1,lidy,lidx)-lvx_r(lidz,lidy,lidx))+
            HC2*(lvx_r(lidz+2,lidy,lidx)-lvx_r(lidz-1,lidy,lidx))+
            HC3*(lvx_r(lidz+3,lidy,lidx)-lvx_r(lidz-2,lidy,lidx))+
            HC4*(lvx_r(lidz+4,lidy,lidx)-lvx_r(lidz-3,lidy,lidx))+
            HC5*(lvx_r(lidz+5,lidy,lidx)-lvx_r(lidz-4,lidy,lidx))+
-           HC6*(lvx_r(lidz+6,lidy,lidx)-lvx_r(lidz-5,lidy,lidx)))/DH;
+           HC6*(lvx_r(lidz+6,lidy,lidx)-lvx_r(lidz-5,lidy,lidx)));
 #endif
     
     
@@ -845,84 +845,84 @@ __kernel void update_adjs(int offcomm,
 #endif
     
 #if   FDOH==1
-    vyx_r = (lvy_r(lidz,lidy,lidx+1)-lvy_r(lidz,lidy,lidx))/DH;
-    vyy_r = (lvy_r(lidz,lidy,lidx)-lvy_r(lidz,lidy-1,lidx))/DH;
-    vyz_r = (lvy_r(lidz+1,lidy,lidx)-lvy_r(lidz,lidy,lidx))/DH;
+    vyx_r = (lvy_r(lidz,lidy,lidx+1)-lvy_r(lidz,lidy,lidx));
+    vyy_r = (lvy_r(lidz,lidy,lidx)-lvy_r(lidz,lidy-1,lidx));
+    vyz_r = (lvy_r(lidz+1,lidy,lidx)-lvy_r(lidz,lidy,lidx));
 #elif FDOH==2
     vyx_r = (HC1*(lvy_r(lidz,lidy,lidx+1)-lvy_r(lidz,lidy,lidx))+
-           HC2*(lvy_r(lidz,lidy,lidx+2)-lvy_r(lidz,lidy,lidx-1)))/DH;
+           HC2*(lvy_r(lidz,lidy,lidx+2)-lvy_r(lidz,lidy,lidx-1)));
     
     vyy_r = (HC1*(lvy_r(lidz,lidy,lidx)  -lvy_r(lidz,lidy-1,lidx))+
-           HC2*(lvy_r(lidz,lidy+1,lidx)-lvy_r(lidz,lidy-2,lidx)))/DH;
+           HC2*(lvy_r(lidz,lidy+1,lidx)-lvy_r(lidz,lidy-2,lidx)));
     
     vyz_r = (HC1*(lvy_r(lidz+1,lidy,lidx)-lvy_r(lidz,lidy,lidx))+
-           HC2*(lvy_r(lidz+2,lidy,lidx)-lvy_r(lidz-1,lidy,lidx)))/DH;
+           HC2*(lvy_r(lidz+2,lidy,lidx)-lvy_r(lidz-1,lidy,lidx)));
 #elif FDOH==3
     vyx_r = (HC1*(lvy_r(lidz,lidy,lidx+1)-lvy_r(lidz,lidy,lidx))+
            HC2*(lvy_r(lidz,lidy,lidx+2)-lvy_r(lidz,lidy,lidx-1))+
-           HC3*(lvy_r(lidz,lidy,lidx+3)-lvy_r(lidz,lidy,lidx-2)))/DH;
+           HC3*(lvy_r(lidz,lidy,lidx+3)-lvy_r(lidz,lidy,lidx-2)));
     
     vyy_r = (HC1*(lvy_r(lidz,lidy,lidx)-lvy_r(lidz,lidy-1,lidx))+
            HC2*(lvy_r(lidz,lidy+1,lidx)-lvy_r(lidz,lidy-2,lidx))+
-           HC3*(lvy_r(lidz,lidy+2,lidx)-lvy_r(lidz,lidy-3,lidx)))/DH;
+           HC3*(lvy_r(lidz,lidy+2,lidx)-lvy_r(lidz,lidy-3,lidx)));
     
     vyz_r = (HC1*(lvy_r(lidz+1,lidy,lidx)-lvy_r(lidz,lidy,lidx))+
            HC2*(lvy_r(lidz+2,lidy,lidx)-lvy_r(lidz-1,lidy,lidx))+
-           HC3*(lvy_r(lidz+3,lidy,lidx)-lvy_r(lidz-2,lidy,lidx)))/DH;
+           HC3*(lvy_r(lidz+3,lidy,lidx)-lvy_r(lidz-2,lidy,lidx)));
 #elif FDOH==4
     vyx_r = (HC1*(lvy_r(lidz,lidy,lidx+1)-lvy_r(lidz,lidy,lidx))+
            HC2*(lvy_r(lidz,lidy,lidx+2)-lvy_r(lidz,lidy,lidx-1))+
            HC3*(lvy_r(lidz,lidy,lidx+3)-lvy_r(lidz,lidy,lidx-2))+
-           HC4*(lvy_r(lidz,lidy,lidx+4)-lvy_r(lidz,lidy,lidx-3)))/DH;
+           HC4*(lvy_r(lidz,lidy,lidx+4)-lvy_r(lidz,lidy,lidx-3)));
     
     vyy_r = (HC1*(lvy_r(lidz,lidy,lidx)  -lvy_r(lidz,lidy-1,lidx))+
            HC2*(lvy_r(lidz,lidy+1,lidx)-lvy_r(lidz,lidy-2,lidx))+
            HC3*(lvy_r(lidz,lidy+2,lidx)-lvy_r(lidz,lidy-3,lidx))+
-           HC4*(lvy_r(lidz,lidy+3,lidx)-lvy_r(lidz,lidy-4,lidx)))/DH;
+           HC4*(lvy_r(lidz,lidy+3,lidx)-lvy_r(lidz,lidy-4,lidx)));
     
     vyz_r = (HC1*(lvy_r(lidz+1,lidy,lidx)-lvy_r(lidz,lidy,lidx))+
            HC2*(lvy_r(lidz+2,lidy,lidx)-lvy_r(lidz-1,lidy,lidx))+
            HC3*(lvy_r(lidz+3,lidy,lidx)-lvy_r(lidz-2,lidy,lidx))+
-           HC4*(lvy_r(lidz+4,lidy,lidx)-lvy_r(lidz-3,lidy,lidx)))/DH;
+           HC4*(lvy_r(lidz+4,lidy,lidx)-lvy_r(lidz-3,lidy,lidx)));
 #elif FDOH==5
     vyx_r = (HC1*(lvy_r(lidz,lidy,lidx+1)-lvy_r(lidz,lidy,lidx))+
            HC2*(lvy_r(lidz,lidy,lidx+2)-lvy_r(lidz,lidy,lidx-1))+
            HC3*(lvy_r(lidz,lidy,lidx+3)-lvy_r(lidz,lidy,lidx-2))+
            HC4*(lvy_r(lidz,lidy,lidx+4)-lvy_r(lidz,lidy,lidx-3))+
-           HC5*(lvy_r(lidz,lidy,lidx+5)-lvy_r(lidz,lidy,lidx-4)))/DH;
+           HC5*(lvy_r(lidz,lidy,lidx+5)-lvy_r(lidz,lidy,lidx-4)));
     
     vyy_r = (HC1*(lvy_r(lidz,lidy,lidx)  -lvy_r(lidz,lidy-1,lidx))+
            HC2*(lvy_r(lidz,lidy+1,lidx)-lvy_r(lidz,lidy-2,lidx))+
            HC3*(lvy_r(lidz,lidy+2,lidx)-lvy_r(lidz,lidy-3,lidx))+
            HC4*(lvy_r(lidz,lidy+3,lidx)-lvy_r(lidz,lidy-4,lidx))+
-           HC5*(lvy_r(lidz,lidy+4,lidx)-lvy_r(lidz,lidy-5,lidx)))/DH;
+           HC5*(lvy_r(lidz,lidy+4,lidx)-lvy_r(lidz,lidy-5,lidx)));
     
     vyz_r = (HC1*(lvy_r(lidz+1,lidy,lidx)-lvy_r(lidz,lidy,lidx))+
            HC2*(lvy_r(lidz+2,lidy,lidx)-lvy_r(lidz-1,lidy,lidx))+
            HC3*(lvy_r(lidz+3,lidy,lidx)-lvy_r(lidz-2,lidy,lidx))+
            HC4*(lvy_r(lidz+4,lidy,lidx)-lvy_r(lidz-3,lidy,lidx))+
-           HC5*(lvy_r(lidz+5,lidy,lidx)-lvy_r(lidz-4,lidy,lidx)))/DH;
+           HC5*(lvy_r(lidz+5,lidy,lidx)-lvy_r(lidz-4,lidy,lidx)));
 #elif FDOH==6
     vyx_r = (HC1*(lvy_r(lidz,lidy,lidx+1)-lvy_r(lidz,lidy,lidx))+
            HC2*(lvy_r(lidz,lidy,lidx+2)-lvy_r(lidz,lidy,lidx-1))+
            HC3*(lvy_r(lidz,lidy,lidx+3)-lvy_r(lidz,lidy,lidx-2))+
            HC4*(lvy_r(lidz,lidy,lidx+4)-lvy_r(lidz,lidy,lidx-3))+
            HC5*(lvy_r(lidz,lidy,lidx+5)-lvy_r(lidz,lidy,lidx-4))+
-           HC6*(lvy_r(lidz,lidy,lidx+6)-lvy_r(lidz,lidy,lidx-5)))/DH;
+           HC6*(lvy_r(lidz,lidy,lidx+6)-lvy_r(lidz,lidy,lidx-5)));
     
     vyy_r = (HC1*(lvy_r(lidz,lidy,lidx)  -lvy_r(lidz,lidy-1,lidx))+
            HC2*(lvy_r(lidz,lidy+1,lidx)-lvy_r(lidz,lidy-2,lidx))+
            HC3*(lvy_r(lidz,lidy+2,lidx)-lvy_r(lidz,lidy-3,lidx))+
            HC4*(lvy_r(lidz,lidy+3,lidx)-lvy_r(lidz,lidy-4,lidx))+
            HC5*(lvy_r(lidz,lidy+4,lidx)-lvy_r(lidz,lidy-5,lidx))+
-           HC6*(lvy_r(lidz,lidy+5,lidx)-lvy_r(lidz,lidy-6,lidx)))/DH;
+           HC6*(lvy_r(lidz,lidy+5,lidx)-lvy_r(lidz,lidy-6,lidx)));
     
     vyz_r = (HC1*(lvy_r(lidz+1,lidy,lidx)-lvy_r(lidz,lidy,lidx))+
            HC2*(lvy_r(lidz+2,lidy,lidx)-lvy_r(lidz-1,lidy,lidx))+
            HC3*(lvy_r(lidz+3,lidy,lidx)-lvy_r(lidz-2,lidy,lidx))+
            HC4*(lvy_r(lidz+4,lidy,lidx)-lvy_r(lidz-3,lidy,lidx))+
            HC5*(lvy_r(lidz+5,lidy,lidx)-lvy_r(lidz-4,lidy,lidx))+
-           HC6*(lvy_r(lidz+6,lidy,lidx)-lvy_r(lidz-5,lidy,lidx)))/DH;
+           HC6*(lvy_r(lidz+6,lidy,lidx)-lvy_r(lidz-5,lidy,lidx)));
 #endif
     
     
@@ -956,85 +956,85 @@ __kernel void update_adjs(int offcomm,
     
     
 #if   FDOH==1
-    vzx_r = (lvz_r(lidz,lidy,lidx+1)-lvz_r(lidz,lidy,lidx))/DH;
-    vzy_r = (lvz_r(lidz,lidy+1,lidx)-lvz_r(lidz,lidy,lidx))/DH;
-    vzz_r = (lvz_r(lidz,lidy,lidx)-lvz_r(lidz-1,lidy,lidx))/DH;
+    vzx_r = (lvz_r(lidz,lidy,lidx+1)-lvz_r(lidz,lidy,lidx));
+    vzy_r = (lvz_r(lidz,lidy+1,lidx)-lvz_r(lidz,lidy,lidx));
+    vzz_r = (lvz_r(lidz,lidy,lidx)-lvz_r(lidz-1,lidy,lidx));
 #elif FDOH==2
     
     vzx_r = (HC1*(lvz_r(lidz,lidy,lidx+1)-lvz_r(lidz,lidy,lidx))+
-           HC2*(lvz_r(lidz,lidy,lidx+2)-lvz_r(lidz,lidy,lidx-1)))/DH;
+           HC2*(lvz_r(lidz,lidy,lidx+2)-lvz_r(lidz,lidy,lidx-1)));
     
     vzy_r = (HC1*(lvz_r(lidz,lidy+1,lidx)-lvz_r(lidz,lidy,lidx))+
-           HC2*(lvz_r(lidz,lidy+2,lidx)-lvz_r(lidz,lidy-1,lidx)))/DH;
+           HC2*(lvz_r(lidz,lidy+2,lidx)-lvz_r(lidz,lidy-1,lidx)));
     
     vzz_r = (HC1*(lvz_r(lidz,lidy,lidx)  -lvz_r(lidz-1,lidy,lidx))+
-           HC2*(lvz_r(lidz+1,lidy,lidx)-lvz_r(lidz-2,lidy,lidx)))/DH;
+           HC2*(lvz_r(lidz+1,lidy,lidx)-lvz_r(lidz-2,lidy,lidx)));
 #elif FDOH==3
     vzx_r = (HC1*(lvz_r(lidz,lidy,lidx+1)-lvz_r(lidz,lidy,lidx))+
            HC2*(lvz_r(lidz,lidy,lidx+2)-lvz_r(lidz,lidy,lidx-1))+
-           HC3*(lvz_r(lidz,lidy,lidx+3)-lvz_r(lidz,lidy,lidx-2)))/DH;
+           HC3*(lvz_r(lidz,lidy,lidx+3)-lvz_r(lidz,lidy,lidx-2)));
     
     vzy_r = (HC1*(lvz_r(lidz,lidy+1,lidx)-lvz_r(lidz,lidy,lidx))+
            HC2*(lvz_r(lidz,lidy+2,lidx)-lvz_r(lidz,lidy-1,lidx))+
-           HC3*(lvz_r(lidz,lidy+3,lidx)-lvz_r(lidz,lidy-2,lidx)))/DH;
+           HC3*(lvz_r(lidz,lidy+3,lidx)-lvz_r(lidz,lidy-2,lidx)));
     
     vzz_r = (HC1*(lvz_r(lidz,lidy,lidx)-lvz_r(lidz-1,lidy,lidx))+
            HC2*(lvz_r(lidz+1,lidy,lidx)-lvz_r(lidz-2,lidy,lidx))+
-           HC3*(lvz_r(lidz+2,lidy,lidx)-lvz_r(lidz-3,lidy,lidx)))/DH;
+           HC3*(lvz_r(lidz+2,lidy,lidx)-lvz_r(lidz-3,lidy,lidx)));
 #elif FDOH==4
     vzx_r = (HC1*(lvz_r(lidz,lidy,lidx+1)-lvz_r(lidz,lidy,lidx))+
            HC2*(lvz_r(lidz,lidy,lidx+2)-lvz_r(lidz,lidy,lidx-1))+
            HC3*(lvz_r(lidz,lidy,lidx+3)-lvz_r(lidz,lidy,lidx-2))+
-           HC4*(lvz_r(lidz,lidy,lidx+4)-lvz_r(lidz,lidy,lidx-3)))/DH;
+           HC4*(lvz_r(lidz,lidy,lidx+4)-lvz_r(lidz,lidy,lidx-3)));
     
     vzy_r = (HC1*(lvz_r(lidz,lidy+1,lidx)-lvz_r(lidz,lidy,lidx))+
            HC2*(lvz_r(lidz,lidy+2,lidx)-lvz_r(lidz,lidy-1,lidx))+
            HC3*(lvz_r(lidz,lidy+3,lidx)-lvz_r(lidz,lidy-2,lidx))+
-           HC4*(lvz_r(lidz,lidy+4,lidx)-lvz_r(lidz,lidy-3,lidx)))/DH;
+           HC4*(lvz_r(lidz,lidy+4,lidx)-lvz_r(lidz,lidy-3,lidx)));
     
     vzz_r = (HC1*(lvz_r(lidz,lidy,lidx)  -lvz_r(lidz-1,lidy,lidx))+
            HC2*(lvz_r(lidz+1,lidy,lidx)-lvz_r(lidz-2,lidy,lidx))+
            HC3*(lvz_r(lidz+2,lidy,lidx)-lvz_r(lidz-3,lidy,lidx))+
-           HC4*(lvz_r(lidz+3,lidy,lidx)-lvz_r(lidz-4,lidy,lidx)))/DH;
+           HC4*(lvz_r(lidz+3,lidy,lidx)-lvz_r(lidz-4,lidy,lidx)));
 #elif FDOH==5
     vzx_r = (HC1*(lvz_r(lidz,lidy,lidx+1)-lvz_r(lidz,lidy,lidx))+
            HC2*(lvz_r(lidz,lidy,lidx+2)-lvz_r(lidz,lidy,lidx-1))+
            HC3*(lvz_r(lidz,lidy,lidx+3)-lvz_r(lidz,lidy,lidx-2))+
            HC4*(lvz_r(lidz,lidy,lidx+4)-lvz_r(lidz,lidy,lidx-3))+
-           HC5*(lvz_r(lidz,lidy,lidx+5)-lvz_r(lidz,lidy,lidx-4)))/DH;
+           HC5*(lvz_r(lidz,lidy,lidx+5)-lvz_r(lidz,lidy,lidx-4)));
     
     vzy_r = (HC1*(lvz_r(lidz,lidy+1,lidx)-lvz_r(lidz,lidy,lidx))+
            HC2*(lvz_r(lidz,lidy+2,lidx)-lvz_r(lidz,lidy-1,lidx))+
            HC3*(lvz_r(lidz,lidy+3,lidx)-lvz_r(lidz,lidy-2,lidx))+
            HC4*(lvz_r(lidz,lidy+4,lidx)-lvz_r(lidz,lidy-3,lidx))+
-           HC5*(lvz_r(lidz,lidy+5,lidx)-lvz_r(lidz,lidy-4,lidx)))/DH;
+           HC5*(lvz_r(lidz,lidy+5,lidx)-lvz_r(lidz,lidy-4,lidx)));
     
     vzz_r = (HC1*(lvz_r(lidz,lidy,lidx)  -lvz_r(lidz-1,lidy,lidx))+
            HC2*(lvz_r(lidz+1,lidy,lidx)-lvz_r(lidz-2,lidy,lidx))+
            HC3*(lvz_r(lidz+2,lidy,lidx)-lvz_r(lidz-3,lidy,lidx))+
            HC4*(lvz_r(lidz+3,lidy,lidx)-lvz_r(lidz-4,lidy,lidx))+
-           HC5*(lvz_r(lidz+4,lidy,lidx)-lvz_r(lidz-5,lidy,lidx)))/DH;
+           HC5*(lvz_r(lidz+4,lidy,lidx)-lvz_r(lidz-5,lidy,lidx)));
 #elif FDOH==6
     vzx_r = (HC1*(lvz_r(lidz,lidy,lidx+1)-lvz_r(lidz,lidy,lidx))+
            HC2*(lvz_r(lidz,lidy,lidx+2)-lvz_r(lidz,lidy,lidx-1))+
            HC3*(lvz_r(lidz,lidy,lidx+3)-lvz_r(lidz,lidy,lidx-2))+
            HC4*(lvz_r(lidz,lidy,lidx+4)-lvz_r(lidz,lidy,lidx-3))+
            HC5*(lvz_r(lidz,lidy,lidx+5)-lvz_r(lidz,lidy,lidx-4))+
-           HC6*(lvz_r(lidz,lidy,lidx+6)-lvz_r(lidz,lidy,lidx-5)))/DH;
+           HC6*(lvz_r(lidz,lidy,lidx+6)-lvz_r(lidz,lidy,lidx-5)));
     
     vzy_r = (HC1*(lvz_r(lidz,lidy+1,lidx)-lvz_r(lidz,lidy,lidx))+
            HC2*(lvz_r(lidz,lidy+2,lidx)-lvz_r(lidz,lidy-1,lidx))+
            HC3*(lvz_r(lidz,lidy+3,lidx)-lvz_r(lidz,lidy-2,lidx))+
            HC4*(lvz_r(lidz,lidy+4,lidx)-lvz_r(lidz,lidy-3,lidx))+
            HC5*(lvz_r(lidz,lidy+5,lidx)-lvz_r(lidz,lidy-4,lidx))+
-           HC6*(lvz_r(lidz,lidy+6,lidx)-lvz_r(lidz,lidy-5,lidx)))/DH;
+           HC6*(lvz_r(lidz,lidy+6,lidx)-lvz_r(lidz,lidy-5,lidx)));
     
     vzz_r = (HC1*(lvz_r(lidz,lidy,lidx)  -lvz_r(lidz-1,lidy,lidx))+
            HC2*(lvz_r(lidz+1,lidy,lidx)-lvz_r(lidz-2,lidy,lidx))+
            HC3*(lvz_r(lidz+2,lidy,lidx)-lvz_r(lidz-3,lidy,lidx))+
            HC4*(lvz_r(lidz+3,lidy,lidx)-lvz_r(lidz-4,lidy,lidx))+
            HC5*(lvz_r(lidz+4,lidy,lidx)-lvz_r(lidz-5,lidy,lidx))+
-           HC6*(lvz_r(lidz+5,lidy,lidx)-lvz_r(lidz-6,lidy,lidx)))/DH;
+           HC6*(lvz_r(lidz+5,lidy,lidx)-lvz_r(lidz-6,lidy,lidx)));
 #endif
     }
     
@@ -1058,11 +1058,11 @@ __kernel void update_adjs(int offcomm,
 #if LVE==0
     lM=M(gidz,gidy,gidx);
     lmu=mu(gidz,gidy,gidx);
-    fipjp=muipjp(gidz,gidy,gidx)*DT;
-    fjpkp=mujpkp(gidz,gidy,gidx)*DT;
-    fipkp=muipkp(gidz,gidy,gidx)*DT;
-    g=lM*DT;
-    f=2.0*lmu*DT;
+    fipjp=muipjp(gidz,gidy,gidx);
+    fjpkp=mujpkp(gidz,gidy,gidx);
+    fipkp=muipkp(gidz,gidy,gidx);
+    g=lM;
+    f=2.0*lmu;
 
     
 #else
@@ -1082,11 +1082,11 @@ __kernel void update_adjs(int offcomm,
         leta[l]=eta[l];
     }
     
-    fipjp=lmuipjp*DT*(1.0+ (float)LVE*ltausipjp);
-    fjpkp=lmujpkp*DT*(1.0+ (float)LVE*ltausjpkp);
-    fipkp=lmuipkp*DT*(1.0+ (float)LVE*ltausipkp);
-    g=lM*(1.0+(float)LVE*ltaup)*DT;
-    f=2.0*lmu*(1.0+(float)LVE*ltaus)*DT;
+    fipjp=lmuipjp*(1.0+ (float)LVE*ltausipjp);
+    fjpkp=lmujpkp*(1.0+ (float)LVE*ltausjpkp);
+    fipkp=lmuipkp*(1.0+ (float)LVE*ltausipkp);
+    g=lM*(1.0+(float)LVE*ltaup);
+    f=2.0*lmu*(1.0+(float)LVE*ltaus);
     dipjp=lmuipjp*ltausipjp;
     djpkp=lmujpkp*ltausjpkp;
     dipkp=lmuipkp*ltausipkp;
@@ -1493,9 +1493,9 @@ __kernel void update_adjs(int offcomm,
 //            int SOURCE_TYPE= (int)srcpos_loc(4,srci);
 //
 //            if (SOURCE_TYPE==1){
-//                int i=(int)(srcpos_loc(0,srci)/DH-0.5)+FDOH;
-//                int j=(int)(srcpos_loc(1,srci)/DH-0.5)+FDOH;
-//                int k=(int)(srcpos_loc(2,srci)/DH-0.5)+FDOH;
+//                int i=(int)(srcpos_loc(0,srci)-0.5)+FDOH;
+//                int j=(int)(srcpos_loc(1,srci)-0.5)+FDOH;
+//                int k=(int)(srcpos_loc(2,srci)-0.5)+FDOH;
 //                
 //                
 //                if (i==gidx && j==gidy && k==gidz){

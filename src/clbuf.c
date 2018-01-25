@@ -20,104 +20,196 @@
 
 #include "F.h"
 
-int clbuf_send(CUstream *inqueue, clbuf * buf)
+CL_INT clbuf_send(QUEUE *inqueue, clbuf * buf)
 {
     /*Routine to allocate memory buffers to the device*/
     
-    int err = 0;
-
+    CL_INT err = 0;
+    #ifdef __SEISCL__
+    cl_event * event=NULL;
+    if (buf->outevent_s)
+        event=&buf->event_s;
     /*Transfer memory from host to the device*/
+    err = clEnqueueWriteBuffer(*inqueue, buf->mem,
+                               CL_TRUE,
+                               0,
+                               buf->size,
+                               (void*)buf->host,
+                               buf->nwait_s,
+                               buf->waits_s,
+                               event);
+    #else
     err = cuMemcpyHtoDAsync ( buf->mem, (void*)buf->host, buf->size, *inqueue );
-    if (err !=CUDA_SUCCESS) fprintf(stderr,
-                                    "Error clbuf_send: %s\n",
+    #endif
+    if (err !=CUCL_SUCCESS) fprintf(stderr,
+                                    "Error: clbuf_send: %s\n",
                                     clerrors(err));
     
     return err;
 }
 
-int clbuf_sendfrom(CUstream *inqueue,
+CL_INT clbuf_sendfrom(QUEUE *inqueue,
                    clbuf * buf,
                    void * ptr)
 {
     /*Routine to allocate memory buffers to the device*/
     
-    int err = 0;
+    CL_INT err = 0;
     /*Transfer memory from host to the device*/
+    #ifdef __SEISCL__
+    cl_event * event=NULL;
+    if (buf->outevent_s)
+        event=&buf->event_s;
+    /*Transfer memory from host to the device*/
+    err = clEnqueueWriteBuffer(*inqueue, buf->mem,
+                               CL_TRUE,
+                               0,
+                               buf->size,
+                               ptr,
+                               buf->nwait_s,
+                               buf->waits_s,
+                               event);
+    #else
     err = cuMemcpyHtoDAsync (buf->mem,
                              ptr,
                              buf->size,
                              *inqueue );
-    if (err !=CUDA_SUCCESS) fprintf(stderr,
-                                    "Error clbuf_sendfrom: %s\n",
+    #endif
+    if (err !=CUCL_SUCCESS) fprintf(stderr,
+                                    "Error: clbuf_sendfrom: %s\n",
                                     clerrors(err));
     
     return err;
 }
 
-int clbuf_read(CUstream *inqueue, clbuf * buf)
+CL_INT clbuf_read(QUEUE *inqueue, clbuf * buf)
 {
     /*Routine to read memory buffers from the device*/
     
-    int err = 0;
+    CL_INT err = 0;
     
     /*Read memory from device to the host*/
+    #ifdef __SEISCL__
+    cl_event * event=NULL;
+    if (buf->outevent_r)
+        event=&buf->event_r;
+    
+    /*Read memory from device to the host*/
+    err = clEnqueueReadBuffer(*inqueue,
+                              buf->mem,
+                              CL_FALSE,
+                              0,
+                              buf->size,
+                              buf->host,
+                              buf->nwait_r,
+                              buf->waits_r,
+                              event);
+    #else
     err= cuMemcpyDtoHAsync ( buf->host, buf->mem, buf->size, *inqueue );
-    
-    if (err !=CUDA_SUCCESS) fprintf(stderr,
-                                    "Error clbuf_read: %s\n",
+    #endif
+    if (err !=CUCL_SUCCESS) fprintf(stderr,
+                                    "Error: clbuf_read: %s\n",
                                     clerrors(err));
     
     return err;
 }
 
-int clbuf_readto(CUstream *inqueue,
-                  clbuf * buf,
-                  void * ptr)
+CL_INT clbuf_readto(QUEUE *inqueue,
+                    clbuf * buf,
+                    void * ptr)
 {
     /*Routine to read memory buffers from the device*/
     
-    int err = 0;
+    CL_INT err = 0;
     
     /*Read memory from device to the host*/
-    err= cuMemcpyDtoHAsync(ptr, buf->mem, buf->size, *inqueue);
+    #ifdef __SEISCL__
+    cl_event * event=NULL;
+    if (buf->outevent_r)
+        event=&buf->event_r;
     
-    if (err !=CUDA_SUCCESS) fprintf(stderr,
-                                    "Error clbuf_readto: %s\n",
+    /*Read memory from device to the host*/
+    err = clEnqueueReadBuffer(*inqueue,
+                              buf->mem,
+                              CL_FALSE,
+                              0,
+                              buf->size,
+                              ptr,
+                              buf->nwait_r,
+                              buf->waits_r,
+                              event);
+    
+    #else
+    err= cuMemcpyDtoHAsync(ptr, buf->mem, buf->size, *inqueue);
+    #endif
+    if (err !=CUCL_SUCCESS) fprintf(stderr,
+                                    "Error: clbuf_readto: %s\n",
                                     clerrors(err));
     
     return err;
 }
 
-int clbuf_create(clbuf * buf)
+CL_INT clbuf_create(CONTEXT *incontext, clbuf * buf)
 {
     /*Create the buffer on the device */
-    int err = 0;
+    CL_INT err = 0;
+    #ifdef __SEISCL__
+    (*buf).mem = clCreateBuffer(*incontext, CL_MEM_READ_WRITE, (*buf).size, NULL, &err);
+    #else
     err = cuMemAlloc( &(*buf).mem , (*buf).size);
-    if (err !=CUDA_SUCCESS) fprintf(stderr,
-                                    "Error clbuf_create: %s\n",
+    #endif
+    if (err !=CUCL_SUCCESS) fprintf(stderr,
+                                    "Error: clbuf_create: %s\n",
                                     clerrors(err));
     
     return err;
     
 }
 
-int clbuf_create_pin(clbuf * buf)
+CL_INT clbuf_create_pin(CONTEXT *incontext, QUEUE *inqueue,
+                        clbuf * buf)
 {
     size_t sizepin;
     /*Create pinned memory */
-    int err = 0;
+    CL_INT err = 0;
+    #ifdef __SEISCL__
+    (*buf).mem = clCreateBuffer(*incontext,
+                                CL_MEM_READ_WRITE,
+                                (*buf).size,
+                                NULL,
+                                &err);
+    #else
     err = cuMemAlloc( &(*buf).mem , (*buf).size);
-
+    #endif
     if ((*buf).sizepin>0){
         sizepin=(*buf).sizepin;
     }
     else{
         sizepin=(*buf).size;
     }
-    err = cuMemAllocHost((void**)&(*buf).pin, sizepin);
+    #ifdef __SEISCL__
+    (*buf).pin= clCreateBuffer(*incontext,
+                               CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR,
+                               sizepin,
+                               NULL,
+                               &err);
     
-    if (err !=CUDA_SUCCESS) fprintf(stderr,
-                                    "Error clbuf_create_pin: %s\n",
+    (*buf).host = (float*)clEnqueueMapBuffer(*inqueue,
+                                             (*buf).pin,
+                                             CL_TRUE,
+                                             CL_MAP_WRITE | CL_MAP_READ,
+                                             0,
+                                             sizepin,
+                                             0,
+                                             NULL,
+                                             NULL,
+                                             &err);
+    #else
+    err = cuMemAllocHost((void**)&(*buf).host, sizepin);
+    #endif
+    
+    if (err !=CUCL_SUCCESS) fprintf(stderr,
+                                    "Error: clbuf_create_pin: %s\n",
                                     clerrors(err));
     
     return err;

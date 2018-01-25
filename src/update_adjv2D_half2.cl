@@ -80,7 +80,7 @@ extern "C" __device__ float2 f2h2f(float a){
 
 
 
-#if FP16==1 || FP16==2
+#if FP16==2
 
 #define __h2f(x) __half2float((x))
 #define __h22f2(x) __half22float2((x))
@@ -94,7 +94,7 @@ extern "C" __device__ float2 f2h2f(float a){
 
 #endif
 
-#if FP16==0
+#if FP16==1
 
 #define __prec float
 #define __prec2 float2
@@ -107,7 +107,7 @@ extern "C" __device__ float2 f2h2f(float a){
 #endif
 
 
-#if FP16<3
+#if FP16!=3
 
 #define __cprec float2
 #define __f22h2c(x) (x)
@@ -147,7 +147,7 @@ extern "C" __device__ float2 scalbnf2(float2 a, int scaler ){
     return output;
 }
 
-#if FP16==2 || FP16==4
+#if FP16>1
 
 #define __pprec half2
 
@@ -160,10 +160,6 @@ extern "C" __device__ float2 scalbnf2(float2 a, int scaler ){
 #if FP16==2
 
 #define __pconv(x) __half22float2((x))
-
-#elif FP16==3
-
-#define __pconv(x) __float22half2_rn((x))
 
 #else
 

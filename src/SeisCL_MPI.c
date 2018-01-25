@@ -76,37 +76,37 @@ int main(int argc, char **argv) {
     // Root process reads the input files
     time1=MPI_Wtime();
     if (m.MYID==0){
-        __GUARD readhdf5(file, &m);
+        if (!state) state = readhdf5(file, &m);
     }
     time2=MPI_Wtime();
     
     // Initiate and transfer data on all process
-    __GUARD Init_MPI(&m);
-    __GUARD Init_cst(&m);
-    __GUARD Init_model(&m);
+    if (!state) state = Init_MPI(&m);
+    if (!state) state = Init_cst(&m);
+    if (!state) state = Init_model(&m);
 
     time3=MPI_Wtime();
 
-    __GUARD Init_CUDA(&m, &dev);
+    if (!state) state = Init_CUDA(&m, &dev);
 
     time4=MPI_Wtime();
 
     // Main part, where seismic modeling occurs
-    __GUARD time_stepping(&m, &dev);
+    if (!state) state = time_stepping(&m, &dev);
 
     time5=MPI_Wtime();
 
     //Reduce to process 0 all required outputs
-    __GUARD Out_MPI(&m);
+    if (!state) state = Out_MPI(&m);
 
     // Write the ouputs to hdf5 files
     if (m.MYID==0){
-        __GUARD writehdf5(file, &m) ;
+        if (!state) state = writehdf5(file, &m) ;
     }
     time6=MPI_Wtime();
 
     //Output time for each part of the program
-    {
+    if (!state){
         double * times=NULL;
 
         if (m.MYID==0){
@@ -151,7 +151,7 @@ int main(int argc, char **argv) {
         MPI_Finalize();
     }
     
-    return 0;
+    return state;
     
 }
 

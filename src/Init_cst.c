@@ -171,7 +171,7 @@ int CPML_coeff(float NPOWER, float k_max_CPML, float FPML, float VPPML, float dh
         K_i[i] = 1.0 + (k_max_CPML - 1.0) * pow(position_norm,npower);
         alpha_prime_i[i] = alpha_max_PML * (1.0 - position_norm);
         
-        if(alpha_prime_i[i] < 0.0){state=1; fprintf(stderr,"ERROR:alpha_prime_i[i] < 0.0, i %d", i);}
+        if(alpha_prime_i[i] < 0.0){state=1; fprintf(stderr,"ERROR: alpha_prime_i[i] < 0.0, i %d", i);}
         
         b_i[i] = exp(- (d_i[i] / K_i[i] + alpha_prime_i[i]) * dt);
         
@@ -197,7 +197,7 @@ int CPML_coeff(float NPOWER, float k_max_CPML, float FPML, float VPPML, float dh
             alpha_prime_i_half[i1] = alpha_max_PML * (1.0 - position_norm);
             
             /* just in case, for -5 at the end */
-            if(alpha_prime_i_half[i1] < 0.0) {state=1;fprintf(stderr,"ERROR:alpha_prime_i_half[i] < 0.0, i %d", i);}
+            if(alpha_prime_i_half[i1] < 0.0) {state=1;fprintf(stderr,"ERROR: alpha_prime_i_half[i] < 0.0, i %d", i);}
             
             b_i_half[i1] = exp(- (d_i_half[i1] / K_i_half[i1] + alpha_prime_i_half[i1]) * dt);
             
@@ -316,12 +316,12 @@ int holbergcoeff(model *inm) {
     
     if (((*inm).FDORDER!=2) && ((*inm).FDORDER!=4) && ((*inm).FDORDER!=6) && ((*inm).FDORDER!=8) && ((*inm).FDORDER!=10) && ((*inm).FDORDER!=12)) {
         state=1;
-        fprintf(stderr," Error in selection of FD coefficients: wrong FDORDER! ");
+        fprintf(stderr,"Error in selection of FD coefficients: wrong FDORDER! ");
     }
     
     if (((*inm).MAXRELERROR<0) || ((*inm).MAXRELERROR>4)) {
         state =1;
-        fprintf(stderr," Error in selection of FD coefficients: wrong choice of maximum relative error! ");
+        fprintf(stderr,"Error in selection of FD coefficients: wrong choice of maximum relative error! ");
     }
     
     for (i=0; i<=6; i++) {

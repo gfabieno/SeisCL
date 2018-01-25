@@ -204,7 +204,7 @@ int writehdf5(struct filenames file, model * m) {
         file_id = create_file(file.dout);
         if (!state && file_id<0){
             state=1;
-            fprintf(stderr,"Could not open the input/output file %s",file.dout);
+            fprintf(stderr,"Error: Could not open the input/output file %s",file.dout);
         }
         
         dims[0]=m->src_recs.allng; dims[1]=m->NT;

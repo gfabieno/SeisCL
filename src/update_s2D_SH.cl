@@ -170,58 +170,58 @@ __kernel void update_s(int offcomm, int nt,
 #endif
         
 #if   FDOH==1
-        vyx = (lvy(lidz,lidx+1)-lvy(lidz,lidx))/DH;
-        vyz = (lvy(lidz+1,lidx)-lvy(lidz,lidx))/DH;
+        vyx = (lvy(lidz,lidx+1)-lvy(lidz,lidx));
+        vyz = (lvy(lidz+1,lidx)-lvy(lidz,lidx));
 #elif FDOH==2
         vyx = (HC1*(lvy(lidz,lidx+1)-lvy(lidz,lidx))+
-               HC2*(lvy(lidz,lidx+2)-lvy(lidz,lidx-1)))/DH;
+               HC2*(lvy(lidz,lidx+2)-lvy(lidz,lidx-1)));
         
         vyz = (HC1*(lvy(lidz+1,lidx)-lvy(lidz,lidx))+
-               HC2*(lvy(lidz+2,lidx)-lvy(lidz-1,lidx)))/DH;
+               HC2*(lvy(lidz+2,lidx)-lvy(lidz-1,lidx)));
 #elif FDOH==3
         vyx = (HC1*(lvy(lidz,lidx+1)-lvy(lidz,lidx))+
                HC2*(lvy(lidz,lidx+2)-lvy(lidz,lidx-1))+
-               HC3*(lvy(lidz,lidx+3)-lvy(lidz,lidx-2)))/DH;
+               HC3*(lvy(lidz,lidx+3)-lvy(lidz,lidx-2)));
         
         vyz = (HC1*(lvy(lidz+1,lidx)-lvy(lidz,lidx))+
                HC2*(lvy(lidz+2,lidx)-lvy(lidz-1,lidx))+
-               HC3*(lvy(lidz+3,lidx)-lvy(lidz-2,lidx)))/DH;
+               HC3*(lvy(lidz+3,lidx)-lvy(lidz-2,lidx)));
 #elif FDOH==4
         vyx = (HC1*(lvy(lidz,lidx+1)-lvy(lidz,lidx))+
                HC2*(lvy(lidz,lidx+2)-lvy(lidz,lidx-1))+
                HC3*(lvy(lidz,lidx+3)-lvy(lidz,lidx-2))+
-               HC4*(lvy(lidz,lidx+4)-lvy(lidz,lidx-3)))/DH;
+               HC4*(lvy(lidz,lidx+4)-lvy(lidz,lidx-3)));
         
         vyz = (HC1*(lvy(lidz+1,lidx)-lvy(lidz,lidx))+
                HC2*(lvy(lidz+2,lidx)-lvy(lidz-1,lidx))+
                HC3*(lvy(lidz+3,lidx)-lvy(lidz-2,lidx))+
-               HC4*(lvy(lidz+4,lidx)-lvy(lidz-3,lidx)))/DH;
+               HC4*(lvy(lidz+4,lidx)-lvy(lidz-3,lidx)));
 #elif FDOH==5
         vyx = (HC1*(lvy(lidz,lidx+1)-lvy(lidz,lidx))+
                HC2*(lvy(lidz,lidx+2)-lvy(lidz,lidx-1))+
                HC3*(lvy(lidz,lidx+3)-lvy(lidz,lidx-2))+
                HC4*(lvy(lidz,lidx+4)-lvy(lidz,lidx-3))+
-               HC5*(lvy(lidz,lidx+5)-lvy(lidz,lidx-4)))/DH;
+               HC5*(lvy(lidz,lidx+5)-lvy(lidz,lidx-4)));
         
         vyz = (HC1*(lvy(lidz+1,lidx)-lvy(lidz,lidx))+
                HC2*(lvy(lidz+2,lidx)-lvy(lidz-1,lidx))+
                HC3*(lvy(lidz+3,lidx)-lvy(lidz-2,lidx))+
                HC4*(lvy(lidz+4,lidx)-lvy(lidz-3,lidx))+
-               HC5*(lvy(lidz+5,lidx)-lvy(lidz-4,lidx)))/DH;
+               HC5*(lvy(lidz+5,lidx)-lvy(lidz-4,lidx)));
 #elif FDOH==6
         vyx = (HC1*(lvy(lidz,lidx+1)-lvy(lidz,lidx))+
                HC2*(lvy(lidz,lidx+2)-lvy(lidz,lidx-1))+
                HC3*(lvy(lidz,lidx+3)-lvy(lidz,lidx-2))+
                HC4*(lvy(lidz,lidx+4)-lvy(lidz,lidx-3))+
                HC5*(lvy(lidz,lidx+5)-lvy(lidz,lidx-4))+
-               HC6*(lvy(lidz,lidx+6)-lvy(lidz,lidx-5)))/DH;
+               HC6*(lvy(lidz,lidx+6)-lvy(lidz,lidx-5)));
         
         vyz = (HC1*(lvy(lidz+1,lidx)-lvy(lidz,lidx))+
                HC2*(lvy(lidz+2,lidx)-lvy(lidz-1,lidx))+
                HC3*(lvy(lidz+3,lidx)-lvy(lidz-2,lidx))+
                HC4*(lvy(lidz+4,lidx)-lvy(lidz-3,lidx))+
                HC5*(lvy(lidz+5,lidx)-lvy(lidz-4,lidx))+
-               HC6*(lvy(lidz+6,lidx)-lvy(lidz-5,lidx)))/DH;
+               HC6*(lvy(lidz+6,lidx)-lvy(lidz-5,lidx)));
 #endif
     }
     
@@ -296,8 +296,8 @@ __kernel void update_s(int offcomm, int nt,
     {
 #if LVE==0
         
-        fipjp=uipjp(gidz,gidx)*DT;
-        fjpkp=ujpkp(gidz,gidx)*DT;
+        fipjp=uipjp(gidz,gidx);
+        fjpkp=ujpkp(gidz,gidx);
         
 #else
         
@@ -310,8 +310,8 @@ __kernel void update_s(int offcomm, int nt,
             leta[l]=eta[l];
         }
         
-        fipjp=luipjp*DT*(1.0+ (float)LVE*ltausipjp);
-        fjpkp=lujpkp*DT*(1.0+ (float)LVE*ltausjpkp);
+        fipjp=luipjp*(1.0+ (float)LVE*ltausipjp);
+        fjpkp=lujpkp*(1.0+ (float)LVE*ltausjpkp);
         dipjp=luipjp*ltausipjp;
         djpkp=lujpkp*ltausjpkp;
         

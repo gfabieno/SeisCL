@@ -54,20 +54,23 @@ int Init_model(model * m) {
     
     GMALLOC(m->src_recs.src_scales, sizeof(int)*m->src_recs.ns);
     float srcmax;
-    for (i=0;i<m->src_recs.ns;i++){
-        srcmax=0;
-            for (t=0;t<m->NT*m->src_recs.nsrc[i];t++){
-                if (srcmax<fabsf(m->src_recs.src[i][t])){
-                    srcmax=fabsf(m->src_recs.src[i][t]);
-                }
-                m->src_recs.src_scales[i]=-log2(srcmax*m->dt/10);
+    if (m->FP16!=0){
+        for (i=0;i<m->src_recs.ns;i++){
+            srcmax=0;
+                for (t=0;t<m->NT*m->src_recs.nsrc[i];t++){
+                    if (srcmax<fabsf(m->src_recs.src[i][t])){
+                        srcmax=fabsf(m->src_recs.src[i][t]);
+                    }
+                    m->src_recs.src_scales[i]=-log2(srcmax*m->dt/10);
+            }
         }
     }
+
     if (m->GRADOUT==1){
         GMALLOC(m->src_recs.res_scales, sizeof(int)*m->src_recs.ns);
     }
     
-    if (m->FP16==2 || m->FP16==4){
+    if (m->FP16>1){
         for (i=0;i<m->npars;i++){
             hpar = (half*)m->pars[i].gl_par;
             for (j=0;j<m->pars[i].num_ele;j++){
@@ -76,7 +79,7 @@ int Init_model(model * m) {
 
         }
     }
-    if (m->FP16==0 && m->halfpar>0){
+    if (m->FP16==1 && m->halfpar>0){
         for (i=0;i<m->npars;i++){
             for (j=0;j<m->pars[i].num_ele;j++){
                 m->pars[i].gl_par[j] =half_to_float(float_to_half_full_rtne(m->pars[i].gl_par[j]));

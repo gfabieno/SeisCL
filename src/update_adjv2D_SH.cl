@@ -308,28 +308,28 @@ __kernel void update_adjv(int offcomm,
 #endif
         
 #if   FDOH ==1
-        sxy_x = DTDH*HC1*(lsxy(lidz,lidx)   - lsxy(lidz,lidx-1));
+        sxy_x = HC1*(lsxy(lidz,lidx)   - lsxy(lidz,lidx-1));
 #elif FDOH ==2
-        sxy_x = DTDH*(HC1*(lsxy(lidz,lidx)   - lsxy(lidz,lidx-1))
+        sxy_x = (HC1*(lsxy(lidz,lidx)   - lsxy(lidz,lidx-1))
                       +HC2*(lsxy(lidz,lidx+1) - lsxy(lidz,lidx-2)));
 #elif FDOH ==3
-        sxy_x = DTDH*(HC1*(lsxy(lidz,lidx)  -lsxy(lidz,lidx-1))+
+        sxy_x = (HC1*(lsxy(lidz,lidx)  -lsxy(lidz,lidx-1))+
                       HC2*(lsxy(lidz,lidx+1)-lsxy(lidz,lidx-2))+
                       HC3*(lsxy(lidz,lidx+2)-lsxy(lidz,lidx-3)));
 #elif FDOH ==4
-        sxy_x = DTDH*(HC1*(lsxy(lidz,lidx)  -lsxy(lidz,lidx-1))+
+        sxy_x = (HC1*(lsxy(lidz,lidx)  -lsxy(lidz,lidx-1))+
                       HC2*(lsxy(lidz,lidx+1)-lsxy(lidz,lidx-2))+
                       HC3*(lsxy(lidz,lidx+2)-lsxy(lidz,lidx-3))+
                       HC4*(lsxy(lidz,lidx+3)-lsxy(lidz,lidx-4)));
 #elif FDOH ==5
-        sxy_x = DTDH*(HC1*(lsxy(lidz,lidx)  -lsxy(lidz,lidx-1))+
+        sxy_x = (HC1*(lsxy(lidz,lidx)  -lsxy(lidz,lidx-1))+
                       HC2*(lsxy(lidz,lidx+1)-lsxy(lidz,lidx-2))+
                       HC3*(lsxy(lidz,lidx+2)-lsxy(lidz,lidx-3))+
                       HC4*(lsxy(lidz,lidx+3)-lsxy(lidz,lidx-4))+
                       HC5*(lsxy(lidz,lidx+4)-lsxy(lidz,lidx-5)));
         
 #elif FDOH ==6
-        sxy_x = DTDH*(HC1*(lsxy(lidz,lidx)  -lsxy(lidz,lidx-1))+
+        sxy_x = (HC1*(lsxy(lidz,lidx)  -lsxy(lidz,lidx-1))+
                       HC2*(lsxy(lidz,lidx+1)-lsxy(lidz,lidx-2))+
                       HC3*(lsxy(lidz,lidx+2)-lsxy(lidz,lidx-3))+
                       HC4*(lsxy(lidz,lidx+3)-lsxy(lidz,lidx-4))+
@@ -348,27 +348,27 @@ __kernel void update_adjv(int offcomm,
 #endif
         
 #if   FDOH ==1
-        syz_z = DTDH*HC1*(lsyz(lidz,lidx)   - lsyz(lidz-1,lidx));
+        syz_z = HC1*(lsyz(lidz,lidx)   - lsyz(lidz-1,lidx));
 #elif FDOH ==2
-        syz_z = DTDH*(HC1*(lsyz(lidz,lidx)   - lsyz(lidz-1,lidx))
+        syz_z = (HC1*(lsyz(lidz,lidx)   - lsyz(lidz-1,lidx))
                       +HC2*(lsyz(lidz+1,lidx) - lsyz(lidz-2,lidx)));
 #elif FDOH ==3
-        syz_z = DTDH*(HC1*(lsyz(lidz,lidx)  -lsyz(lidz-1,lidx))+
+        syz_z = (HC1*(lsyz(lidz,lidx)  -lsyz(lidz-1,lidx))+
                       HC2*(lsyz(lidz+1,lidx)-lsyz(lidz-2,lidx))+
                       HC3*(lsyz(lidz+2,lidx)-lsyz(lidz-3,lidx)));
 #elif FDOH ==4
-        syz_z = DTDH*(HC1*(lsyz(lidz,lidx)  -lsyz(lidz-1,lidx))+
+        syz_z = (HC1*(lsyz(lidz,lidx)  -lsyz(lidz-1,lidx))+
                       HC2*(lsyz(lidz+1,lidx)-lsyz(lidz-2,lidx))+
                       HC3*(lsyz(lidz+2,lidx)-lsyz(lidz-3,lidx))+
                       HC4*(lsyz(lidz+3,lidx)-lsyz(lidz-4,lidx)));
 #elif FDOH ==5
-        syz_z = DTDH*(HC1*(lsyz(lidz,lidx)  -lsyz(lidz-1,lidx))+
+        syz_z = (HC1*(lsyz(lidz,lidx)  -lsyz(lidz-1,lidx))+
                       HC2*(lsyz(lidz+1,lidx)-lsyz(lidz-2,lidx))+
                       HC3*(lsyz(lidz+2,lidx)-lsyz(lidz-3,lidx))+
                       HC4*(lsyz(lidz+3,lidx)-lsyz(lidz-4,lidx))+
                       HC5*(lsyz(lidz+4,lidx)-lsyz(lidz-5,lidx)));
 #elif FDOH ==6
-        syz_z = DTDH*(HC1*(lsyz(lidz,lidx)  -lsyz(lidz-1,lidx))+
+        syz_z = (HC1*(lsyz(lidz,lidx)  -lsyz(lidz-1,lidx))+
                       HC2*(lsyz(lidz+1,lidx)-lsyz(lidz-2,lidx))+
                       HC3*(lsyz(lidz+2,lidx)-lsyz(lidz-3,lidx))+
                       HC4*(lsyz(lidz+3,lidx)-lsyz(lidz-4,lidx))+
@@ -395,28 +395,28 @@ __kernel void update_adjv(int offcomm,
 #endif
         
 #if   FDOH ==1
-        sxy_x_r = DTDH*HC1*(lsxy_r(lidz,lidx)   - lsxy_r(lidz,lidx-1));
+        sxy_x_r = HC1*(lsxy_r(lidz,lidx)   - lsxy_r(lidz,lidx-1));
 #elif FDOH ==2
-        sxy_x_r = DTDH*(HC1*(lsxy_r(lidz,lidx)   - lsxy_r(lidz,lidx-1))
+        sxy_x_r = (HC1*(lsxy_r(lidz,lidx)   - lsxy_r(lidz,lidx-1))
                       +HC2*(lsxy_r(lidz,lidx+1) - lsxy_r(lidz,lidx-2)));
 #elif FDOH ==3
-        sxy_x_r = DTDH*(HC1*(lsxy_r(lidz,lidx)  -lsxy_r(lidz,lidx-1))+
+        sxy_x_r = (HC1*(lsxy_r(lidz,lidx)  -lsxy_r(lidz,lidx-1))+
                       HC2*(lsxy_r(lidz,lidx+1)-lsxy_r(lidz,lidx-2))+
                       HC3*(lsxy_r(lidz,lidx+2)-lsxy_r(lidz,lidx-3)));
 #elif FDOH ==4
-        sxy_x_r = DTDH*(HC1*(lsxy_r(lidz,lidx)  -lsxy_r(lidz,lidx-1))+
+        sxy_x_r = (HC1*(lsxy_r(lidz,lidx)  -lsxy_r(lidz,lidx-1))+
                       HC2*(lsxy_r(lidz,lidx+1)-lsxy_r(lidz,lidx-2))+
                       HC3*(lsxy_r(lidz,lidx+2)-lsxy_r(lidz,lidx-3))+
                       HC4*(lsxy_r(lidz,lidx+3)-lsxy_r(lidz,lidx-4)));
 #elif FDOH ==5
-        sxy_x_r = DTDH*(HC1*(lsxy_r(lidz,lidx)  -lsxy_r(lidz,lidx-1))+
+        sxy_x_r = (HC1*(lsxy_r(lidz,lidx)  -lsxy_r(lidz,lidx-1))+
                       HC2*(lsxy_r(lidz,lidx+1)-lsxy_r(lidz,lidx-2))+
                       HC3*(lsxy_r(lidz,lidx+2)-lsxy_r(lidz,lidx-3))+
                       HC4*(lsxy_r(lidz,lidx+3)-lsxy_r(lidz,lidx-4))+
                       HC5*(lsxy_r(lidz,lidx+4)-lsxy_r(lidz,lidx-5)));
         
 #elif FDOH ==6
-        sxy_x_r = DTDH*(HC1*(lsxy_r(lidz,lidx)  -lsxy_r(lidz,lidx-1))+
+        sxy_x_r = (HC1*(lsxy_r(lidz,lidx)  -lsxy_r(lidz,lidx-1))+
                       HC2*(lsxy_r(lidz,lidx+1)-lsxy_r(lidz,lidx-2))+
                       HC3*(lsxy_r(lidz,lidx+2)-lsxy_r(lidz,lidx-3))+
                       HC4*(lsxy_r(lidz,lidx+3)-lsxy_r(lidz,lidx-4))+
@@ -435,27 +435,27 @@ __kernel void update_adjv(int offcomm,
 #endif
         
 #if   FDOH ==1
-        syz_z_r = DTDH*HC1*(lsyz_r(lidz,lidx)   - lsyz_r(lidz-1,lidx));
+        syz_z_r = HC1*(lsyz_r(lidz,lidx)   - lsyz_r(lidz-1,lidx));
 #elif FDOH ==2
-        syz_z_r = DTDH*(HC1*(lsyz_r(lidz,lidx)   - lsyz_r(lidz-1,lidx))
+        syz_z_r = (HC1*(lsyz_r(lidz,lidx)   - lsyz_r(lidz-1,lidx))
                       +HC2*(lsyz_r(lidz+1,lidx) - lsyz_r(lidz-2,lidx)));
 #elif FDOH ==3
-        syz_z_r = DTDH*(HC1*(lsyz_r(lidz,lidx)  -lsyz_r(lidz-1,lidx))+
+        syz_z_r = (HC1*(lsyz_r(lidz,lidx)  -lsyz_r(lidz-1,lidx))+
                       HC2*(lsyz_r(lidz+1,lidx)-lsyz_r(lidz-2,lidx))+
                       HC3*(lsyz_r(lidz+2,lidx)-lsyz_r(lidz-3,lidx)));
 #elif FDOH ==4
-        syz_z_r = DTDH*(HC1*(lsyz_r(lidz,lidx)  -lsyz_r(lidz-1,lidx))+
+        syz_z_r = (HC1*(lsyz_r(lidz,lidx)  -lsyz_r(lidz-1,lidx))+
                       HC2*(lsyz_r(lidz+1,lidx)-lsyz_r(lidz-2,lidx))+
                       HC3*(lsyz_r(lidz+2,lidx)-lsyz_r(lidz-3,lidx))+
                       HC4*(lsyz_r(lidz+3,lidx)-lsyz_r(lidz-4,lidx)));
 #elif FDOH ==5
-        syz_z_r = DTDH*(HC1*(lsyz_r(lidz,lidx)  -lsyz_r(lidz-1,lidx))+
+        syz_z_r = (HC1*(lsyz_r(lidz,lidx)  -lsyz_r(lidz-1,lidx))+
                       HC2*(lsyz_r(lidz+1,lidx)-lsyz_r(lidz-2,lidx))+
                       HC3*(lsyz_r(lidz+2,lidx)-lsyz_r(lidz-3,lidx))+
                       HC4*(lsyz_r(lidz+3,lidx)-lsyz_r(lidz-4,lidx))+
                       HC5*(lsyz_r(lidz+4,lidx)-lsyz_r(lidz-5,lidx)));
 #elif FDOH ==6
-        syz_z_r = DTDH*(HC1*(lsyz_r(lidz,lidx)  -lsyz_r(lidz-1,lidx))+
+        syz_z_r = (HC1*(lsyz_r(lidz,lidx)  -lsyz_r(lidz-1,lidx))+
                       HC2*(lsyz_r(lidz+1,lidx)-lsyz_r(lidz-2,lidx))+
                       HC3*(lsyz_r(lidz+2,lidx)-lsyz_r(lidz-3,lidx))+
                       HC4*(lsyz_r(lidz+3,lidx)-lsyz_r(lidz-4,lidx))+
@@ -483,7 +483,7 @@ __kernel void update_adjv(int offcomm,
 #if BACK_PROP_TYPE==1
     {
 
-        lvy=((sxy_x + syz_z)/rjp(gidz,gidx));
+        lvy=((sxy_x + syz_z)*rjp(gidz,gidx));
 
         vy(gidz,gidx)-= lvy;
         
@@ -546,7 +546,7 @@ __kernel void update_adjv(int offcomm,
 #endif
 
     // Update adjoint velocities
-    lvy=((sxy_x_r + syz_z_r)/rjp(gidz,gidx));
+    lvy=((sxy_x_r + syz_z_r)*rjp(gidz,gidx));
     vy_r(gidz,gidx)+= lvy;
 
  

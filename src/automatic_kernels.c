@@ -36,19 +36,19 @@ int kernel_varout(device * dev,
     variable * vars = dev->vars;
     variable * tvars = dev->trans_vars;
     
-    strcat(temp, "extern \"C\" __global__ void varsout"
-                 "(int nt, int nrec, float * rec_pos, int src_scale,");
+    strcat(temp, FUNDEF"void varsout"
+                 "(int nt, int nrec,"GLOBARG"float * rec_pos, int src_scale,");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
-            if (dev->FP16==0){
-                strcat(temp, "float * ");
+            if (dev->FP16<=1){
+                strcat(temp, GLOBARG"float * ");
             }
             else{
-                strcat(temp, "half * ");
+                strcat(temp, GLOBARG"half * ");
             }
             strcat(temp, vars[i].name);
             strcat(temp, ", ");
-            strcat(temp, "float * ");
+            strcat(temp, GLOBARG"float * ");
             strcat(temp, vars[i].name);
             strcat(temp, "out, ");
         }
@@ -56,17 +56,17 @@ int kernel_varout(device * dev,
     for (i=0;i<dev->ntvars;i++){
         if (tvars[i].to_output){
             for (j=0;j<tvars[i].n2ave;j++){
-                if (dev->FP16==0){
-                    strcat(temp, "float * ");
+                if (dev->FP16<=1){
+                    strcat(temp, GLOBARG"float * ");
                 }
                 else{
-                    strcat(temp, "half * ");
+                    strcat(temp, GLOBARG"half * ");
                 }
                 strcat(temp, tvars[i].var2ave[j]);
                 strcat(temp, ", ");
             }
 
-            strcat(temp, "float * ");
+            strcat(temp, GLOBARG"float * ");
             strcat(temp, tvars[i].name);
             strcat(temp, "out, ");
         }
@@ -77,14 +77,18 @@ int kernel_varout(device * dev,
     strcat(temp, "){\n\n");
 
     //This only supports 3 dimensions (need for more ?)
+    #ifdef __SEISCL__
+    strcat(temp,"    int gid = get_global_id(0);\n");
+    #else
     strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n");
+    #endif
     sprintf(temp2,"    if (gid > nrec-1){\n" );
     strcat(temp, temp2);
     strcat(temp,
            "        return;\n"
            "    };\n\n");
     
-    strcat(temp,       "    int i=(int)(rec_pos[0+8*gid]/DH)+FDOH;\n"
+    strcat(temp,"    int i=(int)(rec_pos[0+8*gid]/DH)+FDOH;\n"
            "    int j=(int)(rec_pos[1+8*gid]/DH)+FDOH;\n"
            "    int k=(int)(rec_pos[2+8*gid]/DH)+FDOH;\n"
            "\n");
@@ -98,7 +102,15 @@ int kernel_varout(device * dev,
 
     
     char posstr[100]={0};
-    
+    #ifdef __SEISCL__
+    if (dev->NDIM==2){
+        sprintf(posstr,"[(i-OFFSET)*N%s+k]",dev->N_names[0]);
+    }
+    else if (dev->NDIM==3){
+        sprintf(posstr,"[(i-OFFSET)*N%s*N%s+j*(N%s)+k]",
+                dev->N_names[1], dev->N_names[0], dev->N_names[0]);
+    }
+    #else
     if (dev->NDIM==2){
         sprintf(posstr,"[(i-OFFSET)*N%s*2+k]",dev->N_names[0]);
     }
@@ -106,26 +118,33 @@ int kernel_varout(device * dev,
         sprintf(posstr,"[(i-OFFSET)*N%s*N%s*2+j*(N%s*2)+k]",
                 dev->N_names[1], dev->N_names[0], dev->N_names[0]);
     }
+    #endif
     
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
             strcat(temp, "    ");
             strcat(temp, vars[i].name);
-            strcat(temp, "out[NT*gid+nt]=scalbnf(");
-            if (dev->FP16!=0){
-                strcat(temp, "__half2float(");
+            strcat(temp, "out[NT*gid+nt]=");
+            if (dev->FP16>0){
+                strcat(temp, "scalbnf(");
+                if (dev->FP16>1){
+                    strcat(temp, "__half2float(");
+                }
             }
             strcat(temp, vars[i].name);
             strcat(temp, posstr);
-            if (dev->FP16!=0){
+            if (dev->FP16>0){
+                if (dev->FP16>1){
+                    strcat(temp, ")");
+                }
+                strcat(temp,", -src_scale");
+                if (abs(vars[i].scaler)>0){
+                    sprintf(temp2,"+ %d)", -vars[i].scaler );
+                    strcat(temp, temp2);
+                }
                 strcat(temp, ")");
             }
-            strcat(temp,", -src_scale");
-            if (abs(vars[i].scaler)>0){
-                sprintf(temp2,"+ %d)", -vars[i].scaler );
-                strcat(temp, temp2);
-            }
-            strcat(temp, ");\n");
+            strcat(temp, ";\n");
         }
     }
     for (i=0;i<dev->ntvars;i++){
@@ -134,27 +153,32 @@ int kernel_varout(device * dev,
             strcat(temp, tvars[i].name);
             strcat(temp, "out[NT*gid+nt]=(");
             for (j=0;j<tvars->n2ave;j++){
-                for (k=0;k<dev->nvars;k++){
-                    if (strcmp(tvars[i].var2ave[j],dev->vars[k].name)==0){
-                        scaler=dev->vars[k].scaler;
-                        break;
+                if (dev->FP16>0){
+                    for (k=0;k<dev->nvars;k++){
+                        if (strcmp(tvars[i].var2ave[j],dev->vars[k].name)==0){
+                            scaler=dev->vars[k].scaler;
+                            break;
+                        }
                     }
-                }
-                strcat(temp, "scalbnf(");
-                if (dev->FP16!=0){
-                    strcat(temp, "__half2float(");
+                    strcat(temp, "scalbnf(");
+                    if (dev->FP16>1){
+                        strcat(temp, "__half2float(");
+                    }
                 }
                 strcat(temp, tvars[i].var2ave[j]);
                 strcat(temp, posstr);
-                if (dev->FP16!=0){
+                if (dev->FP16>0){
+                    if (dev->FP16>1){
+                        strcat(temp, ")");
+                    }
+                    strcat(temp,", -src_scale");
+                    if (abs(scaler)>0){
+                        sprintf(temp2,"+ %d", -scaler );
+                        strcat(temp, temp2);
+                    }
                     strcat(temp, ")");
                 }
-                strcat(temp,", -src_scale");
-                if (abs(scaler)>0){
-                    sprintf(temp2,"+ %d", -scaler );
-                    strcat(temp, temp2);
-                }
-                strcat(temp, ")+");
+                strcat(temp, "+");
             }
             while (*p)
                 p++;
@@ -194,17 +218,17 @@ int kernel_varoutinit(device * dev,
     
     char * p=(char*)temp;
     
-    strcat(temp, "extern \"C\" __global__ void varsoutinit(int nrec,");
+    strcat(temp, FUNDEF"void varsoutinit(int nrec,");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
-            strcat(temp, "float * ");
+            strcat(temp, GLOBARG"float * ");
             strcat(temp, vars[i].name);
             strcat(temp, "out, ");
         }
     }
     for (i=0;i<dev->ntvars;i++){
         if (tvars[i].to_output){
-            strcat(temp, "float * ");
+            strcat(temp, GLOBARG"float * ");
             strcat(temp, tvars[i].name);
             strcat(temp, "out, ");
         }
@@ -214,8 +238,11 @@ int kernel_varoutinit(device * dev,
     p[-2]='\0';
     strcat(temp, "){\n\n");
     
-    
+    #ifdef __SEISCL__
+    strcat(temp,"    int gid = get_global_id(0);\n\n");
+    #else
     strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n\n");
+    #endif
     
     strcat(temp,"    if (gid > nrec*NT-1){\n"
                 "        return;\n"
@@ -274,13 +301,13 @@ int kernel_varinit(device * dev,
     }
     
     
-    strcat(temp, "extern \"C\" __global__ void vars_init(");
+    strcat(temp, FUNDEF"void vars_init(");
     for (i=0;i<dev->nvars;i++){
-        if (dev->FP16==0){
-            strcat(temp, "float2 * ");
+        if (dev->FP16<=1){
+            strcat(temp, GLOBARG"float * ");
         }
         else{
-            strcat(temp, "half2 * ");
+            strcat(temp, GLOBARG"half * ");
         }
         strcat(temp, vars[i].name);
         if (BACK_PROP_TYPE==1){
@@ -293,7 +320,9 @@ int kernel_varinit(device * dev,
     p[-2]='\0';
     strcat(temp, "){\n\n");
     
-    strcat(temp, "float2 f0 = {0,0};\n\n");
+    #ifdef __SEISCL__
+    strcat(temp,"    int gid = get_global_id(0);\n\n");
+    #else
     if (dev->NDIM==2){
        
         strcat(temp,"int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
@@ -307,10 +336,10 @@ int kernel_varinit(device * dev,
                     "int gid = gidx*blockDim.x*gridDim.x*blockDim.y*gridDim.y"
                     "+gidy*blockDim.x*gridDim.x +gidz;\n");
     }
+    #endif
     
     for (i=0;i<dev->nvars;i++){
-        sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele/2);
-
+        sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
         strcat(temp,ptemp);
         strcat(temp, "    ");
         strcat(temp, "    ");
@@ -318,11 +347,11 @@ int kernel_varinit(device * dev,
         if (BACK_PROP_TYPE==1){
             strcat(temp, "r");
         }
-        if (dev->FP16==0){
-            strcat(temp, "[gid]=f0;\n");
+        if (dev->FP16<=1){
+            strcat(temp, "[gid]=0;\n");
         }
         else{
-            strcat(temp, "[gid]= __float2half2_rn(0);\n");
+            strcat(temp, "[gid]= __float2half(0);\n");
         }
         
     }
@@ -337,13 +366,20 @@ int kernel_varinit(device * dev,
     
     __GUARD prog_source(prog, "vars_init", (*prog).src);
     
-    prog->gsize[0]=dev->N[0]/2+m->FDOH;
+    #ifdef __SEISCL__
+    prog->gsize[0] = 1;
+    for (i=0;i<m->NDIM;i++){
+        prog->gsize[0]*=dev->N[i]+m->FDORDER;
+    }
+    prog->wdim=1;
+    #else
+    prog->gsize[0]=dev->N[0]+m->FDORDER;
     prog->gsize[1]=dev->N[1]+m->FDORDER;
     if (dev->NDIM==3){
         prog->gsize[2]=dev->N[2]+m->FDORDER;
     }
-    
     prog->wdim=dev->NDIM;
+    #endif
     
     return state;
     
@@ -393,16 +429,16 @@ int kernel_sources(device * dev,
         fprintf(stderr,"Error: No sources for variable list found\n");
     }
     
-    strcat(temp, "extern \"C\" __global__ void sources(int nt, int nsrc,"
-                 "int src_scale, float * src_pos, float * src, int pdir, ");
+    strcat(temp, FUNDEF"void sources(int nt, int nsrc,"
+                 "int src_scale,"GLOBARG"float * src_pos,"GLOBARG"float * src, int pdir, ");
     for (i=0;i<dev->nvars;i++){
         if (tosources[i]){
-            if (dev->FP16==0){
-                strcat(temp, "float * ");
+            if (dev->FP16<=1){
+                strcat(temp, GLOBARG"float * ");
                 
             }
             else{
-                strcat(temp, "half * ");
+                strcat(temp, GLOBARG"half * ");
             }
             strcat(temp, vars[i].name);
             strcat(temp, ", ");
@@ -411,11 +447,11 @@ int kernel_sources(device * dev,
     for (i=0;i<dev->ntvars;i++){
         if (tosources2[i]){
             for (j=0;j<tvars[i].n2ave;j++){
-                if (dev->FP16==0){
-                    strcat(temp, "float * ");
+                if (dev->FP16<=1){
+                    strcat(temp, GLOBARG"float * ");
                 }
                 else{
-                    strcat(temp, "half * ");
+                    strcat(temp, GLOBARG"half * ");
                 }
                 strcat(temp, tvars[i].var2ave[j]);
                 strcat(temp, ", ");
@@ -429,12 +465,16 @@ int kernel_sources(device * dev,
     strcat(temp, "){\n\n");
     
     //This only supports 3 dimensions (need for more ?)
+    #ifdef __SEISCL__
+    strcat(temp,"    int gid = get_global_id(0);\n");
+    #else
     strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n");
     sprintf(temp2,"    if (gid > nsrc -1){\n");
     strcat(temp, temp2);
     strcat(temp,
            "        return;\n"
            "    }\n\n");
+    #endif
     strcat(temp,"    int i=(int)(src_pos[0+5*gid]/DH)+FDOH;\n"
            "    int j=(int)(src_pos[1+5*gid]/DH)+FDOH;\n"
            "    int k=(int)(src_pos[2+5*gid]/DH)+FDOH;\n"
@@ -446,21 +486,33 @@ int kernel_sources(device * dev,
     strcat(temp,
            "        return;\n"
            "    }\n\n"
-           "    int source_type= src_pos[4+5*gid];\n"
-//           "    float amp=(float)pdir*src[gid*NT+nt];\n\n");
-           "    float amp=scalbnf((float)pdir*(DT*src[gid*NT+nt]), src_scale);\n\n");
+           "    int source_type= src_pos[4+5*gid];\n");
+    if (dev->FP16==0){
+        strcat(temp,"    float amp=(float)pdir*(DT*src[gid*NT+nt]);\n\n");
+    }
+    else{
+        strcat(temp,"    float amp=scalbnf((float)pdir*(DT*src[gid*NT+nt]), src_scale);\n\n");
+    }
     
     char posstr[100]={0};
 
     
     if (dev->NDIM==2){
+        #ifdef __SEISCL__
+        sprintf(posstr,"[(i-OFFSET)*N%s+k]",dev->N_names[0]);
+        #else
         sprintf(posstr,"[(i-OFFSET)*N%s*2+k]",dev->N_names[0]);
+        #endif
 
     }
     else if (dev->NDIM==3){
-
+        #ifdef __SEISCL__
+        sprintf(posstr,"[(i-OFFSET)*N%s*N%s+j*(N%s)+k]",
+                dev->N_names[1], dev->N_names[0], dev->N_names[0]);
+        #else
         sprintf(posstr,"[(i-OFFSET)*N%s*N%s*2+j*(N%s*2)+k]",
                 dev->N_names[1], dev->N_names[0], dev->N_names[0]);
+        #endif
     }
     else{
         state=1;
@@ -480,7 +532,7 @@ int kernel_sources(device * dev,
             strcat(temp, "    ");
             strcat(temp, vars[i].name);
             strcat(temp, posstr);
-            if (dev->FP16==0){
+            if (dev->FP16<=1){
                 strcat(temp, "+=amp;\n");
             }
             else{
@@ -505,7 +557,7 @@ int kernel_sources(device * dev,
                 strcat(temp, "    ");
                 strcat(temp, tvars[i].var2ave[j]);
                 strcat(temp, posstr);
-                if (dev->FP16==0){
+                if (dev->FP16<=1){
                     sprintf(temp2,"+=amp/%f;\n", (float)tvars[i].n2ave);
                     strcat(temp, temp2);
                 }
@@ -529,7 +581,7 @@ int kernel_sources(device * dev,
     
     __GUARD prog_source(prog, "sources", (*prog).src);
     
-    printf("%s\n\n%lu\n",temp, strlen(temp));
+//    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     free(tosources);
     free(tosources2);
@@ -555,22 +607,22 @@ int kernel_residuals(device * dev,
     
    
     
-    strcat(temp, "extern \"C\" __global__ void residuals(int nt, int nrec,"
-                 "float * rec_pos, int res_scale, ");
+    strcat(temp, FUNDEF"void residuals(int nt, int nrec,"
+                 GLOBARG"float * rec_pos, int res_scale, ");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
-            if (dev->FP16==0){
-                strcat(temp, "float * ");
+            if (dev->FP16<=1){
+                strcat(temp, GLOBARG"float * ");
                 
             }
             else{
-                strcat(temp, "half * ");
+                strcat(temp, GLOBARG"half * ");
             }
             strcat(temp, vars[i].name);
             if (BACK_PROP_TYPE==1)
                 strcat(temp, "r");
             strcat(temp, ", ");
-            strcat(temp, "float * ");
+            strcat(temp, GLOBARG"float * ");
             strcat(temp, vars[i].name);
             strcat(temp, "out, ");
         }
@@ -578,12 +630,12 @@ int kernel_residuals(device * dev,
     for (i=0;i<dev->ntvars;i++){
         if (tvars[i].to_output){
             for (j=0;j<tvars[i].n2ave;j++){
-                if (dev->FP16==0){
-                    strcat(temp, "float * ");
+                if (dev->FP16<=1){
+                    strcat(temp, GLOBARG"float * ");
                     
                 }
                 else{
-                    strcat(temp, "half * ");
+                    strcat(temp, GLOBARG"half * ");
                 }
                 strcat(temp, tvars[i].var2ave[j]);
                 if (BACK_PROP_TYPE==1)
@@ -591,7 +643,7 @@ int kernel_residuals(device * dev,
                 strcat(temp, ", ");
             }
             
-            strcat(temp, "float * ");
+            strcat(temp, GLOBARG"float * ");
             strcat(temp, tvars[i].name);
             strcat(temp, "out, ");
         }
@@ -601,9 +653,11 @@ int kernel_residuals(device * dev,
     p[-2]='\0';
     strcat(temp, "){\n\n");
     
-    
+    #ifdef __SEISCL__
+    strcat(temp,"    int gid = get_global_id(0);\n");
+    #else
     strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n");
-    
+    #endif
     sprintf(temp2,"    if (gid > nrec-1){\n");
     strcat(temp, temp2);
     strcat(temp,
@@ -614,7 +668,7 @@ int kernel_residuals(device * dev,
            "    int j=(int)(rec_pos[1+8*gid]/DH)+FDOH;\n"
            "    int k=(int)(rec_pos[2+8*gid]/DH)+FDOH;\n\n");
     
-    sprintf(temp2,"    if ( i-OFFSET<FDOH || i-OFFSET>N%s-FDOH-1){\n",
+    sprintf(temp2,"    if (i-OFFSET<FDOH || i-OFFSET>N%s-FDOH-1){\n",
             dev->N_names[dev->NDIM-1] );
     strcat(temp, temp2);
     strcat(temp,
@@ -624,11 +678,20 @@ int kernel_residuals(device * dev,
     char posstr[100]={0};
 
     if (dev->NDIM==2){
-            sprintf(posstr,"[(i-OFFSET)*N%s*2+k]",dev->N_names[0]);
+        #ifdef __SEISCL__
+        sprintf(posstr,"[(i-OFFSET)*N%s+k]",dev->N_names[0]);
+        #else
+        sprintf(posstr,"[(i-OFFSET)*N%s*2+k]",dev->N_names[0]);
+        #endif
     }
     else if (dev->NDIM==3){
-            sprintf(posstr,"[(i-OFFSET)*N%s*N%s*2+j*(N%s*2)+k]",
+        #ifdef __SEISCL__
+        sprintf(posstr,"[(i-OFFSET)*N%s*N%s+j*(N%s)+k]",
                     dev->N_names[1], dev->N_names[0], dev->N_names[0]);
+        #else
+        sprintf(posstr,"[(i-OFFSET)*N%s*N%s*2+j*(N%s*2)+k]",
+                dev->N_names[1], dev->N_names[0], dev->N_names[0]);
+        #endif
     }
 
     
@@ -638,28 +701,33 @@ int kernel_residuals(device * dev,
             strcat(temp, "        ");
             strcat(temp, vars[i].name);
             if (BACK_PROP_TYPE==1)
-                strcat(temp, "r");
+            strcat(temp, "r");
             strcat(temp, posstr);
             if (dev->FP16==0){
-                strcat(temp, "+=scalbnf(");
+                strcat(temp, "+=");
             }
             else{
-                strcat(temp, "=__float2half(__half2float(");
-                strcat(temp, vars[i].name);
-                if (BACK_PROP_TYPE==1)
+                if (dev->FP16==1){
+                    strcat(temp, "+=scalbnf(");
+                }
+                else{
+                    strcat(temp, "=__float2half(__half2float(");
+                    strcat(temp, vars[i].name);
+                    if (BACK_PROP_TYPE==1)
                     strcat(temp, "r");
-                strcat(temp, posstr);
-                strcat(temp, ")+scalbnf(");
+                    strcat(temp, posstr);
+                    strcat(temp, ")+scalbnf(");
+                }
             }
             strcat(temp, vars[i].name);
-            strcat(temp, "out[NT*gid+nt]");
             if (dev->FP16==0){
-                strcat(temp, ",res_scale);\n");
+                strcat(temp, "out[NT*gid+nt];\n");
             }
             else{
+                strcat(temp, "out[NT*gid+nt]");
                 strcat(temp, ",res_scale));\n");
             }
-
+            
         }
     }
     for (i=0;i<dev->ntvars;i++){
@@ -668,28 +736,33 @@ int kernel_residuals(device * dev,
                 strcat(temp, "        ");
                 strcat(temp, tvars[i].var2ave[j]);
                 if (BACK_PROP_TYPE==1)
-                    strcat(temp, "r");
+                strcat(temp, "r");
                 strcat(temp, posstr);
                 if (dev->FP16==0){
-                    strcat(temp, "+=scalbnf(");
+                    strcat(temp, "+=");
                 }
                 else{
-                    strcat(temp, "=__float2half(__half2float(");
-                    strcat(temp, tvars[i].var2ave[j]);
-                    if (BACK_PROP_TYPE==1)
+                    if (dev->FP16==1){
+                        strcat(temp, "+=scalbnf(");
+                    }
+                    else{
+                        strcat(temp, "=__float2half(__half2float(");
+                        strcat(temp, tvars[i].var2ave[j]);
+                        if (BACK_PROP_TYPE==1)
                         strcat(temp, "r");
-                    strcat(temp, posstr);
-                    strcat(temp, ")+scalbnf(");
+                        strcat(temp, posstr);
+                        strcat(temp, ")+scalbnf(");
+                    }
                 }
                 strcat(temp, tvars[i].name);
                 strcat(temp, "out[NT*gid+nt]/");
                 sprintf(temp2,"%d",tvars[i].n2ave);
                 strcat(temp, temp2);
                 if (dev->FP16==0){
-                    strcat(temp, ",res_scale);\n");
+                    strcat(temp, ";\n");
                 }
                 else{
-                    strcat(temp, ",res_scale));\n");
+                    strcat(temp, ",res_scale);\n");
                 }
             }
         }
@@ -701,7 +774,7 @@ int kernel_residuals(device * dev,
     
     __GUARD prog_source(prog, "residuals", (*prog).src);
 
-    printf("%s\n\n%lu\n",temp, strlen(temp));
+//    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     prog->wdim=1;
     
@@ -723,14 +796,14 @@ int kernel_gradinit(device * dev,
     char * p=(char*)temp;
     
 
-    strcat(temp, "extern \"C\" __global__ void gradinit(");
+    strcat(temp, FUNDEF"void gradinit(");
     for (i=0;i<dev->npars;i++){
         if (pars[i].to_grad){
-            strcat(temp, "float * grad");
+            strcat(temp, GLOBARG"float * grad");
             strcat(temp, pars[i].name);
             strcat(temp, ", ");
             if (pars[i].cl_H.host){
-                strcat(temp, "float * H");
+                strcat(temp, GLOBARG"float * H");
                 strcat(temp, pars[i].name);
                 strcat(temp, ", ");
             }
@@ -741,7 +814,9 @@ int kernel_gradinit(device * dev,
     p[-2]='\0';
     strcat(temp, "){\n\n");
     
-    
+    #ifdef __SEISCL__
+    strcat(temp,"    int gid = get_global_id(0);\n\n");
+    #else
     if (dev->NDIM==2){
         
         strcat(temp,"int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
@@ -755,13 +830,13 @@ int kernel_gradinit(device * dev,
                "int gid = gidx*blockDim.x*gridDim.x*blockDim.y*gridDim.y"
                "+gidy*blockDim.x*gridDim.x +gidz;\n");
     }
-    
     if (dev->npars>0){
         sprintf(temp2,"    if (gid>%d-1){\n", pars[0].num_ele);
         strcat(temp,temp2);
         strcat(temp,  "        return;\n"
                       "    };\n\n");
     }
+    #endif
     
     for (i=0;i<dev->npars;i++){
         if (pars[i].to_grad){
@@ -781,7 +856,13 @@ int kernel_gradinit(device * dev,
    (*prog).src=temp;
     
     __GUARD prog_source(prog, "gradinit", (*prog).src);
-
+    #ifdef __SEISCL__
+    prog->gsize[0]=1;
+    for (i=0;i<dev->NDIM;i++){
+        prog->gsize[0]*=dev->N[i];
+    }
+    prog->wdim=1;
+    #else
     prog->gsize[0]=dev->N[0];
 
     prog->gsize[1]=dev->N[1];
@@ -790,6 +871,7 @@ int kernel_gradinit(device * dev,
     }
     
     prog->wdim=dev->NDIM;
+    #endif
     
 //        printf("%s\n\n%lu\n",temp, strlen(temp));
     
@@ -816,10 +898,10 @@ int kernel_initsavefreqs(device * dev,
         }
     }
     
-    strcat(temp, "extern \"C\" __global__ void initsavefreqs(");
+    strcat(temp, FUNDEF"void initsavefreqs(");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
-            strcat(temp, "float2 * f");
+            strcat(temp, GLOBARG"float2 * f");
             strcat(temp, vars[i].name);
             strcat(temp, ", ");
         }
@@ -829,7 +911,9 @@ int kernel_initsavefreqs(device * dev,
     p[-2]='\0';
     strcat(temp, "){\n\n");
     
-    
+    #ifdef __SEISCL__
+    strcat(temp,"    int gid = get_global_id(0);\n");
+    #else
     if (dev->NDIM==2){
         
         strcat(temp,"int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
@@ -843,11 +927,12 @@ int kernel_initsavefreqs(device * dev,
                "int gid = gidx*blockDim.x*gridDim.x*blockDim.y*gridDim.y"
                "+gidy*blockDim.x*gridDim.x +gidz;\n");
     }
+    #endif
     
     
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
-            sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele/2);
+            sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
 
             strcat(temp,ptemp);
             strcat(temp, "    ");
@@ -864,8 +949,15 @@ int kernel_initsavefreqs(device * dev,
     __GUARD prog_source(prog, "initsavefreqs", (*prog).src);
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
+    #ifdef __SEISCL__
+    prog->gsize[0] = 1;
+    for (i=0;i<dev->NDIM;i++){
+        prog->gsize[0]*=dev->N[i];
+    }
+    prog->wdim=1;
+    #else
     
-    prog->gsize[0]=dev->N[0]/2;
+    prog->gsize[0]=dev->N[0];
 
     prog->gsize[1]=dev->N[1];
     if (dev->NDIM==3){
@@ -873,6 +965,7 @@ int kernel_initsavefreqs(device * dev,
     }
     
     prog->wdim=dev->NDIM;
+    #endif
     
     return state;
     
@@ -897,13 +990,13 @@ int kernel_savefreqs(device * dev,
         }
     }
     
-    strcat(temp,"extern \"C\" __global__ void savefreqs(__constant float *gradfreqsn, int nt, ");
+    strcat(temp, FUNDEF"void savefreqs(__constant float *gradfreqsn, int nt, ");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
-            strcat(temp, "float * ");
+            strcat(temp, GLOBARG"float * ");
             strcat(temp, vars[i].name);
             strcat(temp, ", ");
-            strcat(temp, "float2 * f");
+            strcat(temp, GLOBARG"float2 * f");
             strcat(temp, vars[i].name);
             strcat(temp, ", ");
         }
@@ -927,9 +1020,11 @@ int kernel_savefreqs(device * dev,
         p++;
     p[-2]='\0';
     strcat(temp, ";\n\n");
-
-    strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n"
-                "    int gsize=blockDim.x * gridDim.x;\n\n" );
+    
+    #ifdef __SEISCL__
+    strcat(temp,"    int gid = get_global_id(0);\n"
+                "    int gsize=get_global_size(0);\n\n" );
+    #else
     if (dev->NDIM==2){
         
         strcat(temp,"int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
@@ -946,10 +1041,11 @@ int kernel_savefreqs(device * dev,
                "    int gsize=blockDim.x * gridDim.x*blockDim.y * gridDim.y"
                "*blockDim.z * gridDim.z;\n\n");
     }
+    #endif
     
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
-            sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele/2);
+            sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
 
             strcat(temp,ptemp);
             strcat(temp, "    ");
@@ -973,7 +1069,7 @@ int kernel_savefreqs(device * dev,
     
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
-            sprintf(ptemp,"    if (gid<%d){\n", vars[i].num_ele/2);
+            sprintf(ptemp,"    if (gid<%d){\n", vars[i].num_ele);
             
             strcat(temp,ptemp);
             strcat(temp, "    #pragma unroll\n");
@@ -996,14 +1092,23 @@ int kernel_savefreqs(device * dev,
     __GUARD prog_source(prog, "savefreqs", (*prog).src);
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
+#ifdef __SEISCL__
+    prog->gsize[0] = 1;
+    for (i=0;i<dev->NDIM;i++){
+        prog->gsize[0]*=dev->N[i];
+    }
+    prog->wdim=1;
+#else
     
-    prog->gsize[0]=dev->N[0]/2;
+    prog->gsize[0]=dev->N[0];
+    
     prog->gsize[1]=dev->N[1];
     if (dev->NDIM==3){
         prog->gsize[2]=dev->N[2];
     }
     
     prog->wdim=dev->NDIM;
+#endif
     
     return state;
     
@@ -1017,14 +1122,22 @@ int kernel_init_gradsrc(clprogram * prog){
     
     
     strcat(temp,
-           "extern \"C\" __global__ void init_gradsrc(float *gradsrc, int nsrc)\n"
-           "{\n\n"
+           FUNDEF"void init_gradsrc("GLOBARG"float *gradsrc, int nsrc)\n"
+           "{\n\n");
+    #ifdef __SEISCL__
+    strcat(temp,
+           "    int gid = get_global_id(0);\n"
+           "    gradsrc[gid]=0.0;\n\n"
+           "}");
+    #else
+    strcat(temp,
            "    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n"
            "    if (gid>nsrc*NT-1){\n"
            "        return;\n"
            "    }\n"
            "    gradsrc[gid]=0.0;\n\n"
            "}");
+    #endif
     
     (*prog).src=temp;
     
@@ -1058,13 +1171,13 @@ int kernel_fcom_out(device * dev,
         }
     }
     
-    strcat(temp, "extern \"C\" __global__ void fill_transfer_buff_out(");
+    strcat(temp, FUNDEF"void fill_transfer_buff_out(");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_comm==upid){
-            strcat(temp, "float * ");
+            strcat(temp, GLOBARG"float * ");
             strcat(temp, vars[i].name);
             strcat(temp, ", ");
-            strcat(temp, "float * ");
+            strcat(temp, GLOBARG"float * ");
             strcat(temp, vars[i].name);
             if (buff12==1)
                 strcat(temp, "_buf1, ");
@@ -1082,15 +1195,23 @@ int kernel_fcom_out(device * dev,
     char * names[] = {"x","y","z"};
     if (dev->LOCAL_OFF==0){
         for (i=0;i<dev->NDIM;i++){
+            #ifdef __SEISCL__
+            sprintf(ptemp,"    int gid%s=get_global_id(%d)+FDOH;\n",
+                    dev->N_names[i],i );
+            #else
             sprintf(ptemp,"    int gid%s=blockIdx.%s*blockDim.%s + threadIdx.%s+FDOH;\n",
                             dev->N_names[i],names[i],names[i] ,names[i]  );
+            #endif
             strcat(temp, ptemp);
         }
     }
     //if we use directly global memory, with 1 working dim
     else{
+        #ifdef __SEISCL__
+        strcat(temp,"    int gid = get_global_id(0);\n");
+        #else
         strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n");
-
+        #endif
         sprintf(ptemp,"    int gid%s=gid%%(N%s-2*FDOH);\n",
                            dev->N_names[0],dev->N_names[0]);
         strcat(temp, ptemp);
@@ -1204,13 +1325,13 @@ int kernel_fcom_in(device * dev,
         }
     }
     
-    strcat(temp, "extern \"C\" __global__ void fill_transfer_buff_in(");
+    strcat(temp, FUNDEF"void fill_transfer_buff_in(");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_comm==upid){
-            strcat(temp, "float * ");
+            strcat(temp, GLOBARG"float * ");
             strcat(temp, vars[i].name);
             strcat(temp, ", ");
-            strcat(temp, "float * ");
+            strcat(temp, GLOBARG"float * ");
             strcat(temp, vars[i].name);
             if (buff12==1)
                 strcat(temp, "_buf1, ");
@@ -1227,15 +1348,23 @@ int kernel_fcom_in(device * dev,
     char * names[] = {"x","y","z"};
     if (dev->LOCAL_OFF==0){
         for (i=0;i<dev->NDIM;i++){
+            #ifdef __SEISCL__
+            sprintf(ptemp,"    int gid%s=get_global_id(%d)+FDOH;\n",
+                    dev->N_names[i],i );
+            #else
             sprintf(ptemp,"    int gid%s=blockIdx.%s*blockDim.%s + threadIdx.%s+FDOH;\n",
                     dev->N_names[i],names[i],names[i] ,names[i]  );
+            #endif
             strcat(temp, ptemp);
         }
     }
     //if we use directly global memory, with 1 working dim
     else{
+        #ifdef __SEISCL__
+        strcat(temp,"    int gid = get_global_id(0);\n");
+        #else
         strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n");
-        
+        #endif
         sprintf(ptemp,"    int gid%s=gid%%(N%s-2*FDOH);\n",
                           dev->N_names[0],dev->N_names[0]);
         strcat(temp, ptemp);

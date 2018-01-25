@@ -129,34 +129,34 @@ __kernel void surface(        __global float *vx,         __global float *vy,   
     
 #if   FDOH==1
     {
-        vxx = (vx(gidz,gidy,gidx)-vx(gidz,gidy,gidx-1))/DH;
-        vyy = (vy(gidz,gidy,gidx)-vy(gidz,gidy-1,gidx))/DH;
-        vzz = (vz(gidz,gidy,gidx)-vz(gidz-1,gidy,gidx))/DH;
+        vxx = (vx(gidz,gidy,gidx)-vx(gidz,gidy,gidx-1));
+        vyy = (vy(gidz,gidy,gidx)-vy(gidz,gidy-1,gidx));
+        vzz = (vz(gidz,gidy,gidx)-vz(gidz-1,gidy,gidx));
     }
 #elif FDOH==2
     {
         vxx = (HC1*(vx(gidz,gidy,gidx)  -vx(gidz,gidy,gidx-1))+
-               HC2*(vx(gidz,gidy,gidx+1)-vx(gidz,gidy,gidx-2)))/DH;
+               HC2*(vx(gidz,gidy,gidx+1)-vx(gidz,gidy,gidx-2)));
         
         vyy = (HC1*(vy(gidz,gidy,gidx)  -vy(gidz,gidy-1,gidx))+
-               HC2*(vy(gidz,gidy+1,gidx)-vy(gidz,gidy-2,gidx)))/DH;
+               HC2*(vy(gidz,gidy+1,gidx)-vy(gidz,gidy-2,gidx)));
         
         vzz = (HC1*(vz(gidz,gidy,gidx)  -vz(gidz-1,gidy,gidx))+
-               HC2*(vz(gidz+1,gidy,gidx)-vz(gidz-2,gidy,gidx)))/DH;
+               HC2*(vz(gidz+1,gidy,gidx)-vz(gidz-2,gidy,gidx)));
     }
 #elif FDOH==3
     {
         vxx = (HC1*(vx(gidz,gidy,gidx)  -vx(gidz,gidy,gidx-1))+
                HC2*(vx(gidz,gidy,gidx+1)-vx(gidz,gidy,gidx-2))+
-               HC3*(vx(gidz,gidy,gidx+2)-vx(gidz,gidy,gidx-3)))/DH;
+               HC3*(vx(gidz,gidy,gidx+2)-vx(gidz,gidy,gidx-3)));
         
         vyy = (HC1*(vy(gidz,gidy,gidx)-vy(gidz,gidy-1,gidx))+
                HC2*(vy(gidz,gidy+1,gidx)-vy(gidz,gidy-2,gidx))+
-               HC3*(vy(gidz,gidy+2,gidx)-vy(gidz,gidy-3,gidx)))/DH;
+               HC3*(vy(gidz,gidy+2,gidx)-vy(gidz,gidy-3,gidx)));
         
         vzz = (HC1*(vz(gidz,gidy,gidx)-vz(gidz-1,gidy,gidx))+
                HC2*(vz(gidz+1,gidy,gidx)-vz(gidz-2,gidy,gidx))+
-               HC3*(vz(gidz+2,gidy,gidx)-vz(gidz-3,gidy,gidx)))/DH;
+               HC3*(vz(gidz+2,gidy,gidx)-vz(gidz-3,gidy,gidx)));
         
     }
 #elif FDOH==4
@@ -164,17 +164,17 @@ __kernel void surface(        __global float *vx,         __global float *vy,   
         vxx = (HC1*(vx(gidz,gidy,gidx)  -vx(gidz,gidy,gidx-1))+
                HC2*(vx(gidz,gidy,gidx+1)-vx(gidz,gidy,gidx-2))+
                HC3*(vx(gidz,gidy,gidx+2)-vx(gidz,gidy,gidx-3))+
-               HC4*(vx(gidz,gidy,gidx+3)-vx(gidz,gidy,gidx-4)))/DH;
+               HC4*(vx(gidz,gidy,gidx+3)-vx(gidz,gidy,gidx-4)));
 
         vyy = (HC1*(vy(gidz,gidy,gidx)  -vy(gidz,gidy-1,gidx))+
                HC2*(vy(gidz,gidy+1,gidx)-vy(gidz,gidy-2,gidx))+
                HC3*(vy(gidz,gidy+2,gidx)-vy(gidz,gidy-3,gidx))+
-               HC4*(vy(gidz,gidy+3,gidx)-vy(gidz,gidy-4,gidx)))/DH;
+               HC4*(vy(gidz,gidy+3,gidx)-vy(gidz,gidy-4,gidx)));
         
         vzz = (HC1*(vz(gidz,gidy,gidx)  -vz(gidz-1,gidy,gidx))+
                HC2*(vz(gidz+1,gidy,gidx)-vz(gidz-2,gidy,gidx))+
                HC3*(vz(gidz+2,gidy,gidx)-vz(gidz-3,gidy,gidx))+
-               HC4*(vz(gidz+3,gidy,gidx)-vz(gidz-4,gidy,gidx)))/DH;
+               HC4*(vz(gidz+3,gidy,gidx)-vz(gidz-4,gidy,gidx)));
     }
 #elif FDOH==5
     {
@@ -182,19 +182,19 @@ __kernel void surface(        __global float *vx,         __global float *vy,   
                HC2*(vx(gidz,gidy,gidx+1)-vx(gidz,gidy,gidx-2))+
                HC3*(vx(gidz,gidy,gidx+2)-vx(gidz,gidy,gidx-3))+
                HC4*(vx(gidz,gidy,gidx+3)-vx(gidz,gidy,gidx-4))+
-               HC5*(vx(gidz,gidy,gidx+4)-vx(gidz,gidy,gidx-5)))/DH;
+               HC5*(vx(gidz,gidy,gidx+4)-vx(gidz,gidy,gidx-5)));
         
         vyy = (HC1*(vy(gidz,gidy,gidx)  -vy(gidz,gidy-1,gidx))+
                HC2*(vy(gidz,gidy+1,gidx)-vy(gidz,gidy-2,gidx))+
                HC3*(vy(gidz,gidy+2,gidx)-vy(gidz,gidy-3,gidx))+
                HC4*(vy(gidz,gidy+3,gidx)-vy(gidz,gidy-4,gidx))+
-               HC5*(vy(gidz,gidy+4,gidx)-vy(gidz,gidy-5,gidx)))/DH;
+               HC5*(vy(gidz,gidy+4,gidx)-vy(gidz,gidy-5,gidx)));
         
         vzz = (HC1*(vz(gidz,gidy,gidx)  -vz(gidz-1,gidy,gidx))+
                HC2*(vz(gidz+1,gidy,gidx)-vz(gidz-2,gidy,gidx))+
                HC3*(vz(gidz+2,gidy,gidx)-vz(gidz-3,gidy,gidx))+
                HC4*(vz(gidz+3,gidy,gidx)-vz(gidz-4,gidy,gidx))+
-               HC5*(vz(gidz+4,gidy,gidx)-vz(gidz-5,gidy,gidx)))/DH;
+               HC5*(vz(gidz+4,gidy,gidx)-vz(gidz-5,gidy,gidx)));
         
         
     }
@@ -205,21 +205,21 @@ __kernel void surface(        __global float *vx,         __global float *vy,   
                HC3*(vx(gidz,gidy,gidx+2)-vx(gidz,gidy,gidx-3))+
                HC4*(vx(gidz,gidy,gidx+3)-vx(gidz,gidy,gidx-4))+
                HC5*(vx(gidz,gidy,gidx+4)-vx(gidz,gidy,gidx-5))+
-               HC6*(vx(gidz,gidy,gidx+5)-vx(gidz,gidy,gidx-6)))/DH;
+               HC6*(vx(gidz,gidy,gidx+5)-vx(gidz,gidy,gidx-6)));
         
         vyy = (HC1*(vy(gidz,gidy,gidx)  -vy(gidz,gidy-1,gidx))+
                HC2*(vy(gidz,gidy+1,gidx)-vy(gidz,gidy-2,gidx))+
                HC3*(vy(gidz,gidy+2,gidx)-vy(gidz,gidy-3,gidx))+
                HC4*(vy(gidz,gidy+3,gidx)-vy(gidz,gidy-4,gidx))+
                HC5*(vy(gidz,gidy+4,gidx)-vy(gidz,gidy-5,gidx))+
-               HC6*(vy(gidz,gidy+5,gidx)-vy(gidz,gidy-6,gidx)))/DH;
+               HC6*(vy(gidz,gidy+5,gidx)-vy(gidz,gidy-6,gidx)));
         
         vzz = (HC1*(vz(gidz,gidy,gidx)  -vz(gidz-1,gidy,gidx))+
                HC2*(vz(gidz+1,gidy,gidx)-vz(gidz-2,gidy,gidx))+
                HC3*(vz(gidz+2,gidy,gidx)-vz(gidz-3,gidy,gidx))+
                HC4*(vz(gidz+3,gidy,gidx)-vz(gidz-4,gidy,gidx))+
                HC5*(vz(gidz+4,gidy,gidx)-vz(gidz-5,gidy,gidx))+
-               HC6*(vz(gidz+5,gidy,gidx)-vz(gidz-6,gidy,gidx)))/DH;
+               HC6*(vz(gidz+5,gidy,gidx)-vz(gidz-6,gidy,gidx)));
     }
 #endif
 
@@ -301,7 +301,7 @@ __kernel void surface(        __global float *vx,         __global float *vy,   
 #if LVE==0
 				f=mu(gidz, gidy, gidx)*2.0;
 				g=M(gidz, gidy, gidx);
-				h=-(DT*(g-f)*(g-f)*(vxx+vyy)/g)-(DT*(g-f)*vzz);
+				h=-((g-f)*(g-f)*(vxx+vyy)/g)-((g-f)*vzz);
 				sxx(gidz, gidy, gidx)+=h;
 				syy(gidz, gidy, gidx)+=h;
 #else
@@ -309,7 +309,7 @@ __kernel void surface(        __global float *vx,         __global float *vy,   
     /* partially updating sxx and syy in the same way*/
     f=mu(gidz, gidy, gidx)*2.0*(1.0+L*taus(gidz, gidy, gidx));
     g=M(gidz, gidy, gidx)*(1.0+L*taup(gidz, gidy, gidx));
-    h=-(DT*(g-f)*(g-f)*(vxx+vyy)/g)-(DT*(g-f)*vzz);
+    h=-((g-f)*(g-f)*(vxx+vyy)/g)-((g-f)*vzz);
     sxx(gidz, gidy, gidx)+=h-(DT/2.0*rxx(gidz, gidy, gidx));
     syy(gidz, gidy, gidx)+=h-(DT/2.0*ryy(gidz, gidy, gidx));
     

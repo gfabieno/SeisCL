@@ -53,7 +53,7 @@ int reduce_seis(model * m, device ** dev, int s){
     // from all devices. For all MPI processes, it is reduced at the end of
     // program
     for (d=0;d<m->NUM_DEVICES;d++){
-        __GUARD cuStreamSynchronize((*dev)[d].queue);
+        __GUARD WAITQUEUE((*dev)[d].queue);
         for (k=0;k<(*dev)[d].nvars;k++){
             if ((*dev)[d].vars[k].to_output){
                 for ( i=0;i<(*dev)[d].src_recs.nrec[s];i++){
@@ -113,7 +113,7 @@ int movout(model * m, device ** dev, int t, int s){
     // Local and global variables don't have the same size, the first being
     // padded by FDORDER/2 on all sides, so we need to transform coordinates
     for (d=0;d<m->NUM_DEVICES;d++){
-        cuStreamSynchronize((*dev)[d].queue);
+        WAITQUEUE((*dev)[d].queue);
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].to_output){
                 
@@ -169,9 +169,10 @@ int save_bnd(model * m, device ** dev, int t){
         (*dev)[d].grads.savebnd.outevent=1;
         
         __GUARD prog_launch(&(*dev)[d].queue, &(*dev)[d].grads.savebnd);
-//        if ((*dev)[d].grads.savebnd.waits)
-//            __GUARD clReleaseEvent(*(*dev)[d].grads.savebnd.waits);
-        
+        #ifdef __SEISCL__
+        if ((*dev)[d].grads.savebnd.waits)
+            __GUARD clReleaseEvent(*(*dev)[d].grads.savebnd.waits);
+        #endif
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].to_comm){
                 if (l0<0){
@@ -180,12 +181,12 @@ int save_bnd(model * m, device ** dev, int t){
                 lv=i;
             }
         }
-
-//        (*dev)[d].vars[lv].cl_varbnd.outevent_r=1;
-//        (*dev)[d].vars[l0].cl_varbnd.nwait_r=1;
-//        (*dev)[d].vars[l0].cl_varbnd.waits_r=&(*dev)[d].grads.savebnd.event;
-        
-        if (m->FP16>0){
+        #ifdef __SEISCL__
+        (*dev)[d].vars[lv].cl_varbnd.outevent_r=1;
+        (*dev)[d].vars[l0].cl_varbnd.nwait_r=1;
+        (*dev)[d].vars[l0].cl_varbnd.waits_r=&(*dev)[d].grads.savebnd.event;
+      #endif
+        if (m->FP16>1){
             offset =(*dev)[d].NBND*t/2;
         }
         else{
@@ -195,13 +196,14 @@ int save_bnd(model * m, device ** dev, int t){
             if ((*dev)[d].vars[i].to_comm){
                 __GUARD clbuf_readto(&(*dev)[d].queue,
                                      &(*dev)[d].vars[i].cl_varbnd,
-                                     &(*dev)[d].vars[i].cl_varbnd.pin[offset]);
+                                     &(*dev)[d].vars[i].cl_varbnd.host[offset]);
             }
         }
-//        (*dev)[d].grads.savebnd.nwait=1;
-//        (*dev)[d].grads.savebnd.waits=&(*dev)[d].vars[lv].cl_varbnd.event_r;
-//        __GUARD clReleaseEvent((*dev)[d].grads.savebnd.event);
-        
+        #ifdef __SEISCL__
+        (*dev)[d].grads.savebnd.nwait=1;
+        (*dev)[d].grads.savebnd.waits=&(*dev)[d].vars[lv].cl_varbnd.event_r;
+        __GUARD clReleaseEvent((*dev)[d].grads.savebnd.event);
+        #endif
     }
 
     
@@ -216,7 +218,7 @@ int inject_bnd(model * m, device ** dev, int t){
     
     for (d=0;d<m->NUM_DEVICES;d++){
         
-        if (m->FP16>0){
+        if (m->FP16>1){
             offset =(*dev)[d].NBND*(t-1)/2;
         }
         else{
@@ -227,7 +229,7 @@ int inject_bnd(model * m, device ** dev, int t){
             if ((*dev)[d].vars[i].to_comm){
                 __GUARD clbuf_sendfrom(&(*dev)[d].queue,
                                        &(*dev)[d].vars[i].cl_varbnd,
-                                       &(*dev)[d].vars[i].cl_varbnd.pin[offset]);
+                                       &(*dev)[d].vars[i].cl_varbnd.host[offset]);
             }
         }
         
@@ -270,8 +272,8 @@ int update_grid(model * m, device ** dev){
         }
         
         // Communication between devices and MPI processes
-//        if (m->NUM_DEVICES>1 || m->NLOCALP>1)
-//            __GUARD comm(m, dev, 0, i);
+        if (m->NUM_DEVICES>1 || m->NLOCALP>1)
+            __GUARD comm(m, dev, 0, i);
 
         
         // Transfer memory in communication buffers to variables' buffers
@@ -280,12 +282,16 @@ int update_grid(model * m, device ** dev){
             if (d>0 || m->MYLOCALID>0){
                 __GUARD prog_launch(   &(*dev)[d].queue,
                                        &(*dev)[d].ups_f[i].fcom1_in);
-//                __GUARD clReleaseEvent(*(*dev)[d].ups_f[i].fcom1_in.waits);
+                #ifdef __SEISCL__
+                __GUARD clReleaseEvent(*(*dev)[d].ups_f[i].fcom1_in.waits);
+                #endif
             }
             if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
                 __GUARD prog_launch(   &(*dev)[d].queue,
                                        &(*dev)[d].ups_f[i].fcom2_in);
-//                __GUARD clReleaseEvent(*(*dev)[d].ups_f[i].fcom2_in.waits);
+                #ifdef __SEISCL__
+                __GUARD clReleaseEvent(*(*dev)[d].ups_f[i].fcom2_in.waits);
+                #endif
             }
         }
         
@@ -327,8 +333,8 @@ int update_grid_adj(model * m, device ** dev){
         }
         
         // Communication between devices and MPI processes
-//        if (m->NUM_DEVICES>1 || m->NLOCALP>1)
-//        __GUARD comm(m, dev, 1, i);
+        if (m->NUM_DEVICES>1 || m->NLOCALP>1)
+            __GUARD comm(m, dev, 1, i);
         
         
         // Transfer memory in communication buffers to variables' buffers
@@ -337,12 +343,16 @@ int update_grid_adj(model * m, device ** dev){
             if (d>0 || m->MYLOCALID>0){
                 __GUARD prog_launch(   &(*dev)[d].queue,
                                     &(*dev)[d].ups_adj[i].fcom1_in);
-//                __GUARD clReleaseEvent(*(*dev)[d].ups_adj[i].fcom1_in.waits);
+            #ifdef __SEISCL__
+                __GUARD clReleaseEvent(*(*dev)[d].ups_adj[i].fcom1_in.waits);
+            #endif
             }
             if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
                 __GUARD prog_launch(   &(*dev)[d].queue,
                                     &(*dev)[d].ups_adj[i].fcom2_in);
-//                __GUARD clReleaseEvent(*(*dev)[d].ups_adj[i].fcom2_in.waits);
+               #ifdef __SEISCL__
+                __GUARD clReleaseEvent(*(*dev)[d].ups_adj[i].fcom2_in.waits);
+                #endif
             }
         }
         
@@ -388,19 +398,19 @@ int initialize_grid(model * m, device ** dev, int s){
         for (i=0;i<(*dev)[d].nprogs;i++){
             if ((*dev)[d].progs[i]->pdir>0){
                 ind =(*dev)[d].progs[i]->pdir-1;
-                (*dev)[d].progs[i]->inputs[ind]=&pdir;
+                __GUARD prog_arg((*dev)[d].progs[i], ind, &pdir, sizeof(int));
             }
             if ((*dev)[d].progs[i]->nsinput>0){
                 ind =(*dev)[d].progs[i]->nsinput-1;
-                (*dev)[d].progs[i]->inputs[ind]=&m->src_recs.nsrc[s];
+                __GUARD prog_arg((*dev)[d].progs[i], ind, &m->src_recs.nsrc[s], sizeof(int));
             }
             if ((*dev)[d].progs[i]->nrinput>0){
                 ind=(*dev)[d].progs[i]->nrinput-1;
-                (*dev)[d].progs[i]->inputs[ind]=&m->src_recs.nrec[s];
+                __GUARD prog_arg((*dev)[d].progs[i], ind, &m->src_recs.nrec[s], sizeof(int));
             }
             if ((*dev)[d].progs[i]->scinput>0){
                 ind=(*dev)[d].progs[i]->scinput-1;
-                (*dev)[d].progs[i]->inputs[ind]=&m->src_recs.src_scales[s];
+                __GUARD prog_arg((*dev)[d].progs[i], ind, &m->src_recs.src_scales[s], sizeof(int));
             }
         }
         
@@ -463,7 +473,7 @@ int time_stepping(model * m, device ** dev) {
     // Main loop over shots of this group
     for (s= m->src_recs.smin;s< m->src_recs.smax;s++){
 
-//        // Initialization of the seismic variables
+        // Initialization of the seismic variables
         __GUARD initialize_grid(m, dev, s);
         
         // Loop for forward time stepping
@@ -473,32 +483,34 @@ int time_stepping(model * m, device ** dev) {
             for (d=0;d<m->NUM_DEVICES;d++){
                 for (i=0;i<(*dev)[d].nprogs;i++){
                     if ((*dev)[d].progs[i]->tinput>0){
-                        (*dev)[d].progs[i]->inputs[(*dev)[d].progs[i]->tinput-1]=&t;
+                        ind = (*dev)[d].progs[i]->tinput-1;
+                        __GUARD prog_arg((*dev)[d].progs[i], ind, &t, sizeof(int));
                     }
                 }
             }
-
+            
             //Save the selected frequency if the gradient is obtained by DFT
             if (m->GRADOUT==1
                 && m->BACK_PROP_TYPE==2
                 && t>=m->tmin
                 && (t-m->tmin)%m->DTNYQ==0){
-
+                
                 for (d=0;d<m->NUM_DEVICES;d++){
                     thist=(t-m->tmin)/m->DTNYQ;
-                    (*dev)[d].grads.savefreqs.inputs[(*dev)[d].grads.savefreqs.tinput-1]=&thist;
+                    ind = (*dev)[d].progs[i]->tinput-1;
+                    __GUARD prog_arg(&(*dev)[d].grads.savefreqs, ind, &thist, sizeof(int));
                     __GUARD prog_launch( &(*dev)[d].queue,
                                          &(*dev)[d].grads.savefreqs);
                 }
-
+                
             }
-
+            
             // Inject the sources
             for (d=0;d<m->NUM_DEVICES;d++){
                 __GUARD prog_launch( &(*dev)[d].queue,
                                     &(*dev)[d].src_recs.sources);
             }
-
+            
             // Apply all updates
             __GUARD update_grid(m, dev);
             
@@ -510,12 +522,12 @@ int time_stepping(model * m, device ** dev) {
                                         &(*dev)[d].bnd_cnds.surf);
                 }
             }
-
+            
             // Save the boundaries
-            if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1){
+            if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1)
                 __GUARD save_bnd( m, dev, t);
-            }
-
+            
+            
             // Outputting seismograms
             if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){
                 for (d=0;d<m->NUM_DEVICES;d++){
@@ -527,8 +539,15 @@ int time_stepping(model * m, device ** dev) {
             // Outputting the movie
             if (m->MOVOUT>0 && (t+1)%m->MOVOUT==0 && state==0)
                 movout( m, dev, t, s);
-
-
+            
+            #ifdef __SEISCL__
+            // Flush all the previous commands to the computing device
+            for (d=0;d<m->NUM_DEVICES;d++){
+                if (d>0 || d<m->NUM_DEVICES-1)
+                    __GUARD clFlush((*dev)[d].queuecomm);
+                __GUARD clFlush((*dev)[d].queue);
+            }
+            #endif
             
         }
         
@@ -599,17 +618,18 @@ int time_stepping(model * m, device ** dev) {
                     __GUARD prog_launch( &(*dev)[d].queue,
                                          &(*dev)[d].bnd_cnds.init_f);
                 }
-                //Assign the some args to kernels
+                
+                //Assign the propagation direction to kernels
                 int pdir=-1;
                 for (d=0;d<m->NUM_DEVICES;d++){
                     for (i=0;i<(*dev)[d].nprogs;i++){
                         if ((*dev)[d].progs[i]->pdir>0){
                             ind=(*dev)[d].progs[i]->pdir-1;
-                            (*dev)[d].progs[i]->inputs[ind]=&pdir;
+                            __GUARD prog_arg((*dev)[d].progs[i], ind, &pdir, sizeof(int));
                         }
                         if ((*dev)[d].progs[i]->rcinput>0){
                             ind=(*dev)[d].progs[i]->rcinput-1;
-                            (*dev)[d].progs[i]->inputs[ind]=&m->src_recs.res_scales[s];
+                            __GUARD prog_arg((*dev)[d].progs[i], ind, &m->src_recs.res_scales[s], sizeof(int));
                         }
                     }
                 }
@@ -623,7 +643,8 @@ int time_stepping(model * m, device ** dev) {
                 for (d=0;d<m->NUM_DEVICES;d++){
                     for (i=0;i<(*dev)[d].nprogs;i++){
                         if ((*dev)[d].progs[i]->tinput>0){
-                            (*dev)[d].progs[i]->inputs[(*dev)[d].progs[i]->tinput-1]=&t;
+                            ind = (*dev)[d].progs[i]->tinput-1;
+                            __GUARD prog_arg((*dev)[d].progs[i], ind, &t, sizeof(int));
                         }
                     }
                 }
@@ -658,18 +679,20 @@ int time_stepping(model * m, device ** dev) {
                     
                     for (d=0;d<m->NUM_DEVICES;d++){
                         thist=(t-m->tmin)/m->DTNYQ;
-                        (*dev)[d].grads.savefreqs.inputs[(*dev)[d].grads.savefreqs.tinput-1]=&thist;
+                        ind = (*dev)[d].grads.savefreqs.tinput-1;
+                        __GUARD prog_arg(&(*dev)[d].grads.savefreqs, ind, &thist, sizeof(int));
                         __GUARD prog_launch( &(*dev)[d].queue,
                                             &(*dev)[d].grads.savefreqs);
                     }
                     
                 }
-
-//                for (d=0;d<m->NUM_DEVICES;d++){
-//                    if (d>0 || d<m->NUM_DEVICES-1)
-//                        __GUARD clFlush((*dev)[d].queuecomm);
-//                    __GUARD clFlush((*dev)[d].queue);
-//                }
+                #ifdef __SEISCL__
+                for (d=0;d<m->NUM_DEVICES;d++){
+                    if (d>0 || d<m->NUM_DEVICES-1)
+                        __GUARD clFlush((*dev)[d].queuecomm);
+                    __GUARD clFlush((*dev)[d].queue);
+                }
+                #endif
             }
             
             // Transfer  the source gradient to the host
@@ -690,7 +713,7 @@ int time_stepping(model * m, device ** dev) {
                         if ((*dev)[d].vars[i].for_grad){
                             __GUARD clbuf_readto(&(*dev)[d].queue,
                                                  &(*dev)[d].vars[i].cl_fvar,
-                                                 &(*dev)[d].vars[i].cl_fvar_adj.pin);
+                                                 &(*dev)[d].vars[i].cl_fvar_adj.host);
                         }
                         
                     }
@@ -701,7 +724,7 @@ int time_stepping(model * m, device ** dev) {
                                         &(*dev)[d].bnd_cnds.init_f);
                 }
                 for (d=0;d<m->NUM_DEVICES;d++){
-                    __GUARD cuStreamSynchronize((*dev)[d].queue);
+                    __GUARD WAITQUEUE((*dev)[d].queue);
                     __GUARD calc_grad(m, &(*dev)[d]);
                 }
             }
@@ -728,7 +751,7 @@ int time_stepping(model * m, device ** dev) {
         }
         
         for (d=0;d<m->NUM_DEVICES;d++){
-            __GUARD cuStreamSynchronize((*dev)[d].queue);
+            __GUARD WAITQUEUE((*dev)[d].queue);
         }
         
         __GUARD transf_grad(m);

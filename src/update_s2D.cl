@@ -73,24 +73,39 @@
 #define PI (3.141592653589793238462643383279502884197169)
 #define signals(y,x) signals[(y)*NT+(x)]
 
+#ifdef __OPENCL_VERSION__
+#define FUNDEF __kernel
+#define LFUNDEF
+#define GLOBARG __global
+#define LOCARG __local
+#define LOCDEF
+#define BARRIER barrier(CLK_LOCAL_MEM_FENCE);
+#else
+#define FUNDEF extern \"C\" __global__
+#define LFUNDEF extern \"C\" __device__
+#define GLOBARG
+#define LOCARG
+#define LOCDEF extern __shared__ float lvar[];
+#define BARRIER __syncthreads();
+#endif
 
-
-extern "C" __global__ void update_s(int offcomm,
-                       float *vx,         float *vz,
-                       float *sxx,        float *szz,        float *sxz,
-                       float *M,         float *mu,          float *muipkp,
-                       float *rxx,        float *rzz,        float *rxz,
-                       float *taus,       float *tausipkp,   float *taup,
-                       float *eta,        float *taper,
-                       float *K_x,        float *a_x,          float *b_x,
-                       float *K_x_half,   float *a_x_half,     float *b_x_half,
-                       float *K_z,        float *a_z,          float *b_z,
-                       float *K_z_half,   float *a_z_half,     float *b_z_half,
-                       float *psi_vx_x,    float *psi_vx_z,
-                       float *psi_vz_x,    float *psi_vz_z)
+FUNDEF void update_s(int offcomm,
+                       GLOBARG float *vx,         GLOBARG float *vz,
+                       GLOBARG float *sxx,        GLOBARG float *szz,        GLOBARG float *sxz,
+                       GLOBARG float *M,         GLOBARG float *mu,          GLOBARG float *muipkp,
+                       GLOBARG float *rxx,        GLOBARG float *rzz,        GLOBARG float *rxz,
+                       GLOBARG float *taus,       GLOBARG float *tausipkp,   GLOBARG float *taup,
+                       GLOBARG float *eta,        GLOBARG float *taper,
+                       GLOBARG float *K_x,        GLOBARG float *a_x,          GLOBARG float *b_x,
+                       GLOBARG float *K_x_half,   GLOBARG float *a_x_half,     GLOBARG float *b_x_half,
+                       GLOBARG float *K_z,        GLOBARG float *a_z,          GLOBARG float *b_z,
+                       GLOBARG float *K_z_half,   GLOBARG float *a_z_half,     GLOBARG float *b_z_half,
+                       GLOBARG float *psi_vx_x,    GLOBARG float *psi_vx_z,
+                       GLOBARG float *psi_vz_x,    GLOBARG float *psi_vz_z,
+                       LOCARG  float *lvar)
 {
     
-    extern __shared__ float lvar[];
+    LOCDEF
     
     float vxx, vzz, vzx, vxz;
     int i,k,l,ind;
@@ -104,12 +119,21 @@ extern "C" __global__ void update_s(int offcomm,
     
 // If we use local memory
 #if LOCAL_OFF==0
+#ifdef __OPENCL_VERSION__
+    int lsizez = get_local_size(0)+2*FDOH;
+    int lsizex = get_local_size(1)+2*FDOH;
+    int lidz = get_local_id(0)+FDOH;
+    int lidx = get_local_id(1)+FDOH;
+    int gidz = get_global_id(0)+FDOH;
+    int gidx = get_global_id(1)+FDOH+offcomm;
+#else
     int lsizez = blockDim.x+2*FDOH;
     int lsizex = blockDim.y+2*FDOH;
     int lidz = threadIdx.x+FDOH;
     int lidx = threadIdx.y+FDOH;
     int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
     int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH+offcomm;
+#endif
 
 #define lvx lvar
 #define lvz lvar
@@ -117,12 +141,19 @@ extern "C" __global__ void update_s(int offcomm,
 // If local memory is turned off
 #elif LOCAL_OFF==1
     
+#ifdef __OPENCL_VERSION__
+    int gid = get_global_id(0);
+    int glsizez = (NZ-2*FDOH);
+    int gidz = gid%glsizez+FDOH;
+    int gidx = (gid/glsizez)+FDOH+offcomm;
+#else
     int lsizez = blockDim.x+2*FDOH;
     int lsizex = blockDim.y+2*FDOH;
     int lidz = threadIdx.x+FDOH;
     int lidx = threadIdx.y+FDOH;
     int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
     int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH+offcomm;
+#endif
     
     
 #define lvx vx
@@ -149,52 +180,52 @@ extern "C" __global__ void update_s(int offcomm,
         if (lidz>(lsizez-2*FDOH-1))
             lvx(lidz+FDOH,lidx)=vx(gidz+FDOH,gidx);
         
-        __syncthreads();
+        BARRIER
 #endif
         
 #if   FDOH==1
-        vxx = HC1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))/DH;
-        vxz = HC1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))/DH;
+        vxx = HC1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1));
+        vxz = HC1*(lvx(lidz+1, lidx)-lvx(lidz, lidx));
 #elif FDOH==2
         vxx = (  HC1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))
                + HC2*(lvx(lidz, lidx+1)-lvx(lidz, lidx-2))
-               )/DH;
+               );
         vxz = (  HC1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))
                + HC2*(lvx(lidz+2, lidx)-lvx(lidz-1, lidx))
-               )/DH;
+               );
 #elif FDOH==3
         vxx = (  HC1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))
                + HC2*(lvx(lidz, lidx+1)-lvx(lidz, lidx-2))
                + HC3*(lvx(lidz, lidx+2)-lvx(lidz, lidx-3))
-               )/DH;
+               );
         vxz = (  HC1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))
                + HC2*(lvx(lidz+2, lidx)-lvx(lidz-1, lidx))
                + HC3*(lvx(lidz+3, lidx)-lvx(lidz-2, lidx))
-               )/DH;
+               );
 #elif FDOH==4
         vxx = (   HC1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))
                + HC2*(lvx(lidz, lidx+1)-lvx(lidz, lidx-2))
                + HC3*(lvx(lidz, lidx+2)-lvx(lidz, lidx-3))
                + HC4*(lvx(lidz, lidx+3)-lvx(lidz, lidx-4))
-               )/DH;
+               );
         vxz = (  HC1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))
                + HC2*(lvx(lidz+2, lidx)-lvx(lidz-1, lidx))
                + HC3*(lvx(lidz+3, lidx)-lvx(lidz-2, lidx))
                + HC4*(lvx(lidz+4, lidx)-lvx(lidz-3, lidx))
-               )/DH;
+               );
 #elif FDOH==5
         vxx = (  HC1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))
                + HC2*(lvx(lidz, lidx+1)-lvx(lidz, lidx-2))
                + HC3*(lvx(lidz, lidx+2)-lvx(lidz, lidx-3))
                + HC4*(lvx(lidz, lidx+3)-lvx(lidz, lidx-4))
                + HC5*(lvx(lidz, lidx+4)-lvx(lidz, lidx-5))
-               )/DH;
+               );
         vxz = (  HC1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))
                + HC2*(lvx(lidz+2, lidx)-lvx(lidz-1, lidx))
                + HC3*(lvx(lidz+3, lidx)-lvx(lidz-2, lidx))
                + HC4*(lvx(lidz+4, lidx)-lvx(lidz-3, lidx))
                + HC5*(lvx(lidz+5, lidx)-lvx(lidz-4, lidx))
-               )/DH;
+               );
 #elif FDOH==6
         vxx = (  HC1*(lvx(lidz, lidx)  -lvx(lidz, lidx-1))
                + HC2*(lvx(lidz, lidx+1)-lvx(lidz, lidx-2))
@@ -202,19 +233,19 @@ extern "C" __global__ void update_s(int offcomm,
                + HC4*(lvx(lidz, lidx+3)-lvx(lidz, lidx-4))
                + HC5*(lvx(lidz, lidx+4)-lvx(lidz, lidx-5))
                + HC6*(lvx(lidz, lidx+5)-lvx(lidz, lidx-6))
-               )/DH;
+               );
         vxz = (  HC1*(lvx(lidz+1, lidx)-lvx(lidz, lidx))
                + HC2*(lvx(lidz+2, lidx)-lvx(lidz-1, lidx))
                + HC3*(lvx(lidz+3, lidx)-lvx(lidz-2, lidx))
                + HC4*(lvx(lidz+4, lidx)-lvx(lidz-3, lidx))
                + HC5*(lvx(lidz+5, lidx)-lvx(lidz-4, lidx))
                + HC6*(lvx(lidz+6, lidx)-lvx(lidz-5, lidx))
-               )/DH;
+               );
 #endif
         
         
 #if LOCAL_OFF==0
-        __syncthreads();
+        BARRIER
         lvz(lidz,lidx)=vz(gidz, gidx);
         if (lidx<2*FDOH)
             lvz(lidz,lidx-FDOH)=vz(gidz,gidx-FDOH);
@@ -228,52 +259,52 @@ extern "C" __global__ void update_s(int offcomm,
             lvz(lidz-FDOH,lidx)=vz(gidz-FDOH,gidx);
         if (lidz>(lsizez-2*FDOH-1))
             lvz(lidz+FDOH,lidx)=vz(gidz+FDOH,gidx);
-        __syncthreads();
+        BARRIER
 #endif
         
 #if   FDOH==1
-        vzz = HC1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))/DH;
-        vzx = HC1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))/DH;
+        vzz = HC1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx));
+        vzx = HC1*(lvz(lidz, lidx+1)-lvz(lidz, lidx));
 #elif FDOH==2
         vzz = (  HC1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))
                + HC2*(lvz(lidz+1, lidx)-lvz(lidz-2, lidx))
-               )/DH;
+               );
         vzx = (  HC1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))
                + HC2*(lvz(lidz, lidx+2)-lvz(lidz, lidx-1))
-               )/DH;
+               );
 #elif FDOH==3
         vzz = (  HC1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))
                + HC2*(lvz(lidz+1, lidx)-lvz(lidz-2, lidx))
                + HC3*(lvz(lidz+2, lidx)-lvz(lidz-3, lidx))
-               )/DH;
+               );
         vzx = (  HC1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))
                + HC2*(lvz(lidz, lidx+2)-lvz(lidz, lidx-1))
                + HC3*(lvz(lidz, lidx+3)-lvz(lidz, lidx-2))
-               )/DH;
+               );
 #elif FDOH==4
         vzz = (  HC1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))
                + HC2*(lvz(lidz+1, lidx)-lvz(lidz-2, lidx))
                + HC3*(lvz(lidz+2, lidx)-lvz(lidz-3, lidx))
                + HC4*(lvz(lidz+3, lidx)-lvz(lidz-4, lidx))
-               )/DH;
+               );
         vzx = (  HC1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))
                + HC2*(lvz(lidz, lidx+2)-lvz(lidz, lidx-1))
                + HC3*(lvz(lidz, lidx+3)-lvz(lidz, lidx-2))
                + HC4*(lvz(lidz, lidx+4)-lvz(lidz, lidx-3))
-               )/DH;
+               );
 #elif FDOH==5
         vzz = (  HC1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))
                + HC2*(lvz(lidz+1, lidx)-lvz(lidz-2, lidx))
                + HC3*(lvz(lidz+2, lidx)-lvz(lidz-3, lidx))
                + HC4*(lvz(lidz+3, lidx)-lvz(lidz-4, lidx))
                + HC5*(lvz(lidz+4, lidx)-lvz(lidz-5, lidx))
-               )/DH;
+               );
         vzx = (  HC1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))
                + HC2*(lvz(lidz, lidx+2)-lvz(lidz, lidx-1))
                + HC3*(lvz(lidz, lidx+3)-lvz(lidz, lidx-2))
                + HC4*(lvz(lidz, lidx+4)-lvz(lidz, lidx-3))
                + HC5*(lvz(lidz, lidx+5)-lvz(lidz, lidx-4))
-               )/DH;
+               );
 #elif FDOH==6
         vzz = (  HC1*(lvz(lidz, lidx)  -lvz(lidz-1, lidx))
                + HC2*(lvz(lidz+1, lidx)-lvz(lidz-2, lidx))
@@ -281,14 +312,14 @@ extern "C" __global__ void update_s(int offcomm,
                + HC4*(lvz(lidz+3, lidx)-lvz(lidz-4, lidx))
                + HC5*(lvz(lidz+4, lidx)-lvz(lidz-5, lidx))
                + HC6*(lvz(lidz+5, lidx)-lvz(lidz-6, lidx))
-               )/DH;
+               );
         vzx = (  HC1*(lvz(lidz, lidx+1)-lvz(lidz, lidx))
                + HC2*(lvz(lidz, lidx+2)-lvz(lidz, lidx-1))
                + HC3*(lvz(lidz, lidx+3)-lvz(lidz, lidx-2))
                + HC4*(lvz(lidz, lidx+4)-lvz(lidz, lidx-3))
                + HC5*(lvz(lidz, lidx+5)-lvz(lidz, lidx-4))
                + HC6*(lvz(lidz, lidx+6)-lvz(lidz, lidx-5))
-               )/DH;
+               );
 #endif
     }
     
@@ -378,9 +409,9 @@ extern "C" __global__ void update_s(int offcomm,
 // Read model parameters into local memory
     {
 #if LVE==0
-        fipkp=muipkp(gidz, gidx)*DT;
-        f=2.0*mu(gidz, gidx)*DT;
-        g=M(gidz, gidx)*DT;
+        fipkp=muipkp(gidz, gidx);
+        f=2.0*mu(gidz, gidx);
+        g=M(gidz, gidx);
         
 #else
         
@@ -395,9 +426,9 @@ extern "C" __global__ void update_s(int offcomm,
             leta[l]=eta[l];
         }
         
-        fipkp=lmuipkp*DT*(1.0+ (float)LVE*ltausipkp);
-        g=lM*(1.0+(float)LVE*ltaup)*DT;
-        f=2.0*lmu*(1.0+(float)LVE*ltaus)*DT;
+        fipkp=lmuipkp*(1.0+ (float)LVE*ltausipkp);
+        g=lM*(1.0+(float)LVE*ltaup);
+        f=2.0*lmu*(1.0+(float)LVE*ltaus);
         dipkp=lmuipkp*ltausipkp;
         d=2.0*lmu*ltaus;
         e=lM*ltaup;

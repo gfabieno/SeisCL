@@ -25,7 +25,7 @@
 int var_res_raw(model * m, int s)
 {
     
-    int t,g,n,i,f, thisfreq, j;
+    int t,g,n,i,f, thisfreq;
     int x,y,z, pos=0;
     int state=0;
     float *rms_scaling=NULL, *rms_scaling0=NULL;
@@ -384,10 +384,12 @@ int var_res_raw(model * m, int s)
     // Scale by the material parameters
     int scaler=0;
     variable * var;
-    var = get_var(m->vars,m->nvars, "sxx");
-    if (var) scaler = var->scaler;
-    var = get_var(m->vars,m->nvars, "sxz");
-    if (var) scaler = var->scaler;
+    if (m->FP16>0){
+        var = get_var(m->vars,m->nvars, "sxx");
+        if (var) scaler = var->scaler;
+        var = get_var(m->vars,m->nvars, "sxz");
+        if (var) scaler = var->scaler;
+    }
     
     resmax=0;
     for (i=0;i<m->nvars;i++){
@@ -416,7 +418,7 @@ int var_res_raw(model * m, int s)
                     else {
                         pos = x*m->N[0]*m->N[1]+y*m->N[0]+z;
                     }
-                    if (m->FP16!=2 || m->FP16!=4){
+                    if (m->FP16>1){
                         parscal = half_to_float( ((half*)par)[pos] );
                         parscal = 1.0/parscal*m->dh/m->dt*powf(2,scaler);
                     }
@@ -431,7 +433,6 @@ int var_res_raw(model * m, int s)
                     }
                 }
             }
-            
         }
     }
     for (i=0;i<m->ntvars;i++){
@@ -451,7 +452,7 @@ int var_res_raw(model * m, int s)
                     else {
                         pos = x*m->N[0]*m->N[1]+y*m->N[0]+z;
                     }
-                    if (m->FP16!=2 || m->FP16!=4){
+                    if (m->FP16>1){
                         parscal = half_to_float( ((half*)par)[pos] )
                                  -half_to_float( ((half*)par2)[pos] );
                         parscal = -2.0*(parscal)*m->dh/m->dt*powf(2,-scaler);
@@ -462,15 +463,23 @@ int var_res_raw(model * m, int s)
                     }
                     for (t=0;t<tmax;t++){
                         m->trans_vars[i].gl_var_res[s][g*NT+t]*=parscal*m->dt;
-                        if (resmax<fabsf(m->trans_vars[i].gl_var_res[s][g*NT+t])){
-                            resmax=fabsf(m->trans_vars[i].gl_var_res[s][g*NT+t]);
+                    }
+                    
+                    if (m->FP16>0){
+                        for (t=0;t<tmax;t++){
+                            if (resmax<fabsf(m->trans_vars[i].gl_var_res[s][g*NT+t])){
+                                resmax=fabsf(m->trans_vars[i].gl_var_res[s][g*NT+t]);
+                            }
                         }
                     }
+                    
                 }
             }
         }
     }
-    m->src_recs.res_scales[s]=-log2(resmax/10);
+    if (m->FP16>0){
+        m->src_recs.res_scales[s]=-log2(resmax/10);
+    }
     // Free memory of FFTs
     if (m->BACK_PROP_TYPE==2){
         free(stf);
@@ -505,7 +514,7 @@ int var_res_raw(model * m, int s)
     //Check if we have infinite or NaN values
     if (m->rms != m->rms){
         state=1;
-        fprintf(stderr,"Simulation has become unstable, stopping\n");
+        fprintf(stderr,"Error: Simulation has become unstable, stopping\n");
     }
     
     return state;

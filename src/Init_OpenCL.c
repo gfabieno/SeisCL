@@ -20,149 +20,156 @@
 
 
 #include "F.h"
-//
-//int get_platform( model * m, cl_platform_id*  clplateform)
-//{
-//    /* Find all platforms , and select the first with the desired device type */
-//    
-//    char chBuffer[1024];
-//    cl_uint num_platforms=0;
-//    cl_platform_id* clPlatformIDs=NULL;
-//    int state=0;
-//    int i,j,k;
-//    cl_int device_found;
-//    
-//    //Check that a suitable device type was given
-//    if (m->pref_device_type!=CL_DEVICE_TYPE_GPU &&
-//        m->pref_device_type!=CL_DEVICE_TYPE_CPU &&
-//        m->pref_device_type!=CL_DEVICE_TYPE_ACCELERATOR ){
-//        fprintf(stdout," Warning: invalid prefered device type,"
-//                       " defaulting to GPU\n");
-//        m->pref_device_type=CL_DEVICE_TYPE_GPU;
-//    }
-//    
-//    // Get OpenCL platform count
-//    __GUARD clGetPlatformIDs (0, NULL, &num_platforms);
-//    if(num_platforms == 0){
-//        fprintf(stderr,"No OpenCL platform found!\n\n");
-//        return 1;
-//    }
-//    
-//
-//    fprintf(stdout,"Found %u OpenCL platforms:\n", num_platforms);
-//    // Allocate the number of platforms
-//    GMALLOC(clPlatformIDs,num_platforms * sizeof(cl_platform_id));
-//    
-//    // Get platform info for each platform and the platform containing the
-//    // prefered device type if found
-//    __GUARD clGetPlatformIDs (num_platforms, clPlatformIDs, NULL);
-//
-//    // Try to find a platform with the prefered device type first
-//    for(i = 0; i < num_platforms; ++i){
-//        device_found = clGetDeviceIDs(clPlatformIDs[i],
-//                                      m->pref_device_type,
-//                                      0,
-//                                      NULL,
-//                                      &m->NUM_DEVICES);
-//        
-//        if(device_found==0 && m->NUM_DEVICES>0){
-//            //Check if any GPU is flagged not to be used
-//            for (j=0;j<m->NUM_DEVICES;j++){
-//                for (k=0;k<m->n_no_use_GPUs;k++){
-//                    if (m->no_use_GPUs[k]==j)
-//                        m->NUM_DEVICES-=1;
-//                }
-//            }
-//            
-//            if (m->NUM_DEVICES<1){
-//                fprintf(stdout,"Warning: No allowed devices could be found");
-//                return 1;
-//            }
-//            else{
-//                *clplateform = clPlatformIDs[i];
-//                m->device_type=m->pref_device_type;
-//                break;
-//            }
-//        }
-//    }
-//    // Then if not found, fall back on a platform with GPUs
-//    if(*clplateform == NULL){
-//        for(i = 0; i < num_platforms; ++i){
-//            device_found = clGetDeviceIDs(clPlatformIDs[i],
-//                                          CL_DEVICE_TYPE_GPU,
-//                                          0,
-//                                          NULL,
-//                                          &m->NUM_DEVICES);
-//            if(device_found == 0 && m->NUM_DEVICES>0){
-//                *clplateform = clPlatformIDs[i];
-//                m->device_type=CL_DEVICE_TYPE_GPU;
-//                break;
-//            }
-//        }
-//    }
-//    // Then if not found, fall back on a platform with accelerators
-//    if(*clplateform == NULL){
-//        for(i = 0; i < num_platforms; ++i){
-//            device_found = clGetDeviceIDs(clPlatformIDs[i],
-//                                          CL_DEVICE_TYPE_ACCELERATOR,
-//                                          0,
-//                                          NULL,
-//                                          &m->NUM_DEVICES);
-//            if(device_found == 0 && m->NUM_DEVICES>0){
-//                *clplateform = clPlatformIDs[i];
-//                m->device_type=CL_DEVICE_TYPE_ACCELERATOR;
-//                break;
-//            }
-//        }
-//    }
-//    // Finally, fall back on a platform with CPUs
-//    if(*clplateform == NULL){
-//        for(i = 0; i < num_platforms; ++i){
-//            device_found = clGetDeviceIDs(clPlatformIDs[i],
-//                                          CL_DEVICE_TYPE_CPU,
-//                                          0,
-//                                          NULL,
-//                                          &m->NUM_DEVICES);
-//            if(device_found == 0 && m->NUM_DEVICES>0){
-//                *clplateform = clPlatformIDs[i];
-//                m->device_type=CL_DEVICE_TYPE_CPU;
-//                break;
-//            }
-//        }
-//    }
-//    if(*clplateform == NULL)
-//    {
-//        fprintf(stderr,"Error: No usable platforms could be found\n\n");
-//        state=1;
-//    }
-//    else{
-//        __GUARD clGetPlatformInfo (*clplateform,
-//                                   CL_PLATFORM_NAME,
-//                                   1024,
-//                                   &chBuffer,
-//                                   NULL);
-//        fprintf(stdout,"Connection to platform %d: %s\n", i, chBuffer);
-//        
-//    }
-//    
-//    //Verify that we do not use more than the allowed number of devices
-//    m->NUM_DEVICES=m->NUM_DEVICES>m->nmax_dev ? m->nmax_dev : m->NUM_DEVICES;
-//    
-//    GFree(clPlatformIDs);
-//    if (state !=CUDA_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
-//    
-//    return state;
-//}
-//
-int connect_devices(device ** dev, model * m)
+#ifdef __SEISCL__
+int get_platform( model * m, cl_platform_id*  clplateform)
+{
+    /* Find all platforms , and select the first with the desired device type */
+    
+    char chBuffer[1024];
+    cl_uint num_platforms=0;
+    cl_platform_id* clPlatformIDs=NULL;
+    int state=0;
+    int i,j,k;
+    cl_int device_found;
+    
+    //Check that a suitable device type was given
+    if (m->pref_device_type!=CL_DEVICE_TYPE_GPU &&
+        m->pref_device_type!=CL_DEVICE_TYPE_CPU &&
+        m->pref_device_type!=CL_DEVICE_TYPE_ACCELERATOR ){
+        fprintf(stdout," Warning: invalid prefered device type,"
+                       " defaulting to GPU\n");
+        m->pref_device_type=CL_DEVICE_TYPE_GPU;
+    }
+    
+    // Get OpenCL platform count
+    __GUARD clGetPlatformIDs (0, NULL, &num_platforms);
+    if(num_platforms == 0){
+        fprintf(stderr,"Error: No OpenCL platform found!\n\n");
+        return 1;
+    }
+    
+
+    fprintf(stdout,"Found %u OpenCL platforms:\n", num_platforms);
+    // Allocate the number of platforms
+    GMALLOC(clPlatformIDs,num_platforms * sizeof(cl_platform_id));
+    
+    // Get platform info for each platform and the platform containing the
+    // prefered device type if found
+    __GUARD clGetPlatformIDs (num_platforms, clPlatformIDs, NULL);
+
+    // Try to find a platform with the prefered device type first
+    for(i = 0; i < num_platforms; ++i){
+        device_found = clGetDeviceIDs(clPlatformIDs[i],
+                                      m->pref_device_type,
+                                      0,
+                                      NULL,
+                                      &m->NUM_DEVICES);
+        
+        if(device_found==CL_SUCCESS && m->NUM_DEVICES>0){
+            //Check if any GPU is flagged not to be used
+            for (j=0;j<m->NUM_DEVICES;j++){
+                for (k=0;k<m->n_no_use_GPUs;k++){
+                    if (m->no_use_GPUs[k]==j)
+                        m->NUM_DEVICES-=1;
+                }
+            }
+            
+            if (m->NUM_DEVICES<1){
+                fprintf(stdout,"Warning: No allowed devices could be found");
+                return 1;
+            }
+            else{
+                *clplateform = clPlatformIDs[i];
+                m->device_type=m->pref_device_type;
+                break;
+            }
+        }
+    }
+    // Then if not found, fall back on a platform with GPUs
+    if(*clplateform == NULL){
+        for(i = 0; i < num_platforms; ++i){
+            device_found = clGetDeviceIDs(clPlatformIDs[i],
+                                          CL_DEVICE_TYPE_GPU,
+                                          0,
+                                          NULL,
+                                          &m->NUM_DEVICES);
+            if(device_found == CL_SUCCESS && m->NUM_DEVICES>0){
+                *clplateform = clPlatformIDs[i];
+                m->device_type=CL_DEVICE_TYPE_GPU;
+                break;
+            }
+        }
+    }
+    // Then if not found, fall back on a platform with accelerators
+    if(*clplateform == NULL){
+        for(i = 0; i < num_platforms; ++i){
+            device_found = clGetDeviceIDs(clPlatformIDs[i],
+                                          CL_DEVICE_TYPE_ACCELERATOR,
+                                          0,
+                                          NULL,
+                                          &m->NUM_DEVICES);
+            if(device_found == CL_SUCCESS && m->NUM_DEVICES>0){
+                *clplateform = clPlatformIDs[i];
+                m->device_type=CL_DEVICE_TYPE_ACCELERATOR;
+                break;
+            }
+        }
+    }
+    // Finally, fall back on a platform with CPUs
+    if(*clplateform == NULL){
+        for(i = 0; i < num_platforms; ++i){
+            device_found = clGetDeviceIDs(clPlatformIDs[i],
+                                          CL_DEVICE_TYPE_CPU,
+                                          0,
+                                          NULL,
+                                          &m->NUM_DEVICES);
+            if(device_found == CL_SUCCESS && m->NUM_DEVICES>0){
+                *clplateform = clPlatformIDs[i];
+                m->device_type=CL_DEVICE_TYPE_CPU;
+                break;
+            }
+        }
+    }
+    if(*clplateform == NULL)
+    {
+        fprintf(stderr,"Error: No usable platforms could be found\n\n");
+        state=1;
+    }
+    else{
+        __GUARD clGetPlatformInfo (*clplateform,
+                                   CL_PLATFORM_NAME,
+                                   1024,
+                                   &chBuffer,
+                                   NULL);
+        fprintf(stdout,"Connection to platform %d: %s\n", i, chBuffer);
+        
+    }
+    
+    //Verify that we do not use more than the allowed number of devices
+    m->NUM_DEVICES=m->NUM_DEVICES>m->nmax_dev ? m->nmax_dev : m->NUM_DEVICES;
+    
+    GFree(clPlatformIDs);
+    if (state !=CL_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
+    
+    return state;
+}
+#endif
+
+CL_INT connect_devices(device ** dev, model * m)
 {
     /*Routine to connect all computing devices, create context and queues*/
     
     int state = 0;
+    #ifdef __SEISCL__
+    CL_UINT nalldevices=0;
+    #else
     int nalldevices=0;
+    #endif
+    CL_UINT num_allow_devs=0;
+    DEVICE *devices=NULL;
     int *allow_devs=NULL;
-    char vendor_name[1024] = {0};
-    char device_name[1024] = {0};
+    CL_CHAR vendor_name[1024] = {0};
+    CL_CHAR device_name[1024] = {0};
     int i,j,n;
     int allowed;
 
@@ -171,12 +178,37 @@ int connect_devices(device ** dev, model * m)
                        "default to 1\n");
         m->nmax_dev=1;
     }
+    #ifdef __SEISCL__
+    cl_platform_id  clplateform = NULL;
+    __GUARD get_platform( m, &clplateform);
+    GMALLOC(*dev, sizeof(device)*m->NUM_DEVICES);
     
+    
+    // Find the number of prefered devices
+    __GUARD clGetDeviceIDs(clplateform,m->device_type,0, NULL, &nalldevices);
+    GMALLOC(devices,sizeof(cl_device_id)*nalldevices);
+    if (m->device_type==CL_DEVICE_TYPE_GPU)
+        fprintf(stdout,"Found %d GPU, ", nalldevices);
+    else if (m->device_type==CL_DEVICE_TYPE_ACCELERATOR)
+        fprintf(stdout,"Found %d Accelerator, ", nalldevices);
+    else if (m->device_type==CL_DEVICE_TYPE_CPU)
+        fprintf(stdout,"Found %d CPU, ", nalldevices);
+    fprintf(stdout,"connecting to  %d devices:\n", num_allow_devs);
+    
+    
+    __GUARD clGetDeviceIDs(clplateform,
+                           m->device_type,
+                           nalldevices,
+                           devices,
+                           NULL);
+
+    GMALLOC(allow_devs,sizeof(int)*m->NUM_DEVICES);
+    #else
     __GUARD cuInit(0);
     __GUARD cuDeviceGetCount ( &nalldevices );
-
-    // Find the number of prefered devices
     GMALLOC(allow_devs,sizeof(int)*nalldevices);
+    #endif
+    
     //Collect all allowed devices
     n=0;
     if (!state){
@@ -194,12 +226,54 @@ int connect_devices(device ** dev, model * m)
             
         }
     }
+    #ifdef __SEISCL__
+    // Print some information about the returned devices
+    if (!state){
+        for (i=0;i<m->NUM_DEVICES;i++){
+            __GUARD clGetDeviceInfo(devices[allow_devs[i]],
+                                    CL_DEVICE_VENDOR,
+                                    sizeof(vendor_name),
+                                    vendor_name,
+                                    NULL);
+            __GUARD clGetDeviceInfo(devices[allow_devs[i]],
+                                    CL_DEVICE_NAME,
+                                    sizeof(device_name),
+                                    device_name,
+                                    NULL);
+            fprintf(stdout,"-Device %d: %s %s\n",
+                    allow_devs[i], vendor_name, device_name);
+        }
+    }
+
+    // Create a context with the specified devices
+    if (!state) m->context = clCreateContext(NULL,
+                                             m->NUM_DEVICES,
+                                             devices,
+                                             NULL,
+                                             NULL,
+                                             &state);
+    
+    // Create command queues for each devices
+    for (i=0;i<m->NUM_DEVICES;i++){
+        (*dev)[i].cudev = devices[allow_devs[i]];
+        if (!state)
+            (*dev)[i].queue = clCreateCommandQueue(m->context,
+                                               devices[allow_devs[i]],
+                                               0 ,
+                                               &state);
+        if (!state)
+            (*dev)[i].queuecomm = clCreateCommandQueue(m->context,
+                                                   devices[allow_devs[i]],
+                                                   0 ,
+                                                   &state);
+    }
+    GFree(devices);
+    #else
     m->NUM_DEVICES = n;
     if (m->NUM_DEVICES > m->nmax_dev){
         m->NUM_DEVICES=m->nmax_dev;
     }
     GMALLOC(*dev, sizeof(device)*m->NUM_DEVICES);
-    
     
     // Print some information about the returned devices
     fprintf(stdout,"Connecting to %d devices: \n",m->NUM_DEVICES);
@@ -218,9 +292,9 @@ int connect_devices(device ** dev, model * m)
         __GUARD cuStreamCreate( &(*dev)[i].queuecomm, CU_STREAM_NON_BLOCKING );
         
     }
-
-    if (state !=CUDA_SUCCESS) fprintf(stderr,
-                                      "Devices connection failed: %s\n",
+    #endif
+    if (state !=CUCL_SUCCESS) fprintf(stderr,
+                                      "Error: Devices connection failed: %s\n",
                                       clerrors(state));
     GFree(allow_devs);
     
@@ -236,15 +310,25 @@ int Init_CUDA(model * m, device ** dev)  {
      */
     //TODO domain decomposition for float2 and half2
     int state=0;
+    int dimbool;
     int i,j,d;
     int parsize=0;
     int fdsize=0;
     int slicesize=0;
     int slicesizefd=0;
+    #ifdef __SEISCL__
+    cl_device_id device=0;
+    cl_ulong local_mem_size=0;
+    cl_ulong required_local_mem_size=0;
+    int required_work_size=0;
+    size_t workitem_size[MAX_DIMS];
+    size_t workgroup_size=0;
+    #else
     int local_mem_size=0;
     int required_local_mem_size=0;
     int required_work_size=0;
     int workgroup_size=0;
+    #endif
     int workdim = 0;
     int lsize[MAX_DIMS];
     int gsize[MAX_DIMS];
@@ -259,13 +343,16 @@ int Init_CUDA(model * m, device ** dev)  {
     // Connect all OpenCL devices that can be used in a single context
     __GUARD connect_devices(dev, m);
 
+
     
     //For each device, create the memory buffers and programs on the GPU
     for (d=0; d<m->NUM_DEVICES; d++) {
         
         di=&(*dev)[d];
+        #ifndef __SEISCL__
         __GUARD cuCtxSetCurrent ( di->context );
         __GUARD cuMemAlloc( &di->cuda_null , sizeof(float));
+        #endif
         di->FP16=m->FP16;
         /* The domain of the FD simulation is decomposed between the devices and
         *  MPI processes along the X direction. We must compute the subdomain 
@@ -336,6 +423,23 @@ int Init_CUDA(model * m, device ** dev)  {
 
         // Get some properties of the device, to define the work sizes
         {
+            #ifdef __SEISCL__
+            __GUARD clGetCommandQueueInfo( di->queue, CL_QUEUE_DEVICE,
+                                           sizeof(cl_device_id), &device, NULL);
+            __GUARD clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_ITEM_SIZES,
+                                    sizeof(workitem_size), &workitem_size,NULL);
+            __GUARD clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE,
+                                   sizeof(workgroup_size),&workgroup_size,NULL);
+            __GUARD clGetDeviceInfo(device, CL_DEVICE_LOCAL_MEM_SIZE,
+                                   sizeof(local_mem_size),&local_mem_size,NULL);
+            
+            // Intel SDK doesn't give the right max work_group_size our kernels,
+            // we force it here!
+            if (!state && m->pref_device_type==CL_DEVICE_TYPE_CPU)
+                workgroup_size= workgroup_size>1024 ? 1024:workgroup_size;
+            if (!state && m->pref_device_type==CL_DEVICE_TYPE_ACCELERATOR)
+                workgroup_size= workgroup_size>1024 ? 1024:workgroup_size;
+            #else
             __GUARD  cuDeviceGetAttribute(&workgroup_size,
                                   CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
                                   di->cudev );
@@ -348,16 +452,16 @@ int Init_CUDA(model * m, device ** dev)  {
             __GUARD  cuDeviceGetAttribute(&di->cuda_arc[1],
                                           CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
                                           di->cudev );
-            if (m->FP16>2  && (di->cuda_arc[0]*10+di->cuda_arc[1])<53){
+            if (m->FP16==3  && (di->cuda_arc[0]*10+di->cuda_arc[1])<53){
                 state=1;
-                fprintf(stderr,"FP16 computation only possible for cuda");
+                fprintf(stderr,"Error: FP16 computation only possible for cuda");
                 fprintf(stderr," arch >=5.3, but device %d arch is %d.%d\n",
                         d,
                         di->cuda_arc[0],
                         di->cuda_arc[1] );
             }
-
-            if (state !=CUDA_SUCCESS) fprintf(stderr,"%s\n",clerrors(state));
+            #endif
+            if (state !=CUCL_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
             
         }
 
@@ -365,7 +469,6 @@ int Init_CUDA(model * m, device ** dev)  {
         //By default, it is 32 elements long to have coalesced memory in cuda
         //Local memory usage must fit the size of local memory of the device
         if (!state){
-            
             lsize[0]=32;
             if (m->NDIM==2){
                 lsize[1]=16;
@@ -375,67 +478,84 @@ int Init_CUDA(model * m, device ** dev)  {
                     lsize[i]=(m->FDORDER)/2;
                 }
             }
-            if (di->FP16==0){
-                required_local_mem_size =2*sizeof(float);
-            }
-            else{
-                required_local_mem_size = sizeof(float);
-            }
+            #ifdef __SEISCL__
+            dimbool=0;
             for (i=0;i<m->NDIM;i++){
-                required_local_mem_size *= (lsize[i]+m->FDORDER);
+                if (workitem_size[i]<2)
+                    dimbool=1;
             }
-            required_work_size=1;
-            for (i=0;i<m->NDIM;i++){
-                required_work_size*=lsize[i];
+            if (workitem_size[0]<m->FDORDER || dimbool){
+                fprintf(stdout,"Maximum device work item size of device "
+                               "%d doesn't support 3D local memory\n"
+                               "Switching off local memory optimization\n", d);
+                di->LOCAL_OFF = 1;
+                
             }
-            while ( lsize[1]>(m->FDORDER)/2
-                   &&  (required_local_mem_size>local_mem_size
-                        || required_work_size>workgroup_size) ){
-                       if (di->FP16==0){
+            else {
+            #endif
+                if (di->FP16==1){
+                    required_local_mem_size =2*sizeof(float);
+                }
+                else{
+                    required_local_mem_size = sizeof(float);
+                }
+                for (i=0;i<m->NDIM;i++){
+                    required_local_mem_size *= (lsize[i]+m->FDORDER);
+                }
+                required_work_size=1;
+                for (i=0;i<m->NDIM;i++){
+                    required_work_size*=lsize[i];
+                }
+                while ( (lsize[1]>(m->FDORDER)/2
+                         &&  required_local_mem_size>local_mem_size)
+                         || required_work_size>workgroup_size ){
+                       if (di->FP16==1){
                            required_local_mem_size =2*sizeof(float);
                        }
                        else{
                            required_local_mem_size = sizeof(float);
                        }
-                       required_work_size=1;
-                       for (i=0;i<m->NDIM;i++){
-                           if (i>0){
-                               lsize[i]-=2;
-                           }
-                           required_local_mem_size *= (lsize[i]+m->FDORDER);
-                           required_work_size*=lsize[i];
-                       }
-                   }
-            for (j=0;j<m->NDIM;j++){
-                if (required_local_mem_size>local_mem_size){
-                    while ( (lsize[j]>(m->FDORDER)/4
-                             &&  required_local_mem_size>local_mem_size)
-                           || required_work_size>workgroup_size ){
-                        if (di->FP16==0){
-                            required_local_mem_size =2*sizeof(float);
-                        }
-                        else{
-                            required_local_mem_size = sizeof(float);
-                        }
-                        required_work_size=1;
-                        lsize[j]-=2;
-                        for (i=0;i<m->NDIM;i++){
-                            required_local_mem_size*=(lsize[i]+m->FDORDER);
-                            required_work_size*=lsize[i];
+                    required_work_size=1;
+                    for (i=0;i<m->NDIM;i++){
+                        if (i>0)
+                            lsize[i]-=2;
+                        required_local_mem_size *= (lsize[i]+m->FDORDER);
+                        required_work_size*=lsize[i];
+                    }
+                }
+                for (j=0;j<m->NDIM;j++){
+                    if (required_local_mem_size>local_mem_size){
+                        while ( (lsize[j]>(m->FDORDER)/4
+                                 &&  required_local_mem_size>local_mem_size)
+                                 || required_work_size>workgroup_size ){
+                            if (di->FP16==1){
+                                required_local_mem_size =2*sizeof(float);
+                            }
+                            else{
+                                required_local_mem_size = sizeof(float);
+                            }
+                            required_work_size=1;
+                            lsize[j]-=2;
+                            for (i=0;i<m->NDIM;i++){
+                                required_local_mem_size*=(lsize[i]+m->FDORDER);
+                                required_work_size*=lsize[i];
+                            }
                         }
                     }
                 }
+            #ifdef __SEISCL__
             }
+            #endif
 
             //Check if too many GPUS are used in the domain decomposition
             if  (di->N[m->NDIM-1]<3*lsize[m->NDIM-1]){
                 di->LOCAL_OFF = 1;
-                fprintf(stderr,"Too many GPUs for domain decompositon,"
+                fprintf(stdout,"Warning: Too many GPUs for domain decompositon,"
                         "Switching off local memory optimization\n");
             }
             //Check if the local memory is big enough, else turn it off
             if (required_local_mem_size>local_mem_size){
-                fprintf(stderr,"Local memory needed to perform seismic "
+                fprintf(stdout,"Warning: Local memory needed to perform seismic "
                         "modeling (%d bits) exceeds the local "
                         "memory capacity of device %d (%d bits)\n"
                         "Switching off local memory optimization\n",
@@ -454,7 +574,6 @@ int Init_CUDA(model * m, device ** dev)  {
         // To overlap computations and communications, we have 3 kernels:
         // One for the interior (no communications) and 2 for the front and back
         // We define here de sizes of those region (offcom1, offcom2)
-        //Because we use float2 and half2, we must divide by 2 the worksize
         if (!state){
             if (di->LOCAL_OFF==1){
                 // If we turn off local memory usage, use one dimension worksize
@@ -462,24 +581,38 @@ int Init_CUDA(model * m, device ** dev)  {
                 offcom1=0;
                 offcom2=0;
                 if (d>0 || m->MYLOCALID>0){
+                    #ifdef __SEISCL__
+                    gsize_com1[0] = slicesize*m->FDOH;
+                    #else
                     gsize_com1[0] = slicesize*m->FDOH/2;
+                    #endif
                     LCOMM+=m->FDOH;
                     offcom1=m->FDOH;
                     
                 }
                 if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
+                    #ifdef __SEISCL__
+                    gsize_com2[0] = slicesize*m->FDOH;
+                    #else
                     gsize_com2[0] = slicesize*m->FDOH/2;
+                    #endif
                     LCOMM+=m->FDOH;
                     offcom2=di->N[m->NDIM-1]-m->FDOH;
                 }
                 if (d>0 || m->MYLOCALID>0
                         || d<m->NUM_DEVICES-1
                         || m->MYLOCALID<m->NLOCALP-1){
+                    #ifdef __SEISCL__
+                    gsize_fcom[0] = slicesize*m->FDOH;
+                    #else
                     gsize_fcom[0] = slicesize*m->FDOH/2;
+                    #endif
                 }
-                
+                #ifdef __SEISCL__
+                gsize[0] = (di->N[m->NDIM-1]-LCOMM)*slicesize;
+                #else
                 gsize[0] = (di->N[m->NDIM-1]-LCOMM)*slicesize/2;
-                
+                #endif
                 workdim=1;
                 
             }
@@ -487,7 +620,12 @@ int Init_CUDA(model * m, device ** dev)  {
 
                 // When using local work sizes in OpenCL,
                 // global work size must be a multiple of local work size
-                
+                #ifdef __SEISCL__
+                for (i=0;i<m->NDIM-1;i++){
+                    gsize[i]=di->N[i]
+                    +(lsize[i]-di->N[i]%lsize[i])%lsize[i];
+                }
+                #else
                 //We use half2 and float2 in kernels, and must divide by 2 the
                 //global size of dim 0
                 gsize[0]=di->N[0]/2+(lsize[0]-(di->N[0]/2)%lsize[0])%lsize[0];
@@ -495,6 +633,7 @@ int Init_CUDA(model * m, device ** dev)  {
                     gsize[i]=di->N[i]
                             +(lsize[i]-di->N[i]%lsize[i])%lsize[i];
                 }
+                #endif
                 LCOMM=0;
                 offcom1=0;
                 offcom2=0;
@@ -624,18 +763,18 @@ int Init_CUDA(model * m, device ** dev)  {
                 for (i=0;i<m->npars;i++){
                     di->pars[i].num_ele=parsize;
                     di->pars[i].cl_par.size=sizeof(float)*parsize;
-                    if (m->FP16==2 || m->FP16==4){
+                    if (m->FP16>1){
                         di->pars[i].cl_par.size/=2;
                     }
-                    __GUARD clbuf_create(&di->pars[i].cl_par);
+                    __GUARD clbuf_create(&m->context,&di->pars[i].cl_par);
                     __GUARD clbuf_send(&di->queue,&di->pars[i].cl_par);
                     if (m->GRADOUT && m->BACK_PROP_TYPE==1){
                         di->pars[i].cl_grad.size=sizeof(float)*parsize;
-                        __GUARD clbuf_create(&di->pars[i].cl_grad);
+                        __GUARD clbuf_create(&m->context, &di->pars[i].cl_grad);
                     }
                     if (m->HOUT && m->BACK_PROP_TYPE==1){
                         di->pars[i].cl_H.size=sizeof(float)*parsize;
-                        __GUARD clbuf_create( &di->pars[i].cl_H);
+                        __GUARD clbuf_create( &m->context, &di->pars[i].cl_H);
                     }
                     
                 }
@@ -649,14 +788,13 @@ int Init_CUDA(model * m, device ** dev)  {
             di->src_recs.cl_src_pos.size=sizeof(float) * 5 * m->src_recs.nsmax;
             di->src_recs.cl_rec_pos.size=sizeof(float) * 8 * m->src_recs.ngmax;
             di->src_recs.cl_src.size=sizeof(float) * m->NT * m->src_recs.nsmax;
-            __GUARD clbuf_create( &di->src_recs.cl_src_pos);
-            __GUARD clbuf_create( &di->src_recs.cl_rec_pos);
-            __GUARD clbuf_create( &di->src_recs.cl_src);
-            
+            __GUARD clbuf_create( &m->context, &di->src_recs.cl_src_pos);
+            __GUARD clbuf_create( &m->context, &di->src_recs.cl_rec_pos);
+            __GUARD clbuf_create( &m->context, &di->src_recs.cl_src);
             if (m->GRADSRCOUT){
                 di->src_recs.cl_grad_src.size=sizeof(float)
-                                                    * m->NT * m->src_recs.nsmax;
-                __GUARD clbuf_create(&di->src_recs.cl_grad_src);
+                * m->NT * m->src_recs.nsmax;
+                __GUARD clbuf_create(&m->context,&di->src_recs.cl_grad_src);
             }
         }
         
@@ -688,9 +826,9 @@ int Init_CUDA(model * m, device ** dev)  {
             
             //Create variable buffers for the interior domain
             di->vars[i].cl_var.size=sizeof(float)*di->vars[i].num_ele;
-            if (m->FP16>0)
+            if (m->FP16>1)
                 di->vars[i].cl_var.size/=2;
-            __GUARD clbuf_create( &di->vars[i].cl_var);
+            __GUARD clbuf_create( &m->context, &di->vars[i].cl_var);
             
             //Create variable buffers for the boundary of the domain
             if ( di->vars[i].to_comm
@@ -700,9 +838,13 @@ int Init_CUDA(model * m, device ** dev)  {
                     
                     //On the device side
                     di->vars[i].cl_buf1.size=sizeof(float)*m->FDOH*slicesize;
-                    __GUARD clbuf_create_pin(&di->vars[i].cl_buf1);
+                    __GUARD clbuf_create_pin(&m->context,
+                                             &di->queuecomm,
+                                             &di->vars[i].cl_buf1);
                     di->vars[i].cl_buf2.size=sizeof(float)*m->FDOH*slicesize;
-                    __GUARD clbuf_create_pin(&di->vars[i].cl_buf2);
+                    __GUARD clbuf_create_pin(&m->context,
+                                             &di->queuecomm,
+                                             &di->vars[i].cl_buf2);
                 }
             
             // Create the buffers to output variables at receivers locations
@@ -711,7 +853,7 @@ int Init_CUDA(model * m, device ** dev)  {
                 //Memory for recordings for this device on host side
                 di->vars[i].cl_varout.size=sizeof(float)
                                           * m->NT * m->src_recs.ngmax;
-                __GUARD clbuf_create(&di->vars[i].cl_varout);
+                __GUARD clbuf_create( &m->context, &di->vars[i].cl_varout);
                 GMALLOC(di->vars[i].cl_varout.host, di->vars[i].cl_varout.size);
                 di->vars[i].cl_varout.free_host=1;
                 
@@ -726,7 +868,7 @@ int Init_CUDA(model * m, device ** dev)  {
 
                 di->vars[i].cl_fvar.size=2*sizeof(float)
                                         * di->vars[i].num_ele * m->NFREQS;
-                __GUARD clbuf_create(&di->vars[i].cl_fvar);
+                __GUARD clbuf_create(&m->context,&di->vars[i].cl_fvar);
                 GMALLOC(di->vars[i].cl_fvar.host,di->vars[i].cl_fvar.size);
                 di->vars[i].cl_fvar.free_host=1;
                 di->vars[i].cl_fvar_adj.size= di->vars[i].cl_fvar.size;
@@ -754,12 +896,12 @@ int Init_CUDA(model * m, device ** dev)  {
                 //Memory for recordings for this device on host side
                 di->trans_vars[i].cl_varout.size=sizeof(float)
                 * m->NT * m->src_recs.ngmax;
-                __GUARD clbuf_create( &di->trans_vars[i].cl_varout);
+                __GUARD clbuf_create( &m->context, &di->trans_vars[i].cl_varout);
                 GMALLOC(di->trans_vars[i].cl_varout.host, di->trans_vars[i].cl_varout.size);
                 di->trans_vars[i].cl_varout.free_host=1;
             }
         }
-
+        
         //Create constants structure and buffers, transfer to device
         di->ncsts=m->ncsts;
         GMALLOC(di->csts, sizeof(constants)*m->ncsts);
@@ -768,11 +910,11 @@ int Init_CUDA(model * m, device ** dev)  {
             //Size of constants does not depend of domain decomposition
             di->csts[i].cl_cst.size=sizeof(float)*di->csts[i].num_ele;
             di->csts[i].cl_cst.host=m->csts[i].gl_cst;
-            __GUARD clbuf_create(  &di->csts[i].cl_cst);
+            __GUARD clbuf_create( &m->context, &di->csts[i].cl_cst);
             __GUARD clbuf_send( &di->queue, &di->csts[i].cl_cst);
             
         }
-
+        
         
         // Determine the size of the outside boundary used for the back
         // propagation of the seismic wavefield
@@ -792,14 +934,18 @@ int Init_CUDA(model * m, device ** dev)  {
                     di->ups_adj[j].v2com[di->ups_adj[j].nvcom]=&di->vars_adj[i];
                     di->ups_adj[j].nvcom++;
                 }
-                __GUARD clbuf_create(  &di->vars_adj[i].cl_var);
+                __GUARD clbuf_create( &m->context, &di->vars_adj[i].cl_var);
                 if (di->vars[i].to_comm && (d>0
                                             || m->MYLOCALID>0
                                             || d<m->NUM_DEVICES-1
                                             || m->MYLOCALID<m->NLOCALP-1)){
                     
-                    __GUARD clbuf_create_pin(&di->vars_adj[i].cl_buf1);
-                    __GUARD clbuf_create_pin(&di->vars_adj[i].cl_buf2);
+                    __GUARD clbuf_create_pin(&m->context,
+                                             &di->queuecomm,
+                                             &di->vars_adj[i].cl_buf1);
+                    __GUARD clbuf_create_pin(&m->context,
+                                             &di->queuecomm,
+                                             &di->vars_adj[i].cl_buf2);
                 }
             }
             
@@ -834,16 +980,18 @@ int Init_CUDA(model * m, device ** dev)  {
                 else
                     di->NBND= (di->N[1])*2*m->FDOH;
             }
-            
+
             for (i=0;i<m->nvars;i++){
                 if (di->vars[i].to_comm){
                     di->vars[i].cl_varbnd.size=sizeof(float) * di->NBND;
                     di->vars[i].cl_varbnd.sizepin=sizeof(float) *di->NBND*m->NT;
-                    if (m->FP16>0){
+                    if (m->FP16>1){
                         di->vars[i].cl_varbnd.size/=2;
                         di->vars[i].cl_varbnd.sizepin/=2;
                     }
-                    __GUARD clbuf_create_pin( &di->vars[i].cl_varbnd);
+                    __GUARD clbuf_create_pin( &m->context,
+                                              &di->queuecomm,
+                                              &di->vars[i].cl_varbnd);
                 }
             }
             
@@ -852,7 +1000,6 @@ int Init_CUDA(model * m, device ** dev)  {
 
         }
         
-
         // Create the update kernels
         di->nupdates=m->nupdates;
         for (i=0;i<m->nupdates;i++){
@@ -934,7 +1081,6 @@ int Init_CUDA(model * m, device ** dev)  {
         
         __GUARD kernel_varinit(di, m, di->vars, &di->bnd_cnds.init_f, 0);
         __GUARD prog_create(m, di,  &di->bnd_cnds.init_f);
-   
         
         if (m->GRADOUT){
             __GUARD kernel_residuals(di,
@@ -987,12 +1133,17 @@ int Init_CUDA(model * m, device ** dev)  {
         if (m->GRADOUT && m->BACK_PROP_TYPE==1){
             di->grads.savebnd=m->grads.savebnd;
             __GUARD prog_create(m, di,  &di->grads.savebnd);
+            #ifdef __SEISCL__
+            di->grads.savebnd.gsize[0]=di->NBND;
+            #else
             di->grads.savebnd.gsize[0]=di->NBND/2;
+            #endif
             di->grads.savebnd.wdim=1;
         }
         
         
     }
+    
     
     
 

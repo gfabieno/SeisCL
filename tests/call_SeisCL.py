@@ -19,7 +19,7 @@ file="SeisCL"
 filenames={}
 filenames['model']=file+"_model.mat"    #File containing the model pareters
 filenames['csts']=file+"_csts.mat"      #File containing the simulation constants
-filenames['din']=file+"_din.mat"       #File containing the recorded data
+filenames['din']=file+"_din.mat"        #File containing the recorded data
 filenames['dout']=file+"_dout.mat"      #File containing the seismograms output
 filenames['gout']=file+"_gout.mat"      #File containing the gradient ouput
 filenames['rms']=file+"_rms.mat"        #File containing the rms ouput
@@ -151,7 +151,7 @@ model['vp'][70:90,65:85]= 3500
 model['taup'][110:130,65:85]= 0.02
 csts['gradout']=1
 csts['resout']=1
-csts['FP16']=1
+csts['FP16']=0
 csts['gradfreqs']=np.append(csts['gradfreqs'], csts['f0'])
 h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
 h5mat.savemat(filenames['model'], model , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)

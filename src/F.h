@@ -38,15 +38,7 @@
 #include "kiss_fft.h"
 #include "kiss_fftr.h"
 
-
-//#ifdef __APPLE__
-//#include <OpenCL/opencl.h>
-//#else
-//#include <CL/cl.h>
-//#endif
-// includes CUDA Runtime
-#include <cuda.h>
-#include <nvrtc.h>
+#include "CUDA_CL.h"
 #include "fp16_conversion.h"
 
 #include <mpi.h>
@@ -56,14 +48,14 @@
 #define PI (3.141592653589793238462643383279502884197169)
 
 #define GMALLOC(x,y) ({\
-            if (!state) if (!((x)=malloc((y)))) {state=1;fprintf(stderr,"malloc failed at line %d in %s()\n",__LINE__,__func__);};\
+            if (!state) if (!((x)=malloc((y)))) {state=1;fprintf(stderr,"Error: malloc failed at line %d in %s()\n",__LINE__,__func__);};\
             if (!state) memset((x),0,(y));\
             })
 
 #define GFree(x) if ((x)) free( (x) );(x)=NULL;
 
-#define __GUARD if (!state) state=
-#define CLGUARD(x) if (!state) if (!(state = (x) )) {fprintf(stderr,"OpenCL function failed at line %d in %s()\n",__LINE__,__func__);};
+#define __GUARD if (state) {return state;} else state=
+#define CLGUARD(x) if (!state) if (!(state = (x) )) {fprintf(stderr,"Error: OpenCL function failed at line %d in %s()\n",__LINE__,__func__);};
 
 
 
@@ -91,39 +83,39 @@ struct filenames {
 /* _____________Structure to intereact with OpenCL memory buffers ____________*/
 typedef struct clbuf {
     
-    CUdeviceptr mem;
+    MEM mem;
     size_t size;
     
-    float * pin;
+    MEM pin;
     size_t sizepin;
     float * host;
     int free_host;
     
     int outevent_r;
     int outevent_s;
-//    cl_event event_r;
-//    cl_event event_s;
+    EVENT event_r;
+    EVENT event_s;
     
     int nwait_r;
-//    cl_event * waits_r;
+    EVENT * waits_r;
     int nwait_s;
-//    cl_event * waits_s;
+    EVENT * waits_s;
     
 } clbuf;
 
-int clbuf_send(CUstream *inqueue,  clbuf * buf);
+CL_INT clbuf_send(QUEUE *inqueue,  clbuf * buf);
 
-int clbuf_sendfrom(CUstream *inqueue, clbuf * buf, void * ptr);
+CL_INT clbuf_sendfrom(QUEUE *inqueue, clbuf * buf, void * ptr);
 
-int clbuf_read(CUstream *inqueue, clbuf * buf);
+CL_INT clbuf_read(QUEUE *inqueue, clbuf * buf);
 
-int clbuf_readto(CUstream *inqueue,
+CL_INT clbuf_readto(QUEUE *inqueue,
                  clbuf * buf,
                  void * ptr);
 
-int clbuf_create(clbuf * buf);
+CL_INT clbuf_create(CONTEXT *incontext, clbuf * buf);
 
-int clbuf_create_pin( clbuf * buf);
+CL_INT clbuf_create_pin(CONTEXT *incontext, QUEUE *inqueue,clbuf * buf);
 
 
 /* ____________________Structure to execute OpenCL kernels____________________*/
@@ -133,9 +125,9 @@ typedef struct clprogram {
     
     const char * name;
     const char * src;
-    char * prog;
-    CUmodule module;
-    CUfunction kernel;
+    PROGRAM prog;
+    MODULE module;
+    KERNEL kernel;
     char ** input_list;
     int ninputs;
     void * inputs[2000];
@@ -157,10 +149,10 @@ typedef struct clprogram {
     int DIRPROP;
 
     int outevent;
-//    cl_event event;
+    EVENT event;
     
     int nwait;
-//    cl_event * waits;
+    EVENT * waits;
     
 } clprogram;
 
@@ -169,9 +161,11 @@ int prog_source(clprogram * prog,
                 char* name,
                 const char * source);
 
-int prog_launch( CUstream *inqueue, clprogram * prog);
+int prog_launch( QUEUE *inqueue, clprogram * prog);
 
 int prog_create(struct model * m, struct device * dev,clprogram * prog);
+
+int prog_arg(clprogram * prog, int i, void * mem, int size);
 
 
 /* ___________Structure for variables, or what is to be modelled______________*/
@@ -324,9 +318,9 @@ typedef struct gradients {
 /* _____________Structure that holds all information of a device _____________*/
 typedef struct device {
     
-    CUstream queue;
-    CUstream queuecomm;
-    CUdeviceptr cuda_null;
+    QUEUE queue;
+    QUEUE queuecomm;
+    MEM cuda_null;
 
     int workdim;
     int NDIM;
@@ -364,8 +358,8 @@ typedef struct device {
     gradients grads;
     boundary_conditions bnd_cnds;
     
-    CUcontext context;
-    CUdevice cudev;
+    CONTEXT context;
+    DEVICE cudev;
 
 } device;
 
@@ -463,9 +457,10 @@ typedef struct model {
     int nmax_dev;
     int *no_use_GPUs;
     int n_no_use_GPUs;
-//    cl_device_type pref_device_type;
-//    cl_device_type device_type;
-    int NUM_DEVICES;
+    DEVICE_TYPE pref_device_type;
+    DEVICE_TYPE device_type;
+    CL_UINT NUM_DEVICES;
+    CONTEXT context;
     int FP16;
     int halfpar;
 
@@ -515,7 +510,7 @@ int event_dependency( model * m,  device ** dev, int adj);
 
 int time_stepping(model * m, device ** dev);
 
-//int comm(model * m, device ** dev, int adj, int ui);
+int comm(model * m, device ** dev, int adj, int ui);
 
 int Out_MPI(model * m);
 

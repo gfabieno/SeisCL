@@ -20,20 +20,43 @@
 
 #include "F.h"
 
-void clbuf_free(clbuf *buf){
+void clbuf_free(device *dev, clbuf *buf){
 
-    if (buf->mem) cuMemFree(buf->mem);
-    if (buf->pin) cuMemFreeHost(buf->pin);
-    if (buf->free_host){
-         GFree(buf->host);
+    if (buf->mem) MEMFREE(buf->mem);
+    
+    #ifdef __SEISCL__
+    if (buf->pin) clEnqueueUnmapMemObject(dev->queuecomm,
+                                          buf->pin,
+                                          buf->host,
+                                          0,
+                                          NULL,
+                                          NULL);
+    else if (buf->free_host){
+        GFree(buf->host);
     }
+    if (buf->pin) clReleaseMemObject(buf->pin);
+    #else
+    
+    if (buf->free_host){
+        GFree(buf->host);
+    }
+    else{
+        if (buf->host) cuMemFreeHost(buf->host);
+    }
+    #endif
+
 
 }
 
 void clprogram_freeCL(clprogram * prog){
     
+    #ifdef __SEISCL__
+    if (prog->kernel ) clReleaseKernel(prog->kernel);
+    if (prog->prog) clReleaseProgram(prog->prog);
+    #else
     if (prog->module) cuModuleUnload(prog->module);
     if (prog->prog) free(prog->prog);
+    #endif
     
 }
 
@@ -47,16 +70,16 @@ void clprogram_freeGL(clprogram * prog){
     }
 }
 
-void variable_freeCL(variable * var){
+void variable_freeCL(device *dev, variable * var){
     
-    clbuf_free(&var->cl_var);
-    clbuf_free(&var->cl_varout);
-    clbuf_free(&var->cl_varbnd);
-    clbuf_free(&var->cl_fvar);
-    clbuf_free(&var->cl_fvar_adj);
-    clbuf_free(&var->cl_buf1);
-    clbuf_free(&var->cl_buf2);
-    clbuf_free(&var->cl_var_res);
+    clbuf_free(dev, &var->cl_var);
+    clbuf_free(dev, &var->cl_varout);
+    clbuf_free(dev, &var->cl_varbnd);
+    clbuf_free(dev, &var->cl_fvar);
+    clbuf_free(dev, &var->cl_fvar_adj);
+    clbuf_free(dev, &var->cl_buf1);
+    clbuf_free(dev, &var->cl_buf2);
+    clbuf_free(dev, &var->cl_var_res);
     
 }
 
@@ -77,11 +100,11 @@ void variable_freeGL(variable * var){
     
 }
 
-void parameter_freeCL(parameter * par){
+void parameter_freeCL(device *dev, parameter * par){
     
-    clbuf_free(&par->cl_par);
-    clbuf_free(&par->cl_grad);
-    clbuf_free(&par->cl_H);
+    clbuf_free(dev, &par->cl_par);
+    clbuf_free(dev, &par->cl_grad);
+    clbuf_free(dev, &par->cl_H);
 }
 
 void parameter_freeGL(parameter * par){
@@ -91,9 +114,9 @@ void parameter_freeGL(parameter * par){
     GFree(par->gl_H);
 }
 
-void constants_freeCL(constants *cst){
+void constants_freeCL(device *dev, constants *cst){
     
-    clbuf_free(&cst->cl_cst);
+    clbuf_free(dev, &cst->cl_cst);
 }
 
 void constants_freeGL(constants *cst){
@@ -101,12 +124,12 @@ void constants_freeGL(constants *cst){
     GFree(cst->gl_cst);
 }
 
-void sources_records_freeCL(sources_records * src_rec){
+void sources_records_freeCL(device *dev, sources_records * src_rec){
     
-    clbuf_free(&src_rec->cl_src);
-    clbuf_free(&src_rec->cl_src_pos);
-    clbuf_free(&src_rec->cl_rec_pos);
-    clbuf_free(&src_rec->cl_grad_src);
+    clbuf_free(dev, &src_rec->cl_src);
+    clbuf_free(dev, &src_rec->cl_src_pos);
+    clbuf_free(dev, &src_rec->cl_rec_pos);
+    clbuf_free(dev, &src_rec->cl_grad_src);
     
     clprogram_freeCL(&src_rec->sources);
     clprogram_freeCL(&src_rec->varsout);
@@ -211,31 +234,31 @@ void device_free(device * dev){
     
     if (dev->vars){
         for (i=0;i<dev->nvars;i++){
-            variable_freeCL(&(dev->vars[i]));
+            variable_freeCL(dev, &(dev->vars[i]));
         }
         GFree(dev->vars);
     }
     if (dev->vars_adj){
         for (i=0;i<dev->nvars;i++){
-            variable_freeCL(&dev->vars_adj[i]);
+            variable_freeCL(dev, &dev->vars_adj[i]);
         }
         GFree(dev->vars_adj);
     }
     if (dev->pars){
         for (i=0;i<dev->npars;i++){
-            parameter_freeCL(&dev->pars[i]);
+            parameter_freeCL(dev, &dev->pars[i]);
         }
         GFree(dev->pars);
     }
     if (dev->csts){
         for (i=0;i<dev->ncsts;i++){
-            constants_freeCL(&dev->csts[i]);
+            constants_freeCL(dev, &dev->csts[i]);
         }
         GFree(dev->csts);
     }
     if (dev->trans_vars){
         for (i=0;i<dev->ntvars;i++){
-            variable_freeCL(&dev->trans_vars[i]);
+            variable_freeCL(dev, &dev->trans_vars[i]);
         }
         GFree(dev->trans_vars);
     }
@@ -252,20 +275,22 @@ void device_free(device * dev){
         GFree(dev->ups_adj);
     }
     
-    sources_records_freeCL(&dev->src_recs);
+    sources_records_freeCL(dev, &dev->src_recs);
     gradients_freeCL(&dev->grads);
     boundary_conditions_freeCL(&dev->bnd_cnds);
     
-    if (dev->cuda_null) cuMemFree(dev->cuda_null);
-    if (dev->queue) cuStreamDestroy(dev->queue);
-    if (dev->queuecomm) cuStreamDestroy(dev->queuecomm);
+    if (dev->queue) QUEUEFREE(dev->queue);
+    if (dev->queuecomm) QUEUEFREE(dev->queuecomm);
+    if (dev->cuda_null) MEMFREE(dev->cuda_null);
+    #ifndef __SEISCL__
     if (dev->context) cuCtxDestroy(dev->context);
+    #endif
     
 }
 
 void model_free(model * m){
     int i;
-    device * dev = NULL;
+    
     if (m->vars){
         for (i=0;i<m->nvars;i++){
             variable_freeGL(&m->vars[i]);
@@ -314,8 +339,9 @@ void model_free(model * m){
     boundary_conditions_freeGL(&m->bnd_cnds);
     
     GFree(m->no_use_GPUs);
-    
-//    if (m->context) clReleaseContext(m->context);
+    #ifdef __SEISCL__
+    if (m->context) clReleaseContext(m->context);
+    #endif
     
 }
 
