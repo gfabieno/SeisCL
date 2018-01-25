@@ -38,6 +38,39 @@
 #define lvar2(z,x) lvar2[(x)*lsizez+(z)]
 #endif
 
+extern "C" __device__ float2 add2f(float2 a, float2 b ){
+    
+    float2 output;
+    output.x = a.x+b.x;
+    output.y = a.y+b.y;
+    return output;
+}
+extern "C" __device__ float2 mul2f(float2 a, float2 b ){
+    
+    float2 output;
+    output.x = a.x*b.x;
+    output.y = a.y*b.y;
+    return output;
+}
+extern "C" __device__ float2 div2f(float2 a, float2 b ){
+    
+    float2 output;
+    output.x = a.x/b.x;
+    output.y = a.y/b.y;
+    return output;
+}
+extern "C" __device__ float2 sub2f(float2 a, float2 b ){
+    
+    float2 output;
+    output.x = a.x-b.x;
+    output.y = a.y-b.y;
+    return output;
+}
+extern "C" __device__ float2 f2h2f(float a){
+    
+    float2 output={a,a};
+    return output;
+}
 
 
 #if FP16==2
