@@ -58,7 +58,7 @@ int main(int argc, char **argv) {
             ii++;
         }
         fprintf(fh, "_source = \"");
-        for (ii=0;ii<statbuf.st_size+1;ii++){
+        for (ii=0;ii<statbuf.st_size;ii++){
             ch = program_source[ii];
             switch (ch) {
                 case '\"':
