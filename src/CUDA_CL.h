@@ -1,5 +1,5 @@
 
-#define __SEISCL__
+//#define __SEISCL__
 
 #ifdef __SEISCL__
 
