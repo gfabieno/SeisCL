@@ -670,7 +670,7 @@ int prog_create(model * m,
         }
         
         if (!argfound){
-            if (strcmp("lvar",(*prog).input_list[i])==0){
+            if (strcmp("LOCARG",(*prog).input_list[i])==0){
                 #ifdef __SEISCL__
                 prog_arg(prog, i, NULL, shared_size);
                 #else

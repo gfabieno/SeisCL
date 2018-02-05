@@ -24,11 +24,11 @@
 #define rip(z,y,x)     rip[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define rjp(z,y,x)     rjp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define rkp(z,y,x)     rkp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define uipjp(z,y,x) uipjp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define ujpkp(z,y,x) ujpkp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define uipkp(z,y,x) uipkp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define u(z,y,x)         u[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define pi(z,y,x)       pi[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define muipjp(z,y,x) muipjp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define mujpkp(z,y,x) mujpkp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define muipkp(z,y,x) muipkp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define mu(z,y,x)         mu[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
+#define M(z,y,x)       M[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define gradrho(z,y,x)   gradrho[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define gradM(z,y,x)   gradM[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define gradmu(z,y,x)   gradmu[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
@@ -83,39 +83,54 @@
 #define PI (3.141592653589793238462643383279502884197169)
 #define signals(y,x) signals[(y)*NT+(x)]
 
+#ifdef __OPENCL_VERSION__
+#define FUNDEF __kernel
+#define LFUNDEF
+#define GLOBARG __global
+#define LOCARG __local float *lvar
+#define LOCDEF
+#define BARRIER barrier(CLK_LOCAL_MEM_FENCE);
+#else
+#define FUNDEF extern "C" __global__
+#define LFUNDEF extern "C" __device__
+#define GLOBARG
+#define LOCARG float *nullarg
+#define LOCDEF extern __shared__ float lvar[];
+#define BARRIER __syncthreads();
+#endif
 
 
-__kernel void update_s(int offcomm,  int nt,
-                       __global float *vx,         __global float *vy,            __global float *vz,
-                       __global float *sxx,        __global float *syy,           __global float *szz,
-                       __global float *sxy,        __global float *syz,           __global float *sxz,
-                       __global float *pi,         __global float *u,             __global float *uipjp,
-                       __global float *ujpkp,      __global float *uipkp,
-                       __global float *rxx,        __global float *ryy,           __global float *rzz,
-                       __global float *rxy,        __global float *ryz,           __global float *rxz,
-                       __global float *taus,       __global float *tausipjp,      __global float *tausjpkp,
-                       __global float *tausipkp,   __global float *taup,          __global float *eta,
-                       __global float *srcpos_loc, __global float *signals,       __global float *taper,
-                       __global float *K_x,        __global float *a_x,          __global float *b_x,
-                       __global float *K_x_half,   __global float *a_x_half,     __global float *b_x_half,
-                       __global float *K_y,        __global float *a_y,          __global float *b_y,
-                       __global float *K_y_half,   __global float *a_y_half,     __global float *b_y_half,
-                       __global float *K_z,        __global float *a_z,          __global float *b_z,
-                       __global float *K_z_half,   __global float *a_z_half,     __global float *b_z_half,
-                       __global float *psi_vxx,    __global float *psi_vxy,       __global float *psi_vxz,
-                       __global float *psi_vyx,    __global float *psi_vyy,       __global float *psi_vyz,
-                       __global float *psi_vzx,    __global float *psi_vzy,       __global float *psi_vzz,
-                       __local  float *lvar)
+FUNDEF void update_s(int offcomm,  int nt,
+                       GLOBARG float *vx,         GLOBARG float *vy,            GLOBARG float *vz,
+                       GLOBARG float *sxx,        GLOBARG float *syy,           GLOBARG float *szz,
+                       GLOBARG float *sxy,        GLOBARG float *syz,           GLOBARG float *sxz,
+                       GLOBARG float *M,         GLOBARG float *mu,             GLOBARG float *muipjp,
+                       GLOBARG float *mujpkp,      GLOBARG float *muipkp,
+                       GLOBARG float *rxx,        GLOBARG float *ryy,           GLOBARG float *rzz,
+                       GLOBARG float *rxy,        GLOBARG float *ryz,           GLOBARG float *rxz,
+                       GLOBARG float *taus,       GLOBARG float *tausipjp,      GLOBARG float *tausjpkp,
+                       GLOBARG float *tausipkp,   GLOBARG float *taup,          GLOBARG float *eta,
+                       GLOBARG float *srcpos_loc, GLOBARG float *signals,       GLOBARG float *taper,
+                       GLOBARG float *K_x,        GLOBARG float *a_x,          GLOBARG float *b_x,
+                       GLOBARG float *K_x_half,   GLOBARG float *a_x_half,     GLOBARG float *b_x_half,
+                       GLOBARG float *K_y,        GLOBARG float *a_y,          GLOBARG float *b_y,
+                       GLOBARG float *K_y_half,   GLOBARG float *a_y_half,     GLOBARG float *b_y_half,
+                       GLOBARG float *K_z,        GLOBARG float *a_z,          GLOBARG float *b_z,
+                       GLOBARG float *K_z_half,   GLOBARG float *a_z_half,     GLOBARG float *b_z_half,
+                       GLOBARG float *psi_vxx,    GLOBARG float *psi_vxy,       GLOBARG float *psi_vxz,
+                       GLOBARG float *psi_vyx,    GLOBARG float *psi_vyy,       GLOBARG float *psi_vyz,
+                       GLOBARG float *psi_vzx,    GLOBARG float *psi_vzy,       GLOBARG float *psi_vzz,
+                       LOCARG)
 
 {
+    LOCDEF
     
-    /* Standard staggered grid kernel, finite difference order of 4.  */
     
     int i,j,k,l,ind;
     float fipjp, fjpkp, fipkp, f, g;
     float sumrxy,sumryz,sumrxz,sumrxx,sumryy,sumrzz;
     float b,c,e,d,dipjp,djpkp,dipkp;
-    float lpi, lu, luipjp, luipkp, lujpkp, ltaup, ltaus, ltausipjp, ltausipkp, ltausjpkp;
+    float lM, lmu, lmuipjp, lmuipkp, lmujpkp, ltaup, ltaus, ltausipjp, ltausipkp, ltausjpkp;
 #if LVE>0
     float leta[LVE];
 #endif
@@ -127,6 +142,7 @@ __kernel void update_s(int offcomm,  int nt,
 // If we use local memory
 #if LOCAL_OFF==0
     
+#ifdef __OPENCL_VERSION__
     int lsizez = get_local_size(0)+2*FDOH;
     int lsizey = get_local_size(1)+2*FDOH;
     int lsizex = get_local_size(2)+2*FDOH;
@@ -136,6 +152,17 @@ __kernel void update_s(int offcomm,  int nt,
     int gidz = get_global_id(0)+FDOH;
     int gidy = get_global_id(1)+FDOH;
     int gidx = get_global_id(2)+FDOH+offcomm;
+#else
+    int lsizez = blockDim.x+2*FDOH;
+    int lsizey = blockDim.y+2*FDOH;
+    int lsizex = blockDim.z+2*FDOH;
+    int lidz = threadIdx.x+FDOH;
+    int lidy = threadIdx.y+FDOH;
+    int lidx = threadIdx.z+FDOH;
+    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
+    int gidy = blockIdx.y*blockDim.y + threadIdx.y+FDOH;
+    int gidx = blockIdx.z*blockDim.z + threadIdx.z+FDOH+offcomm;
+#endif
     
 #define lvx lvar
 #define lvy lvar
@@ -144,12 +171,24 @@ __kernel void update_s(int offcomm,  int nt,
 // If local memory is turned off
 #elif LOCAL_OFF==1
     
+#ifdef __OPENCL_VERSION__
     int gid = get_global_id(0);
     int glsizez = (NZ-2*FDOH);
     int glsizey = (NY-2*FDOH);
     int gidz = gid%glsizez+FDOH;
     int gidy = (gid/glsizez)%glsizey+FDOH;
     int gidx = gid/(glsizez*glsizey)+FDOH+offcomm;
+#else
+    int lsizez = blockDim.x+2*FDOH;
+    int lsizey = blockDim.y+2*FDOH;
+    int lsizex = blockDim.z+2*FDOH;
+    int lidz = threadIdx.x+FDOH;
+    int lidy = threadIdx.y+FDOH;
+    int lidx = threadIdx.z+FDOH;
+    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
+    int gidy = blockIdx.y*blockDim.y + threadIdx.y+FDOH;
+    int gidx = blockIdx.z*blockDim.z + threadIdx.z+FDOH+offcomm;
+#endif
     
 #define lvx vx
 #define lvy vy
@@ -184,7 +223,7 @@ __kernel void update_s(int offcomm,  int nt,
             lvx(lidz-FDOH,lidy,lidx)=vx(gidz-FDOH,gidy,gidx);
         if (lidz>(lsizez-2*FDOH-1))
             lvx(lidz+FDOH,lidy,lidx)=vx(gidz+FDOH,gidy,gidx);
-        barrier(CLK_LOCAL_MEM_FENCE);
+        BARRIER
 #endif
         
 #if   FDOH==1
@@ -270,7 +309,7 @@ __kernel void update_s(int offcomm,  int nt,
         
         
 #if LOCAL_OFF==0
-        barrier(CLK_LOCAL_MEM_FENCE);
+        BARRIER
         lvy(lidz,lidy,lidx)=vy(gidz, gidy, gidx);
         if (lidy<2*FDOH)
             lvy(lidz,lidy-FDOH,lidx)=vy(gidz,gidy-FDOH,gidx);
@@ -292,7 +331,7 @@ __kernel void update_s(int offcomm,  int nt,
             lvy(lidz-FDOH,lidy,lidx)=vy(gidz-FDOH,gidy,gidx);
         if (lidz>(lsizez-2*FDOH-1))
             lvy(lidz+FDOH,lidy,lidx)=vy(gidz+FDOH,gidy,gidx);
-        barrier(CLK_LOCAL_MEM_FENCE);
+        BARRIER
 #endif
         
 #if   FDOH==1
@@ -380,7 +419,7 @@ __kernel void update_s(int offcomm,  int nt,
         
         
 #if LOCAL_OFF==0
-        barrier(CLK_LOCAL_MEM_FENCE);
+        BARRIER
         lvz(lidz,lidy,lidx)=vz(gidz, gidy, gidx);
         if (lidy<2*FDOH)
             lvz(lidz,lidy-FDOH,lidx)=vz(gidz,gidy-FDOH,gidx);
@@ -402,7 +441,7 @@ __kernel void update_s(int offcomm,  int nt,
             lvz(lidz-FDOH,lidy,lidx)=vz(gidz-FDOH,gidy,gidx);
         if (lidz>(lsizez-2*FDOH-1))
             lvz(lidz+FDOH,lidy,lidx)=vz(gidz+FDOH,gidy,gidx);
-        barrier(CLK_LOCAL_MEM_FENCE);
+        BARRIER
 #endif
         
         
@@ -615,19 +654,19 @@ __kernel void update_s(int offcomm,  int nt,
     {
 #if LVE==0
         
-        fipjp=uipjp(gidz,gidy,gidx);
-        fjpkp=ujpkp(gidz,gidy,gidx);
-        fipkp=uipkp(gidz,gidy,gidx);
-        g=pi(gidz,gidy,gidx);
-        f=2.0*u(gidz,gidy,gidx);
+        fipjp=muipjp(gidz,gidy,gidx);
+        fjpkp=mujpkp(gidz,gidy,gidx);
+        fipkp=muipkp(gidz,gidy,gidx);
+        g=M(gidz,gidy,gidx);
+        f=2.0*mu(gidz,gidy,gidx);
         
 #else
         
-        lpi=pi(gidz,gidy,gidx);
-        lu=u(gidz,gidy,gidx);
-        luipkp=uipkp(gidz,gidy,gidx);
-        luipjp=uipjp(gidz,gidy,gidx);
-        lujpkp=ujpkp(gidz,gidy,gidx);
+        lM=M(gidz,gidy,gidx);
+        lmu=mu(gidz,gidy,gidx);
+        lmuipkp=muipkp(gidz,gidy,gidx);
+        lmuipjp=muipjp(gidz,gidy,gidx);
+        lmujpkp=mujpkp(gidz,gidy,gidx);
         ltaup=taup(gidz,gidy,gidx);
         ltaus=taus(gidz,gidy,gidx);
         ltausipkp=tausipkp(gidz,gidy,gidx);
@@ -638,16 +677,16 @@ __kernel void update_s(int offcomm,  int nt,
             leta[l]=eta[l];
         }
         
-        fipjp=luipjp*(1.0+ (float)LVE*ltausipjp);
-        fjpkp=lujpkp*(1.0+ (float)LVE*ltausjpkp);
-        fipkp=luipkp*(1.0+ (float)LVE*ltausipkp);
-        g=lpi*(1.0+(float)LVE*ltaup);
-        f=2.0*lu*(1.0+(float)LVE*ltaus);
-        dipjp=luipjp*ltausipjp;
-        djpkp=lujpkp*ltausjpkp;
-        dipkp=luipkp*ltausipkp;
-        d=2.0*lu*ltaus;
-        e=lpi*ltaup;
+        fipjp=lmuipjp*(1.0+ (float)LVE*ltausipjp);
+        fjpkp=lmujpkp*(1.0+ (float)LVE*ltausjpkp);
+        fipkp=lmuipkp*(1.0+ (float)LVE*ltausipkp);
+        g=lM*(1.0+(float)LVE*ltaup);
+        f=2.0*lmu*(1.0+(float)LVE*ltaus);
+        dipjp=lmuipjp*ltausipjp;
+        djpkp=lmujpkp*ltausjpkp;
+        dipkp=lmuipkp*ltausipkp;
+        d=2.0*lmu*ltaus;
+        e=lM*ltaup;
         
         
 #endif
@@ -668,9 +707,9 @@ __kernel void update_s(int offcomm,  int nt,
         sxy(gidz,gidy,gidx)+=(fipjp*vxyyx);
         syz(gidz,gidy,gidx)+=(fjpkp*vyzzy);
         sxz(gidz,gidy,gidx)+=(fipkp*vxzzx);
-        sxx(gidz,gidy,gidx)+=((g*vxxyyzz)-(f*vyyzz)) + amp;
-        syy(gidz,gidy,gidx)+=((g*vxxyyzz)-(f*vxxzz)) + amp;
-        szz(gidz,gidy,gidx)+=((g*vxxyyzz)-(f*vxxyy)) + amp;
+        sxx(gidz,gidy,gidx)+=((g*vxxyyzz)-(f*vyyzz));
+        syy(gidz,gidy,gidx)+=((g*vxxyyzz)-(f*vxxzz));
+        szz(gidz,gidy,gidx)+=((g*vxxyyzz)-(f*vxxyy));
         
         
 #else
@@ -731,9 +770,9 @@ __kernel void update_s(int offcomm,  int nt,
         sxy(gidz,gidy,gidx)+=lsxy+(DT2*sumrxy);
         syz(gidz,gidy,gidx)+=lsyz+(DT2*sumryz);
         sxz(gidz,gidy,gidx)+=lsxz+(DT2*sumrxz);
-        sxx(gidz,gidy,gidx)+=lsxx+(DT2*sumrxx)+amp;
-        syy(gidz,gidy,gidx)+=lsyy+(DT2*sumryy)+amp;
-        szz(gidz,gidy,gidx)+=lszz+(DT2*sumrzz)+amp;
+        sxx(gidz,gidy,gidx)+=lsxx+(DT2*sumrxx);
+        syy(gidz,gidy,gidx)+=lsyy+(DT2*sumryy);
+        szz(gidz,gidy,gidx)+=lszz+(DT2*sumrzz);
         
         
 #endif

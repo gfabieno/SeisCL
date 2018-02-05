@@ -86,36 +86,57 @@
 #define rz(y,x) rz[(y)*NT+(x)]
 
 #define PI (3.141592653589793238462643383279502884197169)
-#define signals(y,x) signals[(y)*NT+(x)]
+
+#ifdef __OPENCL_VERSION__
+#define FUNDEF __kernel
+#define LFUNDEF
+#define GLOBARG __global
+#define LOCARG __local float *lvar
+#define LOCDEF
+#define BARRIER barrier(CLK_LOCAL_MEM_FENCE);
+#else
+#define FUNDEF extern "C" __global__
+#define LFUNDEF extern "C" __device__
+#define GLOBARG
+#define LOCARG float *nullarg
+#define LOCDEF extern __shared__ float lvar[];
+#define BARRIER __syncthreads();
+#endif
 
 
-
-
-__kernel void update_v(int offcomm, int nt,
-                       __global float *vy,         __global float *sxy,        __global float *syz,
-                       __global float *rjp,
-                       __global float *srcpos_loc, __global float *signals,      __global float *rec_pos,
-                       __global float *taper,
-                       __global float *K_x,        __global float *a_x,          __global float *b_x,
-                       __global float *K_x_half,   __global float *a_x_half,     __global float *b_x_half,
-                       __global float *K_z,        __global float *a_z,          __global float *b_z,
-                       __global float *K_z_half,   __global float *a_z_half,     __global float *b_z_half,
-                       __global float *psi_sxy_x,  __global float *psi_syz_z,  
-                       __local  float *lvar)
+FUNDEF void update_v(int offcomm, int nt,
+                       GLOBARG float *vy,         GLOBARG float *sxy,        GLOBARG float *syz,
+                       GLOBARG float *rho,
+                       GLOBARG float *taper,
+                       GLOBARG float *K_x,        GLOBARG float *a_x,          GLOBARG float *b_x,
+                       GLOBARG float *K_x_half,   GLOBARG float *a_x_half,     GLOBARG float *b_x_half,
+                       GLOBARG float *K_z,        GLOBARG float *a_z,          GLOBARG float *b_z,
+                       GLOBARG float *K_z_half,   GLOBARG float *a_z_half,     GLOBARG float *b_z_half,
+                       GLOBARG float *psi_sxy_x,  GLOBARG float *psi_syz_z,
+                       LOCARG)
 {
 
-    
+    LOCDEF
     float sxy_x;
     float syz_z;
     
 // If we use local memory
 #if LOCAL_OFF==0
+#ifdef __OPENCL_VERSION__
     int lsizez = get_local_size(0)+2*FDOH;
     int lsizex = get_local_size(1)+2*FDOH;
     int lidz = get_local_id(0)+FDOH;
     int lidx = get_local_id(1)+FDOH;
     int gidz = get_global_id(0)+FDOH;
     int gidx = get_global_id(1)+FDOH+offcomm;
+#else
+    int lsizez = blockDim.x+2*FDOH;
+    int lsizex = blockDim.y+2*FDOH;
+    int lidz = threadIdx.x+FDOH;
+    int lidx = threadIdx.y+FDOH;
+    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
+    int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH+offcomm;
+#endif
     
 #define lsxy lvar
 #define lsyz lvar
@@ -123,10 +144,19 @@ __kernel void update_v(int offcomm, int nt,
 // If local memory is turned off
 #elif LOCAL_OFF==1
     
+#ifdef __OPENCL_VERSION__
     int gid = get_global_id(0);
     int glsizez = (NZ-2*FDOH);
     int gidz = gid%glsizez+FDOH;
     int gidx = (gid/glsizez)+FDOH+offcomm;
+#else
+    int lsizez = blockDim.x+2*FDOH;
+    int lsizex = blockDim.y+2*FDOH;
+    int lidz = threadIdx.x+FDOH;
+    int lidx = threadIdx.y+FDOH;
+    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
+    int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH+offcomm;
+#endif
     
 #define lsxy sxy
 #define lsyz syz
@@ -139,7 +169,7 @@ __kernel void update_v(int offcomm, int nt,
 // Calculation of the stresses spatial derivatives
     {
 #if LOCAL_OFF==0
-        barrier(CLK_LOCAL_MEM_FENCE);
+        BARRIER
         lsxy(lidz,lidx)=sxy(gidz,gidx);
         if (lidx<2*FDOH)
             lsxy(lidz,lidx-FDOH)=sxy(gidz,gidx-FDOH);
@@ -149,7 +179,7 @@ __kernel void update_v(int offcomm, int nt,
             lsxy(lidz,lidx+FDOH)=sxy(gidz,gidx+FDOH);
         if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
             lsxy(lidz,lidx-lsizex+3*FDOH)=sxy(gidz,gidx-lsizex+3*FDOH);
-        barrier(CLK_LOCAL_MEM_FENCE);
+        BARRIER
 #endif
         
 #if   FDOH ==1
@@ -183,13 +213,13 @@ __kernel void update_v(int offcomm, int nt,
 #endif
         
 #if LOCAL_OFF==0
-        barrier(CLK_LOCAL_MEM_FENCE);
+        BARRIER
         lsyz(lidz,lidx)=syz(gidz,gidx);
         if (lidz<2*FDOH)
             lsyz(lidz-FDOH,lidx)=syz(gidz-FDOH,gidx);
         if (lidz>(lsizez-2*FDOH-1))
             lsyz(lidz+FDOH,lidx)=syz(gidz+FDOH,gidx);
-        barrier(CLK_LOCAL_MEM_FENCE);
+        BARRIER
 #endif
         
 #if   FDOH ==1
@@ -292,7 +322,7 @@ __kernel void update_v(int offcomm, int nt,
 
 // Update the velocities
     {
-        vy(gidz,gidx)+= ((sxy_x + syz_z)*rjp(gidz,gidx))+amp;
+        vy(gidz,gidx)+= ((sxy_x + syz_z)*rho(gidz,gidx));
     }
 
 // Absorbing boundary    

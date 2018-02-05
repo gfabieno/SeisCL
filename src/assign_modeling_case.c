@@ -1022,25 +1022,33 @@ int assign_modeling_case(model * m){
     m->npars=14;
     GMALLOC(m->pars, sizeof(parameter)*m->npars);
     ind=0;
-    __GUARD append_par(m, &ind, "M", "/M", &M);
+    if (m->ND!=21){
+        __GUARD append_par(m, &ind, "M", "/M", &M);
+    }
     __GUARD append_par(m, &ind, "mu", "/mu", &mu);
     __GUARD append_par(m, &ind, "rho", "/rho", &rho);
     if (m->L>0){
         __GUARD append_par(m, &ind, "taup", "/taup", NULL);
         __GUARD append_par(m, &ind, "taus", "/taus", NULL);
     }
-    __GUARD append_par(m, &ind, "rip", NULL, &rip);
-    if (m->ND==3){
-        __GUARD append_par(m, &ind, "rjp", NULL, &rjp);
+    if (m->ND!=21){
+        __GUARD append_par(m, &ind, "rip", NULL, &rip);
+        if (m->ND==3){
+            __GUARD append_par(m, &ind, "rjp", NULL, &rjp);
+        }
+        __GUARD append_par(m, &ind, "rkp", NULL, &rkp);
     }
-    __GUARD append_par(m, &ind, "rkp", NULL, &rkp);
-    __GUARD append_par(m, &ind, "muipkp", NULL, &muipkp);
+    if (m->ND!=21){
+        __GUARD append_par(m, &ind, "muipkp", NULL, &muipkp);
+    }
     if (m->ND==3){
         __GUARD append_par(m, &ind, "muipjp", NULL, &muipjp);
         __GUARD append_par(m, &ind, "mujpkp", NULL, &mujpkp);
     }
     if (m->L>0){
-        __GUARD append_par(m, &ind, "tausipkp", NULL, &tausipkp);
+        if (m->ND!=21){
+            __GUARD append_par(m, &ind, "tausipkp", NULL, &tausipkp);
+        }
         if (m->ND==3){
             __GUARD append_par(m, &ind, "tausipjp", NULL, &tausipjp);
             __GUARD append_par(m, &ind, "tausjpkp", NULL, &tausjpkp);
@@ -1205,6 +1213,11 @@ int assign_modeling_case(model * m){
             }
         }
         if (m->VARSOUT==2){
+            if (m->ND==21){
+                fprintf(stderr,"Error: Cannot output pressure"
+                                " for SH modeling \n");
+                return 1;
+            }
             for (i=0;i<m->ntvars;i++){
                 if (strcmp(m->trans_vars[i].name,"p")==0)
                     m->trans_vars[i].to_output=1;
