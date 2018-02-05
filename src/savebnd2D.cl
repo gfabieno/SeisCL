@@ -54,14 +54,14 @@
 #define FUNDEF __kernel
 #define LFUNDEF
 #define GLOBARG __global
-#define LOCARG __local
+#define LOCARG __local float *lvar
 #define LOCDEF
 #define BARRIER barrier(CLK_LOCAL_MEM_FENCE);
 #else
 #define FUNDEF extern "C" __global__
 #define LFUNDEF extern "C" __device__
 #define GLOBARG
-#define LOCARG
+#define LOCARG float *nullarg
 #define LOCDEF extern __shared__ float lvar[];
 #define BARRIER __syncthreads();
 #endif

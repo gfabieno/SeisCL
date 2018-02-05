@@ -77,14 +77,14 @@
 #define FUNDEF __kernel
 #define LFUNDEF
 #define GLOBARG __global
-#define LOCARG __local
+#define LOCARG __local float *lvar
 #define LOCDEF
 #define BARRIER barrier(CLK_LOCAL_MEM_FENCE);
 #else
 #define FUNDEF extern "C" __global__
 #define LFUNDEF extern "C" __device__
 #define GLOBARG
-#define LOCARG
+#define LOCARG float *nullarg
 #define LOCDEF extern __shared__ float lvar[];
 #define BARRIER __syncthreads();
 #endif
@@ -102,7 +102,7 @@ FUNDEF void update_s(int offcomm,
                        GLOBARG float *K_z_half,   GLOBARG float *a_z_half,     GLOBARG float *b_z_half,
                        GLOBARG float *psi_vx_x,    GLOBARG float *psi_vx_z,
                        GLOBARG float *psi_vz_x,    GLOBARG float *psi_vz_z,
-                       LOCARG  float *lvar)
+                       LOCARG )
 {
     
     LOCDEF
