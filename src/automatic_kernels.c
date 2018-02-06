@@ -102,23 +102,24 @@ int kernel_varout(device * dev,
 
     
     char posstr[100]={0};
-    #ifdef __SEISCL__
-    if (dev->NDIM==2){
-        sprintf(posstr,"[(i-OFFSET)*N%s+k]",dev->N_names[0]);
+    if (dev->FP16==0){
+        if (dev->NDIM==2){
+            sprintf(posstr,"[(i-OFFSET)*N%s+k]",dev->N_names[0]);
+        }
+        else if (dev->NDIM==3){
+            sprintf(posstr,"[(i-OFFSET)*N%s*N%s+j*(N%s)+k]",
+                    dev->N_names[1], dev->N_names[0], dev->N_names[0]);
+        }
     }
-    else if (dev->NDIM==3){
-        sprintf(posstr,"[(i-OFFSET)*N%s*N%s+j*(N%s)+k]",
-                dev->N_names[1], dev->N_names[0], dev->N_names[0]);
+    else{
+        if (dev->NDIM==2){
+            sprintf(posstr,"[(i-OFFSET)*N%s*2+k]",dev->N_names[0]);
+        }
+        else if (dev->NDIM==3){
+            sprintf(posstr,"[(i-OFFSET)*N%s*N%s*2+j*(N%s*2)+k]",
+                    dev->N_names[1], dev->N_names[0], dev->N_names[0]);
+        }
     }
-    #else
-    if (dev->NDIM==2){
-        sprintf(posstr,"[(i-OFFSET)*N%s*2+k]",dev->N_names[0]);
-    }
-    else if (dev->NDIM==3){
-        sprintf(posstr,"[(i-OFFSET)*N%s*N%s*2+j*(N%s*2)+k]",
-                dev->N_names[1], dev->N_names[0], dev->N_names[0]);
-    }
-    #endif
     
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
@@ -498,21 +499,23 @@ int kernel_sources(device * dev,
 
     
     if (dev->NDIM==2){
-        #ifdef __SEISCL__
-        sprintf(posstr,"[(i-OFFSET)*N%s+k]",dev->N_names[0]);
-        #else
-        sprintf(posstr,"[(i-OFFSET)*N%s*2+k]",dev->N_names[0]);
-        #endif
+        if (dev->FP16==0){
+            sprintf(posstr,"[(i-OFFSET)*N%s+k]",dev->N_names[0]);
+        }
+        else{
+            sprintf(posstr,"[(i-OFFSET)*N%s*2+k]",dev->N_names[0]);
+        }
 
     }
     else if (dev->NDIM==3){
-        #ifdef __SEISCL__
-        sprintf(posstr,"[(i-OFFSET)*N%s*N%s+j*(N%s)+k]",
-                dev->N_names[1], dev->N_names[0], dev->N_names[0]);
-        #else
-        sprintf(posstr,"[(i-OFFSET)*N%s*N%s*2+j*(N%s*2)+k]",
-                dev->N_names[1], dev->N_names[0], dev->N_names[0]);
-        #endif
+        if (dev->FP16==0){
+            sprintf(posstr,"[(i-OFFSET)*N%s*N%s+j*(N%s)+k]",
+                    dev->N_names[1], dev->N_names[0], dev->N_names[0]);
+        }
+        else{
+            sprintf(posstr,"[(i-OFFSET)*N%s*N%s*2+j*(N%s*2)+k]",
+                    dev->N_names[1], dev->N_names[0], dev->N_names[0]);
+        }
     }
     else{
         state=1;
@@ -678,20 +681,24 @@ int kernel_residuals(device * dev,
     char posstr[100]={0};
 
     if (dev->NDIM==2){
-        #ifdef __SEISCL__
-        sprintf(posstr,"[(i-OFFSET)*N%s+k]",dev->N_names[0]);
-        #else
-        sprintf(posstr,"[(i-OFFSET)*N%s*2+k]",dev->N_names[0]);
-        #endif
+        if (dev->FP16==0){
+            sprintf(posstr,"[(i-OFFSET)*N%s+k]",dev->N_names[0]);
+        }
+        else
+        {
+            sprintf(posstr,"[(i-OFFSET)*N%s*2+k]",dev->N_names[0]);
+        }
     }
     else if (dev->NDIM==3){
-        #ifdef __SEISCL__
-        sprintf(posstr,"[(i-OFFSET)*N%s*N%s+j*(N%s)+k]",
+        if (dev->FP16==0){
+            sprintf(posstr,"[(i-OFFSET)*N%s*N%s+j*(N%s)+k]",
                     dev->N_names[1], dev->N_names[0], dev->N_names[0]);
-        #else
-        sprintf(posstr,"[(i-OFFSET)*N%s*N%s*2+j*(N%s*2)+k]",
-                dev->N_names[1], dev->N_names[0], dev->N_names[0]);
-        #endif
+        }
+        else
+        {
+            sprintf(posstr,"[(i-OFFSET)*N%s*N%s*2+j*(N%s*2)+k]",
+                    dev->N_names[1], dev->N_names[0], dev->N_names[0]);
+        }
     }
 
     
