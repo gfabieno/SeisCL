@@ -258,7 +258,9 @@ FUNDEF void update_adjs(int offcomm,
     float sumrxz, sumrxx, sumrzz;
     float b,c,e,d,dipkp;
     int l;
+#if LVE>0
     float leta[LVE];
+#endif
     float lM, lmu, lmuipkp, ltaup, ltaus, ltausipkp;
     
 // If we use local memory

@@ -76,7 +76,7 @@ csts['resout']=0            #Output residuals 1:yes, 0: no
 csts['rmsout']=0            #Output rms value 1:yes, 0: no
 csts['movout']=0            #Output movie 1:yes, 0: no
 csts['restype']=0           #Type of costfunction 0: raw seismic trace cost function. No other available at the moment
-csts['FP16']=1              #Use half precision 1: yes 0: no
+csts['FP16']=0              #Use half precision 1: yes 0: no
 
 h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
 
@@ -123,7 +123,6 @@ for ii in range(0,csts['N'][0]-2*csts['nab']-10,10):
 #________________Launch simulation______________
 model['vp'][70:90,65:85]= 3550
 model['taup'][110:130,65:85]= 0.03
-csts['FP16']=0
 h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
 h5mat.savemat(filenames['model'], model , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
 
@@ -151,7 +150,6 @@ model['vp'][70:90,65:85]= 3500
 model['taup'][110:130,65:85]= 0.02
 csts['gradout']=1
 csts['resout']=1
-csts['FP16']=0
 csts['gradfreqs']=np.append(csts['gradfreqs'], csts['f0'])
 h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
 h5mat.savemat(filenames['model'], model , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
