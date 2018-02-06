@@ -581,38 +581,42 @@ int Init_CUDA(model * m, device ** dev)  {
                 offcom1=0;
                 offcom2=0;
                 if (d>0 || m->MYLOCALID>0){
-                    #ifdef __SEISCL__
-                    gsize_com1[0] = slicesize*m->FDOH;
-                    #else
-                    gsize_com1[0] = slicesize*m->FDOH/2;
-                    #endif
+                    if (m->FP16==0){
+                        gsize_com1[0] = slicesize*m->FDOH;
+                    }
+                    else{
+                        gsize_com1[0] = slicesize*m->FDOH/2;
+                    }
                     LCOMM+=m->FDOH;
                     offcom1=m->FDOH;
                     
                 }
                 if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
-                    #ifdef __SEISCL__
-                    gsize_com2[0] = slicesize*m->FDOH;
-                    #else
-                    gsize_com2[0] = slicesize*m->FDOH/2;
-                    #endif
+                    if (m->FP16==0){
+                        gsize_com2[0] = slicesize*m->FDOH;
+                    }
+                    else{
+                        gsize_com2[0] = slicesize*m->FDOH/2;
+                    }
                     LCOMM+=m->FDOH;
                     offcom2=di->N[m->NDIM-1]-m->FDOH;
                 }
                 if (d>0 || m->MYLOCALID>0
                         || d<m->NUM_DEVICES-1
                         || m->MYLOCALID<m->NLOCALP-1){
-                    #ifdef __SEISCL__
-                    gsize_fcom[0] = slicesize*m->FDOH;
-                    #else
-                    gsize_fcom[0] = slicesize*m->FDOH/2;
-                    #endif
+                    if (m->FP16==0){
+                        gsize_fcom[0] = slicesize*m->FDOH;
+                    }
+                    else{
+                        gsize_fcom[0] = slicesize*m->FDOH/2;
+                    }
                 }
-                #ifdef __SEISCL__
-                gsize[0] = (di->N[m->NDIM-1]-LCOMM)*slicesize;
-                #else
-                gsize[0] = (di->N[m->NDIM-1]-LCOMM)*slicesize/2;
-                #endif
+                if (m->FP16==0){
+                    gsize[0] = (di->N[m->NDIM-1]-LCOMM)*slicesize;
+                }
+                else{
+                    gsize[0] = (di->N[m->NDIM-1]-LCOMM)*slicesize/2;
+                }
                 workdim=1;
                 
             }
@@ -620,20 +624,21 @@ int Init_CUDA(model * m, device ** dev)  {
 
                 // When using local work sizes in OpenCL,
                 // global work size must be a multiple of local work size
-                #ifdef __SEISCL__
-                for (i=0;i<m->NDIM-1;i++){
-                    gsize[i]=di->N[i]
-                    +(lsize[i]-di->N[i]%lsize[i])%lsize[i];
+                if (m->FP16==0){
+                    for (i=0;i<m->NDIM-1;i++){
+                        gsize[i]=di->N[i]
+                                +(lsize[i]-di->N[i]%lsize[i])%lsize[i];
+                    }
                 }
-                #else
-                //We use half2 and float2 in kernels, and must divide by 2 the
-                //global size of dim 0
-                gsize[0]=di->N[0]/2+(lsize[0]-(di->N[0]/2)%lsize[0])%lsize[0];
-                for (i=1;i<m->NDIM-1;i++){
-                    gsize[i]=di->N[i]
-                            +(lsize[i]-di->N[i]%lsize[i])%lsize[i];
+                else{
+                    //We use half2 and float2 in kernels, and must divide by 2 the
+                    //global size of dim 0
+                    gsize[0]=di->N[0]/2+(lsize[0]-(di->N[0]/2)%lsize[0])%lsize[0];
+                    for (i=1;i<m->NDIM-1;i++){
+                        gsize[i]=di->N[i]
+                                +(lsize[i]-di->N[i]%lsize[i])%lsize[i];
+                    }
                 }
-                #endif
                 LCOMM=0;
                 offcom1=0;
                 offcom2=0;
@@ -1133,11 +1138,12 @@ int Init_CUDA(model * m, device ** dev)  {
         if (m->GRADOUT && m->BACK_PROP_TYPE==1){
             di->grads.savebnd=m->grads.savebnd;
             __GUARD prog_create(m, di,  &di->grads.savebnd);
-            #ifdef __SEISCL__
-            di->grads.savebnd.gsize[0]=di->NBND;
-            #else
-            di->grads.savebnd.gsize[0]=di->NBND/2;
-            #endif
+            if (m->FP16==0){
+                di->grads.savebnd.gsize[0]=di->NBND;
+            }
+            else{
+                di->grads.savebnd.gsize[0]=di->NBND/2;
+            }
             di->grads.savebnd.wdim=1;
         }
         
