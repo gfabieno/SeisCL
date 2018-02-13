@@ -26,11 +26,13 @@
 #include "update_s2D.hcl"
 #include "update_s2D_half2.hcl"
 #include "update_s2D_SH.hcl"
+#include "update_s2D_acc.hcl"
 #include "update_s3D.hcl"
 #include "update_s3D_half2.hcl"
 #include "update_v2D.hcl"
 #include "update_v2D_half2.hcl"
 #include "update_v2D_SH.hcl"
+#include "update_v2D_acc.hcl"
 #include "update_v3D.hcl"
 #include "update_v3D_half2.hcl"
 
@@ -1001,6 +1003,20 @@ int assign_modeling_case(model * m){
              fprintf(stderr,"Error: Only FP16=0 is supported for ND=21 \n");
          }
      }
+    else if (m->ND==22){
+        if (m->FP16==0){
+            updatev = update_v2D_acc_source;
+            updates = update_s2D_acc_source;
+//            updatev_adj = update_adjv2D_acc_source;
+//            updates_adj = update_adjs2D_acc_source;
+//            surface = surface2D_acc_source;
+//            savebnd = savebnd2D_source;
+        }
+        else{
+            state = 1;
+            fprintf(stderr,"Error: Only FP16=0 is supported for ND=21 \n");
+        }
+    }
     m->nupdates=2;
     GMALLOC(m->ups_f, m->nupdates*sizeof(update));
     ind=0;
@@ -1025,11 +1041,15 @@ int assign_modeling_case(model * m){
     if (m->ND!=21){
         __GUARD append_par(m, &ind, "M", "/M", &M);
     }
-    __GUARD append_par(m, &ind, "mu", "/mu", &mu);
+    if (m->ND!=22){
+        __GUARD append_par(m, &ind, "mu", "/mu", &mu);
+    }
     __GUARD append_par(m, &ind, "rho", "/rho", &rho);
     if (m->L>0){
         __GUARD append_par(m, &ind, "taup", "/taup", NULL);
-        __GUARD append_par(m, &ind, "taus", "/taus", NULL);
+        if (m->ND!=22){
+            __GUARD append_par(m, &ind, "taus", "/taus", NULL);
+        }
     }
     if (m->ND!=21){
         __GUARD append_par(m, &ind, "rip", NULL, &rip);
@@ -1038,7 +1058,7 @@ int assign_modeling_case(model * m){
         }
         __GUARD append_par(m, &ind, "rkp", NULL, &rkp);
     }
-    if (m->ND!=21){
+    if (m->ND==2 || m->ND==3){
         __GUARD append_par(m, &ind, "muipkp", NULL, &muipkp);
     }
     if (m->ND==3){
@@ -1046,7 +1066,7 @@ int assign_modeling_case(model * m){
         __GUARD append_par(m, &ind, "mujpkp", NULL, &mujpkp);
     }
     if (m->L>0){
-        if (m->ND!=21){
+        if (m->ND==2 || m->ND==3){
             __GUARD append_par(m, &ind, "tausipkp", NULL, &tausipkp);
         }
         if (m->ND==3){
@@ -1063,19 +1083,19 @@ int assign_modeling_case(model * m){
     
     ind=0;
     
-    if (m->ND!=2){
+    if (m->ND==21 || m->ND==3){
         __GUARD append_var(m, &ind, "vy", 1, 1, &size_varseis);
     }
     if (m->ND!=21){
         __GUARD append_var(m, &ind, "vx", 1, 1, &size_varseis);
         __GUARD append_var(m, &ind, "vz", 1, 1, &size_varseis);
     }
-    if (m->ND!=21){
+    if (m->ND==2 || m->ND==3){
         __GUARD append_var(m, &ind, "sxx", 1, 1, &size_varseis);
         __GUARD append_var(m, &ind, "szz", 1, 1, &size_varseis);
         __GUARD append_var(m, &ind, "sxz", 1, 1, &size_varseis);
     }
-    if (m->ND!=2){
+    if (m->ND==21 || m->ND==3){
         
         __GUARD append_var(m, &ind, "sxy", 1, 1, &size_varseis);
         __GUARD append_var(m, &ind, "syz", 1, 1, &size_varseis);
@@ -1083,33 +1103,41 @@ int assign_modeling_case(model * m){
     if (m->ND==3){
         __GUARD append_var(m, &ind, "syy", 1, 1, &size_varseis);
     }
+    if (m->ND==22){
+        __GUARD append_var(m, &ind, "p", 1, 1, &size_varseis);
+    }
     if (m->L>0){
-        if (m->ND!=21){
+        if (m->ND==2 || m->ND==3){
             __GUARD append_var(m, &ind, "rxx", 1, 0, &size_varmem);
             __GUARD append_var(m, &ind, "rzz", 1, 0, &size_varmem);
             __GUARD append_var(m, &ind, "rxz", 1, 0, &size_varmem);
         }
-        if (m->ND!=2){
+        if (m->ND==21 || m->ND==3){
             __GUARD append_var(m, &ind, "rxy", 1, 0, &size_varmem);
             __GUARD append_var(m, &ind, "ryz", 1, 0, &size_varmem);
         }
         if (m->ND==3){
             __GUARD append_var(m, &ind, "ryy", 1, 0, &size_varmem);
         }
+        if (m->ND==22){
+            __GUARD append_var(m, &ind, "rp", 1, 0, &size_varmem);
+        }
     }
     
     if (m->ABS_TYPE==1){
         if (m->ND!=21){
+            __GUARD append_var(m, &ind, "psi_vx_x", 0, 0, &size_varcpmlx);
+            __GUARD append_var(m, &ind, "psi_vz_z", 0, 0, &size_varcpmlz);
+        }
+        if (m->ND==2 || m->ND==3){
             __GUARD append_var(m, &ind, "psi_sxx_x", 0, 0, &size_varcpmlx);
             __GUARD append_var(m, &ind, "psi_sxz_x", 0, 0, &size_varcpmlx);
             __GUARD append_var(m, &ind, "psi_szz_z", 0, 0, &size_varcpmlz);
             __GUARD append_var(m, &ind, "psi_sxz_z", 0, 0, &size_varcpmlz);
-            __GUARD append_var(m, &ind, "psi_vx_x", 0, 0, &size_varcpmlx);
             __GUARD append_var(m, &ind, "psi_vz_x", 0, 0, &size_varcpmlx);
             __GUARD append_var(m, &ind, "psi_vx_z", 0, 0, &size_varcpmlz);
-            __GUARD append_var(m, &ind, "psi_vz_z", 0, 0, &size_varcpmlz);
         }
-        if (m->ND!=2){
+        if (m->ND==21 || m->ND==3){
             __GUARD append_var(m, &ind, "psi_sxy_x", 0, 0, &size_varcpmlx);
             __GUARD append_var(m, &ind, "psi_syz_z", 0, 0, &size_varcpmlz);
             __GUARD append_var(m, &ind, "psi_vy_x", 0, 0, &size_varcpmlx);
@@ -1123,10 +1151,14 @@ int assign_modeling_case(model * m){
             __GUARD append_var(m, &ind, "psi_vy_y", 0, 0, &size_varcpmly);
             __GUARD append_var(m, &ind, "psi_vz_y", 0, 0, &size_varcpmly);
         }
+        if (m->ND==22){
+            __GUARD append_var(m, &ind, "psi_p_x", 0, 0, &size_varcpmlx);
+            __GUARD append_var(m, &ind, "psi_p_z", 0, 0, &size_varcpmlz);
+        }
 
     }
     m->nvars = ind;
-    if (m->ND!=21){
+    if (m->ND==2 || m->ND==3){
         m->ntvars=1;
         GMALLOC(m->trans_vars, sizeof(variable)*m->ntvars);
         m->trans_vars[0].name="p";
@@ -1138,10 +1170,6 @@ int assign_modeling_case(model * m){
             m->trans_vars[0].var2ave[2]="syy";
         }
     }
-    
-    
-
-
 
     //Create adjoint variables if necessary
     if (m->GRADOUT && m->BACK_PROP_TYPE==1){
@@ -1218,9 +1246,17 @@ int assign_modeling_case(model * m){
                                 " for SH modeling \n");
                 return 1;
             }
-            for (i=0;i<m->ntvars;i++){
-                if (strcmp(m->trans_vars[i].name,"p")==0)
-                    m->trans_vars[i].to_output=1;
+            if (m->ND==2 || m->ND==3){
+                for (i=0;i<m->ntvars;i++){
+                    if (strcmp(m->trans_vars[i].name,"p")==0)
+                        m->trans_vars[i].to_output=1;
+                }
+            }
+            if (m->ND==22){
+                for (i=0;i<m->nvars;i++){
+                    if (strcmp(m->vars[i].name,"p")==0)
+                        m->vars[i].to_output=1;
+                }
             }
         }
         if (m->VARSOUT==3){
@@ -1260,9 +1296,17 @@ int assign_modeling_case(model * m){
                 if (strcmp(m->vars[i].name,"szz")==0)
                     m->vars[i].to_output=1;
             }
-            for (i=0;i<m->ntvars;i++){
-                if (strcmp(m->trans_vars[i].name,"p")==0)
+            if (m->ND==2 || m->ND==3){
+                for (i=0;i<m->ntvars;i++){
+                    if (strcmp(m->trans_vars[i].name,"p")==0)
                     m->trans_vars[i].to_output=1;
+                }
+            }
+            if (m->ND==22){
+                for (i=0;i<m->nvars;i++){
+                    if (strcmp(m->vars[i].name,"p")==0)
+                    m->vars[i].to_output=1;
+                }
             }
         }
     }
