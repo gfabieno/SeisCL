@@ -18,6 +18,7 @@
  --------------------------------------------------------------------------*/
 
 #include "F.h"
+#include "fp16_conversion.h"
 
 #define rho(z,y,x) rho[(x)*NY*NZ+(y)*NZ+(z)]
 #define rip(z,y,x) rip[(x)*NY*NZ+(y)*NZ+(z)]

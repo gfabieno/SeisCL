@@ -17,8 +17,11 @@
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  --------------------------------------------------------------------------*/
 
-/*Gradient calculation in the frequency domain */
 #include "F.h"
+#include "fp16_conversion.h"
+
+/*Gradient calculation in the frequency domain */
+
 
 //TODO Write gradient computation in frequency for CUDA
 #ifdef __SEISCL__

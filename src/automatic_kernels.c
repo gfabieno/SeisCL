@@ -215,7 +215,7 @@ int kernel_varoutinit(device * dev,
     int i;
     variable * vars = dev->vars;
     variable * tvars = dev->trans_vars;
-    char temp[MAX_KERN_STR]={0};;
+    char temp[MAX_KERN_STR]={0};
     
     char * p=(char*)temp;
     

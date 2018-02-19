@@ -565,7 +565,7 @@ int time_stepping(model * m, device ** dev) {
         }
 
         //Calculate the residuals
-        if (m->GRADOUT || m->RMSOUT || m->RESOUT){
+        if ( (m->GRADOUT || m->RMSOUT || m->RESOUT) && m->INPUTRES==0){
             __GUARD m->res_calc(m,s);
         }
 

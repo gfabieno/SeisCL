@@ -48,6 +48,7 @@ int main(int argc, char **argv) {
     snprintf(file.gout, sizeof(file.gout), "%s%s", filein, "_gout.mat");
     snprintf(file.rmsout, sizeof(file.rmsout), "%s%s", filein, "_rms.mat");
     snprintf(file.movout, sizeof(file.movout), "%s%s", filein, "_movie.mat");
+    snprintf(file.res, sizeof(file.res), "%s%s", filein, "_res.mat");
     
     if (argc>2){
         filedata=argv[2];

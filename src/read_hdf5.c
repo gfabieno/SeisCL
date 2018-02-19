@@ -228,6 +228,7 @@ int readhdf5(struct filenames files, model * m) {
     float thisid=0, tmaxf=0, tminf=0;
     int  i=0,  nsg=0, n=0, p=0;
     float *src0=NULL, *src_pos0=NULL, *rec_pos0=NULL ;
+    char temp[100]={0};
 
     
     /* Open the input file. */
@@ -326,8 +327,8 @@ int readhdf5(struct filenames files, model * m) {
     }}
     
     if (m->tmin>m->tmax){
-        state=1;
         fprintf(stderr, "Error: tmax<tmin\n");
+        return 1;
     }
 
     
@@ -374,10 +375,14 @@ int readhdf5(struct filenames files, model * m) {
         __GUARD checkscalar(file_id, "/FP16");
         __GUARD readvar(file_id, H5T_NATIVE_INT, "/FP16", &m->FP16);
     }
+    if (H5Lexists( file_id, "/input_res", H5P_DEFAULT) ){
+        __GUARD checkscalar(file_id, "/input_res");
+        __GUARD readvar(file_id, H5T_NATIVE_INT, "/input_res", &m->INPUTRES);
+    }
 #ifdef __SEISCL__
     if (m->FP16!=0){
-        state = 1;
         fprintf(stderr, "Error: The OpenCL version only supports FP16=0\n");
+        return 1;
     }
 #endif
     if (H5Lexists( file_id, "/halfpar", H5P_DEFAULT) ){
@@ -395,7 +400,8 @@ int readhdf5(struct filenames files, model * m) {
     __GUARD checkexists(file_id,"/N");
     __GUARD getdimmat(file_id, "/N", 2, dims2D);
     if (m->NDIM!=dims2D[0]*dims2D[1]){
-        state=1;fprintf(stderr, "Error: Number of dimensions mismatch\n");
+        fprintf(stderr, "Error: Number of dimensions mismatch\n");
+        return 1;
     }
     __GUARD readvar(file_id, H5T_NATIVE_INT, "/N", m->N);
 
@@ -405,7 +411,8 @@ int readhdf5(struct filenames files, model * m) {
     #ifndef __SeisCL__
     // N[0] should be a multiple of 2 because we use float2 in kernels
     if (m->N[0]%2!=0){
-        state=1;fprintf(stderr, "Error: N[0] must be a multiple of 2\n");
+        fprintf(stderr, "Error: N[0] must be a multiple of 2\n");
+        return 1;
     }
     #endif
     
@@ -438,8 +445,8 @@ int readhdf5(struct filenames files, model * m) {
                     &m->BACK_PROP_TYPE);
     if (!(m->BACK_PROP_TYPE ==1
         || m->BACK_PROP_TYPE ==2)) {
-        state=1;
         fprintf(stderr, "Error: bac_prop_type must be 1 or 2\n");
+        return 1;
     }
     
     if (m->BACK_PROP_TYPE==2 && m->GRADOUT==1){
@@ -455,7 +462,8 @@ int readhdf5(struct filenames files, model * m) {
         m->res_calc = &var_res_raw;
     }
     else{
-        state=1;fprintf(stderr, "Error: Unknown restype\n");
+        fprintf(stderr, "Error: Unknown restype\n");
+        return 1;
     }
     
     /*Absorbing boundary variables*/
@@ -484,8 +492,8 @@ int readhdf5(struct filenames files, model * m) {
     else if (m->ABS_TYPE==0){
     }
     else if (!state){
-        state=1;
         fprintf(stderr, "Error: Variable ABS_TYPE allowed values are 0, 1 and 2\n");
+        return 1;
     }
     
     
@@ -510,16 +518,16 @@ int readhdf5(struct filenames files, model * m) {
     __GUARD getdimmat(file_id, "/src_pos", 2, dims2D);
     if (!state){
         if(dims2D[1]!=5) {
-            state=1;
             fprintf(stderr, "Error: src_pos dimension 1 must be 5\n");
+            return 1;
         }
     }
     m->src_recs.allns=(int)dims2D[0];
     dims2D[1]=m->NT;
     if (!state){
         if (checkmatNDIM(file_id, "/src",  2, dims2D)){
-            state=1;
             fprintf(stderr, "Error: Variable src must be nt x number of sources\n");
+            return 1;
         }
     }
     
@@ -527,8 +535,8 @@ int readhdf5(struct filenames files, model * m) {
     __GUARD getdimmat(file_id, "/rec_pos", 2, dims2D);
     if (!state){
         if(dims2D[1]!=8) {
-            state=1;
             fprintf(stderr, "Error: rec_pos dimension 1 must be 8\n");
+            return 1;
         }
     }
     m->src_recs.allng=(int)dims2D[0];
@@ -553,8 +561,8 @@ int readhdf5(struct filenames files, model * m) {
                 m->src_recs.ns+=1;
             }
             else if (thisid>src_pos0[3+i*5]){
-                state=1;
                 printf("Sources ids must be sorted in ascending order");
+                return 1;
             }
             
         }
@@ -569,17 +577,16 @@ int readhdf5(struct filenames files, model * m) {
                 nsg+=1;
             }
             else if (thisid>rec_pos0[3+i*8]){
-                state=1;
                 printf("Src ids in rec_pos must be sorted in ascending order\n");
-                break;
+                return 1;
             }
             
         }
         if (!state){
             if (nsg!=m->src_recs.ns){
-                state=1;
                 fprintf(stderr, "Error: Number of sources ids in src_pos and rec_pos "
                                 "are not the same\n");
+                return 1;
             }
         }
     }
@@ -678,7 +685,8 @@ int readhdf5(struct filenames files, model * m) {
     file_id = -1;
     if (!state) file_id = H5Fopen(files.model, H5F_ACC_RDWR, H5P_DEFAULT);
     if (!state) if (file_id<0) {
-        state=1;fprintf(stderr, "Error: Could not open the input file model");
+        fprintf(stderr, "Error: Could not open the input file model");
+        return 1;
     }
     
     /* Read parameters. */
@@ -688,9 +696,9 @@ int readhdf5(struct filenames files, model * m) {
             GMALLOC(m->pars[i].gl_par,sizeof(float)*m->pars[i].num_ele);
             if (!state){
                 if (checkmatNDIM(file_id, m->pars[i].to_read, m->NDIM, dimsND)){
-                    state=1;
                     fprintf(stderr, "Error: Variable %s must have dimensions in N\n",
                             m->pars[i].to_read);
+                    return 1;
                 }
             }
             __GUARD readvar(file_id,
@@ -713,8 +721,8 @@ int readhdf5(struct filenames files, model * m) {
         file_id = -1;
         file_id = H5Fopen(files.din, H5F_ACC_RDWR, H5P_DEFAULT);
         if (!state) if (file_id<0 && m->GRADOUT) {
-            state=1;
             fprintf(stderr, "Error: Could not open the input file for data_in\n");
+            return 1;
         }
         
         int anyout=0;
@@ -726,9 +734,9 @@ int readhdf5(struct filenames files, model * m) {
                     m->vars[i].to_output=1;
                     if (!state){
                         if (checkmatNDIM_atleast(file_id, m->vars[i].name, 2, dims2D)){
-                            state=1;
                             fprintf(stderr, "Error: Variable %s must be nt x number of"
                                        "recording stations\n",m->vars[i].name );
+                            return 1;
                         }
                     }
                     var_alloc_out(&m->vars[i].gl_varin, m);
@@ -748,15 +756,13 @@ int readhdf5(struct filenames files, model * m) {
             for (i=0;i<m->ntvars;i++){
                 if (1==H5Lexists( file_id, m->trans_vars[i].name, H5P_DEFAULT)){
                     m->trans_vars[i].to_output=1;
-                    if (!state){
-                        if (checkmatNDIM_atleast(file_id, m->trans_vars[i].name,2, dims2D)) {
-                            state=1;
-                            fprintf(stderr, "Error: Variable %s must be nt x number of"
-                                    "recording stations\n",m->trans_vars[i].name);
-                        }
+                    if (checkmatNDIM_atleast(file_id, m->trans_vars[i].name,2, dims2D)) {
+                        fprintf(stderr, "Error: Variable %s must be nt x number of"
+                                "recording stations\n",m->trans_vars[i].name);
+                        return 1;
                     }
                     var_alloc_out(&m->trans_vars[i].gl_varin, m);
-                    if (m->RESOUT){
+                    if (m->RESOUT || m->GRADOUT){
                         var_alloc_out(&m->trans_vars[i].gl_var_res, m);
                     }
                     __GUARD read_seis(file_id,
@@ -775,12 +781,72 @@ int readhdf5(struct filenames files, model * m) {
         }
 
         if (!anyout){
-            state=1;
-            fprintf(stderr, "Error: Cannot output gradient, rms or residuals without "
-                            "reference data\n");
+            fprintf(stderr, "Error: Cannot output gradient, rms or residuals"
+                            " without reference data\n");
+            return 1;
         }
         
     }
+    /* Residuals file__________________________________
+     __________________________________________________________________*/
+    
+    if (m->INPUTRES==1 && m->GRADOUT==1){
+        file_id = -1;
+        file_id = H5Fopen(files.res, H5F_ACC_RDWR, H5P_DEFAULT);
+        if (!state) if (file_id<0) {
+            fprintf(stderr, "Error: Could not open the residuals file\n");
+            return 1;
+        }
+        
+        dims2D[0]=m->src_recs.allng;dims2D[1]=m->NT;
+        for (i=0;i<m->nvars;i++){
+            sprintf(temp,"%sres", m->vars[i].name);
+            if (1==H5Lexists( file_id, temp, H5P_DEFAULT)){
+                if (checkmatNDIM_atleast(file_id, temp, 2, dims2D)){
+                    state=1;
+                    fprintf(stderr, "Error: %sres must be nt x number of"
+                            "recording stations\n",m->vars[i].name );
+                }
+                __GUARD read_seis(file_id,
+                                  H5T_NATIVE_FLOAT,
+                                  temp,
+                                  m->vars[i].gl_var_res[0],
+                                  m->src_recs.rec_pos[0],
+                                  m->src_recs.allng,
+                                  m->NT);
+            }
+            else if (m->vars[i].to_output){
+                fprintf(stderr, "Error: No residuals for %s\n",m->vars[i].name);
+                return 1;
+            }
+        }
+        for (i=0;i<m->ntvars;i++){
+            sprintf(temp,"%sres", m->trans_vars[i].name);
+            if (1==H5Lexists( file_id, temp, H5P_DEFAULT)){
+                if (checkmatNDIM_atleast(file_id, temp, 2, dims2D)) {
+                    fprintf(stderr, "Error: %sres must be nt x number of"
+                            "recording stations\n",m->trans_vars[i].name);
+                    return 1;
+                }
+                __GUARD read_seis(file_id,
+                                  H5T_NATIVE_FLOAT,
+                                  temp,
+                                  m->trans_vars[i].gl_var_res[0],
+                                  m->src_recs.rec_pos[0],
+                                  m->src_recs.allng,
+                                  m->NT);
+            }
+            else if (m->trans_vars[i].to_output){
+                fprintf(stderr, "Error: No residuals for %s\n",
+                        m->trans_vars[i].name);
+                return 1;
+            }
+        }
+        
+        H5Fclose(file_id);
+        
+    }
+    
     
     if (state && m->MPI_INIT==1) MPI_Bcast( &state,
                                            1,

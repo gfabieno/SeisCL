@@ -186,8 +186,9 @@ int Init_MPI(model * m) {
         }
         for (i=0;i<m->ntvars;i++){
             if (m->trans_vars[i].to_output){
-                var_alloc_out(&m->trans_vars[i].gl_var_res, m);
+                
                 if (m->MYID!=0){
+                    var_alloc_out(&m->trans_vars[i].gl_var_res, m);
                     var_alloc_out(&m->trans_vars[i].gl_varin, m);
                 }
                 if (!state){

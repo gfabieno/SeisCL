@@ -25,6 +25,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <float.h>
+#include <stdint.h>
 //#include <cmath>
 
 //#include <libc.h>
@@ -39,7 +40,7 @@
 #include "kiss_fftr.h"
 
 #include "CUDA_CL.h"
-#include "fp16_conversion.h"
+
 
 #include <mpi.h>
 #include <hdf5.h>
@@ -77,6 +78,7 @@ struct filenames {
     char gout[1024];
     char rmsout[1024];
     char movout[1024];
+    char res[1024];
 };
 
 
@@ -397,6 +399,7 @@ typedef struct model {
     int MOVOUT;
     int RESOUT;
     int RMSOUT;
+    int INPUTRES;
     int L;
     int MYID;
     int NP;
