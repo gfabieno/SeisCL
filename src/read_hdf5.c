@@ -460,6 +460,7 @@ int readhdf5(struct filenames files, model * m) {
     
     if (m->restype==0){
         m->res_calc = &var_res_raw;
+        m->res_scale = &res_scale;
     }
     else{
         fprintf(stderr, "Error: Unknown restype\n");

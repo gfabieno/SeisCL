@@ -206,6 +206,7 @@ typedef struct variable{
 
 int var_alloc_out(float *** var, struct model *m );
 int var_res_raw(struct model * m, int s);
+int res_scale(struct model * m, int s);
 
 /* _____________Structure for parameters, or what can be inverted_____________*/
 typedef struct parameter{
@@ -468,6 +469,7 @@ typedef struct model {
     int halfpar;
 
     int (*res_calc)(struct model * , int );
+    int (*res_scale)(struct model * , int );
     int (*check_stability)(void *);
     int (*set_scalers)(void *);
 

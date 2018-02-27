@@ -44,11 +44,7 @@ int var_res_raw(model * m, int s)
     int tmax=m->tmax;
     int tmin=m->tmin;
     int nrec=(m->src_recs.nrec[s]);
-    float * par=NULL;
-    float * par2 = NULL;
     float * gradfreqs;
-    float parscal;
-    float resmax;
     
     
     //  The data is filtered between the maximum and minimum frequencies
@@ -381,9 +377,60 @@ int var_res_raw(model * m, int s)
     }
     
     
+   
+    // Free memory of FFTs
+    if (m->BACK_PROP_TYPE==2){
+        free(stf);
+        n=0;
+        for (i=0;i<m->nvars;i++){
+            if (m->vars[i].to_output){
+                GFree(temp[n]);
+                GFree(temp0[n]);
+                GFree(temp_out[n]);
+                GFree(temp0_out[n]);
+                n++;
+            }
+        }
+        for (i=0;i<m->ntvars;i++){
+            if (m->trans_vars[i].to_output){
+                GFree(temp[n]);
+                GFree(temp0[n]);
+                GFree(temp_out[n]);
+                GFree(temp0_out[n]);
+                n++;
+            }
+        }
+        kiss_fft_cleanup();
+    }
+    
+    free(rms_scaling);
+    free(rms_scaling0);
+    if (m->scalerms || m->scalermsnorm){
+        free(rmsnorm_scaling);
+    }
+    
+    //Check if we have infinite or NaN values
+    if (m->rms != m->rms){
+        state=1;
+        fprintf(stderr,"Error: Simulation has become unstable, stopping\n");
+    }
+    
+    return state;
+}
+int res_scale(model * m, int s)
+{
     // Scale by the material parameters
     int scaler=0;
+    int i, g, x, y, z, pos, t;
+    float * par=NULL;
+    float * par2 = NULL;
+    float parscal;
+    float resmax;
     variable * var;
+    int nrec=(m->src_recs.nrec[s]);
+    int NT=m->NT;
+    int tmax=m->tmax;
+    
     if (m->FP16>0){
         var = get_var(m->vars,m->nvars, "sxx");
         if (var) scaler = var->scaler;
@@ -440,7 +487,7 @@ int var_res_raw(model * m, int s)
             if (strcmp(m->trans_vars[i].name,"p")==0){
                 par = get_par(m->pars, m->npars, "M")->gl_par;
                 par2 = get_par(m->pars, m->npars, "mu")->gl_par;
-
+                
                 for (g=0;g<nrec;g++){
                     
                     x = m->src_recs.rec_pos[s][0+8*g]/m->dh;
@@ -454,12 +501,12 @@ int var_res_raw(model * m, int s)
                     }
                     if (m->FP16>1){
                         parscal = half_to_float( ((half*)par)[pos] )
-                                 -half_to_float( ((half*)par2)[pos] );
+                        -half_to_float( ((half*)par2)[pos] );
                         parscal = -2.0*(parscal)*m->dh/m->dt*powf(2,-scaler);
                     }
                     else{
                         parscal = -2.0*(par[pos]-par2[pos])
-                                                   *m->dh/m->dt*powf(2,-scaler);
+                        *m->dh/m->dt*powf(2,-scaler);
                     }
                     for (t=0;t<tmax;t++){
                         m->trans_vars[i].gl_var_res[s][g*NT+t]*=parscal*m->dt;
@@ -480,45 +527,8 @@ int var_res_raw(model * m, int s)
     if (m->FP16>0){
         m->src_recs.res_scales[s]=-log2(resmax/10);
     }
-    // Free memory of FFTs
-    if (m->BACK_PROP_TYPE==2){
-        free(stf);
-        n=0;
-        for (i=0;i<m->nvars;i++){
-            if (m->vars[i].to_output){
-                GFree(temp[n]);
-                GFree(temp0[n]);
-                GFree(temp_out[n]);
-                GFree(temp0_out[n]);
-                n++;
-            }
-        }
-        for (i=0;i<m->ntvars;i++){
-            if (m->trans_vars[i].to_output){
-                GFree(temp[n]);
-                GFree(temp0[n]);
-                GFree(temp_out[n]);
-                GFree(temp0_out[n]);
-                n++;
-            }
-        }
-        kiss_fft_cleanup();
-    }
     
-    free(rms_scaling);
-    free(rms_scaling0);
-    if (m->scalerms || m->scalermsnorm){
-        free(rmsnorm_scaling);
-    }
-    
-    //Check if we have infinite or NaN values
-    if (m->rms != m->rms){
-        state=1;
-        fprintf(stderr,"Error: Simulation has become unstable, stopping\n");
-    }
-    
-    return state;
+    return 0;
 }
-
 
 
