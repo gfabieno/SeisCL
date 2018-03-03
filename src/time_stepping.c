@@ -169,10 +169,10 @@ int save_bnd(model * m, device ** dev, int t){
         (*dev)[d].grads.savebnd.outevent=1;
         
         __GUARD prog_launch(&(*dev)[d].queue, &(*dev)[d].grads.savebnd);
-        #ifdef __SEISCL__
-        if ((*dev)[d].grads.savebnd.waits)
-            __GUARD clReleaseEvent(*(*dev)[d].grads.savebnd.waits);
-        #endif
+//        #ifdef __SEISCL__
+//        if ((*dev)[d].grads.savebnd.waits)
+//            __GUARD clReleaseEvent(*(*dev)[d].grads.savebnd.waits);
+//        #endif
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].to_comm){
                 if (l0<0){
@@ -185,7 +185,7 @@ int save_bnd(model * m, device ** dev, int t){
         (*dev)[d].vars[lv].cl_varbnd.outevent_r=1;
         (*dev)[d].vars[l0].cl_varbnd.nwait_r=1;
         (*dev)[d].vars[l0].cl_varbnd.waits_r=&(*dev)[d].grads.savebnd.event;
-      #endif
+        #endif
         if (m->FP16>1){
             offset =(*dev)[d].NBND*t/2;
         }
@@ -194,7 +194,7 @@ int save_bnd(model * m, device ** dev, int t){
         }
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].to_comm){
-                __GUARD clbuf_readto(&(*dev)[d].queue,
+                __GUARD clbuf_readto(&(*dev)[d].queuecomm,
                                      &(*dev)[d].vars[i].cl_varbnd,
                                      &(*dev)[d].vars[i].cl_varbnd.host[offset]);
             }
@@ -202,7 +202,7 @@ int save_bnd(model * m, device ** dev, int t){
         #ifdef __SEISCL__
         (*dev)[d].grads.savebnd.nwait=1;
         (*dev)[d].grads.savebnd.waits=&(*dev)[d].vars[lv].cl_varbnd.event_r;
-        __GUARD clReleaseEvent((*dev)[d].grads.savebnd.event);
+//        __GUARD clReleaseEvent((*dev)[d].grads.savebnd.event);
         #endif
     }
 
@@ -282,19 +282,19 @@ int update_grid(model * m, device ** dev){
             if (d>0 || m->MYLOCALID>0){
                 __GUARD prog_launch(   &(*dev)[d].queue,
                                        &(*dev)[d].ups_f[i].fcom1_in);
-                #ifdef __SEISCL__
-                __GUARD clReleaseEvent(*(*dev)[d].ups_f[i].fcom1_in.waits);
-                #endif
+//                #ifdef __SEISCL__
+//                __GUARD clReleaseEvent(*(*dev)[d].ups_f[i].fcom1_in.waits);
+//                #endif
             }
             if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
                 __GUARD prog_launch(   &(*dev)[d].queue,
                                        &(*dev)[d].ups_f[i].fcom2_in);
-                #ifdef __SEISCL__
-                __GUARD clReleaseEvent(*(*dev)[d].ups_f[i].fcom2_in.waits);
-                #endif
+//                #ifdef __SEISCL__
+//                __GUARD clReleaseEvent(*(*dev)[d].ups_f[i].fcom2_in.waits);
+//                #endif
             }
         }
-        
+                
     }
 
 
@@ -317,13 +317,21 @@ int update_grid_adj(model * m, device ** dev){
                 __GUARD prog_launch( &(*dev)[d].queue,
                                     &(*dev)[d].ups_adj[i].com1);
                 __GUARD prog_launch( &(*dev)[d].queue,
-                                    &(*dev)[d].ups_adj[i].fcom1_out);
+                                    &(*dev)[d].ups_f[i].fcom1_out);
+                if (m->BACK_PROP_TYPE==1){
+                    __GUARD prog_launch( &(*dev)[d].queue,
+                                        &(*dev)[d].ups_adj[i].fcom1_out);
+                }
             }
             if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
                 __GUARD prog_launch( &(*dev)[d].queue,
                                     &(*dev)[d].ups_adj[i].com2);
                 __GUARD prog_launch( &(*dev)[d].queue,
-                                    &(*dev)[d].ups_adj[i].fcom2_out);
+                                    &(*dev)[d].ups_f[i].fcom2_out);
+                if (m->BACK_PROP_TYPE==1){
+                    __GUARD prog_launch( &(*dev)[d].queue,
+                                        &(*dev)[d].ups_adj[i].fcom2_out);
+                }
             }
             
             //Launch kernel on the interior elements
@@ -342,17 +350,25 @@ int update_grid_adj(model * m, device ** dev){
             
             if (d>0 || m->MYLOCALID>0){
                 __GUARD prog_launch(   &(*dev)[d].queue,
-                                    &(*dev)[d].ups_adj[i].fcom1_in);
-            #ifdef __SEISCL__
-                __GUARD clReleaseEvent(*(*dev)[d].ups_adj[i].fcom1_in.waits);
-            #endif
+                                    &(*dev)[d].ups_f[i].fcom1_in);
+                if (m->BACK_PROP_TYPE==1){
+                    __GUARD prog_launch(   &(*dev)[d].queue,
+                                        &(*dev)[d].ups_adj[i].fcom1_in);
+                }
+//            #ifdef __SEISCL__
+//                __GUARD clReleaseEvent(*(*dev)[d].ups_adj[i].fcom1_in.waits);
+//            #endif
             }
             if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
                 __GUARD prog_launch(   &(*dev)[d].queue,
-                                    &(*dev)[d].ups_adj[i].fcom2_in);
-               #ifdef __SEISCL__
-                __GUARD clReleaseEvent(*(*dev)[d].ups_adj[i].fcom2_in.waits);
-                #endif
+                                    &(*dev)[d].ups_f[i].fcom2_in);
+                if (m->BACK_PROP_TYPE==1){
+                    __GUARD prog_launch(   &(*dev)[d].queue,
+                                        &(*dev)[d].ups_adj[i].fcom2_in);
+                }
+//               #ifdef __SEISCL__
+//                __GUARD clReleaseEvent(*(*dev)[d].ups_adj[i].fcom2_in.waits);
+//                #endif
             }
         }
         
@@ -658,7 +674,13 @@ int time_stepping(model * m, device ** dev) {
                     __GUARD inject_bnd( m, dev, t);
                 }
                 
-
+                // Computing the free surface
+                if (m->FREESURF==1){
+                    for (d=0;d<m->NUM_DEVICES;d++){
+                        __GUARD prog_launch( &(*dev)[d].queue,
+                                            &(*dev)[d].bnd_cnds.surf_adj);
+                    }
+                }
                 
                 // Inject the residuals
                 for (d=0;d<m->NUM_DEVICES;d++){
@@ -671,6 +693,7 @@ int time_stepping(model * m, device ** dev) {
                 __GUARD update_grid_adj(m, dev);
                 
                 // Inject the sources with negative sign
+                //TODO not right if source is inside saved boundary
                 if (m->BACK_PROP_TYPE==1){
                     for (d=0;d<m->NUM_DEVICES;d++){
                         __GUARD prog_launch( &(*dev)[d].queue,
@@ -697,6 +720,17 @@ int time_stepping(model * m, device ** dev) {
                     __GUARD clFlush((*dev)[d].queue);
                 }
                 #endif
+                // Outputting seismograms
+                if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){
+                    for (d=0;d<m->NUM_DEVICES;d++){
+                        __GUARD prog_launch( &(*dev)[d].queue,
+                                            &(*dev)[d].src_recs.varsout);
+                    }
+                }
+            }
+            // Aggregate the seismograms in the output variable
+            if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){
+                __GUARD reduce_seis(m, dev, s);
             }
             
             // Transfer  the source gradient to the host

@@ -27,8 +27,12 @@ CL_INT clbuf_send(QUEUE *inqueue, clbuf * buf)
     CL_INT err = 0;
     #ifdef __SEISCL__
     cl_event * event=NULL;
-    if (buf->outevent_s)
+    if (buf->outevent_s){
+        if (buf->event_s){
+            err = clReleaseEvent(buf->event_s);
+        }
         event=&buf->event_s;
+    }
     /*Transfer memory from host to the device*/
     err = clEnqueueWriteBuffer(*inqueue, buf->mem,
                                CL_TRUE,
@@ -41,9 +45,8 @@ CL_INT clbuf_send(QUEUE *inqueue, clbuf * buf)
     #else
     err = cuMemcpyHtoDAsync ( buf->mem, (void*)buf->host, buf->size, *inqueue );
     #endif
-    if (err !=CUCL_SUCCESS) fprintf(stderr,
-                                    "Error: clbuf_send: %s\n",
-                                    clerrors(err));
+    if (err !=CUCL_SUCCESS)
+        fprintf(stderr,"Error: clbuf_send: %s\n", clerrors(err));
     
     return err;
 }
@@ -58,8 +61,12 @@ CL_INT clbuf_sendfrom(QUEUE *inqueue,
     /*Transfer memory from host to the device*/
     #ifdef __SEISCL__
     cl_event * event=NULL;
-    if (buf->outevent_s)
+    if (buf->outevent_s){
+        if (buf->event_s){
+            err = clReleaseEvent(buf->event_s);
+        }
         event=&buf->event_s;
+    }
     /*Transfer memory from host to the device*/
     err = clEnqueueWriteBuffer(*inqueue, buf->mem,
                                CL_TRUE,
@@ -91,9 +98,12 @@ CL_INT clbuf_read(QUEUE *inqueue, clbuf * buf)
     /*Read memory from device to the host*/
     #ifdef __SEISCL__
     cl_event * event=NULL;
-    if (buf->outevent_r)
+    if (buf->outevent_r){
+        if (buf->event_r){
+            err = clReleaseEvent(buf->event_r);
+        }
         event=&buf->event_r;
-    
+    }
     /*Read memory from device to the host*/
     err = clEnqueueReadBuffer(*inqueue,
                               buf->mem,
@@ -125,8 +135,12 @@ CL_INT clbuf_readto(QUEUE *inqueue,
     /*Read memory from device to the host*/
     #ifdef __SEISCL__
     cl_event * event=NULL;
-    if (buf->outevent_r)
+    if (buf->outevent_r){
+        if (buf->event_r){
+            err = clReleaseEvent(buf->event_r);
+        }
         event=&buf->event_r;
+    }
     
     /*Read memory from device to the host*/
     err = clEnqueueReadBuffer(*inqueue,
@@ -134,7 +148,7 @@ CL_INT clbuf_readto(QUEUE *inqueue,
                               CL_FALSE,
                               0,
                               buf->size,
-                              ptr,
+                              (float *)ptr,
                               buf->nwait_r,
                               buf->waits_r,
                               event);
@@ -142,9 +156,8 @@ CL_INT clbuf_readto(QUEUE *inqueue,
     #else
     err= cuMemcpyDtoHAsync(ptr, buf->mem, buf->size, *inqueue);
     #endif
-    if (err !=CUCL_SUCCESS) fprintf(stderr,
-                                    "Error: clbuf_readto: %s\n",
-                                    clerrors(err));
+    if (err !=CUCL_SUCCESS)
+        fprintf(stderr, "Error: clbuf_readto: %s\n", clerrors(err));
     
     return err;
 }

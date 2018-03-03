@@ -79,7 +79,7 @@ __kernel void surface(        __global float *vx,         __global float *vz,
                               __global float *sxx,        __global float *szz,      __global float *sxz,
                               __global float *M,         __global float *mu,        __global float *rxx,
                               __global float *rzz,        __global float *taus,     __global float *taup,
-                              __global float *eta, __global float *K_x, __global float *psi_vx_x)
+                              __global float *eta, __global float *K_x, __global float *psi_vx_x, __global float *taper)
 {
     /*Indice definition */
     int gidx = get_global_id(0) + FDOH;
@@ -116,8 +116,8 @@ __kernel void surface(        __global float *vx,         __global float *vz,
     {
         vxx = (HC1*(vx(gidz,gidx)  -vx(gidz,gidx-1))+
                HC2*(vx(gidz,gidx+1)-vx(gidz,gidx-2)));
-        
-        
+
+
         vzz = (HC1*(vz(gidz,gidx)  -vz(gidz-1,gidx))+
                HC2*(vz(gidz+1,gidx)-vz(gidz-2,gidx)));
     }
@@ -126,11 +126,11 @@ __kernel void surface(        __global float *vx,         __global float *vz,
         vxx = (HC1*(vx(gidz,gidx)  -vx(gidz,gidx-1))+
                HC2*(vx(gidz,gidx+1)-vx(gidz,gidx-2))+
                HC3*(vx(gidz,gidx+2)-vx(gidz,gidx-3)));
-        
+
         vzz = (HC1*(vz(gidz,gidx)-vz(gidz-1,gidx))+
                HC2*(vz(gidz+1,gidx)-vz(gidz-2,gidx))+
                HC3*(vz(gidz+2,gidx)-vz(gidz-3,gidx)));
-        
+
     }
 #elif FDOH==4
     {
@@ -138,7 +138,7 @@ __kernel void surface(        __global float *vx,         __global float *vz,
                HC2*(vx(gidz,gidx+1)-vx(gidz,gidx-2))+
                HC3*(vx(gidz,gidx+2)-vx(gidz,gidx-3))+
                HC4*(vx(gidz,gidx+3)-vx(gidz,gidx-4)));
-        
+
         vzz = (HC1*(vz(gidz,gidx)  -vz(gidz-1,gidx))+
                HC2*(vz(gidz+1,gidx)-vz(gidz-2,gidx))+
                HC3*(vz(gidz+2,gidx)-vz(gidz-3,gidx))+
@@ -151,15 +151,15 @@ __kernel void surface(        __global float *vx,         __global float *vz,
                HC3*(vx(gidz,gidx+2)-vx(gidz,gidx-3))+
                HC4*(vx(gidz,gidx+3)-vx(gidz,gidx-4))+
                HC5*(vx(gidz,gidx+4)-vx(gidz,gidx-5)));
-        
-        
+
+
         vzz = (HC1*(vz(gidz,gidx)  -vz(gidz-1,gidx))+
                HC2*(vz(gidz+1,gidx)-vz(gidz-2,gidx))+
                HC3*(vz(gidz+2,gidx)-vz(gidz-3,gidx))+
                HC4*(vz(gidz+3,gidx)-vz(gidz-4,gidx))+
                HC5*(vz(gidz+4,gidx)-vz(gidz-5,gidx)));
-        
-        
+
+
     }
 #elif FDOH==6
     {
@@ -169,8 +169,8 @@ __kernel void surface(        __global float *vx,         __global float *vz,
                HC4*(vx(gidz,gidx+3)-vx(gidz,gidx-4))+
                HC5*(vx(gidz,gidx+4)-vx(gidz,gidx-5))+
                HC6*(vx(gidz,gidx+5)-vx(gidz,gidx-6)));
-        
-        
+
+
         vzz = (HC1*(vz(gidz,gidx)  -vz(gidz-1,gidx))+
                HC2*(vz(gidz+1,gidx)-vz(gidz-2,gidx))+
                HC3*(vz(gidz+2,gidx)-vz(gidz-3,gidx))+
@@ -179,43 +179,26 @@ __kernel void surface(        __global float *vx,         __global float *vz,
                HC6*(vz(gidz+5,gidx)-vz(gidz-6,gidx)));
     }
 #endif
-    
-    //TODO Solution is unstable that way, I don't know why
-    // Absorbing boundary
-#if ABS_TYPE==2
-    {
-        
-#if DEVID==0 & MYLOCALID==0
-        if (gidx-FDOH<NAB){
-            sxx(gidz,gidx)*=1.0/taper[gidx-FDOH];
-        }
-#endif
-        
-#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-        if (gidx>NX-NAB-FDOH-1){
-            sxx(gidz,gidx)*=1.0/taper[NX-FDOH-gidx-1];
-        }
-#endif
-    }
-#endif
-    
+
+
+
     // Correct spatial derivatives to implement CPML
 #if ABS_TYPE==1
     {
         int i,k,ind;
 #if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
-            
+
             i =gidx-FDOH;
             k =gidz-FDOH;
-            
+
             vxx = vxx / K_x[i] + psi_vx_x(k,i);
         }
 #endif
-        
+
 #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-NAB-FDOH-1){
-            
+
             i =gidx - NX+NAB+FDOH+NAB;
             k =gidz-FDOH;
             ind=2*NAB-1-i;
@@ -226,20 +209,53 @@ __kernel void surface(        __global float *vx,         __global float *vz,
 #endif
 
 #if LVE==0
-				f=mu(gidz,  gidx)*2.0;
-				g=M(gidz,  gidx);
-				h=-((g-f)*(g-f)*(vxx)/g)-((g-f)*vzz);
-				sxx(gidz,  gidx)+=h;
+    f=mu(gidz,  gidx)*2.0;
+    g=M(gidz,  gidx);
+    h=-((g-f)*(g-f)*(vxx)/g)-((g-f)*vzz);
+    // Absorbing boundary
+#if ABS_TYPE==2
+    {
+
+#if DEVID==0 & MYLOCALID==0
+        if (gidx-FDOH<NAB){
+            h*=taper[gidx-FDOH];
+        }
+#endif
+
+#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+        if (gidx>NX-NAB-FDOH-1){
+            h*=taper[NX-FDOH-gidx-1];
+        }
+#endif
+    }
+#endif
+    sxx(gidz,  gidx)+=h;
 #else
     float b,d,e;
     /* partially updating sxx  in the same way*/
     f=mu(gidz,  gidx)*2.0*(1.0+L*taus(gidz,  gidx));
     g=M(gidz,  gidx)*(1.0+L*taup(gidz,  gidx));
     h=-((g-f)*(g-f)*(vxx)/g)-((g-f)*vzz);
+#if ABS_TYPE==2
+    {
+
+#if DEVID==0 & MYLOCALID==0
+        if (gidx-FDOH<NAB){
+            h*=taper[gidx-FDOH];
+        }
+#endif
+
+#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+        if (gidx>NX-NAB-FDOH-1){
+            h*=taper[NX-FDOH-gidx-1];
+        }
+#endif
+    }
+#endif
     sxx(gidz,  gidx)+=h-(DT/2.0*rxx(gidz,  gidx));
-    
+
     /* updating the memory-variable rxx at the free surface */
-    
+
     d=2.0*mu(gidz,  gidx)*taus(gidz,  gidx);
     e=M(gidz,  gidx)*taup(gidz,  gidx);
     for (m=0;m<LVE;m++){
@@ -247,30 +263,12 @@ __kernel void surface(        __global float *vx,         __global float *vz,
         h=b*(((d-e)*((f/g)-1.0)*(vxx+vyy))-((d-e)*vzz));
         rxx(gidz,  gidx)+=h;
     }
-    
+
     /*completely updating the stresses sxx  */
     sxx(gidz,  gidx)+=(DT/2.0*rxx(gidz,  gidx));
-    
-#endif
-    
-// Absorbing boundary
-#if ABS_TYPE==2
-    {
-  
-#if DEVID==0 & MYLOCALID==0
-        if (gidx-FDOH<NAB){
-            sxx(gidz,gidx)*=taper[gidx-FDOH];
-        }
-#endif
-        
-#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-        if (gidx>NX-NAB-FDOH-1){
-            sxx(gidz,gidx)*=taper[NX-FDOH-gidx-1];
-        }
-#endif
-    }
-#endif
 
+#endif
+    
 }
 
 

@@ -146,7 +146,7 @@ int main(int argc, char **argv) {
     }
 
     // Free the memory
-    Free_OpenCL(&m, &dev);
+    Free_OpenCL(&m, dev);
 
     if (m.MPI_INIT==1){
         MPI_Finalize();

@@ -181,6 +181,7 @@ CL_INT connect_devices(device ** dev, model * m)
     #ifdef __SEISCL__
     cl_platform_id  clplateform = NULL;
     __GUARD get_platform( m, &clplateform);
+//    m->NUM_DEVICES = 3; //line 225, 253 changed
     GMALLOC(*dev, sizeof(device)*m->NUM_DEVICES);
     
     
@@ -201,7 +202,8 @@ CL_INT connect_devices(device ** dev, model * m)
                            nalldevices,
                            devices,
                            NULL);
-
+    
+    
     GMALLOC(allow_devs,sizeof(int)*m->NUM_DEVICES);
     #else
     __GUARD cuInit(0);
@@ -221,6 +223,7 @@ CL_INT connect_devices(device ** dev, model * m)
             }
             if (allowed){
                 allow_devs[n]=i;
+//                allow_devs[n]=0;
                 n++;
             }
             
@@ -247,7 +250,7 @@ CL_INT connect_devices(device ** dev, model * m)
 
     // Create a context with the specified devices
     if (!state) m->context = clCreateContext(NULL,
-                                             m->NUM_DEVICES,
+                                             m->NUM_DEVICES,//1,
                                              devices,
                                              NULL,
                                              NULL,
@@ -846,10 +849,17 @@ int Init_CUDA(model * m, device ** dev)  {
                     __GUARD clbuf_create_pin(&m->context,
                                              &di->queuecomm,
                                              &di->vars[i].cl_buf1);
+//                    __GUARD clbuf_create(&m->context,
+//                                         &di->vars[i].cl_buf1);
+//                    GMALLOC(di->vars[i].cl_buf1.host, di->vars[i].cl_buf1.size);
                     di->vars[i].cl_buf2.size=sizeof(float)*m->FDOH*slicesize;
                     __GUARD clbuf_create_pin(&m->context,
                                              &di->queuecomm,
                                              &di->vars[i].cl_buf2);
+//                    __GUARD clbuf_create(&m->context,
+//                                         &di->vars[i].cl_buf2);
+//                    GMALLOC(di->vars[i].cl_buf2.host, di->vars[i].cl_buf2.size);
+                    
                 }
             
             // Create the buffers to output variables at receivers locations
@@ -979,13 +989,12 @@ int Init_CUDA(model * m, device ** dev)  {
                 
                 else if ( (d==0 && m->MYGROUPID==0)
                          || (d==m->NUM_DEVICES-1 && m->MYGROUPID==m->NLOCALP-1))
-                    di->NBND=(di->N[1]-m->NAB)*m->FDOH+
-                    (di->N[0]-2*m->NAB-m->FDOH)*2*m->FDOH;
+                    di->NBND=(di->N[0]-2*m->NAB-m->FDOH)*2*m->FDOH+
+                                (di->N[1]-m->NAB)*m->FDOH;
                 
                 else
                     di->NBND= (di->N[1])*2*m->FDOH;
             }
-
             for (i=0;i<m->nvars;i++){
                 if (di->vars[i].to_comm){
                     di->vars[i].cl_varbnd.size=sizeof(float) * di->NBND;
@@ -1018,10 +1027,10 @@ int Init_CUDA(model * m, device ** dev)  {
                 __GUARD prog_create(m, di,  &di->ups_f[i].com1);
                 
                 __GUARD kernel_fcom_out( di ,di->vars,
-                                        &di->ups_f[i].fcom1_out, i+1, 1);
+                                        &di->ups_f[i].fcom1_out, i+1, 1, 0);
                 __GUARD prog_create(m, di,  &di->ups_f[i].fcom1_out);
                 __GUARD kernel_fcom_in( di ,di->vars,
-                                       &di->ups_f[i].fcom1_in, i+1, 1);
+                                       &di->ups_f[i].fcom1_in, i+1, 1, 0);
                 __GUARD prog_create(m, di,  &di->ups_f[i].fcom1_in);
             }
             if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
@@ -1031,10 +1040,10 @@ int Init_CUDA(model * m, device ** dev)  {
                 __GUARD prog_create(m, di,  &di->ups_f[i].com2);
                 
                 __GUARD kernel_fcom_out( di, di->vars,
-                                     &di->ups_f[i].fcom2_out, i+1, 2);
+                                     &di->ups_f[i].fcom2_out, i+1, 2, 0);
                 __GUARD prog_create(m, di,  &di->ups_f[i].fcom2_out);
                 __GUARD kernel_fcom_in(di ,di->vars,
-                                   &di->ups_f[i].fcom2_in, i+1, 2);
+                                   &di->ups_f[i].fcom2_in, i+1, 2, 0);
                 __GUARD prog_create(m, di,  &di->ups_f[i].fcom2_in);
             }
         }
@@ -1049,12 +1058,15 @@ int Init_CUDA(model * m, device ** dev)  {
                     di->ups_adj[i].com1.COMM=1;
                     __GUARD prog_create(m, di,  &di->ups_adj[i].com1);
                     
-                    __GUARD kernel_fcom_out( di ,di->vars,
-                                            &di->ups_adj[i].fcom1_out, i+1, 1);
-                    __GUARD prog_create(m, di,  &di->ups_adj[i].fcom1_out);
-                    __GUARD kernel_fcom_in( di ,di->vars,
-                                           &di->ups_adj[i].fcom1_in, i+1, 1);
-                    __GUARD prog_create(m, di,  &di->ups_adj[i].fcom1_in);
+                    if (m->BACK_PROP_TYPE==1){
+                        __GUARD kernel_fcom_out( di ,di->vars,
+                                                &di->ups_adj[i].fcom1_out, i+1, 1, 1);
+                        __GUARD prog_create(m, di,  &di->ups_adj[i].fcom1_out);
+                        __GUARD kernel_fcom_in( di ,di->vars,
+                                               &di->ups_adj[i].fcom1_in, i+1, 1, 1);
+                        __GUARD prog_create(m, di,  &di->ups_adj[i].fcom1_in);
+
+                    }
                 }
                 if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
                     di->ups_adj[i].com2.OFFCOMM=offcom2;
@@ -1062,12 +1074,14 @@ int Init_CUDA(model * m, device ** dev)  {
                     di->ups_adj[i].com2.COMM=1;
                     __GUARD prog_create(m, di,  &di->ups_adj[i].com2);
                     
-                    __GUARD kernel_fcom_out( di, di->vars,
-                                            &di->ups_adj[i].fcom2_out, i+1, 2);
-                    __GUARD prog_create(m, di,  &di->ups_adj[i].fcom2_out);
-                    __GUARD kernel_fcom_in(di ,di->vars,
-                                           &di->ups_adj[i].fcom2_in, i+1, 2);
-                    __GUARD prog_create(m, di,  &di->ups_adj[i].fcom2_in);
+                    if (m->BACK_PROP_TYPE==1){
+                        __GUARD kernel_fcom_out( di, di->vars,
+                                                &di->ups_adj[i].fcom2_out, i+1, 2, 1);
+                        __GUARD prog_create(m, di,  &di->ups_adj[i].fcom2_out);
+                        __GUARD kernel_fcom_in(di ,di->vars,
+                                               &di->ups_adj[i].fcom2_in, i+1, 2, 1);
+                        __GUARD prog_create(m, di,  &di->ups_adj[i].fcom2_in);
+                    }
                 }
             }
         }
@@ -1131,6 +1145,14 @@ int Init_CUDA(model * m, device ** dev)  {
             for (i=1;i<m->NDIM;i++){
                 di->bnd_cnds.surf.gsize[i-1]=di->N[i];
             }
+            if (m->GRADOUT){
+                di->bnd_cnds.surf_adj=m->bnd_cnds.surf_adj;
+                __GUARD prog_create(m, di,  &di->bnd_cnds.surf_adj);
+                di->bnd_cnds.surf_adj.wdim=m->NDIM-1;
+                for (i=1;i<m->NDIM;i++){
+                    di->bnd_cnds.surf_adj.gsize[i-1]=di->N[i];
+                }
+            }
         }
         
         //TODO Create automatically the kernel for saving boundary
@@ -1148,9 +1170,14 @@ int Init_CUDA(model * m, device ** dev)  {
         }
         
         
+        
     }
     
-    
+    int adj = 0;
+    if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+        adj=1;
+    }
+    __GUARD event_dependency(m, dev, adj);
     
 
     if (state && m->MPI_INIT==1)

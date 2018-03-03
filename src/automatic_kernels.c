@@ -1161,7 +1161,7 @@ int kernel_init_gradsrc(clprogram * prog){
 int kernel_fcom_out(device * dev,
                     variable * vars,
                     clprogram * prog,
-                    int upid, int buff12){
+                    int upid, int buff12, int adj){
     
     int state=0;
     int i,j;
@@ -1183,9 +1183,15 @@ int kernel_fcom_out(device * dev,
         if (vars[i].to_comm==upid){
             strcat(temp, GLOBARG"float * ");
             strcat(temp, vars[i].name);
+            if (adj>0){
+                strcat(temp, "r");
+            }
             strcat(temp, ", ");
             strcat(temp, GLOBARG"float * ");
             strcat(temp, vars[i].name);
+            if (adj>0){
+                strcat(temp, "r");
+            }
             if (buff12==1)
                 strcat(temp, "_buf1, ");
             else if (buff12==2)
@@ -1203,10 +1209,10 @@ int kernel_fcom_out(device * dev,
     if (dev->LOCAL_OFF==0){
         for (i=0;i<dev->NDIM;i++){
             #ifdef __SEISCL__
-            sprintf(ptemp,"    int gid%s=get_global_id(%d)+FDOH;\n",
+            sprintf(ptemp,"    int gid%s=get_global_id(%d);\n",
                     dev->N_names[i],i );
             #else
-            sprintf(ptemp,"    int gid%s=blockIdx.%s*blockDim.%s + threadIdx.%s+FDOH;\n",
+            sprintf(ptemp,"    int gid%s=blockIdx.%s*blockDim.%s + threadIdx.%s;\n",
                             dev->N_names[i],names[i],names[i] ,names[i]  );
             #endif
             strcat(temp, ptemp);
@@ -1253,6 +1259,9 @@ int kernel_fcom_out(device * dev,
         if (i!=dev->NDIM-1){
             strcat(temp, "+");
         }
+        else{
+            strcat(temp, ";\n");
+        }
     }
     char temp2[100]={0};
     if (buff12==1){
@@ -1261,13 +1270,12 @@ int kernel_fcom_out(device * dev,
     }
     else{
         sprintf(temp2,"    if (idbuf>%d-1){\n",
-                (int)(vars[0].cl_buf1.size/sizeof(float)));
+                (int)(vars[0].cl_buf2.size/sizeof(float)));
     }
     strcat(temp,temp2);
     strcat(temp,  "        return;\n"
-           "    };\n\n");
-    
-    strcat(temp,";\n");
+           "    }\n\n");
+
     strcat(temp,"    int idvar=");
     for (i=0;i<dev->NDIM;i++){
         if (i!=dev->NDIM-1)
@@ -1292,8 +1300,14 @@ int kernel_fcom_out(device * dev,
     
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_comm==upid){
-            sprintf(ptemp,"    %s_buf%d[idbuf]=%s[idvar];\n",
-                          vars[i].name, buff12, vars[i].name);
+            if (adj==0){
+                sprintf(ptemp,"    %s_buf%d[idbuf]=%s[idvar];\n",
+                        vars[i].name, buff12, vars[i].name);
+            }
+            else{
+                sprintf(ptemp,"    %sr_buf%d[idbuf]=%sr[idvar];\n",
+                        vars[i].name, buff12, vars[i].name);
+            }
             strcat(temp, ptemp);
         }
     }
@@ -1301,7 +1315,7 @@ int kernel_fcom_out(device * dev,
     strcat(temp, "\n}");
     
     
-//    printf("%s\n\n%lu\n",temp, strlen(temp));
+    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     
     (*prog).src=temp;
@@ -1315,7 +1329,7 @@ int kernel_fcom_out(device * dev,
 int kernel_fcom_in(device * dev,
                    variable * vars,
                    clprogram * prog,
-                   int upid, int buff12){
+                   int upid, int buff12, int adj){
     
     int state=0;
     int i,j;
@@ -1337,9 +1351,15 @@ int kernel_fcom_in(device * dev,
         if (vars[i].to_comm==upid){
             strcat(temp, GLOBARG"float * ");
             strcat(temp, vars[i].name);
+            if (adj>0){
+                strcat(temp, "r");
+            }
             strcat(temp, ", ");
             strcat(temp, GLOBARG"float * ");
             strcat(temp, vars[i].name);
+            if (adj>0){
+                strcat(temp, "r");
+            }
             if (buff12==1)
                 strcat(temp, "_buf1, ");
             else if (buff12==2)
@@ -1356,10 +1376,10 @@ int kernel_fcom_in(device * dev,
     if (dev->LOCAL_OFF==0){
         for (i=0;i<dev->NDIM;i++){
             #ifdef __SEISCL__
-            sprintf(ptemp,"    int gid%s=get_global_id(%d)+FDOH;\n",
+            sprintf(ptemp,"    int gid%s=get_global_id(%d);\n",
                     dev->N_names[i],i );
             #else
-            sprintf(ptemp,"    int gid%s=blockIdx.%s*blockDim.%s + threadIdx.%s+FDOH;\n",
+            sprintf(ptemp,"    int gid%s=blockIdx.%s*blockDim.%s + threadIdx.%s;\n",
                     dev->N_names[i],names[i],names[i] ,names[i]  );
             #endif
             strcat(temp, ptemp);
@@ -1448,6 +1468,14 @@ int kernel_fcom_in(device * dev,
         if (vars[i].to_comm==upid){
             sprintf(ptemp,"    %s[idvar]=%s_buf%d[idbuf];\n",
                                vars[i].name, vars[i].name, buff12);
+            if (adj==0){
+                sprintf(ptemp,"    %s[idvar]=%s_buf%d[idbuf];\n",
+                        vars[i].name, vars[i].name, buff12);
+            }
+            else{
+                sprintf(ptemp,"    %sr[idvar]=%sr_buf%d[idbuf];\n",
+                        vars[i].name, vars[i].name, buff12);
+            }
             strcat(temp, ptemp);
         }
     }

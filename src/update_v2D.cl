@@ -411,10 +411,12 @@ FUNDEF void update_v(int offcomm,
 // Absorbing boundary
 #if ABS_TYPE==2
     {
+#if FREESURF==0
         if (gidz-FDOH<NAB){
             vx(gidz,gidx)*=taper[gidz-FDOH];
             vz(gidz,gidx)*=taper[gidz-FDOH];
         }
+#endif
         
         if (gidz>NZ-NAB-FDOH-1){
             vx(gidz,gidx)*=taper[NZ-FDOH-gidz-1];

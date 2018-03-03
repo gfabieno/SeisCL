@@ -13,6 +13,7 @@
 #include "savebnd2D.hcl"
 #include "savebnd3D.hcl"
 #include "surface2D.hcl"
+#include "surface2D_adj.hcl"
 #include "surface2D_SH.hcl"
 #include "surface3D.hcl"
 #include "update_adjs2D.hcl"
@@ -950,6 +951,7 @@ int assign_modeling_case(model * m){
     const char * updatev_adj;
     const char * updates_adj;
     const char * surface;
+    const char * surface_adj;
     const char * savebnd;
     if (m->ND==3 ){
         if (m->FP16==0){
@@ -978,6 +980,7 @@ int assign_modeling_case(model * m){
             updatev_adj = update_adjv2D_source;
             updates_adj = update_adjs2D_source;
             surface = surface2D_source;
+            surface_adj = surface2D_adj_source;
             savebnd = savebnd2D_source;
         }
         else{
@@ -1030,6 +1033,10 @@ int assign_modeling_case(model * m){
     }
     if (m->FREESURF){
         __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface);
+        if (m->GRADOUT){
+            __GUARD prog_source(&m->bnd_cnds.surf_adj,
+                                "surface_adj", surface_adj);
+        }
     }
     if (m->GRADOUT && m->BACK_PROP_TYPE==1){
         __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd);
@@ -1091,20 +1098,20 @@ int assign_modeling_case(model * m){
         __GUARD append_var(m, &ind, "vz", 1, 1, &size_varseis);
     }
     if (m->ND==2 || m->ND==3){
-        __GUARD append_var(m, &ind, "sxx", 1, 1, &size_varseis);
-        __GUARD append_var(m, &ind, "szz", 1, 1, &size_varseis);
-        __GUARD append_var(m, &ind, "sxz", 1, 1, &size_varseis);
+        __GUARD append_var(m, &ind, "sxx", 1, 2, &size_varseis);
+        __GUARD append_var(m, &ind, "szz", 1, 2, &size_varseis);
+        __GUARD append_var(m, &ind, "sxz", 1, 2, &size_varseis);
     }
     if (m->ND==21 || m->ND==3){
         
-        __GUARD append_var(m, &ind, "sxy", 1, 1, &size_varseis);
-        __GUARD append_var(m, &ind, "syz", 1, 1, &size_varseis);
+        __GUARD append_var(m, &ind, "sxy", 1, 2, &size_varseis);
+        __GUARD append_var(m, &ind, "syz", 1, 2, &size_varseis);
     }
     if (m->ND==3){
-        __GUARD append_var(m, &ind, "syy", 1, 1, &size_varseis);
+        __GUARD append_var(m, &ind, "syy", 1, 2, &size_varseis);
     }
     if (m->ND==22){
-        __GUARD append_var(m, &ind, "p", 1, 1, &size_varseis);
+        __GUARD append_var(m, &ind, "p", 1, 2, &size_varseis);
     }
     if (m->L>0){
         if (m->ND==2 || m->ND==3){
@@ -1178,6 +1185,7 @@ int assign_modeling_case(model * m){
             m->vars_adj[i]=m->vars[i];
         }
     }
+    
 
     //Assign dimensions name
     if (m->ND==3){

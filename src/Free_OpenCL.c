@@ -23,6 +23,7 @@
 void clbuf_free(device *dev, clbuf *buf){
 
     if (buf->mem) MEMFREE(buf->mem);
+    buf->mem = NULL;
     
     #ifdef __SEISCL__
     if (buf->pin) clEnqueueUnmapMemObject(dev->queuecomm,
@@ -34,7 +35,9 @@ void clbuf_free(device *dev, clbuf *buf){
     else if (buf->free_host){
         GFree(buf->host);
     }
+    buf->host = NULL;
     if (buf->pin) clReleaseMemObject(buf->pin);
+    buf->pin = NULL;
     #else
     
     if (buf->free_host){
@@ -74,6 +77,17 @@ void variable_freeCL(device *dev, variable * var){
     
     clbuf_free(dev, &var->cl_var);
     clbuf_free(dev, &var->cl_varout);
+    clbuf_free(dev, &var->cl_varbnd);
+    clbuf_free(dev, &var->cl_fvar);
+    clbuf_free(dev, &var->cl_fvar_adj);
+    clbuf_free(dev, &var->cl_buf1);
+    clbuf_free(dev, &var->cl_buf2);
+    clbuf_free(dev, &var->cl_var_res);
+    
+}
+void variable_adj_freeCL(device *dev, variable * var){
+    
+    clbuf_free(dev, &var->cl_var);
     clbuf_free(dev, &var->cl_varbnd);
     clbuf_free(dev, &var->cl_fvar);
     clbuf_free(dev, &var->cl_fvar_adj);
@@ -179,7 +193,7 @@ void update_freeCL(update * up){
     clprogram_freeCL(&up->fcom1_out);
     clprogram_freeCL(&up->fcom2_out);
     clprogram_freeCL(&up->fcom1_in);
-    clprogram_freeCL(&up->fcom2_out);
+    clprogram_freeCL(&up->fcom2_in);
     GFree(up->v2com)
 }
 
@@ -191,7 +205,7 @@ void update_freeGL(update * up){
     clprogram_freeGL(&up->fcom1_out);
     clprogram_freeGL(&up->fcom2_out);
     clprogram_freeGL(&up->fcom1_in);
-    clprogram_freeGL(&up->fcom2_out);
+    clprogram_freeGL(&up->fcom2_in);
     GFree(up->v2com)
 }
 
@@ -240,7 +254,7 @@ void device_free(device * dev){
     }
     if (dev->vars_adj){
         for (i=0;i<dev->nvars;i++){
-            variable_freeCL(dev, &dev->vars_adj[i]);
+            variable_adj_freeCL(dev, &dev->vars_adj[i]);
         }
         GFree(dev->vars_adj);
     }
@@ -345,15 +359,15 @@ void model_free(model * m){
     
 }
 
-int Free_OpenCL(model * m, device ** dev)  {
+int Free_OpenCL(model * m, device * dev)  {
     // Free all memory contained in all structures listed in F.h
     int d;
-    if (*dev){
+    if (dev){
         for (d=0;d<m->NUM_DEVICES;d++){
-            device_free(dev[d]);
+            device_free( &dev[d]);
         }
     }
-    GFree(*dev);
+    GFree(dev);
     model_free(m);
     
     return 0;

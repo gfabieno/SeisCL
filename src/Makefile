@@ -35,6 +35,7 @@ SeisCL_CL= \
 	savebnd2D.cl \
 	savebnd3D.cl \
 	surface2D.cl \
+    surface2D_adj.cl \
 	surface2D_SH.cl \
 	surface3D.cl \
 	update_adjs2D.cl \

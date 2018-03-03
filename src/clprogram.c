@@ -596,6 +596,18 @@ int prog_create(model * m,
                     argfound=1;
                     break;
                 }
+                sprintf(str2comp,"%sr_buf1",(*dev).vars[j].name);
+                if (strcmp(str2comp,(*prog).input_list[i])==0){
+                    prog_arg(prog, i, &(*dev).vars_adj[j].cl_buf1.mem, memsize);
+                    argfound=1;
+                    break;
+                }
+                sprintf(str2comp,"%sr_buf2",(*dev).vars[j].name);
+                if (strcmp(str2comp,(*prog).input_list[i])==0){
+                    prog_arg(prog, i, &(*dev).vars_adj[j].cl_buf2.mem, memsize);
+                    argfound=1;
+                    break;
+                }
                 sprintf(str2comp,"scaler_%s",(*dev).vars[j].name);
                 if (strcmp(str2comp,(*prog).input_list[i])==0){
                     prog_arg(prog, i, &(*dev).vars[j].scaler, sizeof(int));
@@ -741,8 +753,12 @@ int prog_launch( QUEUE *inqueue, clprogram * prog){
     #ifdef __SEISCL__
     cl_event * event=NULL;
     size_t * lsize=NULL;
-    if (prog->outevent)
+    if (prog->outevent){
+        if (prog->event){
+            state =  clReleaseEvent(prog->event);
+        }
         event=&prog->event;
+    }
     if (prog->lsize[0]!=0)
         lsize=prog->lsize;
     

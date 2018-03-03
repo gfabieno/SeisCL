@@ -302,6 +302,7 @@ typedef struct update{
 typedef struct boundary_conditions{
     
     clprogram surf;
+    clprogram surf_adj;
     clprogram init_f;
     clprogram init_adj;
 
@@ -521,7 +522,7 @@ int Out_MPI(model * m);
 
 int writehdf5(struct filenames file, model * m);
 
-int Free_OpenCL(model * m, device ** dev) ;
+int Free_OpenCL(model * m, device * dev) ;
 
 const char *clerrors(int err);
 
@@ -572,13 +573,15 @@ int kernel_fcom_out(device * dev,
                     variable * vars,
                     clprogram * prog,
                     int upid,
-                    int buff12);
+                    int buff12,
+                    int adj);
 
 int kernel_fcom_in(device * dev,
                    variable * vars,
                    clprogram * prog,
                    int upid,
-                   int buff12);
+                   int buff12,
+                   int adj);
 
 int kernel_sources(device * dev,
                    clprogram * prog);

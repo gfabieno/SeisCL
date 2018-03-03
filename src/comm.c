@@ -32,11 +32,11 @@ int comm1_MPI(model * m, device ** dev, int adj, int ui){
     //Then send to device buf1. The last buf_1 in the list to transmit outputs
     // an event for fcom1_in.
     if (adj && m->BACK_PROP_TYPE==1){
-        for (i=0;i<m->ups_adj[ui].nvcom;i++){
+        for (i=0;i<(*dev)[0].ups_adj[ui].nvcom;i++){
             __GUARD clWaitForEvents(1,
                                &(*dev)[0].ups_adj[i].v2com[i]->cl_buf1.event_r);
-            __GUARD clReleaseEvent(
-                                (*dev)[0].ups_adj[i].v2com[i]->cl_buf1.event_r);
+//            __GUARD clReleaseEvent(
+//                                (*dev)[0].ups_adj[i].v2com[i]->cl_buf1.event_r);
             
             MPI_Sendrecv_replace(
              (void*)(*dev)[0].ups_adj[i].v2com[i]->cl_buf1.host,
@@ -53,14 +53,14 @@ int comm1_MPI(model * m, device ** dev, int adj, int ui){
                                &(*dev)[0].ups_adj[ui].v2com[i]->cl_buf1);
         }
     }
-    for (i=0;i<m->ups_f[ui].nvcom;i++){
+    for (i=0;i<(*dev)[0].ups_f[ui].nvcom;i++){
         __GUARD clWaitForEvents(1,
-                                &(*dev)[0].ups_f[i].v2com[i]->cl_buf1.event_r);
-        __GUARD clReleaseEvent(  (*dev)[0].ups_f[i].v2com[i]->cl_buf1.event_r);
+                                &(*dev)[0].ups_f[ui].v2com[i]->cl_buf1.event_r);
+//        __GUARD clReleaseEvent(  (*dev)[0].ups_f[ui].v2com[i]->cl_buf1.event_r);
         
         MPI_Sendrecv_replace(
-                    (void*)(*dev)[0].ups_f[i].v2com[i]->cl_buf1.host,
-                    (int)(*dev)[0].ups_f[i].v2com[i]->cl_buf1.size/sizeof(float),
+                    (void*)(*dev)[0].ups_f[ui].v2com[i]->cl_buf1.host,
+                    (int)(*dev)[0].ups_f[ui].v2com[i]->cl_buf1.size/sizeof(float),
                     MPI_FLOAT,
                     m->MYID-1,
                     i,
@@ -90,11 +90,11 @@ int comm2_MPI(model * m, device ** dev, int adj, int ui){
     //Then send to device buf2. The last buf_2 in the list to transmit outputs
     // an event for fcom2_in.
     if (adj && m->BACK_PROP_TYPE==1){
-        for (i=0;i<m->ups_adj[ui].nvcom;i++){
+        for (i=0;i<(*dev)[0].ups_adj[ui].nvcom;i++){
             __GUARD clWaitForEvents(1,
                               &(*dev)[ld].ups_adj[i].v2com[i]->cl_buf2.event_r);
-            __GUARD clReleaseEvent(
-                               (*dev)[ld].ups_adj[i].v2com[i]->cl_buf2.event_r);
+//            __GUARD clReleaseEvent(
+//                               (*dev)[ld].ups_adj[i].v2com[i]->cl_buf2.event_r);
             
             MPI_Sendrecv_replace(
                 (void*)(*dev)[ld].ups_adj[i].v2com[i]->cl_buf2.host,
@@ -110,19 +110,19 @@ int comm2_MPI(model * m, device ** dev, int adj, int ui){
                                &(*dev)[ld].ups_adj[ui].v2com[i]->cl_buf2);
         }
     }
-    for (i=0;i<m->ups_f[ui].nvcom;i++){
+    for (i=0;i<(*dev)[0].ups_f[ui].nvcom;i++){
         __GUARD clWaitForEvents(1,
-                                &(*dev)[ld].ups_f[i].v2com[i]->cl_buf2.event_r);
-        __GUARD clReleaseEvent(  (*dev)[ld].ups_f[i].v2com[i]->cl_buf2.event_r);
+                                &(*dev)[ld].ups_f[ui].v2com[i]->cl_buf2.event_r);
+//        __GUARD clReleaseEvent(  (*dev)[ld].ups_f[ui].v2com[i]->cl_buf2.event_r);
         
         MPI_Sendrecv_replace(
-                  (void*)(*dev)[ld].ups_f[i].v2com[i]->cl_buf2.host,
-                  (int)(*dev)[ld].ups_f[i].v2com[i]->cl_buf2.size/sizeof(float),
+                  (void*)(*dev)[ld].ups_f[ui].v2com[i]->cl_buf2.host,
+                  (int)(*dev)[ld].ups_f[ui].v2com[i]->cl_buf2.size/sizeof(float),
                   MPI_FLOAT,
                   m->MYID+1,
-                  m->ups_f[ui].nvcom+i,
+                  (*dev)[0].ups_f[ui].nvcom+i,
                   m->MYID+1,
-                  m->ups_f[ui].nvcom+i,
+                  (*dev)[0].ups_f[ui].nvcom+i,
                   MPI_COMM_WORLD,
                   NULL);
         __GUARD clbuf_send(&(*dev)[ld].queuecomm,
@@ -145,167 +145,165 @@ int comm(model * m, device ** dev, int adj, int ui){
     if (m->MYLOCALID>0){
         //For all MPI processes except the first, com1 must occur on the firt
         //device
-        
-        
+
+
         //The first buffer cl_buf1 in the list must wait on the kernel fcom1
         //All buffers reading must output an event for MPI communications
         if (adj && m->BACK_PROP_TYPE==1){
-            for (i=0;i<m->ups_adj[ui].nvcom;i++){
+            for (i=0;i<(*dev)[0].ups_adj[ui].nvcom;i++){
                 __GUARD clbuf_readto(&(*dev)[0].queuecomm,
                                       &(*dev)[0].ups_adj[ui].v2com[i]->cl_buf1,
                                       &(*dev)[0].ups_adj[ui].v2com[i]->cl_buf1.host);
             }
         }
-        for (i=0;i<m->ups_f[ui].nvcom;i++){
+        for (i=0;i<(*dev)[0].ups_f[ui].nvcom;i++){
             __GUARD clbuf_readto(&(*dev)[0].queuecomm,
                                   &(*dev)[0].ups_f[ui].v2com[i]->cl_buf1,
                                   &(*dev)[0].ups_f[ui].v2com[i]->cl_buf1.host);
         }
-        //We can realease the fcom1 event, it is no longer needed.
-        if (adj){
-            __GUARD clReleaseEvent((*dev)[0].ups_adj[i].fcom1_out.event);
-        }
-        else{
-            __GUARD clReleaseEvent((*dev)[0].ups_f[i].fcom1_out.event);
-        }
-        
+//        //We can realease the fcom1 event, it is no longer needed.
+//        if (adj){
+//            __GUARD clReleaseEvent((*dev)[0].ups_adj[ui].fcom1_out.event);
+//        }
+//        else{
+//            __GUARD clReleaseEvent((*dev)[0].ups_f[ui].fcom1_out.event);
+//        }
+
     }
     if (m->MYLOCALID<m->NLOCALP-1){
         //For all MPI processes except the last, com2 must occur on the last
         //device
-        
+
         ld=m->NUM_DEVICES-1;
-        
+
         //The first buffer cl_buf2 in the list must wait on the kernel fcom2
         //All buffers reading must output an event for MPI communications
         if (adj && m->BACK_PROP_TYPE==1){
-            for (i=0;i<m->ups_adj[ui].nvcom;i++){
+            for (i=0;i<(*dev)[0].ups_adj[ui].nvcom;i++){
                 __GUARD clbuf_readto(&(*dev)[ld].queuecomm,
                                       &(*dev)[ld].ups_adj[ui].v2com[i]->cl_buf2,
                                       &(*dev)[ld].ups_adj[ui].v2com[i]->cl_buf2.host);
             }
         }
-        for (i=0;i<m->ups_f[ui].nvcom;i++){
+        for (i=0;i<(*dev)[0].ups_f[ui].nvcom;i++){
             __GUARD clbuf_readto( &(*dev)[ld].queuecomm,
                                   &(*dev)[ld].ups_f[ui].v2com[i]->cl_buf2,
                                   &(*dev)[ld].ups_f[ui].v2com[i]->cl_buf2.host);
         }
         //We can realease the fcom2 event, it is no longer needed.
-        if (adj){
-            __GUARD clReleaseEvent((*dev)[ld].ups_adj[i].fcom2_out.event);
-        }
-        else{
-            __GUARD clReleaseEvent((*dev)[ld].ups_f[i].fcom2_out.event);
-        }
-        
+//        if (adj){
+//            __GUARD clReleaseEvent((*dev)[ld].ups_adj[ui].fcom2_out.event);
+//        }
+//        else{
+//            __GUARD clReleaseEvent((*dev)[ld].ups_f[ui].fcom2_out.event);
+//        }
+
     }
-    
+
     //Read buffers for comunnication between devices
     for (d=0;d<m->NUM_DEVICES;d++){
 
         if (d>0){
             //For all devices except the first, com1 must occur
-            
+
             //The first buffer cl_buf2 in the list must wait on the kernel
             //fcom2 of the previous device
             //The last buf2 in the list must output an event
             if (adj && m->BACK_PROP_TYPE==1){
-                for (i=0;i<m->ups_adj[ui].nvcom;i++){
+                for (i=0;i<(*dev)[0].ups_adj[ui].nvcom;i++){
                     __GUARD clbuf_readto(
                                     &(*dev)[d-1].queuecomm,
                                     &(*dev)[d-1].ups_adj[ui].v2com[i]->cl_buf2,
-                                          &(*dev)[d  ].ups_adj[ui].v2com[i]->cl_buf1.host);
+                                          (*dev)[d  ].ups_adj[ui].v2com[i]->cl_buf1.host);
                 }
             }
-            for (i=0;i<m->ups_f[ui].nvcom;i++){
+            for (i=0;i<(*dev)[0].ups_f[ui].nvcom;i++){
                 __GUARD clbuf_readto(&(*dev)[d-1].queuecomm,
                                       &(*dev)[d-1].ups_f[ui].v2com[i]->cl_buf2,
-                                      &(*dev)[d  ].ups_f[ui].v2com[i]->cl_buf1.host);
+                                      (*dev)[d  ].ups_f[ui].v2com[i]->cl_buf1.host);
             }
             //We can realease the fcom2 event, it is no longer needed.
-            if (adj){
-                __GUARD clReleaseEvent((*dev)[d-1].ups_adj[i].fcom2_out.event);
-            }
-            else{
-                __GUARD clReleaseEvent((*dev)[d-1].ups_f[i].fcom2_out.event);
-            }
+//            if (adj){
+//                __GUARD clReleaseEvent(*(*dev)[d-1].ups_adj[ui].v2com[0]->cl_buf2.waits_r);
+//            }
+//            else{
+//                __GUARD clReleaseEvent(*(*dev)[d-1].ups_f[ui].v2com[0]->cl_buf2.waits_r);
+//            }
         }
-        
+
         if (d<m->NUM_DEVICES-1){
             //For all devices except the last, com2 must occur
-            
+
             //The first buffer cl_buf1 in the list must wait on the kernel
             //fcom1 of the next device
             //The last buf1 in the list must output an event
-            
+
             if (adj && m->BACK_PROP_TYPE==1){
-                for (i=0;i<m->ups_adj[ui].nvcom;i++){
+                for (i=0;i<(*dev)[0].ups_adj[ui].nvcom;i++){
                     __GUARD clbuf_readto(
                                     &(*dev)[d+1].queuecomm,
                                     &(*dev)[d+1].ups_adj[ui].v2com[i]->cl_buf1,
-                                    &(*dev)[d  ].ups_adj[ui].v2com[i]->cl_buf2.host);
+                                    (*dev)[d  ].ups_adj[ui].v2com[i]->cl_buf2.host);
                 }
             }
-            for (i=0;i<m->ups_f[ui].nvcom;i++){
+            for (i=0;i<(*dev)[0].ups_f[ui].nvcom;i++){
                 __GUARD clbuf_readto(&(*dev)[d+1].queuecomm,
                                       &(*dev)[d+1].ups_f[ui].v2com[i]->cl_buf1,
-                                      &(*dev)[d  ].ups_f[ui].v2com[i]->cl_buf2.host);
+                                      (*dev)[d  ].ups_f[ui].v2com[i]->cl_buf2.host);
             }
             //We can realease the fcom1 event, it is no longer needed.
-            if (adj){
-                __GUARD clReleaseEvent((*dev)[d+1].ups_adj[i].fcom1_out.event);
-            }
-            else{
-                __GUARD clReleaseEvent((*dev)[d+1].ups_f[i].fcom1_out.event);
-            }
-            
+//            if (adj){
+//                __GUARD clReleaseEvent(*(*dev)[d+1].ups_adj[ui].v2com[0]->cl_buf1.waits_r);
+//            }
+//            else{
+//                __GUARD clReleaseEvent(*(*dev)[d+1].ups_f[ui].v2com[0]->cl_buf1.waits_r);
+//            }
+
         }
-        
+
     }
-    
+
     //Write buffers for comunnication between devices
     for (d=0;d<m->NUM_DEVICES;d++){
-        
+
         if (d>0){
-            
+
             //We must transfer buf1 from the host to the device. The first buf1
             //transfer must wait on the buf2 receive of the previous device
             //The last buf1 on the list must output an event for fcom1_in
             if (adj && m->BACK_PROP_TYPE==1){
-                for (i=0;i<m->ups_adj[ui].nvcom;i++){
+                for (i=0;i<(*dev)[0].ups_adj[ui].nvcom;i++){
                    __GUARD clbuf_send(&(*dev)[d].queuecomm,
                                       &(*dev)[d].ups_adj[ui].v2com[i]->cl_buf1);
                 }
             }
-            for (i=0;i<m->ups_f[ui].nvcom;i++){
-                __GUARD clbuf_send(
-                                   &(*dev)[d].queuecomm,
+            for (i=0;i<(*dev)[0].ups_f[ui].nvcom;i++){
+                __GUARD clbuf_send(&(*dev)[d].queuecomm,
                                    &(*dev)[d].ups_f[ui].v2com[i]->cl_buf1);
             }
-            __GUARD clReleaseEvent(
-              (*dev)[d-1].ups_f[i].v2com[m->ups_f[i].nvcom-1]->cl_buf2.event_r);
-            
+//            __GUARD clReleaseEvent(
+//              (*dev)[d-1].ups_f[ui].v2com[(*dev)[0].ups_f[ui].nvcom-1]->cl_buf2.event_r);
+
         }
-        
+
         if (d<m->NUM_DEVICES-1){
-            
+
             //We must transfer buf2 from the host to the device. The first buf2
-            //transfer must wait on the buf1 receive of the previous device
+            //transfer must wait on the buf1 receive of the next device
             if (adj && m->BACK_PROP_TYPE==1){
-                for (i=0;i<m->ups_adj[ui].nvcom;i++){
+                for (i=0;i<(*dev)[0].ups_adj[ui].nvcom;i++){
                    __GUARD clbuf_send(&(*dev)[d].queuecomm,
                                       &(*dev)[d].ups_adj[ui].v2com[i]->cl_buf2);
                 }
             }
-            for (i=0;i<m->ups_f[ui].nvcom;i++){
-                __GUARD clbuf_send(
-                                   &(*dev)[d].queuecomm,
+            for (i=0;i<(*dev)[0].ups_f[ui].nvcom;i++){
+                __GUARD clbuf_send(&(*dev)[d].queuecomm,
                                    &(*dev)[d].ups_f[ui].v2com[i]->cl_buf2);
             }
-            __GUARD clReleaseEvent(
-              (*dev)[d+1].ups_f[i].v2com[m->ups_f[i].nvcom-1]->cl_buf1.event_r);
+//            __GUARD clReleaseEvent(
+//              (*dev)[d+1].ups_f[ui].v2com[(*dev)[0].ups_f[ui].nvcom-1]->cl_buf1.event_r);
         }
-        
+
     }
     
     //Sends those commands to the compute devices
@@ -340,7 +338,8 @@ int comm(model * m, device ** dev, int adj, int ui){
 
 int comm(model * m, device ** dev, int adj, int ui){
     
-    return 0;
+    fprintf(stderr, "Error: Model decomposition not implemented in CUDA\n");
+    return 1;
     
 }
 
