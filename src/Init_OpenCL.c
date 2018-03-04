@@ -963,34 +963,39 @@ int Init_CUDA(model * m, device ** dev)  {
                                              &di->vars_adj[i].cl_buf2);
                 }
             }
-            
+            int lenz;
+            if (m->FREESURF==0){
+                lenz = di->N[0]-2*m->NAB-2*m->FDOH;
+            }
+            else{
+                lenz = di->N[0]-m->NAB-m->FDOH;
+            }
             if (m->ND==3){// For 3D
                 if (m->NUM_DEVICES==1 && m->NLOCALP==1)
                     di->NBND=(di->N[2]-2*m->NAB)*(di->N[1]-2*m->NAB)*2*m->FDOH
-                    +(di->N[2]-2*m->NAB)*(di->N[0]-2*m->NAB-2*m->FDOH)*2*m->FDOH
-                    +(di->N[1]-2*m->NAB-2*m->FDOH)*(di->N[0]-2*m->NAB-2*m->FDOH)
+                    +(di->N[2]-2*m->NAB)*(lenz)*2*m->FDOH
+                    +(di->N[1]-2*m->NAB-2*m->FDOH)*(lenz)
                     *2*m->FDOH;
                 
                 else if ( (d==0 && m->MYGROUPID==0)
                          || (d==m->NUM_DEVICES-1 && m->MYGROUPID==m->NLOCALP-1))
                     di->NBND=(di->N[2]-m->NAB)*(di->N[1]-2*m->NAB)*2*m->FDOH
-                    +(di->N[2]-m->NAB)*(di->N[0]-2*m->NAB-2*m->FDOH)*2*m->FDOH
-                    +(di->N[1]-2*m->NAB-2*m->FDOH)*(di->N[0]-2*m->NAB-2*m->FDOH)
-                    *m->FDOH;
+                    +(di->N[2]-m->NAB)*(lenz)*2*m->FDOH
+                    +(di->N[1]-2*m->NAB-2*m->FDOH)*(lenz)*m->FDOH;
                 
                 else
                     di->NBND=di->N[2]*(di->N[1]-2*m->NAB)*2*m->FDOH+
-                    di->N[2]*(di->N[0]-2*m->NAB-2*m->FDOH)*2*m->FDOH;
+                    di->N[2]*(lenz)*2*m->FDOH;
             }
             else{
                 if (m->NUM_DEVICES==1 && m->NLOCALP==1)
                     di->NBND=(di->N[1]-2*m->NAB)*2*m->FDOH+
-                    (di->N[0]-2*m->NAB-2*m->FDOH)*2*m->FDOH;
+                    (lenz)*2*m->FDOH;
                 
                 else if ( (d==0 && m->MYGROUPID==0)
                          || (d==m->NUM_DEVICES-1 && m->MYGROUPID==m->NLOCALP-1))
-                    di->NBND=(di->N[0]-2*m->NAB-m->FDOH)*2*m->FDOH+
-                                (di->N[1]-m->NAB)*m->FDOH;
+                    di->NBND=(lenz)*m->FDOH+
+                                (di->N[1]-m->NAB)*2*m->FDOH;
                 
                 else
                     di->NBND= (di->N[1])*2*m->FDOH;

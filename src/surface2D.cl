@@ -76,10 +76,13 @@
 
 
 __kernel void surface(        __global float *vx,         __global float *vz,
-                              __global float *sxx,        __global float *szz,      __global float *sxz,
-                              __global float *M,         __global float *mu,        __global float *rxx,
-                              __global float *rzz,        __global float *taus,     __global float *taup,
-                              __global float *eta, __global float *K_x, __global float *psi_vx_x, __global float *taper)
+                              __global float *sxx,        __global float *szz,
+                              __global float *sxz,        __global float *M,
+                              __global float *mu,         __global float *rxx,
+                              __global float *rzz,        __global float *taus,
+                              __global float *taup,       __global float *eta,
+                              __global float *K_x,        __global float *psi_vx_x,
+                              __global float *taper, pdir)
 {
     /*Indice definition */
     int gidx = get_global_id(0) + FDOH;
@@ -229,7 +232,7 @@ __kernel void surface(        __global float *vx,         __global float *vz,
 #endif
     }
 #endif
-    sxx(gidz,  gidx)+=h;
+    sxx(gidz,  gidx)+=pdir*h;
 #else
     float b,d,e;
     /* partially updating sxx  in the same way*/
@@ -252,7 +255,7 @@ __kernel void surface(        __global float *vx,         __global float *vz,
 #endif
     }
 #endif
-    sxx(gidz,  gidx)+=h-(DT/2.0*rxx(gidz,  gidx));
+    sxx(gidz,  gidx)+=pdir*(h-(DT/2.0*rxx(gidz,  gidx)));
 
     /* updating the memory-variable rxx at the free surface */
 
@@ -261,11 +264,11 @@ __kernel void surface(        __global float *vx,         __global float *vz,
     for (m=0;m<LVE;m++){
         b=eta[m]/(1.0+(eta[m]*0.5));
         h=b*(((d-e)*((f/g)-1.0)*(vxx+vyy))-((d-e)*vzz));
-        rxx(gidz,  gidx)+=h;
+        rxx(gidz,  gidx)+=pdir*h;
     }
 
     /*completely updating the stresses sxx  */
-    sxx(gidz,  gidx)+=(DT/2.0*rxx(gidz,  gidx));
+    sxx(gidz,  gidx)+=pdir*(DT/2.0*rxx(gidz,  gidx));
 
 #endif
     

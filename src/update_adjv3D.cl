@@ -20,7 +20,7 @@
 /*Adjoint update of the velocities in 3D SV*//
 
 /*Define useful macros to be able to write a matrix formulation in 2D with OpenCl */
-#define lbnd (FDOH+NAB)
+
 
 #define rho(z,y,x)     rho[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define rip(z,y,x)     rip[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
@@ -111,12 +111,20 @@ int evarm( int k, int j, int i){
 
     int NXbnd = (NX-2*FDOH-2*NAB);
     int NYbnd = (NY-2*FDOH-2*NAB);
-    int NZbnd = (NZ-2*FDOH-2*NAB);
+#if FREESURF==0
+    int NZbnd = (NZ- 2*FDOH- 2*NAB);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH+NAB;
+#else
+    int NZbnd = (NZ- 2*FDOH- NAB);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH;
+#endif
 
     int m=-1;
     i-=lbnd;
     j-=lbnd;
-    k-=lbnd;
+    k-=lbnds;
     
     if ( (k>FDOH-1 && k<NZbnd-FDOH) && (j>FDOH-1 && j<NYbnd-FDOH) && (i>FDOH-1 && i<NXbnd-FDOH) )
         m=-1;
@@ -141,13 +149,15 @@ int evarm( int k, int j, int i){
     else if (k<FDOH){//up
         i=i-FDOH;
         j=j-FDOH;
-        m=NYbnd*NZbnd*FDOH*2+(NXbnd-2*FDOH)*NZbnd*FDOH*2+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
+        m=NYbnd*NZbnd*FDOH*2+(NXbnd-2*FDOH)*NZbnd*FDOH*2+(NXbnd-2*FDOH)*(NYbnd-2*FDOH)*FDOH+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
+
+        
     }
     else {//down
         i=i-FDOH;
         j=j-FDOH;
         k=k-NZbnd+FDOH;
-        m=NYbnd*NZbnd*FDOH*2+(NXbnd-2*FDOH)*NZbnd*FDOH*2+(NXbnd-2*FDOH)*(NYbnd-2*FDOH)*FDOH+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
+        m=NYbnd*NZbnd*FDOH*2+(NXbnd-2*FDOH)*NZbnd*FDOH*2+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
     }
     
     
@@ -155,12 +165,20 @@ int evarm( int k, int j, int i){
 #elif DEVID==0 & MYGROUPID==0
     int NXbnd = (NX-2*FDOH-NAB);
     int NYbnd = (NY-2*FDOH-2*NAB);
-    int NZbnd = (NZ-2*FDOH-2*NAB);
+#if FREESURF==0
+    int NZbnd = (NZ- 2*FDOH- 2*NAB);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH+NAB;
+#else
+    int NZbnd = (NZ- 2*FDOH- NAB);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH;
+#endif
     
     int m=-1;
     i-=lbnd;
     j-=lbnd;
-    k-=lbnd;
+    k-=lbnds;
     
     if ( (k>FDOH-1 && k<NZbnd-FDOH) && (j>FDOH-1 && j<NYbnd-FDOH) && i>FDOH-1  )
         m=-1;
@@ -181,23 +199,32 @@ int evarm( int k, int j, int i){
     else if (k<FDOH){//up
         i=i-FDOH;
         j=j-FDOH;
-        m=NYbnd*NZbnd*FDOH+(NXbnd-FDOH)*NZbnd*FDOH*2+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
+        m=NYbnd*NZbnd*FDOH+(NXbnd-FDOH)*NZbnd*FDOH*2+(NXbnd-FDOH)*(NYbnd-2*FDOH)*FDOH+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
+        
     }
     else {//down
         i=i-FDOH;
         j=j-FDOH;
         k=k-NZbnd+FDOH;
-        m=NYbnd*NZbnd*FDOH+(NXbnd-FDOH)*NZbnd*FDOH*2+(NXbnd-FDOH)*(NYbnd-2*FDOH)*FDOH+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
+        m=NYbnd*NZbnd*FDOH+(NXbnd-FDOH)*NZbnd*FDOH*2+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
     }
 #elif DEVID==NUM_DEVICES-1 & MYGROUPID==NLOCALP-1
     int NXbnd = (NX-2*FDOH-NAB);
     int NYbnd = (NY-2*FDOH-2*NAB);
-    int NZbnd = (NZ-2*FDOH-2*NAB);
+#if FREESURF==0
+    int NZbnd = (NZ- 2*FDOH- 2*NAB);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH+NAB;
+#else
+    int NZbnd = (NZ- 2*FDOH- NAB);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH;
+#endif
     
     int m=-1;
     i-=FDOH;
     j-=lbnd;
-    k-=lbnd;
+    k-=lbnds;
     
     if ( (k>FDOH-1 && k<NZbnd-FDOH) && (j>FDOH-1 && j<NYbnd-FDOH) && i<NXbnd-FDOH )
         m=-1;
@@ -216,23 +243,32 @@ int evarm( int k, int j, int i){
     }
     else if (k<FDOH){//up
         j=j-FDOH;
-        m=NYbnd*NZbnd*FDOH+(NXbnd-FDOH)*NZbnd*FDOH*2+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
+        m=NYbnd*NZbnd*FDOH+(NXbnd-FDOH)*NZbnd*FDOH*2+(NXbnd-FDOH)*(NYbnd-2*FDOH)*FDOH+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
+        
     }
     else {//down
         j=j-FDOH;
         k=k-NZbnd+FDOH;
-        m=NYbnd*NZbnd*FDOH+(NXbnd-FDOH)*NZbnd*FDOH*2+(NXbnd-FDOH)*(NYbnd-2*FDOH)*FDOH+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
+        m=NYbnd*NZbnd*FDOH+(NXbnd-FDOH)*NZbnd*FDOH*2+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
     }
     
 #else
     int NXbnd = (NX-2*FDOH);
     int NYbnd = (NY-2*FDOH-2*NAB);
-    int NZbnd = (NZ-2*FDOH-2*NAB);
+#if FREESURF==0
+    int NZbnd = (NZ- 2*FDOH- 2*NAB);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH+NAB;
+#else
+    int NZbnd = (NZ- 2*FDOH- NAB);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH;
+#endif
     
     int m=-1;
     i-=FDOH;
     j-=lbnd;
-    k-=lbnd;
+    k-=lbnds;
     
     if ( (k>FDOH-1 && k<NZbnd-FDOH) && (j>FDOH-1 && j<NYbnd-FDOH) )
         m=-1;
@@ -247,12 +283,13 @@ int evarm( int k, int j, int i){
     }
     else if (k<FDOH){//up
         j=j-FDOH;
-        m=NXbnd*NZbnd*FDOH*2+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
+        m=NXbnd*NZbnd*FDOH*2+NXbnd*(NYbnd-2*FDOH)*FDOH+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
+        
     }
     else {//down
         j=j-FDOH;
         k=k-NZbnd+FDOH;
-        m=NXbnd*NZbnd*FDOH*2+NXbnd*(NYbnd-2*FDOH)*FDOH+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
+        m=NXbnd*NZbnd*FDOH*2+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
     }
     
 #endif

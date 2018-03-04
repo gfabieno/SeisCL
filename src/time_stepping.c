@@ -136,17 +136,15 @@ int movout(model * m, device ** dev, int t, int s){
                         Nm[k]=Nm[k]%(*dev)[d].N[l];
                         Nfd[k]=Nm[k]+m->FDOH;
                         for (l=0;l<k;l++){
-                            Nm[k]*=(*dev)[d].N[l]+m->FDORDER;
+                            Nfd[k]*=(*dev)[d].N[l]+m->FDORDER;
                         }
                     }
                     // Linear indice for local buffer
-                    elfd=1;
+                    elfd=0;
                     for (k=0;k<m->NDIM;k++){
-                        for (l=0;l<k;l++){
-                            elfd+=Nfd[k];
-                        }
+                        elfd+=Nfd[k];
                     }
-                    (*dev)[d].vars[i].gl_mov[elm]=(*dev)[d].vars[i].gl_mov[elfd];
+                    (*dev)[d].vars[i].gl_mov[elm]=(*dev)[d].vars[i].cl_var.host[elfd];
                     
                 }
             }
@@ -530,6 +528,9 @@ int time_stepping(model * m, device ** dev) {
             // Apply all updates
             __GUARD update_grid(m, dev);
             
+            // Save the boundaries
+            if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1)
+                __GUARD save_bnd( m, dev, t);
             
             // Computing the free surface
             if (m->FREESURF==1){
@@ -539,9 +540,7 @@ int time_stepping(model * m, device ** dev) {
                 }
             }
             
-            // Save the boundaries
-            if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1)
-                __GUARD save_bnd( m, dev, t);
+
             
             
             // Outputting seismograms
@@ -680,6 +679,12 @@ int time_stepping(model * m, device ** dev) {
                         __GUARD prog_launch( &(*dev)[d].queue,
                                             &(*dev)[d].bnd_cnds.surf_adj);
                     }
+//                    if (m->BACK_PROP_TYPE==1){
+//                        for (d=0;d<m->NUM_DEVICES;d++){
+//                            __GUARD prog_launch( &(*dev)[d].queue,
+//                                                &(*dev)[d].bnd_cnds.surf);
+//                        }
+//                    }
                 }
                 
                 // Inject the residuals
@@ -693,7 +698,8 @@ int time_stepping(model * m, device ** dev) {
                 __GUARD update_grid_adj(m, dev);
                 
                 // Inject the sources with negative sign
-                //TODO not right if source is inside saved boundary
+                //TODO not right if source is inside saved boundary, problematic
+                //for a free surface with source on surface!
                 if (m->BACK_PROP_TYPE==1){
                     for (d=0;d<m->NUM_DEVICES;d++){
                         __GUARD prog_launch( &(*dev)[d].queue,
@@ -727,6 +733,9 @@ int time_stepping(model * m, device ** dev) {
                                             &(*dev)[d].src_recs.varsout);
                     }
                 }
+                // Outputting the movie
+                if (m->MOVOUT>0 && (t+1)%m->MOVOUT==0 && state==0)
+                    movout( m, dev, t, s);
             }
             // Aggregate the seismograms in the output variable
             if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){

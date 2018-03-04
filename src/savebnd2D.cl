@@ -28,7 +28,7 @@
 #define sxz(z,x) sxz[(x)*NZ+(z)]
 #define sxy(z,x) sxy[(x)*NZ+(z)]
 #define syz(z,x) syz[(x)*NZ+(z)]
-#define lbnd (FDOH+NAB)
+
 
 #if FP16==0
 
@@ -79,32 +79,43 @@ FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 
     int gid = blockIdx.x*blockDim.x + threadIdx.x;
 #endif
     int NXbnd = (NX- 2*FDOH- 2*NAB);
+    #if FREESURF==0
     int NZbnd = (NZ- 2*FDOH/DIV- 2*NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH+NAB;
+    #else
+    int NZbnd = (NZ- 2*FDOH/DIV- NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH;
+    #endif
+
+    
+    
     int i=0,k=0;
     int gidf;
 
     if (gid<NZbnd*FDOH){//front
         gidf=gid;
         i=gidf/NZbnd+lbnd;
-        k=gidf%NZbnd+lbnd/DIV;
+        k=gidf%NZbnd+lbnds/DIV;
     }
     else if (gid<NZbnd*FDOH*2){//back
         gidf=gid-NZbnd*FDOH;
         i=gidf/(NZbnd)+NXbnd+NAB;
-        k=gidf%NZbnd+lbnd/DIV;
+        k=gidf%NZbnd+lbnds/DIV;
         
     }
-    else if (gid<NZbnd*FDOH*2+(NXbnd - 2*FDOH)*FDOH/DIV){//up
+    else if (gid<NZbnd*FDOH*2+(NXbnd - 2*FDOH)*FDOH/DIV){//bottom
         gidf=gid-NZbnd*FDOH*2;
-        i=gidf%(NXbnd - 2*FDOH)+lbnd+FDOH;
-        k=gidf/(NXbnd- 2*FDOH)+lbnd/DIV;
-    }
-    else if (gid<NZbnd*FDOH*2+(NXbnd- 2*FDOH)*2*FDOH/DIV){//bottom
-        gidf=gid-NZbnd*FDOH*2-(NXbnd- 2*FDOH)*FDOH/DIV;
         i=gidf%(NXbnd- 2*FDOH)+lbnd+FDOH;
-        k=gidf/(NXbnd- 2*FDOH)+NZbnd+NAB/DIV;
-    }
+        k=gidf/(NXbnd- 2*FDOH)+NZbnd+lbnds/DIV-FDOH/DIV;
 
+    }
+    else if (gid<NZbnd*FDOH*2+(NXbnd- 2*FDOH)*2*FDOH/DIV){//up
+        gidf=gid-NZbnd*FDOH*2-(NXbnd- 2*FDOH)*FDOH/DIV;
+        i=gidf%(NXbnd - 2*FDOH)+lbnd+FDOH;
+        k=gidf/(NXbnd- 2*FDOH)+lbnds/DIV;
+    }
     else{
         return;
     }
@@ -118,27 +129,35 @@ FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 
     int gid = blockIdx.x*blockDim.x + threadIdx.x;
 #endif
     int NXbnd = (NX- 2*FDOH- NAB);
-    int NZbnd = (NZ*DIV- 2*FDOH-2*NAB);
+#if FREESURF==0
+    int NZbnd = (NZ- 2*FDOH/DIV- 2*NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH+NAB;
+#else
+    int NZbnd = (NZ- 2*FDOH/DIV- NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH;
+#endif
     int i,k;
     int gidf;
 
     if (gid<NZbnd*FDOH){//front
         gidf=gid;
         i=gidf/NZbnd+lbnd;
-        k=gidf%NZbnd+lbnd;
+        k=gidf%NZbnd+lbnds;
     }
 
-    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*FDOH){//up
+    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*FDOH){//bottom
         gidf=gid-NZbnd*FDOH;
         i=gidf%(NXbnd-FDOH)+lbnd+FDOH;
-        k=gidf/(NXbnd-FDOH)+lbnd;
+        k=gidf/(NXbnd-FDOH)+NZbnd+lbnds/DIV-FDOH/DIV;
+
     }
-    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*2*FDOH){//bottom
+    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*2*FDOH){//up
         gidf=gid-NZbnd*FDOH-(NXbnd-FDOH)*FDOH;
         i=gidf%(NXbnd-FDOH)+lbnd+FDOH;
-        k=gidf/(NXbnd-FDOH)+NZbnd+NAB;
+        k=gidf/(NXbnd-FDOH)+lbnds;
     }
-
     else{
         return;
     }
@@ -151,27 +170,35 @@ FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 
     int gid = blockIdx.x*blockDim.x + threadIdx.x;
 #endif
     int NXbnd = (NX- 2*FDOH- NAB);
-    int NZbnd = (NZ*DIV- 2*FDOH-2*NAB);
+#if FREESURF==0
+    int NZbnd = (NZ- 2*FDOH/DIV- 2*NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH+NAB;
+#else
+    int NZbnd = (NZ- 2*FDOH/DIV- NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH;
+#endif
     int i,k;
     int gidf;
 
     if (gid<NZbnd*FDOH){//back
         gidf=gid;
         i=gidf/(NZbnd)+NXbnd;//+NAB;
-        k=gidf%NZbnd+lbnd;
+        k=gidf%NZbnd+lbnds;
     }
 
-    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*FDOH){//up
+    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*FDOH){//bottom
         gidf=gid-NZbnd*FDOH;
         i=gidf%(NXbnd-FDOH)+FDOH;
-        k=gidf/(NXbnd-FDOH)+lbnd;
+        k=gidf/(NXbnd-FDOH)+NZbnd+lbnds/DIV-FDOH/DIV;
+
     }
-    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*2*FDOH){//bottom
+    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*2*FDOH){//up
         gidf=gid-NZbnd*FDOH-(NXbnd-FDOH)*FDOH;
         i=gidf%(NXbnd-FDOH)+FDOH;
-        k=gidf/(NXbnd-FDOH)+NZbnd+NAB;
+        k=gidf/(NXbnd-FDOH)+lbnds;
     }
-
     else{
         return;
     }
@@ -185,22 +212,30 @@ FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 
     int gid = blockIdx.x*blockDim.x + threadIdx.x;
 #endif
     int NXbnd = (NX- 2*FDOH);
-    int NZbnd = (NZ*DIV- 2*FDOH-2*NAB);
+#if FREESURF==0
+    int NZbnd = (NZ- 2*FDOH/DIV- 2*NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH+NAB;
+#else
+    int NZbnd = (NZ- 2*FDOH/DIV- NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH;
+#endif
     int i,k;
     int gidf;
 
 
-    if (gid<(NXbnd)*FDOH){//up
+    if (gid<(NXbnd)*FDOH){//bottom
         gidf=gid;
         i=gidf%(NXbnd)+FDOH;
-        k=gidf/(NXbnd)+lbnd;
+        k=gidf/(NXbnd)+NZbnd+lbnds/DIV-FDOH/DIV;
+
     }
-    else if (gid<NZbnd*FDOH+(NXbnd)*2*FDOH){//bottom
+    else if (gid<NZbnd*FDOH+(NXbnd)*2*FDOH){//up
         gidf=gid-(NXbnd)*FDOH;
         i=gidf%(NXbnd)+FDOH;
-        k=gidf/(NXbnd)+NZbnd+NAB;
+        k=gidf/(NXbnd)+lbnds;
     }
-
     else{
         return;
     }

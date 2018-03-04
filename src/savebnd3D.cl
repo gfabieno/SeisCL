@@ -93,7 +93,15 @@ __kernel void savebnd(__global float *vx,         __global float *vy,      __glo
     int gid = get_global_id(0);
     int NXbnd = (NX-2*FDOH-2*NAB);
     int NYbnd = (NY-2*FDOH-2*NAB);
-    int NZbnd = (NZ-2*FDOH-2*NAB);
+#if FREESURF==0
+    int NZbnd = (NZ- 2*FDOH/DIV- 2*NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH+NAB;
+#else
+    int NZbnd = (NZ- 2*FDOH/DIV- NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH;
+#endif
     int i,j,k;
     int gidf;
     
@@ -101,39 +109,40 @@ __kernel void savebnd(__global float *vx,         __global float *vy,      __glo
         gidf=gid;
         i=gidf/(NYbnd*NZbnd)+lbnd;
         j=(gidf/NZbnd)%NYbnd+lbnd;
-        k=gidf%NZbnd+lbnd;
+        k=gidf%NZbnd+lbnds;
     }
     else if (gid<NYbnd*NZbnd*2*FDOH){//back
         gidf=gid-NYbnd*NZbnd*FDOH;
         i=gidf/(NYbnd*NZbnd)+NXbnd+NAB;
         j=(gidf/NZbnd)%NYbnd+lbnd;
-        k=gidf%NZbnd+lbnd;
+        k=gidf%NZbnd+lbnds;
     }
     else if (gid<NYbnd*NZbnd*2*FDOH+NZbnd*(NXbnd-2*FDOH)*FDOH){//left
         gidf=gid-NYbnd*NZbnd*2*FDOH;
         i=gidf/(NZbnd*FDOH)+lbnd+FDOH;
         j=(gidf/NZbnd)%FDOH+lbnd;
-        k=gidf%NZbnd+lbnd;
+        k=gidf%NZbnd+lbnds;
     }
     else if (gid<NYbnd*NZbnd*2*FDOH+NZbnd*(NXbnd-2*FDOH)*2*FDOH){//right
         gidf=gid-NYbnd*NZbnd*2*FDOH-NZbnd*(NXbnd-2*FDOH)*FDOH;
         i=gidf/(NZbnd*FDOH)+lbnd+FDOH;
         j=(gidf/NZbnd)%FDOH+NYbnd+NAB;
-        k=gidf%NZbnd+lbnd;
+        k=gidf%NZbnd+lbnds;
 
     }
-    else if (gid<NYbnd*NZbnd*2*FDOH+NZbnd*(NXbnd-2*FDOH)*2*FDOH+(NYbnd-2*FDOH)*(NXbnd-2*FDOH)*FDOH){//up
+    else if (gid<NYbnd*NZbnd*2*FDOH+NZbnd*(NXbnd-2*FDOH)*2*FDOH+(NYbnd-2*FDOH)*(NXbnd-2*FDOH)*FDOH){//down
         gidf=gid-NYbnd*NZbnd*2*FDOH-NZbnd*(NXbnd-2*FDOH)*2*FDOH;
         i=gidf/(FDOH*(NYbnd-2*FDOH))+lbnd+FDOH;
         j=(gidf/FDOH)%(NYbnd-2*FDOH)+lbnd+FDOH;
-        k=gidf%FDOH+lbnd;
+        k=gidf%FDOH+NZbnd+lbnds/DIV-FDOH/DIV;
+
 
     }
-    else if (gid<NYbnd*NZbnd*2*FDOH+NZbnd*(NXbnd-2*FDOH)*2*FDOH+(NYbnd-2*FDOH)*(NXbnd-2*FDOH)*2*FDOH){//down
+    else if (gid<NYbnd*NZbnd*2*FDOH+NZbnd*(NXbnd-2*FDOH)*2*FDOH+(NYbnd-2*FDOH)*(NXbnd-2*FDOH)*2*FDOH){//up
         gidf=gid-NYbnd*NZbnd*2*FDOH-NZbnd*(NXbnd-2*FDOH)*2*FDOH-(NYbnd-2*FDOH)*(NXbnd-2*FDOH)*FDOH;
         i=gidf/(FDOH*(NYbnd-2*FDOH))+lbnd+FDOH;
         j=(gidf/FDOH)%(NYbnd-2*FDOH)+lbnd+FDOH;
-        k=gidf%FDOH+NZbnd+NAB;
+        k=gidf%FDOH+lbnds;
     }
     else{
         return;
@@ -156,7 +165,15 @@ __kernel void savebnd(__global float *vx,         __global float *vy,      __glo
     int gid = get_global_id(0);
     int NXbnd = (NX-2*FDOH-NAB);
     int NYbnd = (NY-2*FDOH-2*NAB);
-    int NZbnd = (NZ-2*FDOH-2*NAB);
+#if FREESURF==0
+    int NZbnd = (NZ- 2*FDOH/DIV- 2*NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH+NAB;
+#else
+    int NZbnd = (NZ- 2*FDOH/DIV- NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH;
+#endif
     int i,j,k;
     int gidf;
     
@@ -164,31 +181,32 @@ __kernel void savebnd(__global float *vx,         __global float *vy,      __glo
         gidf=gid;
         i=gidf/(NYbnd*NZbnd)+lbnd;
         j=(gidf/NZbnd)%NYbnd+lbnd;
-        k=gidf%NZbnd+lbnd;
+        k=gidf%NZbnd+lbnds;
     }
     else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*FDOH){//left
         gidf=gid-NYbnd*NZbnd*FDOH;
         i=gidf/(NZbnd*FDOH)+lbnd+FDOH;
         j=(gidf/NZbnd)%FDOH+lbnd;
-        k=gidf%NZbnd+lbnd;
+        k=gidf%NZbnd+lbnds;
     }
     else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*2*FDOH){//right
         gidf=gid-NYbnd*NZbnd*FDOH-NZbnd*(NXbnd-FDOH)*FDOH;
         i=gidf/(NZbnd*FDOH)+lbnd+FDOH;
         j=(gidf/NZbnd)%FDOH+NYbnd+NAB;
-        k=gidf%NZbnd+lbnd;
+        k=gidf%NZbnd+lbnds;
     }
-    else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*2*FDOH+(NYbnd-2*FDOH)*(NXbnd-FDOH)*FDOH){//up
+    else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*2*FDOH+(NYbnd-2*FDOH)*(NXbnd-FDOH)*FDOH){//down
         gidf=gid-NYbnd*NZbnd*FDOH-NZbnd*(NXbnd-FDOH)*2*FDOH;
         i=gidf/(FDOH*(NYbnd-2*FDOH))+lbnd+FDOH;
         j=(gidf/FDOH)%(NYbnd-2*FDOH)+lbnd+FDOH;
-        k=gidf%FDOH+lbnd;
+        k=gidf%FDOH+NZbnd+lbnds/DIV-FDOH/DIV;
+
     }
-    else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*2*FDOH+(NYbnd-2*FDOH)*(NXbnd-FDOH)*2*FDOH){//down
+    else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*2*FDOH+(NYbnd-2*FDOH)*(NXbnd-FDOH)*2*FDOH){//up
         gidf=gid-NYbnd*NZbnd*FDOH-NZbnd*(NXbnd-FDOH)*2*FDOH-(NYbnd-2*FDOH)*(NXbnd-FDOH)*FDOH;
         i=gidf/(FDOH*(NYbnd-2*FDOH))+lbnd+FDOH;
         j=(gidf/FDOH)%(NYbnd-2*FDOH)+lbnd+FDOH;
-        k=gidf%FDOH+NZbnd+NAB;
+        k=gidf%FDOH+lbnds;
     }
     else{
         return;
@@ -210,7 +228,15 @@ __kernel void savebnd(__global float *vx,         __global float *vy,      __glo
     int gid = get_global_id(0);
     int NXbnd = (NX-2*FDOH-NAB);
     int NYbnd = (NY-2*FDOH-2*NAB);
-    int NZbnd = (NZ-2*FDOH-2*NAB);
+#if FREESURF==0
+    int NZbnd = (NZ- 2*FDOH/DIV- 2*NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH+NAB;
+#else
+    int NZbnd = (NZ- 2*FDOH/DIV- NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH;
+#endif
     int i,j,k;
     int gidf;
     
@@ -218,31 +244,32 @@ __kernel void savebnd(__global float *vx,         __global float *vy,      __glo
         gidf=gid;
         i=gidf/(NYbnd*NZbnd)+NXbnd;
         j=(gidf/NZbnd)%NYbnd+lbnd;
-        k=gidf%NZbnd+lbnd;
+        k=gidf%NZbnd+lbnds;
     }
     else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*FDOH){//left
         gidf=gid-NYbnd*NZbnd*FDOH;
         i=gidf/(NZbnd*FDOH)+FDOH;
         j=(gidf/NZbnd)%FDOH+lbnd;
-        k=gidf%NZbnd+lbnd;
+        k=gidf%NZbnd+lbnds;
     }
     else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*2*FDOH){//right
         gidf=gid-NYbnd*NZbnd*FDOH-NZbnd*(NXbnd-FDOH)*FDOH;
         i=gidf/(NZbnd*FDOH)+FDOH;
         j=(gidf/NZbnd)%FDOH+NYbnd+NAB;
-        k=gidf%NZbnd+lbnd;
+        k=gidf%NZbnd+lbnds;
     }
-    else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*2*FDOH+(NYbnd-2*FDOH)*(NXbnd-FDOH)*FDOH){//up
+    else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*2*FDOH+(NYbnd-2*FDOH)*(NXbnd-FDOH)*FDOH){//down
         gidf=gid-NYbnd*NZbnd*FDOH-NZbnd*(NXbnd-FDOH)*2*FDOH;
         i=gidf/(FDOH*(NYbnd-2*FDOH))+FDOH;
         j=(gidf/FDOH)%(NYbnd-2*FDOH)+lbnd+FDOH;
-        k=gidf%FDOH+lbnd;
+        k=gidf%FDOH+NZbnd+lbnds/DIV-FDOH/DIV;
+
     }
-    else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*2*FDOH+(NYbnd-2*FDOH)*(NXbnd-FDOH)*2*FDOH){//down
+    else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*2*FDOH+(NYbnd-2*FDOH)*(NXbnd-FDOH)*2*FDOH){//up
         gidf=gid-NYbnd*NZbnd*FDOH-NZbnd*(NXbnd-FDOH)*2*FDOH-(NYbnd-2*FDOH)*(NXbnd-FDOH)*FDOH;
         i=gidf/(FDOH*(NYbnd-2*FDOH))+FDOH;
         j=(gidf/FDOH)%(NYbnd-2*FDOH)+lbnd+FDOH;
-        k=gidf%FDOH+NZbnd+NAB;
+        k=gidf%FDOH+lbnds;
     }
     else{
         return;
@@ -264,7 +291,15 @@ __kernel void savebnd(__global float *vx,         __global float *vy,      __glo
     int gid = get_global_id(0);
     int NXbnd = (NX-2*FDOH);
     int NYbnd = (NY-2*FDOH-2*NAB);
-    int NZbnd = (NZ-2*FDOH-2*NAB);
+#if FREESURF==0
+    int NZbnd = (NZ- 2*FDOH/DIV- 2*NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH+NAB;
+#else
+    int NZbnd = (NZ- 2*FDOH/DIV- NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH;
+#endif
     int i,j,k;
     int gidf;
     
@@ -273,25 +308,26 @@ __kernel void savebnd(__global float *vx,         __global float *vy,      __glo
         gidf=gid;
         i=gidf/(NZbnd*FDOH)+FDOH;
         j=(gidf/NZbnd)%FDOH+lbnd;
-        k=gidf%NZbnd+lbnd;
+        k=gidf%NZbnd+lbnds;
     }
     else if (gid<NZbnd*NXbnd*2*FDOH){//right
         gidf=gid-NZbnd*NXbnd*FDOH;
         i=gidf/(NZbnd*FDOH)+FDOH;
         j=(gidf/NZbnd)%FDOH+NYbnd+NAB;
-        k=gidf%NZbnd+lbnd;
+        k=gidf%NZbnd+lbnds;
     }
-    else if (gid<NZbnd*NXbnd*2*FDOH+(NYbnd-2*FDOH)*NXbnd*FDOH){//up
+    else if (gid<NZbnd*NXbnd*2*FDOH+(NYbnd-2*FDOH)*NXbnd*FDOH){//down
         gidf=gid-NZbnd*NXbnd*2*FDOH;
         i=gidf/(FDOH*(NYbnd-2*FDOH))+FDOH;
         j=(gidf/FDOH)%(NYbnd-2*FDOH)+lbnd+FDOH;
-        k=gidf%FDOH+lbnd;
+        k=gidf%FDOH+NZbnd+lbnds/DIV-FDOH/DIV;
+
     }
-    else if (gid<NZbnd*NXbnd*2*FDOH+(NYbnd-2*FDOH)*NXbnd*2*FDOH){//down
+    else if (gid<NZbnd*NXbnd*2*FDOH+(NYbnd-2*FDOH)*NXbnd*2*FDOH){//up
         gidf=gid-NZbnd*NXbnd*2*FDOH-(NYbnd-2*FDOH)*NXbnd*FDOH;
         i=gidf/(FDOH*(NYbnd-2*FDOH))+FDOH;
         j=(gidf/FDOH)%(NYbnd-2*FDOH)+lbnd+FDOH;
-        k=gidf%FDOH+NZbnd+NAB;
+        k=gidf%FDOH+lbnds;
     }
     else{
         return;

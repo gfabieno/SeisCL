@@ -164,7 +164,6 @@ extern "C" __device__ float2 scalbnf2(float2 a, int scaler ){
 
 #endif
 
-#define lbnd (FDOH+NAB)
 
 #define gradrho(z,x) gradrho[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
 #define gradmu(z,x) gradmu[((x)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
@@ -180,11 +179,19 @@ extern "C" __device__ int evarm( int k, int i){
 #if NUM_DEVICES==1 & NLOCALP==1
     
     int NXbnd = (NX-2*FDOH-2*NAB);
-    int NZbnd = (NZ-FDOH-NAB);
+#if FREESURF==0
+    int NZbnd = (NZ- FDOH- NAB);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH+NAB;
+#else
+    int NZbnd = (NZ- FDOH- NAB/2);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH;
+#endif
     
     int m=-1;
     i-=lbnd;
-    k-=lbnd/2;
+    k-=lbnds/2;
     
     if ( (k>FDOH/2-1 && k<NZbnd-FDOH/2)  && (i>FDOH-1 && i<NXbnd-FDOH) )
         m=-1;
@@ -199,12 +206,17 @@ extern "C" __device__ int evarm( int k, int i){
     }
     else if (k<FDOH/2){//up
         i=i-FDOH;
-        m=NZbnd*FDOH*2+i+k*(NXbnd-2.0*FDOH);
+        #if FREESURF==0
+        m=NZbnd*FDOH*2+(NXbnd-2*FDOH)*FDOH/2+i+k*(NXbnd-2.0*FDOH);
+        #else
+        m=-1;
+        #endif
+        
     }
     else {//down
         i=i-FDOH;
         k=k-NZbnd+FDOH/2;
-        m=NZbnd*FDOH*2+(NXbnd-2*FDOH)*FDOH/2+i+k*(NXbnd-2.0*FDOH);
+        m=NZbnd*FDOH*2+i+k*(NXbnd-2.0*FDOH);
     }
     
     
@@ -212,11 +224,19 @@ extern "C" __device__ int evarm( int k, int i){
 #elif DEVID==0 & MYGROUPID==0
     
     int NXbnd = (NX-2*FDOH-NAB);
-    int NZbnd = (NZ-FDOH-NAB);
+#if FREESURF==0
+    int NZbnd = (NZ- FDOH- NAB);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH+NAB;
+#else
+    int NZbnd = (NZ- FDOH- NAB/2);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH;
+#endif
     
     int m=-1;
     i-=lbnd;
-    k-=lbnd/2;
+    k-=lbnds/2;
     
     if ( (k>FDOH/2-1 && k<NZbnd-FDOH/2)  && i>FDOH-1  )
         m=-1;
@@ -227,21 +247,33 @@ extern "C" __device__ int evarm( int k, int i){
     }
     else if (k<FDOH/2){//up
         i=i-FDOH;
-        m=NZbnd*FDOH+i+k*(NXbnd-FDOH);
+        #if FREESURF==0
+        m=NZbnd*FDOH+(NXbnd-FDOH)*FDOH+i+k*(NXbnd-FDOH);
+        #else
+                m=-1;
+        #endif
     }
     else {//down
         i=i-FDOH;
         k=k-NZbnd+FDOH/2;
-        m=NZbnd*FDOH+(NXbnd-FDOH)*FDOH+i+k*(NXbnd-FDOH);
+        m=NZbnd*FDOH+i+k*(NXbnd-FDOH);
     }
     
 #elif DEVID==NUM_DEVICES-1 & MYGROUPID==NLOCALP-1
     int NXbnd = (NX-2*FDOH-NAB);
-    int NZbnd = (NZ-FDOH-NAB);
+#if FREESURF==0
+    int NZbnd = (NZ- FDOH- NAB);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH+NAB;
+#else
+    int NZbnd = (NZ- FDOH- NAB/2);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH;
+#endif
     
     int m=-1;
     i-=FDOH;
-    k-=lbnd/2;
+    k-=lbnds/2;
     
     if ( (k>FDOH/2-1 && k<NZbnd-FDOH/2) && i<NXbnd-FDOH )
         m=-1;
@@ -252,32 +284,48 @@ extern "C" __device__ int evarm( int k, int i){
         m=i*NZbnd+k;
     }
     else if (k<FDOH/2){//up
-        m=NZbnd*FDOH+i+k*(NXbnd-FDOH);
+        #if FREESURF==0
+        m=NZbnd*FDOH+(NXbnd-FDOH)*FDOH+i+k*(NXbnd-FDOH);
+        #else
+                m=-1;
+        #endif
     }
     else {//down
         k=k-NZbnd+FDOH/2;
-        m=NZbnd*FDOH+(NXbnd-FDOH)*FDOH+i+k*(NXbnd-FDOH);
+        m=NZbnd*FDOH+i+k*(NXbnd-FDOH);
     }
     
 #else
     
     int NXbnd = (NX-2*FDOH);
-    int NZbnd = (NZ-FDOH-NAB);
+#if FREESURF==0
+    int NZbnd = (NZ- FDOH- NAB);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH+NAB;
+#else
+    int NZbnd = (NZ- FDOH- NAB/2);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH;
+#endif
     
     int m=-1;
     i-=FDOH;
-    k-=lbnd/2;
+    k-=lbnds/2;
     
     if ( (k>FDOH/2-1 && k<NZbnd-FDOH/2) )
         m=-1;
     else if (k<0 || k>NZbnd-1 || i<0 || i>NXbnd-1 )
         m=-1;
     else if (k<FDOH/2){//up
-        m=i+k*(NXbnd);
+        #if FREESURF==0
+        m=(NXbnd)*FDOH+i+k*(NXbnd);
+        #else
+                m=-1;
+        #endif
     }
     else {//down
         k=k-NZbnd+FDOH/2;
-        m=(NXbnd)*FDOH+i+k*(NXbnd);
+        m=i+k*(NXbnd);
     }
     
     
