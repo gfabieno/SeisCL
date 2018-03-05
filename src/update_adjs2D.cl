@@ -764,6 +764,17 @@ FUNDEF void update_adjs(int offcomm,
         szz(gidz, gidx)= szzbnd[m];
         sxz(gidz, gidx)= sxzbnd[m];
     }
+//    if (gidz==FDOH){
+//        szz(gidz, gidx)=0.0;
+//    }
+//    if (gidz>FDOH && gidz<2*FDOH+1  ){
+//        m = gidz -FDOH;
+//        szz(gidz- 2*m,  gidx)=-szz(gidz,  gidx);
+//    }
+//    if (gidz>FDOH-1 && gidz<2*FDOH){
+//        m = gidz -FDOH;
+//        sxz(gidz - 2*m -1,  gidx)=-sxz(gidz,  gidx);
+//    }
 
 
     }

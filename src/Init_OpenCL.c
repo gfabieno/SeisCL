@@ -1092,7 +1092,7 @@ int Init_CUDA(model * m, device ** dev)  {
         }
         
         //Create automaticly kernels for gradient, variable inti, sources ...
-        __GUARD kernel_sources(di,  &di->src_recs.sources);
+        __GUARD kernel_sources(m, di,  &di->src_recs.sources);
         __GUARD prog_create(m, di,  &di->src_recs.sources);
         
         if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){

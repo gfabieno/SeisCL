@@ -583,7 +583,8 @@ int kernel_fcom_in(device * dev,
                    int buff12,
                    int adj);
 
-int kernel_sources(device * dev,
+int kernel_sources(model * m,
+                   device * dev,
                    clprogram * prog);
 
 int CPML_coeff(float NPOWER,

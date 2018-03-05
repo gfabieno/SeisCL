@@ -306,7 +306,6 @@ int update_grid_adj(model * m, device ** dev){
     
     // Perform the updates in backward order for adjoint simulation
     for (i=m->nupdates-1;i>=0;i--){
-        
         // Updating the variables
         for (d=0;d<m->NUM_DEVICES;d++){
             // Launch the kernel on the outside grid needing communication only
@@ -369,6 +368,7 @@ int update_grid_adj(model * m, device ** dev){
 //                #endif
             }
         }
+
         
     }
 
@@ -654,7 +654,8 @@ int time_stepping(model * m, device ** dev) {
                 }
 
             }
-
+            
+            
             // Inverse time stepping
             for (t=m->tmax-1;t>m->tmin; t--){
 
@@ -679,12 +680,6 @@ int time_stepping(model * m, device ** dev) {
                         __GUARD prog_launch( &(*dev)[d].queue,
                                             &(*dev)[d].bnd_cnds.surf_adj);
                     }
-//                    if (m->BACK_PROP_TYPE==1){
-//                        for (d=0;d<m->NUM_DEVICES;d++){
-//                            __GUARD prog_launch( &(*dev)[d].queue,
-//                                                &(*dev)[d].bnd_cnds.surf);
-//                        }
-//                    }
                 }
                 
                 // Inject the residuals
@@ -706,7 +701,7 @@ int time_stepping(model * m, device ** dev) {
                                             &(*dev)[d].src_recs.sources);
                     }
                 }
-                
+
                 //Save the selected frequency if the gradient is obtained by DFT
                 if (m->BACK_PROP_TYPE==2 && (t-m->tmin)%m->DTNYQ==0){
                     

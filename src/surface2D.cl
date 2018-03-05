@@ -108,8 +108,7 @@ __kernel void surface(        __global float *vx,         __global float *vz,
         szz(gidz-m,  gidx)=-szz(gidz+m,  gidx);
         sxz(gidz-m,  gidx)=-sxz(gidz+m-1, gidx);
     }
-				
-    
+
 #if   FDOH==1
     {
         vxx = (vx(gidz,gidx)-vx(gidz,gidx-1));

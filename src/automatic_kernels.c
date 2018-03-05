@@ -386,7 +386,8 @@ int kernel_varinit(device * dev,
     
 }
 
-int kernel_sources(device * dev,
+int kernel_sources(model * m, 
+                   device * dev,
                    clprogram * prog){
     
     int state=0;
@@ -486,8 +487,18 @@ int kernel_sources(device * dev,
     strcat(temp, temp2);
     strcat(temp,
            "        return;\n"
-           "    }\n\n"
-           "    int source_type= src_pos[4+5*gid];\n");
+           "    }\n\n");
+    if (m->FREESURF==1){
+        sprintf(temp2,"    if (pdir==-1 && k<2*FDOH){\n" );
+    }
+    strcat(temp, temp2);
+    strcat(temp,
+           "        return;\n"
+           "    }\n\n");
+    
+    
+    
+    strcat(temp,"    int source_type= src_pos[4+5*gid];\n");
     if (dev->FP16==0){
         strcat(temp,"    float amp=(float)pdir*(DT*src[gid*NT+nt]);\n\n");
     }
@@ -584,7 +595,7 @@ int kernel_sources(device * dev,
     
     __GUARD prog_source(prog, "sources", (*prog).src);
     
-//    printf("%s\n\n%lu\n",temp, strlen(temp));
+    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     free(tosources);
     free(tosources2);
