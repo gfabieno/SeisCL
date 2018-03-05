@@ -721,21 +721,9 @@ int time_stepping(model * m, device ** dev) {
                     __GUARD clFlush((*dev)[d].queue);
                 }
                 #endif
-                // Outputting seismograms
-                if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){
-                    for (d=0;d<m->NUM_DEVICES;d++){
-                        __GUARD prog_launch( &(*dev)[d].queue,
-                                            &(*dev)[d].src_recs.varsout);
-                    }
-                }
-                // Outputting the movie
-                if (m->MOVOUT>0 && (t+1)%m->MOVOUT==0 && state==0)
-                    movout( m, dev, t, s);
+
             }
-            // Aggregate the seismograms in the output variable
-            if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){
-                __GUARD reduce_seis(m, dev, s);
-            }
+
             
             // Transfer  the source gradient to the host
             if (m->GRADSRCOUT==1){

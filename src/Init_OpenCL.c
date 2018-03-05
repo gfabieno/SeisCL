@@ -940,6 +940,22 @@ int Init_CUDA(model * m, device ** dev)  {
             for (i=0;i<m->nvars;i++){
                 di->vars_adj[i]=di->vars[i];
                 di->vars_adj[i].cl_varout.free_host=0;
+                di->vars_adj[i].cl_var.mem = 0;
+                di->vars_adj[i].cl_varout.mem = 0;
+                di->vars_adj[i].cl_varbnd.mem = 0;
+                di->vars_adj[i].cl_fvar.mem = 0;
+                di->vars_adj[i].cl_fvar_adj.mem = 0;
+                di->vars_adj[i].cl_buf1.mem = 0;
+                di->vars_adj[i].cl_buf2.mem = 0;
+                di->vars_adj[i].cl_var_res.mem = 0;
+                di->vars_adj[i].cl_var.free_host=0;
+                di->vars_adj[i].cl_varout.free_host=0;
+                di->vars_adj[i].cl_varbnd.free_host=0;
+                di->vars_adj[i].cl_fvar.free_host=0;
+                di->vars_adj[i].cl_fvar_adj.free_host=0;
+                di->vars_adj[i].cl_buf1.free_host=0;
+                di->vars_adj[i].cl_buf2.free_host=0;
+                di->vars_adj[i].cl_var_res.free_host=0;
             }
             
             for (i=0;i<m->nvars;i++){
