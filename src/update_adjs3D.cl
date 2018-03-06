@@ -181,7 +181,7 @@ int evarm( int k, int j, int i){
     
     
     
-#elif DEVID==0 & MYGROUPID==0
+#elif DEVID==0 & MYLOCALID==0
     int NXbnd = (NX-2*FDOH-NAB);
     int NYbnd = (NY-2*FDOH-2*NAB);
 #if FREESURF==0
@@ -227,7 +227,7 @@ int evarm( int k, int j, int i){
         k=k-NZbnd+FDOH;
         m=NYbnd*NZbnd*FDOH+(NXbnd-FDOH)*NZbnd*FDOH*2+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
     }
-#elif DEVID==NUM_DEVICES-1 & MYGROUPID==NLOCALP-1
+#elif DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
     int NXbnd = (NX-2*FDOH-NAB);
     int NYbnd = (NY-2*FDOH-2*NAB);
 #if FREESURF==0

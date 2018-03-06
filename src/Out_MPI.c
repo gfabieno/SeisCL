@@ -78,14 +78,14 @@ int Out_MPI(model * m)  {
         for (i=0;i<m->nvars;i++){
             if (m->vars[i].to_output){
                 __GUARD buf_reduce_float(m->vars[i].gl_varout[0],
-                                         m->vars[i].num_ele,
+                                         m->src_recs.allng*m->NT,
                                          m->MYID);
             }
         }
         for (i=0;i<m->ntvars;i++){
             if (m->trans_vars[i].to_output){
                 __GUARD buf_reduce_float(m->trans_vars[i].gl_varout[0],
-                                         m->trans_vars[i].num_ele,
+                                         m->src_recs.allng*m->NT,
                                          m->MYID);
             }
         }
@@ -101,14 +101,14 @@ int Out_MPI(model * m)  {
         for (i=0;i<m->nvars;i++){
             if (m->vars[i].to_output){
                 __GUARD buf_reduce_float(m->vars[i].gl_var_res[0],
-                                         m->vars[i].num_ele,
+                                         m->src_recs.allng*m->NT,
                                          m->MYID);
             }
         }
         for (i=0;i<m->ntvars;i++){
             if (m->trans_vars[i].to_output){
                 __GUARD buf_reduce_float(m->trans_vars[i].gl_var_res[0],
-                                         m->trans_vars[i].num_ele,
+                                        m->src_recs.allng*m->NT,
                                          m->MYID);
             }
         }

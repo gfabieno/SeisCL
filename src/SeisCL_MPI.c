@@ -70,9 +70,10 @@ int main(int argc, char **argv) {
     char processor_name[MPI_MAX_PROCESSOR_NAME];
     int name_len;
     MPI_Get_processor_name(processor_name, &name_len);
-    fprintf(stdout,"MPI connected to processor %s\n",processor_name);
+    fprintf(stdout,"Process %d processor %s, with pid %d\n",m.MYID, processor_name, getpid());
+    fflush(stdout);
+//    if (m.MYID == 0) sleep(30);
     
-    //if (m.MYID== 0 ) sleep(600);
     
     // Root process reads the input files
     time1=MPI_Wtime();
@@ -91,7 +92,6 @@ int main(int argc, char **argv) {
     if (!state) state = Init_CUDA(&m, &dev);
 
     time4=MPI_Wtime();
-
     // Main part, where seismic modeling occurs
     if (!state) state = time_stepping(&m, &dev);
 
@@ -147,7 +147,11 @@ int main(int argc, char **argv) {
 
     // Free the memory
     Free_OpenCL(&m, dev);
-
+    
+    if (state){
+//        sleep(300000);
+        MPI_Abort(MPI_COMM_WORLD, state);
+    }
     if (m.MPI_INIT==1){
         MPI_Finalize();
     }

@@ -31,16 +31,15 @@ int comm1_MPI(model * m, device ** dev, int adj, int ui){
     //processing element, sending buf1 et receiving buf2.
     //Then send to device buf1. The last buf_1 in the list to transmit outputs
     // an event for fcom1_in.
+    
     if (adj && m->BACK_PROP_TYPE==1){
         for (i=0;i<(*dev)[0].ups_adj[ui].nvcom;i++){
             __GUARD clWaitForEvents(1,
-                               &(*dev)[0].ups_adj[i].v2com[i]->cl_buf1.event_r);
-//            __GUARD clReleaseEvent(
-//                                (*dev)[0].ups_adj[i].v2com[i]->cl_buf1.event_r);
-            
+                               &(*dev)[0].ups_adj[ui].v2com[i]->cl_buf1.event_r);
+
             MPI_Sendrecv_replace(
-             (void*)(*dev)[0].ups_adj[i].v2com[i]->cl_buf1.host,
-             (int)(*dev)[0].ups_adj[i].v2com[i]->cl_buf1.size/sizeof(float),
+                             (void*)(*dev)[0].ups_adj[ui].v2com[i]->cl_buf1.host,
+                 (int)(*dev)[0].ups_adj[ui].v2com[i]->cl_buf1.size/sizeof(float),
                                  MPI_FLOAT,
                                  m->MYID-1,
                                  i,
@@ -48,15 +47,13 @@ int comm1_MPI(model * m, device ** dev, int adj, int ui){
                                  i,
                                  MPI_COMM_WORLD,
                                  NULL);
-            __GUARD clbuf_send(
-                               &(*dev)[0].queuecomm,
+            __GUARD clbuf_send(&(*dev)[0].queuecomm,
                                &(*dev)[0].ups_adj[ui].v2com[i]->cl_buf1);
         }
     }
     for (i=0;i<(*dev)[0].ups_f[ui].nvcom;i++){
         __GUARD clWaitForEvents(1,
                                 &(*dev)[0].ups_f[ui].v2com[i]->cl_buf1.event_r);
-//        __GUARD clReleaseEvent(  (*dev)[0].ups_f[ui].v2com[i]->cl_buf1.event_r);
         
         MPI_Sendrecv_replace(
                     (void*)(*dev)[0].ups_f[ui].v2com[i]->cl_buf1.host,
@@ -92,17 +89,15 @@ int comm2_MPI(model * m, device ** dev, int adj, int ui){
     if (adj && m->BACK_PROP_TYPE==1){
         for (i=0;i<(*dev)[0].ups_adj[ui].nvcom;i++){
             __GUARD clWaitForEvents(1,
-                              &(*dev)[ld].ups_adj[i].v2com[i]->cl_buf2.event_r);
-//            __GUARD clReleaseEvent(
-//                               (*dev)[ld].ups_adj[i].v2com[i]->cl_buf2.event_r);
-            
+                              &(*dev)[ld].ups_adj[ui].v2com[i]->cl_buf2.event_r);
+
             MPI_Sendrecv_replace(
-                (void*)(*dev)[ld].ups_adj[i].v2com[i]->cl_buf2.host,
-                (int)(*dev)[ld].ups_adj[i].v2com[i]->cl_buf2.size/sizeof(float),
+                (void*)(*dev)[ld].ups_adj[ui].v2com[i]->cl_buf2.host,
+                (int)(*dev)[ld].ups_adj[ui].v2com[i]->cl_buf2.size/sizeof(float),
                 MPI_FLOAT,
-                m->MYID-1,
+                m->MYID+1,
                 i,
-                m->MYID-1,
+                m->MYID+1,
                 i,
                 MPI_COMM_WORLD,
                 NULL);
@@ -113,16 +108,14 @@ int comm2_MPI(model * m, device ** dev, int adj, int ui){
     for (i=0;i<(*dev)[0].ups_f[ui].nvcom;i++){
         __GUARD clWaitForEvents(1,
                                 &(*dev)[ld].ups_f[ui].v2com[i]->cl_buf2.event_r);
-//        __GUARD clReleaseEvent(  (*dev)[ld].ups_f[ui].v2com[i]->cl_buf2.event_r);
-        
         MPI_Sendrecv_replace(
                   (void*)(*dev)[ld].ups_f[ui].v2com[i]->cl_buf2.host,
                   (int)(*dev)[ld].ups_f[ui].v2com[i]->cl_buf2.size/sizeof(float),
                   MPI_FLOAT,
                   m->MYID+1,
-                  (*dev)[0].ups_f[ui].nvcom+i,
+                  i,
                   m->MYID+1,
-                  (*dev)[0].ups_f[ui].nvcom+i,
+                  i,
                   MPI_COMM_WORLD,
                   NULL);
         __GUARD clbuf_send(&(*dev)[ld].queuecomm,
@@ -152,23 +145,15 @@ int comm(model * m, device ** dev, int adj, int ui){
         if (adj && m->BACK_PROP_TYPE==1){
             for (i=0;i<(*dev)[0].ups_adj[ui].nvcom;i++){
                 __GUARD clbuf_readto(&(*dev)[0].queuecomm,
-                                      &(*dev)[0].ups_adj[ui].v2com[i]->cl_buf1,
-                                      &(*dev)[0].ups_adj[ui].v2com[i]->cl_buf1.host);
+                                     &(*dev)[0].ups_adj[ui].v2com[i]->cl_buf1,
+                                      (*dev)[0].ups_adj[ui].v2com[i]->cl_buf1.host);
             }
         }
         for (i=0;i<(*dev)[0].ups_f[ui].nvcom;i++){
             __GUARD clbuf_readto(&(*dev)[0].queuecomm,
-                                  &(*dev)[0].ups_f[ui].v2com[i]->cl_buf1,
-                                  &(*dev)[0].ups_f[ui].v2com[i]->cl_buf1.host);
+                                 &(*dev)[0].ups_f[ui].v2com[i]->cl_buf1,
+                                  (*dev)[0].ups_f[ui].v2com[i]->cl_buf1.host);
         }
-//        //We can realease the fcom1 event, it is no longer needed.
-//        if (adj){
-//            __GUARD clReleaseEvent((*dev)[0].ups_adj[ui].fcom1_out.event);
-//        }
-//        else{
-//            __GUARD clReleaseEvent((*dev)[0].ups_f[ui].fcom1_out.event);
-//        }
-
     }
     if (m->MYLOCALID<m->NLOCALP-1){
         //For all MPI processes except the last, com2 must occur on the last
@@ -181,23 +166,15 @@ int comm(model * m, device ** dev, int adj, int ui){
         if (adj && m->BACK_PROP_TYPE==1){
             for (i=0;i<(*dev)[0].ups_adj[ui].nvcom;i++){
                 __GUARD clbuf_readto(&(*dev)[ld].queuecomm,
-                                      &(*dev)[ld].ups_adj[ui].v2com[i]->cl_buf2,
-                                      &(*dev)[ld].ups_adj[ui].v2com[i]->cl_buf2.host);
+                                     &(*dev)[ld].ups_adj[ui].v2com[i]->cl_buf2,
+                                      (*dev)[ld].ups_adj[ui].v2com[i]->cl_buf2.host);
             }
         }
         for (i=0;i<(*dev)[0].ups_f[ui].nvcom;i++){
             __GUARD clbuf_readto( &(*dev)[ld].queuecomm,
                                   &(*dev)[ld].ups_f[ui].v2com[i]->cl_buf2,
-                                  &(*dev)[ld].ups_f[ui].v2com[i]->cl_buf2.host);
+                                   (*dev)[ld].ups_f[ui].v2com[i]->cl_buf2.host);
         }
-        //We can realease the fcom2 event, it is no longer needed.
-//        if (adj){
-//            __GUARD clReleaseEvent((*dev)[ld].ups_adj[ui].fcom2_out.event);
-//        }
-//        else{
-//            __GUARD clReleaseEvent((*dev)[ld].ups_f[ui].fcom2_out.event);
-//        }
-
     }
 
     //Read buffers for comunnication between devices
@@ -222,13 +199,6 @@ int comm(model * m, device ** dev, int adj, int ui){
                                       &(*dev)[d-1].ups_f[ui].v2com[i]->cl_buf2,
                                       (*dev)[d  ].ups_f[ui].v2com[i]->cl_buf1.host);
             }
-            //We can realease the fcom2 event, it is no longer needed.
-//            if (adj){
-//                __GUARD clReleaseEvent(*(*dev)[d-1].ups_adj[ui].v2com[0]->cl_buf2.waits_r);
-//            }
-//            else{
-//                __GUARD clReleaseEvent(*(*dev)[d-1].ups_f[ui].v2com[0]->cl_buf2.waits_r);
-//            }
         }
 
         if (d<m->NUM_DEVICES-1){
@@ -251,13 +221,6 @@ int comm(model * m, device ** dev, int adj, int ui){
                                       &(*dev)[d+1].ups_f[ui].v2com[i]->cl_buf1,
                                       (*dev)[d  ].ups_f[ui].v2com[i]->cl_buf2.host);
             }
-            //We can realease the fcom1 event, it is no longer needed.
-//            if (adj){
-//                __GUARD clReleaseEvent(*(*dev)[d+1].ups_adj[ui].v2com[0]->cl_buf1.waits_r);
-//            }
-//            else{
-//                __GUARD clReleaseEvent(*(*dev)[d+1].ups_f[ui].v2com[0]->cl_buf1.waits_r);
-//            }
 
         }
 
@@ -281,8 +244,6 @@ int comm(model * m, device ** dev, int adj, int ui){
                 __GUARD clbuf_send(&(*dev)[d].queuecomm,
                                    &(*dev)[d].ups_f[ui].v2com[i]->cl_buf1);
             }
-//            __GUARD clReleaseEvent(
-//              (*dev)[d-1].ups_f[ui].v2com[(*dev)[0].ups_f[ui].nvcom-1]->cl_buf2.event_r);
 
         }
 
@@ -300,8 +261,6 @@ int comm(model * m, device ** dev, int adj, int ui){
                 __GUARD clbuf_send(&(*dev)[d].queuecomm,
                                    &(*dev)[d].ups_f[ui].v2com[i]->cl_buf2);
             }
-//            __GUARD clReleaseEvent(
-//              (*dev)[d+1].ups_f[ui].v2com[(*dev)[0].ups_f[ui].nvcom-1]->cl_buf1.event_r);
         }
 
     }

@@ -39,7 +39,7 @@ int event_dependency( model * m,  device ** dev, int adj){
                                             &(*dev)[0].ups_f[i].fcom1_out.event;
             
             //All buffers reading must output an event for MPI communications
-            for (j=0;j<m->ups_f[i].nvcom;j++){
+            for (j=0;j<(*dev)[0].ups_f[i].nvcom;j++){
                 if (adj && m->BACK_PROP_TYPE==1){
                     (*dev)[0].ups_adj[i].v2com[j]->cl_buf1.outevent_r=1;
                 }
@@ -82,7 +82,7 @@ int event_dependency( model * m,  device ** dev, int adj){
                                            &(*dev)[ld].ups_f[i].fcom2_out.event;
             
             //All buffers reading must output an event for MPI communications
-            for (j=0;j<m->ups_f[i].nvcom;j++){
+            for (j=0;j<(*dev)[0].ups_f[i].nvcom;j++){
                 if (adj && m->BACK_PROP_TYPE==1){
                     (*dev)[ld].ups_adj[i].v2com[j]->cl_buf2.outevent_r=1;
                 }

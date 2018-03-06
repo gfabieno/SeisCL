@@ -157,7 +157,7 @@ LFUNDEF int evarm( int k, int i){
     
     
     
-#elif DEVID==0 & MYGROUPID==0
+#elif DEVID==0 & MYLOCALID==0
     
     int NXbnd = (NX-2*FDOH-NAB);
 #if FREESURF==0
@@ -192,7 +192,7 @@ LFUNDEF int evarm( int k, int i){
         m=NZbnd*FDOH+i+k*(NXbnd-FDOH);
     }
     
-#elif DEVID==NUM_DEVICES-1 & MYGROUPID==NLOCALP-1
+#elif DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
     int NXbnd = (NX-2*FDOH-NAB);
 #if FREESURF==0
     int NZbnd = (NZ- 2*FDOH- 2*NAB);

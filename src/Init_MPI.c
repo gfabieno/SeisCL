@@ -31,6 +31,7 @@ int var_alloc_out(float *** var, model *m ){
         }
     }
 
+
     return state;
     
 }
@@ -54,6 +55,8 @@ int Init_MPI(model * m) {
         MPI_Bcast( &m->MAXRELERROR, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->GRADOUT, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->src_recs.ns, 1, MPI_INT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->src_recs.nsmax, 1, MPI_INT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->src_recs.ngmax, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->L, 1, MPI_INT, 0, MPI_COMM_WORLD );
         
         
@@ -94,6 +97,10 @@ int Init_MPI(model * m) {
         MPI_Bcast( &m->scalermsnorm, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->BACK_PROP_TYPE, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->NFREQS, 1, MPI_INT, 0, MPI_COMM_WORLD );
+        
+        MPI_Bcast( &m->FP16, 1, MPI_INT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->INPUTRES, 1, MPI_INT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->halfpar, 1, MPI_INT, 0, MPI_COMM_WORLD );
         
         MPI_Barrier(MPI_COMM_WORLD);
     }
@@ -149,6 +156,15 @@ int Init_MPI(model * m) {
     if (m->MYID!=0){
         __GUARD assign_modeling_case(m);
     }
+    if (m->restype==0){
+        m->res_calc = &var_res_raw;
+        m->res_scale = &res_scale;
+    }
+    else{
+        fprintf(stderr, "Error: Unknown restype\n");
+        return 1;
+    }
+    
     MPI_Barrier(MPI_COMM_WORLD);
 
     if (!state){

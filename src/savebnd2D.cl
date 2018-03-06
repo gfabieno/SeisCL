@@ -121,7 +121,7 @@ FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 
     }
 
 
-#elif DEVID==0 & MYGROUPID==0
+#elif DEVID==0 & MYLOCALID==0
 
 #ifdef __OPENCL_VERSION__
     int gid = get_global_id(0);
@@ -162,7 +162,7 @@ FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 
         return;
     }
 
-#elif DEVID==NUM_DEVICES-1 & MYGROUPID==NLOCALP-1
+#elif DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
 
 #ifdef __OPENCL_VERSION__
     int gid = get_global_id(0);
