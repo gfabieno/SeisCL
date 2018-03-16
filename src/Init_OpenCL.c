@@ -1198,8 +1198,9 @@ int Init_CUDA(model * m, device ** dev)  {
     if (m->GRADOUT && m->BACK_PROP_TYPE==1){
         adj=1;
     }
+    #ifdef __SEISCL__
     __GUARD event_dependency(m, dev, adj);
-    
+    #endif
 
     if (state && m->MPI_INIT==1)
         MPI_Bcast( &state, 1, MPI_INT, m->MYID, MPI_COMM_WORLD );
