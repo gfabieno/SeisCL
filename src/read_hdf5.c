@@ -800,13 +800,11 @@ int readhdf5(struct filenames files, model * m) {
                     fprintf(stderr, "Error: %sres must be nt x number of"
                             "recording stations\n",m->vars[i].name );
                 }
-                __GUARD read_seis(file_id,
-                                  H5T_NATIVE_FLOAT,
-                                  temp,
-                                  m->vars[i].gl_var_res[0],
-                                  m->src_recs.rec_pos[0],
-                                  m->src_recs.allng,
-                                  m->NT);
+                __GUARD readvar(file_id,
+                                H5T_NATIVE_FLOAT,
+                                temp,
+                                m->vars[i].gl_var_res[0]);
+                
             }
             else if (m->vars[i].to_output){
                 fprintf(stderr, "Error: No residuals for %s\n",m->vars[i].name);
@@ -821,13 +819,10 @@ int readhdf5(struct filenames files, model * m) {
                             "recording stations\n",m->trans_vars[i].name);
                     return 1;
                 }
-                __GUARD read_seis(file_id,
-                                  H5T_NATIVE_FLOAT,
-                                  temp,
-                                  m->trans_vars[i].gl_var_res[0],
-                                  m->src_recs.rec_pos[0],
-                                  m->src_recs.allng,
-                                  m->NT);
+                __GUARD readvar(file_id,
+                                H5T_NATIVE_FLOAT,
+                                temp,
+                                m->trans_vars[i].gl_var_res[0]);
             }
             else if (m->trans_vars[i].to_output){
                 fprintf(stderr, "Error: No residuals for %s\n",
