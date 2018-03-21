@@ -92,6 +92,7 @@ typedef struct clbuf {
     size_t sizepin;
     float * host;
     int free_host;
+    int free_pin;
     
     int outevent_r;
     int outevent_s;

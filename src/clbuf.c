@@ -184,15 +184,15 @@ CL_INT clbuf_create_pin(CONTEXT *incontext, QUEUE *inqueue,
 {
     size_t sizepin;
     /*Create pinned memory */
-    CL_INT err = 0;
+    CL_INT state = 0;
     #ifdef __SEISCL__
     (*buf).mem = clCreateBuffer(*incontext,
                                 CL_MEM_READ_WRITE,
                                 (*buf).size,
                                 NULL,
-                                &err);
+                                &state);
     #else
-    err = cuMemAlloc( &(*buf).mem , (*buf).size);
+    state = cuMemAlloc( &(*buf).mem , (*buf).size);
     #endif
     if ((*buf).sizepin>0){
         sizepin=(*buf).sizepin;
@@ -205,7 +205,7 @@ CL_INT clbuf_create_pin(CONTEXT *incontext, QUEUE *inqueue,
                                CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR,
                                sizepin,
                                NULL,
-                               &err);
+                               &state);
     
     (*buf).host = (float*)clEnqueueMapBuffer(*inqueue,
                                              (*buf).pin,
@@ -216,16 +216,24 @@ CL_INT clbuf_create_pin(CONTEXT *incontext, QUEUE *inqueue,
                                              0,
                                              NULL,
                                              NULL,
-                                             &err);
+                                             &state);
+    if (state==CL_MEM_OBJECT_ALLOCATION_FAILURE){
+        GMALLOC((*buf).host, sizepin);
+        (*buf).free_host = 1;
+        state = 0;
+    }
+    else{
+        (*buf).free_pin = 1;
+    }
     #else
-    err = cuMemAllocHost((void**)&(*buf).host, sizepin);
+    state = cuMemAllocHost((void**)&(*buf).host, sizepin);
     #endif
     
-    if (err !=CUCL_SUCCESS) fprintf(stderr,
+    if (state !=CUCL_SUCCESS) fprintf(stderr,
                                     "Error: clbuf_create_pin: %s\n",
-                                    clerrors(err));
+                                    clerrors(state));
     
-    return err;
+    return state;
     
 }
 

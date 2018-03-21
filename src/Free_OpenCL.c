@@ -26,17 +26,20 @@ void clbuf_free(device *dev, clbuf *buf){
     buf->mem = NULL;
     
     #ifdef __SEISCL__
-    if (buf->pin) clEnqueueUnmapMemObject(dev->queuecomm,
-                                          buf->pin,
-                                          buf->host,
-                                          0,
-                                          NULL,
-                                          NULL);
+    
+    if (buf->free_pin && buf->pin){
+        clEnqueueUnmapMemObject(dev->queuecomm,
+                                              buf->pin,
+                                              buf->host,
+                                              0,
+                                              NULL,
+                                              NULL);
+        clReleaseMemObject(buf->pin);
+    }
     else if (buf->free_host){
         GFree(buf->host);
     }
     buf->host = NULL;
-    if (buf->pin) clReleaseMemObject(buf->pin);
     buf->pin = NULL;
     #else
     
