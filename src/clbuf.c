@@ -218,7 +218,8 @@ CL_INT clbuf_create_pin(CONTEXT *incontext, QUEUE *inqueue,
                                              NULL,
                                              &state);
     if (state==CL_MEM_OBJECT_ALLOCATION_FAILURE){
-        GMALLOC((*buf).host, sizepin);
+        (*buf).host = malloc(sizepin);
+        fprintf(stdout, "Warning: could not allocate pinned memory\n");
         (*buf).free_host = 1;
         state = 0;
     }
