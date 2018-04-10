@@ -35,6 +35,8 @@
 #include <sys/sysctl.h>
 #include <sys/stat.h>
 //#include <mach/mach_time.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "kiss_fft.h"
 #include "kiss_fftr.h"

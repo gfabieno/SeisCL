@@ -5,9 +5,11 @@ UNAME_S := $(shell uname -s)
 
 
 ifeq ($(UNAME_S),Linux)
-    CC=mpicc
-LFLAGS= -lm -ldl -lz -lmpi -lhdf5 -L/cm/extra/apps/HDF5/1.8.14/GCC-4.8.5_MPICH-3.1.3/lib/ -L/usr/local/hdf5/lib -L/usr/lib64/
-CFLAGS= -g -I/usr/local/hdf5/include
+CC=h5cc
+LFLAGS= -lm -lrt -lmpi -lOpenCL -lhdf5 -L/usr/local/hdf5/lib -L/usr/lib64/ -lz -pipe
+CFLAGS= -g
+CFLAGS += $(shell mpicc -showme:compile)
+LDFLAGS += $(shell mpicc -showme:link)
 endif
 ifeq ($(UNAME_S),Darwin)
     CC=mpicc
