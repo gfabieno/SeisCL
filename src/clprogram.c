@@ -384,7 +384,9 @@ int compile(const char *program_source,
         }
         else{
             unsigned char* program_file = NULL;
-            prog_read_file( &program_file, &program_size, filename_bin);
+            prog_read_file((char **)&program_file,
+                           &program_size,
+                           filename_bin);
             *program = clCreateProgramWithBinary(*context,
                                       1,
                                       &device,

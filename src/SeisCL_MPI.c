@@ -118,7 +118,7 @@ int main(int argc, char **argv) {
 
     time4=MPI_Wtime();
     // Main part, where seismic modeling occurs
-//    if (!state) state = time_stepping(&m, &dev);
+    if (!state) state = time_stepping(&m, &dev);
 
     time5=MPI_Wtime();
 
