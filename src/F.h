@@ -34,9 +34,12 @@
 #include <assert.h>
 #include <sys/sysctl.h>
 #include <sys/stat.h>
+#include <unistd.h>
+#include <pwd.h>
 //#include <mach/mach_time.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <limits.h>
 
 #include "kiss_fft.h"
 #include "kiss_fftr.h"
@@ -64,8 +67,10 @@
 
 #define MAX_DIMS 10
 #define MAX_KERNELS 100
-#define MAX_KERN_STR 10000
+#define MAX_KERN_STR 50000
 #define BLOCK_SIZE 256
+//#define __DEBUGGING__
+
 
 
 struct device;
@@ -129,7 +134,7 @@ CL_INT clbuf_create_pin(CONTEXT *incontext, QUEUE *inqueue,clbuf * buf);
 typedef struct clprogram {
     
     const char * name;
-    const char * src;
+    char src[MAX_KERN_STR];
     PROGRAM prog;
     MODULE module;
     KERNEL kernel;
@@ -337,6 +342,7 @@ typedef struct device {
     int OFFSET;
     int OFFSETfd;
     int DEVID;
+    int ctx_id;
     int NBND;
     
     int LOCAL_OFF;
@@ -373,6 +379,7 @@ typedef struct device {
 /* _____________Structure that holds all information of a MPI process_________*/
 typedef struct model {
     
+    char cache_dir[PATH_MAX];
     variable * vars;
     variable * vars_adj;
     int nvars;

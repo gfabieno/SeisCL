@@ -21,7 +21,7 @@
 
 #include "F.h"
 #ifdef __SEISCL__
-int get_platform( model * m, cl_platform_id*  clplateform)
+int get_platform( model * m, cl_platform_id*  clplateform, int * cl_plat_numid)
 {
     /* Find all platforms , and select the first with the desired device type */
     
@@ -80,6 +80,7 @@ int get_platform( model * m, cl_platform_id*  clplateform)
             }
             else{
                 *clplateform = clPlatformIDs[i];
+                * cl_plat_numid = i;
                 m->device_type=m->pref_device_type;
                 break;
             }
@@ -95,6 +96,7 @@ int get_platform( model * m, cl_platform_id*  clplateform)
                                           &m->NUM_DEVICES);
             if(device_found == CL_SUCCESS && m->NUM_DEVICES>0){
                 *clplateform = clPlatformIDs[i];
+                * cl_plat_numid = i;
                 m->device_type=CL_DEVICE_TYPE_GPU;
                 break;
             }
@@ -110,6 +112,7 @@ int get_platform( model * m, cl_platform_id*  clplateform)
                                           &m->NUM_DEVICES);
             if(device_found == CL_SUCCESS && m->NUM_DEVICES>0){
                 *clplateform = clPlatformIDs[i];
+                * cl_plat_numid = i;
                 m->device_type=CL_DEVICE_TYPE_ACCELERATOR;
                 break;
             }
@@ -125,6 +128,7 @@ int get_platform( model * m, cl_platform_id*  clplateform)
                                           &m->NUM_DEVICES);
             if(device_found == CL_SUCCESS && m->NUM_DEVICES>0){
                 *clplateform = clPlatformIDs[i];
+                * cl_plat_numid = i;
                 m->device_type=CL_DEVICE_TYPE_CPU;
                 break;
             }
@@ -180,7 +184,8 @@ CL_INT connect_devices(device ** dev, model * m)
     }
     #ifdef __SEISCL__
     cl_platform_id  clplateform = NULL;
-    __GUARD get_platform( m, &clplateform);
+    int cl_plat_numid;
+    __GUARD get_platform( m, &clplateform, &cl_plat_numid);
 //    m->NUM_DEVICES = 3; //line 225, 253 changed
     GMALLOC(*dev, sizeof(device)*m->NUM_DEVICES);
     
@@ -258,6 +263,8 @@ CL_INT connect_devices(device ** dev, model * m)
     
     // Create command queues for each devices
     for (i=0;i<m->NUM_DEVICES;i++){
+        (*dev)[i].DEVID = i;
+        (*dev)[i].ctx_id = cl_plat_numid;
         (*dev)[i].cudev = devices[allow_devs[i]];
         if (!state)
             (*dev)[i].queue = clCreateCommandQueue(m->context,

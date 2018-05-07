@@ -59,7 +59,32 @@ int main(int argc, char **argv) {
         snprintf(file.din, sizeof(file.din), "%s%s", filedata, "_din.mat");
     }
     
+    /* Check if cache directory exists and create dir if not */
+    struct stat info;
+    const char *homedir;
+    if ((homedir = getenv("HOME")) == NULL) {
+        homedir = getpwuid(getuid())->pw_dir;
+    }
+    snprintf(m.cache_dir, PATH_MAX, "%s%s", homedir, "/.seiscl");
+
+    if (stat( m.cache_dir, &info ) != 0 ){
+        #ifdef __linux__
+        mkdir(m.cache_dir, 0777);
+        #elif defined __APPLE__
+        mkdir(m.cache_dir, 0777);
+        #else
+        _mkdir(m.cache_dir);
+        #endif
+        printf( "Cache directory created: %s \n", m.cache_dir );
+    }
+    else if(info.st_mode & S_IFDIR )
+        printf( "Cache directory already exists: %s \n", m.cache_dir );
+    else{
+        state =1;
+        printf( "%s already exists and is not a directory\n", m.cache_dir );
+    }
     
+
     
     /* Initialize MPI environment */
     MPI_Init(&argc, &argv);
@@ -93,7 +118,7 @@ int main(int argc, char **argv) {
 
     time4=MPI_Wtime();
     // Main part, where seismic modeling occurs
-    if (!state) state = time_stepping(&m, &dev);
+//    if (!state) state = time_stepping(&m, &dev);
 
     time5=MPI_Wtime();
 

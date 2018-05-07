@@ -167,6 +167,124 @@ int prog_args_list(const char *str, char *name, char *** argnames, int * ninputs
     return state;
 }
 #ifdef __SEISCL__
+int prog_read_file(char **output, size_t *size, const char *name) {
+    FILE *fp = fopen(name, "rb");
+    if (!fp) {
+        return -1;
+    }
+    
+    fseek(fp, 0, SEEK_END);
+    *size = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    
+    *output = (char *)malloc(*size);
+    if (!*output) {
+        fclose(fp);
+        return -1;
+    }
+    
+    fread(*output, *size, 1, fp);
+    fclose(fp);
+    return 0;
+}
+
+int prog_write_file(const char *name, const unsigned char *content, size_t size) {
+    FILE *fp = fopen(name, "wb+");
+    if (!fp) {
+        return -1;
+    }
+    fwrite(content, size, 1, fp);
+    fclose(fp);
+    return 0;
+}
+int prog_write_src(const char *name, char * content) {
+    FILE *fp = fopen(name, "w");
+    if (!fp) {
+        return -1;
+    }
+    fprintf(fp, "%s", content);
+    fclose(fp);
+    return 0;
+}
+
+cl_int prog_compare(char * filename_src,
+                    char * prog_src){
+    
+    int i;
+    char src_cache[MAX_KERN_STR];
+    long length;
+    FILE * f = fopen (filename_src, "rb");
+    if (f){
+        fseek (f, 0, SEEK_END);
+        length = ftell (f);
+        fseek (f, 0, SEEK_SET);
+        if (length<MAX_KERN_STR){
+        fread (src_cache, 1, length, f);
+        }
+        else{
+            fprintf(stderr,"Error: cached kernel length too long\n");
+            return 1;
+        }
+        fclose (f);
+    }
+    else{
+        return 0;
+    }
+
+    for (i=0;i<length;i++){
+        if (prog_src[i]!=src_cache[i]){
+            return 0;
+        }
+    }
+    
+
+    return 1;
+
+}
+
+cl_int prog_write_binaries(cl_program *program,
+                           char * filename_bin,
+                           char * filename_src,
+                           char * prog_src) {
+    cl_int state = CL_SUCCESS;
+    size_t *binaries_size = NULL;
+    unsigned char **binaries_ptr = NULL;
+    
+    // Read the binaries size
+    size_t binaries_size_alloc_size = sizeof(size_t);
+    GMALLOC(binaries_size, binaries_size_alloc_size);
+    
+    __GUARD clGetProgramInfo(*program, CL_PROGRAM_BINARY_SIZES,
+                             binaries_size_alloc_size, binaries_size, NULL);
+    
+    
+    // Read the binaries
+    size_t binaries_ptr_alloc_size = sizeof(unsigned char *);
+    GMALLOC(binaries_ptr, binaries_ptr_alloc_size);
+    GMALLOC(binaries_ptr[0],binaries_size[0]);
+    __GUARD clGetProgramInfo(*program, CL_PROGRAM_BINARIES,
+                             binaries_ptr_alloc_size,
+                             binaries_ptr, NULL);
+    
+    // Write the binary ans src to the output file
+    prog_write_file(filename_bin, binaries_ptr[0], binaries_size[0]);
+    prog_write_src(filename_src, prog_src);
+    
+    if (binaries_ptr && binaries_ptr[0]){
+        free(binaries_ptr[0]);
+    }
+    if (binaries_ptr){
+        free(binaries_ptr);
+    }
+    if (binaries_ptr){
+        free(binaries_size);
+    }
+    
+    return state;
+}
+#endif
+
+#ifdef __SEISCL__
 char *get_build_options(device *dev,
                         model *m,
                         int LCOMM,
@@ -231,24 +349,62 @@ char *get_build_options(device *dev,
 int compile(const char *program_source,
             cl_program *program,
             cl_context *context,
+            cl_device_id device,
             cl_kernel *kernel,
             const char * program_name,
-            const char * build_options)
+            const char * build_options,
+            const char * cache_dir,
+            int devid,
+            int ctxid)
 {
     /* Routine to build a kernel from the source file contained in a c string*/
     
     int state = 0;
+    size_t program_size = 0;
     
+    // Write the binaries to file
+    // Create output file name
+    char filename_bin[PATH_MAX];
+    snprintf(filename_bin, sizeof(filename_bin), "%s/%s-%d-%d.bin",
+             cache_dir, program_name, ctxid, devid);
+    char filename_src[PATH_MAX];
+    snprintf(filename_src, sizeof(filename_src), "%s/%s-%d-%d.src",
+             cache_dir, program_name, ctxid, devid);
+    
+    int same =  prog_compare(filename_src,
+                             (char *)program_source);
     if (!*program){
-        *program = clCreateProgramWithSource(*context,
-                                             1,
-                                             &program_source,
-                                             NULL,
-                                             &state);
+        if (same!=1){
+            *program = clCreateProgramWithSource(*context,
+                                                 1,
+                                                 &program_source,
+                                                 NULL,
+                                                 &state);
+            if (state !=CL_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
+        }
+        else{
+            unsigned char* program_file = NULL;
+            prog_read_file( &program_file, &program_size, filename_bin);
+            *program = clCreateProgramWithBinary(*context,
+                                      1,
+                                      &device,
+                                      &program_size,
+                                      (const unsigned char **)&program_file,
+                                      NULL,
+                                      &state);
+            GFree(program_file);
+            if (state !=CL_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
+            
+        }
+        state = clBuildProgram(*program, 1, &device, build_options, NULL, NULL);
         if (state !=CL_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
         
-        state = clBuildProgram(*program, 0, NULL, build_options, NULL, NULL);
-        if (state !=CL_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
+        if (same!=1){
+            __GUARD prog_write_binaries(program,
+                                        (char *)filename_bin,
+                                        (char *)filename_src,
+                                        (char *)program_source);
+        }
     }
     // Now create the kernel "objects"
     *kernel = clCreateKernel(*program, program_name, &state);
@@ -437,7 +593,7 @@ int compile(const char *program_source,
 
 int prog_source(clprogram * prog, char* name, const char * source){
     int state =0;
-    (*prog).src=source;
+    snprintf((*prog).src, sizeof((*prog).src), "%s", source);
     (*prog).name=name;
     state =prog_args_list(source,
                         (char *)(*prog).name ,
@@ -476,9 +632,14 @@ int prog_create(model * m,
     state = compile( (*prog).src,
                     &(*prog).prog,
                     &m->context,
+                    dev->cudev,
                     &(*prog).kernel,
                     (*prog).name,
-                    build_options);
+                    build_options,
+                    m->cache_dir,
+                    dev->DEVID,
+                    dev->ctx_id);
+    
     
     #else
     char ** build_options=NULL;
@@ -731,8 +892,10 @@ int prog_create(model * m,
         }
         
         if (!argfound){
+            #ifdef __DEBUGGING__
             fprintf(stdout,"Warning: input %s undefined for kernel %s\n",
                              (*prog).input_list[i], (*prog).name);
+            #endif
             prog_arg(prog, i, &dev->cuda_null, memsize);
         }
 
@@ -745,6 +908,7 @@ int prog_create(model * m,
     return state;
 }
 
+    
 int prog_launch( QUEUE *inqueue, clprogram * prog){
     
     /*Launch a kernel and check for errors */
