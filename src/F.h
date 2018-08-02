@@ -46,7 +46,6 @@
 
 #include "CUDA_CL.h"
 
-
 #include <mpi.h>
 #include <hdf5.h>
 

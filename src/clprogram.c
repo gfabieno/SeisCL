@@ -647,7 +647,7 @@ int prog_create(model * m,
     char ** build_options=NULL;
         GMALLOC(build_options, sizeof(char*)*50);
     for (i=0;i<50;i++){
-        GMALLOC(build_options[i], sizeof(char)*100);
+        GMALLOC(build_options[i], sizeof(char)*500);
     }
     state= get_build_options(dev,
                               m,
