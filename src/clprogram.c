@@ -562,6 +562,7 @@ int compile(const char *program_source,
                                    NULL,
                                    NULL);
         if (state !=CUDA_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
+        //WARNING $CUDA_PATH/lib64 has to be in LD_LIBRARY_PATH for compilation
         __GUARD nvrtcCompileProgram(cuprog,noptions,(const char * const*)build_options);
         if (state !=NVRTC_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
         size_t logSize;
