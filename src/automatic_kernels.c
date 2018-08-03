@@ -197,7 +197,7 @@ int kernel_varout(device * dev,
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     
-    __GUARD prog_source(prog, "varsout", (*prog).src);
+       __GUARD prog_source(prog, "varsout", temp);
     
     prog->wdim=1;
     
@@ -267,7 +267,7 @@ int kernel_varoutinit(device * dev,
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
     
-    __GUARD prog_source(prog, "varsoutinit", (*prog).src);
+       __GUARD prog_source(prog, "varsoutinit", temp);
     
     prog->wdim=1;
     
@@ -357,7 +357,7 @@ int kernel_varinit(device * dev,
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
     
-    __GUARD prog_source(prog, "vars_init", (*prog).src);
+       __GUARD prog_source(prog, "vars_init", temp);
     
     #ifdef __SEISCL__
     prog->gsize[0] = 1;
@@ -583,7 +583,7 @@ int kernel_sources(model * m,
     
     strcat(temp, "\n}");
     
-    __GUARD prog_source(prog, "sources", (*prog).src);
+       __GUARD prog_source(prog, "sources", temp);
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
     
@@ -778,7 +778,7 @@ int kernel_residuals(device * dev,
     
     strcat(temp, "\n}");
     
-    __GUARD prog_source(prog, "residuals", (*prog).src);
+       __GUARD prog_source(prog, "residuals", temp);
 
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
     
@@ -859,7 +859,7 @@ int kernel_gradinit(device * dev,
 
     strcat(temp, "\n}");
     
-    __GUARD prog_source(prog, "gradinit", (*prog).src);
+       __GUARD prog_source(prog, "gradinit", temp);
     #ifdef __SEISCL__
     prog->gsize[0]=1;
     for (i=0;i<dev->NDIM;i++){
@@ -948,7 +948,7 @@ int kernel_initsavefreqs(device * dev,
     
     strcat(temp, "\n}");
     
-    __GUARD prog_source(prog, "initsavefreqs", (*prog).src);
+       __GUARD prog_source(prog, "initsavefreqs", temp);
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
     #ifdef __SEISCL__
@@ -1090,7 +1090,7 @@ int kernel_savefreqs(device * dev,
     
     strcat(temp, "\n}");
 
-    __GUARD prog_source(prog, "savefreqs", (*prog).src);
+       __GUARD prog_source(prog, "savefreqs", temp);
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
 #ifdef __SEISCL__
@@ -1142,7 +1142,7 @@ int kernel_init_gradsrc(clprogram * prog){
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
     
-    __GUARD prog_source(prog, "init_gradsrc", (*prog).src);
+       __GUARD prog_source(prog, "init_gradsrc", temp);
     
     prog->wdim=1;
     
@@ -1309,7 +1309,7 @@ int kernel_fcom_out(device * dev,
     
     printf("%s\n\n%lu\n",temp, strlen(temp));
     
-    __GUARD prog_source(prog, "fill_transfer_buff_out", (*prog).src);
+       __GUARD prog_source(prog, "fill_transfer_buff_out", temp);
     
     return state;
     
@@ -1474,7 +1474,7 @@ int kernel_fcom_in(device * dev,
     
 //        printf("%s\n\n%lu\n",temp, strlen(temp));
     
-    __GUARD prog_source(prog, "fill_transfer_buff_in", (*prog).src);
+       __GUARD prog_source(prog, "fill_transfer_buff_in", temp);
     
     
     return state;
