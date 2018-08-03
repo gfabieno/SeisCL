@@ -197,8 +197,6 @@ int kernel_varout(device * dev,
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     
-    snprintf((*prog).src, sizeof((*prog).src), "%s", temp);
-    
     __GUARD prog_source(prog, "varsout", (*prog).src);
     
     prog->wdim=1;
@@ -268,9 +266,6 @@ int kernel_varoutinit(device * dev,
     
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
-    
-    
-    snprintf((*prog).src, sizeof((*prog).src), "%s", temp);
     
     __GUARD prog_source(prog, "varsoutinit", (*prog).src);
     
@@ -361,9 +356,6 @@ int kernel_varinit(device * dev,
     
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
-    
-    
-    snprintf((*prog).src, sizeof((*prog).src), "%s", temp);
     
     __GUARD prog_source(prog, "vars_init", (*prog).src);
     
@@ -591,8 +583,6 @@ int kernel_sources(model * m,
     
     strcat(temp, "\n}");
     
-    snprintf((*prog).src, sizeof((*prog).src), "%s", temp);
-    
     __GUARD prog_source(prog, "sources", (*prog).src);
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
@@ -788,8 +778,6 @@ int kernel_residuals(device * dev,
     
     strcat(temp, "\n}");
     
-    snprintf((*prog).src, sizeof((*prog).src), "%s", temp);
-    
     __GUARD prog_source(prog, "residuals", (*prog).src);
 
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
@@ -870,8 +858,6 @@ int kernel_gradinit(device * dev,
     }
 
     strcat(temp, "\n}");
-    
-   snprintf((*prog).src, sizeof((*prog).src), "%s", temp);
     
     __GUARD prog_source(prog, "gradinit", (*prog).src);
     #ifdef __SEISCL__
@@ -961,8 +947,6 @@ int kernel_initsavefreqs(device * dev,
     }
     
     strcat(temp, "\n}");
-    
-    snprintf((*prog).src, sizeof((*prog).src), "%s", temp);
     
     __GUARD prog_source(prog, "initsavefreqs", (*prog).src);
     
@@ -1105,8 +1089,7 @@ int kernel_savefreqs(device * dev,
     }
     
     strcat(temp, "\n}");
-    
-    snprintf((*prog).src, sizeof((*prog).src), "%s", temp);
+
     __GUARD prog_source(prog, "savefreqs", (*prog).src);
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
@@ -1156,8 +1139,6 @@ int kernel_init_gradsrc(clprogram * prog){
            "    gradsrc[gid]=0.0;\n\n"
            "}");
     #endif
-    
-    snprintf((*prog).src, sizeof((*prog).src), "%s", temp);
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
     
@@ -1328,9 +1309,6 @@ int kernel_fcom_out(device * dev,
     
     printf("%s\n\n%lu\n",temp, strlen(temp));
     
-    
-    snprintf((*prog).src, sizeof((*prog).src), "%s", temp);
-    
     __GUARD prog_source(prog, "fill_transfer_buff_out", (*prog).src);
     
     return state;
@@ -1495,9 +1473,6 @@ int kernel_fcom_in(device * dev,
     
     
 //        printf("%s\n\n%lu\n",temp, strlen(temp));
-    
-    
-    snprintf((*prog).src, sizeof((*prog).src), "%s", temp);
     
     __GUARD prog_source(prog, "fill_transfer_buff_in", (*prog).src);
     

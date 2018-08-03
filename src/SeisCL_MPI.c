@@ -173,10 +173,10 @@ int main(int argc, char **argv) {
     // Free the memory
     Free_OpenCL(&m, dev);
     
-    if (state){
-//        sleep(300000);
-        MPI_Abort(MPI_COMM_WORLD, state);
-    }
+//    if (state){
+////        sleep(300000);
+//        MPI_Abort(MPI_COMM_WORLD, state);
+//    }
     if (m.MPI_INIT==1){
         MPI_Finalize();
     }
