@@ -123,7 +123,9 @@ int main(int argc, char **argv) {
     time5=MPI_Wtime();
 
     //Reduce to process 0 all required outputs
-    if (!state) state = Out_MPI(&m);
+    if (m.NP > 1){
+        if (!state) state = Out_MPI(&m);
+    }
 
     // Write the ouputs to hdf5 files
     if (m.MYID==0){
