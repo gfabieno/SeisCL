@@ -311,7 +311,7 @@ char *get_build_options(device *dev,
         }
     }
     for (i=0;i<m->FDOH;i++){
-        sprintf(src,"-D hc%d=%9.9f ",i+1,m->hc[i+1]);
+        sprintf(src,"-D HC%d=%9.9f ",i+1,m->hc[i+1]);
         strcat(build_options,src);
         
     }
@@ -946,8 +946,9 @@ int prog_launch( QUEUE *inqueue, clprogram * prog){
         prog->wdim=1;
     }
     for (i=0;i<prog->wdim;i++){
-        if (prog->lsize[i]>0)
-        tsize[i]=(unsigned int)prog->lsize[i];
+        if (prog->lsize[i]>0){
+            tsize[i]=(unsigned int)prog->lsize[i];
+        }
         bsize[i]=(unsigned int)(prog->gsize[i]+tsize[i]-1)/tsize[i];
     }
     

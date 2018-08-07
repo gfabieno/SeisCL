@@ -1309,7 +1309,7 @@ int kernel_fcom_out(device * dev,
     
     printf("%s\n\n%lu\n",temp, strlen(temp));
     
-       __GUARD prog_source(prog, "fill_transfer_buff_out", temp);
+    __GUARD prog_source(prog, "fill_transfer_buff_out", temp);
     
     return state;
     
