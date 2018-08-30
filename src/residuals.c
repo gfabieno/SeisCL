@@ -22,6 +22,39 @@
 #include "F.h"
 #include "fp16_conversion.h"
 
+
+int rtm_res(model * m, int s)
+{
+    int state=0;
+    int g, t, i;
+    int tmax=m->tmax;
+    int nrec=(m->src_recs.nrec[s]);
+    int NT=m->NT;
+    
+    // Main loop to calculate residuals
+    for (g=0;g<nrec;g++){
+        
+        for (t=0;t<tmax;t++){
+            
+           
+            for (i=0;i<m->nvars;i++){
+                if (m->vars[i].to_output){
+                    m->vars[i].gl_var_res[s][g*NT+t]=m->vars[i].gl_varin[s][g*NT+t];
+                }
+            }
+            for (i=0;i<m->ntvars;i++){
+                if (m->trans_vars[i].to_output){
+                    m->trans_vars[i].gl_var_res[s][g*NT+t]=m->trans_vars[i].gl_varin[s][g*NT+t];
+                }
+            }
+            
+        }
+    }
+    
+    
+    return state;
+}
+
 int var_res_raw(model * m, int s)
 {
     

@@ -213,6 +213,7 @@ typedef struct variable{
 
 int var_alloc_out(float *** var, struct model *m );
 int var_res_raw(struct model * m, int s);
+int rtm_res(struct model * m, int s);
 int res_scale(struct model * m, int s);
 
 /* _____________Structure for parameters, or what can be inverted_____________*/
