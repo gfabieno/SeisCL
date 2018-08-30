@@ -160,7 +160,7 @@ int Init_MPI(model * m) {
         m->res_calc = &var_res_raw;
         m->res_scale = &res_scale;
     }
-    else if (m->restype==0){
+    else if (m->restype==1){
         m->res_calc = &rtm_res;
         m->res_scale = &res_scale;
     }
