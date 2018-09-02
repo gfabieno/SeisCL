@@ -863,6 +863,7 @@ extern "C" __global__ void update_adjs(int offcomm,
 
     // Shear wave modulus and P-wave modulus gradient calculation on the fly
 #if BACK_PROP_TYPE==1
+    #if RESTYPE==0
     float2 c1= div2f(f2h2f(1.0), mul2f(mul2f(f2h2f(2.0), sub2f(__h22f2c(lM),__h22f2c(lmu))),mul2f(f2h2f(2.0), sub2f(__h22f2c(lM),__h22f2c(lmu)))));
     float2 c3=div2f(f2h2f(1.0), mul2f(__h22f2c(lmu),__h22f2c(lmu)));
     float2 c5=mul2f(f2h2f(0.25), c3);
@@ -880,13 +881,20 @@ extern "C" __global__ void update_adjs(int offcomm,
                            scalbnf2(sub2f(sub2f( dM, mul2f(c3, mul2f(__h22f2c(lsxz),__h22f2c(lsxzr)))), mul2f(c5,mul2f( sub2f(__h22f2c(lsxx),__h22f2c(lszz)), sub2f(__h22f2c(lsxxr),__h22f2c(lszzr))))),
                                 -src_scale-res_scale));
     
-#if HOUT==1
+        #if HOUT==1
     float2 dMH=mul2f(c1,mul2f(__h22f2c(add2(lsxx,lszz)), __h22f2c(add2(lsxx,lszz) )) );
     HM(gidz,gidx)=add2f(HM(gidz,gidx), scalbnf2(dMH, -2.0*src_scale));
     Hmu(gidz,gidx)=add2f(Hmu(gidz,gidx),
                         scalbnf2(add2f(sub2f( mul2f(c3, mul2f(__h22f2c(lsxz),__h22f2c(lsxz))), dMH ), mul2f(c5, mul2f( __h22f2c(sub2(lsxx,lszz)), __h22f2c(sub2(lsxx,lszz))))),
                                  -2.0*src_scale));
-#endif
+        #endif
+    #endif
+    
+    #if RESTYPE==0
+    float2 dM=mul2f(__h22f2c(add2(lsxx,lszz)), __h22f2c(add2(lsxxr,lszzr)) );
+    
+    gradM(gidz,gidx)=sub2f(gradM(gidz,gidx), scalbnf2(dM, -src_scale - res_scale));
+    #endif
     
 #endif
 

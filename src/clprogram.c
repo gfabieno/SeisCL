@@ -324,7 +324,8 @@ char *get_build_options(device *dev,
             "-D MYLOCALID=%d -D NLOCALP=%d -D NFREQS=%d "
             "-D BACK_PROP_TYPE=%d -D COMM12=%d -D NTNYQ=%d -D DTNYQ=%d "
             "-D VARSOUT=%d -D RESOUT=%d  -D RMSOUT=%d -D MOVOUT=%d "
-            "-D GRADOUT=%d -D HOUT=%d -D GRADSRCOUT=%d -D DIRPROP=%d",
+            "-D GRADOUT=%d -D HOUT=%d -D GRADSRCOUT=%d -D DIRPROP=%d "
+            "-D RESTYPE=%d",
             (*m).NDIM, (*dev).NX0, (*m).FDOH, (*m).dt/(*m).dh, (*m).dh,
             (*m).dt, (*m).dt/2.0, (*m).NT, (*m).NAB, (*dev).NBND,
             (*dev).LOCAL_OFF, (*m).L, (*dev).DEVID, (*m).NUM_DEVICES,
@@ -332,7 +333,7 @@ char *get_build_options(device *dev,
             (*m).MYLOCALID, (*m).NLOCALP, (*m).NFREQS,
             (*m).BACK_PROP_TYPE, comm, (*m).NTNYQ, (*m).DTNYQ,
             (*m).VARSOUT, (*m).RESOUT, (*m).RMSOUT, (*m).MOVOUT,
-            (*m).GRADOUT, (*m).HOUT, (*m).GRADSRCOUT, DIRPROP  );
+            (*m).GRADOUT, (*m).HOUT, (*m).GRADSRCOUT, DIRPROP, (*m).restype);
     
     strcat(build_options,src2);
     
@@ -538,6 +539,8 @@ int get_build_options(device *dev,
     sprintf(build_options[*n-1],"-D GRADSRCOUT=%d",(*m).GRADSRCOUT);
     *n+=1;
     sprintf(build_options[*n-1],"-D DIRPROP=%d",DIRPROP);
+    *n+=1;
+    sprintf(build_options[*n-1],"-D RESTYPE=%d",(*m).restype);
     
     return state;
 }
