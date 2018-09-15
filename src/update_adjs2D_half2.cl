@@ -894,6 +894,12 @@ extern "C" __global__ void update_adjs(int offcomm,
     float2 dM=mul2f(__h22f2c(add2(lsxx,lszz)), __h22f2c(add2(lsxxr,lszzr)) );
     
     gradM(gidz,gidx)=sub2f(gradM(gidz,gidx), scalbnf2(dM, -src_scale - res_scale));
+    
+    #if HOUT==1
+    float2 dMH=mul2f(__h22f2c(add2(lsxx,lszz)), __h22f2c(add2(lsxx,lszz)) );
+    HM(gidz,gidx)=add2f(HM(gidz,gidx), scalbnf2(dMH, -2.0*src_scale));
+
+    #endif
     #endif
     
 #endif
