@@ -389,7 +389,7 @@ int initialize_forward(model * m, device ** dev, int s, int * pdir){
         (*dev)[d].src_recs.residuals.gsize[0]=(*dev)[d].src_recs.nrec[s];
         (*dev)[d].src_recs.init_gradsrc.gsize[0]=(*dev)[d].src_recs.nsrc[s]
                                                                         * m->NT;
-        //Assign the some arg to kernels
+        //Assign some arg to kernels
         for (i=0;i<(*dev)[d].nprogs;i++){
             if ((*dev)[d].progs[i]->pdir>0){
                 ind =(*dev)[d].progs[i]->pdir-1;
@@ -485,7 +485,7 @@ int initialize_adj(model * m, device ** dev, int s, int * pdir){
             for (i=0;i<(*dev)[d].nprogs;i++){
                 if ((*dev)[d].progs[i]->pdir>0){
                     ind=(*dev)[d].progs[i]->pdir-1;
-                    __GUARD prog_arg((*dev)[d].progs[i], ind, &pdir, sizeof(int));
+                    __GUARD prog_arg((*dev)[d].progs[i], ind, pdir, sizeof(int));
                 }
                 if ((*dev)[d].progs[i]->rcinput>0){
                     ind=(*dev)[d].progs[i]->rcinput-1;

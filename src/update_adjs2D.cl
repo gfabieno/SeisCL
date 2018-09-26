@@ -940,6 +940,7 @@ FUNDEF void update_adjs(int offcomm,
 
 // Shear wave modulus and P-wave modulus gradient calculation on the fly
 #if BACK_PROP_TYPE==1
+    #if RESTYPE==0
     float c1=1.0/( (2.0*lM-2.0*lmu)*(2.0*lM-2.0*lmu) );
     float c3=1.0/(lmu*lmu);
     float c5=0.25*c3;
@@ -949,11 +950,24 @@ FUNDEF void update_adjs(int offcomm,
     gradM(gidz,gidx)+=-dM;
     gradmu(gidz,gidx)+=-c3*(sxz(gidz,gidx)*lsxz)+dM-c5*(  (sxx(gidz,gidx)-szz(gidz,gidx))*(lsxx-lszz)  );
 
-#if HOUT==1
+    #if HOUT==1
     float dMH=c1*(sxx(gidz,gidx)+szz(gidz,gidx))*(sxx(gidz,gidx)+szz(gidz,gidx));
     HM(gidz,gidx)+= dMH;
     Hmu(gidz,gidx)+=c3*sxz(gidz,gidx)*sxz(gidz,gidx)-dM+c5*(sxx(gidz,gidx)-szz(gidz,gidx))*(sxx(gidz,gidx)-szz(gidz,gidx)) ;
-#endif
+    #endif
+    #endif
+    
+    #if RESTYPE==1
+    float dM=( sxx(gidz,gidx)+szz(gidz,gidx) )*( lsxx+lszz );
+    
+    gradM(gidz,gidx)+=-dM;
+    
+    #if HOUT==1
+    float dMH= (sxx(gidz,gidx)+szz(gidz,gidx))*(sxx(gidz,gidx)+szz(gidz,gidx));
+    HM(gidz,gidx)+= dMH;
+    
+    #endif
+    #endif
 
 #endif
 
