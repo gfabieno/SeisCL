@@ -166,7 +166,6 @@ int prog_args_list(const char *str, char *name, char *** argnames, int * ninputs
     
     return state;
 }
-#ifdef __SEISCL__
 int prog_read_file(char **output, size_t *size, const char *name) {
     FILE *fp = fopen(name, "rb");
     if (!fp) {
@@ -286,7 +285,6 @@ cl_int prog_write_binaries(cl_program *program,
     
     return state;
 }
-#endif
 
 #ifdef __SEISCL__
 char *get_build_options(device *dev,
