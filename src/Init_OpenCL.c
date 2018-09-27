@@ -186,7 +186,7 @@ CL_INT connect_devices(device ** dev, model * m)
     cl_platform_id  clplateform = NULL;
     int cl_plat_numid;
     __GUARD get_platform( m, &clplateform, &cl_plat_numid);
-    m->NUM_DEVICES = 3; //line 217, 231, 258 changed
+//    m->NUM_DEVICES = 3; //line 217, 231, 258 changed
     GMALLOC(*dev, sizeof(device)*m->NUM_DEVICES);
     
     
@@ -214,7 +214,6 @@ CL_INT connect_devices(device ** dev, model * m)
     __GUARD cuInit(0);
     __GUARD cuDeviceGetCount ( &nalldevices );
     GMALLOC(allow_devs,sizeof(int)*nalldevices);
-    nalldevices = 3;
     #endif
     
     //Collect all allowed devices
@@ -229,7 +228,7 @@ CL_INT connect_devices(device ** dev, model * m)
             }
             if (allowed){
                 allow_devs[n]=i;
-                allow_devs[n]=0;
+                //allow_devs[n]=0;
                 n++;
             }
             
@@ -256,7 +255,7 @@ CL_INT connect_devices(device ** dev, model * m)
 
     // Create a context with the specified devices
     if (!state) m->context = clCreateContext(NULL,
-                                             1,//m->NUM_DEVICES,//1,
+                                             m->NUM_DEVICES,//1,
                                              devices,
                                              NULL,
                                              NULL,
