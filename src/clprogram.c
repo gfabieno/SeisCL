@@ -967,6 +967,9 @@ int prog_launch( QUEUE *inqueue, clprogram * prog){
                             prog->inputs,
                             NULL );
     if (prog->outevent){
+        if (!prog->event){
+            state =  cuEventCreate(&prog->event, CU_EVENT_DISABLE_TIMING);
+        }
         state = cuEventRecord( prog->event, *inqueue);
     }
     #endif
