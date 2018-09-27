@@ -8,9 +8,6 @@
 
 #include "F.h"
 
-
-//TODO Write event dependency for CUDA
-#ifdef __SEISCL__
 int event_dependency( model * m,  device ** dev, int adj){
 //Assign kernels and memory transfer event dependencies
 
@@ -223,4 +220,4 @@ int event_dependency( model * m,  device ** dev, int adj){
 
     return state;
 }
-#endif
+

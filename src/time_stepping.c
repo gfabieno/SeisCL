@@ -167,7 +167,9 @@ int save_bnd(model * m, device ** dev, int t){
         (*dev)[d].grads.savebnd.outevent=1;
         
         __GUARD prog_launch(&(*dev)[d].queue, &(*dev)[d].grads.savebnd);
-
+        
+        lv=-1;
+        l0=-1;
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].to_comm){
                 if (l0<0){
@@ -176,11 +178,9 @@ int save_bnd(model * m, device ** dev, int t){
                 lv=i;
             }
         }
-        #ifdef __SEISCL__
         (*dev)[d].vars[lv].cl_varbnd.outevent_r=1;
         (*dev)[d].vars[l0].cl_varbnd.nwait_r=1;
         (*dev)[d].vars[l0].cl_varbnd.waits_r=&(*dev)[d].grads.savebnd.event;
-        #endif
         if (m->FP16>1){
             offset =(*dev)[d].NBND*t/2;
         }
@@ -194,10 +194,8 @@ int save_bnd(model * m, device ** dev, int t){
                                      &(*dev)[d].vars[i].cl_varbnd.host[offset]);
             }
         }
-        #ifdef __SEISCL__
         (*dev)[d].grads.savebnd.nwait=1;
         (*dev)[d].grads.savebnd.waits=&(*dev)[d].vars[lv].cl_varbnd.event_r;
-        #endif
     }
 
     
@@ -209,8 +207,26 @@ int inject_bnd(model * m, device ** dev, int t){
     int state=0;
     int d,i;
     int offset;
+    int lv=-1;
+    int l0=-1;
     
     for (d=0;d<m->NUM_DEVICES;d++){
+
+        lv=-1;
+        l0=-1;
+        for (i=0;i<m->nvars;i++){
+            if ((*dev)[d].vars[i].to_comm){
+                if (l0<0){
+                    l0=i;
+                }
+                lv=i;
+            }
+        }
+        (*dev)[d].ups_adj[0].center.outevent = 1;
+        (*dev)[d].vars[lv].cl_varbnd.outevent_s=1;
+        (*dev)[d].vars[l0].cl_varbnd.nwait_s=1;
+        (*dev)[d].vars[l0].cl_varbnd.waits_s=&(*dev)[d].ups_adj[0].center.event;
+        
         
         if (m->FP16>1){
             offset =(*dev)[d].NBND*(t-1)/2;
@@ -226,6 +242,7 @@ int inject_bnd(model * m, device ** dev, int t){
                                        &(*dev)[d].vars[i].cl_varbnd.host[offset]);
             }
         }
+
         
         
     }

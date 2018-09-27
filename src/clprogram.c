@@ -966,6 +966,9 @@ int prog_launch( QUEUE *inqueue, clprogram * prog){
                             *inqueue,
                             prog->inputs,
                             NULL );
+    if (prog->outevent){
+        state = cuEventRecord( prog->event, *inqueue);
+    }
     #endif
     
 

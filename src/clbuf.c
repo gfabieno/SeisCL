@@ -44,6 +44,9 @@ CL_INT clbuf_send(QUEUE *inqueue, clbuf * buf)
                                event);
     #else
     err = cuMemcpyHtoDAsync ( buf->mem, (void*)buf->host, buf->size, *inqueue );
+    if (buf->outevent_s){
+        state = cuEventRecord(buf->event_s, *inqueue);
+    }
     #endif
     if (err !=CUCL_SUCCESS)
         fprintf(stderr,"Error: clbuf_send: %s\n", clerrors(err));
@@ -81,6 +84,9 @@ CL_INT clbuf_sendfrom(QUEUE *inqueue,
                              ptr,
                              buf->size,
                              *inqueue );
+    if (buf->outevent_s){
+        state = cuEventRecord(buf->event_s, *inqueue);
+    }
     #endif
     if (err !=CUCL_SUCCESS) fprintf(stderr,
                                     "Error: clbuf_sendfrom: %s\n",
@@ -116,6 +122,9 @@ CL_INT clbuf_read(QUEUE *inqueue, clbuf * buf)
                               event);
     #else
     err= cuMemcpyDtoHAsync ( buf->host, buf->mem, buf->size, *inqueue );
+    if (buf->outevent_r){
+        state = cuEventRecord(buf->event_r, *inqueue);
+    }
     #endif
     if (err !=CUCL_SUCCESS) fprintf(stderr,
                                     "Error: clbuf_read: %s\n",
@@ -155,6 +164,9 @@ CL_INT clbuf_readto(QUEUE *inqueue,
     
     #else
     err= cuMemcpyDtoHAsync(ptr, buf->mem, buf->size, *inqueue);
+    if (buf->outevent_r){
+        state = cuEventRecord(buf->event_r, *inqueue);
+    }
     #endif
     if (err !=CUCL_SUCCESS)
         fprintf(stderr, "Error: clbuf_readto: %s\n", clerrors(err));
@@ -167,7 +179,9 @@ CL_INT clbuf_create(CONTEXT *incontext, clbuf * buf)
     /*Create the buffer on the device */
     CL_INT err = 0;
     #ifdef __SEISCL__
-    (*buf).mem = clCreateBuffer(*incontext, CL_MEM_READ_WRITE, (*buf).size, NULL, &err);
+    (*buf).mem = clCreateBuffer(*incontext,
+                                CL_MEM_READ_WRITE,
+                                (*buf).size, NULL, &err);
     #else
     err = cuMemAlloc( &(*buf).mem , (*buf).size);
     #endif
