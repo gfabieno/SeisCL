@@ -603,7 +603,7 @@ int kernel_residuals(device * dev,
     int state=0;
     int i,j;
     
-    char temp[MAX_KERN_STR]={0};;
+    char temp[MAX_KERN_STR]={0};
     char temp2[100]={0};
     char * p=(char*)temp;
     variable * vars = dev->vars;

@@ -242,10 +242,13 @@ cl_int prog_compare(char * filename_src,
 
 }
 
+
 cl_int prog_write_binaries(cl_program *program,
                            char * filename_bin,
                            char * filename_src,
-                           char * prog_src) {
+                           char * prog_src,
+                           char * filename_opt,
+                           char * options) {
     cl_int state = CL_SUCCESS;
     size_t *binaries_size = NULL;
     unsigned char **binaries_ptr = NULL;
@@ -269,6 +272,7 @@ cl_int prog_write_binaries(cl_program *program,
     // Write the binary ans src to the output file
     prog_write_file(filename_bin, binaries_ptr[0], binaries_size[0]);
     prog_write_src(filename_src, prog_src);
+    prog_write_src(filename_opt, options);
     
     if (binaries_ptr && binaries_ptr[0]){
         free(binaries_ptr[0]);
@@ -371,9 +375,16 @@ int compile(const char *program_source,
     char filename_src[PATH_MAX];
     snprintf(filename_src, sizeof(filename_src), "%s/%s-%d-%d.src",
              cache_dir, program_name, ctxid, devid);
+    char filename_opt[PATH_MAX];
+    snprintf(filename_opt, sizeof(filename_opt), "%s/%s-%d-%d.opt",
+             cache_dir, program_name, ctxid, devid);
     
-    int same =  prog_compare(filename_src,
-                             (char *)program_source);
+    int same;
+    same =  prog_compare(filename_opt, (char *)build_options);
+    if (same==1){
+        same =  prog_compare(filename_src, (char *)program_source);
+    }
+
     if (!*program){
         if (same!=1){
             *program = clCreateProgramWithSource(*context,
@@ -406,7 +417,9 @@ int compile(const char *program_source,
             __GUARD prog_write_binaries(program,
                                         (char *)filename_bin,
                                         (char *)filename_src,
-                                        (char *)program_source);
+                                        (char *)program_source,
+                                        (char *)filename_opt,
+                                        (char *)build_options);
         }
     }
     // Now create the kernel "objects"
@@ -557,32 +570,71 @@ int compile(const char *program_source,
     int state = 0;
     size_t ptxSize=0;
     nvrtcProgram cuprog;
+    size_t program_size = 0;
+    int i;
+    
+    // Write the binaries to file
+    // Create output file name
+    char filename_bin[PATH_MAX];
+    snprintf(filename_bin, sizeof(filename_bin), "%s/%s-%d-%d.bin",
+             cache_dir, program_name, ctxid, devid);
+    char filename_src[PATH_MAX];
+    snprintf(filename_src, sizeof(filename_src), "%s/%s-%d-%d.src",
+             cache_dir, program_name, ctxid, devid);
+    char filename_opt[PATH_MAX];
+    snprintf(filename_opt, sizeof(filename_opt), "%s/%s-%d-%d.opt",
+             cache_dir, program_name, ctxid, devid);
+    
+    int same;
+    char concat_options[5000] = {0};
+    for (i=0;i<noptions;i++){
+        strcat(concat_options, build_options[i]);
+    }
+    
+    same =  prog_compare(filename_opt, (char *)concat_options);
+    if (same==1){
+        same =  prog_compare(filename_src, (char *)program_source);
+    }
+
     if (!program){
-        __GUARD nvrtcCreateProgram(&cuprog,
-                                   program_source,
-                                   program_name,
-                                   0,
-                                   NULL,
-                                   NULL);
-        if (state !=CUDA_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
-        //WARNING $CUDA_PATH/lib64 has to be in LD_LIBRARY_PATH for compilation
-        __GUARD nvrtcCompileProgram(cuprog,noptions,(const char * const*)build_options);
-        if (state !=NVRTC_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
-        size_t logSize;
-        nvrtcGetProgramLogSize(cuprog, &logSize);
-        if (state){
-            char *log = malloc(logSize);
-            state = nvrtcGetProgramLog(cuprog, log);
-            fprintf(stdout,"Compilation of %s:\n",program_name);
-            fprintf(stdout,"%s",log);
-            free(log);
+        if (same!=1){
+            __GUARD nvrtcCreateProgram(&cuprog,
+                                       program_source,
+                                       program_name,
+                                       0,
+                                       NULL,
+                                       NULL);
+            if (state !=CUDA_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
+            //WARNING $CUDA_PATH/lib64 has to be in LD_LIBRARY_PATH for compilation
+            __GUARD nvrtcCompileProgram(cuprog,noptions,(const char * const*)build_options);
+            if (state !=NVRTC_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
+            size_t logSize;
+            nvrtcGetProgramLogSize(cuprog, &logSize);
+            if (state){
+                char *log = malloc(logSize);
+                state = nvrtcGetProgramLog(cuprog, log);
+                fprintf(stdout,"Compilation of %s:\n",program_name);
+                fprintf(stdout,"%s",log);
+                free(log);
+            }
+            
+            if (state !=NVRTC_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
+            __GUARD nvrtcGetPTXSize(cuprog, &ptxSize);
+            GMALLOC(program, sizeof(char)*ptxSize);
+            __GUARD nvrtcGetPTX(cuprog, program);
+            __GUARD nvrtcDestroyProgram(&cuprog);
+            __GUARD prog_write_binaries(program,
+                                        (char *)filename_bin,
+                                        (char *)filename_src,
+                                        (char *)program_source,
+                                        (char *)filename_opt,
+                                        (char *)concat_options);
         }
-        
-        if (state !=NVRTC_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
-        __GUARD nvrtcGetPTXSize(cuprog, &ptxSize);
-        GMALLOC(program, sizeof(char)*ptxSize);
-        __GUARD nvrtcGetPTX(cuprog, program);
-        __GUARD nvrtcDestroyProgram(&cuprog);
+        else{
+            state = prog_read_file((char **)&program,
+                                   &program_size,
+                                   filename_bin);
+        }
         __GUARD cuModuleLoadDataEx(module, program, 0, 0, 0);
     }
     
