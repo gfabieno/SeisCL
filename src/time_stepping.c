@@ -212,6 +212,23 @@ int inject_bnd(model * m, device ** dev, int t){
     
     for (d=0;d<m->NUM_DEVICES;d++){
 
+       
+        
+        if (m->FP16>1){
+            offset =(*dev)[d].NBND*(t-1)/2;
+        }
+        else{
+            offset =(*dev)[d].NBND*(t-1);
+        }
+
+        for (i=0;i<m->nvars;i++){
+            if ((*dev)[d].vars[i].to_comm){
+                __GUARD clbuf_sendfrom(&(*dev)[d].queuecomm,
+                                       &(*dev)[d].vars[i].cl_varbnd,
+                                       &(*dev)[d].vars[i].cl_varbnd.host[offset]);
+            }
+        }
+        
         lv=-1;
         l0=-1;
         for (i=0;i<m->nvars;i++){
@@ -226,23 +243,6 @@ int inject_bnd(model * m, device ** dev, int t){
         (*dev)[d].vars[lv].cl_varbnd.outevent_s=1;
         (*dev)[d].vars[l0].cl_varbnd.nwait_s=1;
         (*dev)[d].vars[l0].cl_varbnd.waits_s=&(*dev)[d].ups_adj[0].center.event;
-        
-        
-        if (m->FP16>1){
-            offset =(*dev)[d].NBND*(t-1)/2;
-        }
-        else{
-            offset =(*dev)[d].NBND*(t-1);
-        }
-
-        for (i=0;i<m->nvars;i++){
-            if ((*dev)[d].vars[i].to_comm){
-                __GUARD clbuf_sendfrom(&(*dev)[d].queue,
-                                       &(*dev)[d].vars[i].cl_varbnd,
-                                       &(*dev)[d].vars[i].cl_varbnd.host[offset]);
-            }
-        }
-
         
         
     }
