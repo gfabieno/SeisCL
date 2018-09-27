@@ -626,8 +626,8 @@ int compile(const char *program_source,
             __GUARD nvrtcDestroyProgram(&cuprog);
             // Write the binary ans src to the output file
             prog_write_file(filename_bin, program, sizeof(char)*ptxSize);
-            prog_write_src(filename_src, prog_src);
-            prog_write_src(filename_opt, options);
+            prog_write_src(filename_src, program_source);
+            prog_write_src(filename_opt, concat_options);
         }
         else{
             state = prog_read_file((char **)&program,
