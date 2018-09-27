@@ -19,9 +19,16 @@
 
 #include "F.h"
 
+int wait_for_event(EVENT *event){
+    #ifdef __SEISCL__
+    return clWaitForEvents(1, event);
+#else
+    return cuEventSynchronize(*event);
+#endif
+    
+}
 
-//TODO Write communications function for CUDA
-#ifdef __SEISCL__
+
 int comm1_MPI(model * m, device ** dev, int adj, int ui){
     int state=0;
     int i;
@@ -34,8 +41,8 @@ int comm1_MPI(model * m, device ** dev, int adj, int ui){
     
     if (adj && m->BACK_PROP_TYPE==1){
         for (i=0;i<(*dev)[0].ups_adj[ui].nvcom;i++){
-            __GUARD clWaitForEvents(1,
-                               &(*dev)[0].ups_adj[ui].v2com[i]->cl_buf1.event_r);
+
+            __GUARD wait_for_event(&(*dev)[0].ups_adj[ui].v2com[i]->cl_buf1.event_r);
 
             MPI_Sendrecv_replace(
                              (void*)(*dev)[0].ups_adj[ui].v2com[i]->cl_buf1.host,
@@ -52,8 +59,7 @@ int comm1_MPI(model * m, device ** dev, int adj, int ui){
         }
     }
     for (i=0;i<(*dev)[0].ups_f[ui].nvcom;i++){
-        __GUARD clWaitForEvents(1,
-                                &(*dev)[0].ups_f[ui].v2com[i]->cl_buf1.event_r);
+        __GUARD wait_for_event(&(*dev)[0].ups_f[ui].v2com[i]->cl_buf1.event_r);
         
         MPI_Sendrecv_replace(
                     (void*)(*dev)[0].ups_f[ui].v2com[i]->cl_buf1.host,
@@ -88,8 +94,7 @@ int comm2_MPI(model * m, device ** dev, int adj, int ui){
     // an event for fcom2_in.
     if (adj && m->BACK_PROP_TYPE==1){
         for (i=0;i<(*dev)[0].ups_adj[ui].nvcom;i++){
-            __GUARD clWaitForEvents(1,
-                              &(*dev)[ld].ups_adj[ui].v2com[i]->cl_buf2.event_r);
+            __GUARD wait_for_event(&(*dev)[ld].ups_adj[ui].v2com[i]->cl_buf2.event_r);
 
             MPI_Sendrecv_replace(
                 (void*)(*dev)[ld].ups_adj[ui].v2com[i]->cl_buf2.host,
@@ -106,8 +111,7 @@ int comm2_MPI(model * m, device ** dev, int adj, int ui){
         }
     }
     for (i=0;i<(*dev)[0].ups_f[ui].nvcom;i++){
-        __GUARD clWaitForEvents(1,
-                                &(*dev)[ld].ups_f[ui].v2com[i]->cl_buf2.event_r);
+        __GUARD wait_for_event(&(*dev)[ld].ups_f[ui].v2com[i]->cl_buf2.event_r);
         MPI_Sendrecv_replace(
                   (void*)(*dev)[ld].ups_f[ui].v2com[i]->cl_buf2.host,
                   (int)(*dev)[ld].ups_f[ui].v2com[i]->cl_buf2.size/sizeof(float),
@@ -266,10 +270,12 @@ int comm(model * m, device ** dev, int adj, int ui){
     }
     
     //Sends those commands to the compute devices
+    #ifdef __SEISCL__
     for (d=0;d<m->NUM_DEVICES;d++){
         clFlush( (*dev)[d].queuecomm);
         clFlush( (*dev)[d].queue);
     }
+    #endif
     
     // Wait for Opencl buffers to be read, send MPI bufers and write to devices
     // Processess with even ID in the group send and receive buffers 1 first,
@@ -293,15 +299,6 @@ int comm(model * m, device ** dev, int adj, int ui){
     return state;
     
 }
-#else
 
-int comm(model * m, device ** dev, int adj, int ui){
-    
-    fprintf(stderr, "Error: Model decomposition not implemented in CUDA\n");
-    return 1;
-    
-}
-
-#endif
 
 
