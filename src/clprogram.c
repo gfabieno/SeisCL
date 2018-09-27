@@ -241,8 +241,8 @@ cl_int prog_compare(char * filename_src,
 
 }
 
-
-cl_int prog_write_binaries(cl_program *program,
+#ifdef __SEISCL__
+cl_int prog_write_binaries(PROGRAM *program,
                            char * filename_bin,
                            char * filename_src,
                            char * prog_src,
@@ -286,7 +286,7 @@ cl_int prog_write_binaries(cl_program *program,
     return state;
 }
 
-#ifdef __SEISCL__
+
 char *get_build_options(device *dev,
                         model *m,
                         int LCOMM,
@@ -624,12 +624,10 @@ int compile(const char *program_source,
             GMALLOC(program, sizeof(char)*ptxSize);
             __GUARD nvrtcGetPTX(cuprog, program);
             __GUARD nvrtcDestroyProgram(&cuprog);
-            __GUARD prog_write_binaries(program,
-                                        (char *)filename_bin,
-                                        (char *)filename_src,
-                                        (char *)program_source,
-                                        (char *)filename_opt,
-                                        (char *)concat_options);
+            // Write the binary ans src to the output file
+            prog_write_file(filename_bin, program, sizeof(char)*ptxSize);
+            prog_write_src(filename_src, prog_src);
+            prog_write_src(filename_opt, options);
         }
         else{
             state = prog_read_file((char **)&program,
