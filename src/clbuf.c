@@ -43,7 +43,10 @@ CL_INT clbuf_send(QUEUE *inqueue, clbuf * buf)
                                buf->waits_s,
                                event);
     #else
-    state = cuMemcpyHtoDAsync ( buf->mem, (void*)buf->host, buf->size, *inqueue );
+    if (buf->nwait_s >0){
+        state = cuStreamWaitEvent(*inqueue, *buf->waits_s, 0);
+    }
+    state = cuMemcpyHtoDAsync( buf->mem, (void*)buf->host, buf->size, *inqueue );
     if (buf->outevent_s){
         if (!buf->event_s){
             state =  cuEventCreate(&buf->event_s, CU_EVENT_DISABLE_TIMING);
@@ -83,6 +86,9 @@ CL_INT clbuf_sendfrom(QUEUE *inqueue,
                                buf->waits_s,
                                event);
     #else
+    if (buf->nwait_s >0){
+        state = cuStreamWaitEvent(*inqueue, *buf->waits_s, 0);
+    }
     state = cuMemcpyHtoDAsync (buf->mem,
                              ptr,
                              buf->size,
@@ -127,6 +133,9 @@ CL_INT clbuf_read(QUEUE *inqueue, clbuf * buf)
                               buf->waits_r,
                               event);
     #else
+    if (buf->nwait_r >0){
+        state = cuStreamWaitEvent(*inqueue, *buf->waits_r, 0);
+    }
     state= cuMemcpyDtoHAsync ( buf->host, buf->mem, buf->size, *inqueue );
     if (buf->outevent_r){
         if (!buf->event_r){
@@ -172,6 +181,9 @@ CL_INT clbuf_readto(QUEUE *inqueue,
                               event);
     
     #else
+    if (buf->nwait_r >0){
+        state = cuStreamWaitEvent(*inqueue, *buf->waits_r, 0);
+    }
     state= cuMemcpyDtoHAsync(ptr, buf->mem, buf->size, *inqueue);
     if (buf->outevent_r){
         if (!buf->event_r){

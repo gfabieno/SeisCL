@@ -954,7 +954,9 @@ int prog_launch( QUEUE *inqueue, clprogram * prog){
         }
         bsize[i]=(unsigned int)(prog->gsize[i]+tsize[i]-1)/tsize[i];
     }
-    
+    if (prog->nwait > 0){
+        state = cuStreamWaitEvent(*inqueue, *prog->waits, 0);
+    }
     state = cuLaunchKernel (prog->kernel,
                             bsize[0],
                             bsize[1],
