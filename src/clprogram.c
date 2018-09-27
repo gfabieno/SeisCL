@@ -206,7 +206,7 @@ int prog_write_src(const char *name, char * content) {
     return 0;
 }
 
-cl_int prog_compare(char * filename_src,
+CL_INT prog_compare(char * filename_src,
                     char * prog_src){
     
     int i;
@@ -242,13 +242,13 @@ cl_int prog_compare(char * filename_src,
 }
 
 #ifdef __SEISCL__
-cl_int prog_write_binaries(PROGRAM *program,
+CL_INT prog_write_binaries(PROGRAM *program,
                            char * filename_bin,
                            char * filename_src,
                            char * prog_src,
                            char * filename_opt,
                            char * options) {
-    cl_int state = CL_SUCCESS;
+    CL_INT state = 0;
     size_t *binaries_size = NULL;
     unsigned char **binaries_ptr = NULL;
     
