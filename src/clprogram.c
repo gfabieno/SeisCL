@@ -563,7 +563,10 @@ int compile(const char *program_source,
             CUfunction *kernel,
             const char * program_name,
             char ** build_options,
-            int noptions)
+            int noptions,
+            const char * cache_dir,
+            int devid,
+            int ctxid)
 {
     /* Routine to build a kernel from the source file contained in a c string*/
     
@@ -712,13 +715,16 @@ int prog_create(model * m,
                               prog->LCOMM,
                               prog->COMM,
                               prog->DIRPROP);
-    state = compile( (*prog).src,
-                     (*prog).prog,
-                     &(*prog).module,
-                     &(*prog).kernel,
-                     (*prog).name,
-                     build_options,
-                     noptions);
+    state = compile((*prog).src,
+                    (*prog).prog,
+                    &(*prog).module,
+                    &(*prog).kernel,
+                    (*prog).name,
+                    build_options,
+                    noptions,
+                    m->cache_dir,
+                    dev->DEVID,
+                    dev->ctx_id);
     if (build_options){
         for (i=0;i<noptions;i++){
             GFree(build_options[i]);
