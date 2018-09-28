@@ -769,8 +769,11 @@ int kernel_residuals(device * dev,
                 if (dev->FP16==0){
                     strcat(temp, ";\n");
                 }
-                else{
+                else if (dev->FP16==0){
                     strcat(temp, ",res_scale);\n");
+                }
+                else{
+                    strcat(temp, ",res_scale));\n");
                 }
             }
         }
