@@ -56,14 +56,22 @@ int kernel_varout(device * dev,
     for (i=0;i<dev->ntvars;i++){
         if (tvars[i].to_output){
             for (j=0;j<tvars[i].n2ave;j++){
-                if (dev->FP16<=1){
-                    strcat(temp, GLOBARG"float * ");
+                /* Check if the variable has already been included in arg list */
+                unsigned included = 0;
+                for(k=0; k<dev->nvars; k++){ // Simple but ugly
+                    if(strcmp(tvars[i].var2ave[j], vars[k].name) == 0 && vars[k].to_output)
+                        included = 1;
                 }
-                else{
-                    strcat(temp, GLOBARG"half * ");
+                if(!included){
+                    if (dev->FP16<=1){
+                        strcat(temp, GLOBARG"float * ");
+                    }
+                    else{
+                        strcat(temp, GLOBARG"half * ");
+                    }
+                    strcat(temp, tvars[i].var2ave[j]);
+                    strcat(temp, ", ");
                 }
-                strcat(temp, tvars[i].var2ave[j]);
-                strcat(temp, ", ");
             }
 
             strcat(temp, GLOBARG"float * ");

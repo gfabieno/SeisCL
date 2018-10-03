@@ -1275,11 +1275,11 @@ int assign_modeling_case(model * m){
                     m->vars[i].to_output=1;
                 if (strcmp(m->vars[i].name,"szz")==0)
                     m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"sxx")==0)
+                if (strcmp(m->vars[i].name,"sxz")==0)
                     m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"syy")==0)
+                if (strcmp(m->vars[i].name,"syz")==0)
                     m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"szz")==0)
+                if (strcmp(m->vars[i].name,"sxy")==0)
                     m->vars[i].to_output=1;
             }
         }
@@ -1297,11 +1297,11 @@ int assign_modeling_case(model * m){
                     m->vars[i].to_output=1;
                 if (strcmp(m->vars[i].name,"szz")==0)
                     m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"sxx")==0)
+                if (strcmp(m->vars[i].name,"sxz")==0)
                     m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"syy")==0)
+                if (strcmp(m->vars[i].name,"syz")==0)
                     m->vars[i].to_output=1;
-                if (strcmp(m->vars[i].name,"szz")==0)
+                if (strcmp(m->vars[i].name,"sxy")==0)
                     m->vars[i].to_output=1;
             }
             if (m->ND==2 || m->ND==3){
