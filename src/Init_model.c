@@ -43,15 +43,15 @@ int Init_model(model * m) {
     int i,j,t;
     half * hpar;
 
-    __GUARD m->check_stability( (void*) m);
-    __GUARD m->set_par_scale( (void*) m);
     
+    __GUARD m->set_par_scale( (void*) m);
     for (i=0;i<m->npars;i++){
         if (m->pars[i].transform !=NULL){
             m->pars[i].transform( (void*) m);
         }
     }
-
+    __GUARD m->check_stability( (void*) m);
+    
     GMALLOC(m->src_recs.src_scales, sizeof(int)*m->src_recs.ns);
     float srcmax;
     if (m->FP16!=0){
