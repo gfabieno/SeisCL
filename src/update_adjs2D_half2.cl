@@ -886,7 +886,7 @@ extern "C" __global__ void update_adjs(int offcomm,
     HM(gidz,gidx)=add2f(HM(gidz,gidx), scalbnf2(dMH, -2.0*src_scale));
     Hmu(gidz,gidx)=add2f(Hmu(gidz,gidx),
                         scalbnf2(add2f(sub2f( mul2f(c3, mul2f(__h22f2c(lsxz),__h22f2c(lsxz))), dMH ), mul2f(c5, mul2f( __h22f2c(sub2(lsxx,lszz)), __h22f2c(sub2(lsxx,lszz))))),
-                                 2*par_scale--2.0*src_scale));
+                                 2*par_scale-2.0*src_scale));
         #endif
     #endif
     
