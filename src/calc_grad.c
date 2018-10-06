@@ -989,14 +989,7 @@ int transf_grad(model * m) {
     float * gradmu = get_par(m->pars, m->npars, "mu")->gl_grad;
     float * Hmu = get_par(m->pars, m->npars, "mu")->gl_H;
 
-    int scaler=0;
-    variable * var;
-    if (m->FP16>0){
-        var = get_var(m->vars,m->nvars, "sxx");
-        if (var) scaler = var->scaler;
-        var = get_var(m->vars,m->nvars, "sxz");
-        if (var) scaler = var->scaler;
-    }
+    int scaler=m->par_scale;
     
     if (m->FP16>1){
         for (i=0;i<m->npars;i++){
@@ -1015,13 +1008,13 @@ int transf_grad(model * m) {
     if (M){
         for (i=0;i<num_ele;i++){
             M[i]*=m->dh/m->dt*powf(2,-scaler);
-            gradM[i]*=powf(2,-2*scaler)/m->dt;
+            gradM[i]/=m->dt;
         }
     }
     if (mu){
         for (i=0;i<num_ele;i++){
             mu[i]*=m->dh/m->dt*powf(2,-scaler);
-            gradmu[i]*=powf(2,-2*scaler)/m->dt;
+            gradmu[i]/=m->dt;
         }
     }
 

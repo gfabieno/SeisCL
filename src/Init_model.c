@@ -43,19 +43,19 @@ int Init_model(model * m) {
     int i,j,t;
     half * hpar;
 
+    __GUARD m->check_stability( (void*) m);
+    __GUARD m->set_par_scale( (void*) m);
+    
     for (i=0;i<m->npars;i++){
         if (m->pars[i].transform !=NULL){
             m->pars[i].transform( (void*) m);
         }
     }
-   
 
-    __GUARD m->check_stability( (void*) m);
-    __GUARD m->set_scalers( (void*) m);
-    
     GMALLOC(m->src_recs.src_scales, sizeof(int)*m->src_recs.ns);
     float srcmax;
     if (m->FP16!=0){
+        //TODO review scaler constant
         for (i=0;i<m->src_recs.ns;i++){
             srcmax=0;
                 for (t=0;t<m->NT*m->src_recs.nsrc[i];t++){
@@ -88,9 +88,7 @@ int Init_model(model * m) {
             
         }
     }
-    
-    
-    
+
     if (state && m->MPI_INIT==1)
         MPI_Bcast( &state, 1, MPI_INT, m->MYID, MPI_COMM_WORLD );
     

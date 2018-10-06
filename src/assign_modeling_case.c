@@ -302,18 +302,18 @@ void mu(void * mptr){
     float *rho = get_par(m->pars, m->npars, "rho")->gl_par;
     float *taus = get_par(m->pars, m->npars, "taus")->gl_par;
     float thisvs, thistaus;
-    if (m->par_type==0){
+    if (m->par_type==0){  //vp, vs, rho
         for (i=0;i<num_ele;i++){
             mu[i]=powf(mu[i],2)*rho[i]*m->dt/m->dh;
         }
     }
-    else if (m->par_type==1){
+    else if (m->par_type==1){//M, mu, rho
         for (i=0;i<num_ele;i++){
             mu[i]=mu[i]*m->dt/m->dh;
         }
     }
     else if (m->par_type==2){
-        for (i=0;i<num_ele;i++){
+        for (i=0;i<num_ele;i++){//Ip, Is, rho
             mu[i]=powf(mu[i]/rho[i],2)*rho[i]*m->dt/m->dh;
         }
     }
@@ -359,15 +359,11 @@ void mu(void * mptr){
     }
     
     int scaler = 0;
-    variable * var;
     if (m->FP16>0){
-        var = get_var(m->vars,m->nvars, "sxz");
-        if (var) scaler = var->scaler;
-        if (!var){
-            m->set_scalers( (void*) m);
+        if (m->par_scale == 0){
+            m->set_par_scale( (void*) m);
         }
-        var = get_var(m->vars,m->nvars, "sxz");
-        if (var) scaler = var->scaler;
+        scaler = m->par_scale;
         
         for (i=0;i<num_ele;i++){
             mu[i]*=powf(2, scaler);
@@ -435,15 +431,9 @@ void M(void * mptr){
     }
     
     int scaler=0;
-    variable * var;
     if (m->FP16>0){
-        m->set_scalers( (void*) m);
-        var = get_var(m->vars,m->nvars, "sxx");
-        if (var) scaler = var->scaler;
-        var = get_var(m->vars,m->nvars, "syy");
-        if (var) scaler = var->scaler;
-        var = get_var(m->vars,m->nvars, "szz");
-        if (var) scaler = var->scaler;
+        m->set_par_scale( (void*) m);
+        scaler = m->par_scale;
         
         for (i=0;i<num_ele;i++){
             M[i]*=powf(2,scaler);
@@ -456,15 +446,8 @@ void rho(void * mptr){
     
     model * m = (model *) mptr;
     float *rho = get_par(m->pars, m->npars, "rho")->gl_par;
-    int scaler=0;
-    variable * var;
-    if (m->FP16>0){
-        var = get_var(m->vars,m->nvars, "sxx");
-        if (var) scaler = var->scaler;
-        var = get_var(m->vars,m->nvars, "sxz");
-        if (var) scaler = var->scaler;
-    }
-    
+    int scaler=m->par_scale;
+
     int i;
     int num_ele = get_par(m->pars, m->npars, "rho")->num_ele;
     for (i=0;i<num_ele;i++){
@@ -837,7 +820,7 @@ int check_stability( void *mptr){
     return state;
 }
 
-int set_scalers( void *mptr){
+int set_par_scale( void *mptr){
     
     int state=0;
     int i;
@@ -862,36 +845,11 @@ int set_scalers( void *mptr){
                 if (Mmax<mu[i]) Mmax=mu[i];
             }
         }
+        //TODO review scaler constant
         scaler = -log2(Mmax*100);
     }
 
-    
-    
-    variable * var;
-    var = get_var(m->vars,m->nvars, "sxx");
-    if (var) var->scaler = scaler;
-    var = get_var(m->vars,m->nvars, "syy");
-    if (var) var->scaler = scaler;
-    var = get_var(m->vars,m->nvars, "szz");
-    if (var) var->scaler = scaler;
-    var = get_var(m->vars,m->nvars, "sxz");
-    if (var) var->scaler = scaler;
-    var = get_var(m->vars,m->nvars, "sxy");
-    if (var) var->scaler = scaler;
-    var = get_var(m->vars,m->nvars, "syz");
-    if (var) var->scaler = scaler;
-    var = get_var(m->vars,m->nvars, "rxx");
-    if (var) var->scaler = scaler;
-    var = get_var(m->vars,m->nvars, "ryy");
-    if (var) var->scaler = scaler;
-    var = get_var(m->vars,m->nvars, "rzz");
-    if (var) var->scaler = scaler;
-    var = get_var(m->vars,m->nvars, "rxz");
-    if (var) var->scaler = scaler;
-    var = get_var(m->vars,m->nvars, "rxy");
-    if (var) var->scaler = scaler;
-    var = get_var(m->vars,m->nvars, "ryz");
-    if (var) var->scaler = scaler;
+    m->par_scale = scaler;
     
     return state;
 }
@@ -905,7 +863,7 @@ int assign_modeling_case(model * m){
     
     // Check Stability function
     m->check_stability=&check_stability;
-    m->set_scalers=&set_scalers;
+    m->set_par_scale=&set_par_scale;
     
     /* Arrays of constants size on all devices. The most constants we have 
        here is 23 */

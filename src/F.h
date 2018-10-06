@@ -195,8 +195,6 @@ typedef struct variable{
     float **    gl_varin;
     float   *   gl_mov;
     float **    gl_var_res;
-    int scaler;
-
     
     int       to_output;
     int       for_grad;
@@ -478,11 +476,12 @@ typedef struct model {
     CONTEXT context;
     int FP16;
     int halfpar;
+    int par_scale;
 
     int (*res_calc)(struct model * , int );
     int (*res_scale)(struct model * , int );
     int (*check_stability)(void *);
-    int (*set_scalers)(void *);
+    int (*set_par_scale)(void *);
 
 } model;
 

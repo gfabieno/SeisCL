@@ -459,16 +459,12 @@ int res_scale(model * m, int s)
     float * par2 = NULL;
     float parscal;
     float resmax;
-    variable * var;
     int nrec=(m->src_recs.nrec[s]);
     int NT=m->NT;
     int tmax=m->tmax;
     
     if (m->FP16>0){
-        var = get_var(m->vars,m->nvars, "sxx");
-        if (var) scaler = var->scaler;
-        var = get_var(m->vars,m->nvars, "sxz");
-        if (var) scaler = var->scaler;
+        scaler = m->par_scale;
     }
     
     resmax=0;

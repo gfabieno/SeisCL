@@ -346,7 +346,7 @@ extern "C" __global__ void update_adjs(int offcomm,
                            __prec2 *vxr,__prec2 *vzr, float *taper,
                           float2 *gradrho,    float2 *gradM,     float2 *gradmu,
                            float2 *Hrho,    float2 *HM,     float2 *Hmu,
-                           int res_scale, int src_scale)
+                           int res_scale, int src_scale, int par_scale)
 {
 
     //Local memory
@@ -864,11 +864,11 @@ extern "C" __global__ void update_adjs(int offcomm,
     // Shear wave modulus and P-wave modulus gradient calculation on the fly
 #if BACK_PROP_TYPE==1
     #if RESTYPE==0
+    lM = scalbnf2(scaldiv2(mul2f(lM, DH), DT), -par_scale);
+    lmu = scalbnf2(scaldiv2(mul2f(lmu, DH), DT), -par_scale);
     float2 c1= div2f(f2h2f(1.0), mul2f(mul2f(f2h2f(2.0), sub2f(__h22f2c(lM),__h22f2c(lmu))),mul2f(f2h2f(2.0), sub2f(__h22f2c(lM),__h22f2c(lmu)))));
     float2 c3=div2f(f2h2f(1.0), mul2f(__h22f2c(lmu),__h22f2c(lmu)));
     float2 c5=mul2f(f2h2f(0.25), c3);
-    
-    
     
     lsxzr=mul2(lmuipkp,add2(vxr_z1,vzr_x1));
     lsxxr=sub2(mul2(lM,add2(vxr_x2,vzr_z2)),mul2(mul2(f2h2(2.0),lmu),vzr_z2));

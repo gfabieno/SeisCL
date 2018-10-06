@@ -829,12 +829,6 @@ int prog_create(model * m,
                     argfound=1;
                     break;
                 }
-                sprintf(str2comp,"scaler_%s",(*dev).vars[j].name);
-                if (strcmp(str2comp,(*prog).input_list[i])==0){
-                    prog_arg(prog, i, &(*dev).vars[j].scaler, sizeof(int));
-                    argfound=1;
-                    break;
-                }
             }
         }
         if (!argfound){
@@ -947,6 +941,12 @@ int prog_create(model * m,
         if (!argfound){
             if (strcmp("res_scale"  ,(*prog).input_list[i])==0){
                 prog->rcinput=i+1;
+                argfound=1;
+            }
+        }
+        if (!argfound){
+            if (strcmp("par_scale"  ,(*prog).input_list[i])==0){
+                prog_arg(prog, i, &m->par_scale, sizeof(int));
                 argfound=1;
             }
         }
