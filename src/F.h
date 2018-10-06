@@ -201,6 +201,7 @@ typedef struct variable{
     int  to_comm;
     int num_ele;
     int active;
+    int scaler;
     
     int n2ave;
     const char ** var2ave;
@@ -342,6 +343,7 @@ typedef struct device {
     int DEVID;
     int ctx_id;
     int NBND;
+    int par_scale;
     
     int LOCAL_OFF;
     int FP16;
