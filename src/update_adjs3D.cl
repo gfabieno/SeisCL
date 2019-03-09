@@ -1124,11 +1124,11 @@ __kernel void update_adjs(int offcomm,
     fipkp=lmuipkp*(1.0+ (float)LVE*ltausipkp);
     g=lM*(1.0+(float)LVE*ltaup);
     f=2.0*lmu*(1.0+(float)LVE*ltaus);
-    dipjp=lmuipjp*ltausipjp;
-    djpkp=lmujpkp*ltausjpkp;
-    dipkp=lmuipkp*ltausipkp;
-    d=2.0*lmu*ltaus;
-    e=lM*ltaup;
+    dipjp=lmuipjp*ltausipjp/DT;
+    djpkp=lmujpkp*ltausjpkp/DT;
+    dipkp=lmuipkp*ltausipkp/DT;
+    d=2.0*lmu*ltaus/DT;
+    e=lM*ltaup/DT;
     
     
 #endif

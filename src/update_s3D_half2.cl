@@ -45,6 +45,9 @@
 #define lvar2(z,y,x) lvar2[(x)*lsizez*lsizey+(y)*lsizez+(z)]
 #endif
 
+/*Define functions and macros to be able to change operations types only with
+ preprossor directives, that is with different values of FP16. Those functions
+ are basic arithmetic operations and conversion between half2 and float2.*/
 extern "C" __device__ float2 add2f(float2 a, float2 b ){
     
     float2 output;

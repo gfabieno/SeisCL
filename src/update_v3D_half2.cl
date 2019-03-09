@@ -22,7 +22,7 @@
  arithmetics*/
 
 
-
+//Define useful macros to be able to write a matrix formulation in 2D with OpenCl
 #define rip(z,y,x) rip[((x)-FDOH)*(NZ-FDOH)*(NY-2*FDOH)+((y)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
 #define rjp(z,y,x) rjp[((x)-FDOH)*(NZ-FDOH)*(NY-2*FDOH)+((y)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
 #define rkp(z,y,x) rkp[((x)-FDOH)*(NZ-FDOH)*(NY-2*FDOH)+((y)-FDOH)*(NZ-FDOH)+((z)-FDOH/2)]
@@ -47,7 +47,9 @@
 #define lvar2(z,y,x) lvar2[(x)*lsizez*lsizey+(y)*lsizez+(z)]
 #endif
 
-//Define useful macros to be able to write a matrix formulation in 2D with OpenCl
+/*Define functions and macros to be able to change operations types only with
+preprossor directives, that is with different values of FP16. Those functions
+ are basic arithmetic operations and conversion between half2 and float2.*/
 extern "C" __device__ float2 add2f(float2 a, float2 b ){
     
     float2 output;

@@ -429,9 +429,9 @@ FUNDEF void update_s(int offcomm,
         fipkp=lmuipkp*(1.0+ (float)LVE*ltausipkp);
         g=lM*(1.0+(float)LVE*ltaup);
         f=2.0*lmu*(1.0+(float)LVE*ltaus);
-        dipkp=lmuipkp*ltausipkp;
-        d=2.0*lmu*ltaus;
-        e=lM*ltaup;
+        dipkp=lmuipkp*ltausipkp/DT;
+        d=2.0*lmu*ltaus/DT;
+        e=lM*ltaup/DT;
         
 #endif
     }

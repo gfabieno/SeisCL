@@ -94,6 +94,7 @@ __kernel void surface(        __global float *vx,         __global float *vz,
     }
     
     float f, g, h;
+    float sump;
     float  vxx, vzz;
     int m;
     
@@ -101,7 +102,9 @@ __kernel void surface(        __global float *vx,         __global float *vz,
      a stress free surface (method of imaging, Levander, 1988)*/
     szz(gidz, gidx)=0.0;
 #if LVE>0
-    rzz(gidz, gidx)=0.0;
+    for (int l=0; l<LVE; l++){
+        rzz(gidz, gidx, l)=0.0;
+    }
 #endif
     
     for (m=1; m<=FDOH; m++) {
@@ -235,8 +238,8 @@ __kernel void surface(        __global float *vx,         __global float *vz,
 #else
     float b,d,e;
     /* partially updating sxx  in the same way*/
-    f=mu(gidz,  gidx)*2.0*(1.0+L*taus(gidz,  gidx));
-    g=M(gidz,  gidx)*(1.0+L*taup(gidz,  gidx));
+    f=mu(gidz,  gidx)*2.0*(1.0+LVE*taus(gidz,  gidx));
+    g=M(gidz,  gidx)*(1.0+LVE*taup(gidz,  gidx));
     h=-((g-f)*(g-f)*(vxx)/g)-((g-f)*vzz);
 #if ABS_TYPE==2
     {
@@ -254,21 +257,26 @@ __kernel void surface(        __global float *vx,         __global float *vz,
 #endif
     }
 #endif
-    sxx(gidz,  gidx)+=pdir*(h-(DT/2.0*rxx(gidz,  gidx)));
-
+    
+    sump=0;
+    for (m=0;m<LVE;m++){
+        sump+=rxx(gidz,  gidx, m);
+    }
+    sxx(gidz,  gidx)+=pdir* (h - DT/2.0*sump);
+    
+    
     /* updating the memory-variable rxx at the free surface */
-
     d=2.0*mu(gidz,  gidx)*taus(gidz,  gidx);
     e=M(gidz,  gidx)*taup(gidz,  gidx);
+    
+    sump=0;
     for (m=0;m<LVE;m++){
         b=eta[m]/(1.0+(eta[m]*0.5));
-        h=b*(((d-e)*((f/g)-1.0)*(vxx+vyy))-((d-e)*vzz));
-        rxx(gidz,  gidx)+=pdir*h;
+        h=b*(((d-e)*((f/g)-1.0)*vxx)-((d-e)*vzz));
+        rxx(gidz,  gidx, m)+=pdir*h;
+        /*completely updating the stresses sxx  */
     }
-
-    /*completely updating the stresses sxx  */
-    sxx(gidz,  gidx)+=pdir*(DT/2.0*rxx(gidz,  gidx));
-
+    sxx(gidz,  gidx)+=pdir*(DT/2.0*sump);
 #endif
     
 }
