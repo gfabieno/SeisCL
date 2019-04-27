@@ -1055,18 +1055,24 @@ int assign_modeling_case(model * m){
     
     ind=0;
     
+    if (m->ND!=21){
+        __GUARD append_var(m, &ind, "vx", 1, 1, &size_varseis);
+    }
+    
     if (m->ND==21 || m->ND==3){
         __GUARD append_var(m, &ind, "vy", 1, 1, &size_varseis);
     }
+    
     if (m->ND!=21){
-        __GUARD append_var(m, &ind, "vx", 1, 1, &size_varseis);
         __GUARD append_var(m, &ind, "vz", 1, 1, &size_varseis);
     }
+
     if (m->ND==2 || m->ND==3){
         __GUARD append_var(m, &ind, "sxx", 1, 2, &size_varseis);
         __GUARD append_var(m, &ind, "szz", 1, 2, &size_varseis);
         __GUARD append_var(m, &ind, "sxz", 1, 2, &size_varseis);
     }
+    
     if (m->ND==21 || m->ND==3){
         
         __GUARD append_var(m, &ind, "sxy", 1, 2, &size_varseis);

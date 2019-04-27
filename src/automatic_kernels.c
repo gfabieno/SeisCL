@@ -17,9 +17,6 @@
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  --------------------------------------------------------------------------*/
 
-
-
-
 #include "F.h"
 
 
@@ -202,7 +199,7 @@ int kernel_varout(device * dev,
     strcat(temp, "\n}");
     
     
-    printf("%s\n\n%lu\n",temp, strlen(temp));
+//    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     
        __GUARD prog_source(prog, "varsout", temp);
@@ -394,6 +391,7 @@ int kernel_sources(model * m,
     int i,j;
     variable * vars = dev->vars;
     variable * tvars = dev->trans_vars;
+    const char * src_names[5] = {"vx", "vy", "vz", "p"};
     char temp[MAX_KERN_STR]={0};
     char temp2[100]={0};
 //    
@@ -409,10 +407,24 @@ int kernel_sources(model * m,
     GMALLOC(tosources2,dev->ntvars*sizeof(int));
     for (i=0;i<dev->src_recs.allns;i++){
         ind =dev->src_recs.src_pos[0][4+i*5];
-        if (ind<dev->nvars && ind>-1)
-            tosources[ind]=1;
-        if (ind-100<dev->ntvars && ind-100>-1)
-            tosources2[ind-100]=1;
+        if (ind<dev->nvars && ind>-1){
+            for (j=0;j<dev->nvars;j++){
+                if (strcmp(vars[j].name,src_names[ind])==0){
+                    tosources[j]=1;
+                }
+            }
+        }
+        if (ind<dev->ntvars && ind>-1){
+            for (j=0;j<dev->ntvars;j++){
+                if (strcmp(tvars[j].name,src_names[ind])==0){
+                    tosources2[j]=1;
+                }
+            }
+            // backward compatibility
+            if (ind==100){
+                tosources2[0]=1;
+            }
+        }
     }
 
     for (i=0;i<dev->nvars;i++){
@@ -1077,13 +1089,13 @@ int kernel_savefreqs(device * dev,
         "        fact[freq].y = -DTNYQ*DT*sinpi(2.0*gradfreqsn[freq]*nt/NTNYQ);\n"
         "    }\n\n"
            );
-        
-        
+    
+    
     
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
             sprintf(ptemp,"    if (gid<%d){\n", vars[i].num_ele);
-            
+
             strcat(temp,ptemp);
             strcat(temp, "    #pragma unroll\n");
             strcat(temp, "    for (freq=0;freq<NFREQS;freq++){\n");
@@ -1103,7 +1115,7 @@ int kernel_savefreqs(device * dev,
 
        __GUARD prog_source(prog, "savefreqs", temp);
     
-//    printf("%s\n\n%lu\n",temp, strlen(temp));
+    printf("%s\n\n%lu\n",temp, strlen(temp));
 #ifdef __SEISCL__
     prog->gsize[0] = 1;
     for (i=0;i<dev->NDIM;i++){

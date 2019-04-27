@@ -380,6 +380,7 @@ typedef struct device {
 typedef struct model {
     
     char cache_dir[PATH_MAX];
+
     variable * vars;
     variable * vars_adj;
     int nvars;
