@@ -668,6 +668,72 @@ extern "C" __global__ void update_v(int offcomm,
     lvx=add2(lvx,mul2(add2(add2(sxx_x1,sxy_y2),sxz_z2),lrip));
     lvy=add2(lvy,mul2(add2(add2(syy_y1,sxy_x2),syz_z2),lrjp));
     lvz=add2(lvz,mul2(add2(add2(szz_z1,sxz_x2),syz_y2),lrkp));
+    
+    
+    // Absorbing boundary
+#if ABS_TYPE==2
+    {
+#if FREESURF==0
+        if (gidz-FDOH<NAB){
+            lvx.x*=taper[2*gidz-FDOH];
+            lvx.y*=taper[2*gidz-FDOH+1];
+            lvy.x*=taper[2*gidz-FDOH];
+            lvy.y*=taper[2*gidz-FDOH+1];
+            lvz.x*=taper[2*gidz-FDOH];
+            lvz.y*=taper[2*gidz-FDOH+1];
+        }
+#endif
+        
+        if (gidz>NZ-NAB-FDOH-1){
+            lvx.x*=taper[2*NZ-FDOH-2*gidz-1];
+            lvx.y*=taper[2*NZ-FDOH-2*gidz-2];
+            lvy.x*=taper[2*NZ-FDOH-2*gidz-1];
+            lvy.y*=taper[2*NZ-FDOH-2*gidz-2];
+            lvz.x*=taper[2*NZ-FDOH-2*gidz-1];
+            lvz.y*=taper[2*NZ-FDOH-2*gidz-2];
+        }
+        
+        if (gidy-FDOH<NAB){
+            lvx.x*=taper[gidy-FDOH];
+            lvx.y*=taper[gidy-FDOH];
+            lvy.x*=taper[gidy-FDOH];
+            lvy.y*=taper[gidy-FDOH];
+            lvz.x*=taper[gidy-FDOH];
+            lvz.y*=taper[gidy-FDOH];
+        }
+        
+        if (gidy>NY-NAB-FDOH-1){
+            lvx.x*=taper[NY-FDOH-gidy-1];
+            lvx.y*=taper[NY-FDOH-gidy-1];
+            lvy.x*=taper[NY-FDOH-gidy-1];
+            lvy.y*=taper[NY-FDOH-gidy-1];
+            lvz.x*=taper[NY-FDOH-gidy-1];
+            lvz.y*=taper[NY-FDOH-gidy-1];
+        }
+#if DEVID==0 & MYLOCALID==0
+        if (gidx-FDOH<NAB){
+            lvx.x*=taper[gidx-FDOH];
+            lvx.y*=taper[gidx-FDOH];
+            lvy.x*=taper[gidx-FDOH];
+            lvy.y*=taper[gidx-FDOH];
+            lvz.x*=taper[gidx-FDOH];
+            lvz.y*=taper[gidx-FDOH];
+        }
+#endif
+        
+#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+        if (gidx>NX-NAB-FDOH-1){
+            lvx.x*=taper[NX-FDOH-gidx-1];
+            lvx.y*=taper[NX-FDOH-gidx-1];
+            lvy.x*=taper[NX-FDOH-gidx-1];
+            lvy.y*=taper[NX-FDOH-gidx-1];
+            lvz.x*=taper[NX-FDOH-gidx-1];
+            lvz.y*=taper[NX-FDOH-gidx-1];
+        }
+#endif
+    }
+#endif
+
     //Write updated values to global memory
     vx(gidz,gidy,gidx) = __f22h2(lvx);
     vy(gidz,gidy,gidx) = __f22h2(lvy);

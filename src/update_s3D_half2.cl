@@ -644,6 +644,108 @@ extern "C" __global__ void update_s(int offcomm,
     lsxx=sub2(add2(lsxx,mul2(lM,add2(add2(vx_x2,vy_y2),vz_z2))),mul2(mul2(f2h2(2.0),lmu),add2(vy_y2,vz_z2)));
     lsyy=sub2(add2(lsyy,mul2(lM,add2(add2(vx_x2,vy_y2),vz_z2))),mul2(mul2(f2h2(2.0),lmu),add2(vx_x2,vz_z2)));
     lszz=sub2(add2(lszz,mul2(lM,add2(add2(vx_x2,vy_y2),vz_z2))),mul2(mul2(f2h2(2.0),lmu),add2(vx_x2,vy_y2)));
+    
+    // Absorbing boundary
+#if abstype==2
+    {
+#if FREESURF==0
+        if (gidz-FDOH<NAB){
+            lsxy.x*=taper[2*gidz-FDOH];
+            lsxy.y*=taper[2*gidz+1-FDOH];
+            lsyz.x*=taper[2*gidz-FDOH];
+            lsyz.y*=taper[2*gidz+1-FDOH];
+            lsxz.x*=taper[2*gidz-FDOH];
+            lsxz.y*=taper[2*gidz+1-FDOH];
+            lsxx.x*=taper[2*gidz-FDOH];
+            lsxx.y*=taper[2*gidz+1-FDOH];
+            lsyy.x*=taper[2*gidz-FDOH];
+            lsyy.y*=taper[2*gidz+1-FDOH];
+            lszz.x*=taper[2*gidz-FDOH];
+            lszz.y*=taper[2*gidz+1-FDOH];
+        }
+#endif
+        
+        if (gidz>NZ-NAB-FDOH-1){
+            lsxy.x*=taper[2*NZ-FDOH-2*gidz-1];
+            lsxy.y*=taper[2*NZ-FDOH-2*gidz-2];
+            lsyz.x*=taper[2*NZ-FDOH-2*gidz-1];
+            lsyz.y*=taper[2*NZ-FDOH-2*gidz-2];
+            lsxz.x*=taper[2*NZ-FDOH-2*gidz-1];
+            lsxz.y*=taper[2*NZ-FDOH-2*gidz-2];
+            lsxx.x*=taper[2*NZ-FDOH-2*gidz-1];
+            lsxx.y*=taper[2*NZ-FDOH-2*gidz-2];
+            lsyy.x*=taper[2*NZ-FDOH-2*gidz-1];
+            lsyy.y*=taper[2*NZ-FDOH-2*gidz-2];
+            lszz.x*=taper[2*NZ-FDOH-2*gidz-1];
+            lszz.y*=taper[2*NZ-FDOH-2*gidz-2];
+        }
+        if (gidy-FDOH<NAB){
+            lsxy.x*=taper[gidy-FDOH];
+            lsxy.y*=taper[gidy-FDOH];
+            lsyz.x*=taper[gidy-FDOH];
+            lsyz.y*=taper[gidy-FDOH];
+            lsxz.x*=taper[gidy-FDOH];
+            lsxz.y*=taper[gidy-FDOH];
+            lsxx.x*=taper[gidy-FDOH];
+            lsxx.y*=taper[gidy-FDOH];
+            lsyy.x*=taper[gidy-FDOH];
+            lsyy.y*=taper[gidy-FDOH];
+            lszz.x*=taper[gidy-FDOH];
+            lszz.y*=taper[gidy-FDOH];
+        }
+        
+        if (gidy>NY-NAB-FDOH-1){
+            lsxy.x*=taper[NY-FDOH-gidy-1]; 
+            lsxy.y*=taper[NY-FDOH-gidy-1];
+            lsyz.x*=taper[NY-FDOH-gidy-1];
+            lsyz.y*=taper[NY-FDOH-gidy-1];
+            lsxz.x*=taper[NY-FDOH-gidy-1];
+            lsxz.y*=taper[NY-FDOH-gidy-1];
+            lsxx.x*=taper[NY-FDOH-gidy-1];
+            lsxx.y*=taper[NY-FDOH-gidy-1];
+            lsyy.x*=taper[NY-FDOH-gidy-1];
+            lsyy.y*=taper[NY-FDOH-gidy-1];
+            lszz.x*=taper[NY-FDOH-gidy-1];
+            lszz.y*=taper[NY-FDOH-gidy-1];
+        }
+        
+#if DEVID==0 & MYLOCALID==0
+        if (gidx-FDOH<NAB){
+            lsxy.x*=taper[gidx-FDOH];
+            lsxy.y*=taper[gidx-FDOH];
+            lsyz.x*=taper[gidx-FDOH];
+            lsyz.y*=taper[gidx-FDOH];
+            lsxz.x*=taper[gidx-FDOH];
+            lsxz.y*=taper[gidx-FDOH];
+            lsxx.x*=taper[gidx-FDOH];
+            lsxx.y*=taper[gidx-FDOH];
+            lsyy.x*=taper[gidx-FDOH];
+            lsyy.y*=taper[gidx-FDOH];
+            lszz.x*=taper[gidx-FDOH];
+            lszz.y*=taper[gidx-FDOH];
+        }
+#endif
+        
+#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+        if (gidx>NX-NAB-FDOH-1){
+            lsxy.x*=taper[NX-FDOH-gidx-1];
+            lsxy.y*=taper[NX-FDOH-gidx-1];
+            lsyz.x*=taper[NX-FDOH-gidx-1];
+            lsyz.y*=taper[NX-FDOH-gidx-1];
+            lsxz.x*=taper[NX-FDOH-gidx-1];
+            lsxz.y*=taper[NX-FDOH-gidx-1];
+            lsxx.x*=taper[NX-FDOH-gidx-1];
+            lsxx.y*=taper[NX-FDOH-gidx-1];
+            lsyy.x*=taper[NX-FDOH-gidx-1];
+            lsyy.y*=taper[NX-FDOH-gidx-1];
+            lszz.x*=taper[NX-FDOH-gidx-1];
+            lszz.y*=taper[NX-FDOH-gidx-1];
+        }
+#endif
+    }
+#endif
+    
+    
     //Write updated values to global memory
     sxx(gidz,gidy,gidx) = __f22h2(lsxx);
     sxy(gidz,gidy,gidx) = __f22h2(lsxy);
@@ -651,6 +753,8 @@ extern "C" __global__ void update_s(int offcomm,
     syy(gidz,gidy,gidx) = __f22h2(lsyy);
     syz(gidz,gidy,gidx) = __f22h2(lsyz);
     szz(gidz,gidy,gidx) = __f22h2(lszz);
+    
+
     
     
 }

@@ -918,6 +918,7 @@ int assign_modeling_case(model * m){
     const char * surface;
     const char * surface_adj;
     const char * savebnd;
+    //TODO surface kernels with FP16, Adjoint kernels in 3D with FP16
     if (m->ND==3 ){
         if (m->FP16==0){
             updatev = update_v3D_source;
