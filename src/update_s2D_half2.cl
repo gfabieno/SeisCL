@@ -413,6 +413,7 @@ extern "C" __global__ void update_s(int offcomm,
     
 #if ABS_TYPE==2
     {
+#if FREESURF==0
         if (2*gidz-FDOH<NAB){
             lsxx.x*=taper[2*gidz-FDOH];
             lsxx.y*=taper[2*gidz+1-FDOH];
@@ -421,7 +422,7 @@ extern "C" __global__ void update_s(int offcomm,
             lsxz.x*=taper[2*gidz-FDOH];
             lsxz.y*=taper[2*gidz+1-FDOH];
         }
-        
+#endif
         if (2*gidz>2*NZ-NAB-FDOH-1){
             lsxx.x*=taper[2*NZ-FDOH-2*gidz-1];
             lsxx.y*=taper[2*NZ-FDOH-2*gidz-1-1];
@@ -454,13 +455,11 @@ extern "C" __global__ void update_s(int offcomm,
 #endif
     }
 #endif
-    
-    
+
     //Write updated values to global memory
     sxx(gidz,gidx) = __f22h2(lsxx);
     sxz(gidz,gidx) = __f22h2(lsxz);
     szz(gidz,gidx) = __f22h2(lszz);
-    
-    
+
 }
 
