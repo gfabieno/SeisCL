@@ -646,7 +646,7 @@ extern "C" __global__ void update_s(int offcomm,
     lszz=sub2(add2(lszz,mul2(lM,add2(add2(vx_x2,vy_y2),vz_z2))),mul2(mul2(f2h2(2.0),lmu),add2(vx_x2,vy_y2)));
     
     // Absorbing boundary
-#if abstype==2
+#if ABS_TYPE==2
     {
 #if FREESURF==0
         if (2*gidz-FDOH<NAB){
@@ -744,7 +744,7 @@ extern "C" __global__ void update_s(int offcomm,
             lszz.y*=taper[NX-FDOH-gidx-1];
         }
 #endif
-    
+    }
     
     //Write updated values to global memory
     sxx(gidz,gidy,gidx) = __f22h2(lsxx);
