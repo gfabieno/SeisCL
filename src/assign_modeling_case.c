@@ -928,14 +928,15 @@ int assign_modeling_case(model * m){
             savebnd = savebnd3D_source;
         }
         else{
-//            updatev = update_v3D_half2_source;
-//            updates = update_s3D_half2_source;
+            updatev = update_v3D_half2_source;
+            updates = update_s3D_half2_source;
 //            updatev_adj = update_adjv3D_half2_source;
 //            updates_adj = update_adjs2D_half2_source;
 //            surface = surface3D_source;
 //            savebnd = savebnd3D_source;
             state = 1;
-            fprintf(stderr,"Error: Only FP16=0 is supported for ND=3 \n");
+            fprintf(stderr,"Warning: Only forward modeling is implemeted in 3D"
+                            "when FP16 is not 0 \n");
         }
     }
     else if (m->ND==2){
