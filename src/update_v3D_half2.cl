@@ -178,7 +178,7 @@ extern "C" __global__ void update_v(int offcomm,
                                     __pprec *rip, __pprec *rjp, __pprec *rkp,
                                     __prec2 *sxx,__prec2 *sxy,__prec2 *sxz,
                                     __prec2 *syy,__prec2 *syz,__prec2 *szz,
-                                    __prec2 *vx,__prec2 *vy,__prec2 *vz
+                                    __prec2 *vx,__prec2 *vy,__prec2 *vz, float *taper
                                     )
 
 {
@@ -674,7 +674,7 @@ extern "C" __global__ void update_v(int offcomm,
 #if ABS_TYPE==2
     {
 #if FREESURF==0
-        if (gidz-FDOH<NAB){
+        if (2*gidz-FDOH<NAB){
             lvx.x*=taper[2*gidz-FDOH];
             lvx.y*=taper[2*gidz-FDOH+1];
             lvy.x*=taper[2*gidz-FDOH];
@@ -683,8 +683,8 @@ extern "C" __global__ void update_v(int offcomm,
             lvz.y*=taper[2*gidz-FDOH+1];
         }
 #endif
-        
-        if (gidz>NZ-NAB-FDOH-1){
+
+        if (2*gidz>2*NZ-NAB-FDOH-1){
             lvx.x*=taper[2*NZ-FDOH-2*gidz-1];
             lvx.y*=taper[2*NZ-FDOH-2*gidz-2];
             lvy.x*=taper[2*NZ-FDOH-2*gidz-1];
@@ -692,7 +692,7 @@ extern "C" __global__ void update_v(int offcomm,
             lvz.x*=taper[2*NZ-FDOH-2*gidz-1];
             lvz.y*=taper[2*NZ-FDOH-2*gidz-2];
         }
-        
+
         if (gidy-FDOH<NAB){
             lvx.x*=taper[gidy-FDOH];
             lvx.y*=taper[gidy-FDOH];
@@ -701,7 +701,7 @@ extern "C" __global__ void update_v(int offcomm,
             lvz.x*=taper[gidy-FDOH];
             lvz.y*=taper[gidy-FDOH];
         }
-        
+
         if (gidy>NY-NAB-FDOH-1){
             lvx.x*=taper[NY-FDOH-gidy-1];
             lvx.y*=taper[NY-FDOH-gidy-1];
@@ -720,7 +720,7 @@ extern "C" __global__ void update_v(int offcomm,
             lvz.y*=taper[gidx-FDOH];
         }
 #endif
-        
+
 #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-NAB-FDOH-1){
             lvx.x*=taper[NX-FDOH-gidx-1];
@@ -738,8 +738,7 @@ extern "C" __global__ void update_v(int offcomm,
     vx(gidz,gidy,gidx) = __f22h2(lvx);
     vy(gidz,gidy,gidx) = __f22h2(lvy);
     vz(gidz,gidy,gidx) = __f22h2(lvz);
-    
-    
+
 }
 
 

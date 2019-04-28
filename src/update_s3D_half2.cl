@@ -646,10 +646,10 @@ extern "C" __global__ void update_s(int offcomm,
     lszz=sub2(add2(lszz,mul2(lM,add2(add2(vx_x2,vy_y2),vz_z2))),mul2(mul2(f2h2(2.0),lmu),add2(vx_x2,vy_y2)));
     
     // Absorbing boundary
-#if abstype==2
+#if ABS_TYPE==2
     {
 #if FREESURF==0
-        if (gidz-FDOH<NAB){
+        if (2*gidz-FDOH<NAB){
             lsxy.x*=taper[2*gidz-FDOH];
             lsxy.y*=taper[2*gidz+1-FDOH];
             lsyz.x*=taper[2*gidz-FDOH];
@@ -664,8 +664,8 @@ extern "C" __global__ void update_s(int offcomm,
             lszz.y*=taper[2*gidz+1-FDOH];
         }
 #endif
-        
-        if (gidz>NZ-NAB-FDOH-1){
+
+        if (2*gidz>2*NZ-NAB-FDOH-1){
             lsxy.x*=taper[2*NZ-FDOH-2*gidz-1];
             lsxy.y*=taper[2*NZ-FDOH-2*gidz-2];
             lsyz.x*=taper[2*NZ-FDOH-2*gidz-1];
@@ -693,9 +693,11 @@ extern "C" __global__ void update_s(int offcomm,
             lszz.x*=taper[gidy-FDOH];
             lszz.y*=taper[gidy-FDOH];
         }
-        
+
         if (gidy>NY-NAB-FDOH-1){
             lsxy.x*=taper[NY-FDOH-gidy-1]; 
+
+
             lsxy.y*=taper[NY-FDOH-gidy-1];
             lsyz.x*=taper[NY-FDOH-gidy-1];
             lsyz.y*=taper[NY-FDOH-gidy-1];
@@ -708,7 +710,7 @@ extern "C" __global__ void update_s(int offcomm,
             lszz.x*=taper[NY-FDOH-gidy-1];
             lszz.y*=taper[NY-FDOH-gidy-1];
         }
-        
+
 #if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
             lsxy.x*=taper[gidx-FDOH];
@@ -725,7 +727,7 @@ extern "C" __global__ void update_s(int offcomm,
             lszz.y*=taper[gidx-FDOH];
         }
 #endif
-        
+
 #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-NAB-FDOH-1){
             lsxy.x*=taper[NX-FDOH-gidx-1];
@@ -743,8 +745,6 @@ extern "C" __global__ void update_s(int offcomm,
         }
 #endif
     }
-#endif
-    
     
     //Write updated values to global memory
     sxx(gidz,gidy,gidx) = __f22h2(lsxx);
