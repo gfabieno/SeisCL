@@ -779,7 +779,7 @@ FUNDEF void update_s(int offcomm,  int nt,
     }
 
 // Absorbing boundary    
-#if abstype==2
+#if ABS_TYPE==2
     {
         
 #if FREESURF==0
