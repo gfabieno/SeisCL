@@ -145,7 +145,7 @@ int kernel_varout(device * dev,
                 }
                 strcat(temp,", -src_scale");
                 if (abs(vars[i].scaler)>0){
-                    sprintf(temp2,"+ %d)", -vars[i].scaler );
+                    sprintf(temp2,"+ %d", -vars[i].scaler );
                     strcat(temp, temp2);
                 }
                 strcat(temp, ")");
@@ -199,7 +199,7 @@ int kernel_varout(device * dev,
     strcat(temp, "\n}");
     
     
-//    printf("%s\n\n%lu\n",temp, strlen(temp));
+    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     
        __GUARD prog_source(prog, "varsout", temp);

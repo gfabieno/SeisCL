@@ -934,8 +934,7 @@ int assign_modeling_case(model * m){
 //            updates_adj = update_adjs2D_half2_source;
 //            surface = surface3D_source;
 //            savebnd = savebnd3D_source;
-            state = 1;
-            fprintf(stderr,"Warning: Only forward modeling is implemeted in 3D"
+            fprintf(stdout,"Warning: Only forward modeling is implemeted in 3D "
                             "when FP16 is not 0 \n");
         }
     }

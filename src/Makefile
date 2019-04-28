@@ -5,7 +5,11 @@ UNAME_S := $(shell uname -s)
 
 
 ifeq ($(UNAME_S),Linux)
-CC=h5cc
+ifeq ($(shell hash h5cc),)
+  CC=mpicc
+else
+  CC=h5cc
+endif
 LFLAGS= -lm -lrt -lmpi -lOpenCL -lhdf5 -L/usr/local/hdf5/lib -L/usr/lib64/ -lz -pipe
 CFLAGS= -g
 CFLAGS += $(shell mpicc -showme:compile)
