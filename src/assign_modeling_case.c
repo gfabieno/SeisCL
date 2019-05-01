@@ -852,11 +852,11 @@ int set_par_scale( void *mptr){
     m->par_scale = scaler;
     variable * var;
     var = get_var(m->vars,m->nvars, "vx");
-    if (var) var->scaler = -2*scaler;
+    if (var) var->scaler = scaler;
     var = get_var(m->vars,m->nvars, "vy");
-    if (var) var->scaler = -2*scaler;
+    if (var) var->scaler = scaler;
     var = get_var(m->vars,m->nvars, "vz");
-    if (var) var->scaler = -2*scaler;
+    if (var) var->scaler = scaler;
     
     return state;
 }
