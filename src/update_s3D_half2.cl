@@ -695,9 +695,7 @@ extern "C" __global__ void update_s(int offcomm,
         }
 
         if (gidy>NY-NAB-FDOH-1){
-            lsxy.x*=taper[NY-FDOH-gidy-1]; 
-
-
+            lsxy.x*=taper[NY-FDOH-gidy-1];
             lsxy.y*=taper[NY-FDOH-gidy-1];
             lsyz.x*=taper[NY-FDOH-gidy-1];
             lsyz.y*=taper[NY-FDOH-gidy-1];
@@ -708,9 +706,7 @@ extern "C" __global__ void update_s(int offcomm,
             lsyy.x*=taper[NY-FDOH-gidy-1];
             lsyy.y*=taper[NY-FDOH-gidy-1];
             lszz.x*=taper[NY-FDOH-gidy-1];
-            lszz.y*=taper[NY-FDOH-gidy-1];
         }
-
 #if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
             lsxy.x*=taper[gidx-FDOH];
@@ -745,6 +741,7 @@ extern "C" __global__ void update_s(int offcomm,
         }
 #endif
     }
+#endif
     
     //Write updated values to global memory
     sxx(gidz,gidy,gidx) = __f22h2(lsxx);
@@ -753,8 +750,5 @@ extern "C" __global__ void update_s(int offcomm,
     syy(gidz,gidy,gidx) = __f22h2(lsyy);
     syz(gidz,gidy,gidx) = __f22h2(lsyz);
     szz(gidz,gidy,gidx) = __f22h2(lszz);
-    
 
-    
-    
 }

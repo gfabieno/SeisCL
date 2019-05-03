@@ -846,7 +846,7 @@ int set_par_scale( void *mptr){
             }
         }
         //TODO review scaler constant
-        scaler = -log2(Mmax*100);
+        scaler = -log2(Mmax*1.0);
     }
 
     m->par_scale = scaler;
