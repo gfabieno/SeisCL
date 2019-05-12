@@ -420,10 +420,10 @@ int kernel_sources(model * m,
                     tosources2[j]=1;
                 }
             }
-            // backward compatibility
-            if (ind==100){
-                tosources2[0]=1;
-            }
+        }
+        // backward compatibility
+        if (ind==100){
+            tosources2[0]=1;
         }
 
     }
