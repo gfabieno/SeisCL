@@ -1,21 +1,3 @@
-/*------------------------------------------------------------------------
- * Copyright (C) 2016 For the list of authors, see file AUTHORS.
- *
- * This file is part of SeisCL.
- *
- * SeisCL is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, version 3.0 of the License only.
- *
- * SeisCL is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with SeisCL. See file COPYING and/or
- * <http://www.gnu.org/licenses/gpl-3.0.html>.
- --------------------------------------------------------------------------*/
 /*
 Copyright (c) 2003-2004, Mark Borgerding
 
