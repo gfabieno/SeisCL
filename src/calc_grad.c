@@ -18,7 +18,7 @@
  --------------------------------------------------------------------------*/
 
 #include "F.h"
-#include "fp16_conversion.h"
+#include "third_party/NVIDIA_FP16/fp16_conversion.h"
 
 /*Gradient calculation in the frequency domain */
 

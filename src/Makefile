@@ -41,56 +41,58 @@ SeisCL_CL= \
 	savebnd2D.cl \
 	savebnd3D.cl \
 	surface2D.cl \
-    surface2D_adj.cl \
+    	surface2D_adj.cl \
 	surface2D_SH.cl \
 	surface3D.cl \
 	update_adjs2D.cl \
-    update_adjs2D_half2.cl \
+    	update_adjs2D_half2.cl \
 	update_adjs2D_SH.cl \
 	update_adjs3D.cl \
 	update_adjv2D.cl \
-    update_adjv2D_half2.cl \
+    	update_adjv2D_half2.cl \
 	update_adjv2D_SH.cl \
 	update_adjv3D.cl \
 	update_s2D.cl \
 	update_s2D_half2.cl \
 	update_s2D_SH.cl \
-    update_s2D_acc.cl \
+    	update_s2D_acc.cl \
 	update_s3D.cl \
-    update_s3D_half2.cl \
+    	update_s3D_half2.cl \
 	update_v2D.cl \
 	update_v2D_half2.cl \
 	update_v2D_SH.cl \
-    update_v2D_acc.cl \
+    	update_v2D_acc.cl \
 	update_v3D.cl \
-    update_v3D_half2.cl
+    	update_v3D_half2.cl
 
 SeisCL_CL_Headers = $(SeisCL_CL:%.cl=%.hcl)
 
 SeisCL_MPI_SRC= \
-	assign_modeling_case.c \
-    automatic_kernels.c \
-	butterworth.c \
-	calc_grad.c \
-    clbuf.c \
-    clerrors.c \
-    clprogram.c \
-    clmodel.c \
-	comm.c\
-    event_dependency.c \
-	Free_OpenCL.c \
-    Init_cst.c \
-	Init_model.c \
-	Init_MPI.c \
-	Init_OpenCL.c \
-    kiss_fft.c \
-    kiss_fftr.c \
-	Out_MPI.c \
-	read_hdf5.c\
-	residuals.c \
-	SeisCL_MPI.c \
-	time_stepping.c \
-	writehdf5.c
+	    assign_modeling_case.c \
+    	automatic_kernels.c \
+	    butterworth.c \
+	    calc_grad.c \
+    	clbuf.c \
+    	clerrors.c \
+    	clprogram.c \
+    	clmodel.c \
+	    comm.c\
+    	event_dependency.c \
+	    Free_OpenCL.c \
+    	Init_cst.c \
+	    Init_model.c \
+	    Init_MPI.c \
+	    Init_OpenCL.c \
+    	third_party/KISS_FFT/kiss_fft.c \
+    	third_party/KISS_FFT/kiss_fftr.c \
+        third_party/SOFI3D/CPML_COEFF.c \
+        third_party/SOFI3D/holbergcoeff.c \
+	    Out_MPI.c \
+	    read_hdf5.c\
+	    residuals.c \
+	    SeisCL_MPI.c \
+	    time_stepping.c \
+	    writehdf5.c
 
 
 SeisCL_MPI_OBJ = $(SeisCL_MPI_SRC:%.c=%.o)

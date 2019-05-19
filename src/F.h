@@ -41,8 +41,8 @@
 #include <unistd.h>
 #include <limits.h>
 
-#include "kiss_fft.h"
-#include "kiss_fftr.h"
+#include "third_party/KISS_FFT/kiss_fft.h"
+#include "third_party/KISS_FFT/kiss_fftr.h"
 
 #include "CUDA_CL.h"
 
@@ -599,18 +599,6 @@ int kernel_sources(model * m,
                    device * dev,
                    clprogram * prog);
 
-int CPML_coeff(float NPOWER,
-               float k_max_CPML,
-               float FPML,
-               float VPPML,
-               float dh,
-               float dt,
-               int NAB,
-               float * K_i,
-               float * b_i,
-               float * a_i,
-               float * K_i_half,
-               float * b_i_half,
-               float * a_i_half);
+
 
 

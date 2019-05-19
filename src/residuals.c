@@ -20,7 +20,7 @@
 // Calculation of the residuals. The only really working function is res_raw, where raw traces are compared.
 
 #include "F.h"
-#include "fp16_conversion.h"
+#include "third_party/NVIDIA_FP16/fp16_conversion.h"
 
 
 int rtm_res(model * m, int s)

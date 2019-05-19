@@ -7,6 +7,7 @@
 //
 
 #include "F.h"
+#include "third_party/SOFI3D/CPML_COEFF.h"
 
 /*Loading files autmatically created by the makefile that contain the *.cl kernels in a c string.
  This way, no .cl file need to be read and there is no need to be in the executable directory to execute SeisCL.*/
