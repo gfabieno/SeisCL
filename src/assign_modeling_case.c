@@ -872,44 +872,6 @@ int assign_modeling_case(model * m){
     // Check Stability function
     m->check_stability=&check_stability;
     m->set_par_scale=&set_par_scale;
-    
-    /* Arrays of constants size on all devices. The most constants we have 
-       here is 23 */
-    GMALLOC(m->csts, sizeof(constants)*23);
-    
-    if (m->ABS_TYPE==2)
-    __GUARD append_cst(m,"taper",NULL,m->NAB,&taper);
-    if (m->ABS_TYPE==1){
-        __GUARD append_cst(m,"K_z",NULL,2*m->NAB,&CPML_z);
-        __GUARD append_cst(m,"a_z",NULL,2*m->NAB,NULL);
-        __GUARD append_cst(m,"b_z",NULL,2*m->NAB,NULL);
-        __GUARD append_cst(m,"K_z_half",NULL,2*m->NAB,NULL);
-        __GUARD append_cst(m,"a_z_half",NULL,2*m->NAB,NULL);
-        __GUARD append_cst(m,"b_z_half",NULL,2*m->NAB,NULL);
-        __GUARD append_cst(m,"K_x",NULL,2*m->NAB,&CPML_x);
-        __GUARD append_cst(m,"a_x",NULL,2*m->NAB,NULL);
-        __GUARD append_cst(m,"b_x",NULL,2*m->NAB,NULL);
-        __GUARD append_cst(m,"K_x_half",NULL,2*m->NAB,NULL);
-        __GUARD append_cst(m,"a_x_half",NULL,2*m->NAB,NULL);
-        __GUARD append_cst(m,"b_x_half",NULL,2*m->NAB,NULL);
-        if (m->ND==3){
-            __GUARD append_cst(m,"K_y",NULL,2*m->NAB,&CPML_y);
-            __GUARD append_cst(m,"a_y",NULL,2*m->NAB,NULL);
-            __GUARD append_cst(m,"b_y",NULL,2*m->NAB,NULL);
-            __GUARD append_cst(m,"K_y_half",NULL,2*m->NAB,NULL);
-            __GUARD append_cst(m,"a_y_half",NULL,2*m->NAB,NULL);
-            __GUARD append_cst(m,"b_y_half",NULL,2*m->NAB,NULL);
-        }
-        
-    }
-    if (m->L>0){
-        __GUARD append_cst(m,"FL","/FL",m->L,NULL);
-        __GUARD append_cst(m,"eta",NULL,m->L,&eta);
-    }
-    if (m->GRADOUT && m->BACK_PROP_TYPE==2){
-        __GUARD append_cst(m,"gradfreqs","/gradfreqs",m->NFREQS,NULL);
-        __GUARD append_cst(m,"gradfreqsn",NULL,m->NFREQS,&gradfreqsn);
-    }
 
     /* Definition of each seismic modeling case that has been implemented */
     const char * updatev;
@@ -1009,6 +971,8 @@ int assign_modeling_case(model * m){
         __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd);
     }
     
+    /*___________________Assign material parameters__________________________ */
+    
     m->npars=14;
     GMALLOC(m->pars, sizeof(parameter)*m->npars);
     ind=0;
@@ -1050,6 +1014,8 @@ int assign_modeling_case(model * m){
     }
     m->npars = ind;
     
+    
+    /*___________________Assign seismic variables__________________________ */
     m->nvars=15;
     if (m->ABS_TYPE==1)
     m->nvars+=18;
@@ -1138,6 +1104,9 @@ int assign_modeling_case(model * m){
 
     }
     m->nvars = ind;
+    
+    
+    /*___Create variables that are transformed from updated variables_______ */
     if (m->ND==2 || m->ND==3){
         m->ntvars=1;
         GMALLOC(m->trans_vars, sizeof(variable)*m->ntvars);
@@ -1151,7 +1120,7 @@ int assign_modeling_case(model * m){
         }
     }
 
-    //Create adjoint variables if necessary
+    /*___Create variables that are transformed from updated variables_______ */
     if (m->GRADOUT && m->BACK_PROP_TYPE==1){
         GMALLOC(m->vars_adj, sizeof(variable)*m->nvars);
         for (i=0;i<m->nvars;i++){
@@ -1159,7 +1128,43 @@ int assign_modeling_case(model * m){
         }
     }
     
-
+    /* Arrays of constants size on all devices. The most constants we have
+     here is 23 */
+    GMALLOC(m->csts, sizeof(constants)*23);
+    if (m->ABS_TYPE==2)
+    __GUARD append_cst(m,"taper",NULL,m->NAB,&taper);
+    if (m->ABS_TYPE==1){
+        __GUARD append_cst(m,"K_z",NULL,2*m->NAB,&CPML_z);
+        __GUARD append_cst(m,"a_z",NULL,2*m->NAB,NULL);
+        __GUARD append_cst(m,"b_z",NULL,2*m->NAB,NULL);
+        __GUARD append_cst(m,"K_z_half",NULL,2*m->NAB,NULL);
+        __GUARD append_cst(m,"a_z_half",NULL,2*m->NAB,NULL);
+        __GUARD append_cst(m,"b_z_half",NULL,2*m->NAB,NULL);
+        __GUARD append_cst(m,"K_x",NULL,2*m->NAB,&CPML_x);
+        __GUARD append_cst(m,"a_x",NULL,2*m->NAB,NULL);
+        __GUARD append_cst(m,"b_x",NULL,2*m->NAB,NULL);
+        __GUARD append_cst(m,"K_x_half",NULL,2*m->NAB,NULL);
+        __GUARD append_cst(m,"a_x_half",NULL,2*m->NAB,NULL);
+        __GUARD append_cst(m,"b_x_half",NULL,2*m->NAB,NULL);
+        if (m->ND==3){
+            __GUARD append_cst(m,"K_y",NULL,2*m->NAB,&CPML_y);
+            __GUARD append_cst(m,"a_y",NULL,2*m->NAB,NULL);
+            __GUARD append_cst(m,"b_y",NULL,2*m->NAB,NULL);
+            __GUARD append_cst(m,"K_y_half",NULL,2*m->NAB,NULL);
+            __GUARD append_cst(m,"a_y_half",NULL,2*m->NAB,NULL);
+            __GUARD append_cst(m,"b_y_half",NULL,2*m->NAB,NULL);
+        }
+        
+    }
+    if (m->L>0){
+        __GUARD append_cst(m,"FL","/FL",m->L,NULL);
+        __GUARD append_cst(m,"eta",NULL,m->L,&eta);
+    }
+    if (m->GRADOUT && m->BACK_PROP_TYPE==2){
+        __GUARD append_cst(m,"gradfreqs","/gradfreqs",m->NFREQS,NULL);
+        __GUARD append_cst(m,"gradfreqsn",NULL,m->NFREQS,&gradfreqsn);
+    }
+    
     //Assign dimensions name
     if (m->ND==3){
         m->N_names[0]="Z";

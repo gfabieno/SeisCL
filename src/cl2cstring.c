@@ -51,13 +51,15 @@ int main(int argc, char **argv) {
         fprintf(stderr,"Error: Could not open the file: %s \n", filename);
     }
     else{
-        fprintf(fh, "const char * ");
+        //fprintf(fh, "const char * ");
+        fprintf(fh, "const char ");
         ii=0;
         while ( (filename[ii]!='.') & (filename[ii]!='\0') & ii<1000){
             fputc(filename[ii], fh);
             ii++;
         }
-        fprintf(fh, "_source = \"");
+        //fprintf(fh, "_source = \"");
+        fprintf(fh, "_source[] = \"");
         for (ii=0;ii<statbuf.st_size;ii++){
             ch = program_source[ii];
             switch (ch) {
