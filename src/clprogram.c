@@ -319,7 +319,7 @@ char *get_build_options(device *dev,
     }
     
     char src2[2000];
-    sprintf(src2,"-D NDIM=%d -D OFFSET=%d -D FDOH=%d -D DTDH=%9.9f -D DH=%9.9f "
+    sprintf(src2,"-I ./ -D NDIM=%d -D OFFSET=%d -D FDOH=%d -D DTDH=%9.9f -D DH=%9.9f "
             "-D DT=%9.9f -D DT2=%9.9f -D NT=%d -D NAB=%d -D NBND=%d "
             "-D LOCAL_OFF=%d -D LVE=%d -D DEVID=%d -D NUM_DEVICES=%d "
             "-D ND=%d -D ABS_TYPE=%d -D FREESURF=%d -D LCOMM=%d "
@@ -555,6 +555,7 @@ int get_build_options(device *dev,
     
     return state;
 }
+
 int compile(const char *program_source,
             char * program,
             CUmodule *module,
@@ -648,9 +649,13 @@ int compile(const char *program_source,
 #endif
 
 
-int prog_source(clprogram * prog, char* name, const char * source){
+int prog_source(clprogram * prog, char* name, const char * source, int nheaders, const char ** headers){
     int state =0;
-    snprintf((*prog).src, sizeof((*prog).src), "%s", source);
+    int i;
+    for (i=0; i<nheaders; i++){
+        strcat((*prog).src, headers[i]);
+    }
+    strcat((*prog).src, source);
     (*prog).name=name;
     state =prog_args_list(source,
                         (char *)(*prog).name ,
@@ -969,7 +974,7 @@ int prog_create(model * m,
 }
 
     
-int prog_launch( QUEUE *inqueue, clprogram * prog){
+int prog_launch(QUEUE *inqueue, clprogram * prog){
     
     /*Launch a kernel and check for errors */
     int state = 0;

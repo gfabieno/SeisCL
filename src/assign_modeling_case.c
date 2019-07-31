@@ -37,7 +37,8 @@
 #include "update_v2D_acc.hcl"
 #include "update_v3D.hcl"
 #include "update_v3D_half2.hcl"
-
+#include "header_FD2D.hcl"
+#include "header_CUDACL.hcl"
 
 void ave_arithmetic1(float * pin, float * pout, int * N, int ndim, int  dir[3]){
     
@@ -881,6 +882,9 @@ int assign_modeling_case(model * m){
     const char * surface;
     const char * surface_adj;
     const char * savebnd;
+    const char * headers[2];
+    headers[0] = header_CUDACL_source;
+    
     //TODO surface kernels with FP16, Adjoint kernels in 3D with FP16
     if (m->ND==3 ){
         if (m->FP16==0){
@@ -890,6 +894,7 @@ int assign_modeling_case(model * m){
             updates_adj = update_adjs2D_source;
             surface = surface3D_source;
             savebnd = savebnd3D_source;
+            
         }
         else{
             updatev = update_v3D_half2_source;
@@ -911,6 +916,7 @@ int assign_modeling_case(model * m){
             surface = surface2D_source;
             surface_adj = surface2D_adj_source;
             savebnd = savebnd2D_source;
+            headers[1] = header_FD2D_source;
         }
         else{
             updatev = update_v2D_half2_source;
@@ -952,23 +958,23 @@ int assign_modeling_case(model * m){
     m->nupdates=2;
     GMALLOC(m->ups_f, m->nupdates*sizeof(update));
     ind=0;
-    __GUARD append_update(m->ups_f, &ind, "update_v", updatev);
-    __GUARD append_update(m->ups_f, &ind, "update_s", updates);
+    __GUARD append_update(m->ups_f, &ind, "update_v", updatev, 2, headers);
+    __GUARD append_update(m->ups_f, &ind, "update_s", updates, 2, headers);
     if (m->GRADOUT){
         GMALLOC(m->ups_adj, m->nupdates*sizeof(update));
         ind=0;
-        __GUARD append_update(m->ups_adj, &ind, "update_adjv", updatev_adj);
-        __GUARD append_update(m->ups_adj, &ind, "update_adjs", updates_adj);
+        __GUARD append_update(m->ups_adj, &ind, "update_adjv", updatev_adj, 2, headers);
+        __GUARD append_update(m->ups_adj, &ind, "update_adjs", updates_adj, 2, headers);
     }
     if (m->FREESURF){
-        __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface);
+        __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface, 0, NULL);
         if (m->GRADOUT){
             __GUARD prog_source(&m->bnd_cnds.surf_adj,
-                                "surface_adj", surface_adj);
+                                "surface_adj", surface_adj, 0, NULL);
         }
     }
     if (m->GRADOUT && m->BACK_PROP_TYPE==1){
-        __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd);
+        __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd, 0, NULL);
     }
     
     /*___________________Assign material parameters__________________________ */

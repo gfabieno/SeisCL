@@ -168,7 +168,9 @@ typedef struct clprogram {
 
 int prog_source(clprogram * prog,
                 char* name,
-                const char * source);
+                const char * source,
+                int nheaders,
+                const char ** headers);
 
 int prog_launch( QUEUE *inqueue, clprogram * prog);
 
@@ -488,7 +490,8 @@ typedef struct model {
 
 } model;
 
-int append_update(update * up, int * ind, char * name, const char * source);
+int append_update(update * up, int * ind, char * name, const char * source,
+                  int nheaders, const char ** headers);
 int append_var(model * m,
                int *ind,
                const char * name,
