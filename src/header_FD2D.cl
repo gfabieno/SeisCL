@@ -21,7 +21,6 @@
     #define lidz gidz
     #define ind(z,x)   (x)*(NZ)+(z)
 #endif
-//#define var(z,x) var[(x)*(NZ)+(z)]
 
 //Load in local memory with the halo for FD in different directions
 #define load_local_x(v) ({\
