@@ -64,7 +64,7 @@ SeisCL_CL= \
     update_v2D_acc.cl \
 	update_v3D.cl \
     update_v3D_half2.cl \
-    header_FD2D.cl \
+    header_FD.cl \
     header_FD2D_fp16.cl \
     header_CUDACL.cl
 

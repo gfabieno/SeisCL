@@ -105,7 +105,9 @@ FUNDEF void update_s(int offcomm,
 // Calculation of the velocity spatial derivatives
     {
 #if LOCAL_OFF==0
-        load_local_xz(vx);
+        load_local_in(vx);
+        load_local_haloz(vx);
+        load_local_halox(vx);
         BARRIER
 #endif
         vxx = Dxm(lvx);
@@ -114,7 +116,9 @@ FUNDEF void update_s(int offcomm,
         
 #if LOCAL_OFF==0
         BARRIER
-        load_local_xz(vz);
+        load_local_in(vz);
+        load_local_haloz(vz);
+        load_local_halox(vz);
         BARRIER
 #endif
         vzz = Dzm(lvz);

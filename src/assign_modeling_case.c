@@ -37,7 +37,7 @@
 #include "update_v2D_acc.hcl"
 #include "update_v3D.hcl"
 #include "update_v3D_half2.hcl"
-#include "header_FD2D.hcl"
+#include "header_FD.hcl"
 #include "header_FD2D_fp16.hcl"
 #include "header_CUDACL.hcl"
 
@@ -886,6 +886,13 @@ int assign_modeling_case(model * m){
     const char * headers[2];
     headers[0] = header_CUDACL_source;
     
+    if (m->FP16==0){
+        headers[1] = header_FD_source;
+    }
+    else {
+        headers[1] = header_FD2D_fp16_source;
+    }
+    
     //TODO surface kernels with FP16, Adjoint kernels in 3D with FP16
     if (m->ND==3 ){
         if (m->FP16==0){
@@ -917,7 +924,6 @@ int assign_modeling_case(model * m){
             surface = surface2D_source;
             surface_adj = surface2D_adj_source;
             savebnd = savebnd2D_source;
-            headers[1] = header_FD2D_source;
         }
         else{
             updatev = update_v2D_half2_source;
@@ -926,7 +932,6 @@ int assign_modeling_case(model * m){
             updates_adj = update_adjs2D_half2_source;
             surface = surface2D_source;
             savebnd = savebnd2D_source;
-            headers[1] = header_FD2D_fp16_source;
         }
     }
      else if (m->ND==21){

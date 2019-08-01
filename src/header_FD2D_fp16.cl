@@ -15,13 +15,10 @@
  */
 
 #if LOCAL_OFF==0
-    #define lvar(z,x) lvar[(x)*2*lsizez+(z)]
-    #define lvar2(z,x) lvar2[(x)*lsizez+(z)]
     #define ind1(z,x)   (x)*2*lsizez+(z)
     #define ind2(z,x)  (x)*lsizez+(z)
     #define indg(z,x)  (x)*NZ+(z)
 #else
-    #define lvar(z,x)  lvar[(x)*(NZ)+(z)]
     #define lidx gidx
     #define lidz gidz
     #define ind2(z,x)   (x)*(NZ)+(z)

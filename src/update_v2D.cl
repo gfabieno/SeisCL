@@ -101,21 +101,25 @@ FUNDEF void update_v(int offcomm,
 // Calculation of the stresses spatial derivatives
     {
 #if LOCAL_OFF==0
-        load_local_x(sxx);
+        load_local_in(sxx);
+        load_local_halox(sxx);
         BARRIER
 #endif
         sxx_x = Dxp(lsxx);
         
 #if LOCAL_OFF==0
         BARRIER
-        load_local_z(szz);
+        load_local_in(szz);
+        load_local_haloz(szz);
         BARRIER
 #endif
         szz_z = Dzp(lszz);
         
 #if LOCAL_OFF==0
         BARRIER
-        load_local_xz(sxz);
+        load_local_in(sxz);
+        load_local_haloz(sxz);
+        load_local_halox(sxz);
         BARRIER
 #endif
         sxz_z = Dzm(lsxz);
