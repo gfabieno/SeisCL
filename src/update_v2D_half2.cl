@@ -43,12 +43,7 @@ FUNDEF void update_v(int offcomm,
     int indp = ((gidx)-FDOH)*(NZ-FDOH)+((gidz)-FDOH/2);
     int indv = gidx*NZ+gidz;
 
-    //Define and load private parameters and variables
-    __cprec lvx = __h22f2(vx[indv]);
-    __cprec lvz = __h22f2(vz[indv]);
-    __cprec lrip = __pconv(rip[indp]);
-    __cprec lrkp = __pconv(rkp[indp]);
-    
+   
     //Define private derivatives
     __cprec sxx_x1;
     __cprec sxz_x2;
@@ -116,7 +111,13 @@ FUNDEF void update_v(int offcomm,
         return;
     #endif
     #endif
-
+    
+    //Define and load private parameters and variables
+    __cprec lvx = __h22f2(vx[indv]);
+    __cprec lvz = __h22f2(vz[indv]);
+    __cprec lrip = __pconv(rip[indp]);
+    __cprec lrkp = __pconv(rkp[indp]);
+    
     // Update the variables
     lvx=add2(lvx,mul2(add2(sxx_x1,sxz_z2),lrip));
     lvz=add2(lvz,mul2(add2(szz_z1,sxz_x2),lrkp));

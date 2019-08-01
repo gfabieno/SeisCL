@@ -49,15 +49,7 @@ FUNDEF void update_s(int offcomm,
     __cprec vx_z1;
     __cprec vz_x1;
     __cprec vz_z2;
-
-    //Define and load private parameters and variables
-    __cprec lsxx = __h22f2(sxx[indv]);
-    __cprec lsxz = __h22f2(sxz[indv]);
-    __cprec lszz = __h22f2(szz[indv]);
-    __cprec lM = __pconv(M[indp]);
-    __cprec lmu = __pconv(mu[indp]);
-    __cprec lmuipkp = __pconv(muipkp[indp]);
-    
+   
     //Local memory definitions if local is used
     #if LOCAL_OFF==0
         #define lvx lvar
@@ -112,6 +104,13 @@ FUNDEF void update_s(int offcomm,
     #endif
     #endif
    
+    //Define and load private parameters and variables
+    __cprec lsxx = __h22f2(sxx[indv]);
+    __cprec lsxz = __h22f2(sxz[indv]);
+    __cprec lszz = __h22f2(szz[indv]);
+    __cprec lM = __pconv(M[indp]);
+    __cprec lmu = __pconv(mu[indp]);
+    __cprec lmuipkp = __pconv(muipkp[indp]);
     
     // Update the variables
     lsxz=add2(lsxz,mul2(lmuipkp,add2(vx_z1,vz_x1)));
