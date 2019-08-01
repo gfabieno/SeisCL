@@ -38,7 +38,7 @@
 #include "update_v3D.hcl"
 #include "update_v3D_half2.hcl"
 #include "header_FD.hcl"
-#include "header_FD2D_fp16.hcl"
+#include "header_FD_fp16.hcl"
 #include "header_CUDACL.hcl"
 
 void ave_arithmetic1(float * pin, float * pout, int * N, int ndim, int  dir[3]){
@@ -890,7 +890,7 @@ int assign_modeling_case(model * m){
         headers[1] = header_FD_source;
     }
     else {
-        headers[1] = header_FD2D_fp16_source;
+        headers[1] = header_FD_fp16_source;
     }
     
     //TODO surface kernels with FP16, Adjoint kernels in 3D with FP16

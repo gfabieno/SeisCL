@@ -98,7 +98,7 @@ FUNDEF void update_s(int offcomm,
     #define lvz vz
     
 #endif
-
+    int indr;
     int indp = (gidx-FDOH)*(NZ-2*FDOH)+(gidz-FDOH);
     int indv = gidx*NZ+gidz;
     
@@ -251,7 +251,6 @@ FUNDEF void update_s(int offcomm,
         
         /* computing sums of the old memory variables */
         sumrxz=sumrxx=sumrzz=0;
-        int indr;
         for (l=0;l<LVE;l++){
             indr = l*NX*NZ + gidx*NZ+gidz;
             sumrxz+=rxz[indr];
