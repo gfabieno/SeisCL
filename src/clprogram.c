@@ -175,6 +175,10 @@ int prog_read_file(char **output, size_t *size, const char *name) {
     fseek(fp, 0, SEEK_END);
     *size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
+    if (*size > MAX_KERN_STR){
+        fprintf(stderr,"Error: Kernel file is too long, change MAX_KERN_STR value in F.h\n");
+        return -1;
+    }
     
     *output = (char *)malloc(*size);
     if (!*output) {
@@ -218,7 +222,7 @@ CL_INT prog_compare(char * filename_src,
         length = ftell (f);
         fseek (f, 0, SEEK_SET);
         if (length<MAX_KERN_STR){
-        fread (src_cache, 1, length, f);
+            fread (src_cache, 1, length, f);
         }
         else{
             fprintf(stderr,"Error: cached kernel length too long\n");

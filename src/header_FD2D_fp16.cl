@@ -13,16 +13,34 @@
                                   2: Read half2, compute in float2, write half2
                                   3: Read half2, compute half2, write half2
  */
-
-#if LOCAL_OFF==0
-    #define ind1(z,x)   (x)*2*lsizez+(z)
-    #define ind2(z,x)  (x)*lsizez+(z)
-    #define indg(z,x)  (x)*NZ+(z)
+#if ND==3
+    #if LOCAL_OFF==0
+        #define ind1(z,y,x)   (x)*2*lsizey*lsizez+(y)*2*lsizez+(z)
+        #define ind2(z,y,x)   (x)*lsizey*lsizez+(y)*lsizez+(z)
+        #define indg(z,y,x)   (x)*NY*(NZ)+(y)*(NZ)+(z)
+    #else
+        #define lidx gidx
+        #define lidy gidy
+        #define lidz gidz
+        #define ind1(z,y,x)   (x)*2*(NY)*(NZ)+(y)*2*(NZ)+(z)
+        #define ind2(z,y,x)   (x)*(NY)*(NZ)+(y)*(NZ)+(z)
+    #endif
 #else
-    #define lidx gidx
-    #define lidz gidz
-    #define ind2(z,x)   (x)*(NZ)+(z)
+    #define lidy 0
+    #define gidy 0
+    #if LOCAL_OFF==0
+        #define ind1(z,y,x)  (x)*2*lsizez+(z)
+        #define ind2(z,y,x)  (x)*lsizez+(z)
+        #define indg(z,y,x)  (x)*NZ+(z)
+    #else
+        #define lidx gidx
+        #define lidz gidz
+        #define ind1(z,y,x)   (x)*2*(NZ)+(z)
+        #define ind2(z,y,x)   (x)*(NZ)+(z)
+    #endif
 #endif
+
+
 
 /*Define functions and macros to be able to change operations types only with
  preprossor directives, that is with different values of FP16. Those functions
@@ -125,185 +143,251 @@ extern "C" __device__ float2 scalbnf2(float2 a, int scaler ){
 }
 
 //Load in local memory with the halo for FD in different directions
-#define load_local_x(v) \
+#define load_local_in(v) lvar2[ind2(lidz,lidy,lidx)]=v[indg(gidz,gidy,gidx)]
+
+#define load_local_halox(v) \
 do {\
-        lvar2[ind2(lidz,lidx)]=v[indg(gidz, gidx)];\
         if (lidx<2*FDOH)\
-            lvar2[ind2(lidz,lidx-FDOH)]=v[indg(gidz,gidx-FDOH)];\
+            lvar2[ind2(lidz,lidy,lidx-FDOH)]=v[indg(gidz,gidy,gidx-FDOH)];\
         if (lidx+lsizex-3*FDOH<FDOH)\
-            lvar2[ind2(lidz,lidx+lsizex-3*FDOH)]=v[indg(gidz,gidx+lsizex-3*FDOH)];\
+            lvar2[ind2(lidz,lidy,lidx+lsizex-3*FDOH)]=v[indg(gidz,gidy,gidx+lsizex-3*FDOH)];\
         if (lidx>(lsizex-2*FDOH-1))\
-            lvar2[ind2(lidz,lidx+FDOH)]=v[indg(gidz,gidx+FDOH)];\
+            lvar2[ind2(lidz,lidy,lidx+FDOH)]=v[indg(gidz,gidy,gidx+FDOH)];\
         if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))\
-            lvar2[ind2(lidz,lidx-lsizex+3*FDOH)]=v[indg(gidz,gidx-lsizex+3*FDOH)];\
+            lvar2[ind2(lidz,lidy,lidx-lsizex+3*FDOH)]=v[indg(gidz,gidy,gidx-lsizex+3*FDOH)];\
 } while(0)
 
-
-#define load_local_z(v) \
+#define load_local_haloy(v) \
 do {\
-        lvar2[ind2(lidz,lidx)]=v[indg(gidz,gidx)];\
-        if (lidz<FDOH)\
-            lvar2[ind2(lidz-FDOH/2,lidx)]=v[indg(gidz-FDOH/2,gidx)];\
-        if (lidz>(lsizez-FDOH-1))\
-            lvar2[ind2(lidz+FDOH/2,lidx)]=v[indg(gidz+FDOH/2,gidx)];\
+        if (lidy<2*FDOH)\
+            lvar2[ind2(lidz,lidy-FDOH,lidx)]=v[indg(gidz,gidy-FDOH,gidx)];\
+        if (lidy+lsizey-3*FDOH<FDOH)\
+            lvar2[ind2(lidz,lidy+lsizey-3*FDOH,lidx)]=v[indg(gidz,gidy+lsizey-3*FDOH,gidx)];\
+        if (lidy>(lsizey-2*FDOH-1))\
+            lvar2[ind2(lidz,lidy+FDOH,lidx)]=v[indg(gidz,gidy+FDOH,gidx)];\
+        if (lidy-lsizey+3*FDOH>(lsizey-FDOH-1))\
+            lvar2[ind2(lidz,lidy-lsizey+3*FDOH,lidx)]=v[indg(gidz,gidy-lsizey+3*FDOH,gidx)];\
 } while(0)
 
-#define load_local_xz(v) \
+#define load_local_haloz(v) \
 do {\
-        lvar2[ind2(lidz,lidx)]=v[indg(gidz,gidx)];\
         if (lidz<FDOH)\
-            lvar2[ind2(lidz-FDOH/2,lidx)]=v[indg(gidz-FDOH/2,gidx)];\
+            lvar2[ind2(lidz-FDOH/2,lidy,lidx)]=v[indg(gidz-FDOH/2,gidy,gidx)];\
         if (lidz>(lsizez-FDOH-1))\
-            lvar2[ind2(lidz+FDOH/2,lidx)]=v[indg(gidz+FDOH/2,gidx)];\
-        if (lidx<2*FDOH)\
-            lvar2[ind2(lidz,lidx-FDOH)]=v[indg(gidz,gidx-FDOH)];\
-        if (lidx+lsizex-3*FDOH<FDOH)\
-            lvar2[ind2(lidz,lidx+lsizex-3*FDOH)]=v[indg(gidz,gidx+lsizex-3*FDOH)];\
-        if (lidx>(lsizex-2*FDOH-1))\
-            lvar2[ind2(lidz,lidx+FDOH)]=v[indg(gidz,gidx+FDOH)];\
-        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))\
-            lvar2[ind2(lidz,lidx-lsizex+3*FDOH)]=v[indg(gidz,gidx-lsizex+3*FDOH)];\
+            lvar2[ind2(lidz+FDOH/2,lidy,lidx)]=v[indg(gidz+FDOH/2,gidy,gidx)];\
 } while(0)
+
 
 
 //Forward stencil in x
 #if   FDOH == 1
-        #define Dxp(v)  mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidx+1)]), __h22f2(v[ind2(lidz,lidx)])))
+        #define Dxp(v)  mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidy,lidx+1)]), __h22f2(v[ind2(lidz,lidy,lidx)])))
 #elif FDOH == 2
         #define Dxp(v) (\
-                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidx+1)]), __h22f2(v[ind2(lidz,lidx)]))),\
-                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidx+2)]), __h22f2(v[ind2(lidz,lidx-1)]))));
+                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidy,lidx+1)]), __h22f2(v[ind2(lidz,lidy,lidx)]))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidy,lidx+2)]), __h22f2(v[ind2(lidz,lidy,lidx-1)]))));
 #elif FDOH == 3
         #define Dxp(v) add2(add2(\
-                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidx+1)]), __h22f2(v[ind2(lidz,lidx)]))),\
-                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidx+2)]), __h22f2(v[ind2(lidz,lidx-1)])))),\
-                        mul2( f2h2(HC3), sub2(__h22f2(v[ind2(lidz,lidx+3)]), __h22f2(v[ind2(lidz,lidx-2)]))));
+                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidy,lidx+1)]), __h22f2(v[ind2(lidz,lidy,lidx)]))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidy,lidx+2)]), __h22f2(v[ind2(lidz,lidy,lidx-1)])))),\
+                        mul2( f2h2(HC3), sub2(__h22f2(v[ind2(lidz,lidy,lidx+3)]), __h22f2(v[ind2(lidz,lidy,lidx-2)]))));
 #elif FDOH == 4
         #define Dxp(v) add2(add2(add2(\
-                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidx+1)]), __h22f2(v[ind2(lidz,lidx)]))),\
-                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidx+2)]), __h22f2(v[ind2(lidz,lidx-1)])))),\
-                        mul2( f2h2(HC3), sub2(__h22f2(v[ind2(lidz,lidx+3)]), __h22f2(v[ind2(lidz,lidx-2)])))),\
-                        mul2( f2h2(HC4), sub2(__h22f2(v[ind2(lidz,lidx+4)]), __h22f2(v[ind2(lidz,lidx-3)]))));
+                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidy,lidx+1)]), __h22f2(v[ind2(lidz,lidy,lidx)]))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidy,lidx+2)]), __h22f2(v[ind2(lidz,lidy,lidx-1)])))),\
+                        mul2( f2h2(HC3), sub2(__h22f2(v[ind2(lidz,lidy,lidx+3)]), __h22f2(v[ind2(lidz,lidy,lidx-2)])))),\
+                        mul2( f2h2(HC4), sub2(__h22f2(v[ind2(lidz,lidy,lidx+4)]), __h22f2(v[ind2(lidz,lidy,lidx-3)]))));
 #elif FDOH == 5
         #define Dxp(v) dd2(add2(add2(add2(\
-                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidx+1)]), __h22f2(v[ind2(lidz,lidx)]))),\
-                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidx+2)]), __h22f2(v[ind2(lidz,lidx-1)])))),\
-                        mul2( f2h2(HC3), sub2(__h22f2(v[ind2(lidz,lidx+3)]), __h22f2(v[ind2(lidz,lidx-2)])))),\
-                        mul2( f2h2(HC4), sub2(__h22f2(v[ind2(lidz,lidx+4)]), __h22f2(v[ind2(lidz,lidx-3)])))),\
-                        mul2( f2h2(HC5), sub2(__h22f2(v[ind2(lidz,lidx+5)]), __h22f2(v[ind2(lidz,lidx-4)]))));
+                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidy,lidx+1)]), __h22f2(v[ind2(lidz,lidy,lidx)]))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidy,lidx+2)]), __h22f2(v[ind2(lidz,lidy,lidx-1)])))),\
+                        mul2( f2h2(HC3), sub2(__h22f2(v[ind2(lidz,lidy,lidx+3)]), __h22f2(v[ind2(lidz,lidy,lidx-2)])))),\
+                        mul2( f2h2(HC4), sub2(__h22f2(v[ind2(lidz,lidy,lidx+4)]), __h22f2(v[ind2(lidz,lidy,lidx-3)])))),\
+                        mul2( f2h2(HC5), sub2(__h22f2(v[ind2(lidz,lidy,lidx+5)]), __h22f2(v[ind2(lidz,lidy,lidx-4)]))));
 #elif FDOH == 6
         #define Dxp(v) add2(add2(add2(add2(add2(\
-                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidx+1)]), __h22f2(v[ind2(lidz,lidx)]))),\
-                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidx+2)]), __h22f2(v[ind2(lidz,lidx-1)])))),\
-                        mul2( f2h2(HC3), sub2(__h22f2(v[ind2(lidz,lidx+3)]), __h22f2(v[ind2(lidz,lidx-2)])))),\
-                        mul2( f2h2(HC4), sub2(__h22f2(v[ind2(lidz,lidx+4)]), __h22f2(v[ind2(lidz,lidx-3)])))),\
-                        mul2( f2h2(HC5), sub2(__h22f2(v[ind2(lidz,lidx+5)]), __h22f2(v[ind2(lidz,lidx-4)])))),\
-                        mul2( f2h2(HC6), sub2(__h22f2(v[ind2(lidz,lidx+6)]), __h22f2(v[ind2(lidz,lidx-5)]))));
-#endif
-
-
-//Forward stencil in x
-#if   FDOH == 1
-    #define Dzp(v)      mul2( f2h2(HC1), sub2(__h22f2(__hp(&v[ind1(2*lidz+1,lidx)])), __h22f2(__hp(&v[ind1(2*lidz,lidx)]))));
-#elif FDOH == 2
-    #define Dzp(v) add2(\
-                        mul2( f2h2(HC1), sub2(__h22f2(__hp(&v[ind1(2*lidz+1,lidx)])), __h22f2(__hp(&v[ind1(2*lidz,lidx)])))),\
-                        mul2( f2h2(HC2), sub2(__h22f2(__hp(&v[ind1(2*lidz+2,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-1,lidx)])))));
-#elif FDOH == 3
-    #define Dzp(v) add2(add2(\
-                        mul2( f2h2(HC1), sub2(__h22f2(__hp(&v[ind1(2*lidz+1,lidx)])), __h22f2(__hp(&v[ind1(2*lidz,lidx)])))),\
-                        mul2( f2h2(HC2), sub2(__h22f2(__hp(&v[ind1(2*lidz+2,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-1,lidx)]))))),\
-                        mul2( f2h2(HC3), sub2(__h22f2(__hp(&v[ind1(2*lidz+3,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-2,lidx)])))));
-#elif FDOH == 4
-    #define Dzp(v) add2(add2(add2(\
-                        mul2( f2h2(HC1), sub2(__h22f2(__hp(&v[ind1(2*lidz+1,lidx)])), __h22f2(__hp(&v[ind1(2*lidz,lidx)])))),\
-                        mul2( f2h2(HC2), sub2(__h22f2(__hp(&v[ind1(2*lidz+2,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-1,lidx)]))))),\
-                        mul2( f2h2(HC3), sub2(__h22f2(__hp(&v[ind1(2*lidz+3,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-2,lidx)]))))),\
-                        mul2( f2h2(HC4), sub2(__h22f2(__hp(&v[ind1(2*lidz+4,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-3,lidx)])))));
-#elif FDOH == 5
-    #define Dzp(v) add2(add2(add2(add2(\
-                        mul2( f2h2(HC1), sub2(__h22f2(__hp(&v[ind1(2*lidz+1,lidx)])), __h22f2(__hp(&v[ind1(2*lidz,lidx)])))),\
-                        mul2( f2h2(HC2), sub2(__h22f2(__hp(&v[ind1(2*lidz+2,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-1,lidx)]))))),\
-                        mul2( f2h2(HC3), sub2(__h22f2(__hp(&v[ind1(2*lidz+3,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-2,lidx)]))))),\
-                        mul2( f2h2(HC4), sub2(__h22f2(__hp(&v[ind1(2*lidz+4,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-3,lidx)]))))),\
-                        mul2( f2h2(HC5), sub2(__h22f2(__hp(&v[ind1(2*lidz+5,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-4,lidx)])))));
-#elif FDOH == 6
-    #define Dzp(v) add2(add2(add2(add2(add2(\
-                        mul2( f2h2(HC1), sub2(__h22f2(__hp(&v[ind1(2*lidz+1,lidx)])), __h22f2(__hp(&v[ind1(2*lidz,lidx)])))),\
-                        mul2( f2h2(HC2), sub2(__h22f2(__hp(&v[ind1(2*lidz+2,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-1,lidx)]))))),\
-                        mul2( f2h2(HC3), sub2(__h22f2(__hp(&v[ind1(2*lidz+3,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-2,lidx)]))))),\
-                        mul2( f2h2(HC4), sub2(__h22f2(__hp(&v[ind1(2*lidz+4,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-3,lidx)]))))),\
-                        mul2( f2h2(HC5), sub2(__h22f2(__hp(&v[ind1(2*lidz+5,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-4,lidx)]))))),\
-                        mul2( f2h2(HC6), sub2(__h22f2(__hp(&v[ind1(2*lidz+6,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-5,lidx)])))));
+                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidy,lidx+1)]), __h22f2(v[ind2(lidz,lidy,lidx)]))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidy,lidx+2)]), __h22f2(v[ind2(lidz,lidy,lidx-1)])))),\
+                        mul2( f2h2(HC3), sub2(__h22f2(v[ind2(lidz,lidy,lidx+3)]), __h22f2(v[ind2(lidz,lidy,lidx-2)])))),\
+                        mul2( f2h2(HC4), sub2(__h22f2(v[ind2(lidz,lidy,lidx+4)]), __h22f2(v[ind2(lidz,lidy,lidx-3)])))),\
+                        mul2( f2h2(HC5), sub2(__h22f2(v[ind2(lidz,lidy,lidx+5)]), __h22f2(v[ind2(lidz,lidy,lidx-4)])))),\
+                        mul2( f2h2(HC6), sub2(__h22f2(v[ind2(lidz,lidy,lidx+6)]), __h22f2(v[ind2(lidz,lidy,lidx-5)]))));
 #endif
 
 //Backward stencil in x
 #if   FDOH == 1
-    #define Dxm(v)      mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidx)]), __h22f2(v[ind2(lidz,lidx-1)])));
+    #define Dxm(v)      mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidy,lidx)]), __h22f2(v[ind2(lidz,lidy,lidx-1)])));
 #elif FDOH == 2
     #define Dxm(v) add2(\
-                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidx)]), __h22f2(v[ind2(lidz,lidx-1)]))),\
-                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidx+1)]), __h22f2(v[ind2(lidz,lidx-2)]))));
+                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidy,lidx)]), __h22f2(v[ind2(lidz,lidy,lidx-1)]))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidy,lidx+1)]), __h22f2(v[ind2(lidz,lidy,lidx-2)]))));
 #elif FDOH == 3
     #define Dxm(v) add2(add2(\
-                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidx)]), __h22f2(v[ind2(lidz,lidx-1)]))),\
-                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidx+1)]), __h22f2(v[ind2(lidz,lidx-2)])))),\
-                        mul2( f2h2(HC3), sub2(__h22f2(v[ind2(lidz,lidx+2)]), __h22f2(v[ind2(lidz,lidx-3)]))));
+                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidy,lidx)]), __h22f2(v[ind2(lidz,lidy,lidx-1)]))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidy,lidx+1)]), __h22f2(v[ind2(lidz,lidy,lidx-2)])))),\
+                        mul2( f2h2(HC3), sub2(__h22f2(v[ind2(lidz,lidy,lidx+2)]), __h22f2(v[ind2(lidz,lidy,lidx-3)]))));
 #elif FDOH == 4
     #define Dxm(v) add2(add2(add2(\
-                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidx)]), __h22f2(v[ind2(lidz,lidx-1)]))),\
-                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidx+1)]), __h22f2(v[ind2(lidz,lidx-2)])))),\
-                        mul2( f2h2(HC3), sub2(__h22f2(v[ind2(lidz,lidx+2)]), __h22f2(v[ind2(lidz,lidx-3)])))),\
-                        mul2( f2h2(HC4), sub2(__h22f2(v[ind2(lidz,lidx+3)]), __h22f2(v[ind2(lidz,lidx-4)]))));
+                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidy,lidx)]), __h22f2(v[ind2(lidz,lidy,lidx-1)]))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidy,lidx+1)]), __h22f2(v[ind2(lidz,lidy,lidx-2)])))),\
+                        mul2( f2h2(HC3), sub2(__h22f2(v[ind2(lidz,lidy,lidx+2)]), __h22f2(v[ind2(lidz,lidy,lidx-3)])))),\
+                        mul2( f2h2(HC4), sub2(__h22f2(v[ind2(lidz,lidy,lidx+3)]), __h22f2(v[ind2(lidz,lidy,lidx-4)]))));
 #elif FDOH == 5
     #define Dxm(v) add2(add2(add2(add2(\
-                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidx)]), __h22f2(v[ind2(lidz,lidx-1)]))),\
-                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidx+1)]), __h22f2(v[ind2(lidz,lidx-2)])))),\
-                        mul2( f2h2(HC3), sub2(__h22f2(v[ind2(lidz,lidx+2)]), __h22f2(v[ind2(lidz,lidx-3)])))),\
-                        mul2( f2h2(HC4), sub2(__h22f2(v[ind2(lidz,lidx+3)]), __h22f2(v[ind2(lidz,lidx-4)])))),\
-                        mul2( f2h2(HC5), sub2(__h22f2(v[ind2(lidz,lidx+4)]), __h22f2(v[ind2(lidz,lidx-5)]))));
+                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidy,lidx)]), __h22f2(v[ind2(lidz,lidy,lidx-1)]))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidy,lidx+1)]), __h22f2(v[ind2(lidz,lidy,lidx-2)])))),\
+                        mul2( f2h2(HC3), sub2(__h22f2(v[ind2(lidz,lidy,lidx+2)]), __h22f2(v[ind2(lidz,lidy,lidx-3)])))),\
+                        mul2( f2h2(HC4), sub2(__h22f2(v[ind2(lidz,lidy,lidx+3)]), __h22f2(v[ind2(lidz,lidy,lidx-4)])))),\
+                        mul2( f2h2(HC5), sub2(__h22f2(v[ind2(lidz,lidy,lidx+4)]), __h22f2(v[ind2(lidz,lidy,lidx-5)]))));
 #elif FDOH == 6
     #define Dxm(v) add2(add2(add2(add2(add2(\
-                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidx)]), __h22f2(v[ind2(lidz,lidx-1)]))),\
-                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidx+1)]), __h22f2(v[ind2(lidz,lidx-2)])))),\
-                        mul2( f2h2(HC3), sub2(__h22f2(v[ind2(lidz,lidx+2)]), __h22f2(v[ind2(lidz,lidx-3)])))),\
-                        mul2( f2h2(HC4), sub2(__h22f2(v[ind2(lidz,lidx+3)]), __h22f2(v[ind2(lidz,lidx-4)])))),\
-                        mul2( f2h2(HC5), sub2(__h22f2(v[ind2(lidz,lidx+4)]), __h22f2(v[ind2(lidz,lidx-5)])))),\
-                        mul2( f2h2(HC6), sub2(__h22f2(v[ind2(lidz,lidx+5)]), __h22f2(v[ind2(lidz,lidx-6)]))));
+                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidy,lidx)]), __h22f2(v[ind2(lidz,lidy,lidx-1)]))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidy,lidx+1)]), __h22f2(v[ind2(lidz,lidy,lidx-2)])))),\
+                        mul2( f2h2(HC3), sub2(__h22f2(v[ind2(lidz,lidy,lidx+2)]), __h22f2(v[ind2(lidz,lidy,lidx-3)])))),\
+                        mul2( f2h2(HC4), sub2(__h22f2(v[ind2(lidz,lidy,lidx+3)]), __h22f2(v[ind2(lidz,lidy,lidx-4)])))),\
+                        mul2( f2h2(HC5), sub2(__h22f2(v[ind2(lidz,lidy,lidx+4)]), __h22f2(v[ind2(lidz,lidy,lidx-5)])))),\
+                        mul2( f2h2(HC6), sub2(__h22f2(v[ind2(lidz,lidy,lidx+5)]), __h22f2(v[ind2(lidz,lidy,lidx-6)]))));
 #endif
+
+//Forward stencil in y
+#if   FDOH == 1
+        #define Dyp(v)  mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidy+1,lidx)]), __h22f2(v[ind2(lidz,lidy,lidx)])))
+#elif FDOH == 2
+        #define Dyp(v) (\
+                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidy+1,lidx)]), __h22f2(v[ind2(lidz,lidy,lidx)]))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidy+2,lidx)]), __h22f2(v[ind2(lidz,lidy-1,lidx)]))));
+#elif FDOH == 3
+        #define Dyp(v) add2(add2(\
+                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidy+1,lidx)]), __h22f2(v[ind2(lidz,lidy,lidx)]))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidy+2,lidx)]), __h22f2(v[ind2(lidz,lidy-1,lidx)])))),\
+                        mul2( f2h2(HC3), sub2(__h22f2(v[ind2(lidz,lidy+3,lidx)]), __h22f2(v[ind2(lidz,lidy-2,lidx)]))));
+#elif FDOH == 4
+        #define Dyp(v) add2(add2(add2(\
+                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidy+1,lidx)]), __h22f2(v[ind2(lidz,lidy,lidx)]))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidy+2,lidx)]), __h22f2(v[ind2(lidz,lidy-1,lidx)])))),\
+                        mul2( f2h2(HC3), sub2(__h22f2(v[ind2(lidz,lidy+3,lidx)]), __h22f2(v[ind2(lidz,lidy-2,lidx)])))),\
+                        mul2( f2h2(HC4), sub2(__h22f2(v[ind2(lidz,lidy+4,lidx)]), __h22f2(v[ind2(lidz,lidy-3,lidx)]))));
+#elif FDOH == 5
+        #define Dyp(v) dd2(add2(add2(add2(\
+                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidy+1,lidx)]), __h22f2(v[ind2(lidz,lidy,lidx)]))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidy+2,lidx)]), __h22f2(v[ind2(lidz,lidy-1,lidx)])))),\
+                        mul2( f2h2(HC3), sub2(__h22f2(v[ind2(lidz,lidy+3,lidx)]), __h22f2(v[ind2(lidz,lidy-2,lidx)])))),\
+                        mul2( f2h2(HC4), sub2(__h22f2(v[ind2(lidz,lidy+4,lidx)]), __h22f2(v[ind2(lidz,lidy-3,lidx)])))),\
+                        mul2( f2h2(HC5), sub2(__h22f2(v[ind2(lidz,lidy+5,lidx)]), __h22f2(v[ind2(lidz,lidy-4,lidx)]))));
+#elif FDOH == 6
+        #define Dyp(v) add2(add2(add2(add2(add2(\
+                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidy+1,lidx)]), __h22f2(v[ind2(lidz,lidy,lidx)]))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidy+2,lidx)]), __h22f2(v[ind2(lidz,lidy-1,lidx)])))),\
+                        mul2( f2h2(HC3), sub2(__h22f2(v[ind2(lidz,lidy+3,lidx)]), __h22f2(v[ind2(lidz,lidy-2,lidx)])))),\
+                        mul2( f2h2(HC4), sub2(__h22f2(v[ind2(lidz,lidy+4,lidx)]), __h22f2(v[ind2(lidz,lidy-3,lidx)])))),\
+                        mul2( f2h2(HC5), sub2(__h22f2(v[ind2(lidz,lidy+5,lidx)]), __h22f2(v[ind2(lidz,lidy-4,lidx)])))),\
+                        mul2( f2h2(HC6), sub2(__h22f2(v[ind2(lidz,lidy+6,lidx)]), __h22f2(v[ind2(lidz,lidy-5,lidx)]))));
+#endif
+
+//Backward stencil in y
+#if   FDOH == 1
+    #define Dym(v)      mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidy,lidx)]), __h22f2(v[ind2(lidz,lidy-1,lidx)])));
+#elif FDOH == 2
+    #define Dym(v) add2(\
+                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidy,lidx)]), __h22f2(v[ind2(lidz,lidy-1,lidx)]))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidy+1,lidx)]), __h22f2(v[ind2(lidz,lidy-2,lidx)]))));
+#elif FDOH == 3
+    #define Dym(v) add2(add2(\
+                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidy,lidx)]), __h22f2(v[ind2(lidz,lidy-1,lidx)]))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidy+1,lidx)]), __h22f2(v[ind2(lidz,lidy-2,lidx)])))),\
+                        mul2( f2h2(HC3), sub2(__h22f2(v[ind2(lidz,lidy+2,lidx)]), __h22f2(v[ind2(lidz,lidy-3,lidx)]))));
+#elif FDOH == 4
+    #define Dym(v) add2(add2(add2(\
+                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidy,lidx)]), __h22f2(v[ind2(lidz,lidy-1,lidx)]))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidy+1,lidx)]), __h22f2(v[ind2(lidz,lidy-2,lidx)])))),\
+                        mul2( f2h2(HC3), sub2(__h22f2(v[ind2(lidz,lidy+2,lidx)]), __h22f2(v[ind2(lidz,lidy-3,lidx)])))),\
+                        mul2( f2h2(HC4), sub2(__h22f2(v[ind2(lidz,lidy+3,lidx)]), __h22f2(v[ind2(lidz,lidy-4,lidx)]))));
+#elif FDOH == 5
+    #define Dym(v) add2(add2(add2(add2(\
+                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidy,lidx)]), __h22f2(v[ind2(lidz,lidy-1,lidx)]))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidy+1,lidx)]), __h22f2(v[ind2(lidz,lidy-2,lidx)])))),\
+                        mul2( f2h2(HC3), sub2(__h22f2(v[ind2(lidz,lidy+2,lidx)]), __h22f2(v[ind2(lidz,lidy-3,lidx)])))),\
+                        mul2( f2h2(HC4), sub2(__h22f2(v[ind2(lidz,lidy+3,lidx)]), __h22f2(v[ind2(lidz,lidy-4,lidx)])))),\
+                        mul2( f2h2(HC5), sub2(__h22f2(v[ind2(lidz,lidy+4,lidx)]), __h22f2(v[ind2(lidz,lidy-5,lidx)]))));
+#elif FDOH == 6
+    #define Dym(v) add2(add2(add2(add2(add2(\
+                        mul2( f2h2(HC1), sub2(__h22f2(v[ind2(lidz,lidy,lidx)]), __h22f2(v[ind2(lidz,lidy-1,lidx)]))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(v[ind2(lidz,lidy+1,lidx)]), __h22f2(v[ind2(lidz,lidy,lidx-2)])))),\
+                        mul2( f2h2(HC3), sub2(__h22f2(v[ind2(lidz,lidy+2,lidx)]), __h22f2(v[ind2(lidz,lidy,lidx-3)])))),\
+                        mul2( f2h2(HC4), sub2(__h22f2(v[ind2(lidz,lidy+3,lidx)]), __h22f2(v[ind2(lidz,lidy,lidx-4)])))),\
+                        mul2( f2h2(HC5), sub2(__h22f2(v[ind2(lidz,lidy+4,lidx)]), __h22f2(v[ind2(lidz,lidy,lidx-5)])))),\
+                        mul2( f2h2(HC6), sub2(__h22f2(v[ind2(lidz,lidy+5,lidx)]), __h22f2(v[ind2(lidz,lidy,lidx-6)]))));
+#endif
+
+//Forward stencil in z
+#if   FDOH == 1
+    #define Dzp(v)      mul2( f2h2(HC1), sub2(__h22f2(__hp(&v[ind1(2*lidz+1,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz,lidy,lidx)]))));
+#elif FDOH == 2
+    #define Dzp(v) add2(\
+                        mul2( f2h2(HC1), sub2(__h22f2(__hp(&v[ind1(2*lidz+1,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz,lidy,lidx)])))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(__hp(&v[ind1(2*lidz+2,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-1,lidy,lidx)])))));
+#elif FDOH == 3
+    #define Dzp(v) add2(add2(\
+                        mul2( f2h2(HC1), sub2(__h22f2(__hp(&v[ind1(2*lidz+1,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz,lidy,lidx)])))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(__hp(&v[ind1(2*lidz+2,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-1,lidy,lidx)]))))),\
+                        mul2( f2h2(HC3), sub2(__h22f2(__hp(&v[ind1(2*lidz+3,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-2,lidy,lidx)])))));
+#elif FDOH == 4
+    #define Dzp(v) add2(add2(add2(\
+                        mul2( f2h2(HC1), sub2(__h22f2(__hp(&v[ind1(2*lidz+1,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz,lidy,lidx)])))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(__hp(&v[ind1(2*lidz+2,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-1,lidy,lidx)]))))),\
+                        mul2( f2h2(HC3), sub2(__h22f2(__hp(&v[ind1(2*lidz+3,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-2,lidy,lidx)]))))),\
+                        mul2( f2h2(HC4), sub2(__h22f2(__hp(&v[ind1(2*lidz+4,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-3,lidy,lidx)])))));
+#elif FDOH == 5
+    #define Dzp(v) add2(add2(add2(add2(\
+                        mul2( f2h2(HC1), sub2(__h22f2(__hp(&v[ind1(2*lidz+1,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz,lidy,lidx)])))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(__hp(&v[ind1(2*lidz+2,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-1,lidy,lidx)]))))),\
+                        mul2( f2h2(HC3), sub2(__h22f2(__hp(&v[ind1(2*lidz+3,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-2,lidy,lidx)]))))),\
+                        mul2( f2h2(HC4), sub2(__h22f2(__hp(&v[ind1(2*lidz+4,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-3,lidy,lidx)]))))),\
+                        mul2( f2h2(HC5), sub2(__h22f2(__hp(&v[ind1(2*lidz+5,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-4,lidy,lidx)])))));
+#elif FDOH == 6
+    #define Dzp(v) add2(add2(add2(add2(add2(\
+                        mul2( f2h2(HC1), sub2(__h22f2(__hp(&v[ind1(2*lidz+1,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz,lidy,lidx)])))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(__hp(&v[ind1(2*lidz+2,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-1,lidy,lidx)]))))),\
+                        mul2( f2h2(HC3), sub2(__h22f2(__hp(&v[ind1(2*lidz+3,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-2,lidy,lidx)]))))),\
+                        mul2( f2h2(HC4), sub2(__h22f2(__hp(&v[ind1(2*lidz+4,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-3,lidy,lidx)]))))),\
+                        mul2( f2h2(HC5), sub2(__h22f2(__hp(&v[ind1(2*lidz+5,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-4,lidy,lidx)]))))),\
+                        mul2( f2h2(HC6), sub2(__h22f2(__hp(&v[ind1(2*lidz+6,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-5,lidy,lidx)])))));
+#endif
+
+
 
 //Backward stencil in z
 #if   FDOH == 1
-    #define Dzm(v) mul2( f2h2(HC1), sub2(__h22f2(__hp(&v[ind1(2*lidz,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-1,lidx)]))));
+    #define Dzm(v) mul2( f2h2(HC1), sub2(__h22f2(__hp(&v[ind1(2*lidz,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-1,lidy,lidx)]))));
 #elif FDOH == 2
     #define Dzm(v) add2(\
-                        mul2( f2h2(HC1), sub2(__h22f2(__hp(&v[ind1(2*lidz,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-1,lidx)])))),\
-                        mul2( f2h2(HC2), sub2(__h22f2(__hp(&v[ind1(2*lidz+1,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-2,lidx)])))));\
+                        mul2( f2h2(HC1), sub2(__h22f2(__hp(&v[ind1(2*lidz,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-1,lidy,lidx)])))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(__hp(&v[ind1(2*lidz+1,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-2,lidy,lidx)])))));\
 #elif FDOH == 3
     #define Dzm(v) add2(add2(\
-                        mul2( f2h2(HC1), sub2(__h22f2(__hp(&v[ind1(2*lidz,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-1,lidx)])))),\
-                        mul2( f2h2(HC2), sub2(__h22f2(__hp(&v[ind1(2*lidz+1,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-2,lidx)]))))),\
-                        mul2( f2h2(HC3), sub2(__h22f2(__hp(&v[ind1(2*lidz+2,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-3,lidx)])))));
+                        mul2( f2h2(HC1), sub2(__h22f2(__hp(&v[ind1(2*lidz,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-1,lidy,lidx)])))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(__hp(&v[ind1(2*lidz+1,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-2,lidy,lidx)]))))),\
+                        mul2( f2h2(HC3), sub2(__h22f2(__hp(&v[ind1(2*lidz+2,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-3,lidy,lidx)])))));
 #elif FDOH == 4
     #define Dzm(v) add2(add2(add2(\
-                        mul2( f2h2(HC1), sub2(__h22f2(__hp(&v[ind1(2*lidz,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-1,lidx)])))),\
-                        mul2( f2h2(HC2), sub2(__h22f2(__hp(&v[ind1(2*lidz+1,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-2,lidx)]))))),\
-                        mul2( f2h2(HC3), sub2(__h22f2(__hp(&v[ind1(2*lidz+2,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-3,lidx)]))))),\
-                        mul2( f2h2(HC4), sub2(__h22f2(__hp(&v[ind1(2*lidz+3,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-4,lidx)])))));
+                        mul2( f2h2(HC1), sub2(__h22f2(__hp(&v[ind1(2*lidz,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-1,lidy,lidx)])))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(__hp(&v[ind1(2*lidz+1,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-2,lidy,lidx)]))))),\
+                        mul2( f2h2(HC3), sub2(__h22f2(__hp(&v[ind1(2*lidz+2,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-3,lidy,lidx)]))))),\
+                        mul2( f2h2(HC4), sub2(__h22f2(__hp(&v[ind1(2*lidz+3,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-4,lidy,lidx)])))));
 #elif FDOH == 5
     #define Dzm(v) add2(add2(add2(add2(\
-                        mul2( f2h2(HC1), sub2(__h22f2(__hp(&v[ind1(2*lidz,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-1,lidx)])))),\
-                        mul2( f2h2(HC2), sub2(__h22f2(__hp(&v[ind1(2*lidz+1,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-2,lidx)]))))),\
-                        mul2( f2h2(HC3), sub2(__h22f2(__hp(&v[ind1(2*lidz+2,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-3,lidx)]))))),\
-                        mul2( f2h2(HC4), sub2(__h22f2(__hp(&v[ind1(2*lidz+3,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-4,lidx)]))))),\
-                        mul2( f2h2(HC5), sub2(__h22f2(__hp(&v[ind1(2*lidz+4,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-5,lidx)])))));
+                        mul2( f2h2(HC1), sub2(__h22f2(__hp(&v[ind1(2*lidz,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-1,lidy,lidx)])))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(__hp(&v[ind1(2*lidz+1,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-2,lidy,lidx)]))))),\
+                        mul2( f2h2(HC3), sub2(__h22f2(__hp(&v[ind1(2*lidz+2,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-3,lidy,lidx)]))))),\
+                        mul2( f2h2(HC4), sub2(__h22f2(__hp(&v[ind1(2*lidz+3,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-4,lidy,lidx)]))))),\
+                        mul2( f2h2(HC5), sub2(__h22f2(__hp(&v[ind1(2*lidz+4,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-5,lidy,lidx)])))));
 #elif FDOH == 6
     #define Dzm(v) add2(add2(add2(add2(add2(\
-                        mul2( f2h2(HC1), sub2(__h22f2(__hp(&v[ind1(2*lidz,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-1,lidx)])))),\
-                        mul2( f2h2(HC2), sub2(__h22f2(__hp(&v[ind1(2*lidz+1,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-2,lidx)]))))),\
-                        mul2( f2h2(HC3), sub2(__h22f2(__hp(&v[ind1(2*lidz+2,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-3,lidx)]))))),\
-                        mul2( f2h2(HC4), sub2(__h22f2(__hp(&v[ind1(2*lidz+3,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-4,lidx)]))))),\
-                        mul2( f2h2(HC5), sub2(__h22f2(__hp(&v[ind1(2*lidz+4,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-5,lidx)]))))),\
-                        mul2( f2h2(HC6), sub2(__h22f2(__hp(&v[ind1(2*lidz+5,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-6,lidx)])))));
+                        mul2( f2h2(HC1), sub2(__h22f2(__hp(&v[ind1(2*lidz,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-1,lidy,lidx)])))),\
+                        mul2( f2h2(HC2), sub2(__h22f2(__hp(&v[ind1(2*lidz+1,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-2,lidy,lidx)]))))),\
+                        mul2( f2h2(HC3), sub2(__h22f2(__hp(&v[ind1(2*lidz+2,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-3,lidy,lidx)]))))),\
+                        mul2( f2h2(HC4), sub2(__h22f2(__hp(&v[ind1(2*lidz+3,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-4,lidy,lidx)]))))),\
+                        mul2( f2h2(HC5), sub2(__h22f2(__hp(&v[ind1(2*lidz+4,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-5,lidy,lidx)]))))),\
+                        mul2( f2h2(HC6), sub2(__h22f2(__hp(&v[ind1(2*lidz+5,lidy,lidx)])), __h22f2(__hp(&v[ind1(2*lidz-6,lidy,lidx)])))));
 #endif
 

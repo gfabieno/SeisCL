@@ -66,7 +66,7 @@
 
 #define MAX_DIMS 10
 #define MAX_KERNELS 100
-#define MAX_KERN_STR 50000
+#define MAX_KERN_STR 100000
 #define BLOCK_SIZE 256
 //#define __DEBUGGING__
 

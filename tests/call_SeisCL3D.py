@@ -28,7 +28,7 @@ filenames['movout']=file+"_movie.mat"   #File containing the movie ouput
 
 #_____________________Simulation constants input file_______________________
 csts={}
-csts['N']=np.array([128,128,128]) #Grid size ( z,x)
+csts['N']=np.array([64,64,64]) #Grid size ( z,x)
 csts['ND']=3                #Flag for dimension. 3: 3D, 2: 2D P-SV,  21: 2D SH
 csts['dh']=10                #Grid spatial spacing
 csts['dt']=0.0008           # Time step size
@@ -76,7 +76,7 @@ csts['resout']=0            #Output residuals 1:yes, 0: no
 csts['rmsout']=0            #Output rms value 1:yes, 0: no
 csts['movout']=0            #Output movie 1:yes, 0: no
 csts['restype']=0           #Type of costfunction 0: raw seismic trace cost function. No other available at the moment
-csts['FP16']=0              #Use half precision 1: yes 0: no
+csts['FP16']=1              #Use half precision 1: yes 0: no
 
 h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
 
