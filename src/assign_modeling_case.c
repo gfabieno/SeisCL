@@ -38,6 +38,7 @@
 #include "update_v3D.hcl"
 #include "update_v3D_half2.hcl"
 #include "header_FD2D.hcl"
+#include "header_FD2D_fp16.hcl"
 #include "header_CUDACL.hcl"
 
 void ave_arithmetic1(float * pin, float * pout, int * N, int ndim, int  dir[3]){
@@ -925,6 +926,7 @@ int assign_modeling_case(model * m){
             updates_adj = update_adjs2D_half2_source;
             surface = surface2D_source;
             savebnd = savebnd2D_source;
+            headers[1] = header_FD2D_fp16_source;
         }
     }
      else if (m->ND==21){
