@@ -253,7 +253,7 @@
         
         int m=-1;
         i-=lbnd;
-        k-=lbnds/2;
+        k-=lbnds/DIV;
         
         if ( (k>FDOH/DIV-1 && k<NZbnd-FDOH/DIV)  && (i>FDOH-1 && i<NXbnd-FDOH) )
             m=-1;
