@@ -20,8 +20,7 @@
 /*Update of the stresses in 3D*/
 
 
-FUNDEF void update_s(int offcomm,
-                                    __pprec *muipjp, __pprec *mujpkp, __pprec *muipkp,
+FUNDEF void update_s(int offcomm,   __pprec *muipjp, __pprec *mujpkp, __pprec *muipkp,
                                     __pprec *M, __pprec *mu,__prec2 *sxx,__prec2 *sxy,__prec2 *sxz,
                                     __prec2 *syy,__prec2 *syz,__prec2 *szz,
                                     __prec2 *vx,__prec2 *vy,__prec2 *vz, float *taper

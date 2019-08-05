@@ -48,10 +48,12 @@ SeisCL_CL= \
     update_adjs2D_half2.cl \
 	update_adjs2D_SH.cl \
 	update_adjs3D.cl \
+    update_adjs3D_half2.cl \
 	update_adjv2D.cl \
     update_adjv2D_half2.cl \
 	update_adjv2D_SH.cl \
 	update_adjv3D.cl \
+    update_adjv3D_half2.cl \
 	update_s2D.cl \
 	update_s2D_half2.cl \
 	update_s2D_SH.cl \

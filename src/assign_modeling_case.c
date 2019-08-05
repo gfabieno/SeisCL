@@ -21,10 +21,12 @@
 #include "update_adjs2D_half2.hcl"
 #include "update_adjs2D_SH.hcl"
 #include "update_adjs3D.hcl"
+#include "update_adjs3D_half2.hcl"
 #include "update_adjv2D.hcl"
 #include "update_adjv2D_half2.hcl"
 #include "update_adjv2D_SH.hcl"
 #include "update_adjv3D.hcl"
+#include "update_adjv3D_half2.hcl"
 #include "update_s2D.hcl"
 #include "update_s2D_half2.hcl"
 #include "update_s2D_SH.hcl"
@@ -910,12 +912,10 @@ int assign_modeling_case(model * m){
         else{
             updatev = update_v3D_half2_source;
             updates = update_s3D_half2_source;
-//            updatev_adj = update_adjv3D_half2_source;
-//            updates_adj = update_adjs2D_half2_source;
-//            surface = surface3D_source;
-//            savebnd = savebnd3D_source;
-            fprintf(stdout,"Warning: Only forward modeling is implemeted in 3D "
-                            "when FP16 is not 0 \n");
+            updatev_adj = update_adjv3D_half2_source;
+            updates_adj = update_adjs2D_half2_source;
+            surface = surface3D_source;
+            savebnd = savebnd3D_source;
         }
     }
     else if (m->ND==2){
@@ -962,7 +962,7 @@ int assign_modeling_case(model * m){
         }
         else{
             state = 1;
-            fprintf(stderr,"Error: Only FP16=0 is supported for ND=21 \n");
+            fprintf(stderr,"Error: Only FP16=0 is supported for ND=22 \n");
         }
     }
     m->nupdates=2;

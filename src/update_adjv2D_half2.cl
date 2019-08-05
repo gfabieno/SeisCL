@@ -148,8 +148,6 @@ FUNDEF void update_adjv(int offcomm,
 #endif
     
     //Define and load private parameters and variables
-    __cprec lvx = __h22f2(vx[indv]);
-    __cprec lvz = __h22f2(vz[indv]);
     __cprec lvxr = __h22f2(vxr[indv]);
     __cprec lvzr = __h22f2(vzr[indv]);
     __cprec lrip = __pconv(rip[indp]);
@@ -158,7 +156,8 @@ FUNDEF void update_adjv(int offcomm,
 // Backpropagate the forward velocity
 #if BACK_PROP_TYPE==1
     {
-        
+        __cprec lvx = __h22f2(vx[indv]);
+        __cprec lvz = __h22f2(vz[indv]);
         // Update the variables
         lvx=sub2(lvx,mul2(add2(sxx_x1,sxz_z2),lrip));
         lvz=sub2(lvz,mul2(add2(szz_z1,sxz_x2),lrkp));

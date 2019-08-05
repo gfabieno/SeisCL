@@ -675,7 +675,7 @@ FUNDEF void update_adjs(int offcomm,
 //Shear wave modulus and P-wave modulus gradient calculation on the fly
 #if BACK_PROP_TYPE==1
     #if RESTYPE==0
-    float c1=1.0/(3.0*lM-4.0*lmu,2)/(3.0*lM-4.0*lmu,2);
+    float c1=1.0/(3.0*lM-4.0*lmu)/(3.0*lM-4.0*lmu);
     float c3=1.0/lmu/lmu;
     float c5=1.0/6.0*c3;
 
