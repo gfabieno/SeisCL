@@ -258,7 +258,7 @@ FUNDEF void update_adjv(int offcomm,
 {
     LOCDEF
     
-    int g,i,j,k,m;
+    int m;
     float sxx_x, syy_y, szz_z, sxy_y, sxy_x, syz_y, syz_z, sxz_x, sxz_z;
     float sxx_xr, syy_yr, szz_zr, sxy_yr, sxy_xr;
     float syz_yr, syz_zr, sxz_xr, sxz_zr;
@@ -520,7 +520,7 @@ FUNDEF void update_adjv(int offcomm,
 #if ABS_TYPE==1
     {
         int ind;
-
+        int i,j,k;
         if (gidz>NZ-NAB-FDOH-1){
 
             i =gidx-FDOH;

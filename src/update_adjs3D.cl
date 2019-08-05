@@ -270,17 +270,20 @@ FUNDEF void update_adjs(int offcomm,
     
     LOCDEF
     
-    int i,j,k,m;
+    int m;
     float vxx,vxy,vxz,vyx,vyy,vyz,vzx,vzy,vzz;
     float vxyyx,vyzzy,vxzzx,vxxyyzz,vyyzz,vxxzz,vxxyy;
     float vxxr,vxyr,vxzr,vyxr,vyyr,vyzr,vzxr,vzyr,vzzr;
     float vxyyxr,vyzzyr,vxzzxr,vxxyyzzr,vyyzzr,vxxzzr,vxxyyr;
     float fipjp, fjpkp, fipkp, f, g;
+    float lM, lmu;
+    #if LVE>0
     float sumrxy,sumryz,sumrxz,sumrxx,sumryy,sumrzz;
     float b,c,e,d,dipjp,djpkp,dipkp;
-    int l;
-    float lM, lmu, lmuipjp, lmuipkp, lmujpkp,ltaup, ltaus, ltausipjp, ltausipkp, ltausjpkp;
+    int l, indr;;
+    float ltaup, ltaus, ltausipjp, ltausipkp, ltausjpkp, lmuipjp, lmuipkp, lmujpkp;
     float leta[LVE];
+    #endif
     float lsxx, lsyy, lszz, lsxy, lsxz, lsyz;
     
     
@@ -356,7 +359,6 @@ FUNDEF void update_adjs(int offcomm,
     
     int indp = ((gidx)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((gidy)-FDOH)*(NZ-2*FDOH)+((gidz)-FDOH);
     int indv = (gidx)*NZ*NY+(gidy)*NZ+(gidz);
-    int indr;
 
 // Calculation of the velocity spatial derivatives of the forward wavefield if backpropagation is used
 #if BACK_PROP_TYPE==1
@@ -606,7 +608,7 @@ FUNDEF void update_adjs(int offcomm,
 #if ABS_TYPE==1
     {
         int ind;
-
+        int i,j,k;
         if (gidz>NZ-NAB-FDOH-1){
 
             i =gidx-FDOH;
@@ -866,7 +868,7 @@ FUNDEF void update_adjs(int offcomm,
     }
 #endif
 
-// Shear wave modulus and P-wave modulus gradient calculation on the fly
+//Shear wave modulus and P-wave modulus gradient calculation on the fly
 #if BACK_PROP_TYPE==1
     #if RESTYPE==0
     float c1=1.0/(3.0*lM-4.0*lmu,2)/(3.0*lM-4.0*lmu,2);
@@ -874,7 +876,7 @@ FUNDEF void update_adjs(int offcomm,
     float c5=1.0/6.0*c3;
 
     float dM=c1*( sxx[indv]+syy[indv]+szz[indv] )*( lsxx+lsyy+lszz );
-    
+
     gradM[indp]+=-dM;
     gradmu[indp]+=-c3*(sxz[indv]*lsxz +sxy[indv]*lsxy +syz[indv]*lsyz )
         + 4.0/3*dM-c5*(lsxx*(2.0*sxx[indv]- syy[indv]-szz[indv] )
@@ -890,19 +892,19 @@ FUNDEF void update_adjs(int offcomm,
                          +(2.0*szz[indv]- sxx[indv]-syy[indv])*(2.0*szz[indv]- sxx[indv]-syy[indv]));
     #endif
     #endif
-    
+
     #if RESTYPE==1
     float dM=(sxx[indv]+syy[indv]+szz[indv] )*( lsxx+lsyy+lszz );
-    
+
     gradM[indp]+=-dM;
-    
+
     #if HOUT==1
     float dMH= (sxx[indv]+syy[indv]+szz[indv])*(sxx[indv]+syy[indv]+szz[indv]);
     HM[indp]+= dMH;
-    
+
     #endif
     #endif
-    
+
 #endif
     
 #if GRADSRCOUT==1

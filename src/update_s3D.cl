@@ -59,19 +59,20 @@ FUNDEF void update_s(int offcomm,  int nt,
 {
     LOCDEF
     
-    
-    int i,j,k,l,ind;
     float fipjp, fjpkp, fipkp, f, g;
-    float sumrxy,sumryz,sumrxz,sumrxx,sumryy,sumrzz;
-    float b,c,e,d,dipjp,djpkp,dipkp;
-    float lM, lmu, lmuipjp, lmuipkp, lmujpkp, ltaup, ltaus, ltausipjp, ltausipkp, ltausjpkp;
 #if LVE>0
     float leta[LVE];
+    int l,indr;
+    float sumrxy,sumryz,sumrxz,sumrxx,sumryy,sumrzz;
+    float b,c,e,d,dipjp,djpkp,dipkp;
+    float lmuipjp, lmuipkp, lmujpkp, ltaup, ltaus, ltausipjp, ltausipkp, ltausjpkp;
+    float lsxx, lsyy, lszz, lsxy, lsxz, lsyz;
+    float lM, lmu;
 #endif
     float vxx,vxy,vxz,vyx,vyy,vyz,vzx,vzy,vzz;
     float vxyyx,vyzzy,vxzzx,vxxyyzz,vyyzz,vxxzz,vxxyy;
     
-    float lsxx, lsyy, lszz, lsxy, lsxz, lsyz;
+    
     
 // If we use local memory
 #if LOCAL_OFF==0
@@ -135,7 +136,6 @@ FUNDEF void update_s(int offcomm,  int nt,
     
     int indp = ((gidx)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((gidy)-FDOH)*(NZ-2*FDOH)+((gidz)-FDOH);
     int indv = (gidx)*NZ*NY+(gidy)*NZ+(gidz);
-    int indr;
     
 // Calculation of the velocity spatial derivatives
     {
@@ -193,7 +193,7 @@ FUNDEF void update_s(int offcomm,  int nt,
 // Correct spatial derivatives to implement CPML
 #if ABS_TYPE==1
     {
-        
+        int i,j,k,ind;
         if (gidz>NZ-NAB-FDOH-1){
             
             i =gidx-FDOH;
@@ -491,6 +491,5 @@ FUNDEF void update_s(int offcomm,  int nt,
 #endif
     }
 #endif
-    
 }
 

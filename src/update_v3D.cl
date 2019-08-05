@@ -365,8 +365,7 @@ FUNDEF void update_v(int offcomm,
 #endif
     }
 #endif
-    
-    
+
 }
 
 
