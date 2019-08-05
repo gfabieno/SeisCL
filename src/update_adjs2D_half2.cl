@@ -19,6 +19,7 @@
 
 /*Adjoint update of the stresses in 2D SV*/
 
+
 FUNDEF __global__ void update_adjs(int offcomm,
                            __pprec *muipkp, __pprec *M, __pprec *mu,
                            __prec2 *sxx,__prec2 *sxz,__prec2 *szz,

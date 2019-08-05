@@ -20,6 +20,7 @@
 /*Adjoint update of the velocities in 2D SV*/
 
 
+
 FUNDEF void update_adjv(int offcomm,
                            __pprec *rip, __pprec *rkp,
                            __prec2 *sxx,__prec2 *sxz,__prec2 *szz,

@@ -233,26 +233,29 @@
 
 #else
 
-    LFUNDEF int inject_ind( int k, int i){
 
+    // Find boundary indice for boundary injection in backpropagation
+    LFUNDEF int inject_ind( int k, int i){
+        
+        
     #if NUM_DEVICES==1 & NLOCALP==1
         
         int NXbnd = (NX-2*FDOH-2*NAB);
     #if FREESURF==0
-        int NZbnd = (NZ- 2*FDOH- 2*NAB);
+        int NZbnd = (NZ- 2*FDOH/DIV- 2*NAB/DIV);
         int lbnd = FDOH+NAB;
         int lbnds = FDOH+NAB;
     #else
-        int NZbnd = (NZ- 2*FDOH- NAB);
+        int NZbnd = (NZ- 2*FDOH/DIV- NAB/DIV);
         int lbnd = FDOH+NAB;
         int lbnds = FDOH;
     #endif
         
         int m=-1;
         i-=lbnd;
-        k-=lbnds;
+        k-=lbnds/2;
         
-        if ( (k>FDOH-1 && k<NZbnd-FDOH)  && (i>FDOH-1 && i<NXbnd-FDOH) )
+        if ( (k>FDOH/DIV-1 && k<NZbnd-FDOH/DIV)  && (i>FDOH-1 && i<NXbnd-FDOH) )
             m=-1;
         else if (k<0 || k>NZbnd-1 || i<0 || i>NXbnd-1 )
             m=-1;
@@ -263,13 +266,18 @@
             i=i-NXbnd+FDOH;
             m=NZbnd*FDOH+i*NZbnd+k;
         }
-        else if (k<FDOH){//up
+        else if (k<FDOH/DIV){//up
             i=i-FDOH;
-            m=NZbnd*FDOH*2+(NXbnd-2*FDOH)*FDOH+i+k*(NXbnd-2.0*FDOH);
+            #if FREESURF==0
+            m=NZbnd*FDOH*2+(NXbnd-2*FDOH)*FDOH/DIV+i+k*(NXbnd-2.0*FDOH);
+            #else
+            m=-1;
+            #endif
+            
         }
         else {//down
             i=i-FDOH;
-            k=k-NZbnd+FDOH;
+            k=k-NZbnd+FDOH/DIV;
             m=NZbnd*FDOH*2+i+k*(NXbnd-2.0*FDOH);
         }
         
@@ -279,54 +287,57 @@
         
         int NXbnd = (NX-2*FDOH-NAB);
     #if FREESURF==0
-        int NZbnd = (NZ- 2*FDOH- 2*NAB);
+        int NZbnd = (NZ- 2*FDOH/DIV- 2*NAB/DIV);
         int lbnd = FDOH+NAB;
         int lbnds = FDOH+NAB;
     #else
-        int NZbnd = (NZ- 2*FDOH- NAB);
+        int NZbnd = (NZ- 2*FDOH/DIV- NAB/DIV);
         int lbnd = FDOH+NAB;
         int lbnds = FDOH;
     #endif
         
         int m=-1;
         i-=lbnd;
-        k-=lbnds;
+        k-=lbnds/DIV;
         
-        if ( (k>FDOH-1 && k<NZbnd-FDOH)  && i>FDOH-1  )
+        if ( (k>FDOH/DIV-1 && k<NZbnd-FDOH/DIV)  && i>FDOH-1  )
             m=-1;
         else if (k<0 || k>NZbnd-1 || i<0 || i>NXbnd-1 )
             m=-1;
         else if (i<FDOH){//front
             m=i*NZbnd+k;
         }
-        else if (k<FDOH){//up
+        else if (k<FDOH/DIV){//up
             i=i-FDOH;
-            m=NZbnd*FDOH+(NXbnd-FDOH)*FDOH+i+k*(NXbnd-FDOH);
-            
+            #if FREESURF==0
+            m=NZbnd*FDOH+(NXbnd-FDOH)*FDOH/DIV+i+k*(NXbnd-FDOH);
+            #else
+            m=-1;
+            #endif
         }
         else {//down
             i=i-FDOH;
-            k=k-NZbnd+FDOH;
+            k=k-NZbnd+FDOH/DIV;
             m=NZbnd*FDOH+i+k*(NXbnd-FDOH);
         }
         
     #elif DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         int NXbnd = (NX-2*FDOH-NAB);
     #if FREESURF==0
-        int NZbnd = (NZ- 2*FDOH- 2*NAB);
+        int NZbnd = (NZ- 2*FDOH/DIV- 2*NAB/DIV);
         int lbnd = FDOH+NAB;
         int lbnds = FDOH+NAB;
     #else
-        int NZbnd = (NZ- 2*FDOH- NAB);
+        int NZbnd = (NZ- 2*FDOH/DIV- NAB/DIV);
         int lbnd = FDOH+NAB;
         int lbnds = FDOH;
     #endif
         
         int m=-1;
         i-=FDOH;
-        k-=lbnds;
+        k-=lbnds/DIV;
         
-        if ( (k>FDOH-1 && k<NZbnd-FDOH) && i<NXbnd-FDOH )
+        if ( (k>FDOH/DIV-1 && k<NZbnd-FDOH/DIV) && i<NXbnd-FDOH )
             m=-1;
         else if (k<0 || k>NZbnd-1 || i>NXbnd-1 )
             m=-1;
@@ -334,11 +345,15 @@
             i=i-NXbnd+FDOH;
             m=i*NZbnd+k;
         }
-        else if (k<FDOH){//up
-            m=NZbnd*FDOH+(NXbnd-FDOH)*FDOH+i+k*(NXbnd-FDOH);
+        else if (k<FDOH/DIV){//up
+            #if FREESURF==0
+            m=NZbnd*FDOH+(NXbnd-FDOH)*FDOH/DIV+i+k*(NXbnd-FDOH);
+            #else
+            m=-1;
+            #endif
         }
         else {//down
-            k=k-NZbnd+FDOH;
+            k=k-NZbnd+FDOH/DIV;
             m=NZbnd*FDOH+i+k*(NXbnd-FDOH);
         }
         
@@ -346,28 +361,32 @@
         
         int NXbnd = (NX-2*FDOH);
     #if FREESURF==0
-        int NZbnd = (NZ- 2*FDOH- 2*NAB);
+        int NZbnd = (NZ- 2*FDOH/DIV- 2*NAB/DIV);
         int lbnd = FDOH+NAB;
         int lbnds = FDOH+NAB;
     #else
-        int NZbnd = (NZ- 2*FDOH- NAB);
+        int NZbnd = (NZ- 2*FDOH/DIV- NAB/DIV);
         int lbnd = FDOH+NAB;
         int lbnds = FDOH;
     #endif
         
         int m=-1;
         i-=FDOH;
-        k-=lbnds;
+        k-=lbnds/DIV;
         
-        if ( (k>FDOH-1 && k<NZbnd-FDOH) )
+        if ( (k>FDOH/DIV-1 && k<NZbnd-FDOH/DIV) )
             m=-1;
         else if (k<0 || k>NZbnd-1 || i<0 || i>NXbnd-1 )
             m=-1;
-        else if (k<FDOH){//up
-            m=(NXbnd)*FDOH+i+k*(NXbnd);
+        else if (k<FDOH/DIV){//up
+            #if FREESURF==0
+            m=(NXbnd)*FDOH/DIV+i+k*(NXbnd);
+            #else
+            m=-1;
+            #endif
         }
         else {//down
-            k=k-NZbnd+FDOH;
+            k=k-NZbnd+FDOH/DIV;
             m=i+k*(NXbnd);
         }
         
