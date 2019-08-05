@@ -899,7 +899,7 @@ int assign_modeling_case(model * m){
             updatev = update_v3D_source;
             updates = update_s3D_source;
             updatev_adj = update_adjv3D_source;
-            updates_adj = update_adjs2D_source;
+            updates_adj = update_adjs3D_source;
             surface = surface3D_source;
             savebnd = savebnd3D_source;
             
@@ -974,14 +974,14 @@ int assign_modeling_case(model * m){
         __GUARD append_update(m->ups_adj, &ind, "update_adjs", updates_adj, 2, headers);
     }
     if (m->FREESURF){
-        __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface, 0, NULL);
+        __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface, 2, headers);
         if (m->GRADOUT){
             __GUARD prog_source(&m->bnd_cnds.surf_adj,
-                                "surface_adj", surface_adj, 0, NULL);
+                                "surface_adj", surface_adj, 2, headers);
         }
     }
     if (m->GRADOUT && m->BACK_PROP_TYPE==1){
-        __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd, 0, NULL);
+        __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd, 1, headers);
     }
     
     /*___________________Assign material parameters__________________________ */

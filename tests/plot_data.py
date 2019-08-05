@@ -6,10 +6,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 file = h5.File("SeisCL_dout.mat", "r")
-clip=0.01
+file2 = h5.File("SeisCL_din.mat", "r")
+clip=1.0
 vmax = clip*np.max(file["pout"])
 vmin=-vmax
 
-plt.imshow(file["pout"], aspect="auto", vmin=vmin, vmax=vmax)
+plt.imshow(file["pout"][:]-file2["p"][:], aspect="auto")
 plt.show()
 file.close()
+file2.close()

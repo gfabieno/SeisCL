@@ -28,7 +28,7 @@ filenames['movout']=file+"_movie.mat"   #File containing the movie ouput
 
 #_____________________Simulation constants input file_______________________
 csts={}
-csts['N']=np.array([200,150]) #Grid size ( z,x)
+csts['N']=np.array([64,64]) #Grid size ( z,x)
 csts['ND']=2                #Flag for dimension. 3: 3D, 2: 2D P-SV,  21: 2D SH
 csts['dh']=10                #Grid spatial spacing
 csts['dt']=0.0008           # Time step size
@@ -49,7 +49,7 @@ csts['VPPML']=3500          #Vp velocity near CPML boundary
 csts['NPOWER']=2            #Exponent used in CMPL frame update, the larger the more damping
 csts['FPML']=15              #Dominant frequency of the wavefield
 csts['K_MAX_CPML']=2        #Coeffienc involved in CPML (may influence simulation stability)
-csts['nab']=32              #Width in grid points of the absorbing layer
+csts['nab']=16              #Width in grid points of the absorbing layer
 csts['abpc']=6              #Exponential decay of the absorbing layer of Cerjan et. al.
 csts['pref_device_type']=4  #Type of processor used: 2: CPU, 4: GPU, 8: Accelerator
 csts['nmax_dev']=9999       #Maximum number of devices that can be used
@@ -76,7 +76,7 @@ csts['resout']=0            #Output residuals 1:yes, 0: no
 csts['rmsout']=0            #Output rms value 1:yes, 0: no
 csts['movout']=0            #Output movie 1:yes, 0: no
 csts['restype']=0           #Type of costfunction 0: raw seismic trace cost function. No other available at the moment
-csts['FP16']=1              #Use half precision 1: yes 0: no
+csts['FP16']=0              #Use half precision 1: yes 0: no
 
 h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
 
@@ -100,7 +100,7 @@ t[:,0]=tmin+np.arange(0,csts['NT']*csts['dt'],csts['dt'] )
 pf=math.pow(math.pi,2)*math.pow(csts['f0'],2)
 ricker=np.multiply( (1.0-2.0*pf*np.power(t,2)), np.exp(-pf*np.power(t,2) )  )
 
-for ii in range(0,csts['N'][0]-2*csts['nab']-10,10):
+for ii in range(0,csts['N'][0]-2*csts['nab']-10,60):
     toappend=np.zeros((5,1))
     toappend[0,:]=(csts['nab']+5)*csts['dh']
     toappend[1,:]=0

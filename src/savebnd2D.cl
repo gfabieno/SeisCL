@@ -20,15 +20,6 @@
 /*Kernels to save boundary wavefield in 2D if backpropagation is used in the computation of the gradient */
 
 /*Define useful macros to be able to write a matrix formulation in 2D with OpenCl */
-#define vx(z,x)  vx[(x)*NZ+(z)]
-#define vy(z,x)  vy[(x)*NZ+(z)]
-#define vz(z,x)  vz[(x)*NZ+(z)]
-#define sxx(z,x) sxx[(x)*NZ+(z)]
-#define szz(z,x) szz[(x)*NZ+(z)]
-#define sxz(z,x) sxz[(x)*NZ+(z)]
-#define sxy(z,x) sxy[(x)*NZ+(z)]
-#define syz(z,x) syz[(x)*NZ+(z)]
-
 
 #if FP16==0
 
@@ -50,27 +41,14 @@
 
 #endif
 
-#ifdef __OPENCL_VERSION__
-#define FUNDEF __kernel
-#define LFUNDEF
-#define GLOBARG __global
-#define LOCARG __local float *lvar
-#define LOCDEF
-#define BARRIER barrier(CLK_LOCAL_MEM_FENCE);
-#else
-#define FUNDEF extern "C" __global__
-#define LFUNDEF extern "C" __device__
-#define GLOBARG
-#define LOCARG float *nullarg
-#define LOCDEF extern __shared__ float lvar[];
-#define BARRIER __syncthreads();
-#endif
-
 FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 *szz,
                                    GLOBARG __prec2 *vx, GLOBARG __prec2 *vz,
                                    GLOBARG __prec2 *sxxbnd, GLOBARG __prec2 *sxzbnd, GLOBARG __prec2 *szzbnd,
                                    GLOBARG __prec2 *vxbnd, GLOBARG __prec2 *vzbnd)
 {
+    
+    int i,k,indv;
+    int gidf;
     
 #if NUM_DEVICES==1 & NLOCALP==1
 #ifdef __OPENCL_VERSION__
@@ -88,11 +66,6 @@ FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 
     int lbnd = FDOH+NAB;
     int lbnds = FDOH;
     #endif
-
-    
-    
-    int i=0,k=0;
-    int gidf;
 
     if (gid<NZbnd*FDOH){//front
         gidf=gid;
@@ -138,8 +111,6 @@ FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 
     int lbnd = FDOH+NAB;
     int lbnds = FDOH;
 #endif
-    int i,k;
-    int gidf;
 
     if (gid<NZbnd*FDOH){//front
         gidf=gid;
@@ -147,16 +118,16 @@ FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 
         k=gidf%NZbnd+lbnds;
     }
 
-    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*FDOH){//bottom
+    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*FDOH/DIV){//bottom
         gidf=gid-NZbnd*FDOH;
         i=gidf%(NXbnd-FDOH)+lbnd+FDOH;
         k=gidf/(NXbnd-FDOH)+NZbnd+lbnds/DIV-FDOH/DIV;
 
     }
-    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*2*FDOH){//up
-        gidf=gid-NZbnd*FDOH-(NXbnd-FDOH)*FDOH;
+    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*2*FDOH/DIV){//up
+        gidf=gid-NZbnd*FDOH-(NXbnd-FDOH)*FDOH/DIV;
         i=gidf%(NXbnd-FDOH)+lbnd+FDOH;
-        k=gidf/(NXbnd-FDOH)+lbnds;
+        k=gidf/(NXbnd-FDOH)+lbnds/DIV;
     }
     else{
         return;
@@ -179,8 +150,6 @@ FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 
     int lbnd = FDOH+NAB;
     int lbnds = FDOH;
 #endif
-    int i,k;
-    int gidf;
 
     if (gid<NZbnd*FDOH){//back
         gidf=gid;
@@ -188,16 +157,16 @@ FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 
         k=gidf%NZbnd+lbnds;
     }
 
-    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*FDOH){//bottom
+    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*FDOH/DIV){//bottom
         gidf=gid-NZbnd*FDOH;
         i=gidf%(NXbnd-FDOH)+FDOH;
         k=gidf/(NXbnd-FDOH)+NZbnd+lbnds/DIV-FDOH/DIV;
 
     }
-    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*2*FDOH){//up
-        gidf=gid-NZbnd*FDOH-(NXbnd-FDOH)*FDOH;
+    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*2*FDOH/DIV){//up
+        gidf=gid-NZbnd*FDOH-(NXbnd-FDOH)*FDOH/DIV;
         i=gidf%(NXbnd-FDOH)+FDOH;
-        k=gidf/(NXbnd-FDOH)+lbnds;
+        k=gidf/(NXbnd-FDOH)+lbnds/DIV;
     }
     else{
         return;
@@ -221,9 +190,6 @@ FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 
     int lbnd = FDOH+NAB;
     int lbnds = FDOH;
 #endif
-    int i,k;
-    int gidf;
-
 
     if (gid<(NXbnd)*FDOH){//bottom
         gidf=gid;
@@ -231,10 +197,10 @@ FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 
         k=gidf/(NXbnd)+NZbnd+lbnds/DIV-FDOH/DIV;
 
     }
-    else if (gid<NZbnd*FDOH+(NXbnd)*2*FDOH){//up
-        gidf=gid-(NXbnd)*FDOH;
+    else if (gid<NZbnd*FDOH+(NXbnd)*2*FDOH/DIV){//up
+        gidf=gid-(NXbnd)*FDOH/DIV;
         i=gidf%(NXbnd)+FDOH;
-        k=gidf/(NXbnd)+lbnds;
+        k=gidf/(NXbnd)+lbnds/DIV;
     }
     else{
         return;
@@ -242,18 +208,18 @@ FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 
 
 #endif
 
-
+    indv = i*NZ+k;
 #if ND==2
-    vxbnd[gid]=vx(k,i);
-    vzbnd[gid]=vz(k,i);
-    sxxbnd[gid]=sxx(k,i);
-    szzbnd[gid]=szz(k,i);
-    sxzbnd[gid]=sxz(k,i);
+    vxbnd[gid]=vx[indv];
+    vzbnd[gid]=vz[indv];
+    sxxbnd[gid]=sxx[indv];
+    szzbnd[gid]=szz[indv];
+    sxzbnd[gid]=sxz[indv];
 #endif
 #if ND==21
-    vybnd[gid]=vy(k,i);
-    sxybnd[gid]=sxy(k,i);
-    syzbnd[gid]=syz(k,i);
+    vybnd[gid]=vy[indv];
+    sxybnd[gid]=sxy[indv];
+    syzbnd[gid]=syz[indv];
 #endif
     
 }

@@ -136,39 +136,43 @@ FUNDEF void update_s(int offcomm,  int nt,
     int indp = ((gidx)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((gidy)-FDOH)*(NZ-2*FDOH)+((gidz)-FDOH);
     int indv = (gidx)*NZ*NY+(gidy)*NZ+(gidz);
     int indr;
+    
 // Calculation of the velocity spatial derivatives
     {
-#if LOCAL_OFF==0
+        #if LOCAL_OFF==0
         load_local_in(vz);
         load_local_haloz(vz);
         load_local_haloy(vz);
         load_local_halox(vz);
         BARRIER
-#endif
+        #endif
+        
         vzx = Dxp(lvz);
         vzy = Dyp(lvz);
         vzz = Dzm(lvz);
         
-#if LOCAL_OFF==0
+        #if LOCAL_OFF==0
         BARRIER
         load_local_in(vy);
         load_local_haloz(vy);
         load_local_haloy(vy);
         load_local_halox(vy);
         BARRIER
-#endif
+        #endif
+        
         vyx = Dxp(lvy);
         vyy = Dym(lvy);
         vyz = Dzp(lvy);
 
-#if LOCAL_OFF==0
+        #if LOCAL_OFF==0
         BARRIER
         load_local_in(vx);
         load_local_haloz(vx);
         load_local_haloy(vx);
         load_local_halox(vx);
         BARRIER
-#endif
+        #endif
+        
         vxx = Dxm(lvx);
         vxy = Dyp(lvx);
         vxz = Dzp(lvx);

@@ -648,7 +648,7 @@ int time_stepping(model * m, device ** dev) {
         if ( m->GRADOUT || m->RMSOUT || m->RESOUT ){
             __GUARD m->res_scale(m,s);
         }
-
+        
 
         // Calculation of the gradient for this shot, if required
         if (m->GRADOUT==1){

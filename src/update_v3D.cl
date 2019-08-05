@@ -129,59 +129,62 @@ FUNDEF void update_v(int offcomm,
     int indv = (gidx)*NZ*NY+(gidy)*NZ+(gidz);
 // Calculation of the stresses spatial derivatives
     {
-#if LOCAL_OFF==0
+        #if LOCAL_OFF==0
         load_local_in(szz);
         load_local_haloz(szz);
         BARRIER
-#endif
+        #endif
+        
         szz_z = Dzp(lszz);
         
-        
-#if LOCAL_OFF==0
+        #if LOCAL_OFF==0
         BARRIER
         load_local_in(sxx);
         load_local_halox(sxx);
         BARRIER
-#endif
+        #endif
+        
         sxx_x = Dxp(lsxx);
         
-        
-#if LOCAL_OFF==0
+        #if LOCAL_OFF==0
         BARRIER
         load_local_in(sxz);
         load_local_haloz(sxz);
         load_local_halox(sxz);
         BARRIER
-#endif
+        #endif
+        
         sxz_x = Dxm(lsxz);
         sxz_z = Dzm(lsxz);
         
-#if LOCAL_OFF==0
+        #if LOCAL_OFF==0
         BARRIER
         load_local_in(syz);
         load_local_haloz(syz);
         load_local_haloy(syz);
         BARRIER
-#endif
+        #endif
+        
         syz_y = Dym(lsyz);
         syz_z = Dzm(lsyz);
         
-#if LOCAL_OFF==0
+        #if LOCAL_OFF==0
         BARRIER
         load_local_in(syy);
         load_local_haloy(syy);
         BARRIER
-#endif
+        #endif
+        
         syy_y = Dyp(lsyy);
         
-        
-#if LOCAL_OFF==0
+        #if LOCAL_OFF==0
         BARRIER
         load_local_in(sxy);
         load_local_halox(sxy);
         load_local_haloy(sxy);
         BARRIER
-#endif
+        #endif
+        
         sxy_x = Dxm(lsxy);
         sxy_y = Dym(lsxy);
     }
