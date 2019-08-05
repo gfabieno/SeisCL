@@ -40,6 +40,7 @@
 #include "header_FD.hcl"
 #include "header_FD_fp16.hcl"
 #include "header_CUDACL.hcl"
+#include "header_injectbnd.hcl"
 
 void ave_arithmetic1(float * pin, float * pout, int * N, int ndim, int  dir[3]){
     
@@ -870,6 +871,7 @@ int assign_modeling_case(model * m){
     int i;
     int state =0;
     int ind = 0;
+    int nheaders = 0;
     
     // Check Stability function
     m->check_stability=&check_stability;
@@ -883,7 +885,7 @@ int assign_modeling_case(model * m){
     const char * surface;
     const char * surface_adj;
     const char * savebnd;
-    const char * headers[2];
+    const char * headers[3];
     headers[0] = header_CUDACL_source;
     
     if (m->FP16==0){
@@ -892,6 +894,7 @@ int assign_modeling_case(model * m){
     else {
         headers[1] = header_FD_fp16_source;
     }
+    headers[2] = header_injectbnd_source;
     
     //TODO surface kernels with FP16, Adjoint kernels in 3D with FP16
     if (m->ND==3 ){
@@ -970,8 +973,14 @@ int assign_modeling_case(model * m){
     if (m->GRADOUT){
         GMALLOC(m->ups_adj, m->nupdates*sizeof(update));
         ind=0;
-        __GUARD append_update(m->ups_adj, &ind, "update_adjv", updatev_adj, 2, headers);
-        __GUARD append_update(m->ups_adj, &ind, "update_adjs", updates_adj, 2, headers);
+        if (m->BACK_PROP_TYPE==1){
+            nheaders=3;
+        }
+        else{
+            nheaders=2;
+        }
+        __GUARD append_update(m->ups_adj, &ind, "update_adjv", updatev_adj, nheaders, headers);
+        __GUARD append_update(m->ups_adj, &ind, "update_adjs", updates_adj, nheaders, headers);
     }
     if (m->FREESURF){
         __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface, 2, headers);

@@ -66,7 +66,8 @@ SeisCL_CL= \
     update_v3D_half2.cl \
     header_FD.cl \
     header_FD_fp16.cl \
-    header_CUDACL.cl
+    header_CUDACL.cl \
+    header_injectbnd.cl
 
 SeisCL_CL_Headers = $(SeisCL_CL:%.cl=%.hcl)
 
