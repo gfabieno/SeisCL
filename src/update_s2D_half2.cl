@@ -113,50 +113,38 @@ FUNDEF void update_s(int offcomm,
     __cprec lmuipkp = __pconv(muipkp[indp]);
     
     // Update the variables
-    lsxz=add2(lsxz,mul2(lmuipkp,add2(vx_z1,vz_x1)));
-    lsxx=sub2(add2(lsxx,mul2(lM,add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),lmu),vz_z2));
-    lszz=sub2(add2(lszz,mul2(lM,add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),lmu),vx_x2));
+    lsxz=lsxz + lmuipkp * (vx_z1+vz_x1);
+    lsxx=lsxx + lM*(vx_x2+vz_z2) - 2.0 * lmu * vz_z2;
+    lszz=lszz + lM*(vx_x2+vz_z2) - 2.0 * lmu * vx_x2;
     
     #if ABS_TYPE==2
     {
     #if FREESURF==0
-        if (2*gidz-FDOH<NAB){
-            lsxx.x*=taper[2*gidz-FDOH];
-            lsxx.y*=taper[2*gidz+1-FDOH];
-            lszz.x*=taper[2*gidz-FDOH];
-            lszz.y*=taper[2*gidz+1-FDOH];
-            lsxz.x*=taper[2*gidz-FDOH];
-            lsxz.y*=taper[2*gidz+1-FDOH];
+        if (DIV*gidz-FDOH<NAB){
+            lsxx = lsxx * __hp(&taper[DIV*gidz-FDOH]);
+            lszz = lszz * __hp(&taper[DIV*gidz-FDOH]);
+            lsxz = lsxz * __hp(&taper[DIV*gidz-FDOH]);
         }
     #endif
-        if (2*gidz>2*NZ-NAB-FDOH-1){
-            lsxx.x*=taper[2*NZ-FDOH-2*gidz-1];
-            lsxx.y*=taper[2*NZ-FDOH-2*gidz-1-1];
-            lszz.x*=taper[2*NZ-FDOH-2*gidz-1];
-            lszz.y*=taper[2*NZ-FDOH-2*gidz-1-1];
-            lsxz.x*=taper[2*NZ-FDOH-2*gidz-1];
-            lsxz.y*=taper[2*NZ-FDOH-2*gidz-1-1];
+        if (DIV*gidz>DIV*NZ-NAB-FDOH-1){
+            lsxx =lsxx * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+            lszz =lszz * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+            lsxz =lsxz * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
         }
         
     #if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
-            lsxx.x*=taper[gidx-FDOH];
-            lsxx.y*=taper[gidx-FDOH];
-            lszz.x*=taper[gidx-FDOH];
-            lszz.y*=taper[gidx-FDOH];
-            lsxz.x*=taper[gidx-FDOH];
-            lsxz.y*=taper[gidx-FDOH];
+            lsxx = lsxx * taper[gidx-FDOH];
+            lszz = lszz * taper[gidx-FDOH];
+            lsxz = lsxz * taper[gidx-FDOH];
         }
     #endif
         
     #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-NAB-FDOH-1){
-            lsxx.x*=taper[NX-FDOH-gidx-1];
-            lsxx.y*=taper[NX-FDOH-gidx-1];
-            lszz.x*=taper[NX-FDOH-gidx-1];
-            lszz.y*=taper[NX-FDOH-gidx-1];
-            lsxz.x*=taper[NX-FDOH-gidx-1];
-            lsxz.y*=taper[NX-FDOH-gidx-1];
+            lsxx = lsxx * taper[NX-FDOH-gidx-1];
+            lszz = lszz * taper[NX-FDOH-gidx-1];
+            lsxz = lsxz * taper[NX-FDOH-gidx-1];
         }
     #endif
     }
