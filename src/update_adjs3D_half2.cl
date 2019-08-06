@@ -364,44 +364,44 @@ FUNDEF void update_adjs(int offcomm,
     
     //Shear wave modulus and P-wave modulus gradient calculation on the fly
     #if BACK_PROP_TYPE==1
-    lsxy=mul2(lmuipjp,add2(vxr_y1,vyr_x1));
-    lsyz=mul2(lmujpkp,add2(vyr_z1,vzr_y1));
-    lsxz=mul2(lmuipkp,add2(vxr_z1,vzr_x1));
-    lsxx=sub2(mul2(lM,add2(add2(vxr_x2,vyr_y2),vzr_z2)),mul2(mul2(f2h2(2.0),lmu),add2(vyr_y2,vzr_z2)));
-    lsyy=sub2(mul2(lM,add2(add2(vxr_x2,vyr_y2),vzr_z2)),mul2(mul2(f2h2(2.0),lmu),add2(vxr_x2,vzr_z2)));
-    lszz=sub2(mul2(lM,add2(add2(vxr_x2,vyr_y2),vzr_z2)),mul2(mul2(f2h2(2.0),lmu),add2(vxr_x2,vyr_y2)));
-    
+    lsxyr=mul2(lmuipjp,add2(vxr_y1,vyr_x1));
+    lsyzr=mul2(lmujpkp,add2(vyr_z1,vzr_y1));
+    lsxzr=mul2(lmuipkp,add2(vxr_z1,vzr_x1));
+    lsxxr=sub2(mul2(lM,add2(add2(vxr_x2,vyr_y2),vzr_z2)),mul2(mul2(f2h2(2.0),lmu),add2(vyr_y2,vzr_z2)));
+    lsyyr=sub2(mul2(lM,add2(add2(vxr_x2,vyr_y2),vzr_z2)),mul2(mul2(f2h2(2.0),lmu),add2(vxr_x2,vzr_z2)));
+    lszzr=sub2(mul2(lM,add2(add2(vxr_x2,vyr_y2),vzr_z2)),mul2(mul2(f2h2(2.0),lmu),add2(vxr_x2,vyr_y2)));
+
     #if RESTYPE==0
-    float2 c1=div2f(div2f(f2h2f(1.0),sub2f(mul2(f2h2f(3.0),__h22f2c(lM)),mul2f(f2h2f(4.0),__h22f2c(lmu)))),sub2f(mul2(f2h2f(3.0),__h22f2c(lM)),mul2f(f2h2f(4.0),__h22f2c(lmu))));
+    float2 c1=div2f(div2f(f2h2f(1.0),sub2f(mul2f(f2h2f(3.0),__h22f2c(lM)),mul2f(f2h2f(4.0),__h22f2c(lmu)))),sub2f(mul2f(f2h2f(3.0),__h22f2c(lM)),mul2f(f2h2f(4.0),__h22f2c(lmu))));
     float2 c3=div2f(div2f(f2h2f(1.0),__h22f2c(lmu)),__h22f2c(lmu));
     float2 c5=mul2f(div2f(f2h2f(1.0),f2h2f(6.0)),c3);
-   
-    
-    float2 dM=mul2f(mul2f(c1,__h22f2c(add2(add2(sxx[indv],syy[indv]),szz[indv]))),__h22f2c(add2(add2(lsxx,lsyy),lszz)));
-    
+
+
+    float2 dM=mul2f(mul2f(c1,__h22f2c(add2(add2(lsxx,lsyy),lszz))),__h22f2c(add2(add2(lsxxr,lsyyr),lszzr)));
+
     gradM[indp]=sub2f(gradM[indp],scalbnf2(dM, 2*par_scale-src_scale - res_scale));
-    
-    gradmu[indp] = sub2f(add2f(sub2f(gradmu[indp],mul2f(c3,__h22f2c(add2(add2(mul2(sxz[indv],lsxz),mul2(sxy[indv],lsxy)),mul2(syz[indv],lsyz))))),mul2(div2(f2h2f(4.0),f2h2f(3.0)),dM)),mul2f(c5,__h22f2c(add2(add2(mul2(lsxx,sub2(sub2(mul2(f2h2(2.0),sxx[indv]),syy[indv]),szz[indv])),mul2(lsyy,sub2(sub2(mul2(f2h2(2.0),syy[indv]),sxx[indv]),szz[indv]))),mul2(lszz,sub2(sub2(mul2(f2h2(2.0),szz[indv]),sxx[indv]),syy[indv]))))));
-    
+
+    gradmu[indp] = sub2f(add2f(sub2f(gradmu[indp],mul2f(c3,__h22f2c(add2(add2(mul2(lsxz,lsxzr),mul2(lsxy,lsxyr)),mul2(lsyz,lsyzr))))),mul2f(div2f(f2h2f(4.0),f2h2f(3.0)),dM)),mul2f(c5,__h22f2c(add2(add2(mul2(lsxxr,sub2(sub2(mul2(f2h2(2.0),lsxx),lsyy),lszz)),mul2(lsyyr,sub2(sub2(mul2(f2h2(2.0),lsyy),lsxx),lszz))),mul2(lszzr,sub2(sub2(mul2(f2h2(2.0),lszz),lsxx),lsyy))))));
+
     #if HOUT==1
-    float2 dMH=mul2f(mul2f(c1,__h22f2c(add2(add2(sxx[indv],syy[indv]),szz[indv]))),__h22f2c(add2(add2(sxx[indv],syy[indv]),szz[indv])));
+    float2 dMH=mul2f(mul2f(c1,__h22f2c(add2(add2(lsxx,lsyy),lszz))),__h22f2c(add2(add2(lsxx,lsyy),lszz)));
     HM[indp]= add2f(HM[indp],dMH);
-    Hmu[indp]= add2f(sub2f(add2f(Hmu[indp],mul2f(c3,__h22f2c(add2(add2(mul2(sxz[indv],sxz[indv]),mul2(sxy[indv],sxy[indv])),mul2(syz[indv],syz[indv]))))),mul2f(div2f(f2h2(4.0),f2h2(3.0)),dM)),mul2f(c5,__h22f2c(add2(add2(mul2(sub2(sub2(mul2(f2h2(2.0),sxx[indv]),syy[indv]),szz[indv]),sub2(sub2(mul2(f2h2(2.0),sxx[indv]),syy[indv]),szz[indv])),mul2(sub2(sub2(mul2(f2h2(2.0),syy[indv]),sxx[indv]),szz[indv]),sub2(sub2(mul2(f2h2(2.0),syy[indv]),sxx[indv]),szz[indv]))),mul2(sub2(sub2(mul2(f2h2(2.0),szz[indv]),sxx[indv]),syy[indv]),sub2(sub2(mul2(f2h2(2.0),szz[indv]),sxx[indv]),syy[indv]))))));
+    Hmu[indp]= add2f(sub2f(add2f(Hmu[indp],mul2f(c3,__h22f2c(add2(add2(mul2(lsxz,lsxz),mul2(lsxy,lsxy)),mul2(lsyz,lsyz))))),mul2f(div2f(f2h2(4.0),f2h2(3.0)),dM)),mul2f(c5,__h22f2c(add2(add2(mul2(sub2(sub2(mul2(f2h2(2.0),lsxx),lsyy),lszz),sub2(sub2(mul2(f2h2(2.0),lsxx),lsyy),lszz)),mul2(sub2(sub2(mul2(f2h2(2.0),lsyy),lsxx),lszz),sub2(sub2(mul2(f2h2(2.0),lsyy),lsxx),lszz))),mul2(sub2(sub2(mul2(f2h2(2.0),lszz),lsxx),lsyy),sub2(sub2(mul2(f2h2(2.0),lszz),lsxx),lsyy))))));
     #endif
     #endif
-    
+
     #if RESTYPE==1
-    float2 dM=__h22f2c(mul2(add2(add2(sxx[indv],syy[indv]),szz[indv]),add2(add2(lsxx,lsyy),lszz)));
-    
+    float2 dM=__h22f2c(mul2(add2(add2(lsxx,lsyy),lszz),add2(add2(lsxxr,lsyyr),lszzr)));
+
     gradM[indp]=sub2f(gradM[indp],dM);
-    
+
     #if HOUT==1
-    float2 dMH= __h22f2c(mul2(add2(add2(sxx[indv],syy[indv]),szz[indv]),add2(add2(sxx[indv],syy[indv]),szz[indv])));
+    float2 dMH= __h22f2c(mul2(add2(add2(lsxx,lsyy),lszz),add2(add2(lsxx,lsyy),lszz)));
     HM[indp]= add2f(HM[indp],dMH);
-    
+
     #endif
     #endif
-    
+
     #endif
     
     #if GRADSRCOUT==1
@@ -421,7 +421,7 @@ FUNDEF void update_adjs(int offcomm,
     //
     //                if (i==gidx && j==gidy && k==gidz){
     //
-    //                    pressure=(sxxr[indv]+syyr[indv]+szzr[indv] )/(2.0*DH*DH*DH);
+    //                    pressure=(lsxxr+lsyyr+lszzr )/(2.0*DH*DH*DH);
     //                    if ( (nt>0) && (nt< NT ) ){
     //                        gradsrc(srci,nt+1)+=pressure;
     //                        gradsrc(srci,nt-1)-=pressure;

@@ -155,9 +155,9 @@ FUNDEF void update_adjv(int offcomm,
 
 // Backpropagate the forward velocity
 #if BACK_PROP_TYPE==1
+    __cprec lvx = __h22f2(vx[indv]);
+    __cprec lvz = __h22f2(vz[indv]);
     {
-        __cprec lvx = __h22f2(vx[indv]);
-        __cprec lvz = __h22f2(vz[indv]);
         // Update the variables
         lvx=sub2(lvx,mul2(add2(sxx_x1,sxz_z2),lrip));
         lvz=sub2(lvz,mul2(add2(szz_z1,sxz_x2),lrkp));
@@ -173,8 +173,6 @@ FUNDEF void update_adjv(int offcomm,
         //Write updated values to global memory
         vx[indv] = __f22h2(lvx);
         vz[indv] = __f22h2(lvz);
-
-    
     }
 #endif
 
