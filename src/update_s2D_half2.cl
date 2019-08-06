@@ -34,14 +34,14 @@ FUNDEF void update_s(int offcomm,
     __prec * lvar=(__prec *)lvar2;
     
     //Grid position
-    int lsizez = blockDim.x+FDOH;
+    int lsizez = blockDim.x+2*FDOH/DIV;
     int lsizex = blockDim.y+2*FDOH;
-    int lidz = threadIdx.x+FDOH/2;
+    int lidz = threadIdx.x+FDOH/DIV;
     int lidx = threadIdx.y+FDOH;
-    int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/2;
+    int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/DIV;
     int gidx = blockIdx.y*blockDim.y+threadIdx.y+FDOH+offcomm;
     
-    int indp = ((gidx)-FDOH)*(NZ-FDOH)+((gidz)-FDOH/2);
+    int indp = ((gidx)-FDOH)*(NZ-FDOH)+((gidz)-FDOH/DIV);
     int indv = gidx*NZ+gidz;
     
     //Define private derivatives
@@ -96,10 +96,10 @@ FUNDEF void update_s(int offcomm,
     //outside the grid)
     #if  LOCAL_OFF==0
     #if COMM12==0
-    if ( gidz>(NZ-FDOH/2-1) ||  (gidx-offcomm)>(NX-FDOH-1-LCOMM) )
+    if ( gidz>(NZ-FDOH/DIV-1) ||  (gidx-offcomm)>(NX-FDOH-1-LCOMM) )
         return;
     #else
-    if ( gidz>(NZ-FDOH/2-1)  )
+    if ( gidz>(NZ-FDOH/DIV-1)  )
         return;
     #endif
     #endif

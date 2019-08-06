@@ -22,28 +22,31 @@
 
 
 FUNDEF void update_adjv(int offcomm,
-                           __pprec *rip, __pprec *rkp,
-                           __prec2 *sxx,__prec2 *sxz,__prec2 *szz,
-                           __prec2 *vx,__prec2 *vz,
-                           __prec2 *sxxbnd,__prec2 *sxzbnd,__prec2 *szzbnd,
-                           __prec2 *vxbnd,__prec2 *vzbnd,
-                           __prec2 *sxxr,__prec2 *sxzr,__prec2 *szzr,
-                           __prec2 *vxr,__prec2 *vzr, float *taper,
-                           float2 *gradrho, float2 *Hrho, int res_scale,
-                           int src_scale, int par_scale)
+                           GLOBARG __pprec *rip, GLOBARG __pprec *rkp,
+                           GLOBARG __prec2 *sxx,GLOBARG __prec2 *sxz,GLOBARG __prec2 *szz,
+                           GLOBARG __prec2 *vx,GLOBARG __prec2 *vz,
+                           GLOBARG __prec2 *sxxbnd,GLOBARG __prec2 *sxzbnd,GLOBARG __prec2 *szzbnd,
+                           GLOBARG __prec2 *vxbnd,GLOBARG __prec2 *vzbnd,
+                           GLOBARG __prec2 *sxxr,GLOBARG __prec2 *sxzr,GLOBARG __prec2 *szzr,
+                           GLOBARG __prec2 *vxr,GLOBARG __prec2 *vzr, GLOBARG float *taper,
+                           GLOBARG float2 *gradrho, GLOBARG GLOBARG float2 *Hrho, int res_scale,
+                           int src_scale, int par_scale, LOCARG)
 {
-
+    
     //Local memory
     extern __shared__ __prec2 lvar2[];
     __prec * lvar=(__prec *)lvar2;
     
     //Grid position
-    int lsizez = blockDim.x+FDOH;
+    int lsizez = blockDim.x+2*FDOH/DIV;
     int lsizex = blockDim.y+2*FDOH;
-    int lidz = threadIdx.x+FDOH/2;
+    int lidz = threadIdx.x+FDOH/DIV;
     int lidx = threadIdx.y+FDOH;
-    int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/2;
+    int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/DIV;
     int gidx = blockIdx.y*blockDim.y+threadIdx.y+FDOH+offcomm;
+    
+    int indp = ((gidx)-FDOH)*(NZ-FDOH)+((gidz)-FDOH/DIV);
+    int indv = gidx*NZ+gidz;
     
     //Define private derivatives
     __cprec sxx_x1;
@@ -73,9 +76,7 @@ FUNDEF void update_adjv(int offcomm,
 #define lsxzr2 lvar2
     
 #endif
-    
-    int indp = (gidx-FDOH)*(NZ-2*FDOH)+(gidz-FDOH);
-    int indv = gidx*NZ+gidz;
+
     
 // Calculation of the stress spatial derivatives of the forward wavefield if backpropagation is used
 #if BACK_PROP_TYPE==1
@@ -135,17 +136,18 @@ FUNDEF void update_adjv(int offcomm,
 
 
     
-// To stop updating if we are outside the model (global id must be a multiple of local id in OpenCL, hence we stop if we have a global id outside the grid)
-    // To stop updating if we are outside the model (global id must be amultiple of local id in OpenCL, hence we stop if we have a global idoutside the grid)
-#if  LOCAL_OFF==0
-#if COMM12==0
-    if ( gidz>(NZ-FDOH/2-1) ||  (gidx-offcomm)>(NX-FDOH-1-LCOMM) )
+    // To stop updating if we are outside the model (global id must be a
+    //multiple of local id in OpenCL, hence we stop if we have a global id
+    //outside the grid)
+    #if  LOCAL_OFF==0
+    #if COMM12==0
+    if ( gidz>(NZ-FDOH/DIV-1) ||  (gidx-offcomm)>(NX-FDOH-1-LCOMM) )
         return;
-#else
-    if ( gidz>(NZ-FDOH/2-1)  )
+    #else
+    if ( gidz>(NZ-FDOH/DIV-1)  )
         return;
-#endif
-#endif
+    #endif
+    #endif
     
     //Define and load private parameters and variables
     __cprec lvxr = __h22f2(vxr[indv]);
@@ -159,8 +161,8 @@ FUNDEF void update_adjv(int offcomm,
     __cprec lvz = __h22f2(vz[indv]);
     {
         // Update the variables
-        lvx=sub2(lvx,mul2(add2(sxx_x1,sxz_z2),lrip));
-        lvz=sub2(lvz,mul2(add2(szz_z1,sxz_x2),lrkp));
+        lvx=lvx-(sxx_x1+sxz_z2)*lrip;
+        lvz=lvz-(szz_z1+sxz_x2)*lrkp;
         
         // Inject the boundary values
         int m=inject_ind(gidz, gidx);
@@ -169,7 +171,6 @@ FUNDEF void update_adjv(int offcomm,
             lvz= __h22f2(vzbnd[m]);
         }
 
-        
         //Write updated values to global memory
         vx[indv] = __f22h2(lvx);
         vz[indv] = __f22h2(lvz);
@@ -177,44 +178,37 @@ FUNDEF void update_adjv(int offcomm,
 #endif
 
     // Update the variables
-    lvxr=add2(lvxr,mul2(add2(sxxr_x1,sxzr_z2),lrip));
-    lvzr=add2(lvzr,mul2(add2(szzr_z1,sxzr_x2),lrkp));
+    lvxr=lvxr+(sxxr_x1+sxzr_z2)*lrip;
+    lvzr=lvzr+(szzr_z1+sxzr_x2)*lrkp;
     
-#if ABS_TYPE==2
+    #if ABS_TYPE==2
     {
-        if (2*gidz-FDOH<NAB){
-            lvxr.x*=taper[2*gidz-FDOH];
-            lvxr.y*=taper[2*gidz+1-FDOH];
-            lvzr.x*=taper[2*gidz-FDOH];
-            lvzr.y*=taper[2*gidz+1-FDOH];
+    #if FREESURF==0
+        if (DIV*gidz-FDOH<NAB){
+            lvxr = lvxr * __hp(&taper[DIV*gidz-FDOH]);
+            lvzr = lvzr * __hp(&taper[DIV*gidz-FDOH]);
+        }
+    #endif
+        if (DIV*gidz>DIV*NZ-NAB-FDOH-1){
+            lvxr = lvxr * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+            lvzr = lvzr * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
         }
         
-        if (2*gidz>2*NZ-NAB-FDOH-1){
-            lvxr.x*=taper[2*NZ-FDOH-2*gidz-1];
-            lvxr.y*=taper[2*NZ-FDOH-2*gidz-1-1];
-            lvzr.x*=taper[2*NZ-FDOH-2*gidz-1];
-            lvzr.y*=taper[2*NZ-FDOH-2*gidz-1-1];
-        }
-        
-#if DEVID==0 & MYLOCALID==0
+    #if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
-            lvxr.x*=taper[gidx-FDOH];
-            lvxr.y*=taper[gidx-FDOH];
-            lvzr.x*=taper[gidx-FDOH];
-            lvzr.y*=taper[gidx-FDOH];
+            lvxr = lvxr * taper[gidx-FDOH];
+            lvzr = lvzr * taper[gidx-FDOH];
         }
-#endif
+    #endif
         
-#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+    #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-NAB-FDOH-1){
-            lvxr.x*=taper[NX-FDOH-gidx-1];
-            lvxr.y*=taper[NX-FDOH-gidx-1];
-            lvzr.x*=taper[NX-FDOH-gidx-1];
-            lvzr.y*=taper[NX-FDOH-gidx-1];
+            lvxr = lvxr * taper[NX-FDOH-gidx-1];
+            lvzr = lvzr * taper[NX-FDOH-gidx-1];
         }
-#endif
+    #endif
     }
-#endif
+    #endif
     
     //Write updated values to global memory
     vxr[indv] = __f22h2(lvxr);
@@ -223,10 +217,10 @@ FUNDEF void update_adjv(int offcomm,
     
 // Density gradient calculation on the fly
 #if BACK_PROP_TYPE==1
-    lvxr=mul2(add2(sxxr_x1,sxzr_z2),lrip);
-    lvzr=mul2(add2(szzr_z1,sxzr_x2),lrkp);
+    lvxr=(sxxr_x1+sxzr_z2)*lrip;
+    lvzr=(szzr_z1+sxzr_x2)*lrkp;
 
-    gradrho[indp]=sub2f( gradrho[indp], scalbnf2(add2f( mul2f( __h22f2c(lvx), __h22f2c(lvxr)), mul2f( __h22f2c(lvz), __h22f2c(lvzr)) ), 2*par_scale -src_scale - res_scale) );
+    gradrho[indp]=sub2f( gradrho[indp] - scalbnf2(add2f( mul2f( __h22f2c(lvx), __h22f2c(lvxr)), mul2f( __h22f2c(lvz), __h22f2c(lvzr)) ), 2*par_scale -src_scale - res_scale) );
     #if HOUT==1
         Hrho[indp]= sub2f( Hrho[indp], scalbnf2(add2f( mul2f( __h22f2c(lvx), __h22f2c(lvx)), mul2f( __h22f2c(lvz), __h22f2c(lvz)) ), 2*par_scale-2*src_scale) );
     #endif

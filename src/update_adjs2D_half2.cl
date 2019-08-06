@@ -20,16 +20,16 @@
 /*Adjoint update of the stresses in 2D SV*/
 
 
-FUNDEF __global__ void update_adjs(int offcomm,
-                           __pprec *muipkp, __pprec *M, __pprec *mu,
-                           __prec2 *sxx,__prec2 *sxz,__prec2 *szz,
-                           __prec2 *vx,__prec2 *vz,
-                           __prec2 *sxxbnd,__prec2 *sxzbnd,__prec2 *szzbnd,
-                           __prec2 *vxbnd,__prec2 *vzbnd,
-                           __prec2 *sxxr,__prec2 *sxzr,__prec2 *szzr,
-                           __prec2 *vxr,__prec2 *vzr, float *taper,
-                          float2 *gradrho,    float2 *gradM,     float2 *gradmu,
-                           float2 *Hrho,    float2 *HM,     float2 *Hmu,
+FUNDEF void update_adjs(int offcomm,
+                           GLOBARG __pprec *muipkp, GLOBARG __pprec *M, GLOBARG __pprec *mu,
+                           GLOBARG __prec2 *sxx,GLOBARG __prec2 *sxz,GLOBARG __prec2 *szz,
+                           GLOBARG __prec2 *vx,GLOBARG __prec2 *vz,
+                           GLOBARG __prec2 *sxxbnd,GLOBARG __prec2 *sxzbnd,GLOBARG __prec2 *szzbnd,
+                           GLOBARG __prec2 *vxbnd,GLOBARG __prec2 *vzbnd,
+                           GLOBARG __prec2 *sxxr,GLOBARG __prec2 *sxzr,GLOBARG __prec2 *szzr,
+                           GLOBARG __prec2 *vxr,GLOBARG __prec2 *vzr, GLOBARG float *taper,
+                          GLOBARG float2 *gradrho,    GLOBARG float2 *gradM,     GLOBARG float2 *gradmu,
+                           GLOBARG float2 *Hrho,    GLOBARG float2 *HM,    GLOBARG  float2 *Hmu,
                            int res_scale, int src_scale, int par_scale)
 {
 
@@ -38,14 +38,14 @@ FUNDEF __global__ void update_adjs(int offcomm,
     __prec * lvar=(__prec *)lvar2;
     
     //Grid position
-    int lsizez = blockDim.x+FDOH;
+    int lsizez = blockDim.x+2*FDOH/DIV;
     int lsizex = blockDim.y+2*FDOH;
-    int lidz = threadIdx.x+FDOH/2;
+    int lidz = threadIdx.x+FDOH/DIV;
     int lidx = threadIdx.y+FDOH;
-    int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/2;
+    int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/DIV;
     int gidx = blockIdx.y*blockDim.y+threadIdx.y+FDOH+offcomm;
     
-    int indp = ((gidx)-FDOH)*(NZ-FDOH)+((gidz)-FDOH/2);
+    int indp = ((gidx)-FDOH)*(NZ-FDOH)+((gidz)-FDOH/DIV);
     int indv = gidx*NZ+gidz;
     
     //Define private derivatives
@@ -136,14 +136,15 @@ FUNDEF __global__ void update_adjs(int offcomm,
         vzr_z2 = Dzm(lvzr);
     }
     
-// To stop updating if we are outside the model (global id must be a multiple of local id in OpenCL, hence we stop if we have a global id outside the grid)
-    // To stop updating if we are outside the model (global id must be amultiple of local id in OpenCL, hence we stop if we have a global idoutside the grid)
+    // To stop updating if we are outside the model (global id must be a
+    //multiple of local id in OpenCL, hence we stop if we have a global id
+    //outside the grid)
     #if  LOCAL_OFF==0
     #if COMM12==0
-    if ( gidz>(NZ-FDOH/2-1) ||  (gidx-offcomm)>(NX-FDOH-1-LCOMM) )
+    if ( gidz>(NZ-FDOH/DIV-1) ||  (gidx-offcomm)>(NX-FDOH-1-LCOMM) )
         return;
     #else
-    if ( gidz>(NZ-FDOH/2-1)  )
+    if ( gidz>(NZ-FDOH/DIV-1)  )
         return;
     #endif
     #endif
@@ -163,9 +164,10 @@ FUNDEF __global__ void update_adjs(int offcomm,
     #if BACK_PROP_TYPE==1
     {
         // Update the variables
-        lsxz=sub2(lsxz,mul2(lmuipkp,add2(vx_z1,vz_x1)));
-        lsxx=add2(sub2(lsxx,mul2(lM,add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),lmu),vz_z2));
-        lszz=add2(sub2(lszz,mul2(lM,add2(vx_x2,vz_z2))),mul2(mul2(f2h2(2.0),lmu),vx_x2));
+        // Update the variables
+        lsxz=lsxz - lmuipkp * (vx_z1+vz_x1);
+        lsxx=lsxx - lM*(vx_x2+vz_z2) + 2.0 * lmu * vz_z2;
+        lszz=lszz - lM*(vx_x2+vz_z2) + 2.0 * lmu * vx_x2;
 
         int m=inject_ind(gidz, gidx);
         if (m!=-1){
@@ -188,55 +190,44 @@ FUNDEF __global__ void update_adjs(int offcomm,
 // Update adjoint stresses
     {
         // Update the variables
-        lsxzr=add2(lsxzr,mul2(lmuipkp,add2(vxr_z1,vzr_x1)));
-        lsxxr=sub2(add2(lsxxr,mul2(lM,add2(vxr_x2,vzr_z2))),mul2(mul2(f2h2(2.0),lmu),vzr_z2));
-        lszzr=sub2(add2(lszzr,mul2(lM,add2(vxr_x2,vzr_z2))),mul2(mul2(f2h2(2.0),lmu),vxr_x2));
+        lsxzr=lsxzr + lmuipkp * (vxr_z1+vzr_x1);
+        lsxxr=lsxxr + lM*(vxr_x2+vzr_z2) - 2.0 * lmu * vzr_z2;
+        lszzr=lszzr + lM*(vxr_x2+vzr_z2) - 2.0 * lmu * vxr_x2;
+
         
-#if ABS_TYPE==2
+        #if ABS_TYPE==2
         {
-            if (2*gidz-FDOH<NAB){
-                lsxxr.x*=taper[2*gidz-FDOH];
-                lsxxr.y*=taper[2*gidz+1-FDOH];
-                lszzr.x*=taper[2*gidz-FDOH];
-                lszzr.y*=taper[2*gidz+1-FDOH];
-                lsxzr.x*=taper[2*gidz-FDOH];
-                lsxzr.y*=taper[2*gidz+1-FDOH];
+        #if FREESURF==0
+            if (DIV*gidz-FDOH<NAB){
+                lsxxr = lsxxr * __hp(&taper[DIV*gidz-FDOH]);
+                lszzr = lszzr * __hp(&taper[DIV*gidz-FDOH]);
+                lsxzr = lsxzr * __hp(&taper[DIV*gidz-FDOH]);
+            }
+        #endif
+            if (DIV*gidz>DIV*NZ-NAB-FDOH-1){
+                lsxxr =lsxxr * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+                lszzr =lszzr * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+                lsxzr =lsxzr * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
             }
             
-            if (2*gidz>2*NZ-NAB-FDOH-1){
-                lsxxr.x*=taper[2*NZ-FDOH-2*gidz-1];
-                lsxxr.y*=taper[2*NZ-FDOH-2*gidz-1-1];
-                lszzr.x*=taper[2*NZ-FDOH-2*gidz-1];
-                lszzr.y*=taper[2*NZ-FDOH-2*gidz-1-1];
-                lsxzr.x*=taper[2*NZ-FDOH-2*gidz-1];
-                lsxzr.y*=taper[2*NZ-FDOH-2*gidz-1-1];
-            }
-            
-#if DEVID==0 & MYLOCALID==0
+        #if DEVID==0 & MYLOCALID==0
             if (gidx-FDOH<NAB){
-                lsxxr.x*=taper[gidx-FDOH];
-                lsxxr.y*=taper[gidx-FDOH];
-                lszzr.x*=taper[gidx-FDOH];
-                lszzr.y*=taper[gidx-FDOH];
-                lsxzr.x*=taper[gidx-FDOH];
-                lsxzr.y*=taper[gidx-FDOH];
+                lsxxr = lsxxr * taper[gidx-FDOH];
+                lszzr = lszzr * taper[gidx-FDOH];
+                lsxzr = lsxzr * taper[gidx-FDOH];
             }
-#endif
+        #endif
             
-#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+        #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
             if (gidx>NX-NAB-FDOH-1){
-                lsxxr.x*=taper[NX-FDOH-gidx-1];
-                lsxxr.y*=taper[NX-FDOH-gidx-1];
-                lszzr.x*=taper[NX-FDOH-gidx-1];
-                lszzr.y*=taper[NX-FDOH-gidx-1];
-                lsxzr.x*=taper[NX-FDOH-gidx-1];
-                lsxzr.y*=taper[NX-FDOH-gidx-1];
+                lsxxr = lsxxr * taper[NX-FDOH-gidx-1];
+                lszzr = lszzr * taper[NX-FDOH-gidx-1];
+                lsxzr = lsxzr * taper[NX-FDOH-gidx-1];
             }
-#endif
+        #endif
         }
-#endif
-        
-        
+        #endif
+
         //Write updated values to global memory
         sxxr[indv] = __f22h2(lsxxr);
         sxzr[indv] = __f22h2(lsxzr);
