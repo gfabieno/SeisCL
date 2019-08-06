@@ -30,13 +30,13 @@ FUNDEF void update_adjv(int offcomm,
                            GLOBARG __prec2 *sxxr,GLOBARG __prec2 *sxzr,GLOBARG __prec2 *szzr,
                            GLOBARG __prec2 *vxr,GLOBARG __prec2 *vzr, GLOBARG float *taper,
                            GLOBARG float2 *gradrho, GLOBARG GLOBARG float2 *Hrho, int res_scale,
-                           int src_scale, int par_scale, LOCARG)
+                           int src_scale, int par_scale)
 {
     
     //Local memory
     extern __shared__ __prec2 lvar2[];
     __prec * lvar=(__prec *)lvar2;
-    
+
     //Grid position
     int lsizez = blockDim.x+2*FDOH/DIV;
     int lsizex = blockDim.y+2*FDOH;
@@ -44,10 +44,10 @@ FUNDEF void update_adjv(int offcomm,
     int lidx = threadIdx.y+FDOH;
     int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/DIV;
     int gidx = blockIdx.y*blockDim.y+threadIdx.y+FDOH+offcomm;
-    
+
     int indp = ((gidx)-FDOH)*(NZ-FDOH)+((gidz)-FDOH/DIV);
     int indv = gidx*NZ+gidz;
-    
+
     //Define private derivatives
     __cprec sxx_x1;
     __cprec sxz_x2;
@@ -57,7 +57,7 @@ FUNDEF void update_adjv(int offcomm,
     __cprec sxzr_x2;
     __cprec sxzr_z2;
     __cprec szzr_z1;
-    
+
 // If we use local memory
 #if LOCAL_OFF==0
 
@@ -67,17 +67,17 @@ FUNDEF void update_adjv(int offcomm,
 #define lsxx2 lvar2
 #define lszz2 lvar2
 #define lsxz2 lvar2
-    
+
 #define lsxxr lvar
 #define lszzr lvar
 #define lsxzr lvar
 #define lsxxr2 lvar2
 #define lszzr2 lvar2
 #define lsxzr2 lvar2
-    
+
 #endif
 
-    
+
 // Calculation of the stress spatial derivatives of the forward wavefield if backpropagation is used
 #if BACK_PROP_TYPE==1
     {
@@ -87,7 +87,7 @@ FUNDEF void update_adjv(int offcomm,
         BARRIER
     #endif
         sxx_x1 = Dxp(lsxx2);
-        
+
     #if LOCAL_OFF==0
         BARRIER
         load_local_in(szz);
@@ -115,7 +115,7 @@ FUNDEF void update_adjv(int offcomm,
         BARRIER
     #endif
         sxxr_x1 = Dxp(lsxxr2);
-    
+
     #if LOCAL_OFF==0
         BARRIER
         load_local_in(szzr);
@@ -135,7 +135,7 @@ FUNDEF void update_adjv(int offcomm,
         sxzr_z2 = Dzm(lsxzr);
 
 
-    
+
     // To stop updating if we are outside the model (global id must be a
     //multiple of local id in OpenCL, hence we stop if we have a global id
     //outside the grid)
@@ -148,7 +148,7 @@ FUNDEF void update_adjv(int offcomm,
         return;
     #endif
     #endif
-    
+
     //Define and load private parameters and variables
     __cprec lvxr = __h22f2(vxr[indv]);
     __cprec lvzr = __h22f2(vzr[indv]);
@@ -163,7 +163,7 @@ FUNDEF void update_adjv(int offcomm,
         // Update the variables
         lvx=lvx-(sxx_x1+sxz_z2)*lrip;
         lvz=lvz-(szz_z1+sxz_x2)*lrkp;
-        
+
         // Inject the boundary values
         int m=inject_ind(gidz, gidx);
         if (m!=-1){
@@ -180,7 +180,7 @@ FUNDEF void update_adjv(int offcomm,
     // Update the variables
     lvxr=lvxr+(sxxr_x1+sxzr_z2)*lrip;
     lvzr=lvzr+(szzr_z1+sxzr_x2)*lrkp;
-    
+
     #if ABS_TYPE==2
     {
     #if FREESURF==0
@@ -193,14 +193,14 @@ FUNDEF void update_adjv(int offcomm,
             lvxr = lvxr * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
             lvzr = lvzr * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
         }
-        
+
     #if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
             lvxr = lvxr * taper[gidx-FDOH];
             lvzr = lvzr * taper[gidx-FDOH];
         }
     #endif
-        
+
     #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-NAB-FDOH-1){
             lvxr = lvxr * taper[NX-FDOH-gidx-1];
@@ -209,22 +209,22 @@ FUNDEF void update_adjv(int offcomm,
     #endif
     }
     #endif
-    
+
     //Write updated values to global memory
     vxr[indv] = __f22h2(lvxr);
     vzr[indv] = __f22h2(lvzr);
-    
-    
+
+
 // Density gradient calculation on the fly
 #if BACK_PROP_TYPE==1
     lvxr=(sxxr_x1+sxzr_z2)*lrip;
     lvzr=(szzr_z1+sxzr_x2)*lrkp;
 
-    gradrho[indp]=sub2f( gradrho[indp] - scalbnf2(add2f( mul2f( __h22f2c(lvx), __h22f2c(lvxr)), mul2f( __h22f2c(lvz), __h22f2c(lvzr)) ), 2*par_scale -src_scale - res_scale) );
+    gradrho[indp]=gradrho[indp] - scalbnf2( __h22f2c(lvx) * __h22f2c(lvxr) +  __h22f2c(lvz) * __h22f2c(lvzr), 2*par_scale -src_scale - res_scale);
     #if HOUT==1
-        Hrho[indp]= sub2f( Hrho[indp], scalbnf2(add2f( mul2f( __h22f2c(lvx), __h22f2c(lvx)), mul2f( __h22f2c(lvz), __h22f2c(lvz)) ), 2*par_scale-2*src_scale) );
+        Hrho[indp]= Hrho[indp] - scalbnf2( __h22f2c(lvx) * __h22f2c(lvx) +  __h22f2c(lvz) * __h22f2c(lvz), 2*par_scale -src_scale - res_scale);
     #endif
-    
+
 #endif
 
 }

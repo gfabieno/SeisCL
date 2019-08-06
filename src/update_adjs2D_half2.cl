@@ -238,39 +238,34 @@ FUNDEF void update_adjs(int offcomm,
 #if BACK_PROP_TYPE==1
     #if RESTYPE==0
     //TODO review scaling
-    float2 c1= div2f(f2h2f(1.0), mul2f(mul2f(f2h2f(2.0), sub2f(__h22f2c(lM),__h22f2c(lmu))),mul2f(f2h2f(2.0), sub2f(__h22f2c(lM),__h22f2c(lmu)))));
-    float2 c3=div2f(f2h2f(1.0), mul2f(__h22f2c(lmu),__h22f2c(lmu)));
-    float2 c5=mul2f(f2h2f(0.25), c3);
+    float2 c1=1.0/( (2.0*__h22f2c(lM)-2.0*__h22f2c(lmu))*(2.0*__h22f2c(lM)-2.0*__h22f2c(lmu)) );
+    float2 c3=1.0/(__h22f2c(lmu)*__h22f2c(lmu));
+    float2 c5=0.25*c3;
     
+    lsxzr=lmuipkp * (vxr_z1+vzr_x1);
+    lsxxr=lM*(vxr_x2+vzr_z2) - 2.0 * lmu * vzr_z2;
+    lszzr=lM*(vxr_x2+vzr_z2) - 2.0 * lmu * vxr_x2;
     
-    lsxzr=mul2(lmuipkp,add2(vxr_z1,vzr_x1));
-    lsxxr=sub2(mul2(lM,add2(vxr_x2,vzr_z2)),mul2(mul2(f2h2(2.0),lmu),vzr_z2));
-    lszzr=sub2(mul2(lM,add2(vxr_x2,vzr_z2)),mul2(mul2(f2h2(2.0),lmu),vxr_x2));
+    float2 dM=c1*( __h22f2c(lsxx+lszz )*( lsxxr+lszzr ));
+    gradM[indp]=gradM[indp]-scalbnf2(dM, 2*par_scale-src_scale - res_scale);
+    gradmu[indp]=gradmu[indp] - scalbnf2(c3*__h22f2c(lsxz*lsxzr)+dM-c5*(__h22f2c((lsxx-lszz)*(lsxxr-lszzr))), 2*par_scale-src_scale - res_scale);
 
-    float2 dM=mul2f(c1,mul2f(__h22f2c(add2(lsxx,lszz)), __h22f2c(add2(lsxxr,lszzr)) ) );
-
-    gradM[indp]=sub2f(gradM[indp], scalbnf2(dM, 2*par_scale-src_scale - res_scale));
-    gradmu[indp]=add2f(gradmu[indp],
-                           scalbnf2(sub2f(sub2f( dM, mul2f(c3, mul2f(__h22f2c(lsxz),__h22f2c(lsxzr)))), mul2f(c5,mul2f( sub2f(__h22f2c(lsxx),__h22f2c(lszz)), sub2f(__h22f2c(lsxxr),__h22f2c(lszzr))))),
-                                2*par_scale-src_scale-res_scale));
     
         #if HOUT==1
-    float2 dMH=mul2f(c1,mul2f(__h22f2c(add2(lsxx,lszz)), __h22f2c(add2(lsxx,lszz) )) );
-    HM[indp]=add2f(HM[indp], scalbnf2(dMH, -2.0*src_scale));
-    Hmu[indp]=add2f(Hmu[indp],
-                        scalbnf2(add2f(sub2f( mul2f(c3, mul2f(__h22f2c(lsxz),__h22f2c(lsxz))), dMH ), mul2f(c5, mul2f( __h22f2c(sub2(lsxx,lszz)), __h22f2c(sub2(lsxx,lszz))))),
-                                 2*par_scale-2.0*src_scale));
+    float2 dMH=c1*( __h22f2c(lsxx+lszz )*( lsxx+lszz ));
+    HM[indp]=HM[indp] + scalbnf2(dMH, -2.0*src_scale);
+    Hmu[indp]=Hmu[indp] - scalbnf2(c3*__h22f2c(lsxz*lsxz)+dMH-c5*(__h22f2c((lsxx-lszz)*(lsxx-lszz))), 2*par_scale-src_scale - res_scale);
         #endif
     #endif
     
     #if RESTYPE==1
-    float2 dM=mul2f(__h22f2c(add2(lsxx,lszz)), __h22f2c(add2(lsxxr,lszzr)) );
+    float2 dM=__h22f2c(lsxx+lszz )*( lsxxr+lszzr );
     
-    gradM[indp]=sub2f(gradM[indp], scalbnf2(dM, -src_scale - res_scale));
+    gradM[indp]=gradM[indp]-scalbnf2(dM, -src_scale - res_scale);
     
     #if HOUT==1
-    float2 dMH=mul2f(__h22f2c(add2(lsxx,lszz)), __h22f2c(add2(lsxx,lszz)) );
-    HM[indp]=add2f(HM[indp], scalbnf2(dMH, -2.0*src_scale));
+    float2 dMH=__h22f2c(lsxx+lszz )*( lsxx+lszz );
+    HM[indp]=HM[indp] + scalbnf2(dMH, -2.0*src_scale);
 
     #endif
     #endif
