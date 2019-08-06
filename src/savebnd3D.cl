@@ -35,12 +35,12 @@
 #endif
 
 
-FUNDEF void savebnd(GLOBARG float *vx,         GLOBARG float *vy,      GLOBARG float *vz,
-                    GLOBARG float *sxx,        GLOBARG float *syy,     GLOBARG float *szz,
-                    GLOBARG float *sxy,        GLOBARG float *syz,     GLOBARG float *sxz,
-                    GLOBARG float *vxbnd,      GLOBARG float *vybnd,   GLOBARG float *vzbnd,
-                    GLOBARG float *sxxbnd,     GLOBARG float *syybnd,  GLOBARG float *szzbnd,
-                    GLOBARG float *sxybnd,     GLOBARG float *syzbnd,  GLOBARG float *sxzbnd)
+FUNDEF void savebnd(GLOBARG __prec2 *vx,         GLOBARG __prec2 *vy,      GLOBARG __prec2 *vz,
+                    GLOBARG __prec2 *sxx,        GLOBARG __prec2 *syy,     GLOBARG __prec2 *szz,
+                    GLOBARG __prec2 *sxy,        GLOBARG __prec2 *syz,     GLOBARG __prec2 *sxz,
+                    GLOBARG __prec2 *vxbnd,      GLOBARG __prec2 *vybnd,   GLOBARG __prec2 *vzbnd,
+                    GLOBARG __prec2 *sxxbnd,     GLOBARG __prec2 *syybnd,  GLOBARG __prec2 *szzbnd,
+                    GLOBARG __prec2 *sxybnd,     GLOBARG __prec2 *syzbnd,  GLOBARG __prec2 *sxzbnd)
 {
 
     int i,j,k,indv;
@@ -92,17 +92,17 @@ FUNDEF void savebnd(GLOBARG float *vx,         GLOBARG float *vy,      GLOBARG f
     }
     else if (gid<NYbnd*NZbnd*2*FDOH+NZbnd*(NXbnd-2*FDOH)*2*FDOH+(NYbnd-2*FDOH)*(NXbnd-2*FDOH)*FDOH/DIV){//down
         gidf=gid-NYbnd*NZbnd*2*FDOH-NZbnd*(NXbnd-2*FDOH)*2*FDOH;
-        i=gidf/(FDOH*(NYbnd-2*FDOH))+lbnd+FDOH;
-        j=(gidf/FDOH)%(NYbnd-2*FDOH)+lbnd+FDOH;
-        k=gidf%FDOH+NZbnd+lbnds/DIV-FDOH/DIV;
+        i=gidf/(FDOH/DIV*(NYbnd-2*FDOH))+lbnd+FDOH;
+        j=(gidf/(FDOH/DIV))%(NYbnd-2*FDOH)+lbnd+FDOH;
+        k=gidf%(FDOH/DIV)+NZbnd+lbnds/DIV-FDOH/DIV;
 
 
     }
     else if (gid<NYbnd*NZbnd*2*FDOH+NZbnd*(NXbnd-2*FDOH)*2*FDOH+(NYbnd-2*FDOH)*(NXbnd-2*FDOH)*2*FDOH/DIV){//up
         gidf=gid-NYbnd*NZbnd*2*FDOH-NZbnd*(NXbnd-2*FDOH)*2*FDOH-(NYbnd-2*FDOH)*(NXbnd-2*FDOH)*FDOH/DIV;
-        i=gidf/(FDOH*(NYbnd-2*FDOH))+lbnd+FDOH;
-        j=(gidf/FDOH)%(NYbnd-2*FDOH)+lbnd+FDOH;
-        k=gidf%FDOH+lbnds/DIV;
+        i=gidf/(FDOH/DIV*(NYbnd-2*FDOH))+lbnd+FDOH;
+        j=(gidf/(FDOH/DIV))%(NYbnd-2*FDOH)+lbnd+FDOH;
+        k=gidf%(FDOH/DIV)+lbnds/DIV;
     }
     else{
         return;

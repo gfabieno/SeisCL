@@ -622,6 +622,7 @@ int compile(const char *program_source,
                 fprintf(stdout,"Compilation of %s:\n",program_name);
                 fprintf(stdout,"%s",log);
                 free(log);
+//                fprintf(stdout,"%s",program_source);
             }
             
             if (state !=NVRTC_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));

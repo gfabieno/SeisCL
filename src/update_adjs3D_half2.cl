@@ -32,13 +32,15 @@ FUNDEF void update_adjs(int offcomm,
                         __prec2 *sxxr,__prec2 *sxyr,__prec2 *sxzr,
                         __prec2 *syyr,__prec2 *syzr,__prec2 *szzr,
                         __prec2 *vxr,__prec2 *vyr,__prec2 *vzr,
-                        float *taper)
-
+                        float *taper, float2 *gradM,     float2 *gradmu,
+                        float2 *HM,     float2 *Hmu,
+                        int res_scale, int src_scale, int par_scale)
 {
+
     //Local memory
     extern __shared__ __prec2 lvar2[];
     __prec * lvar=(__prec *)lvar2;
-    
+
     //Grid position
     int lsizez = blockDim.x+FDOH;
     int lsizey = blockDim.y+2*FDOH;
@@ -49,10 +51,10 @@ FUNDEF void update_adjs(int offcomm,
     int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/2;
     int gidy = blockIdx.y*blockDim.y+threadIdx.y+FDOH;
     int gidx = blockIdx.z*blockDim.z+threadIdx.z+FDOH+offcomm;
-    
+
     int indp = ((gidx)-FDOH)*(NZ-FDOH)*(NY-2*FDOH)+((gidy)-FDOH)*(NZ-FDOH)+((gidz)-FDOH/2);
     int indv = (gidx)*NZ*NY+(gidy)*NZ+(gidz);
-    
+
     //Define private derivatives
     __cprec vx_x2;
     __cprec vx_y1;
@@ -63,7 +65,7 @@ FUNDEF void update_adjs(int offcomm,
     __cprec vz_x1;
     __cprec vz_y1;
     __cprec vz_z2;
-    
+
     __cprec vxr_x2;
     __cprec vxr_y1;
     __cprec vxr_z1;
@@ -73,7 +75,7 @@ FUNDEF void update_adjs(int offcomm,
     __cprec vzr_x1;
     __cprec vzr_y1;
     __cprec vzr_z2;
-    
+
     //Local memory definitions if local is used
     #if LOCAL_OFF==0
         #define lvz lvar
@@ -82,14 +84,14 @@ FUNDEF void update_adjs(int offcomm,
         #define lvz2 lvar2
         #define lvy2 lvar2
         #define lvx2 lvar2
-    
+
         #define lvzr lvar
         #define lvyr lvar
         #define lvxr lvar
         #define lvzr2 lvar2
         #define lvyr2 lvar2
         #define lvxr2 lvar2
-    
+
         //Local memory definitions if local is not used
     #elif LOCAL_OFF==1
         #define lvz vz
@@ -98,7 +100,7 @@ FUNDEF void update_adjs(int offcomm,
         #define lidz gidz
         #define lidy gidy
         #define lidx gidx
-    
+
     #endif
 
 #if BACK_PROP_TYPE==1
@@ -206,14 +208,14 @@ FUNDEF void update_adjs(int offcomm,
     
     // Backpropagate the forward stresses
     #if BACK_PROP_TYPE==1
+    __cprec lsxx = __h22f2(sxx[indv]);
+    __cprec lsxy = __h22f2(sxy[indv]);
+    __cprec lsxz = __h22f2(sxz[indv]);
+    __cprec lsyy = __h22f2(syy[indv]);
+    __cprec lsyz = __h22f2(syz[indv]);
+    __cprec lszz = __h22f2(szz[indv]);
     {
-        __cprec lsxx = __h22f2(sxx[indv]);
-        __cprec lsxy = __h22f2(sxy[indv]);
-        __cprec lsxz = __h22f2(sxz[indv]);
-        __cprec lsyy = __h22f2(syy[indv]);
-        __cprec lsyz = __h22f2(syz[indv]);
-        __cprec lszz = __h22f2(szz[indv]);
-        
+
         lsxy=sub2(lsxy,mul2(lmuipjp,add2(vx_y1,vy_x1)));
         lsyz=sub2(lsyz,mul2(lmujpkp,add2(vy_z1,vz_y1)));
         lsxz=sub2(lsxz,mul2(lmuipkp,add2(vx_z1,vz_x1)));
@@ -230,6 +232,7 @@ FUNDEF void update_adjs(int offcomm,
             lsxz= __h22f2(sxzbnd[m]);
             lsyz= __h22f2(syzbnd[m]);
         }
+
         //Write updated values to global memory
         sxx[indv] = __f22h2(lsxx);
         sxy[indv] = __f22h2(lsxy);
@@ -361,6 +364,13 @@ FUNDEF void update_adjs(int offcomm,
     
     //Shear wave modulus and P-wave modulus gradient calculation on the fly
     #if BACK_PROP_TYPE==1
+    lsxy=mul2(lmuipjp,add2(vxr_y1,vyr_x1));
+    lsyz=mul2(lmujpkp,add2(vyr_z1,vzr_y1));
+    lsxz=mul2(lmuipkp,add2(vxr_z1,vzr_x1));
+    lsxx=sub2(mul2(lM,add2(add2(vxr_x2,vyr_y2),vzr_z2)),mul2(mul2(f2h2(2.0),lmu),add2(vyr_y2,vzr_z2)));
+    lsyy=sub2(mul2(lM,add2(add2(vxr_x2,vyr_y2),vzr_z2)),mul2(mul2(f2h2(2.0),lmu),add2(vxr_x2,vzr_z2)));
+    lszz=sub2(mul2(lM,add2(add2(vxr_x2,vyr_y2),vzr_z2)),mul2(mul2(f2h2(2.0),lmu),add2(vxr_x2,vyr_y2)));
+    
     #if RESTYPE==0
     float2 c1=div2f(div2f(f2h2f(1.0),sub2f(mul2(f2h2f(3.0),__h22f2c(lM)),mul2f(f2h2f(4.0),__h22f2c(lmu)))),sub2f(mul2(f2h2f(3.0),__h22f2c(lM)),mul2f(f2h2f(4.0),__h22f2c(lmu))));
     float2 c3=div2f(div2f(f2h2f(1.0),__h22f2c(lmu)),__h22f2c(lmu));

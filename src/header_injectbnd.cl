@@ -30,7 +30,7 @@
         int NXbnd = (NX-2*FDOH-2*NAB);
         int NYbnd = (NY-2*FDOH-2*NAB);
     #if FREESURF==0
-        int NZbnd = (NZ- 2*FDOH- 2*NAB);
+        int NZbnd = (NZ- 2*FDOH/DIV- 2*NAB/DIV);
         int lbnd = FDOH+NAB;
         int lbnds = FDOH+NAB;
     #else
@@ -69,7 +69,7 @@
             j=j-FDOH;
             
         #if FREESURF==0
-            m=NYbnd*NZbnd*FDOH*2+(NXbnd-2*FDOH)*NZbnd*FDOH*2+(NXbnd-2*FDOH)*(NYbnd-2*FDOH)*FDOH/DIV+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
+            m=NYbnd*NZbnd*FDOH*2+(NXbnd-2*FDOH)*NZbnd*FDOH*2+(NXbnd-2*FDOH)*(NYbnd-2*FDOH)*FDOH/DIV+i*(NYbnd-2*FDOH)*FDOH/DIV+j*FDOH/DIV+k;
         #else
             m=-1;
         #endif
@@ -79,7 +79,7 @@
             i=i-FDOH;
             j=j-FDOH;
             k=k-NZbnd+FDOH/DIV;
-            m=NYbnd*NZbnd*FDOH*2+(NXbnd-2*FDOH)*NZbnd*FDOH*2+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
+            m=NYbnd*NZbnd*FDOH*2+(NXbnd-2*FDOH)*NZbnd*FDOH*2+i*(NYbnd-2*FDOH)*FDOH/DIV+j*FDOH/DIV+k;
         }
         
         
