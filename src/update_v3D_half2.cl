@@ -22,29 +22,30 @@
  arithmetics*/
 
 FUNDEF void update_v(int offcomm,
-                                    __pprec *rip, __pprec *rjp, __pprec *rkp,
-                                    __prec2 *sxx,__prec2 *sxy,__prec2 *sxz,
-                                    __prec2 *syy,__prec2 *syz,__prec2 *szz,
-                                    __prec2 *vx,__prec2 *vy,__prec2 *vz, float *taper
-                                    )
-
+                     GLOBARG __pprec *rip, GLOBARG __pprec *rjp,
+                     GLOBARG __pprec *rkp,
+                     GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxy,
+                     GLOBARG __prec2 *sxz, GLOBARG __prec2 *syy,
+                     GLOBARG __prec2 *syz, GLOBARG __prec2 *szz,
+                     GLOBARG __prec2 *vx,  GLOBARG __prec2 *vy,
+                     GLOBARG __prec2 *vz, float *taper)
 {
     //Local memory
     extern __shared__ __prec2 lvar2[];
     __prec * lvar=(__prec *)lvar2;
     
     //Grid position
-    int lsizez = blockDim.x+FDOH;
+    int lsizez = blockDim.x+2*FDOH/DIV;
     int lsizey = blockDim.y+2*FDOH;
     int lsizex = blockDim.z+2*FDOH;
-    int lidz = threadIdx.x+FDOH/2;
+    int lidz = threadIdx.x+FDOH/DIV;
     int lidy = threadIdx.y+FDOH;
     int lidx = threadIdx.z+FDOH;
-    int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/2;
+    int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/DIV;
     int gidy = blockIdx.y*blockDim.y+threadIdx.y+FDOH;
     int gidx = blockIdx.z*blockDim.z+threadIdx.z+FDOH+offcomm;
     
-    int indp = ((gidx)-FDOH)*(NZ-FDOH)*(NY-2*FDOH)+((gidy)-FDOH)*(NZ-FDOH)+((gidz)-FDOH/2);
+    int indp = ((gidx)-FDOH)*(NZ-2*FDOH/DIV)*(NY-2*FDOH)+((gidy)-FDOH)*(NZ-2*FDOH/DIV)+((gidz)-FDOH/DIV);
     int indv = (gidx)*NZ*NY+(gidy)*NZ+(gidz);
     
     //Define private derivatives
@@ -147,101 +148,78 @@ FUNDEF void update_v(int offcomm,
         sxy_y2 = Dym(lsxy2);
   
     }
-    // To stop updating if we are outside the model (global id must be amultiple of local id in OpenCL, hence we stop if we have a global idoutside the grid)
-#if  LOCAL_OFF==0
-#if COMM12==0
-    if ( gidz>(NZ-FDOH/2-1) ||  gidy>(NY-FDOH-1) ||  (gidx-offcomm)>(NX-FDOH-1-LCOMM) )
+    // To stop updating if we are outside the model (global id must be amultiple
+    // of local id in OpenCL, hence we stop if we have a global idoutside the grid)
+    #if  LOCAL_OFF==0
+    #if COMM12==0
+    if ( gidz>(NZ-FDOH/DIV-1) ||  gidy>(NY-FDOH-1) ||  (gidx-offcomm)>(NX-FDOH-1-LCOMM) )
         return;
-#else
-    if ( gidz>(NZ-FDOH/2-1) ||  gidy>(NY-FDOH-1)  )
+    #else
+    if ( gidz>(NZ-FDOH/DIV-1) ||  gidy>(NY-FDOH-1)  )
         return;
-#endif
-#endif
+    #endif
+    #endif
     
     
     //Define and load private parameters and variables
     __cprec lvx = __h22f2(vx[indv]);
     __cprec lvy = __h22f2(vy[indv]);
     __cprec lvz = __h22f2(vz[indv]);
-    __cprec lrip = __pconv(rip[indp]);
-    __cprec lrjp = __pconv(rjp[indp]);
-    __cprec lrkp = __pconv(rkp[indp]);
     
     // Update the variables
-    lvx=add2(lvx,mul2(add2(add2(sxx_x1,sxy_y2),sxz_z2),lrip));
-    lvy=add2(lvy,mul2(add2(add2(syy_y1,sxy_x2),syz_z2),lrjp));
-    lvz=add2(lvz,mul2(add2(add2(szz_z1,sxz_x2),syz_y2),lrkp));
-    
+    lvx = lvx + (sxx_x1 + sxy_y2 + sxz_z2) * __pconv(rip[indp]);
+    lvy = lvy + (syy_y1 + sxy_x2 + syz_z2) * __pconv(rjp[indp]);
+    lvz = lvz + (szz_z1 + sxz_x2 + syz_y2) * __pconv(rkp[indp]);
     
     // Absorbing boundary
-#if ABS_TYPE==2
-    {
-#if FREESURF==0
-        if (2*gidz-FDOH<NAB){
-            lvx.x*=taper[2*gidz-FDOH];
-            lvx.y*=taper[2*gidz-FDOH+1];
-            lvy.x*=taper[2*gidz-FDOH];
-            lvy.y*=taper[2*gidz-FDOH+1];
-            lvz.x*=taper[2*gidz-FDOH];
-            lvz.y*=taper[2*gidz-FDOH+1];
+    #if ABS_TYPE==2
+        {
+        #if FREESURF==0
+        if (DIV*gidz-FDOH<NAB){
+            lvx = lvx * __hp(&taper[DIV*gidz-FDOH]);
+            lvy = lvy * __hp(&taper[DIV*gidz-FDOH]);
+            lvz = lvz * __hp(&taper[DIV*gidz-FDOH]);
         }
-#endif
+        #endif
 
-        if (2*gidz>2*NZ-NAB-FDOH-1){
-            lvx.x*=taper[2*NZ-FDOH-2*gidz-1];
-            lvx.y*=taper[2*NZ-FDOH-2*gidz-2];
-            lvy.x*=taper[2*NZ-FDOH-2*gidz-1];
-            lvy.y*=taper[2*NZ-FDOH-2*gidz-2];
-            lvz.x*=taper[2*NZ-FDOH-2*gidz-1];
-            lvz.y*=taper[2*NZ-FDOH-2*gidz-2];
+        if (DIV*gidz>DIV*NZ-NAB-FDOH-1){
+            lvx = lvx * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+            lvy = lvy * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+            lvz = lvz * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
         }
-
         if (gidy-FDOH<NAB){
-            lvx.x*=taper[gidy-FDOH];
-            lvx.y*=taper[gidy-FDOH];
-            lvy.x*=taper[gidy-FDOH];
-            lvy.y*=taper[gidy-FDOH];
-            lvz.x*=taper[gidy-FDOH];
-            lvz.y*=taper[gidy-FDOH];
+            lvx = lvx * taper[gidy-FDOH];
+            lvy = lvy * taper[gidy-FDOH];
+            lvz = lvz * taper[gidy-FDOH];
         }
 
         if (gidy>NY-NAB-FDOH-1){
-            lvx.x*=taper[NY-FDOH-gidy-1];
-            lvx.y*=taper[NY-FDOH-gidy-1];
-            lvy.x*=taper[NY-FDOH-gidy-1];
-            lvy.y*=taper[NY-FDOH-gidy-1];
-            lvz.x*=taper[NY-FDOH-gidy-1];
-            lvz.y*=taper[NY-FDOH-gidy-1];
+            lvx = lvx * taper[NY-FDOH-gidy-1];
+            lvy = lvy * taper[NY-FDOH-gidy-1];
+            lvz = lvz * taper[NY-FDOH-gidy-1];
         }
-#if DEVID==0 & MYLOCALID==0
+        #if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
-            lvx.x*=taper[gidx-FDOH];
-            lvx.y*=taper[gidx-FDOH];
-            lvy.x*=taper[gidx-FDOH];
-            lvy.y*=taper[gidx-FDOH];
-            lvz.x*=taper[gidx-FDOH];
-            lvz.y*=taper[gidx-FDOH];
+            lvx = lvx * taper[gidx-FDOH];
+            lvy = lvy * taper[gidx-FDOH];
+            lvz = lvz * taper[gidx-FDOH];
         }
-#endif
+        #endif
 
-#if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+        #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-NAB-FDOH-1){
-            lvx.x*=taper[NX-FDOH-gidx-1];
-            lvx.y*=taper[NX-FDOH-gidx-1];
-            lvy.x*=taper[NX-FDOH-gidx-1];
-            lvy.y*=taper[NX-FDOH-gidx-1];
-            lvz.x*=taper[NX-FDOH-gidx-1];
-            lvz.y*=taper[NX-FDOH-gidx-1];
+            lvx = lvx * taper[NX-FDOH-gidx-1];
+            lvy = lvy * taper[NX-FDOH-gidx-1];
+            lvz = lvz * taper[NX-FDOH-gidx-1];
         }
-#endif
-    }
-#endif
+        #endif
+        }
+    #endif
 
     //Write updated values to global memory
     vx[indv] = __f22h2(lvx);
     vy[indv] = __f22h2(lvy);
     vz[indv] = __f22h2(lvz);
-
 }
 
 

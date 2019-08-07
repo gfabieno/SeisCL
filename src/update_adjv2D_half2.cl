@@ -220,9 +220,9 @@ FUNDEF void update_adjv(int offcomm,
     lvxr=(sxxr_x1+sxzr_z2)*lrip;
     lvzr=(szzr_z1+sxzr_x2)*lrkp;
 
-    gradrho[indp]=gradrho[indp] - scalbnf2( __h22f2c(lvx) * __h22f2c(lvxr) +  __h22f2c(lvz) * __h22f2c(lvzr), 2*par_scale -src_scale - res_scale);
+    gradrho[indp]=gradrho[indp] - scalefun( __h22f2c(lvx) * __h22f2c(lvxr) +  __h22f2c(lvz) * __h22f2c(lvzr), 2*par_scale -src_scale - res_scale);
     #if HOUT==1
-        Hrho[indp]= Hrho[indp] - scalbnf2( __h22f2c(lvx) * __h22f2c(lvx) +  __h22f2c(lvz) * __h22f2c(lvz), 2*par_scale -src_scale - res_scale);
+        Hrho[indp]= Hrho[indp] - scalefun( __h22f2c(lvx) * __h22f2c(lvx) +  __h22f2c(lvz) * __h22f2c(lvz), 2*par_scale -src_scale - res_scale);
     #endif
 
 #endif

@@ -15,46 +15,20 @@
  */
 
 
-#if FP16==0
-    #define DIV 1
-#else
-    #define DIV 2
-#endif
-
-#if ND==3
-    #if LOCAL_OFF==0
-        #define ind1(z,y,x)   (x)*DIV*lsizey*lsizez+(y)*DIV*lsizez+(z)
-        #define ind2(z,y,x)   (x)*lsizey*lsizez+(y)*lsizez+(z)
-        #define indg(z,y,x)   (x)*NY*(NZ)+(y)*(NZ)+(z)
-    #else
-        #define lidx gidx
-        #define lidy gidy
-        #define lidz gidz
-        #define ind1(z,y,x)   (x)*DIV*(NY)*(NZ)+(y)*DIV*(NZ)+(z)
-        #define ind2(z,y,x)   (x)*(NY)*(NZ)+(y)*(NZ)+(z)
-    #endif
-#else
-    #define lidy 0
-    #define gidy 0
-    #if LOCAL_OFF==0
-        #define ind1(z,y,x)  (x)*DIV*lsizez+(z)
-        #define ind2(z,y,x)  (x)*lsizez+(z)
-        #define indg(z,y,x)  (x)*NZ+(z)
-    #else
-        #define lidx gidx
-        #define lidz gidz
-        #define ind1(z,y,x)   (x)*DIV*(NZ)+(z)
-        #define ind2(z,y,x)   (x)*(NZ)+(z)
-    #endif
-#endif
-
-
-
 /*Define functions and macros to be able to change operations types only with
  preprossor directives, that is with different values of FP16. Those functions
  are basic arithmetic operations and conversion between half2 and float2.*/
 
-// precision of variables (__prec) and parameters (__pprec)
+// DIV allow to change from vector (type2) type to scalar type
+#if FP16==0
+    #define DIV 1
+    #define __gprec float
+#else
+    #define DIV 2
+    #define __gprec float2
+#endif
+
+// precision of variables (__prec) and parameters (__pprec) in global memory
 #if FP16==0
     #define __prec float
     #define __prec2 float
@@ -71,12 +45,10 @@
 
 // conversion functions from reading/writing and computations
 #if FP16==2
-    #define __h2f(x) __half2float((x))
     #define __h22f2(x) __half22float2((x))
     #define __f22h2(x) __float22half2_rn((x))
     #define __pconv(x) __half22float2((x))
 #else
-    #define __h2f(x) (x)
     #define __h22f2(x) (x)
     #define __f22h2(x) (x)
     #define __pconv(x) (x)
@@ -94,65 +66,27 @@
 #if FP16==3
     #define __f22h2c(x) __float22half2_rn((x))
     #define __h22f2c(x) __half22float2((x))
-    #define add2 __hadd2
-    #define mul2 __hmul2
-    #define div2 __h2div
-    #define sub2 __hsub2
-    #define f2h2 __float2half2_rn
 #else
     #define __f22h2c(x) (x)
     #define __h22f2c(x) (x)
-    #define add2 add2f
-    #define mul2 mul2f
-    #define div2 div2f
-    #define sub2 sub2f
-    #define f2h2 f2h2f
 #endif
 
-// functions implementation for float2 operations
-extern "C" __device__ float2 add2f(float2 a, float2 b ){
-    
-    float2 output;
-    output.x = a.x+b.x;
-    output.y = a.y+b.y;
-    return output;
+// functions to scale parameters
+#if FP16==0
+__device__ __inline__ float scalefun(float a, int scaler ){
+    return scalbnf(a, scaler)
 }
-extern "C" __device__ float2 mul2f(float2 a, float2 b ){
-    
-    float2 output;
-    output.x = a.x*b.x;
-    output.y = a.y*b.y;
-    return output;
-}
-extern "C" __device__ float2 div2f(float2 a, float2 b ){
-    
-    float2 output;
-    output.x = a.x/b.x;
-    output.y = a.y/b.y;
-    return output;
-}
-extern "C" __device__ float2 sub2f(float2 a, float2 b ){
-    
-    float2 output;
-    output.x = a.x-b.x;
-    output.y = a.y-b.y;
-    return output;
-}
-extern "C" __device__ float2 f2h2f(float a){
-    
-    float2 output={a,a};
-    return output;
-}
-
-extern "C" __device__ float2 scalbnf2(float2 a, int scaler ){
+#else
+__device__ __inline__ float2 scalefun(float2 a, int scaler ){
     
     float2 output;
     output.x  = scalbnf(a.x, scaler);
     output.y  = scalbnf(a.y, scaler);
     return output;
 }
+#endif
 
-
+// functions to handle FD stencils on length 2 vectors
 #if FP16==0
 __device__ __inline__ float __hp(float *a ){
     return *a;
@@ -179,7 +113,7 @@ __device__ __prec2 __hpi(__prec *a ){
 
 
 
-//____________________________________________//
+//Operators definition for float2 and half2 operations//
 __device__ __inline__ float2 operator-(const float2 a) {
 
     float2 output;
@@ -224,8 +158,6 @@ __device__ __inline__ float2 operator/(const float2 a, const float2 b) {
     return output;
 
 };
-
-
 
 __device__ __inline__ float2 operator+(const float a, const float2 b) {
 
@@ -406,7 +338,35 @@ __device__ __inline__ float2 operator/(const half2 b, const float2 a) {
 
 
 
-//_______________________________________________//
+//Indices for FD stencils//
+
+#if ND==3
+    #if LOCAL_OFF==0
+        #define ind1(z,y,x)   (x)*DIV*lsizey*lsizez+(y)*DIV*lsizez+(z)
+        #define ind2(z,y,x)   (x)*lsizey*lsizez+(y)*lsizez+(z)
+        #define indg(z,y,x)   (x)*NY*(NZ)+(y)*(NZ)+(z)
+    #else
+        #define lidx gidx
+        #define lidy gidy
+        #define lidz gidz
+        #define ind1(z,y,x)   (x)*DIV*(NY)*(NZ)+(y)*DIV*(NZ)+(z)
+        #define ind2(z,y,x)   (x)*(NY)*(NZ)+(y)*(NZ)+(z)
+    #endif
+#else
+    #define lidy 0
+    #define gidy 0
+    #if LOCAL_OFF==0
+        #define ind1(z,y,x)  (x)*DIV*lsizez+(z)
+        #define ind2(z,y,x)  (x)*lsizez+(z)
+        #define indg(z,y,x)  (x)*NZ+(z)
+    #else
+        #define lidx gidx
+        #define lidz gidz
+        #define ind1(z,y,x)   (x)*DIV*(NZ)+(z)
+        #define ind2(z,y,x)   (x)*(NZ)+(z)
+    #endif
+#endif
+
 
 //Load in local memory with the halo for FD in different directions
 #define load_local_in(v) lvar2[ind2(lidz,lidy,lidx)]=v[indg(gidz,gidy,gidx)]
