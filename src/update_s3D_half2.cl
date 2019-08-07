@@ -264,12 +264,12 @@ FUNDEF void update_s(int offcomm,
             b=1.0f/(1.0f+(leta[l]*0.5f));
             c=1.0f-(leta[l]*0.5f);
             indr = l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz;
-            rxy[indr]=b*(rxy[indr]*c-leta[l]*(dipjp*(vx_y1+vy_x1)));
-            ryz[indr]=b*(ryz[indr]*c-leta[l]*(djpkp*(vy_z1+vz_y1)));
-            rxz[indr]=b*(rxz[indr]*c-leta[l]*(dipkp*(vx_z1+vz_x1)));
-            rxx[indr]=b*(rxx[indr]*c-leta[l]*((e*(vx_x2+vy_y2+vz_z2))-(d*(vy_y2+vz_z2))));
-            ryy[indr]=b*(ryy[indr]*c-leta[l]*((e*(vx_x2+vy_y2+vz_z2))-(d*(vx_x2+vz_z2))));
-            rzz[indr]=b*(rzz[indr]*c-leta[l]*((e*(vx_x2+vy_y2+vz_z2))-(d*(vx_x2+vy_y2))));
+            rxy[indr]=__f22h2(b*(rxy[indr]*c-leta[l]*(dipjp*(vx_y1+vy_x1))));
+            ryz[indr]=__f22h2(b*(ryz[indr]*c-leta[l]*(djpkp*(vy_z1+vz_y1))));
+            rxz[indr]=__f22h2(b*(rxz[indr]*c-leta[l]*(dipkp*(vx_z1+vz_x1))));
+            rxx[indr]=__f22h2(b*(rxx[indr]*c-leta[l]*((e*(vx_x2+vy_y2+vz_z2))-(d*(vy_y2+vz_z2)))));
+            ryy[indr]=__f22h2(b*(ryy[indr]*c-leta[l]*((e*(vx_x2+vy_y2+vz_z2))-(d*(vx_x2+vz_z2)))));
+            rzz[indr]=__f22h2(b*(rzz[indr]*c-leta[l]*((e*(vx_x2+vy_y2+vz_z2))-(d*(vx_x2+vy_y2)))));
 
             sumrxy= sumrxy + rxy[indr];
             sumryz= sumryz + ryz[indr];

@@ -203,9 +203,9 @@ FUNDEF void update_s(int offcomm,
             b=1.0f/(1.0f+(leta[l]*0.5f));
             c=1.0f-(leta[l]*0.5f);
             indr = l*NX*NZ + gidx*NZ+gidz;
-            rxz[indr]=b*(rxz[indr]*c-leta[l]*(dipkp*(vx_z1+vz_x1)));
-            rxx[indr]=b*(rxx[indr]*c-leta[l]*((e*(vx_x2+vz_z2))-(d*vz_z2)));
-            rzz[indr]=b*(rzz[indr]*c-leta[l]*((e*(vx_x2+vz_z2))-(d*vx_x2)));
+            rxz[indr]=__f22h2(b*(rxz[indr]*c-leta[l]*(dipkp*(vx_z1+vz_x1))));
+            rxx[indr]=__f22h2(b*(rxx[indr]*c-leta[l]*((e*(vx_x2+vz_z2))-(d*vz_z2))));
+            rzz[indr]=__f22h2(b*(rzz[indr]*c-leta[l]*((e*(vx_x2+vz_z2))-(d*vx_x2))));
 
             sumrxz=sumrxz + rxz[indr];
             sumrxx=sumrxx + rxx[indr];
