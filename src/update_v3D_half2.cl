@@ -28,22 +28,65 @@ FUNDEF void update_v(int offcomm,
                      GLOBARG __prec2 *sxz, GLOBARG __prec2 *syy,
                      GLOBARG __prec2 *syz, GLOBARG __prec2 *szz,
                      GLOBARG __prec2 *vx,  GLOBARG __prec2 *vy,
-                     GLOBARG __prec2 *vz, float *taper)
+                     GLOBARG __prec2 *vz, GLOBARG float *taper,
+                     LOCARG2)
 {
     //Local memory
-    extern __shared__ __prec2 lvar2[];
+    LOCDEF2
+    #ifdef __OPENCL_VERSION__
+    __local __prec * lvar=lvar2;
+    #else
     __prec * lvar=(__prec *)lvar2;
+    #endif
     
     //Grid position
-    int lsizez = blockDim.x+2*FDOH/DIV;
-    int lsizey = blockDim.y+2*FDOH;
-    int lsizex = blockDim.z+2*FDOH;
-    int lidz = threadIdx.x+FDOH/DIV;
-    int lidy = threadIdx.y+FDOH;
-    int lidx = threadIdx.z+FDOH;
-    int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/DIV;
-    int gidy = blockIdx.y*blockDim.y+threadIdx.y+FDOH;
-    int gidx = blockIdx.z*blockDim.z+threadIdx.z+FDOH+offcomm;
+    #if LOCAL_OFF==0
+
+        #ifdef __OPENCL_VERSION__
+            int lsizez = get_local_size(0)+2*FDOH/DIV;
+            int lsizey = get_local_size(1)+2*FDOH;
+            int lsizex = get_local_size(2)+2*FDOH;
+            int lidz = get_local_id(0)+FDOH/DIV;
+            int lidy = get_local_id(1)+FDOH;
+            int lidx = get_local_id(2)+FDOH;
+            int gidz = get_global_id(0)+FDOH/DIV;
+            int gidy = get_global_id(1)+FDOH;
+            int gidx = get_global_id(2)+FDOH+offcomm;
+        #else
+            int lsizez = blockDim.x+2*FDOH/DIV;
+            int lsizey = blockDim.y+2*FDOH;
+            int lsizex = blockDim.z+2*FDOH;
+            int lidz = threadIdx.x+FDOH/DIV;
+            int lidy = threadIdx.y+FDOH;
+            int lidx = threadIdx.z+FDOH;
+            int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/DIV;
+            int gidy = blockIdx.y*blockDim.y+threadIdx.y+FDOH;
+            int gidx = blockIdx.z*blockDim.z+threadIdx.z+FDOH+offcomm;
+        #endif
+    
+    // If local memory is turned off
+    #elif LOCAL_OFF==1
+    
+        #ifdef __OPENCL_VERSION__
+            int gid = get_global_id(0);
+            int glsizez = (NZ-2*FDOH/DIV);
+            int glsizey = (NY-2*FDOH);
+            int gidz = gid%glsizez+FDOH/DIV;
+            int gidy = (gid/glsizez)%glsizey+FDOH;
+            int gidx = gid/(glsizez*glsizey)+FDOH+offcomm;
+        #else
+            int lsizez = blockDim.x+2*FDOH/DIV;
+            int lsizey = blockDim.y+2*FDOH;
+            int lsizex = blockDim.z+2*FDOH;
+            int lidz = threadIdx.x+FDOH/DIV;
+            int lidy = threadIdx.y+FDOH;
+            int lidx = threadIdx.z+FDOH;
+            int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/DIV;
+            int gidy = blockIdx.y*blockDim.y+threadIdx.y+FDOH;
+            int gidx = blockIdx.z*blockDim.z+threadIdx.z+FDOH+offcomm;
+        #endif
+    
+    #endif
     
     int indp = ((gidx)-FDOH)*(NZ-2*FDOH/DIV)*(NY-2*FDOH)+((gidy)-FDOH)*(NZ-2*FDOH/DIV)+((gidz)-FDOH/DIV);
     int indv = (gidx)*NZ*NY+(gidy)*NZ+(gidz);
@@ -176,16 +219,16 @@ FUNDEF void update_v(int offcomm,
         {
         #if FREESURF==0
         if (DIV*gidz-FDOH<NAB){
-            lvx = lvx * __hp(&taper[DIV*gidz-FDOH]);
-            lvy = lvy * __hp(&taper[DIV*gidz-FDOH]);
-            lvz = lvz * __hp(&taper[DIV*gidz-FDOH]);
+            lvx = lvx * __hpg(&taper[DIV*gidz-FDOH]);
+            lvy = lvy * __hpg(&taper[DIV*gidz-FDOH]);
+            lvz = lvz * __hpg(&taper[DIV*gidz-FDOH]);
         }
         #endif
 
         if (DIV*gidz>DIV*NZ-NAB-FDOH-1){
-            lvx = lvx * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
-            lvy = lvy * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
-            lvz = lvz * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+            lvx = lvx * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+            lvy = lvy * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+            lvz = lvz * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
         }
         if (gidy-FDOH<NAB){
             lvx = lvx * taper[gidy-FDOH];

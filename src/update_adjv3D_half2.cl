@@ -38,22 +38,65 @@ FUNDEF void update_adjv(int offcomm,
                         GLOBARG __prec2 *vzr,
                         GLOBARG float *taper,
                         GLOBARG __gprec *gradrho, GLOBARG __gprec *Hrho,
-                        int res_scale, int src_scale, int par_scale)
+                        int res_scale, int src_scale, int par_scale,
+                        LOCARG2)
 {
     //Local memory
-    extern __shared__ __prec2 lvar2[];
+    LOCDEF2
+    #ifdef __OPENCL_VERSION__
+    __local __prec * lvar=lvar2;
+    #else
     __prec * lvar=(__prec *)lvar2;
-
+    #endif
+    
     //Grid position
-    int lsizez = blockDim.x+2*FDOH/DIV;
-    int lsizey = blockDim.y+2*FDOH;
-    int lsizex = blockDim.z+2*FDOH;
-    int lidz = threadIdx.x+FDOH/DIV;
-    int lidy = threadIdx.y+FDOH;
-    int lidx = threadIdx.z+FDOH;
-    int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/DIV;
-    int gidy = blockIdx.y*blockDim.y+threadIdx.y+FDOH;
-    int gidx = blockIdx.z*blockDim.z+threadIdx.z+FDOH+offcomm;
+    #if LOCAL_OFF==0
+
+        #ifdef __OPENCL_VERSION__
+            int lsizez = get_local_size(0)+2*FDOH/DIV;
+            int lsizey = get_local_size(1)+2*FDOH;
+            int lsizex = get_local_size(2)+2*FDOH;
+            int lidz = get_local_id(0)+FDOH/DIV;
+            int lidy = get_local_id(1)+FDOH;
+            int lidx = get_local_id(2)+FDOH;
+            int gidz = get_global_id(0)+FDOH/DIV;
+            int gidy = get_global_id(1)+FDOH;
+            int gidx = get_global_id(2)+FDOH+offcomm;
+        #else
+            int lsizez = blockDim.x+2*FDOH/DIV;
+            int lsizey = blockDim.y+2*FDOH;
+            int lsizex = blockDim.z+2*FDOH;
+            int lidz = threadIdx.x+FDOH/DIV;
+            int lidy = threadIdx.y+FDOH;
+            int lidx = threadIdx.z+FDOH;
+            int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/DIV;
+            int gidy = blockIdx.y*blockDim.y+threadIdx.y+FDOH;
+            int gidx = blockIdx.z*blockDim.z+threadIdx.z+FDOH+offcomm;
+        #endif
+    
+    // If local memory is turned off
+    #elif LOCAL_OFF==1
+    
+        #ifdef __OPENCL_VERSION__
+            int gid = get_global_id(0);
+            int glsizez = (NZ-2*FDOH/DIV);
+            int glsizey = (NY-2*FDOH);
+            int gidz = gid%glsizez+FDOH/DIV;
+            int gidy = (gid/glsizez)%glsizey+FDOH;
+            int gidx = gid/(glsizez*glsizey)+FDOH+offcomm;
+        #else
+            int lsizez = blockDim.x+2*FDOH/DIV;
+            int lsizey = blockDim.y+2*FDOH;
+            int lsizex = blockDim.z+2*FDOH;
+            int lidz = threadIdx.x+FDOH/DIV;
+            int lidy = threadIdx.y+FDOH;
+            int lidx = threadIdx.z+FDOH;
+            int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/DIV;
+            int gidy = blockIdx.y*blockDim.y+threadIdx.y+FDOH;
+            int gidx = blockIdx.z*blockDim.z+threadIdx.z+FDOH+offcomm;
+        #endif
+    
+    #endif
     
     int indp = ((gidx)-FDOH)*(NZ-2*FDOH/DIV)*(NY-2*FDOH)+((gidy)-FDOH)*(NZ-2*FDOH/DIV)+((gidz)-FDOH/DIV);
     int indv = (gidx)*NZ*NY+(gidy)*NZ+(gidz);
@@ -314,16 +357,16 @@ FUNDEF void update_adjv(int offcomm,
         {
         #if FREESURF==0
         if (DIV*gidz-FDOH<NAB){
-            lvxr = lvxr * __hp(&taper[DIV*gidz-FDOH]);
-            lvyr = lvyr * __hp(&taper[DIV*gidz-FDOH]);
-            lvzr = lvzr * __hp(&taper[DIV*gidz-FDOH]);
+            lvxr = lvxr * __hpg(&taper[DIV*gidz-FDOH]);
+            lvyr = lvyr * __hpg(&taper[DIV*gidz-FDOH]);
+            lvzr = lvzr * __hpg(&taper[DIV*gidz-FDOH]);
         }
         #endif
 
         if (DIV*gidz>DIV*NZ-NAB-FDOH-1){
-            lvxr = lvxr * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
-            lvyr = lvyr * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
-            lvzr = lvzr * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+            lvxr = lvxr * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+            lvyr = lvyr * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+            lvzr = lvzr * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
         }
         if (gidy-FDOH<NAB){
             lvxr = lvxr * taper[gidy-FDOH];

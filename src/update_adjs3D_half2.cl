@@ -41,23 +41,66 @@ FUNDEF void update_adjs(int offcomm,
                         GLOBARG float *taper,
                         GLOBARG __gprec *gradM,  GLOBARG __gprec *gradmu,
                         GLOBARG __gprec *HM,     GLOBARG __gprec *Hmu,
-                        int res_scale, int src_scale, int par_scale)
+                        int res_scale, int src_scale, int par_scale,
+                        LOCARG2)
 {
 
     //Local memory
-    extern __shared__ __prec2 lvar2[];
+    LOCDEF2
+    #ifdef __OPENCL_VERSION__
+    __local __prec * lvar=lvar2;
+    #else
     __prec * lvar=(__prec *)lvar2;
-
+    #endif
+    
     //Grid position
-    int lsizez = blockDim.x+2*FDOH/DIV;
-    int lsizey = blockDim.y+2*FDOH;
-    int lsizex = blockDim.z+2*FDOH;
-    int lidz = threadIdx.x+FDOH/DIV;
-    int lidy = threadIdx.y+FDOH;
-    int lidx = threadIdx.z+FDOH;
-    int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/DIV;
-    int gidy = blockIdx.y*blockDim.y+threadIdx.y+FDOH;
-    int gidx = blockIdx.z*blockDim.z+threadIdx.z+FDOH+offcomm;
+    #if LOCAL_OFF==0
+
+        #ifdef __OPENCL_VERSION__
+            int lsizez = get_local_size(0)+2*FDOH/DIV;
+            int lsizey = get_local_size(1)+2*FDOH;
+            int lsizex = get_local_size(2)+2*FDOH;
+            int lidz = get_local_id(0)+FDOH/DIV;
+            int lidy = get_local_id(1)+FDOH;
+            int lidx = get_local_id(2)+FDOH;
+            int gidz = get_global_id(0)+FDOH/DIV;
+            int gidy = get_global_id(1)+FDOH;
+            int gidx = get_global_id(2)+FDOH+offcomm;
+        #else
+            int lsizez = blockDim.x+2*FDOH/DIV;
+            int lsizey = blockDim.y+2*FDOH;
+            int lsizex = blockDim.z+2*FDOH;
+            int lidz = threadIdx.x+FDOH/DIV;
+            int lidy = threadIdx.y+FDOH;
+            int lidx = threadIdx.z+FDOH;
+            int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/DIV;
+            int gidy = blockIdx.y*blockDim.y+threadIdx.y+FDOH;
+            int gidx = blockIdx.z*blockDim.z+threadIdx.z+FDOH+offcomm;
+        #endif
+    
+    // If local memory is turned off
+    #elif LOCAL_OFF==1
+    
+        #ifdef __OPENCL_VERSION__
+            int gid = get_global_id(0);
+            int glsizez = (NZ-2*FDOH/DIV);
+            int glsizey = (NY-2*FDOH);
+            int gidz = gid%glsizez+FDOH/DIV;
+            int gidy = (gid/glsizez)%glsizey+FDOH;
+            int gidx = gid/(glsizez*glsizey)+FDOH+offcomm;
+        #else
+            int lsizez = blockDim.x+2*FDOH/DIV;
+            int lsizey = blockDim.y+2*FDOH;
+            int lsizex = blockDim.z+2*FDOH;
+            int lidz = threadIdx.x+FDOH/DIV;
+            int lidy = threadIdx.y+FDOH;
+            int lidx = threadIdx.z+FDOH;
+            int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/DIV;
+            int gidy = blockIdx.y*blockDim.y+threadIdx.y+FDOH;
+            int gidx = blockIdx.z*blockDim.z+threadIdx.z+FDOH+offcomm;
+        #endif
+    
+    #endif
     
     int indp = ((gidx)-FDOH)*(NZ-2*FDOH/DIV)*(NY-2*FDOH)+((gidy)-FDOH)*(NZ-2*FDOH/DIV)+((gidz)-FDOH/DIV);
     int indv = (gidx)*NZ*NY+(gidy)*NZ+(gidz);
@@ -110,47 +153,47 @@ FUNDEF void update_adjs(int offcomm,
 
     #endif
 
-#if BACK_PROP_TYPE==1
+    #if BACK_PROP_TYPE==1
     //Calculation of the spatial derivatives
     {
-    #if LOCAL_OFF==0
-        load_local_in(vz);
-        load_local_haloz(vz);
-        load_local_haloy(vz);
-        load_local_halox(vz);
-        BARRIER
-    #endif
-    vz_x1 = Dxp(lvz2);
-    vz_y1 = Dyp(lvz2);
-    vz_z2 = Dzm(lvz);
+        #if LOCAL_OFF==0
+            load_local_in(vz);
+            load_local_haloz(vz);
+            load_local_haloy(vz);
+            load_local_halox(vz);
+            BARRIER
+        #endif
+        vz_x1 = Dxp(lvz2);
+        vz_y1 = Dyp(lvz2);
+        vz_z2 = Dzm(lvz);
         
-    #if LOCAL_OFF==0
-        BARRIER
-        load_local_in(vy);
-        load_local_haloz(vy);
-        load_local_haloy(vy);
-        load_local_halox(vy);
-        BARRIER
-    #endif
-    vy_x1 = Dxp(lvy2);
-    vy_y2 = Dym(lvy2);
-    vy_z1 = Dzp(lvy);
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(vy);
+            load_local_haloz(vy);
+            load_local_haloy(vy);
+            load_local_halox(vy);
+            BARRIER
+        #endif
+        vy_x1 = Dxp(lvy2);
+        vy_y2 = Dym(lvy2);
+        vy_z1 = Dzp(lvy);
         
-    #if LOCAL_OFF==0
-        BARRIER
-        load_local_in(vx);
-        load_local_haloz(vx);
-        load_local_haloy(vx);
-        load_local_halox(vx);
-        BARRIER
-    #endif
-    vx_x2 = Dxm(lvx2);
-    vx_y1 = Dyp(lvx2);
-    vx_z1 = Dzp(lvx);
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(vx);
+            load_local_haloz(vx);
+            load_local_haloy(vx);
+            load_local_halox(vx);
+            BARRIER
+        #endif
+        vx_x2 = Dxm(lvx2);
+        vx_y1 = Dyp(lvx2);
+        vx_z1 = Dzp(lvx);
 
-    BARRIER
-        }
-#endif
+        BARRIER
+            }
+    #endif
 
     //Calculation of the spatial derivatives
     {
@@ -227,9 +270,9 @@ FUNDEF void update_adjs(int offcomm,
         lsxy=lsxy - lmuipjp*(vx_y1+vy_x1);
         lsyz=lsyz - lmujpkp*(vy_z1+vz_y1);
         lsxz=lsxz - lmuipkp*(vx_z1+vz_x1);
-        lsxx=lsxx - lM*(vx_x2+vy_y2+vz_z2) + 2.0 * lmu*(vy_y2+vz_z2);
-        lsyy=lsyy - lM*(vx_x2+vy_y2+vz_z2) + 2.0 * lmu*(vx_x2+vz_z2);
-        lszz=lszz - lM*(vx_x2+vy_y2+vz_z2) + 2.0 * lmu*(vx_x2+vy_y2);
+        lsxx=lsxx - lM*(vx_x2+vy_y2+vz_z2) + 2.0f * lmu*(vy_y2+vz_z2);
+        lsyy=lsyy - lM*(vx_x2+vy_y2+vz_z2) + 2.0f * lmu*(vx_x2+vz_z2);
+        lszz=lszz - lM*(vx_x2+vy_y2+vz_z2) + 2.0f * lmu*(vx_x2+vy_y2);
         
         int m=inject_ind(gidz, gidy, gidx);
         if (m!=-1){
@@ -258,31 +301,31 @@ FUNDEF void update_adjs(int offcomm,
         lsxyr=lsxyr + lmuipjp*(vxr_y1+vyr_x1);
         lsyzr=lsyzr + lmujpkp*(vyr_z1+vzr_y1);
         lsxzr=lsxzr + lmuipkp*(vxr_z1+vzr_x1);
-        lsxxr=lsxxr + lM*(vxr_x2+vyr_y2+vzr_z2) - 2.0 * lmu*(vyr_y2+vzr_z2);
-        lsyyr=lsyyr + lM*(vxr_x2+vyr_y2+vzr_z2) - 2.0 * lmu*(vxr_x2+vzr_z2);
-        lszzr=lszzr + lM*(vxr_x2+vyr_y2+vzr_z2) - 2.0 * lmu*(vxr_x2+vyr_y2);
+        lsxxr=lsxxr + lM*(vxr_x2+vyr_y2+vzr_z2) - 2.0f * lmu*(vyr_y2+vzr_z2);
+        lsyyr=lsyyr + lM*(vxr_x2+vyr_y2+vzr_z2) - 2.0f * lmu*(vxr_x2+vzr_z2);
+        lszzr=lszzr + lM*(vxr_x2+vyr_y2+vzr_z2) - 2.0f * lmu*(vxr_x2+vyr_y2);
     
     // Absorbing boundary
     #if ABS_TYPE==2
         {
         #if FREESURF==0
         if (DIV*gidz-FDOH<NAB){
-            lsxyr = lsxyr * __hp(&taper[DIV*gidz-FDOH]);
-            lsyzr = lsyzr * __hp(&taper[DIV*gidz-FDOH]);
-            lsxzr = lsxzr * __hp(&taper[DIV*gidz-FDOH]);
-            lsxxr = lsxxr * __hp(&taper[DIV*gidz-FDOH]);
-            lszzr = lszzr * __hp(&taper[DIV*gidz-FDOH]);
-            lsxzr = lsxzr * __hp(&taper[DIV*gidz-FDOH]);
+            lsxyr = lsxyr * __hpg(&taper[DIV*gidz-FDOH]);
+            lsyzr = lsyzr * __hpg(&taper[DIV*gidz-FDOH]);
+            lsxzr = lsxzr * __hpg(&taper[DIV*gidz-FDOH]);
+            lsxxr = lsxxr * __hpg(&taper[DIV*gidz-FDOH]);
+            lszzr = lszzr * __hpg(&taper[DIV*gidz-FDOH]);
+            lsxzr = lsxzr * __hpg(&taper[DIV*gidz-FDOH]);
         }
         #endif
 
         if (DIV*gidz>DIV*NZ-NAB-FDOH-1){
-            lsxyr = lsxyr * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
-            lsyzr = lsyzr * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
-            lsxzr = lsxzr * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
-            lsxxr = lsxxr * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
-            lszzr = lszzr * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
-            lsxzr = lsxzr * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+            lsxyr = lsxyr * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+            lsyzr = lsyzr * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+            lsxzr = lsxzr * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+            lsxxr = lsxxr * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+            lszzr = lszzr * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+            lsxzr = lsxzr * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
         }
         if (gidy-FDOH<NAB){
             lsxyr = lsxyr * taper[gidy-FDOH];
@@ -340,46 +383,46 @@ FUNDEF void update_adjs(int offcomm,
     lsxyr=lmuipjp*(vxr_y1+vyr_x1);
     lsyzr=lmujpkp*(vyr_z1+vzr_y1);
     lsxzr=lmuipkp*(vxr_z1+vzr_x1);
-    lsxxr=lM*(vxr_x2+vyr_y2+vzr_z2) - 2.0 * lmu*(vyr_y2+vzr_z2);
-    lsyyr=lM*(vxr_x2+vyr_y2+vzr_z2) - 2.0 * lmu*(vxr_x2+vzr_z2);
-    lszzr=lM*(vxr_x2+vyr_y2+vzr_z2) - 2.0 * lmu*(vxr_x2+vyr_y2);
+    lsxxr=lM*(vxr_x2+vyr_y2+vzr_z2) - 2.0f * lmu*(vyr_y2+vzr_z2);
+    lsyyr=lM*(vxr_x2+vyr_y2+vzr_z2) - 2.0f * lmu*(vxr_x2+vzr_z2);
+    lszzr=lM*(vxr_x2+vyr_y2+vzr_z2) - 2.0f * lmu*(vxr_x2+vyr_y2);
 
     #if RESTYPE==0
-    __gprec c1=1.0/(3.0*lM-4.0*lmu)/(3.0*lM-4.0*lmu);
-    __gprec c3=1.0/lmu/lmu;
-    __gprec c5=1.0/6.0*c3;
+    __gprec c1=1.0f/(3.0f*lM-4.0f*lmu)/(3.0f*lM-4.0f*lmu);
+    __gprec c3=1.0f/lmu/lmu;
+    __gprec c5=1.0f/6.0f*c3;
     
-    __gprec dM=c1*__h22f2c(( lsxx+lsyy+lszz )*( lsxxr+lsyyr+lszzr ));
+    __gprec dM=c1*( lsxx+lsyy+lszz )*( lsxxr+lsyyr+lszzr );
     gradM[indp] = gradM[indp] - scalefun(dM, 2*par_scale-src_scale - res_scale);
     
     gradmu[indp]=gradmu[indp] \
                  + scalefun(-c3*(lsxz*lsxzr +lsxy*lsxyr +lsyz*lsyzr)
-                            + 4.0/3*dM
-                            -c5*(lsxxr*(2.0*lsxx-lsyy-lszz)
-                                +lsyyr*(2.0*lsyy-lsxx-lszz)
-                                +lszzr*(2.0*lszz-lsxx-lsyy)),
+                            + 4.0f/3.0f*dM
+                            -c5*(lsxxr*(2.0f*lsxx-lsyy-lszz)
+                                +lsyyr*(2.0f*lsyy-lsxx-lszz)
+                                +lszzr*(2.0f*lszz-lsxx-lsyy)),
                             2*par_scale-src_scale - res_scale);
 
     #if HOUT==1
-    dM=c1*__h22f2c(( lsxx+lsyy+lszz )*( lsxx+lsyy+lszz ));
+    dM=c1*( lsxx+lsyy+lszz )*( lsxx+lsyy+lszz );
     HM[indp] = HM[indp] + scalefun(dM, 2*par_scale-src_scale - res_scale);
 
     Hmu[indp]=Hmu[indp] + scalefun(-c3*(lsxz*lsxz +lsxy*lsxy +lsyz*lsyz)
-                                   + 4.0/3*dM
-                                   -c5*(lsxx*(2.0*lsxx-lsyy-lszz)
-                                        +lsyy*(2.0*lsyy-lsxx-lszz)
-                                        +lszz*(2.0*lszz-lsxx-lsyy)),
+                                   + 4.0f/3.0f*dM
+                                   -c5*(lsxx*(2.0f*lsxx-lsyy-lszz)
+                                        +lsyy*(2.0f*lsyy-lsxx-lszz)
+                                        +lszz*(2.0f*lszz-lsxx-lsyy)),
                                    2*par_scale-src_scale - res_scale);
     #endif
     #endif
 
     #if RESTYPE==1
-    __gprec dM=__h22f2c(( lsxx+lsyy+lszz )*( lsxxr+lsyyr+lszzr ));
+    __gprec dM=_( lsxx+lsyy+lszz )*( lsxxr+lsyyr+lszzr );
 
     gradM[indp] = gradM[indp] - scalefun(dM, 2*par_scale-src_scale - res_scale);
 
     #if HOUT==1
-    dM= __h22f2c(( lsxx+lsyy+lszz )*( lsxx+lsyy+lszz ));
+    dM= ( lsxx+lsyy+lszz )*( lsxx+lsyy+lszz );
     HM[indp] = HM[indp] - scalefun(dM, 2*par_scale-src_scale - res_scale);
     #endif
     #endif

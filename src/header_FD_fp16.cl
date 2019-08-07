@@ -126,14 +126,14 @@ LFUNDEF __prec2 __hpi(LOCID __prec *a ){
     *((__prec *)&output+1) = *(a-1);
     return output;
 }
-LFUNDEF __prec2 __hpg(GLOBARG __prec *a ){
+LFUNDEF __prec2 __hpg(GLOBARG float *a ){
     
     __prec2 output;
     *((__prec *)&output) = *a;
     *((__prec *)&output+1) = *(a+1);
     return output;
 }
-LFUNDEF __prec2 __hpgi(GLOBARG __prec *a ){
+LFUNDEF __prec2 __hpgi(GLOBARG float *a ){
     
     __prec2 output;
     *((__prec *)&output) = *a;

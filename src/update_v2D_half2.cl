@@ -35,7 +35,7 @@ FUNDEF void update_v(int offcomm,
     #else
     __prec * lvar=(__prec *)lvar2;
     #endif
-    
+
     //Grid position
     // If we use local memory
     #if LOCAL_OFF==0
