@@ -27,7 +27,11 @@ FUNDEF void update_s(int offcomm,
                      GLOBARG __pprec *mu,
                      GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz,
                      GLOBARG __prec2 *szz, GLOBARG __prec2 *vx,
-                     GLOBARG __prec2 *vz, GLOBARG float *taper, LOCARG2)
+                     GLOBARG __prec2 *vz,
+                     GLOBARG __prec2 *rxx, GLOBARG __prec2 *rzz,
+                     GLOBARG __prec2 *rxz, GLOBARG __pprec *taus,
+                     GLOBARG __pprec *tausipkp,   GLOBARG __pprec *taup,
+                     GLOBARG float *eta, GLOBARG float *taper, LOCARG2)
 
 {
     //Local memory
@@ -140,15 +144,83 @@ FUNDEF void update_s(int offcomm,
     __cprec lsxx = __h22f2(sxx[indv]);
     __cprec lsxz = __h22f2(sxz[indv]);
     __cprec lszz = __h22f2(szz[indv]);
-    __cprec lM = __pconv(M[indp]);
-    __cprec lmu = __pconv(mu[indp]);
-    __cprec lmuipkp = __pconv(muipkp[indp]);
     
-    // Update the variables
-    lsxz=lsxz + lmuipkp * (vx_z1+vz_x1);
-    lsxx=lsxx + lM*(vx_x2+vz_z2) - 2.0f * lmu * vz_z2;
-    lszz=lszz + lM*(vx_x2+vz_z2) - 2.0f * lmu * vx_x2;
+    // Read model parameters into local memory
+    #if LVE==0
+    {
+        __cprec fipkp=__pconv(muipkp[indp]);
+        __cprec f=2.0f*__pconv(mu[indp]);
+        __cprec g=__pconv(M[indp]);
     
+        // Update the variables
+        lsxz=lsxz + fipkp * (vx_z1+vz_x1);
+        lsxx=lsxx + g*(vx_x2+vz_z2) - f * vz_z2;
+        lszz=lszz + g*(vx_x2+vz_z2) - f * vx_x2;
+    }
+    #else
+    {
+        int indr, l;
+        
+        __cprec lM=__pconv(M[indp]);
+        __cprec lmu=__pconv(mu[indp]);
+        __cprec lmuipkp=__pconv(muipkp[indp]);
+        __cprec ltaup=__pconv(taup[indp]);
+        __cprec ltaus=__pconv(taus[indp]);
+        __cprec ltausipkp=__pconv(tausipkp[indp]);
+    
+        float leta[LVE];
+        for (l=0;l<LVE;l++){
+            leta[l]=eta[l];
+        }
+        
+        __cprec fipkp=lmuipkp*(1.0f+ (float)LVE*ltausipkp);
+        __cprec g=lM*(1.0f+(float)LVE*ltaup);
+        __cprec f=2.0f*lmu*(1.0f+(float)LVE*ltaus);
+        __cprec dipkp=lmuipkp*ltausipkp/DT;
+        __cprec d=2.0f*lmu*ltaus/DT;
+        __cprec e=lM*ltaup/DT;
+        
+        /* computing sums of the old memory variables */
+        __cprec sumrxz=__cprec0;
+        __cprec sumrxx=__cprec0;
+        __cprec sumrzz=__cprec0;
+        for (l=0;l<LVE;l++){
+            indr = l*NX*NZ + gidx*NZ+gidz;
+            sumrxz=sumrxz + rxz[indr];
+            sumrxx=sumrxx + rxx[indr];
+            sumrzz=sumrzz + rzz[indr];
+        }
+
+        /* updating components of the stress tensor, partially */
+        lsxz=lsxz +(fipkp*(vx_z1+vz_x1))+(DT2*sumrxz);
+        lsxx=lsxx +((g*(vx_x2+vz_z2))-(f*vz_z2))+(DT2*sumrxx);
+        lszz=lszz +((g*(vx_x2+vz_z2))-(f*vx_x2))+(DT2*sumrzz);
+
+        /* now updating the memory-variables and sum them up*/
+        sumrxz=sumrxx=sumrzz=sumrxz * 0.0f;
+        float b,c;
+        for (l=0;l<LVE;l++){
+            b=1.0f/(1.0f+(leta[l]*0.5f));
+            c=1.0f-(leta[l]*0.5f);
+            indr = l*NX*NZ + gidx*NZ+gidz;
+            rxz[indr]=b*(rxz[indr]*c-leta[l]*(dipkp*(vx_z1+vz_x1)));
+            rxx[indr]=b*(rxx[indr]*c-leta[l]*((e*(vx_x2+vz_z2))-(d*vz_z2)));
+            rzz[indr]=b*(rzz[indr]*c-leta[l]*((e*(vx_x2+vz_z2))-(d*vx_x2)));
+
+            sumrxz=sumrxz + rxz[indr];
+            sumrxx=sumrxx + rxx[indr];
+            sumrzz=sumrzz + rzz[indr];
+        }
+
+        /* and now the components of the stress tensor are
+         completely updated */
+        lsxz= lsxz + (DT2*sumrxz);
+        lsxx= lsxx + (DT2*sumrxx) ;
+        lszz= lszz + (DT2*sumrzz) ;
+    }
+    #endif
+  
+    // Absorbing boundary
     #if ABS_TYPE==2
     {
     #if FREESURF==0

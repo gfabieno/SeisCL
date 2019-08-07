@@ -36,7 +36,7 @@ csts['NT']=875              #Number of time steps
 csts['freesurf']=0          #Include a free surface at z=0: 0: no, 1: yes
 csts['FDORDER']=8           #Order of the finite difference stencil. Values: 2,4,6,8,10,12
 csts['MAXRELERROR']=1       #Set to 1
-csts['L']=0                 #Number of attenuation mechanism (L=0 elastic)
+csts['L']=1                 #Number of attenuation mechanism (L=0 elastic)
 csts['f0']=15               #Central frequency for which the relaxation mechanism are corrected to the righ velocity
 csts['FL']=np.array(15)     #Array of frequencies in Hz of the attenuation mechanism
 
@@ -76,7 +76,7 @@ csts['resout']=0            #Output residuals 1:yes, 0: no
 csts['rmsout']=0            #Output rms value 1:yes, 0: no
 csts['movout']=0            #Output movie 1:yes, 0: no
 csts['restype']=0           #Type of costfunction 0: raw seismic trace cost function. No other available at the moment
-csts['FP16']=2              #Use half precision 1: yes 0: no
+csts['FP16']=1              #Use half precision 1: yes 0: no
 
 h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
 

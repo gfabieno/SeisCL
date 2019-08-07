@@ -57,10 +57,13 @@
 // functions to compute with half2 or float2 (only FP16=3 computes with half2)
 #if FP16==3
     #define __cprec half2
+    #define __cprec0 {0.0f,0.0f}
 #elif FP16==0
     #define __cprec float
+    #define __cprec0 0.0f
 #else
     #define __cprec float2
+    #define __cprec0 {0.0f,0.0f}
 #endif
 
 #if FP16==3

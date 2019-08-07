@@ -23,7 +23,10 @@
 FUNDEF void update_s(int offcomm,
                      GLOBARG __pprec *muipjp, GLOBARG __pprec *mujpkp,
                      GLOBARG __pprec *muipkp, GLOBARG __pprec *M,
-                     GLOBARG __pprec *mu,
+                     GLOBARG __pprec *mu, GLOBARG __pprec *taus,
+                     GLOBARG __pprec *tausipjp, GLOBARG __pprec *tausjpkp,
+                     GLOBARG __pprec *tausipkp, GLOBARG __pprec *taup,
+                     GLOBARG float *eta,
                      GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxy,
                      GLOBARG __prec2 *sxz, GLOBARG __prec2 *syy,
                      GLOBARG __prec2 *syz, GLOBARG __prec2 *szz,
@@ -214,15 +217,15 @@ FUNDEF void update_s(int offcomm,
         __cprec ltausipjp=__pconv(tausipjp[indp]);
         __cprec ltausjpkp=__pconv(tausjpkp[indp]);
 
-        __cprec fipjp=lmuipjp*(1.0+ (float)LVE*ltausipjp);
-        __cprec fjpkp=lmujpkp*(1.0+ (float)LVE*ltausjpkp);
-        __cprec fipkp=lmuipkp*(1.0+ (float)LVE*ltausipkp);
-        __cprec g=lM*(1.0+(float)LVE*ltaup);
-        __cprec f=2.0*lmu*(1.0+(float)LVE*ltaus);
+        __cprec fipjp=lmuipjp*(1.0f+ (float)LVE*ltausipjp);
+        __cprec fjpkp=lmujpkp*(1.0f+ (float)LVE*ltausjpkp);
+        __cprec fipkp=lmuipkp*(1.0f+ (float)LVE*ltausipkp);
+        __cprec g=lM*(1.0f+(float)LVE*ltaup);
+        __cprec f=2.0f*lmu*(1.0f+(float)LVE*ltaus);
         __cprec dipjp=lmuipjp*ltausipjp/DT;
         __cprec djpkp=lmujpkp*ltausjpkp/DT;
         __cprec dipkp=lmuipkp*ltausipkp/DT;
-        __cprec d=2.0*lmu*ltaus/DT;
+        __cprec d=2.0f*lmu*ltaus/DT;
         __cprec e=lM*ltaup/DT;
 
         float leta[LVE];
@@ -231,8 +234,12 @@ FUNDEF void update_s(int offcomm,
         }
 
         /* computing sums of the old memory variables */
-        __cprec sumrxy,sumryz,sumrxz,sumrxx,sumryy,sumrzz;
-        sumrxy=sumryz=sumrxz=sumrxx=sumryy=sumrzz=0;
+        __cprec sumrxy=__cprec0;
+        __cprec sumryz=__cprec0;
+        __cprec sumrxz=__cprec0;
+        __cprec sumrxx=__cprec0;
+        __cprec sumryy=__cprec0;
+        __cprec sumrzz=__cprec0;
         for (l=0;l<LVE;l++){
             indr = l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz;
             sumrxy= sumrxy + rxy[indr];
@@ -251,25 +258,25 @@ FUNDEF void update_s(int offcomm,
         lsyy=lsyy + g*(vx_x2+vy_y2+vz_z2) - f*(vx_x2+vz_z2)+(DT2*sumryy);
         lszz=lszz + g*(vx_x2+vy_y2+vz_z2) - f*(vx_x2+vy_y2)+(DT2*sumrzz);
 
-        sumrxy=sumryz=sumrxz=sumrxx=sumryy=sumrzz=0;
+        sumrxy=sumryz=sumrxz=sumrxx=sumryy=sumrzz=sumrzz *0.0f;
         float b,c;
         for (l=0;l<LVE;l++){
-            b=1.0/(1.0+(leta[l]*0.5));
-            c=1.0-(leta[l]*0.5);
+            b=1.0f/(1.0f+(leta[l]*0.5f));
+            c=1.0f-(leta[l]*0.5f);
             indr = l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz;
-            rxy[indr]=b*(rxy[indr]*c-leta[l]*(dipjp*vxyyx));
-            ryz[indr]=b*(ryz[indr]*c-leta[l]*(djpkp*vyzzy));
-            rxz[indr]=b*(rxz[indr]*c-leta[l]*(dipkp*vxzzx));
-            rxx[indr]=b*(rxx[indr]*c-leta[l]*((e*vxxyyzz)-(d*vyyzz)));
-            ryy[indr]=b*(ryy[indr]*c-leta[l]*((e*vxxyyzz)-(d*vxxzz)));
-            rzz[indr]=b*(rzz[indr]*c-leta[l]*((e*vxxyyzz)-(d*vxxyy)));
+            rxy[indr]=b*(rxy[indr]*c-leta[l]*(dipjp*(vx_y1+vy_x1)));
+            ryz[indr]=b*(ryz[indr]*c-leta[l]*(djpkp*(vy_z1+vz_y1)));
+            rxz[indr]=b*(rxz[indr]*c-leta[l]*(dipkp*(vx_z1+vz_x1)));
+            rxx[indr]=b*(rxx[indr]*c-leta[l]*((e*(vx_x2+vy_y2+vz_z2))-(d*(vy_y2+vz_z2))));
+            ryy[indr]=b*(ryy[indr]*c-leta[l]*((e*(vx_x2+vy_y2+vz_z2))-(d*(vx_x2+vz_z2))));
+            rzz[indr]=b*(rzz[indr]*c-leta[l]*((e*(vx_x2+vy_y2+vz_z2))-(d*(vx_x2+vy_y2))));
 
-            sumrxy+=rxy[indr];
-            sumryz+=ryz[indr];
-            sumrxz+=rxz[indr];
-            sumrxx+=rxx[indr];
-            sumryy+=ryy[indr];
-            sumrzz+=rzz[indr];
+            sumrxy= sumrxy + rxy[indr];
+            sumryz= sumryz + ryz[indr];
+            sumrxz= sumrxz + rxz[indr];
+            sumrxx= sumrxx + rxx[indr];
+            sumryy= sumryy + ryy[indr];
+            sumrzz= sumrzz + rzz[indr];
         }
 
         /* and now the components of the stress tensor are

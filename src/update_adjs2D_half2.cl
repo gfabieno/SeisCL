@@ -219,9 +219,6 @@ FUNDEF void update_adjs(int offcomm,
     }
     #endif
 
-
-
-
     // Update adjoint stresses
     {
         lsxzr=lsxzr + lmuipkp * (vxr_z1+vzr_x1);
