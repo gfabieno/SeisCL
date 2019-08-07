@@ -247,25 +247,25 @@ FUNDEF void update_adjs(int offcomm,
     lszzr=lM*(vxr_x2+vzr_z2) - 2.0 * lmu * vxr_x2;
     
     float2 dM=c1*( __h22f2c(lsxx+lszz )*( lsxxr+lszzr ));
-    gradM[indp]=gradM[indp]-scalbnf2(dM, 2*par_scale-src_scale - res_scale);
-    gradmu[indp]=gradmu[indp] - scalbnf2(c3*__h22f2c(lsxz*lsxzr)+dM-c5*(__h22f2c((lsxx-lszz)*(lsxxr-lszzr))), 2*par_scale-src_scale - res_scale);
+    gradM[indp]=gradM[indp]-scalefun(dM, 2*par_scale-src_scale - res_scale);
+    gradmu[indp]=gradmu[indp] - scalefun(c3*__h22f2c(lsxz*lsxzr)+dM-c5*(__h22f2c((lsxx-lszz)*(lsxxr-lszzr))), 2*par_scale-src_scale - res_scale);
 
     
         #if HOUT==1
     float2 dMH=c1*( __h22f2c(lsxx+lszz )*( lsxx+lszz ));
-    HM[indp]=HM[indp] + scalbnf2(dMH, -2.0*src_scale);
-    Hmu[indp]=Hmu[indp] - scalbnf2(c3*__h22f2c(lsxz*lsxz)+dMH-c5*(__h22f2c((lsxx-lszz)*(lsxx-lszz))), 2*par_scale-src_scale - res_scale);
+    HM[indp]=HM[indp] + scalefun(dMH, -2.0*src_scale);
+    Hmu[indp]=Hmu[indp] - scalefun(c3*__h22f2c(lsxz*lsxz)+dMH-c5*(__h22f2c((lsxx-lszz)*(lsxx-lszz))), 2*par_scale-src_scale - res_scale);
         #endif
     #endif
     
     #if RESTYPE==1
     float2 dM=__h22f2c(lsxx+lszz )*( lsxxr+lszzr );
     
-    gradM[indp]=gradM[indp]-scalbnf2(dM, -src_scale - res_scale);
+    gradM[indp]=gradM[indp]-scalefun(dM, -src_scale - res_scale);
     
     #if HOUT==1
     float2 dMH=__h22f2c(lsxx+lszz )*( lsxx+lszz );
-    HM[indp]=HM[indp] + scalbnf2(dMH, -2.0*src_scale);
+    HM[indp]=HM[indp] + scalefun(dMH, -2.0*src_scale);
 
     #endif
     #endif
