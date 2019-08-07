@@ -442,6 +442,8 @@ FUNDEF void update_adjs(int offcomm,
 #if BACK_PROP_TYPE==1
     #if RESTYPE==0
     float c1=1.0/( (2.0*lM-2.0*lmu)*(2.0*lM-2.0*lmu) );
+    
+    
     float c3=1.0/(lmu*lmu);
     float c5=0.25*c3;
 

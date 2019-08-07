@@ -40,7 +40,7 @@ FUNDEF void update_v(int offcomm,
     int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/DIV;
     int gidx = blockIdx.y*blockDim.y+threadIdx.y+FDOH+offcomm;
     
-    int indp = ((gidx)-FDOH)*(NZ-FDOH)+((gidz)-FDOH/DIV);
+    int indp = ((gidx)-FDOH)*(NZ-FDOH/DIV)+((gidz)-FDOH/DIV);
     int indv = gidx*NZ+gidz;
 
    
