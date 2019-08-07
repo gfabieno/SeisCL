@@ -379,12 +379,12 @@ int readhdf5(struct filenames files, model * m) {
         __GUARD checkscalar(file_id, "/input_res");
         __GUARD readvar(file_id, H5T_NATIVE_INT, "/input_res", &m->INPUTRES);
     }
-#ifdef __SEISCL__
-    if (m->FP16!=0){
-        fprintf(stderr, "Error: The OpenCL version only supports FP16=0\n");
-        return 1;
-    }
-#endif
+//#ifdef __SEISCL__
+//    if (m->FP16!=0){
+//        fprintf(stderr, "Error: The OpenCL version only supports FP16=0\n");
+//        return 1;
+//    }
+//#endif
     if (H5Lexists( file_id, "/halfpar", H5P_DEFAULT) ){
         __GUARD checkscalar(file_id, "/halfpar");
         __GUARD readvar(file_id, H5T_NATIVE_INT, "/halfpar", &m->halfpar);
