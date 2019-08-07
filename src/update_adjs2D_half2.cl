@@ -31,9 +31,9 @@ FUNDEF void update_adjs(int offcomm,
                         GLOBARG __prec2 *sxxr,GLOBARG __prec2 *sxzr,
                         GLOBARG __prec2 *szzr, GLOBARG __prec2 *vxr,
                         GLOBARG __prec2 *vzr, GLOBARG float *taper,
-                        GLOBARG float2 *gradrho, GLOBARG float2 *gradM,
-                        GLOBARG float2 *gradmu,  GLOBARG float2 *Hrho,
-                        GLOBARG float2 *HM,      GLOBARG  float2 *Hmu,
+                        GLOBARG __gprec *gradrho, GLOBARG __gprec *gradM,
+                        GLOBARG __gprec *gradmu,  GLOBARG __gprec *Hrho,
+                        GLOBARG __gprec *HM,      GLOBARG  __gprec *Hmu,
                         int res_scale, int src_scale, int par_scale, LOCARG2)
 {
 
@@ -82,7 +82,7 @@ FUNDEF void update_adjs(int offcomm,
 
     #endif
 
-    int indp = ((gidx)-FDOH)*(NZ-FDOH/DIV)+((gidz)-FDOH/DIV);
+    int indp = ((gidx)-FDOH)*(NZ-2*FDOH/DIV)+((gidz)-FDOH/DIV);
     int indv = gidx*NZ+gidz;
     
     //Define private derivatives
@@ -95,15 +95,15 @@ FUNDEF void update_adjs(int offcomm,
     __cprec vzr_x1;
     __cprec vzr_z2;
 
-    
-    
+
+
     // If we use local memory
     #if LOCAL_OFF==0
         #define lvx lvar
         #define lvz lvar
         #define lvx2 lvar2
         #define lvz2 lvar2
-    
+
         #define lvxr lvar
         #define lvzr lvar
         #define lvxr2 lvar2
@@ -118,9 +118,9 @@ FUNDEF void update_adjs(int offcomm,
         #define lvz vz
         #define lidx gidx
         #define lidz gidz
-    
+
     #endif
-    
+
     /* Calculation of the velocity spatial derivatives of the forward wavefield
     if backpropagation is used */
     #if BACK_PROP_TYPE==1
@@ -147,7 +147,7 @@ FUNDEF void update_adjs(int offcomm,
             BARRIER
         }
     #endif
-    
+
     // Calculation of the velocity spatial derivatives of the adjoint wavefield
     {
     #if LOCAL_OFF==0
@@ -170,7 +170,7 @@ FUNDEF void update_adjs(int offcomm,
         vzr_x1 = Dxp(lvzr2);
         vzr_z2 = Dzm(lvzr);
     }
-    
+
     // To stop updating if we are outside the model (global id must be a
     //multiple of local id in OpenCL, hence we stop if we have a global id
     //outside the grid)
@@ -194,7 +194,7 @@ FUNDEF void update_adjs(int offcomm,
     __cprec lM = __pconv(M[indp]);
     __cprec lmu = __pconv(mu[indp]);
     __cprec lmuipkp = __pconv(muipkp[indp]);
-    
+
     // Backpropagate the forward stresses
     #if BACK_PROP_TYPE==1
     {
@@ -210,25 +210,25 @@ FUNDEF void update_adjs(int offcomm,
             lszz= __h22f2(szzbnd[m]);
             lsxz= __h22f2(sxzbnd[m]);
         }
-        
+
         //Write updated values to global memory
         sxx[indv] = __f22h2(lsxx);
         sxz[indv] = __f22h2(lsxz);
         szz[indv] = __f22h2(lszz);
-        
+
     }
     #endif
 
 
-    
-    
+
+
     // Update adjoint stresses
     {
         lsxzr=lsxzr + lmuipkp * (vxr_z1+vzr_x1);
         lsxxr=lsxxr + lM*(vxr_x2+vzr_z2) - 2.0f * lmu * vzr_z2;
         lszzr=lszzr + lM*(vxr_x2+vzr_z2) - 2.0f * lmu * vxr_x2;
 
-        
+
         #if ABS_TYPE==2
         {
         #if FREESURF==0
@@ -243,7 +243,7 @@ FUNDEF void update_adjs(int offcomm,
                 lszzr =lszzr * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
                 lsxzr =lsxzr * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
             }
-            
+
         #if DEVID==0 & MYLOCALID==0
             if (gidx-FDOH<NAB){
                 lsxxr = lsxxr * taper[gidx-FDOH];
@@ -251,7 +251,7 @@ FUNDEF void update_adjs(int offcomm,
                 lsxzr = lsxzr * taper[gidx-FDOH];
             }
         #endif
-            
+
         #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
             if (gidx>NX-NAB-FDOH-1){
                 lsxxr = lsxxr * taper[NX-FDOH-gidx-1];
@@ -272,15 +272,15 @@ FUNDEF void update_adjs(int offcomm,
     #if BACK_PROP_TYPE==1
         #if RESTYPE==0
         //TODO review scaling
-        float2 c1=1.0f/((2.0f*lM-2.0f*lmu)*(2.0f*lM-2.0f*lmu));
-        float2 c3=1.0f/(lmu*lmu);
-        float2 c5=0.25f*c3;
-    
+        __gprec c1=1.0f/((2.0f*lM-2.0f*lmu)*(2.0f*lM-2.0f*lmu));
+        __gprec c3=1.0f/(lmu*lmu);
+        __gprec c5=0.25f*c3;
+
         lsxzr=lmuipkp * (vxr_z1+vzr_x1);
         lsxxr=lM*(vxr_x2+vzr_z2) - 2.0f * lmu * vzr_z2;
         lszzr=lM*(vxr_x2+vzr_z2) - 2.0f * lmu * vxr_x2;
-    
-        float2 dM=c1*( (lsxx+lszz )*( lsxxr+lszzr ));
+
+        __gprec dM=c1*( (lsxx+lszz )*( lsxxr+lszzr ));
         gradM[indp]=gradM[indp]-scalefun(dM, 2*par_scale-src_scale - res_scale);
         gradmu[indp]=gradmu[indp] \
                         - scalefun(c3*(lsxz*lsxzr)
@@ -288,9 +288,9 @@ FUNDEF void update_adjs(int offcomm,
                                    -c5*(((lsxx-lszz)*(lsxxr-lszzr))),
                                    2*par_scale-src_scale - res_scale);
 
-    
+
         #if HOUT==1
-        float2 dMH=c1*((lsxx+lszz )*( lsxx+lszz ));
+        __gprec dMH=c1*((lsxx+lszz )*( lsxx+lszz ));
         HM[indp]=HM[indp] + scalefun(dMH, -2*src_scale);
         Hmu[indp]=Hmu[indp] - scalefun(c3*(lsxz*lsxz)
                                        +dMH
@@ -298,19 +298,19 @@ FUNDEF void update_adjs(int offcomm,
                                        2*par_scale-src_scale - res_scale);
         #endif
         #endif
-    
+
         #if RESTYPE==1
-        float2 dM=__h22f2c((lsxx+lszz )*( lsxxr+lszzr ));
-    
+        __gprec dM=__h22f2c((lsxx+lszz )*( lsxxr+lszzr ));
+
         gradM[indp]=gradM[indp]-scalefun(dM, -src_scale - res_scale);
-    
+
         #if HOUT==1
-        float2 dMH=__h22f2c((lsxx+lszz )*( lsxx+lszz));
+        __gprec dMH=__h22f2c((lsxx+lszz )*( lsxx+lszz));
         HM[indp]=HM[indp] + scalefun(dMH, -2.0*src_scale);
 
         #endif
         #endif
-    
+
     #endif
 
 

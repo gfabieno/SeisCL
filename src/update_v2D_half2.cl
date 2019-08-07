@@ -73,7 +73,7 @@ FUNDEF void update_v(int offcomm,
 
     #endif
 
-    int indp = ((gidx)-FDOH)*(NZ-FDOH/DIV)+((gidz)-FDOH/DIV);
+    int indp = ((gidx)-FDOH)*(NZ-2*FDOH/DIV)+((gidz)-FDOH/DIV);
     int indv = gidx*NZ+gidz;
 
 

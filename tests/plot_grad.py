@@ -9,6 +9,6 @@ import numpy as np
 file = h5.File("SeisCL_gout.mat", "r")
 
 print(np.max(file["gradvp"]))
-plt.imshow(file["gradvp"][:], aspect="auto")
+plt.imshow(file["gradvp"][16:-16,16:-16], aspect="auto")
 plt.show()
 file.close()

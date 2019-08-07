@@ -31,7 +31,7 @@ FUNDEF void update_adjv(int offcomm,
                         GLOBARG __prec2 *sxxr, GLOBARG __prec2 *sxzr,
                         GLOBARG __prec2 *szzr, GLOBARG __prec2 *vxr,
                         GLOBARG __prec2 *vzr, GLOBARG float *taper,
-                        GLOBARG float2 *gradrho, GLOBARG float2 *Hrho,
+                        GLOBARG __gprec *gradrho, GLOBARG __gprec *Hrho,
                         int res_scale, int src_scale, int par_scale, LOCARG2)
 {
     
@@ -80,7 +80,7 @@ FUNDEF void update_adjv(int offcomm,
 
     #endif
 
-    int indp = ((gidx)-FDOH)*(NZ-FDOH/DIV)+((gidz)-FDOH/DIV);
+    int indp = ((gidx)-FDOH)*(NZ-2*FDOH/DIV)+((gidz)-FDOH/DIV);
     int indv = gidx*NZ+gidz;
 
     //Define private derivatives
