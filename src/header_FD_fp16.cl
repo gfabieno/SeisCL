@@ -72,37 +72,68 @@
 #endif
 
 // functions to scale parameters
-#if FP16==0
-__device__ __inline__ float scalefun(float a, int scaler ){
-    return scalbnf(a, scaler)
-}
+
+#ifdef __OPENCL_VERSION__
+    #if FP16==0
+    LFUNDEF float scalefun(float a, int scaler ){
+        return ldexp(a, scaler);
+    }
+    #else
+    LFUNDEF float2 scalefun(float2 a, int scaler ){
+        
+        float2 output;
+        output.x  = ldexp(a.x, scaler);
+        output.y  = ldexp(a.y, scaler);
+        return output;
+    }
+    #endif
 #else
-__device__ __inline__ float2 scalefun(float2 a, int scaler ){
-    
-    float2 output;
-    output.x  = scalbnf(a.x, scaler);
-    output.y  = scalbnf(a.y, scaler);
-    return output;
-}
+    #if FP16==0
+    LFUNDEF float scalefun(float a, int scaler ){
+        return scalbnf(a, scaler);
+    }
+    #else
+    LFUNDEF float2 scalefun(float2 a, int scaler ){
+        
+        float2 output;
+        output.x  = scalbnf(a.x, scaler);
+        output.y  = scalbnf(a.y, scaler);
+        return output;
+    }
+    #endif
 #endif
 
 // functions to handle FD stencils on length 2 vectors
 #if FP16==0
-__device__ __inline__ float __hp(float *a ){
+LFUNDEF float __hp(float *a ){
     return *a;
 }
-__device__ __inline__ float __hpi(float *a ){
+LFUNDEF float __hpi(float *a ){
     return *a;
 }
 #else
-__device__ __prec2 __hp(__prec *a ){
+LFUNDEF __prec2 __hp(LOCID __prec *a ){
     
     __prec2 output;
     *((__prec *)&output) = *a;
     *((__prec *)&output+1) = *(a+1);
     return output;
 }
-__device__ __prec2 __hpi(__prec *a ){
+LFUNDEF __prec2 __hpi(LOCID __prec *a ){
+    
+    __prec2 output;
+    *((__prec *)&output) = *a;
+    *((__prec *)&output+1) = *(a-1);
+    return output;
+}
+LFUNDEF __prec2 __hpg(GLOBARG __prec *a ){
+    
+    __prec2 output;
+    *((__prec *)&output) = *a;
+    *((__prec *)&output+1) = *(a+1);
+    return output;
+}
+LFUNDEF __prec2 __hpgi(GLOBARG __prec *a ){
     
     __prec2 output;
     *((__prec *)&output) = *a;
@@ -112,7 +143,7 @@ __device__ __prec2 __hpi(__prec *a ){
 #endif
 
 
-
+#ifndef __OPENCL_VERSION__
 //Operators definition for float2 and half2 operations//
 __device__ __inline__ float2 operator-(const float2 a) {
 
@@ -229,71 +260,71 @@ __device__ __inline__ float2 operator/(const float2 b, const float a) {
 
 
 __device__ __inline__ half2 operator+(const float a, const half2 b) {
-    
+
     half2 output;
     output.x = __float2half_rn(a) + b.x;
     output.y = __float2half_rn(a) + b.y;
     return output;
-    
+
 };
 __device__ __inline__ half2 operator+(const half2 b, const float a) {
-    
+
     half2 output;
     output.x = __float2half_rn(a) + b.x;
     output.y = __float2half_rn(a) + b.y;
     return output;
-    
+
 };
 
 __device__ __inline__ half2 operator-(const float a, const half2 b) {
-    
+
     half2 output;
     output.x = __float2half_rn(a) - b.x;
     output.y = __float2half_rn(a) - b.y;
     return output;
-    
+
 };
 __device__ __inline__ half2 operator-(const half2 b, const float a) {
-    
+
     half2 output;
     output.x = b.x - __float2half_rn(a);
     output.y = b.y - __float2half_rn(a);
     return output;
-    
+
 };
 
 __device__ __inline__ half2 operator*(const float a, const half2 b) {
-    
+
     half2 output;
     output.x = __float2half_rn(a) * b.x;
     output.y = __float2half_rn(a) * b.y;
     return output;
-    
+
 };
 __device__ __inline__ half2 operator*(const half2 b, const float a) {
-    
+
     half2 output;
     output.x = b.x * __float2half_rn(a);
     output.y = b.y * __float2half_rn(a);
     return output;
-    
+
 };
 
 __device__ __inline__ half2 operator/(const float a, const half2 b) {
-    
+
     half2 output;
     output.x = __float2half_rn(a) / b.x;
     output.y = __float2half_rn(a) / b.y;
     return output;
-    
+
 };
 __device__ __inline__ half2 operator/(const half2 b, const float a) {
-    
+
     half2 output;
     output.x = b.x / __float2half_rn(a);
     output.y = b.y / __float2half_rn(a);
     return output;
-    
+
 };
 
 
@@ -335,8 +366,7 @@ __device__ __inline__ float2 operator/(const half2 b, const float2 a) {
 //__device__ half2 operator/(half2 a, half2 b) {
 //    return __h2div(a,b);
 //};
-
-
+#endif
 
 //Indices for FD stencils//
 
@@ -584,3 +614,4 @@ do {\
                        HC5*(__h22f2(__hp(&v[ind1(DIV*lidz+4,lidy,lidx)]))-__h22f2(__hp(&v[ind1(DIV*lidz-5,lidy,lidx)])))+\
                        HC6*(__h22f2(__hp(&v[ind1(DIV*lidz+5,lidy,lidx)]))-__h22f2(__hp(&v[ind1(DIV*lidz-6,lidy,lidx)]))))
 #endif
+

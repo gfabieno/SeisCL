@@ -304,7 +304,12 @@ char *get_build_options(device *dev,
     build_options[0]=0;
     if (m->N_names[0]){
         for (i=0;i<m->NDIM;i++){
-            sprintf(src,"-D N%s=%d ",m->N_names[i],(*dev).N[i]+m->FDORDER);
+            if (i==0 && m->FP16>0){
+                sprintf(src,"-D N%s=%d ",m->N_names[i],((*dev).N[i]+m->FDORDER)/2);
+            }
+            else{
+                sprintf(src,"-D N%s=%d ",m->N_names[i],(*dev).N[i]+m->FDORDER);
+            }
             strcat(build_options,src);
             
         }
@@ -317,21 +322,21 @@ char *get_build_options(device *dev,
         }
     }
     for (i=0;i<m->FDOH;i++){
-        sprintf(src,"-D HC%d=%9.9f ",i+1,m->hc[i+1]);
+        sprintf(src,"-D HC%d=%9.9ff ",i+1,m->hc[i+1]);
         strcat(build_options,src);
         
     }
     
     char src2[2000];
-    sprintf(src2,"-I ./ -D NDIM=%d -D OFFSET=%d -D FDOH=%d -D DTDH=%9.9f -D DH=%9.9f "
-            "-D DT=%9.9f -D DT2=%9.9f -D NT=%d -D NAB=%d -D NBND=%d "
+    sprintf(src2,"-I ./ -D NDIM=%d -D OFFSET=%d -D FDOH=%d -D DTDH=%9.9f -D DH=%9.9ff "
+            "-D DT=%9.9ff -D DT2=%9.9ff -D NT=%d -D NAB=%d -D NBND=%d "
             "-D LOCAL_OFF=%d -D LVE=%d -D DEVID=%d -D NUM_DEVICES=%d "
             "-D ND=%d -D ABS_TYPE=%d -D FREESURF=%d -D LCOMM=%d "
             "-D MYLOCALID=%d -D NLOCALP=%d -D NFREQS=%d "
             "-D BACK_PROP_TYPE=%d -D COMM12=%d -D NTNYQ=%d -D DTNYQ=%d "
             "-D VARSOUT=%d -D RESOUT=%d  -D RMSOUT=%d -D MOVOUT=%d "
             "-D GRADOUT=%d -D HOUT=%d -D GRADSRCOUT=%d -D DIRPROP=%d "
-            "-D RESTYPE=%d",
+            "-D RESTYPE=%d -D FP16=%d",
             (*m).NDIM, (*dev).NX0, (*m).FDOH, (*m).dt/(*m).dh, (*m).dh,
             (*m).dt, (*m).dt/2.0, (*m).NT, (*m).NAB, (*dev).NBND,
             (*dev).LOCAL_OFF, (*m).L, (*dev).DEVID, (*m).NUM_DEVICES,
@@ -339,7 +344,8 @@ char *get_build_options(device *dev,
             (*m).MYLOCALID, (*m).NLOCALP, (*m).NFREQS,
             (*m).BACK_PROP_TYPE, comm, (*m).NTNYQ, (*m).DTNYQ,
             (*m).VARSOUT, (*m).RESOUT, (*m).RMSOUT, (*m).MOVOUT,
-            (*m).GRADOUT, (*m).HOUT, (*m).GRADSRCOUT, DIRPROP, (*m).restype);
+            (*m).GRADOUT, (*m).HOUT, (*m).GRADSRCOUT, DIRPROP, (*m).restype,
+            (*m).FP16) ;
     
     strcat(build_options,src2);
     
@@ -908,6 +914,15 @@ int prog_create(model * m,
         
         if (!argfound){
             if (strcmp("LOCARG",(*prog).input_list[i])==0){
+                #ifdef __SEISCL__
+                prog_arg(prog, i, NULL, shared_size);
+                #else
+                prog_arg(prog, i, &dev->cuda_null, memsize);
+                #endif
+                argfound=1;
+                //                printf("%s\n",(*prog).input_list[i]);
+            }
+            if (strcmp("LOCARG2",(*prog).input_list[i])==0){
                 #ifdef __SEISCL__
                 prog_arg(prog, i, NULL, shared_size);
                 #else

@@ -21,30 +21,67 @@
 
 
 FUNDEF void update_adjs(int offcomm,
-                           GLOBARG __pprec *muipkp, GLOBARG __pprec *M, GLOBARG __pprec *mu,
-                           GLOBARG __prec2 *sxx,GLOBARG __prec2 *sxz,GLOBARG __prec2 *szz,
-                           GLOBARG __prec2 *vx,GLOBARG __prec2 *vz,
-                           GLOBARG __prec2 *sxxbnd,GLOBARG __prec2 *sxzbnd,GLOBARG __prec2 *szzbnd,
-                           GLOBARG __prec2 *vxbnd,GLOBARG __prec2 *vzbnd,
-                           GLOBARG __prec2 *sxxr,GLOBARG __prec2 *sxzr,GLOBARG __prec2 *szzr,
-                           GLOBARG __prec2 *vxr,GLOBARG __prec2 *vzr, GLOBARG float *taper,
-                          GLOBARG float2 *gradrho,    GLOBARG float2 *gradM,     GLOBARG float2 *gradmu,
-                           GLOBARG float2 *Hrho,    GLOBARG float2 *HM,    GLOBARG  float2 *Hmu,
-                           int res_scale, int src_scale, int par_scale)
+                        GLOBARG __pprec *muipkp, GLOBARG __pprec *M,
+                        GLOBARG __pprec *mu,
+                        GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz,
+                        GLOBARG __prec2 *szz, GLOBARG __prec2 *vx,
+                        GLOBARG __prec2 *vz, GLOBARG __prec2 *sxxbnd,
+                        GLOBARG __prec2 *sxzbnd, GLOBARG __prec2 *szzbnd,
+                        GLOBARG __prec2 *vxbnd, GLOBARG __prec2 *vzbnd,
+                        GLOBARG __prec2 *sxxr,GLOBARG __prec2 *sxzr,
+                        GLOBARG __prec2 *szzr, GLOBARG __prec2 *vxr,
+                        GLOBARG __prec2 *vzr, GLOBARG float *taper,
+                        GLOBARG float2 *gradrho, GLOBARG float2 *gradM,
+                        GLOBARG float2 *gradmu,  GLOBARG float2 *Hrho,
+                        GLOBARG float2 *HM,      GLOBARG  float2 *Hmu,
+                        int res_scale, int src_scale, int par_scale, LOCARG2)
 {
 
     //Local memory
-    extern __shared__ __prec2 lvar2[];
+    LOCDEF2
+    #ifdef __OPENCL_VERSION__
+    __local __prec * lvar=lvar2;
+    #else
     __prec * lvar=(__prec *)lvar2;
+    #endif
     
     //Grid position
-    int lsizez = blockDim.x+2*FDOH/DIV;
-    int lsizex = blockDim.y+2*FDOH;
-    int lidz = threadIdx.x+FDOH/DIV;
-    int lidx = threadIdx.y+FDOH;
-    int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/DIV;
-    int gidx = blockIdx.y*blockDim.y+threadIdx.y+FDOH+offcomm;
-    
+    // If we use local memory
+    #if LOCAL_OFF==0
+        #ifdef __OPENCL_VERSION__
+        int lsizez = get_local_size(0)+2*FDOH/DIV;
+        int lsizex = get_local_size(1)+2*FDOH;
+        int lidz = get_local_id(0)+FDOH/DIV;
+        int lidx = get_local_id(1)+FDOH;
+        int gidz = get_global_id(0)+FDOH/DIV;
+        int gidx = get_global_id(1)+FDOH+offcomm;
+        #else
+        int lsizez = blockDim.x+2*FDOH/DIV;
+        int lsizex = blockDim.y+2*FDOH;
+        int lidz = threadIdx.x+FDOH/DIV;
+        int lidx = threadIdx.y+FDOH;
+        int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/DIV;
+        int gidx = blockIdx.y*blockDim.y+threadIdx.y+FDOH+offcomm;
+        #endif
+
+    // If local memory is turned off
+    #elif LOCAL_OFF==1
+        #ifdef __OPENCL_VERSION__
+        int gid = get_global_id(0);
+        int glsizez = (NZ-2*FDOH/DIV);
+        int gidz = gid%glsizez+FDOH/DIV;
+        int gidx = (gid/glsizez)+FDOH+offcomm;
+        #else
+        int lsizez = blockDim.x+2*FDOH/DIV;
+        int lsizex = blockDim.y+2*FDOH;
+        int lidz = threadIdx.x+FDOH/DIV;
+        int lidx = threadIdx.y+FDOH;
+        int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/DIV;
+        int gidx = blockIdx.y*blockDim.y+threadIdx.y+FDOH+offcomm;
+        #endif
+
+    #endif
+
     int indp = ((gidx)-FDOH)*(NZ-FDOH/DIV)+((gidz)-FDOH/DIV);
     int indv = gidx*NZ+gidz;
     
@@ -60,60 +97,58 @@ FUNDEF void update_adjs(int offcomm,
 
     
     
-// If we use local memory
-#if LOCAL_OFF==0
-#define lvx lvar
-#define lvz lvar
-#define lvx2 lvar2
-#define lvz2 lvar2
-    
-#define lvxr lvar
-#define lvzr lvar
-#define lvxr2 lvar2
-#define lvzr2 lvar2
-
-//// If local memory is turned off
-//#elif LOCAL_OFF==1
-//
-//#define lvx_r vx_r
-//#define lvz_r vz_r
-//#define lvx vx
-//#define lvz vz
-//#define lidx gidx
-//#define lidz gidz
-//
-//#define lsizez NZ
-//#define lsizex NX
-    
-#endif
-    
-// Calculation of the velocity spatial derivatives of the forward wavefield if backpropagation is used
-#if BACK_PROP_TYPE==1
-    {
+    // If we use local memory
     #if LOCAL_OFF==0
-        BARRIER
-        load_local_in(vx);
-        load_local_haloz(vx);
-        load_local_halox(vx);
-        BARRIER
-    #endif
-        vx_x2 = Dxm(lvx2);
-        vx_z1 = Dzp(lvx);
-
-    #if LOCAL_OFF==0
-        BARRIER
-        load_local_in(vz);
-        load_local_haloz(vz);
-        load_local_halox(vz);
-        BARRIER
-    #endif
-        vz_x1 = Dxp(lvz2);
-        vz_z2 = Dzm(lvz);
-        BARRIER
-    }
-#endif
+        #define lvx lvar
+        #define lvz lvar
+        #define lvx2 lvar2
+        #define lvz2 lvar2
     
-// Calculation of the velocity spatial derivatives of the adjoint wavefield
+        #define lvxr lvar
+        #define lvzr lvar
+        #define lvxr2 lvar2
+        #define lvzr2 lvar2
+
+    // If local memory is turned off
+    #elif LOCAL_OFF==1
+
+        #define lvxr vxr
+        #define lvzr vzr
+        #define lvx vx
+        #define lvz vz
+        #define lidx gidx
+        #define lidz gidz
+    
+    #endif
+    
+    /* Calculation of the velocity spatial derivatives of the forward wavefield
+    if backpropagation is used */
+    #if BACK_PROP_TYPE==1
+        {
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(vx);
+            load_local_haloz(vx);
+            load_local_halox(vx);
+            BARRIER
+        #endif
+            vx_x2 = Dxm(lvx2);
+            vx_z1 = Dzp(lvx);
+
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(vz);
+            load_local_haloz(vz);
+            load_local_halox(vz);
+            BARRIER
+        #endif
+            vz_x1 = Dxp(lvz2);
+            vz_z2 = Dzm(lvz);
+            BARRIER
+        }
+    #endif
+    
+    // Calculation of the velocity spatial derivatives of the adjoint wavefield
     {
     #if LOCAL_OFF==0
         BARRIER
@@ -166,8 +201,8 @@ FUNDEF void update_adjs(int offcomm,
         // Update the variables
         // Update the variables
         lsxz=lsxz - lmuipkp * (vx_z1+vz_x1);
-        lsxx=lsxx - lM*(vx_x2+vz_z2) + 2.0 * lmu * vz_z2;
-        lszz=lszz - lM*(vx_x2+vz_z2) + 2.0 * lmu * vx_x2;
+        lsxx=lsxx - lM*(vx_x2+vz_z2) + 2.0f * lmu * vz_z2;
+        lszz=lszz - lM*(vx_x2+vz_z2) + 2.0f * lmu * vx_x2;
 
         int m=inject_ind(gidz, gidx);
         if (m!=-1){
@@ -187,27 +222,26 @@ FUNDEF void update_adjs(int offcomm,
 
     
     
-// Update adjoint stresses
+    // Update adjoint stresses
     {
-        // Update the variables
         lsxzr=lsxzr + lmuipkp * (vxr_z1+vzr_x1);
-        lsxxr=lsxxr + lM*(vxr_x2+vzr_z2) - 2.0 * lmu * vzr_z2;
-        lszzr=lszzr + lM*(vxr_x2+vzr_z2) - 2.0 * lmu * vxr_x2;
+        lsxxr=lsxxr + lM*(vxr_x2+vzr_z2) - 2.0f * lmu * vzr_z2;
+        lszzr=lszzr + lM*(vxr_x2+vzr_z2) - 2.0f * lmu * vxr_x2;
 
         
         #if ABS_TYPE==2
         {
         #if FREESURF==0
             if (DIV*gidz-FDOH<NAB){
-                lsxxr = lsxxr * __hp(&taper[DIV*gidz-FDOH]);
-                lszzr = lszzr * __hp(&taper[DIV*gidz-FDOH]);
-                lsxzr = lsxzr * __hp(&taper[DIV*gidz-FDOH]);
+                lsxxr = lsxxr * __hpg(&taper[DIV*gidz-FDOH]);
+                lszzr = lszzr * __hpg(&taper[DIV*gidz-FDOH]);
+                lsxzr = lsxzr * __hpg(&taper[DIV*gidz-FDOH]);
             }
         #endif
             if (DIV*gidz>DIV*NZ-NAB-FDOH-1){
-                lsxxr =lsxxr * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
-                lszzr =lszzr * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
-                lsxzr =lsxzr * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+                lsxxr =lsxxr * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+                lszzr =lszzr * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+                lsxzr =lsxzr * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
             }
             
         #if DEVID==0 & MYLOCALID==0
@@ -235,42 +269,49 @@ FUNDEF void update_adjs(int offcomm,
     }
 
     // Shear wave modulus and P-wave modulus gradient calculation on the fly
-#if BACK_PROP_TYPE==1
-    #if RESTYPE==0
-    //TODO review scaling
-    float2 c1=1.0/( (2.0*__h22f2c(lM)-2.0*__h22f2c(lmu))*(2.0*__h22f2c(lM)-2.0*__h22f2c(lmu)) );
-    float2 c3=1.0/(__h22f2c(lmu)*__h22f2c(lmu));
-    float2 c5=0.25*c3;
+    #if BACK_PROP_TYPE==1
+        #if RESTYPE==0
+        //TODO review scaling
+        float2 c1=1.0f/((2.0f*lM-2.0f*lmu)*(2.0f*lM-2.0f*lmu));
+        float2 c3=1.0f/(lmu*lmu);
+        float2 c5=0.25f*c3;
     
-    lsxzr=lmuipkp * (vxr_z1+vzr_x1);
-    lsxxr=lM*(vxr_x2+vzr_z2) - 2.0 * lmu * vzr_z2;
-    lszzr=lM*(vxr_x2+vzr_z2) - 2.0 * lmu * vxr_x2;
+        lsxzr=lmuipkp * (vxr_z1+vzr_x1);
+        lsxxr=lM*(vxr_x2+vzr_z2) - 2.0f * lmu * vzr_z2;
+        lszzr=lM*(vxr_x2+vzr_z2) - 2.0f * lmu * vxr_x2;
     
-    float2 dM=c1*( __h22f2c(lsxx+lszz )*( lsxxr+lszzr ));
-    gradM[indp]=gradM[indp]-scalefun(dM, 2*par_scale-src_scale - res_scale);
-    gradmu[indp]=gradmu[indp] - scalefun(c3*__h22f2c(lsxz*lsxzr)+dM-c5*(__h22f2c((lsxx-lszz)*(lsxxr-lszzr))), 2*par_scale-src_scale - res_scale);
+        float2 dM=c1*( (lsxx+lszz )*( lsxxr+lszzr ));
+        gradM[indp]=gradM[indp]-scalefun(dM, 2*par_scale-src_scale - res_scale);
+        gradmu[indp]=gradmu[indp] \
+                        - scalefun(c3*(lsxz*lsxzr)
+                                   +dM
+                                   -c5*(((lsxx-lszz)*(lsxxr-lszzr))),
+                                   2*par_scale-src_scale - res_scale);
 
     
         #if HOUT==1
-    float2 dMH=c1*( __h22f2c(lsxx+lszz )*( lsxx+lszz ));
-    HM[indp]=HM[indp] + scalefun(dMH, -2.0*src_scale);
-    Hmu[indp]=Hmu[indp] - scalefun(c3*__h22f2c(lsxz*lsxz)+dMH-c5*(__h22f2c((lsxx-lszz)*(lsxx-lszz))), 2*par_scale-src_scale - res_scale);
+        float2 dMH=c1*((lsxx+lszz )*( lsxx+lszz ));
+        HM[indp]=HM[indp] + scalefun(dMH, -2*src_scale);
+        Hmu[indp]=Hmu[indp] - scalefun(c3*(lsxz*lsxz)
+                                       +dMH
+                                       -c5*((lsxx-lszz)*(lsxx-lszz)),
+                                       2*par_scale-src_scale - res_scale);
         #endif
-    #endif
+        #endif
     
-    #if RESTYPE==1
-    float2 dM=__h22f2c(lsxx+lszz )*( lsxxr+lszzr );
+        #if RESTYPE==1
+        float2 dM=__h22f2c((lsxx+lszz )*( lsxxr+lszzr ));
     
-    gradM[indp]=gradM[indp]-scalefun(dM, -src_scale - res_scale);
+        gradM[indp]=gradM[indp]-scalefun(dM, -src_scale - res_scale);
     
-    #if HOUT==1
-    float2 dMH=__h22f2c(lsxx+lszz )*( lsxx+lszz );
-    HM[indp]=HM[indp] + scalefun(dMH, -2.0*src_scale);
+        #if HOUT==1
+        float2 dMH=__h22f2c((lsxx+lszz )*( lsxx+lszz));
+        HM[indp]=HM[indp] + scalefun(dMH, -2.0*src_scale);
 
-    #endif
-    #endif
+        #endif
+        #endif
     
-#endif
+    #endif
 
 
 }

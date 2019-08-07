@@ -22,28 +22,63 @@
 
 
 FUNDEF void update_adjv(int offcomm,
-                           GLOBARG __pprec *rip, GLOBARG __pprec *rkp,
-                           GLOBARG __prec2 *sxx,GLOBARG __prec2 *sxz,GLOBARG __prec2 *szz,
-                           GLOBARG __prec2 *vx,GLOBARG __prec2 *vz,
-                           GLOBARG __prec2 *sxxbnd,GLOBARG __prec2 *sxzbnd,GLOBARG __prec2 *szzbnd,
-                           GLOBARG __prec2 *vxbnd,GLOBARG __prec2 *vzbnd,
-                           GLOBARG __prec2 *sxxr,GLOBARG __prec2 *sxzr,GLOBARG __prec2 *szzr,
-                           GLOBARG __prec2 *vxr,GLOBARG __prec2 *vzr, GLOBARG float *taper,
-                           GLOBARG float2 *gradrho, GLOBARG GLOBARG float2 *Hrho, int res_scale,
-                           int src_scale, int par_scale)
+                        GLOBARG __pprec *rip, GLOBARG __pprec *rkp,
+                        GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz,
+                        GLOBARG __prec2 *szz, GLOBARG __prec2 *vx,
+                        GLOBARG __prec2 *vz,  GLOBARG __prec2 *sxxbnd,
+                        GLOBARG __prec2 *sxzbnd, GLOBARG __prec2 *szzbnd,
+                        GLOBARG __prec2 *vxbnd,  GLOBARG __prec2 *vzbnd,
+                        GLOBARG __prec2 *sxxr, GLOBARG __prec2 *sxzr,
+                        GLOBARG __prec2 *szzr, GLOBARG __prec2 *vxr,
+                        GLOBARG __prec2 *vzr, GLOBARG float *taper,
+                        GLOBARG float2 *gradrho, GLOBARG float2 *Hrho,
+                        int res_scale, int src_scale, int par_scale, LOCARG2)
 {
     
     //Local memory
-    extern __shared__ __prec2 lvar2[];
+    LOCDEF2
+    #ifdef __OPENCL_VERSION__
+    __local __prec * lvar=lvar2;
+    #else
     __prec * lvar=(__prec *)lvar2;
+    #endif
 
     //Grid position
-    int lsizez = blockDim.x+2*FDOH/DIV;
-    int lsizex = blockDim.y+2*FDOH;
-    int lidz = threadIdx.x+FDOH/DIV;
-    int lidx = threadIdx.y+FDOH;
-    int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/DIV;
-    int gidx = blockIdx.y*blockDim.y+threadIdx.y+FDOH+offcomm;
+    // If we use local memory
+    #if LOCAL_OFF==0
+        #ifdef __OPENCL_VERSION__
+        int lsizez = get_local_size(0)+2*FDOH/DIV;
+        int lsizex = get_local_size(1)+2*FDOH;
+        int lidz = get_local_id(0)+FDOH/DIV;
+        int lidx = get_local_id(1)+FDOH;
+        int gidz = get_global_id(0)+FDOH/DIV;
+        int gidx = get_global_id(1)+FDOH+offcomm;
+        #else
+        int lsizez = blockDim.x+2*FDOH/DIV;
+        int lsizex = blockDim.y+2*FDOH;
+        int lidz = threadIdx.x+FDOH/DIV;
+        int lidx = threadIdx.y+FDOH;
+        int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/DIV;
+        int gidx = blockIdx.y*blockDim.y+threadIdx.y+FDOH+offcomm;
+        #endif
+
+    // If local memory is turned off
+    #elif LOCAL_OFF==1
+        #ifdef __OPENCL_VERSION__
+        int gid = get_global_id(0);
+        int glsizez = (NZ-2*FDOH/DIV);
+        int gidz = gid%glsizez+FDOH/DIV;
+        int gidx = (gid/glsizez)+FDOH+offcomm;
+        #else
+        int lsizez = blockDim.x+2*FDOH/DIV;
+        int lsizex = blockDim.y+2*FDOH;
+        int lidz = threadIdx.x+FDOH/DIV;
+        int lidx = threadIdx.y+FDOH;
+        int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/DIV;
+        int gidx = blockIdx.y*blockDim.y+threadIdx.y+FDOH+offcomm;
+        #endif
+
+    #endif
 
     int indp = ((gidx)-FDOH)*(NZ-FDOH/DIV)+((gidz)-FDOH/DIV);
     int indv = gidx*NZ+gidz;
@@ -58,56 +93,68 @@ FUNDEF void update_adjv(int offcomm,
     __cprec sxzr_z2;
     __cprec szzr_z1;
 
-// If we use local memory
-#if LOCAL_OFF==0
+    //Local memory definitions if local is used
+    #if LOCAL_OFF==0
+    #define lsxx lvar
+    #define lszz lvar
+    #define lsxz lvar
+    #define lsxx2 lvar2
+    #define lszz2 lvar2
+    #define lsxz2 lvar2
+    
+    #define lsxxr lvar
+    #define lszzr lvar
+    #define lsxzr lvar
+    #define lsxxr2 lvar2
+    #define lszzr2 lvar2
+    #define lsxzr2 lvar2
+    
+    //Local memory definitions if local is not used
+    #elif LOCAL_OFF==1
+    
+    #define lsxx sxx
+    #define lszz szz
+    #define lsxz sxz
+    #define lsxxr sxxr
+    #define lszzr szzr
+    #define lsxzr sxzr
+    #define lidz gidz
+    #define lidx gidx
+    
+    #endif
 
-#define lsxx lvar
-#define lszz lvar
-#define lsxz lvar
-#define lsxx2 lvar2
-#define lszz2 lvar2
-#define lsxz2 lvar2
 
-#define lsxxr lvar
-#define lszzr lvar
-#define lsxzr lvar
-#define lsxxr2 lvar2
-#define lszzr2 lvar2
-#define lsxzr2 lvar2
-
-#endif
-
-
-// Calculation of the stress spatial derivatives of the forward wavefield if backpropagation is used
-#if BACK_PROP_TYPE==1
+    /* Calculation of the stress spatial derivatives of the forward wavefield
+    if backpropagation is used */
+    #if BACK_PROP_TYPE==1
     {
-    #if LOCAL_OFF==0
-        load_local_in(sxx);
-        load_local_halox(sxx);
-        BARRIER
-    #endif
-        sxx_x1 = Dxp(lsxx2);
+        #if LOCAL_OFF==0
+            load_local_in(sxx);
+            load_local_halox(sxx);
+            BARRIER
+        #endif
+            sxx_x1 = Dxp(lsxx2);
 
-    #if LOCAL_OFF==0
-        BARRIER
-        load_local_in(szz);
-        load_local_haloz(szz);
-        BARRIER
-    #endif
-        szz_z1 = Dzp(lszz);
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(szz);
+            load_local_haloz(szz);
+            BARRIER
+        #endif
+            szz_z1 = Dzp(lszz);
 
-    #if LOCAL_OFF==0
-        BARRIER
-        load_local_in(sxz);
-        load_local_halox(sxz);
-        load_local_haloz(sxz);
-        BARRIER
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(sxz);
+            load_local_halox(sxz);
+            load_local_haloz(sxz);
+            BARRIER
+        #endif
+            sxz_x2 = Dxm(lsxz2);
+            sxz_z2 = Dzm(lsxz);
+            BARRIER
+    }
     #endif
-        sxz_x2 = Dxm(lsxz2);
-        sxz_z2 = Dzm(lsxz);
-        BARRIER
-}
-#endif
 
     #if LOCAL_OFF==0
         load_local_in(sxxr);
@@ -155,8 +202,8 @@ FUNDEF void update_adjv(int offcomm,
     __cprec lrip = __pconv(rip[indp]);
     __cprec lrkp = __pconv(rkp[indp]);
 
-// Backpropagate the forward velocity
-#if BACK_PROP_TYPE==1
+    // Backpropagate the forward velocity
+    #if BACK_PROP_TYPE==1
     __cprec lvx = __h22f2(vx[indv]);
     __cprec lvz = __h22f2(vz[indv]);
     {
@@ -175,7 +222,7 @@ FUNDEF void update_adjv(int offcomm,
         vx[indv] = __f22h2(lvx);
         vz[indv] = __f22h2(lvz);
     }
-#endif
+    #endif
 
     // Update the variables
     lvxr=lvxr+(sxxr_x1+sxzr_z2)*lrip;
@@ -185,13 +232,13 @@ FUNDEF void update_adjv(int offcomm,
     {
     #if FREESURF==0
         if (DIV*gidz-FDOH<NAB){
-            lvxr = lvxr * __hp(&taper[DIV*gidz-FDOH]);
-            lvzr = lvzr * __hp(&taper[DIV*gidz-FDOH]);
+            lvxr = lvxr * __hpg(&taper[DIV*gidz-FDOH]);
+            lvzr = lvzr * __hpg(&taper[DIV*gidz-FDOH]);
         }
     #endif
         if (DIV*gidz>DIV*NZ-NAB-FDOH-1){
-            lvxr = lvxr * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
-            lvzr = lvzr * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+            lvxr = lvxr * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+            lvzr = lvzr * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
         }
 
     #if DEVID==0 & MYLOCALID==0
@@ -215,17 +262,21 @@ FUNDEF void update_adjv(int offcomm,
     vzr[indv] = __f22h2(lvzr);
 
 
-// Density gradient calculation on the fly
-#if BACK_PROP_TYPE==1
+    // Density gradient calculation on the fly
+    #if BACK_PROP_TYPE==1
     lvxr=(sxxr_x1+sxzr_z2)*lrip;
     lvzr=(szzr_z1+sxzr_x2)*lrkp;
 
-    gradrho[indp]=gradrho[indp] - scalefun( __h22f2c(lvx) * __h22f2c(lvxr) +  __h22f2c(lvz) * __h22f2c(lvzr), 2*par_scale -src_scale - res_scale);
+    gradrho[indp]=gradrho[indp] - scalefun(__h22f2c(lvx) * __h22f2c(lvxr) +
+                                           __h22f2c(lvz) * __h22f2c(lvzr),
+                                           2*par_scale -src_scale - res_scale);
     #if HOUT==1
-        Hrho[indp]= Hrho[indp] - scalefun( __h22f2c(lvx) * __h22f2c(lvx) +  __h22f2c(lvz) * __h22f2c(lvz), 2*par_scale -src_scale - res_scale);
+        Hrho[indp]= Hrho[indp] - scalefun(__h22f2c(lvx) * __h22f2c(lvx) +
+                                          __h22f2c(lvz) * __h22f2c(lvz),
+                                          2*par_scale -src_scale - res_scale);
     #endif
 
-#endif
+    #endif
 
 }
 

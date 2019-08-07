@@ -23,24 +23,58 @@
 
 
 FUNDEF void update_s(int offcomm,
-                                    __pprec *muipkp, __pprec *M, __pprec *mu,
-                                    __prec2 *sxx,__prec2 *sxz,__prec2 *szz,
-                                    __prec2 *vx,__prec2 *vz, float *taper
-                                    )
+                     GLOBARG __pprec *muipkp, GLOBARG __pprec *M,
+                     GLOBARG __pprec *mu,
+                     GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz,
+                     GLOBARG __prec2 *szz, GLOBARG __prec2 *vx,
+                     GLOBARG __prec2 *vz, GLOBARG float *taper, LOCARG2)
 
 {
     //Local memory
-    extern __shared__ __prec2 lvar2[];
+    LOCDEF2
+    #ifdef __OPENCL_VERSION__
+    __local __prec * lvar=lvar2;
+    #else
     __prec * lvar=(__prec *)lvar2;
+    #endif
     
     //Grid position
-    int lsizez = blockDim.x+2*FDOH/DIV;
-    int lsizex = blockDim.y+2*FDOH;
-    int lidz = threadIdx.x+FDOH/DIV;
-    int lidx = threadIdx.y+FDOH;
-    int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/DIV;
-    int gidx = blockIdx.y*blockDim.y+threadIdx.y+FDOH+offcomm;
-    
+    // If we use local memory
+    #if LOCAL_OFF==0
+        #ifdef __OPENCL_VERSION__
+        int lsizez = get_local_size(0)+2*FDOH/DIV;
+        int lsizex = get_local_size(1)+2*FDOH;
+        int lidz = get_local_id(0)+FDOH/DIV;
+        int lidx = get_local_id(1)+FDOH;
+        int gidz = get_global_id(0)+FDOH/DIV;
+        int gidx = get_global_id(1)+FDOH+offcomm;
+        #else
+        int lsizez = blockDim.x+2*FDOH/DIV;
+        int lsizex = blockDim.y+2*FDOH;
+        int lidz = threadIdx.x+FDOH/DIV;
+        int lidx = threadIdx.y+FDOH;
+        int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/DIV;
+        int gidx = blockIdx.y*blockDim.y+threadIdx.y+FDOH+offcomm;
+        #endif
+
+    // If local memory is turned off
+    #elif LOCAL_OFF==1
+        #ifdef __OPENCL_VERSION__
+        int gid = get_global_id(0);
+        int glsizez = (NZ-2*FDOH/DIV);
+        int gidz = gid%glsizez+FDOH/DIV;
+        int gidx = (gid/glsizez)+FDOH+offcomm;
+        #else
+        int lsizez = blockDim.x+2*FDOH/DIV;
+        int lsizex = blockDim.y+2*FDOH;
+        int lidz = threadIdx.x+FDOH/DIV;
+        int lidx = threadIdx.y+FDOH;
+        int gidz = blockIdx.x*blockDim.x+threadIdx.x+FDOH/DIV;
+        int gidx = blockIdx.y*blockDim.y+threadIdx.y+FDOH+offcomm;
+        #endif
+
+    #endif
+
     int indp = ((gidx)-FDOH)*(NZ-FDOH/DIV)+((gidz)-FDOH/DIV);
     int indv = gidx*NZ+gidz;
     
@@ -70,7 +104,6 @@ FUNDEF void update_s(int offcomm,
     //Calculation of the spatial derivatives
     {
     #if LOCAL_OFF==0
-        BARRIER
         load_local_in(vx);
         load_local_haloz(vx);
         load_local_halox(vx);
@@ -88,7 +121,6 @@ FUNDEF void update_s(int offcomm,
     #endif
         vz_x1 = Dxp(lvz2);
         vz_z2 = Dzm(lvz);
-        
     }
     
     // To stop updating if we are outside the model (global id must be a
@@ -114,22 +146,22 @@ FUNDEF void update_s(int offcomm,
     
     // Update the variables
     lsxz=lsxz + lmuipkp * (vx_z1+vz_x1);
-    lsxx=lsxx + lM*(vx_x2+vz_z2) - 2.0 * lmu * vz_z2;
-    lszz=lszz + lM*(vx_x2+vz_z2) - 2.0 * lmu * vx_x2;
+    lsxx=lsxx + lM*(vx_x2+vz_z2) - 2.0f * lmu * vz_z2;
+    lszz=lszz + lM*(vx_x2+vz_z2) - 2.0f * lmu * vx_x2;
     
     #if ABS_TYPE==2
     {
     #if FREESURF==0
         if (DIV*gidz-FDOH<NAB){
-            lsxx = lsxx * __hp(&taper[DIV*gidz-FDOH]);
-            lszz = lszz * __hp(&taper[DIV*gidz-FDOH]);
-            lsxz = lsxz * __hp(&taper[DIV*gidz-FDOH]);
+            lsxx = lsxx * __hpg(&taper[DIV*gidz-FDOH]);
+            lszz = lszz * __hpg(&taper[DIV*gidz-FDOH]);
+            lsxz = lsxz * __hpg(&taper[DIV*gidz-FDOH]);
         }
     #endif
         if (DIV*gidz>DIV*NZ-NAB-FDOH-1){
-            lsxx =lsxx * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
-            lszz =lszz * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
-            lsxz =lsxz * __hpi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+            lsxx =lsxx * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+            lszz =lszz * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+            lsxz =lsxz * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
         }
         
     #if DEVID==0 & MYLOCALID==0

@@ -132,10 +132,15 @@ int kernel_varout(device * dev,
             strcat(temp, vars[i].name);
             strcat(temp, "out[NT*gid+nt]=");
             if (dev->FP16>0){
+                #ifdef __SEISCL__
+                strcat(temp, "ldexp(");
+                #else
                 strcat(temp, "scalbnf(");
                 if (dev->FP16>1){
                     strcat(temp, "__half2float(");
                 }
+                #endif
+
             }
             strcat(temp, vars[i].name);
             strcat(temp, posstr);
@@ -166,10 +171,14 @@ int kernel_varout(device * dev,
                             break;
                         }
                     }
+                    #ifdef __SEISCL__
+                    strcat(temp, "ldexp(");
+                    #else
                     strcat(temp, "scalbnf(");
                     if (dev->FP16>1){
                         strcat(temp, "__half2float(");
                     }
+                    #endif
                 }
                 strcat(temp, tvars[i].var2ave[j]);
                 strcat(temp, posstr);
@@ -516,7 +525,11 @@ int kernel_sources(model * m,
         strcat(temp,"    float amp=(float)pdir*(DT*src[gid*NT+nt]);\n\n");
     }
     else{
+        #ifdef __SEISCL__
+        strcat(temp,"    float amp=ldexp((float)pdir*(DT*src[gid*NT+nt]), src_scale);\n\n");
+        #else
         strcat(temp,"    float amp=scalbnf((float)pdir*(DT*src[gid*NT+nt]), src_scale);\n\n");
+        #endif
     }
     
     char posstr[100]={0};
@@ -736,6 +749,9 @@ int kernel_residuals(device * dev,
                 strcat(temp, "+=");
             }
             else{
+                #ifdef __SEISCL__
+                strcat(temp, "+=ldexp(");
+                #else
                 if (dev->FP16==1){
                     strcat(temp, "+=scalbnf(");
                 }
@@ -747,6 +763,8 @@ int kernel_residuals(device * dev,
                     strcat(temp, posstr);
                     strcat(temp, ")+scalbnf(");
                 }
+                #endif
+                
             }
             strcat(temp, vars[i].name);
             if (dev->FP16==0){
@@ -771,6 +789,9 @@ int kernel_residuals(device * dev,
                     strcat(temp, "+=");
                 }
                 else{
+                    #ifdef __SEISCL__
+                    strcat(temp, "+=ldexp(");
+                    #else
                     if (dev->FP16==1){
                         strcat(temp, "+=scalbnf(");
                     }
@@ -778,10 +799,11 @@ int kernel_residuals(device * dev,
                         strcat(temp, "=__float2half(__half2float(");
                         strcat(temp, tvars[i].var2ave[j]);
                         if (BACK_PROP_TYPE==1)
-                        strcat(temp, "r");
+                            strcat(temp, "r");
                         strcat(temp, posstr);
                         strcat(temp, ")+scalbnf(");
                     }
+                    #endif
                 }
                 strcat(temp, tvars[i].name);
                 strcat(temp, "out[NT*gid+nt]/");
