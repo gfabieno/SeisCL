@@ -56,23 +56,26 @@
 
 // functions to compute with half2 or float2 (only FP16=3 computes with half2)
 #if FP16==3
-    #define __cprec half2
-    #define __cprec0 {0.0f,0.0f}
-#elif FP16==0
-    #define __cprec float
-    #define __cprec0 0.0f
-#else
-    #define __cprec float2
-    #define __cprec0 {0.0f,0.0f}
-#endif
-
-#if FP16==3
     #define __f22h2c(x) __float22half2_rn((x))
     #define __h22f2c(x) __half22float2((x))
 #else
     #define __f22h2c(x) (x)
     #define __h22f2c(x) (x)
 #endif
+
+#if FP16==3
+    #define __cprec half2
+#elif FP16==0
+    #define __cprec float
+#else
+    #define __cprec float2
+#endif
+#if FP16==0
+    #define initc0(v) x=0.0f
+#else
+    #define initc0(v) (v).x=0.0f;(v).y=0.0f
+#endif
+
 
 // functions to scale parameters
 

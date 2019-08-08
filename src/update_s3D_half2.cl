@@ -34,7 +34,22 @@ FUNDEF void update_s(int offcomm,
                      GLOBARG __prec2 *rzz, GLOBARG __prec2 *rxy,
                      GLOBARG __prec2 *ryz, GLOBARG __prec2 *rxz,
                      GLOBARG __prec2 *vx,  GLOBARG __prec2 *vy,
-                     GLOBARG __prec2 *vz, GLOBARG float *taper,
+                     GLOBARG __prec2 *vz,
+                     GLOBARG float *K_x,     GLOBARG float *a_x,
+                     GLOBARG float *b_x,     GLOBARG float *K_x_half,
+                     GLOBARG float *a_x_half,GLOBARG float *b_x_half,
+                     GLOBARG float *K_y,     GLOBARG float *a_y,
+                     GLOBARG float *b_y,     GLOBARG float *K_y_half,
+                     GLOBARG float *a_y_half,GLOBARG float *b_y_half,
+                     GLOBARG float *K_z,     GLOBARG float *a_z,
+                     GLOBARG float *b_z,     GLOBARG float *K_z_half,
+                     GLOBARG float *a_z_half,GLOBARG float *b_z_half,
+                     GLOBARG __prec2 *psi_vx_x, GLOBARG __prec2 *psi_vx_y,
+                     GLOBARG __prec2 *psi_vx_z, GLOBARG __prec2 *psi_vy_x,
+                     GLOBARG __prec2 *psi_vy_y, GLOBARG __prec2 *psi_vy_z,
+                     GLOBARG __prec2 *psi_vz_x, GLOBARG __prec2 *psi_vz_y,
+                     GLOBARG __prec2 *psi_vz_z,
+                     GLOBARG float *taper,
                      LOCARG2)
 {
     //Local memory
@@ -180,7 +195,126 @@ FUNDEF void update_s(int offcomm,
     #endif
     #endif
 
+    // Correct spatial derivatives to implement CPML
+    #if ABS_TYPE==1
+    {
+        int i,j,k,indm, indn;
+        if (DIV*gidz>DIV*NZ-NAB-FDOH-1){
+            
+            i =gidx-FDOH;
+            j =gidy-FDOH;
+            k =gidz - NZ + 2*NAB/DIV + FDOH/DIV;
+            indm=2*NAB - 1 - k*DIV;
+            indn = (i)*(NY-2*FDOH)*(2*NAB/DIV)+(j)*(2*NAB/DIV)+(k);
+            
+            psi_vx_z[indn] = __f22h2(__hpgi(&b_z_half[indm]) * psi_vx_z[indn]
+                                    + __hpgi(&a_z_half[indm]) * vx_z1);
+            vx_z1 = vx_z1 / __hpgi(&K_z_half[indm]) + psi_vx_z[indn];
+            psi_vy_z[indn] = __f22h2(__hpgi(&b_z_half[indm]) * psi_vy_z[indn]
+                                    + __hpgi(&a_z_half[indm]) * vy_z1);
+            vy_z1 = vy_z1 / __hpgi(&K_z_half[indm]) + psi_vy_z[indn];
+            psi_vz_z[indn] = __f22h2(__hpgi(&b_z[indm+1]) * psi_vz_z[indn]
+                                    + __hpgi(&a_z[indm+1]) * vz_z2);
+            vz_z2 = vz_z2 / __hpgi(&K_z[indm+1]) + psi_vz_z[indn];
+        }
+        
+        #if FREESURF==0
+        else if (DIV*gidz-FDOH<NAB){
 
+            i =gidx-FDOH;
+            j =gidy-FDOH;
+            k =DIV*gidz-FDOH;
+            indn = (i)*(NY-2*FDOH)*(2*NAB/DIV)+(j)*(2*NAB/DIV)+(k/DIV);
+
+            psi_vx_z[indn] = __f22h2(__hpg(&b_z_half[k]) * psi_vx_z[indn]
+                                    + __hpg(&a_z_half[k]) * vx_z1);
+            vx_z1 = vx_z1 / __hpg(&K_z_half[k]) + psi_vx_z[indn];
+            psi_vy_z[indn] = __f22h2(__hpg(&b_z_half[k]) * psi_vy_z[indn]
+                                    + __hpg(&a_z_half[k]) * vy_z1);
+            vy_z1 = vy_z1 / __hpg(&K_z_half[k]) + psi_vy_z[indn];
+            psi_vz_z[indn] = __f22h2(__hpg(&b_z[k]) * psi_vz_z[indn]
+                                    + __hpg(&a_z[k]) * vz_z2);
+            vz_z2 = vz_z2 / __hpg(&K_z[k]) + psi_vz_z[indn];
+        }
+        #endif
+
+        if (gidy-FDOH<NAB){
+            i =gidx-FDOH;
+            j =gidy-FDOH;
+            k =gidz-FDOH/DIV;
+            indn = (i)*(2*NAB)*(NZ-2*FDOH/DIV)+(j)*(NZ-2*FDOH/DIV)+(k);
+
+            psi_vx_y[indn] = __f22h2(b_y_half[j] * psi_vx_y[indn]
+                                    + a_y_half[j] * vx_y1);
+            vx_y1 = vx_y1 / K_y_half[j] + psi_vx_y[indn];
+            psi_vy_y[indn] = __f22h2(b_y[j] * psi_vy_y[indn]
+                                    + a_y[j] * vy_y2);
+            vy_y2 = vy_y2 / K_y[j] + psi_vy_y[indn];
+            psi_vz_y[indn] = __f22h2(b_y_half[j] * psi_vz_y[indn]
+                                    + a_y_half[j] * vz_y1);
+            vz_y1 = vz_y1 / K_y_half[j] + psi_vz_y[indn];
+        }
+
+        else if (gidy>NY-NAB-FDOH-1){
+
+            i =gidx-FDOH;
+            j =gidy - NY+NAB+FDOH+NAB;
+            k =gidz-FDOH/DIV;
+            indm=2*NAB-1-j;
+            indn = (i)*(2*NAB)*(NZ-2*FDOH/DIV)+(j)*(NZ-2*FDOH/DIV)+(k);
+
+            psi_vx_y[indn] = __f22h2(b_y_half[indm] * psi_vx_y[indn]
+                                    + a_y_half[indm] * vx_y1);
+            vx_y1 = vx_y1 / K_y_half[indm] + psi_vx_y[indn];
+            psi_vy_y[indn] = __f22h2(b_y[indm+1] * psi_vy_y[indn]
+                                    + a_y[indm+1] * vy_y2);
+            vy_y2 = vy_y2 / K_y[indm+1] + psi_vy_y[indn];
+            psi_vz_y[indn] = __f22h2(b_y_half[indm] * psi_vz_y[indn]
+                                    + a_y_half[indm] * vz_y1);
+            vz_y1 = vz_y1 / K_y_half[indm] + psi_vz_y[indn];
+        }
+        #if DEVID==0 & MYLOCALID==0
+        if (gidx-FDOH<NAB){
+
+            i =gidx-FDOH;
+            j =gidy-FDOH;
+            k =gidz-FDOH/DIV;
+            indn = (i)*(NY-2*FDOH)*(NZ-2*FDOH/DIV)+(j)*(NZ-2*FDOH/DIV)+(k);
+
+            psi_vx_x[indn] = __f22h2(b_x[i] * psi_vx_x[indn]
+                                    + a_x[i] * vx_x2);
+            vx_x2 = vx_x2 / K_x[i] + psi_vx_x[indn];
+            psi_vy_x[indn] = __f22h2(b_x_half[i] * psi_vy_x[indn]
+                                    + a_x_half[i] * vy_x1);
+            vy_x1 = vy_x1 / K_x_half[i] + psi_vy_x[indn];
+            psi_vz_x[indn] = __f22h2(b_x_half[i] * psi_vz_x[indn]
+                                    + a_x_half[i] * vz_x1);
+            vz_x1 = vz_x1 / K_x_half[i] + psi_vz_x[indn];
+        }
+        #endif
+
+        #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+        if (gidx>NX-NAB-FDOH-1){
+
+            i =gidx - NX+NAB+FDOH+NAB;
+            j =gidy-FDOH;
+            k =gidz-FDOH/DIV;
+            indm=2*NAB-1-i;
+            indn = (i)*(NY-2*FDOH)*(NZ-2*FDOH/DIV)+(j)*(NZ-2*FDOH/DIV)+(k);
+
+            psi_vx_x[indn] = __f22h2(b_x[indm+1] * psi_vx_x[indn]
+                                    + a_x[indm+1] * vx_x2);
+            vx_x2 = vx_x2 /K_x[indm+1] + psi_vx_x[indn];
+            psi_vy_x[indn] = __f22h2(b_x_half[indm] * psi_vy_x[indn]
+                                    + a_x_half[indm] * vy_x1);
+            vy_x1 = vy_x1  /K_x_half[indm] + psi_vy_x[indn];
+            psi_vz_x[indn] = __f22h2(b_x_half[indm] * psi_vz_x[indn]
+                                    + a_x_half[indm] * vz_x1);
+            vz_x1 = vz_x1 / K_x_half[indm]  +psi_vz_x[indn];
+        }
+        #endif
+    }
+    #endif
     //Define and load private parameters and variables
     __cprec lsxx = __h22f2(sxx[indv]);
     __cprec lsxy = __h22f2(sxy[indv]);
@@ -234,12 +368,14 @@ FUNDEF void update_s(int offcomm,
         }
 
         /* computing sums of the old memory variables */
-        __cprec sumrxy=__cprec0;
-        __cprec sumryz=__cprec0;
-        __cprec sumrxz=__cprec0;
-        __cprec sumrxx=__cprec0;
-        __cprec sumryy=__cprec0;
-        __cprec sumrzz=__cprec0;
+        __cprec sumrxy;
+        __cprec sumryz;
+        __cprec sumrxz;
+        __cprec sumrxx;
+        __cprec sumryy;
+        __cprec sumrzz;
+        initc0(sumrxy);initc0(sumryz);initc0(sumrxz);
+        initc0(sumrxx);initc0(sumryy);initc0(sumrzz);
         for (l=0;l<LVE;l++){
             indr = l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz;
             sumrxy= sumrxy + rxy[indr];
@@ -258,7 +394,8 @@ FUNDEF void update_s(int offcomm,
         lsyy=lsyy + g*(vx_x2+vy_y2+vz_z2) - f*(vx_x2+vz_z2)+(DT2*sumryy);
         lszz=lszz + g*(vx_x2+vy_y2+vz_z2) - f*(vx_x2+vy_y2)+(DT2*sumrzz);
 
-        sumrxy=sumryz=sumrxz=sumrxx=sumryy=sumrzz=sumrzz *0.0f;
+        initc0(sumrxy);initc0(sumryz);initc0(sumrxz);
+        initc0(sumrxx);initc0(sumryy);initc0(sumrzz);
         float b,c;
         for (l=0;l<LVE;l++){
             b=1.0f/(1.0f+(leta[l]*0.5f));
@@ -299,8 +436,8 @@ FUNDEF void update_s(int offcomm,
             lsyz = lsyz * __hpg(&taper[DIV*gidz-FDOH]);
             lsxz = lsxz * __hpg(&taper[DIV*gidz-FDOH]);
             lsxx = lsxx * __hpg(&taper[DIV*gidz-FDOH]);
+            lsyy = lsyy * __hpg(&taper[DIV*gidz-FDOH]);
             lszz = lszz * __hpg(&taper[DIV*gidz-FDOH]);
-            lsxz = lsxz * __hpg(&taper[DIV*gidz-FDOH]);
         }
         #endif
 
@@ -309,16 +446,16 @@ FUNDEF void update_s(int offcomm,
             lsyz = lsyz * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
             lsxz = lsxz * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
             lsxx = lsxx * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+            lsyy = lsyy * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
             lszz = lszz * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
-            lsxz = lsxz * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
         }
         if (gidy-FDOH<NAB){
             lsxy = lsxy * taper[gidy-FDOH];
             lsyz = lsyz * taper[gidy-FDOH];
             lsxz = lsxz * taper[gidy-FDOH];
             lsxx = lsxx * taper[gidy-FDOH];
+            lsyy = lsyy * taper[gidy-FDOH];
             lszz = lszz * taper[gidy-FDOH];
-            lsxz = lsxz * taper[gidy-FDOH];
         }
 
         if (gidy>NY-NAB-FDOH-1){
@@ -326,8 +463,8 @@ FUNDEF void update_s(int offcomm,
             lsyz = lsyz * taper[NY-FDOH-gidy-1];
             lsxz = lsxz * taper[NY-FDOH-gidy-1];
             lsxx = lsxx * taper[NY-FDOH-gidy-1];
+            lsyy = lsyy * taper[NY-FDOH-gidy-1];
             lszz = lszz * taper[NY-FDOH-gidy-1];
-            lsxz = lsxz * taper[NY-FDOH-gidy-1];
         }
         #if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
@@ -335,8 +472,8 @@ FUNDEF void update_s(int offcomm,
             lsyz = lsyz * taper[gidx-FDOH];
             lsxz = lsxz * taper[gidx-FDOH];
             lsxx = lsxx * taper[gidx-FDOH];
+            lsyy = lsyy * taper[gidx-FDOH];
             lszz = lszz * taper[gidx-FDOH];
-            lsxz = lsxz * taper[gidx-FDOH];
         }
         #endif
 
@@ -346,8 +483,9 @@ FUNDEF void update_s(int offcomm,
             lsyz = lsyz * taper[NX-FDOH-gidx-1];
             lsxz = lsxz * taper[NX-FDOH-gidx-1];
             lsxx = lsxx * taper[NX-FDOH-gidx-1];
+            lsyy = lsyy * taper[NX-FDOH-gidx-1];
             lszz = lszz * taper[NX-FDOH-gidx-1];
-            lsxz = lsxz * taper[NX-FDOH-gidx-1];
+
         }
         #endif
         }

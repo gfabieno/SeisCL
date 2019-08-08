@@ -7,6 +7,7 @@ import hdf5storage as h5mat
 import h5py as h5
 import numpy as np
 import subprocess
+import os
 from obspy.core import Trace, Stream
 
 class SeisCLError(Exception):
@@ -22,9 +23,10 @@ class SeisCL():
         """
 
 
-        self.file = 'model'     #Filename for models and parameters (see setter)
+        self.file = 'SeisCL'     #Filename for models and parameters (see setter)
         self.file_datalist = None     #File with a list of all data (see setter)
         self.progname = 'SeisCL_MPI'
+        self.workdir = './seiscl'
 
         #_____________________Simulation constants _______________________
         self.csts = {}
@@ -60,7 +62,7 @@ class SeisCL():
         self.csts['FPML'] = 15              #Dominant frequency of the wavefield
         self.csts['K_MAX_CPML'] = 2                 # Coeffienc involved in CPML
                                           # (may influence simulation stability)
-        self.csts['nab'] = 32       #Width in grid points of the absorbing layer
+        self.csts['nab'] = 16       #Width in grid points of the absorbing layer
         self.csts['abpc'] = 6   #Exponential decay for absorbing layer of Cerjan
         self.csts['pref_device_type'] = 4               #Type of processor used:
                                                 # 2: CPU, 4: GPU, 8: Accelerator
@@ -70,7 +72,7 @@ class SeisCL():
         self.csts['MPI_NPROC_SHOT'] = 1   #Maximum number of MPI process (nodes)
                                               # involved in domain decomposition
         
-        self.csts['back_prop_type'] = 2           #Type of gradient calculation:
+        self.csts['back_prop_type'] = 1           #Type of gradient calculation:
                                              # 1: backpropagation (elastic only)
                                                 #  2: Discrete Fourier transform
         self.csts['param_type'] = 0                    #Type of parametrization:
@@ -91,7 +93,7 @@ class SeisCL():
         self.csts['gradout'] = 0           #Output gradient 1:yes, 0: no
         self.csts['Hout'] = 0              #Output approximate Hessian 1:yes, 0: no
         self.csts['gradsrcout'] = 0        #Output source gradient 1:yes, 0: no
-        self.csts['seisout'] = 1           #Output seismograms 1: output velocities, 2: output pressure, 3: output stresses, output everything
+        self.csts['seisout'] = 2           #Output seismograms 1: output velocities, 2: output pressure, 3: output stresses, output everything
         self.csts['resout'] = 0            #Output residuals 1:yes, 0: no
         self.csts['rmsout'] = 0            #Output rms value 1:yes, 0: no
         self.csts['movout'] = 0            #Output movie every n frames
@@ -123,7 +125,17 @@ class SeisCL():
 
     #_____________________Setters _______________________
     
+    #When setting a file for the datalist, load the datalist from it
+    @property
+    def workdir(self):
+        return self.__workdir
     
+    @workdir.setter
+    def workdir(self, workdir):
+        self.__workdir = workdir
+        if not os.path.isdir(workdir):
+            os.mkdir(workdir)
+
     #When setting a file for the datalist, load the datalist from it  
     @property
     def file_datalist(self):
@@ -229,7 +241,7 @@ class SeisCL():
         return toload
 
             
-    def set_forward(self, jobids, params, workdir, withgrad=True):
+    def set_forward(self, jobids, params, workdir=None, withgrad=True):
         """
         Set up files to launch SeisCL on a selected number of shots
 
@@ -242,7 +254,9 @@ class SeisCL():
         @returns:
 
         """
-
+        if workdir is None:
+            workdir = self.workdir
+        
         self.srcids = np.empty((0, 0), 'int')
         self.recids = np.empty((0, 0), 'int')
         if len(np.atleast_1d(jobids)) > 1:
@@ -264,9 +278,9 @@ class SeisCL():
         else:
             self.csts['gradout'] = 0
         self.write_csts(workdir)
-        self.write_model(workdir, params)
+        self.write_model(params, workdir)
 
-    def set_backward(self, workdir, residuals):
+    def set_backward(self, residuals, workdir=None):
         """
         Set up files to launch SeisCL when inputing residuals for gradient
         computation
@@ -278,6 +292,9 @@ class SeisCL():
         @returns:
 
         """
+        
+        if workdir is None:
+            workdir = self.workdir
         data = {}
         for n, word in enumerate(self.to_load_names):
            data[word+"res"] = residuals[n]
@@ -290,7 +307,7 @@ class SeisCL():
         self.csts['gradout'] = 1
         self.write_csts(workdir)
 
-    def callcmd(self, workdir):
+    def callcmd(self, workdir=None):
         """
         Defines the command to launch SeisCL
 
@@ -300,10 +317,12 @@ class SeisCL():
         @returns:
         cmd (str): A string containing the command
         """
+        if workdir is None:
+            workdir = self.workdir
         cmd = 'mpirun -np 1 '+self.progname+' '+workdir+'/'+self.file+' '+self.file_din
         return cmd
 
-    def execute(self, workdir):
+    def execute(self, workdir=None):
         """
         Launch SeisCL, a wait for it to return
 
@@ -312,6 +331,8 @@ class SeisCL():
 
         @returns:
         """
+        if workdir is None:
+            workdir = self.workdir
         pipes = subprocess.Popen(self.callcmd(workdir),
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE, shell=True)
@@ -319,7 +340,7 @@ class SeisCL():
         if stderr:
             raise SeisCLError(stderr.decode())
 
-    def read_data(self, workdir):
+    def read_data(self, workdir=None):
         """
         Read the seismogram output by SeisCL
 
@@ -329,6 +350,8 @@ class SeisCL():
         @returns:
         output (list): A list containing each outputted variable
         """
+        if workdir is None:
+            workdir = self.workdir
         try:
             mat = h5.File(workdir + "/" + self.file_dout, 'r')
         except OSError:
@@ -345,7 +368,7 @@ class SeisCL():
             
         return output
     
-    def read_grad(self, workdir, param_names):
+    def read_grad(self, workdir=None, param_names=None):
         """
         Read the gradient output by SeisCL
 
@@ -356,7 +379,10 @@ class SeisCL():
         @returns:
         output (list): A list containing each gradient
         """
-
+        if workdir is None:
+            workdir = self.workdir
+        if param_names is None:
+            param_names = self.params
         toread = ['grad'+name for name in param_names]
         try:
             mat = h5.File(workdir + "/" + self.file_gout, 'r')
@@ -366,7 +392,7 @@ class SeisCL():
 
         return output 
     
-    def read_Hessian(self,  workdir, param_names):
+    def read_Hessian(self,  workdir=None, param_names=None):
         """
         Read the approximate hessian output by SeisCL
 
@@ -377,7 +403,10 @@ class SeisCL():
         @returns:
         output (list): A list containing each gradient
         """
-
+        if workdir is None:
+            workdir = self.workdir
+        if param_names is None:
+            param_names = self.params
         toread = ['H' + name for name in param_names]
         try:
             mat = h5.File(workdir + "/" + self.file_gout, 'r')
@@ -387,7 +416,7 @@ class SeisCL():
 
         return output
 
-    def read_rms(self, workdir):
+    def read_rms(self, workdir=None):
         """
         Read the rms value output by SeisCL
 
@@ -398,7 +427,8 @@ class SeisCL():
         rms (float): The normalized rms value
         rms_norm (float) :Normalization factor
         """
-
+        if workdir is None:
+            workdir = self.workdir
         try:
             mat = h5.File(workdir + "/" + self.file_rms, 'r')
         except OSError:
@@ -406,7 +436,7 @@ class SeisCL():
             
         return mat['rms'][0]/mat['rms_norm'][0], mat['rms_norm'][0]
             
-    def write_data(self, data):
+    def write_data(self, data, workdir=None, filename=None):
         """
         Write the data file for SeisCL
 
@@ -416,20 +446,24 @@ class SeisCL():
         @returns:
 
         """
+        if workdir is None:
+            workdir = self.workdir
+        if filename is None:
+            filename = self.file_din
         if 'src_pos' not in data:
             data['src_pos'] = self.src_pos
         if 'rec_pos' not in data:
             data['rec_pos'] = self.rec_pos
         if 'src' not in data:
             data['src'] = self.src
-        h5mat.savemat(self.file_din,
+        h5mat.savemat(os.path.join(workdir, filename),
                       data,
                       appendmat=False,
                       format='7.3',
                       store_python_metadata=True,
                       truncate_existing=True)
 
-    def read_csts(self, workdir):
+    def read_csts(self, workdir=None):
         """
         Read the constants from the constants file
 
@@ -439,8 +473,10 @@ class SeisCL():
         @returns:
 
         """
+        if workdir is None:
+            workdir = self.workdir
         try:
-           mat = h5mat.loadmat(workdir + "/" + self.file_csts,
+           mat = h5mat.loadmat(os.path.join(workdir, self.file_csts),
                                variable_names=[param for param in self.csts])
            for word in mat:
                if word in self.csts:
@@ -448,7 +484,7 @@ class SeisCL():
         except (h5mat.lowlevel.CantReadError, NotImplementedError):
            raise SeisCLError('could not read parameter file \n')
 
-    def write_csts(self, workdir):
+    def write_csts(self, workdir=None):
         """
         Write the constants to the constants file
 
@@ -458,14 +494,16 @@ class SeisCL():
         @returns:
 
         """
-        h5mat.savemat(workdir + "/" + self.file_csts,
+        if workdir is None:
+            workdir = self.workdir
+        h5mat.savemat(os.path.join(workdir, self.file_csts),
                       self.csts,
                       appendmat=False,
                       format='7.3',
                       store_python_metadata=True,
                       truncate_existing=True)
 
-    def read_srcs(self, workdir):
+    def read_srcs(self, workdir=None):
         """
         Read the source signal for SeisCL file
 
@@ -475,14 +513,16 @@ class SeisCL():
         @returns:
 
         """
+        if workdir is None:
+            workdir = self.workdir
         try:
-            mat = h5.File(workdir + "/" + self.file_datalist, 'r')
+            mat = h5.File(os.path.join(workdir, self.file_datalist), 'r')
             data = mat['src']
             setattr(self, 'src', np.transpose(data[self.srcids,:]))
         except :
             raise SeisCLError('could not read src\n')
 
-    def write_model(self, workdir, params):
+    def write_model(self, params, workdir=None):
         """
         Write model parameters to the model files
 
@@ -493,10 +533,12 @@ class SeisCL():
         @returns:
 
         """
+        if workdir is None:
+            workdir = self.workdir
         for param in self.params:
             if param not in params:
                 raise SeisCLError('Parameter with %s not defined\n' % param)
-        h5mat.savemat(workdir + "/" + self.file_model,
+        h5mat.savemat(os.path.join(workdir, self.file_model),
                       params,
                       appendmat=False,
                       format='7.3',
@@ -572,7 +614,6 @@ class SeisCL():
 
 
 if __name__ == "__main__":
-    import os
     import matplotlib.pyplot as plt
     tmax = 0.5
     seis = SeisCL()
@@ -581,7 +622,7 @@ if __name__ == "__main__":
     seis.csts['NT'] = tmax // seis.csts['dt']
 
     seis.csts['f0'] = 40
-    seis.csts['freesurf'] = 1
+    seis.csts['freesurf'] = 0
     seis.csts['FDORDER'] = 4
     seis.csts['abs_type'] = 1
     seis.csts['seisout'] = 2
@@ -613,13 +654,11 @@ if __name__ == "__main__":
                             [gx, gx * 0, gz, gsid, gid, gx * 0 + 2, gx * 0, gx * 0],
                             axis=0)
     seis.rec_pos_all = seis.rec_pos
-    workdir = "./seiscl"
-    if not os.path.isdir(workdir):
-        os.mkdir(workdir)
+
     seis.set_forward(seis.src_pos_all[3,:], {"vp": vp, "rho": rho, "vs": vs},
-                     workdir, withgrad=False)
-    seis.execute(workdir)
-    data = seis.read_data(workdir)[0]
+                     withgrad=False)
+    seis.execute()
+    data = seis.read_data()[0]
     clip = 0.01
     vmin = np.min(data) * clip
     vmax = -vmin

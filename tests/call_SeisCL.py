@@ -14,6 +14,9 @@ import time
 from shutil import copyfile
 import math
 import subprocess
+import sys
+sys.path.append('../')
+from python.SeisCL import SeisCL
 
 file="SeisCL"
 filenames={}

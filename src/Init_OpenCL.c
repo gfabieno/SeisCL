@@ -844,7 +844,6 @@ int Init_CUDA(model * m, device ** dev)  {
             if (m->FP16>1)
                 di->vars[i].cl_var.size/=2;
             __GUARD clbuf_create( &m->context, &di->vars[i].cl_var);
-            
             //Create variable buffers for the boundary of the domain
             if ( di->vars[i].to_comm
                 && (d>0 || m->MYLOCALID>0

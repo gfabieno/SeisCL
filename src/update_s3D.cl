@@ -21,17 +21,17 @@
 
 /*Define useful macros to be able to write a matrix formulation in 2D with OpenCl */
 
-#define psi_vxx(z,y,x) psi_vxx[(x)*(NY-2*FDOH)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
-#define psi_vyx(z,y,x) psi_vyx[(x)*(NY-2*FDOH)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
-#define psi_vzx(z,y,x) psi_vzx[(x)*(NY-2*FDOH)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
+#define psi_vx_x(z,y,x) psi_vx_x[(x)*(NY-2*FDOH)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
+#define psi_vy_x(z,y,x) psi_vy_x[(x)*(NY-2*FDOH)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
+#define psi_vz_x(z,y,x) psi_vz_x[(x)*(NY-2*FDOH)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
 
-#define psi_vxy(z,y,x) psi_vxy[(x)*(2*NAB)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
-#define psi_vyy(z,y,x) psi_vyy[(x)*(2*NAB)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
-#define psi_vzy(z,y,x) psi_vzy[(x)*(2*NAB)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
+#define psi_vx_y(z,y,x) psi_vx_y[(x)*(2*NAB)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
+#define psi_vy_y(z,y,x) psi_vy_y[(x)*(2*NAB)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
+#define psi_vz_y(z,y,x) psi_vz_y[(x)*(2*NAB)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
 
-#define psi_vxz(z,y,x) psi_vxz[(x)*(NY-2*FDOH)*(2*NAB)+(y)*(2*NAB)+(z)]
-#define psi_vyz(z,y,x) psi_vyz[(x)*(NY-2*FDOH)*(2*NAB)+(y)*(2*NAB)+(z)]
-#define psi_vzz(z,y,x) psi_vzz[(x)*(NY-2*FDOH)*(2*NAB)+(y)*(2*NAB)+(z)]
+#define psi_vx_z(z,y,x) psi_vx_z[(x)*(NY-2*FDOH)*(2*NAB)+(y)*(2*NAB)+(z)]
+#define psi_vy_z(z,y,x) psi_vy_z[(x)*(NY-2*FDOH)*(2*NAB)+(y)*(2*NAB)+(z)]
+#define psi_vz_z(z,y,x) psi_vz_z[(x)*(NY-2*FDOH)*(2*NAB)+(y)*(2*NAB)+(z)]
 
 
 FUNDEF void update_s(int offcomm,  int nt,
@@ -51,9 +51,9 @@ FUNDEF void update_s(int offcomm,  int nt,
                        GLOBARG float *K_y_half,   GLOBARG float *a_y_half,     GLOBARG float *b_y_half,
                        GLOBARG float *K_z,        GLOBARG float *a_z,          GLOBARG float *b_z,
                        GLOBARG float *K_z_half,   GLOBARG float *a_z_half,     GLOBARG float *b_z_half,
-                       GLOBARG float *psi_vxx,    GLOBARG float *psi_vxy,       GLOBARG float *psi_vxz,
-                       GLOBARG float *psi_vyx,    GLOBARG float *psi_vyy,       GLOBARG float *psi_vyz,
-                       GLOBARG float *psi_vzx,    GLOBARG float *psi_vzy,       GLOBARG float *psi_vzz,
+                       GLOBARG float *psi_vx_x,    GLOBARG float *psi_vx_y,       GLOBARG float *psi_vx_z,
+                       GLOBARG float *psi_vy_x,    GLOBARG float *psi_vy_y,       GLOBARG float *psi_vy_z,
+                       GLOBARG float *psi_vz_x,    GLOBARG float *psi_vz_y,       GLOBARG float *psi_vz_z,
                        LOCARG)
 
 {
@@ -193,108 +193,108 @@ FUNDEF void update_s(int offcomm,  int nt,
 // Correct spatial derivatives to implement CPML
 #if ABS_TYPE==1
     {
-        int i,j,k,ind;
+        int i,j,k,indm;
         if (gidz>NZ-NAB-FDOH-1){
             
             i =gidx-FDOH;
             j =gidy-FDOH;
             k =gidz - NZ+NAB+FDOH+NAB;
-            ind=2*NAB-1-k;
-            
-            psi_vxz(k,j,i) = b_z_half[ind] * psi_vxz(k,j,i) + a_z_half[ind] * vxz;
-            vxz = vxz / K_z_half[ind] + psi_vxz(k,j,i);
-            psi_vyz(k,j,i) = b_z_half[ind] * psi_vyz(k,j,i) + a_z_half[ind] * vyz;
-            vyz = vyz / K_z_half[ind] + psi_vyz(k,j,i);
-            psi_vzz(k,j,i) = b_z[ind+1] * psi_vzz(k,j,i) + a_z[ind+1] * vzz;
-            vzz = vzz / K_z[ind+1] + psi_vzz(k,j,i);
-            
+            indm=2*NAB-1-k;
+
+            psi_vx_z(k,j,i) = b_z_half[indm] * psi_vx_z(k,j,i) + a_z_half[indm] * vxz;
+            vxz = vxz / K_z_half[indm] + psi_vx_z(k,j,i);
+            psi_vy_z(k,j,i) = b_z_half[indm] * psi_vy_z(k,j,i) + a_z_half[indm] * vyz;
+            vyz = vyz / K_z_half[indm] + psi_vy_z(k,j,i);
+            psi_vz_z(k,j,i) = b_z[indm+1] * psi_vz_z(k,j,i) + a_z[indm+1] * vzz;
+            vzz = vzz / K_z[indm+1] + psi_vz_z(k,j,i);
+
         }
-        
+
 #if FREESURF==0
-        else if (gidz-FDOH<NAB){
-            
+        if (gidz-FDOH<NAB){
+
             i =gidx-FDOH;
             j =gidy-FDOH;
             k =gidz-FDOH;
-            
-            
-            psi_vxz(k,j,i) = b_z_half[k] * psi_vxz(k,j,i) + a_z_half[k] * vxz;
-            vxz = vxz / K_z_half[k] + psi_vxz(k,j,i);
-            psi_vyz(k,j,i) = b_z_half[k] * psi_vyz(k,j,i) + a_z_half[k] * vyz;
-            vyz = vyz / K_z_half[k] + psi_vyz(k,j,i);
-            psi_vzz(k,j,i) = b_z[k] * psi_vzz(k,j,i) + a_z[k] * vzz;
-            vzz = vzz / K_z[k] + psi_vzz(k,j,i);
-            
-            
+
+
+            psi_vx_z(k,j,i) = b_z_half[k] * psi_vx_z(k,j,i) + a_z_half[k] * vxz;
+            vxz = vxz / K_z_half[k] + psi_vx_z(k,j,i);
+            psi_vy_z(k,j,i) = b_z_half[k] * psi_vy_z(k,j,i) + a_z_half[k] * vyz;
+            vyz = vyz / K_z_half[k] + psi_vy_z(k,j,i);
+            psi_vz_z(k,j,i) = b_z[k] * psi_vz_z(k,j,i) + a_z[k] * vzz;
+            vzz = vzz / K_z[k] + psi_vz_z(k,j,i);
+
+
         }
 #endif
-        
+
         if (gidy-FDOH<NAB){
             i =gidx-FDOH;
             j =gidy-FDOH;
             k =gidz-FDOH;
-            
-            psi_vxy(k,j,i) = b_y_half[j] * psi_vxy(k,j,i) + a_y_half[j] * vxy;
-            vxy = vxy / K_y_half[j] + psi_vxy(k,j,i);
-            psi_vyy(k,j,i) = b_y[j] * psi_vyy(k,j,i) + a_y[j] * vyy;
-            vyy = vyy / K_y[j] + psi_vyy(k,j,i);
-            psi_vzy(k,j,i) = b_y_half[j] * psi_vzy(k,j,i) + a_y_half[j] * vzy;
-            vzy = vzy / K_y_half[j] + psi_vzy(k,j,i);
-            
+
+            psi_vx_y(k,j,i) = b_y_half[j] * psi_vx_y(k,j,i) + a_y_half[j] * vxy;
+            vxy = vxy / K_y_half[j] + psi_vx_y(k,j,i);
+            psi_vy_y(k,j,i) = b_y[j] * psi_vy_y(k,j,i) + a_y[j] * vyy;
+            vyy = vyy / K_y[j] + psi_vy_y(k,j,i);
+            psi_vz_y(k,j,i) = b_y_half[j] * psi_vz_y(k,j,i) + a_y_half[j] * vzy;
+            vzy = vzy / K_y_half[j] + psi_vz_y(k,j,i);
+
         }
-        
-        else if (gidy>NY-NAB-FDOH-1){
-            
+
+        if (gidy>NY-NAB-FDOH-1){
+
             i =gidx-FDOH;
             j =gidy - NY+NAB+FDOH+NAB;
             k =gidz-FDOH;
-            ind=2*NAB-1-j;
-            
-            
-            psi_vxy(k,j,i) = b_y_half[ind] * psi_vxy(k,j,i) + a_y_half[ind] * vxy;
-            vxy = vxy / K_y_half[ind] + psi_vxy(k,j,i);
-            psi_vyy(k,j,i) = b_y[ind+1] * psi_vyy(k,j,i) + a_y[ind+1] * vyy;
-            vyy = vyy / K_y[ind+1] + psi_vyy(k,j,i);
-            psi_vzy(k,j,i) = b_y_half[ind] * psi_vzy(k,j,i) + a_y_half[ind] * vzy;
-            vzy = vzy / K_y_half[ind] + psi_vzy(k,j,i);
-            
-            
+            indm=2*NAB-1-j;
+
+
+            psi_vx_y(k,j,i) = b_y_half[indm] * psi_vx_y(k,j,i) + a_y_half[indm] * vxy;
+            vxy = vxy / K_y_half[indm] + psi_vx_y(k,j,i);
+            psi_vy_y(k,j,i) = b_y[indm+1] * psi_vy_y(k,j,i) + a_y[indm+1] * vyy;
+            vyy = vyy / K_y[indm+1] + psi_vy_y(k,j,i);
+            psi_vz_y(k,j,i) = b_y_half[indm] * psi_vz_y(k,j,i) + a_y_half[indm] * vzy;
+            vzy = vzy / K_y_half[indm] + psi_vz_y(k,j,i);
+
+
         }
 #if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
-            
+
             i =gidx-FDOH;
             j =gidy-FDOH;
             k =gidz-FDOH;
-            
-            psi_vxx(k,j,i) = b_x[i] * psi_vxx(k,j,i) + a_x[i] * vxx;
-            vxx = vxx / K_x[i] + psi_vxx(k,j,i);
-            psi_vyx(k,j,i) = b_x_half[i] * psi_vyx(k,j,i) + a_x_half[i] * vyx;
-            vyx = vyx / K_x_half[i] + psi_vyx(k,j,i);
-            psi_vzx(k,j,i) = b_x_half[i] * psi_vzx(k,j,i) + a_x_half[i] * vzx;
-            vzx = vzx / K_x_half[i] + psi_vzx(k,j,i);
-            
-            
+
+            psi_vx_x(k,j,i) = b_x[i] * psi_vx_x(k,j,i) + a_x[i] * vxx;
+            vxx = vxx / K_x[i] + psi_vx_x(k,j,i);
+            psi_vy_x(k,j,i) = b_x_half[i] * psi_vy_x(k,j,i) + a_x_half[i] * vyx;
+            vyx = vyx / K_x_half[i] + psi_vy_x(k,j,i);
+            psi_vz_x(k,j,i) = b_x_half[i] * psi_vz_x(k,j,i) + a_x_half[i] * vzx;
+            vzx = vzx / K_x_half[i] + psi_vz_x(k,j,i);
+
+
         }
 #endif
-        
+
 #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-NAB-FDOH-1){
-            
+
             i =gidx - NX+NAB+FDOH+NAB;
             j =gidy-FDOH;
             k =gidz-FDOH;
-            ind=2*NAB-1-i;
-            
-            
-            psi_vxx(k,j,i) = b_x[ind+1] * psi_vxx(k,j,i) + a_x[ind+1] * vxx;
-            vxx = vxx /K_x[ind+1] + psi_vxx(k,j,i);
-            psi_vyx(k,j,i) = b_x_half[ind] * psi_vyx(k,j,i) + a_x_half[ind] * vyx;
-            vyx = vyx  /K_x_half[ind] + psi_vyx(k,j,i);
-            psi_vzx(k,j,i) = b_x_half[ind] * psi_vzx(k,j,i) + a_x_half[ind] * vzx;
-            vzx = vzx / K_x_half[ind]  +psi_vzx(k,j,i);
-            
-            
+            indm=2*NAB-1-i;
+
+
+            psi_vx_x(k,j,i) = b_x[indm+1] * psi_vx_x(k,j,i) + a_x[indm+1] * vxx;
+            vxx = vxx /K_x[indm+1] + psi_vx_x(k,j,i);
+            psi_vy_x(k,j,i) = b_x_half[indm] * psi_vy_x(k,j,i) + a_x_half[indm] * vyx;
+            vyx = vyx  /K_x_half[indm] + psi_vy_x(k,j,i);
+            psi_vz_x(k,j,i) = b_x_half[indm] * psi_vz_x(k,j,i) + a_x_half[indm] * vzx;
+            vzx = vzx / K_x_half[indm]  +psi_vz_x(k,j,i);
+
+
         }
 #endif
     }

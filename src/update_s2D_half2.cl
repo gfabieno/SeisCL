@@ -28,6 +28,16 @@ FUNDEF void update_s(int offcomm,
                      GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz,
                      GLOBARG __prec2 *szz, GLOBARG __prec2 *vx,
                      GLOBARG __prec2 *vz,
+                     GLOBARG float *K_x,         GLOBARG float *a_x,
+                     GLOBARG float *b_x,
+                     GLOBARG float *K_x_half,    GLOBARG float *a_x_half,
+                     GLOBARG float *b_x_half,
+                     GLOBARG float *K_z,         GLOBARG float *a_z,
+                     GLOBARG float *b_z,
+                     GLOBARG float *K_z_half,    GLOBARG float *a_z_half,
+                     GLOBARG float *b_z_half,
+                     GLOBARG __prec2 *psi_vx_x,  GLOBARG __prec2 *psi_vx_z,
+                     GLOBARG __prec2 *psi_vz_x,  GLOBARG __prec2 *psi_vz_z,
                      GLOBARG __prec2 *rxx, GLOBARG __prec2 *rzz,
                      GLOBARG __prec2 *rxz, GLOBARG __pprec *taus,
                      GLOBARG __pprec *tausipkp,   GLOBARG __pprec *taup,
@@ -140,6 +150,75 @@ FUNDEF void update_s(int offcomm,
     #endif
     #endif
    
+    
+    // Correct spatial derivatives to implement CPML
+    
+    #if ABS_TYPE==1
+    {
+        int i,k,indm,indn;
+        if (DIV*gidz>DIV*NZ-NAB-FDOH-1){
+            i =gidx - FDOH;
+            k =gidz - NZ + 2*NAB/DIV + FDOH/DIV;
+            indm=2*NAB - 1 - k*DIV;
+            indn = (i)*(2*NAB/DIV)+(k);
+
+            psi_vx_z[indn] = __f22h2(__hpgi(&b_z_half[indm]) * psi_vx_z[indn]
+                                     + __hpgi(&a_z_half[indm]) * vx_z1);
+            vx_z1 = vx_z1 / __hpgi(&K_z_half[indm]) + psi_vx_z[indn];
+            psi_vz_z[indn] = __f22h2(__hpgi(&b_z[indm+1]) * psi_vz_z[indn]
+                                     + __hpgi(&a_z[indm+1]) * vz_z2);
+            vz_z2 = vz_z2 / __hpgi(&K_z[indm+1]) + psi_vz_z[indn];
+        }
+
+        #if FREESURF==0
+        if (DIV*gidz-FDOH<NAB){
+            i =gidx-FDOH;
+            k =gidz*DIV-FDOH;
+            indn = (i)*(2*NAB/DIV)+(k/DIV);
+
+            psi_vx_z[indn] = __f22h2(__hpg(&b_z_half[k]) * psi_vx_z[indn]
+                                     + __hpg(&a_z_half[k]) * vx_z1);
+            vx_z1 = vx_z1 / __hpg(&K_z_half[k]) + psi_vx_z[indn];
+            psi_vz_z[indn] = __f22h2(__hpg(&b_z[k]) * psi_vz_z[indn]
+                                     + __hpg(&a_z[k]) * vz_z2);
+            vz_z2 = vz_z2 / __hpg(&K_z[k]) + psi_vz_z[indn];
+        }
+        #endif
+
+        #if DEVID==0 & MYLOCALID==0
+        if (gidx-FDOH<NAB){
+            i =gidx-FDOH;
+            k =gidz-FDOH/DIV;
+            indn = (i)*(NZ-2*FDOH/DIV)+(k);
+
+            psi_vx_x[indn] = __f22h2(b_x[i] * psi_vx_x[indn]
+                                     + a_x[i] * vx_x2);
+            vx_x2 = vx_x2 / K_x[i] + psi_vx_x[indn];
+            psi_vz_x[indn] = __f22h2(b_x_half[i] * psi_vz_x[indn]
+                                     + a_x_half[i] * vz_x1);
+            vz_x1 = vz_x1 / K_x_half[i] + psi_vz_x[indn];
+        }
+        #endif
+
+        #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+        if (gidx>NX-NAB-FDOH-1){
+            i =gidx - NX+NAB+FDOH+NAB;
+            k =gidz-FDOH/DIV;
+            indm=2*NAB-1-i;
+            indn = (i)*(NZ-2*FDOH/DIV)+(k);
+
+            psi_vx_x[indn] = __f22h2(b_x[indm+1] * psi_vx_x[indn]
+                                     + a_x[indm+1] * vx_x2);
+            vx_x2 = vx_x2 /K_x[indm+1] + psi_vx_x[indn];
+            psi_vz_x[indn] = __f22h2(b_x_half[indm] * psi_vz_x[indn]
+                                     + a_x_half[indm] * vz_x1);
+            vz_x1 = vz_x1 / K_x_half[indm]  +psi_vz_x[indn];
+        }
+        #endif
+       }
+    #endif
+    
+    
     //Define and load private parameters and variables
     __cprec lsxx = __h22f2(sxx[indv]);
     __cprec lsxz = __h22f2(sxz[indv]);
@@ -181,9 +260,10 @@ FUNDEF void update_s(int offcomm,
         __cprec e=lM*ltaup/DT;
         
         /* computing sums of the old memory variables */
-        __cprec sumrxz=__cprec0;
-        __cprec sumrxx=__cprec0;
-        __cprec sumrzz=__cprec0;
+        __cprec sumrxz;
+        __cprec sumrxx;
+        __cprec sumrzz;
+        initc0(sumrxz);initc0(sumrxx);initc0(sumrzz);
         for (l=0;l<LVE;l++){
             indr = l*NX*NZ + gidx*NZ+gidz;
             sumrxz=sumrxz + rxz[indr];
@@ -197,7 +277,7 @@ FUNDEF void update_s(int offcomm,
         lszz=lszz +((g*(vx_x2+vz_z2))-(f*vx_x2))+(DT2*sumrzz);
 
         /* now updating the memory-variables and sum them up*/
-        sumrxz=sumrxx=sumrzz=sumrxz * 0.0f;
+        initc0(sumrxz);initc0(sumrxx);initc0(sumrzz);
         float b,c;
         for (l=0;l<LVE;l++){
             b=1.0f/(1.0f+(leta[l]*0.5f));

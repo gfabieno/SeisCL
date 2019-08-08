@@ -305,7 +305,7 @@ FUNDEF void update_adjs(int offcomm,
         lsyyr=lsyyr + lM*(vxr_x2+vyr_y2+vzr_z2) - 2.0f * lmu*(vxr_x2+vzr_z2);
         lszzr=lszzr + lM*(vxr_x2+vyr_y2+vzr_z2) - 2.0f * lmu*(vxr_x2+vyr_y2);
     
-    // Absorbing boundary
+     // Absorbing boundary
     #if ABS_TYPE==2
         {
         #if FREESURF==0
@@ -314,8 +314,8 @@ FUNDEF void update_adjs(int offcomm,
             lsyzr = lsyzr * __hpg(&taper[DIV*gidz-FDOH]);
             lsxzr = lsxzr * __hpg(&taper[DIV*gidz-FDOH]);
             lsxxr = lsxxr * __hpg(&taper[DIV*gidz-FDOH]);
+            lsyyr = lsyyr * __hpg(&taper[DIV*gidz-FDOH]);
             lszzr = lszzr * __hpg(&taper[DIV*gidz-FDOH]);
-            lsxzr = lsxzr * __hpg(&taper[DIV*gidz-FDOH]);
         }
         #endif
 
@@ -324,16 +324,16 @@ FUNDEF void update_adjs(int offcomm,
             lsyzr = lsyzr * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
             lsxzr = lsxzr * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
             lsxxr = lsxxr * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
+            lsyyr = lsyyr * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
             lszzr = lszzr * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
-            lsxzr = lsxzr * __hpgi(&taper[DIV*NZ-FDOH-DIV*gidz-1]);
         }
         if (gidy-FDOH<NAB){
             lsxyr = lsxyr * taper[gidy-FDOH];
             lsyzr = lsyzr * taper[gidy-FDOH];
             lsxzr = lsxzr * taper[gidy-FDOH];
             lsxxr = lsxxr * taper[gidy-FDOH];
+            lsyyr = lsyyr * taper[gidy-FDOH];
             lszzr = lszzr * taper[gidy-FDOH];
-            lsxzr = lsxzr * taper[gidy-FDOH];
         }
 
         if (gidy>NY-NAB-FDOH-1){
@@ -341,8 +341,8 @@ FUNDEF void update_adjs(int offcomm,
             lsyzr = lsyzr * taper[NY-FDOH-gidy-1];
             lsxzr = lsxzr * taper[NY-FDOH-gidy-1];
             lsxxr = lsxxr * taper[NY-FDOH-gidy-1];
+            lsyyr = lsyyr * taper[NY-FDOH-gidy-1];
             lszzr = lszzr * taper[NY-FDOH-gidy-1];
-            lsxzr = lsxzr * taper[NY-FDOH-gidy-1];
         }
         #if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
@@ -350,8 +350,8 @@ FUNDEF void update_adjs(int offcomm,
             lsyzr = lsyzr * taper[gidx-FDOH];
             lsxzr = lsxzr * taper[gidx-FDOH];
             lsxxr = lsxxr * taper[gidx-FDOH];
+            lsyyr = lsyyr * taper[gidx-FDOH];
             lszzr = lszzr * taper[gidx-FDOH];
-            lsxzr = lsxzr * taper[gidx-FDOH];
         }
         #endif
 
@@ -361,8 +361,9 @@ FUNDEF void update_adjs(int offcomm,
             lsyzr = lsyzr * taper[NX-FDOH-gidx-1];
             lsxzr = lsxzr * taper[NX-FDOH-gidx-1];
             lsxxr = lsxxr * taper[NX-FDOH-gidx-1];
+            lsyyr = lsyyr * taper[NX-FDOH-gidx-1];
             lszzr = lszzr * taper[NX-FDOH-gidx-1];
-            lsxzr = lsxzr * taper[NX-FDOH-gidx-1];
+
         }
         #endif
         }
