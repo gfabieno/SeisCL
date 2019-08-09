@@ -41,35 +41,36 @@ SeisCL_CL= \
 	savebnd2D.cl \
 	savebnd3D.cl \
 	surface2D.cl \
-    surface2D_adj.cl \
+	surface2D_half2.cl \
+    	surface2D_adj.cl \
 	surface2D_SH.cl \
 	surface3D.cl \
 	update_adjs2D.cl \
-    update_adjs2D_half2.cl \
+    	update_adjs2D_half2.cl \
 	update_adjs2D_SH.cl \
 	update_adjs3D.cl \
-    update_adjs3D_half2.cl \
+    	update_adjs3D_half2.cl \
 	update_adjv2D.cl \
-    update_adjv2D_half2.cl \
+    	update_adjv2D_half2.cl \
 	update_adjv2D_SH.cl \
 	update_adjv3D.cl \
-    update_adjv3D_half2.cl \
+    	update_adjv3D_half2.cl \
 	update_s2D.cl \
 	update_s2D_half2.cl \
 	update_s2D_SH.cl \
-    update_s2D_acc.cl \
+    	update_s2D_acc.cl \
 	update_s3D.cl \
-    update_s3D_half2.cl \
+    	update_s3D_half2.cl \
 	update_v2D.cl \
 	update_v2D_half2.cl \
 	update_v2D_SH.cl \
-    update_v2D_acc.cl \
+    	update_v2D_acc.cl \
 	update_v3D.cl \
-    update_v3D_half2.cl \
-    header_FD.cl \
-    header_FD_fp16.cl \
-    header_CUDACL.cl \
-    header_injectbnd.cl
+    	update_v3D_half2.cl \
+    	header_FD.cl \
+    	header_FD_fp16.cl \
+    	header_CUDACL.cl \
+   	header_injectbnd.cl
 
 SeisCL_CL_Headers = $(SeisCL_CL:%.cl=%.hcl)
 

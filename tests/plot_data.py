@@ -7,10 +7,10 @@ import numpy as np
 
 file = h5.File("SeisCL_dout.mat", "r")
 clip=1.0
-vmax = clip*np.max(file["pout"])
+vmax = clip*np.max(file["vzout"])
 vmin=-vmax
 
-plt.imshow(file["pout"][:], aspect="auto")
+plt.imshow(file["vzout"][:], aspect="auto")
 plt.show()
 file.close()
 
