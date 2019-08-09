@@ -56,10 +56,10 @@ FUNDEF void update_adjv(int offcomm,
                         LOCARG2)
 {
     //Local memory
-    LOCDEF2
     #ifdef __OPENCL_VERSION__
     __local __prec * lvar=lvar2;
     #else
+    extern __shared__ __prec2 lvar2[];
     __prec * lvar=(__prec *)lvar2;
     #endif
     
