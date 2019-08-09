@@ -1002,7 +1002,7 @@ int transf_grad(model * m) {
     }
     
     for (i=0;i<num_ele;i++){
-        rho[i]= 1.0/rho[i]*m->dh/m->dt*powf(2,scaler);
+        rho[i]= 1.0/rho[i]*m->dt/m->dh*powf(2,-scaler);
         gradrho[i]/=m->dt;
     }
     if (M){

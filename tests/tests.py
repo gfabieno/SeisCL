@@ -19,7 +19,7 @@ sys.path.append('../')
 from python.SeisCL import SeisCL, SeisCLError
 
 
-def test_fp16(seis, ref=None, plot=False):
+def test_fp16_forward(seis, ref=None, plot=False):
     
     pars = {}
     pars['vp'] = np.zeros(seis.csts['N']) + 3500
@@ -59,7 +59,54 @@ def test_fp16(seis, ref=None, plot=False):
             print("failed:")
             print(msg)
 
-
+def test_fp16_grad(seis, ref=None, plot=False):
+    
+    pars = {}
+    pars['vp'] = np.zeros(seis.csts['N']) + 3500
+    pars['vs'] = pars['vp'] * 0 + 2000
+    pars['rho'] = pars['vp'] * 0 + 2000
+    slices = tuple([slice(d-5,d+5) for d in seis.csts['N']])
+    slicesp = [slice(seis.csts['nab'], -seis.csts['nab']) for _ in seis.csts['N']]
+    slicesp[1:-1] = [d//2 for d in seis.csts['N'][1:-1]]
+    slicesp = tuple(slicesp)
+    if seis.csts['L'] > 0:
+        pars['taup'] = pars['vp'] * 0 + 0.1
+        pars['taus'] = pars['vp'] * 0 + 0.1
+    
+    for fp16 in range(0,4):
+        print("    Testing FP16=%d....." %fp16 , end = '')
+        seis.csts['FP16'] = fp16
+        try :
+            pars['vp'] = np.zeros(seis.csts['N']) + 3500
+            pars['vp'][slices]= 4000
+            seis.set_forward(seis.src_pos_all[3,:], pars, withgrad=False)
+            seis.execute()
+            data = seis.read_data()
+            seis.write_data({"p":data[0]})
+            pars['vp'] = np.zeros(seis.csts['N']) + 3500
+            seis.set_forward(seis.src_pos_all[3,:], pars, withgrad=True)
+            seis.execute()
+            grad = seis.read_grad()
+            if plot:
+                for g in grad:
+                    plt.imshow(g[slicesp], aspect='auto')
+                    plt.show()
+            if ref is None:
+                ref = grad
+                print("passed")
+            else:
+                err = (np.sum([np.sum((g-r)**2) for g,r in zip(grad, ref)])
+                       /np.sum([np.sum((r)**2) for r in ref]))
+                if err > 0.001:
+                    if plot:
+                        plt.imshow(grad[0][slicesp]-ref[0][slicesp], aspect='auto')
+                        plt.show()
+                    raise SeisCLError("    Error with data referance too large: %e"
+                                      % err)
+                print("passed (error %e)" % err)
+        except(SeisCLError) as msg:
+            print("failed:")
+            print(msg)
 
 
 if __name__ == "__main__":
@@ -84,7 +131,7 @@ if __name__ == "__main__":
     seis.csts['dt'] = 0.0008
     seis.csts['NT'] = 875
     seis.csts['FDORDER']=8
-    seis.csts['abs_type'] = 1
+    seis.csts['abs_type'] = 2
     seis.csts['N']=np.array([64,64,64])
     """
     _________________________Sources and receivers______________________________
@@ -115,7 +162,15 @@ if __name__ == "__main__":
         seis.csts['N'] = np.array([64,64])
         seis.csts['L'] = 0
         seis.csts['ND'] = 2
-        test_fp16(seis, ref=None, plot=args.plot)
+        test_fp16_forward(seis, ref=None, plot=args.plot)
+
+    name = "2D_elastic_grad"
+    if args.test == name or args.test == "all":
+        print("Testing %s" % name)
+        seis.csts['N'] = np.array([64,64])
+        seis.csts['L'] = 0
+        seis.csts['ND'] = 2
+        test_fp16_grad(seis, ref=None, plot=args.plot)
 
     name = "3D_elastic_forward"
     if args.test == name or args.test == "all":
@@ -123,7 +178,15 @@ if __name__ == "__main__":
         seis.csts['N'] = np.array([64,64,64])
         seis.csts['L'] = 0
         seis.csts['ND'] = 3
-        test_fp16(seis, ref=None, plot=args.plot)
+        test_fp16_forward(seis, ref=None, plot=args.plot)
+
+    name = "3D_elastic_grad"
+    if args.test == name or args.test == "all":
+        print("Testing %s" % name)
+        seis.csts['N'] = np.array([64,64,64])
+        seis.csts['L'] = 0
+        seis.csts['ND'] = 3
+        test_fp16_grad(seis, ref=None, plot=args.plot)
 
     name = "2D_visco_forward"
     if args.test == name or args.test == "all":
@@ -131,7 +194,7 @@ if __name__ == "__main__":
         seis.csts['N'] = np.array([64,64])
         seis.csts['L'] = 1
         seis.csts['ND'] = 2
-        test_fp16(seis, ref=None, plot=args.plot)
+        test_fp16_forward(seis, ref=None, plot=args.plot)
 
     name = "3D_visco_forward"
     if args.test == name or args.test == "all":
@@ -139,7 +202,7 @@ if __name__ == "__main__":
         seis.csts['N'] = np.array([64,64,64])
         seis.csts['ND'] = 3
         seis.csts['L'] = 1
-        test_fp16(seis, ref=None, plot=args.plot)
+        test_fp16_forward(seis, ref=None, plot=args.plot)
 
 
 

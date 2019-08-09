@@ -36,7 +36,7 @@ csts['NT']=875              #Number of time steps
 csts['freesurf']=0          #Include a free surface at z=0: 0: no, 1: yes
 csts['FDORDER']=8           #Order of the finite difference stencil. Values: 2,4,6,8,10,12
 csts['MAXRELERROR']=1       #Set to 1
-csts['L']=1                 #Number of attenuation mechanism (L=0 elastic)
+csts['L']=0                 #Number of attenuation mechanism (L=0 elastic)
 csts['f0']=15               #Central frequency for which the relaxation mechanism are corrected to the righ velocity
 csts['FL']=np.array(15)     #Array of frequencies in Hz of the attenuation mechanism
 
@@ -44,7 +44,7 @@ csts['src_pos']=np.empty((5,0)) #Position of each shots. 5xnumber of sources. [s
 csts['rec_pos']=np.empty((8,0)) #Position of the receivers. 8xnumber of traces. [gx gy gz srcid recid Not_used Not_used Not_used]. srcid is the source number recid is the trace number in the record
 csts['src']=np.empty((csts['NT'],0))            #Source signals. NTxnumber of sources
 
-csts['abs_type']=2          #Absorbing boundary type: 1: CPML, 2: Absorbing layer of Cerjan
+csts['abs_type']=1          #Absorbing boundary type: 1: CPML, 2: Absorbing layer of Cerjan
 csts['VPPML']=3500          #Vp velocity near CPML boundary
 csts['NPOWER']=2            #Exponent used in CMPL frame update, the larger the more damping
 csts['FPML']=15              #Dominant frequency of the wavefield
@@ -76,7 +76,7 @@ csts['resout']=0            #Output residuals 1:yes, 0: no
 csts['rmsout']=0            #Output rms value 1:yes, 0: no
 csts['movout']=0            #Output movie 1:yes, 0: no
 csts['restype']=0           #Type of costfunction 0: raw seismic trace cost function. No other available at the moment
-csts['FP16']=2              #Use half precision 1: yes 0: no
+csts['FP16']=0              #Use half precision 1: yes 0: no
 
 h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
 

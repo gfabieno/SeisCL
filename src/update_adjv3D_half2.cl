@@ -546,7 +546,7 @@ FUNDEF void update_adjv(int offcomm,
     lvyr = (syyr_y1 + sxyr_x2 + syzr_z2) * lrjp;
     lvzr = (szzr_z1 + sxzr_x2 + syzr_y2) * lrkp;
 
-    gradrho[indp]=gradrho[indp] - scalefun(lvx*lvxr + lvy*lvyr + lvz*lvzr,
+    gradrho[indp]=gradrho[indp] - scalefun(__h22f2c(lvx*lvxr + lvy*lvyr + lvz*lvzr),
                                            2*par_scale -src_scale - res_scale);
     #if HOUT==1
     Hrho[indp]=Hrho[indp] + scalefun(lvx*lvx + lvy*lvy + lvz*lvz,

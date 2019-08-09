@@ -280,7 +280,7 @@ class SeisCL():
         self.write_csts(workdir)
         self.write_model(params, workdir)
 
-    def set_backward(self, residuals, workdir=None):
+    def set_backward(self, residuals=None, workdir=None):
         """
         Set up files to launch SeisCL when inputing residuals for gradient
         computation
@@ -295,15 +295,19 @@ class SeisCL():
         
         if workdir is None:
             workdir = self.workdir
-        data = {}
-        for n, word in enumerate(self.to_load_names):
-           data[word+"res"] = residuals[n]
-        h5mat.savemat(workdir+self.file_res,
-                      data,
-                      appendmat=False,
-                      format='7.3',
-                      store_python_metadata=True,
-                      truncate_existing=True)
+        if residuals is not None:
+            data = {}
+            for n, word in enumerate(self.to_load_names):
+               data[word+"res"] = residuals[n]
+            h5mat.savemat(workdir+self.file_res,
+                          data,
+                          appendmat=False,
+                          format='7.3',
+                          store_python_metadata=True,
+                          truncate_existing=True)
+            self.csts['inputres'] = 1
+        else:
+            self.csts['inputres'] = 0
         self.csts['gradout'] = 1
         self.write_csts(workdir)
 

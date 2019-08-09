@@ -249,23 +249,23 @@ FUNDEF void update_adjs(int offcomm,
         vxyr = Dyp(lvxr);
         vxzr = Dzp(lvxr);
     }
-    
+
 // To stop updating if we are outside the model (global id must be a multiple of local id in OpenCL, hence we stop if we have a global id outside the grid)
 #if LOCAL_OFF==0
 #if COMM12==0
     if (gidy>(NY-FDOH-1) || gidz>(NZ-FDOH-1) || (gidx-offcomm)>(NX-FDOH-1-LCOMM) ){
         return;
     }
-    
+
 #else
     if (gidy>(NY-FDOH-1) || gidz>(NZ-FDOH-1) ){
         return;
     }
 #endif
 #endif
-    
- 
-    
+
+
+
 // Read model parameters into local memory
 #if LVE==0
     lM=M[indp];
@@ -276,11 +276,11 @@ FUNDEF void update_adjs(int offcomm,
     g=lM;
     f=2.0*lmu;
 
-    
+
 #else
-    
+
     lM=M[indp];
-    lmu=u[indp];
+    lmu=mu[indp];
     lmuipkp=muipkp[indp];
     lmuipjp=muipjp[indp];
     lmujpkp=mujpkp[indp];
@@ -289,11 +289,11 @@ FUNDEF void update_adjs(int offcomm,
     ltausipkp=tausipkp[indp];
     ltausipjp=tausipjp[indp];
     ltausjpkp=tausjpkp[indp];
-    
+
     for (l=0;l<LVE;l++){
         leta[l]=eta[l];
     }
-    
+
     fipjp=lmuipjp*(1.0+ (float)LVE*ltausipjp);
     fjpkp=lmujpkp*(1.0+ (float)LVE*ltausjpkp);
     fipkp=lmuipkp*(1.0+ (float)LVE*ltausipkp);
@@ -304,11 +304,11 @@ FUNDEF void update_adjs(int offcomm,
     dipkp=lmuipkp*ltausipkp/DT;
     d=2.0*lmu*ltaus/DT;
     e=lM*ltaup/DT;
-    
-    
+
+
 #endif
-    
-    
+
+
 // Backpropagate the forward stresses
 #if BACK_PROP_TYPE==1
     {
@@ -710,7 +710,7 @@ FUNDEF void update_adjs(int offcomm,
     #endif
 
 #endif
-    
+
 #if GRADSRCOUT==1
     //TODO
 //    float pressure;
@@ -742,7 +742,7 @@ FUNDEF void update_adjs(int offcomm,
 //            }
 //        }
 //    }
-    
+
 #endif
 
 

@@ -523,8 +523,8 @@ FUNDEF void update_adjs(int offcomm,
     lszzr=lM*(vxr_x2+vyr_y2+vzr_z2) - 2.0f * lmu*(vxr_x2+vyr_y2);
 
     #if RESTYPE==0
-    __gprec c1=1.0f/(3.0f*lM-4.0f*lmu)/(3.0f*lM-4.0f*lmu);
-    __gprec c3=1.0f/lmu/lmu;
+    __gprec c1=__h22f2c(1.0f/(3.0f*lM-4.0f*lmu)/(3.0f*lM-4.0f*lmu));
+    __gprec c3=__h22f2c(1.0f/lmu/lmu);
     __gprec c5=1.0f/6.0f*c3;
     
     __gprec dM=c1*( lsxx+lsyy+lszz )*( lsxxr+lsyyr+lszzr );

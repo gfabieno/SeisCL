@@ -345,8 +345,8 @@ FUNDEF void update_adjs(int offcomm,
     #if BACK_PROP_TYPE==1
         #if RESTYPE==0
         //TODO review scaling
-        __gprec c1=1.0f/((2.0f*lM-2.0f*lmu)*(2.0f*lM-2.0f*lmu));
-        __gprec c3=1.0f/(lmu*lmu);
+        __gprec c1=__h22f2c(1.0f/((2.0f*lM-2.0f*lmu)*(2.0f*lM-2.0f*lmu)));
+        __gprec c3=__h22f2c(1.0f/(lmu*lmu));
         __gprec c5=0.25f*c3;
 
         lsxzr=lmuipkp * (vxr_z1+vzr_x1);
@@ -356,7 +356,7 @@ FUNDEF void update_adjs(int offcomm,
         __gprec dM=c1*( (lsxx+lszz )*( lsxxr+lszzr ));
         gradM[indp]=gradM[indp]-scalefun(dM, 2*par_scale-src_scale - res_scale);
         gradmu[indp]=gradmu[indp] \
-                        - scalefun(c3*(lsxz*lsxzr)
+                        + scalefun(-c3*(lsxz*lsxzr)
                                    +dM
                                    -c5*(((lsxx-lszz)*(lsxxr-lszzr))),
                                    2*par_scale-src_scale - res_scale);
@@ -365,9 +365,9 @@ FUNDEF void update_adjs(int offcomm,
         #if HOUT==1
         __gprec dMH=c1*((lsxx+lszz )*( lsxx+lszz ));
         HM[indp]=HM[indp] + scalefun(dMH, -2*src_scale);
-        Hmu[indp]=Hmu[indp] - scalefun(c3*(lsxz*lsxz)
-                                       +dMH
-                                       -c5*((lsxx-lszz)*(lsxx-lszz)),
+        Hmu[indp]=Hmu[indp] + scalefun(c3*(lsxz*lsxz)
+                                       -dMH
+                                       +c5*((lsxx-lszz)*(lsxx-lszz)),
                                        2*par_scale-src_scale - res_scale);
         #endif
         #endif
