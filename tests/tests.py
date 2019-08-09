@@ -132,6 +132,7 @@ if __name__ == "__main__":
     seis.csts['NT'] = 875
     seis.csts['FDORDER']=8
     seis.csts['abs_type'] = 2
+    seis.csts['freesurf']=1
     seis.csts['N']=np.array([64,64,64])
     """
     _________________________Sources and receivers______________________________

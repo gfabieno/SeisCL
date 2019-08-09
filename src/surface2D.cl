@@ -28,14 +28,14 @@
 
 #define indv(z,x)  (x)*(NZ)+(z)
 
-FUNDEF void surface(GLOBARG float *vx,  GLOBARG float *vz,
+FUNDEF void freesurface(GLOBARG float *vx,  GLOBARG float *vz,
                     GLOBARG float *sxx, GLOBARG float *szz,
                     GLOBARG float *sxz, GLOBARG float *M,
                     GLOBARG float *mu,  GLOBARG float *rxx,
                     GLOBARG float *rzz, GLOBARG float *taus,
                     GLOBARG float *taup,GLOBARG float *eta,
                     GLOBARG float *K_x, GLOBARG float *psi_vx_x,
-                    GLOBARG float *taper, pdir)
+                    GLOBARG float *taper, int pdir)
 {
     /*Indice definition */
     #ifdef __OPENCL_VERSION__
@@ -79,54 +79,54 @@ FUNDEF void surface(GLOBARG float *vx,  GLOBARG float *vz,
     vxx = Dxm(vx);
     vzz = Dzm(vz);
 
-    // Correct spatial derivatives to implement CPML
-    #if ABS_TYPE==1
-    {
-        int i,k,ind;
-    #if DEVID==0 & MYLOCALID==0
-        if (gidx-FDOH<NAB){
-
-            i =gidx-FDOH;
-            k =gidz-FDOH;
-
-            vxx = vxx / K_x[i] + psi_vx_x(k,i);
-        }
-    #endif
-
-    #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-        if (gidx>NX-NAB-FDOH-1){
-
-            i =gidx - NX+NAB+FDOH+NAB;
-            k =gidz-FDOH;
-            ind=2*NAB-1-i;
-            vxx = vxx /K_x[ind+1] + psi_vx_x(k,i);
-        }
-    #endif
-    }
-    #endif
+//    // Correct spatial derivatives to implement CPML
+//    #if ABS_TYPE==1
+//    {
+//        int i,k,ind;
+//    #if DEVID==0 & MYLOCALID==0
+//        if (gidx-FDOH<NAB){
+//
+//            i =gidx-FDOH;
+//            k =gidz-FDOH;
+//
+//            vxx = vxx / K_x[i] + psi_vx_x(k,i);
+//        }
+//    #endif
+//
+//    #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+//        if (gidx>NX-NAB-FDOH-1){
+//
+//            i =gidx - NX+NAB+FDOH+NAB;
+//            k =gidz-FDOH;
+//            ind=2*NAB-1-i;
+//            vxx = vxx /K_x[ind+1] + psi_vx_x(k,i);
+//        }
+//    #endif
+//    }
+//    #endif
 
     #if LVE==0
     f=mu[indp]*2.0;
     g=M[indp];
     h=-((g-f)*(g-f)*(vxx)/g)-((g-f)*vzz);
 
-    // Absorbing boundary
-    #if ABS_TYPE==2
-        {
-
-        #if DEVID==0 & MYLOCALID==0
-            if (gidx-FDOH<NAB){
-                h*=taper[gidx-FDOH];
-            }
-        #endif
-
-        #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-            if (gidx>NX-NAB-FDOH-1){
-                h*=taper[NX-FDOH-gidx-1];
-            }
-        #endif
-        }
-    #endif
+//    // Absorbing boundary
+//    #if ABS_TYPE==2
+//        {
+//
+//        #if DEVID==0 & MYLOCALID==0
+//            if (gidx-FDOH<NAB){
+//                h*=taper[gidx-FDOH];
+//            }
+//        #endif
+//
+//        #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+//            if (gidx>NX-NAB-FDOH-1){
+//                h*=taper[NX-FDOH-gidx-1];
+//            }
+//        #endif
+//        }
+//    #endif
     sxx[indv(gidz,gidx)]+=pdir*h;
 
     #else
@@ -135,22 +135,22 @@ FUNDEF void surface(GLOBARG float *vx,  GLOBARG float *vz,
     f=mu[indp]*2.0*(1.0+LVE*taus[indp]);
     g=M[indp]*(1.0+LVE*taup[indp]);
     h=-((g-f)*(g-f)*(vxx)/g)-((g-f)*vzz);
-    #if ABS_TYPE==2
-        {
-
-        #if DEVID==0 & MYLOCALID==0
-            if (gidx-FDOH<NAB){
-                h*=taper[gidx-FDOH];
-            }
-        #endif
-
-        #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-            if (gidx>NX-NAB-FDOH-1){
-                h*=taper[NX-FDOH-gidx-1];
-            }
-        #endif
-        }
-    #endif
+//    #if ABS_TYPE==2
+//        {
+//
+//        #if DEVID==0 & MYLOCALID==0
+//            if (gidx-FDOH<NAB){
+//                h*=taper[gidx-FDOH];
+//            }
+//        #endif
+//
+//        #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+//            if (gidx>NX-NAB-FDOH-1){
+//                h*=taper[NX-FDOH-gidx-1];
+//            }
+//        #endif
+//        }
+//    #endif
 
     sump=0;
     for (l=0;l<LVE;l++){

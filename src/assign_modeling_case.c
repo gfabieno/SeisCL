@@ -14,6 +14,7 @@
 #include "savebnd2D.hcl"
 #include "savebnd3D.hcl"
 #include "surface2D.hcl"
+#include "surface2D_half2.hcl"
 #include "surface2D_adj.hcl"
 #include "surface2D_SH.hcl"
 #include "surface3D.hcl"
@@ -933,7 +934,7 @@ int assign_modeling_case(model * m){
             updates = update_s2D_half2_source;
             updatev_adj = update_adjv2D_half2_source;
             updates_adj = update_adjs2D_half2_source;
-            surface = surface2D_source;
+            surface = surface2D_half2_source;
             savebnd = savebnd2D_source;
         }
     }
@@ -983,7 +984,7 @@ int assign_modeling_case(model * m){
         __GUARD append_update(m->ups_adj, &ind, "update_adjs", updates_adj, nheaders, headers);
     }
     if (m->FREESURF){
-        __GUARD prog_source(&m->bnd_cnds.surf, "surface", surface, 2, headers);
+        __GUARD prog_source(&m->bnd_cnds.surf, "freesurface", surface, 2, headers);
         if (m->GRADOUT){
             __GUARD prog_source(&m->bnd_cnds.surf_adj,
                                 "surface_adj", surface_adj, 2, headers);
