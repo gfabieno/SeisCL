@@ -152,7 +152,6 @@ FUNDEF void update_s(int offcomm,
    
     
     // Correct spatial derivatives to implement CPML
-    
     #if ABS_TYPE==1
     {
         int i,k,indm,indn;

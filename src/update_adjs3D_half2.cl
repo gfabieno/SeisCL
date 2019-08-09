@@ -39,6 +39,20 @@ FUNDEF void update_adjs(int offcomm,
                         GLOBARG __prec2 *vxr,  GLOBARG __prec2 *vyr,
                         GLOBARG __prec2 *vzr,
                         GLOBARG float *taper,
+                        GLOBARG float *K_x,     GLOBARG float *a_x,
+                        GLOBARG float *b_x,     GLOBARG float *K_x_half,
+                        GLOBARG float *a_x_half,GLOBARG float *b_x_half,
+                        GLOBARG float *K_y,     GLOBARG float *a_y,
+                        GLOBARG float *b_y,     GLOBARG float *K_y_half,
+                        GLOBARG float *a_y_half,GLOBARG float *b_y_half,
+                        GLOBARG float *K_z,     GLOBARG float *a_z,
+                        GLOBARG float *b_z,     GLOBARG float *K_z_half,
+                        GLOBARG float *a_z_half,GLOBARG float *b_z_half,
+                        GLOBARG __prec2 *psi_vx_x, GLOBARG __prec2 *psi_vx_y,
+                        GLOBARG __prec2 *psi_vx_z, GLOBARG __prec2 *psi_vy_x,
+                        GLOBARG __prec2 *psi_vy_y, GLOBARG __prec2 *psi_vy_z,
+                        GLOBARG __prec2 *psi_vz_x, GLOBARG __prec2 *psi_vz_y,
+                        GLOBARG __prec2 *psi_vz_z,
                         GLOBARG __gprec *gradM,  GLOBARG __gprec *gradmu,
                         GLOBARG __gprec *HM,     GLOBARG __gprec *Hmu,
                         int res_scale, int src_scale, int par_scale,
@@ -294,6 +308,126 @@ FUNDEF void update_adjs(int offcomm,
     }
     #endif
     
+    // Correct spatial derivatives to implement CPML for adjoint variables
+    #if ABS_TYPE==1
+    {
+        int i,j,k,indm, indn;
+        if (DIV*gidz>DIV*NZ-NAB-FDOH-1){
+            
+            i =gidx-FDOH;
+            j =gidy-FDOH;
+            k =gidz - NZ + 2*NAB/DIV + FDOH/DIV;
+            indm=2*NAB - 1 - k*DIV;
+            indn = (i)*(NY-2*FDOH)*(2*NAB/DIV)+(j)*(2*NAB/DIV)+(k);
+            
+            psi_vx_z[indn] = __f22h2(__hpgi(&b_z_half[indm]) * psi_vx_z[indn]
+                                    + __hpgi(&a_z_half[indm]) * vxr_z1);
+            vxr_z1 = vxr_z1 / __hpgi(&K_z_half[indm]) + psi_vx_z[indn];
+            psi_vy_z[indn] = __f22h2(__hpgi(&b_z_half[indm]) * psi_vy_z[indn]
+                                    + __hpgi(&a_z_half[indm]) * vyr_z1);
+            vyr_z1 = vyr_z1 / __hpgi(&K_z_half[indm]) + psi_vy_z[indn];
+            psi_vz_z[indn] = __f22h2(__hpgi(&b_z[indm+1]) * psi_vz_z[indn]
+                                    + __hpgi(&a_z[indm+1]) * vzr_z2);
+            vzr_z2 = vzr_z2 / __hpgi(&K_z[indm+1]) + psi_vz_z[indn];
+        }
+        
+        #if FREESURF==0
+        else if (DIV*gidz-FDOH<NAB){
+
+            i =gidx-FDOH;
+            j =gidy-FDOH;
+            k =DIV*gidz-FDOH;
+            indn = (i)*(NY-2*FDOH)*(2*NAB/DIV)+(j)*(2*NAB/DIV)+(k/DIV);
+
+            psi_vx_z[indn] = __f22h2(__hpg(&b_z_half[k]) * psi_vx_z[indn]
+                                    + __hpg(&a_z_half[k]) * vxr_z1);
+            vxr_z1 = vxr_z1 / __hpg(&K_z_half[k]) + psi_vx_z[indn];
+            psi_vy_z[indn] = __f22h2(__hpg(&b_z_half[k]) * psi_vy_z[indn]
+                                    + __hpg(&a_z_half[k]) * vyr_z1);
+            vyr_z1 = vyr_z1 / __hpg(&K_z_half[k]) + psi_vy_z[indn];
+            psi_vz_z[indn] = __f22h2(__hpg(&b_z[k]) * psi_vz_z[indn]
+                                    + __hpg(&a_z[k]) * vzr_z2);
+            vzr_z2 = vzr_z2 / __hpg(&K_z[k]) + psi_vz_z[indn];
+        }
+        #endif
+
+        if (gidy-FDOH<NAB){
+            i =gidx-FDOH;
+            j =gidy-FDOH;
+            k =gidz-FDOH/DIV;
+            indn = (i)*(2*NAB)*(NZ-2*FDOH/DIV)+(j)*(NZ-2*FDOH/DIV)+(k);
+
+            psi_vx_y[indn] = __f22h2(b_y_half[j] * psi_vx_y[indn]
+                                    + a_y_half[j] * vxr_y1);
+            vxr_y1 = vxr_y1 / K_y_half[j] + psi_vx_y[indn];
+            psi_vy_y[indn] = __f22h2(b_y[j] * psi_vy_y[indn]
+                                    + a_y[j] * vyr_y2);
+            vyr_y2 = vyr_y2 / K_y[j] + psi_vy_y[indn];
+            psi_vz_y[indn] = __f22h2(b_y_half[j] * psi_vz_y[indn]
+                                    + a_y_half[j] * vzr_y1);
+            vzr_y1 = vzr_y1 / K_y_half[j] + psi_vz_y[indn];
+        }
+
+        else if (gidy>NY-NAB-FDOH-1){
+
+            i =gidx-FDOH;
+            j =gidy - NY+NAB+FDOH+NAB;
+            k =gidz-FDOH/DIV;
+            indm=2*NAB-1-j;
+            indn = (i)*(2*NAB)*(NZ-2*FDOH/DIV)+(j)*(NZ-2*FDOH/DIV)+(k);
+
+            psi_vx_y[indn] = __f22h2(b_y_half[indm] * psi_vx_y[indn]
+                                    + a_y_half[indm] * vxr_y1);
+            vxr_y1 = vxr_y1 / K_y_half[indm] + psi_vx_y[indn];
+            psi_vy_y[indn] = __f22h2(b_y[indm+1] * psi_vy_y[indn]
+                                    + a_y[indm+1] * vyr_y2);
+            vyr_y2 = vyr_y2 / K_y[indm+1] + psi_vy_y[indn];
+            psi_vz_y[indn] = __f22h2(b_y_half[indm] * psi_vz_y[indn]
+                                    + a_y_half[indm] * vzr_y1);
+            vzr_y1 = vzr_y1 / K_y_half[indm] + psi_vz_y[indn];
+        }
+        #if DEVID==0 & MYLOCALID==0
+        if (gidx-FDOH<NAB){
+
+            i =gidx-FDOH;
+            j =gidy-FDOH;
+            k =gidz-FDOH/DIV;
+            indn = (i)*(NY-2*FDOH)*(NZ-2*FDOH/DIV)+(j)*(NZ-2*FDOH/DIV)+(k);
+
+            psi_vx_x[indn] = __f22h2(b_x[i] * psi_vx_x[indn]
+                                    + a_x[i] * vxr_x2);
+            vxr_x2 = vxr_x2 / K_x[i] + psi_vx_x[indn];
+            psi_vy_x[indn] = __f22h2(b_x_half[i] * psi_vy_x[indn]
+                                    + a_x_half[i] * vyr_x1);
+            vyr_x1 = vyr_x1 / K_x_half[i] + psi_vy_x[indn];
+            psi_vz_x[indn] = __f22h2(b_x_half[i] * psi_vz_x[indn]
+                                    + a_x_half[i] * vzr_x1);
+            vzr_x1 = vzr_x1 / K_x_half[i] + psi_vz_x[indn];
+        }
+        #endif
+
+        #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+        if (gidx>NX-NAB-FDOH-1){
+
+            i =gidx - NX+NAB+FDOH+NAB;
+            j =gidy-FDOH;
+            k =gidz-FDOH/DIV;
+            indm=2*NAB-1-i;
+            indn = (i)*(NY-2*FDOH)*(NZ-2*FDOH/DIV)+(j)*(NZ-2*FDOH/DIV)+(k);
+
+            psi_vx_x[indn] = __f22h2(b_x[indm+1] * psi_vx_x[indn]
+                                    + a_x[indm+1] * vxr_x2);
+            vxr_x2 = vxr_x2 /K_x[indm+1] + psi_vx_x[indn];
+            psi_vy_x[indn] = __f22h2(b_x_half[indm] * psi_vy_x[indn]
+                                    + a_x_half[indm] * vyr_x1);
+            vyr_x1 = vyr_x1  /K_x_half[indm] + psi_vy_x[indn];
+            psi_vz_x[indn] = __f22h2(b_x_half[indm] * psi_vz_x[indn]
+                                    + a_x_half[indm] * vzr_x1);
+            vzr_x1 = vzr_x1 / K_x_half[indm]  +psi_vz_x[indn];
+        }
+        #endif
+    }
+    #endif
     
     // Update adjoint stresses
     {

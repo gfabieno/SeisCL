@@ -148,59 +148,59 @@ FUNDEF void update_v(int offcomm,
     
     //Calculation of the spatial derivatives
     {
-#if LOCAL_OFF==0
+        #if LOCAL_OFF==0
         load_local_in(szz);
         load_local_haloz(szz);
         BARRIER
-#endif
+        #endif
         szz_z1 = Dzp(lszz);
 
         
-#if LOCAL_OFF==0
+        #if LOCAL_OFF==0
         BARRIER
         load_local_in(sxx);
         load_local_halox(sxx);
         BARRIER
-#endif
+        #endif
         sxx_x1 = Dxp(lsxx2);
 
         
-#if LOCAL_OFF==0
+        #if LOCAL_OFF==0
         BARRIER
         load_local_in(sxz);
         load_local_haloz(sxz);
         load_local_halox(sxz);
         BARRIER
-#endif
+        #endif
         sxz_x2 = Dxm(lsxz2);
         sxz_z2 = Dzm(lsxz);
         
-#if LOCAL_OFF==0
+        #if LOCAL_OFF==0
         BARRIER
         load_local_in(syz);
         load_local_haloz(syz);
         load_local_haloy(syz);
         BARRIER
-#endif
+        #endif
         syz_y2 = Dym(lsyz2);
         syz_z2 = Dzm(lsyz);
         
-#if LOCAL_OFF==0
+        #if LOCAL_OFF==0
         BARRIER
         load_local_in(syy);
         load_local_haloy(syy);
         BARRIER
-#endif
+        #endif
         syy_y1 = Dyp(lsyy2);
 
         
-#if LOCAL_OFF==0
+        #if LOCAL_OFF==0
         BARRIER
         load_local_in(sxy);
         load_local_halox(sxy);
         load_local_haloy(sxy);
         BARRIER
-#endif
+        #endif
         sxy_x2 = Dxm(lsxy2);
         sxy_y2 = Dym(lsxy2);
   
@@ -229,11 +229,14 @@ FUNDEF void update_v(int offcomm,
             indm=2*NAB - 1 - k*DIV;
             indn = (i)*(NY-2*FDOH)*(2*NAB/DIV)+(j)*(2*NAB/DIV)+(k);
             
-            psi_sxz_z[indn] = __f22h2(__hpgi(&b_z[indm+1]) * psi_sxz_z[indn] + __hpgi(&a_z[indm+1]) * sxz_z2);
+            psi_sxz_z[indn] = __f22h2(__hpgi(&b_z[indm+1]) * psi_sxz_z[indn]
+                                      + __hpgi(&a_z[indm+1]) * sxz_z2);
             sxz_z2 = sxz_z2 / __hpgi(&K_z[indm+1]) + psi_sxz_z[indn];
-            psi_syz_z[indn] = __f22h2(__hpgi(&b_z[indm+1]) * psi_syz_z[indn] + __hpgi(&a_z[indm+1]) * syz_z2);
+            psi_syz_z[indn] = __f22h2(__hpgi(&b_z[indm+1]) * psi_syz_z[indn]
+                                      + __hpgi(&a_z[indm+1]) * syz_z2);
             syz_z2 = syz_z2 / __hpgi(&K_z[indm+1]) + psi_syz_z[indn];
-            psi_szz_z[indn] = __f22h2(__hpgi(&b_z_half[indm]) * psi_szz_z[indn] + __hpgi(&a_z_half[indm]) * szz_z1);
+            psi_szz_z[indn] = __f22h2(__hpgi(&b_z_half[indm]) * psi_szz_z[indn]
+                                      + __hpgi(&a_z_half[indm]) * szz_z1);
             szz_z1 = szz_z1 / __hpgi(&K_z_half[indm]) + psi_szz_z[indn];
         }
         
@@ -251,7 +254,8 @@ FUNDEF void update_v(int offcomm,
             psi_syz_z[indn] = __f22h2(__hpg(&b_z[k]) * psi_syz_z[indn]
                                       + __hpg(&a_z[k]) * syz_z2);
             syz_z2 = syz_z2 / __hpg(&K_z[k]) + psi_syz_z[indn];
-            psi_szz_z[indn] = __f22h2(__hpg(&b_z_half[k]) * psi_szz_z[indn] + __hpg(&a_z_half[k]) * szz_z1);
+            psi_szz_z[indn] = __f22h2(__hpg(&b_z_half[k]) * psi_szz_z[indn]
+                                      + __hpg(&a_z_half[k]) * szz_z1);
             szz_z1 = szz_z1 / __hpg(&K_z_half[k]) + psi_szz_z[indn];
         }
         #endif
