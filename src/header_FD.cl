@@ -11,6 +11,19 @@
  -LOCAL_OFF: If 0, uses local memory grid, else uses global memory grid
  */
 
+#define DIV 1
+#define __gprec float
+#define __prec float
+#define __prec2 float
+#define __pprec float
+#define __h22f2(x) (x)
+#define __f22h2(x) (x)
+#define __pconv(x) (x)
+#define __f22h2c(x) (x)
+#define __h22f2c(x) (x)
+#define __cprec float2
+#define initc0(v) x=0.0f
+
 #if ND==3
     #if LOCAL_OFF==0
         #define ind(z,y,x)   (x)*lsizey*lsizez+(y)*lsizez+(z)

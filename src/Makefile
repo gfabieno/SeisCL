@@ -45,6 +45,7 @@ SeisCL_CL= \
     	surface2D_adj.cl \
 	surface2D_SH.cl \
 	surface3D.cl \
+	surface3D_half2.cl \
 	update_adjs2D.cl \
     	update_adjs2D_half2.cl \
 	update_adjs2D_SH.cl \

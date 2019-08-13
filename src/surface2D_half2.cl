@@ -57,15 +57,16 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,  GLOBARG __prec *vz,
     }
     
     __prec f, g, h;
-    float sump;
+    __prec sump;
     __cprec  vxx2, vzz2;
-    int l, m;
+    int m;
     int indp = (gidx-FDOH)*(NZ*DIV-2*FDOH)+(gidz-FDOH);
 
     /*Mirroring the components of the stress tensor to make
      a stress free surface (method of imaging, Levander, 1988)*/
     szz[indv(gidz, gidx)]=0.0;
     #if LVE>0
+    int l;
     for (l=0; l<LVE; l++){
         rzz[(l)*NX*NZ*DIV+(gidx)*NZ*DIV+(gidz)]=0.0;
     }
@@ -163,7 +164,7 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,  GLOBARG __prec *vz,
     for (l=0;l<LVE;l++){
         sump+=rxx[(l)*NX*NZ+(gidx)*NZ+(gidz)];
     }
-    sxx[indv(gidz,gidx)]+=pdir* (h - DT/2.0*sump);
+    sxx[indv(gidz,gidx)]+=(__prec)pdir* (h - DT/2.0*sump);
 
     /* updating the memory-variable rxx at the free surface */
     d=2.0*mu[indp]*taus[indp];
@@ -173,10 +174,11 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,  GLOBARG __prec *vz,
     for (l=0;l<LVE;l++){
         b=eta[l]/(1.0+(eta[l]*0.5));
         h=b*(((d-e)*((f/g)-1.0)*vxx)-((d-e)*vzz));
-        rxx[(l)*NX*NZ+(gidx)*NZ+(gidz)]+=pdir*h;
+        rxx[(l)*NX*NZ+(gidx)*NZ+(gidz)]+=(__prec)pdir*h;
+        sump+=rxx[(l)*NX*NZ+(gidx)*NZ+(gidz)];
         /*completely updating the stresses sxx  */
     }
-    sxx[indv(gidz,gidx)]+=pdir*(DT/2.0*sump);
+    sxx[indv(gidz,gidx)]+=(__prec)pdir*(DT/2.0*sump);
 #endif
     
 }
