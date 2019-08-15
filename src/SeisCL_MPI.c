@@ -174,7 +174,7 @@ int main(int argc, char **argv) {
 
     // Free the memory
     Free_OpenCL(&m, dev);
-    
+
 //    if (state){
 ////        sleep(300000);
 //        MPI_Abort(MPI_COMM_WORLD, state);

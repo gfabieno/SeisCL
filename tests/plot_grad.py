@@ -9,17 +9,17 @@ import numpy as np
 file = h5.File("SeisCL_gout.mat", "r")
 
 print(np.max(file["gradvp"]))
-plt.imshow(file["gradvp"][16:-16,32,16:-16], aspect="auto")
+plt.imshow(np.transpose(file["gradvp"][32:-32,:-32]), aspect="auto")
 plt.show()
 
 
 print(np.max(file["gradvs"]))
-plt.imshow(file["gradvs"][16:-16,32,16:-16], aspect="auto")
+plt.imshow(np.transpose(file["gradvs"][32:-32,:-32]), aspect="auto")
 plt.show()
 
 
 print(np.max(file["gradrho"]))
-plt.imshow(file["gradrho"][16:-16,32,16:-16], aspect="auto")
+plt.imshow(np.transpose(file["gradrho"][32:-32,:-32]), aspect="auto")
 plt.show()
 file.close()
 

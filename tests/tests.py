@@ -73,16 +73,17 @@ def test_fp16_grad(seis, ref=None, plot=False):
         pars['taup'] = pars['vp'] * 0 + 0.1
         pars['taus'] = pars['vp'] * 0 + 0.1
     
-    for fp16 in range(0,4):
+    for fp16 in range(0,3):
         print("    Testing FP16=%d....." %fp16 , end = '')
         seis.csts['FP16'] = fp16
         try :
-            pars['vp'] = np.zeros(seis.csts['N']) + 3500
-            pars['vp'][slices]= 4000
-            seis.set_forward(seis.src_pos_all[3,:], pars, withgrad=False)
-            seis.execute()
-            data = seis.read_data()
-            seis.write_data({"p":data[0]})
+            if fp16==0:
+                pars['vp'] = np.zeros(seis.csts['N']) + 3500
+                pars['vp'][slices]= 4000
+                seis.set_forward(seis.src_pos_all[3,:], pars, withgrad=False)
+                seis.execute()
+                data = seis.read_data()
+                seis.write_data({"p":data[0]})
             pars['vp'] = np.zeros(seis.csts['N']) + 3500
             seis.set_forward(seis.src_pos_all[3,:], pars, withgrad=True)
             seis.execute()

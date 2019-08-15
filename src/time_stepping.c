@@ -620,7 +620,8 @@ int time_stepping(model * m, device ** dev) {
             }
 
             // Outputting the movie
-            if (m->MOVOUT>0 && (t+1)%m->MOVOUT==0 && state==0)
+            if (m->MOVOUT>0 && (m->BACK_PROP_TYPE!=1 && m->GRADOUT==1)
+                && (t+1)%m->MOVOUT==0 && state==0)
                 movout( m, dev, t, s);
             
             #ifdef __SEISCL__
@@ -678,7 +679,7 @@ int time_stepping(model * m, device ** dev) {
                 // Computing the free surface
                 if (m->FREESURF==1){
                     for (d=0;d<m->NUM_DEVICES;d++){
-                        __GUARD prog_launch( &(*dev)[d].queue,
+                        __GUARD prog_launch(&(*dev)[d].queue,
                                             &(*dev)[d].bnd_cnds.surf_adj);
                     }
                 }
@@ -714,6 +715,10 @@ int time_stepping(model * m, device ** dev) {
                     }
 
                 }
+                // Outputting the movie
+                if (m->MOVOUT>0 && m->BACK_PROP_TYPE==1
+                    && (t)%m->MOVOUT==0 && state==0)
+                    movout(m, dev, t, s);
                 
                 #ifdef __SEISCL__
                 for (d=0;d<m->NUM_DEVICES;d++){

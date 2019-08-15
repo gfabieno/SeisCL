@@ -323,7 +323,7 @@ class SeisCL():
         """
         if workdir is None:
             workdir = self.workdir
-        cmd = 'mpirun -np 1 '+self.progname+' '+workdir+'/'+self.file+' '+self.file_din
+        cmd = 'mpirun -np 1 '+self.progname+' '+workdir+'/'+self.file+' '+workdir+'/'+self.file_din
         return cmd
 
     def execute(self, workdir=None):

@@ -169,7 +169,7 @@ int Init_MPI(model * m) {
         fprintf(stderr, "Error: Unknown restype\n");
         return 1;
     }
-    
+
     MPI_Barrier(MPI_COMM_WORLD);
 
     if (!state){
@@ -179,17 +179,17 @@ int Init_MPI(model * m) {
         for (i=0;i<m->ntvars;i++){
             MPI_Bcast( &m->trans_vars[i].to_output, 1, MPI_INT, 0, MPI_COMM_WORLD );
         }
-        
+
         for (i=0;i<m->npars;i++){
             MPI_Bcast( m->pars[i].gl_par, m->pars[i].num_ele, MPI_FLOAT, 0, MPI_COMM_WORLD );
         }
-        
+
         for (i=0;i<m->ncsts;i++){
             MPI_Bcast( m->csts[i].gl_cst, m->csts[i].num_ele, MPI_FLOAT, 0, MPI_COMM_WORLD );
         }
-        
+
     }
-    
+
     //Allocate memory of variables
     for (i=0;i<m->nvars;i++){
         if (m->vars[i].to_output){
@@ -205,7 +205,7 @@ int Init_MPI(model * m) {
             var_alloc_out(&m->trans_vars[i].gl_varout, m);
         }
     }
-    
+
     if (m->GRADSRCOUT==1){
         GMALLOC(m->src_recs.gradsrc,sizeof(float*)*m->src_recs.ns);
         GMALLOC(m->src_recs.gradsrc[0],sizeof(float)*m->src_recs.allns*m->NT);
@@ -218,7 +218,7 @@ int Init_MPI(model * m) {
     if (m->RMSOUT==1 || m->RESOUT==1 || m->GRADOUT==1){
         for (i=0;i<m->nvars;i++){
             if (m->vars[i].to_output){
-                
+
                 if (m->MYID!=0){
                     var_alloc_out(&m->vars[i].gl_var_res, m);
                     var_alloc_out(&m->vars[i].gl_varin, m);
@@ -230,7 +230,7 @@ int Init_MPI(model * m) {
         }
         for (i=0;i<m->ntvars;i++){
             if (m->trans_vars[i].to_output){
-                
+
                 if (m->MYID!=0){
                     var_alloc_out(&m->trans_vars[i].gl_var_res, m);
                     var_alloc_out(&m->trans_vars[i].gl_varin, m);
@@ -242,7 +242,7 @@ int Init_MPI(model * m) {
         }
     }
 
-    
+
     //Assign a group within wich domain decomposition is performed.
     //Different groups are assigned different sources
     {
@@ -251,9 +251,9 @@ int Init_MPI(model * m) {
             m->NGROUP=1;
             m->MPI_NPROC_SHOT=m->NP;
         }
-        
+
         m->MYGROUPID=m->MYID/m->MPI_NPROC_SHOT;
-        
+
         if (m->NP>m->MPI_NPROC_SHOT){
             if (m->MYGROUPID>m->NGROUP-1){
                 m->NLOCALP=m->MPI_NPROC_SHOT;

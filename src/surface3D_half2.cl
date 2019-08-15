@@ -56,7 +56,7 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,   GLOBARG __prec2 *vy,
     __prec f, g, h;
     __cprec  vxx2, vyy2, vzz2;
     int m;
-    int indp = (gidx-FDOH)*(NZ*DIV-2*FDOH)+(gidz-FDOH);
+    int indp = (gidx-FDOH)*(NY-2*FDOH)*(NZ*DIV-2*FDOH)+(gidy-FDOH)*(NZ*DIV-2*FDOH)+(gidz-FDOH);
     
     /*Mirroring the components of the stress tensor to make
      a stress free surface (method of imaging, Levander, 1988)*/

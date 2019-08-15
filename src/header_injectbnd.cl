@@ -68,11 +68,11 @@
             i=i-FDOH;
             j=j-FDOH;
             
-        #if FREESURF==0
+//        #if FREESURF==0
             m=NYbnd*NZbnd*FDOH*2+(NXbnd-2*FDOH)*NZbnd*FDOH*2+(NXbnd-2*FDOH)*(NYbnd-2*FDOH)*FDOH/DIV+i*(NYbnd-2*FDOH)*FDOH/DIV+j*FDOH/DIV+k;
-        #else
-            m=-1;
-        #endif
+//        #else
+//            m=-1;
+//        #endif
             
         }
         else {//down
@@ -121,11 +121,11 @@
         else if (k<FDOH/DIV){//up
             i=i-FDOH;
             j=j-FDOH;
-            #if FREESURF==0
+//            #if FREESURF==0
             m=NYbnd*NZbnd*FDOH+(NXbnd-FDOH)*NZbnd*FDOH*2+(NXbnd-FDOH)*(NYbnd-2*FDOH)*FDOH/DIV+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
-            #else
-            m=-1;
-            #endif
+//            #else
+//            m=-1;
+//            #endif
         }
         else {//down
             i=i-FDOH;
@@ -168,11 +168,11 @@
         }
         else if (k<FDOH){//up
             j=j-FDOH;
-            #if FREESURF==0
+//            #if FREESURF==0
             m=NYbnd*NZbnd*FDOH+(NXbnd-FDOH)*NZbnd*FDOH*2+(NXbnd-FDOH)*(NYbnd-2*FDOH)*FDOH/DIV+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
-            #else
-            m=-1;
-            #endif
+//            #else
+//            m=-1;
+//            #endif
         }
         else {//down
             j=j-FDOH/DIV;
@@ -212,11 +212,11 @@
         else if (k<FDOH/DIV){//up
             j=j-FDOH;
             
-        #if FREESURF==0
+//        #if FREESURF==0
             m=NXbnd*NZbnd*FDOH*2+NXbnd*(NYbnd-2*FDOH)*FDOH/DIV+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
-        #else
-            m=-1;
-        #endif
+//        #else
+//            m=-1;
+//        #endif
         }
         else {//down
             j=j-FDOH;
@@ -268,11 +268,11 @@
         }
         else if (k<FDOH/DIV){//up
             i=i-FDOH;
-            #if FREESURF==0
+//            #if FREESURF==0
             m=NZbnd*FDOH*2+(NXbnd-2*FDOH)*FDOH/DIV+i+k*(NXbnd-2.0*FDOH);
-            #else
-            m=-1;
-            #endif
+//            #else
+//            m=-1;
+//            #endif
             
         }
         else {//down
@@ -309,11 +309,11 @@
         }
         else if (k<FDOH/DIV){//up
             i=i-FDOH;
-            #if FREESURF==0
+//            #if FREESURF==0
             m=NZbnd*FDOH+(NXbnd-FDOH)*FDOH/DIV+i+k*(NXbnd-FDOH);
-            #else
-            m=-1;
-            #endif
+//            #else
+//            m=-1;
+//            #endif
         }
         else {//down
             i=i-FDOH;
@@ -346,11 +346,11 @@
             m=i*NZbnd+k;
         }
         else if (k<FDOH/DIV){//up
-            #if FREESURF==0
+//            #if FREESURF==0
             m=NZbnd*FDOH+(NXbnd-FDOH)*FDOH/DIV+i+k*(NXbnd-FDOH);
-            #else
-            m=-1;
-            #endif
+//            #else
+//            m=-1;
+//            #endif
         }
         else {//down
             k=k-NZbnd+FDOH/DIV;
@@ -379,11 +379,11 @@
         else if (k<0 || k>NZbnd-1 || i<0 || i>NXbnd-1 )
             m=-1;
         else if (k<FDOH/DIV){//up
-            #if FREESURF==0
+//            #if FREESURF==0
             m=(NXbnd)*FDOH/DIV+i+k*(NXbnd);
-            #else
-            m=-1;
-            #endif
+//            #else
+//            m=-1;
+//            #endif
         }
         else {//down
             k=k-NZbnd+FDOH/DIV;
