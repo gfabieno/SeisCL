@@ -25,11 +25,15 @@ filenames['gout']=file+"_gout.mat"      #File containing the gradient ouput
 filenames['rms']=file+"_rms.mat"        #File containing the rms ouput
 filenames['movout']=file+"_movie.mat"   #File containing the movie ouput
 
+ND=3
 
 #_____________________Simulation constants input file_______________________
 csts={}
-csts['N']=np.array([100,200]) #Grid size ( z,x)
-csts['ND']=2                #Flag for dimension. 3: 3D, 2: 2D P-SV,  21: 2D SH
+if ND==3:
+    csts['N']=np.array([100,200,200]) #Grid size ( z,x)
+else:
+    csts['N']=np.array([100,200]) #Grid size ( z,x)
+csts['ND']=ND                #Flag for dimension. 3: 3D, 2: 2D P-SV,  21: 2D SH
 csts['dh']=10                #Grid spatial spacing
 csts['dt']=0.0008           # Time step size
 csts['NT']=1900              #Number of time steps
@@ -83,18 +87,20 @@ h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_pyt
 
 #_________________Model File__________________
 model={}
-model['vp']=np.zeros( (csts['N'][0],csts['N'][1]))+3500  #Must contain the variables names of the chosen paretrization
-model['vs']=np.zeros( (csts['N'][0],csts['N'][1]))+2000
-model['rho']=np.zeros( (csts['N'][0],csts['N'][1]))+2000
-model['taup']=np.zeros( (csts['N'][0],csts['N'][1]))+0.02
-model['taus']=np.zeros( (csts['N'][0],csts['N'][1]))+0.02
+m0 = np.zeros( [d for d in csts['N']])
+slices = [slice(d//2-10,d//2+10) for d in csts['N']]
+slices[0] = slice(18,28)
+slices = tuple(slices)
 
-model['vp'][0:10,:] = 3000
-model['vs'][0:10:,:] = 1800
-model['rho'][0:10:,:] = 2000
+model['vp']=m0 + 3500
+model['vs']=m0 + 2000
+model['rho']=m0 + 2000
+model['taup']=m0 + 0.02
+model['taus']=m0 + 0.02
 
-h5mat.savemat(filenames['model'], model , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
-
+#model['vp'][0:10,:] = 3000
+#model['vs'][0:10:,:] = 1800
+#model['rho'][0:10:,:] = 2000
 
 
 #________add src pos, src and rec_pos_______
@@ -104,20 +110,20 @@ t[:,0]=tmin+np.arange(0,csts['NT']*csts['dt'],csts['dt'] )
 pf=math.pow(math.pi,2)*math.pow(csts['f0'],2)
 ricker=np.multiply( (1.0-2.0*pf*np.power(t,2)), np.exp(-pf*np.power(t,2) )  )
 
-for ii in range(0,csts['N'][1]-2*csts['nab']-10,1):
-    #for ii in [60]:
+#for ii in range(0,csts['N'][-1]-2*csts['nab']-10,4):
+for ii in [60]:
     toappend=np.zeros((5,1))
     toappend[0,:]=(csts['nab']+5+ii)*csts['dh']
-    toappend[1,:]=0
+    toappend[1,:]= csts['N'][-1]//2*csts['dh']
     toappend[2,:]= 0*csts['dh']
     toappend[3,:]=ii
     toappend[4,:]=2
     csts['src_pos']=np.append(csts['src_pos'], toappend, axis=1)
     csts['src']=np.append(csts['src'], ricker  , axis=1)
-    for jj in range(0, csts['N'][1]-2*csts['nab']-10, 1):
+    for jj in range(0, csts['N'][1]-2*csts['nab']-10, 4):
         toappend=np.zeros((8,1))
         toappend[0,:]=(csts['nab']+5+jj)*csts['dh']
-        toappend[1,:]=0
+        toappend[1,:]=csts['N'][-1]//2*csts['dh']
         toappend[2,:]=0*csts['dh']
         toappend[3,:]=ii
         toappend[4,:]=csts['rec_pos'].shape[1]+1
@@ -125,38 +131,38 @@ for ii in range(0,csts['N'][1]-2*csts['nab']-10,1):
 
 
 
-#________________Launch simulation______________
-csts['MOVOUT']=0
-model['vp'][18:28,90:110]= 3550
-model['taup'][18:28,90:110]= 0.03
-h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
-h5mat.savemat(filenames['model'], model , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
-
-filepath=os.getcwd()
-cmdlaunch='cd ../src/; mpirun -np 1 ./SeisCL_MPI '+filepath+'/SeisCL > ../tests/out 2>../tests/err'
-print(cmdlaunch)
-pipes = subprocess.Popen(cmdlaunch,stdout=subprocess.PIPE, stderr=subprocess.PIPE,shell=True)
-while (pipes.poll() is None):
-    time.sleep(1)
-sys.stdout.write('Forward calculation completed \n')
-sys.stdout.flush()
-
-dout = h5mat.loadmat(filenames['dout'])
-din={}
-din['src_pos']=dout['src_pos']
-din['rec_pos']=dout['rec_pos']
-din['vx']=np.transpose(dout['vxout'])
-din['vz']=np.transpose(dout['vzout'])
-#din['p']=np.transpose(dout['pout'])
-h5mat.savemat(filenames['din'], din , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
+##________________Launch simulation______________
+#csts['MOVOUT']=0
+#model['vp'][slices]= 3550
+#model['taup'][slices]= 0.03
+#h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
+#h5mat.savemat(filenames['model'], model , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
+#
+#filepath=os.getcwd()
+#cmdlaunch='cd ../src/; mpirun -np 1 ./SeisCL_MPI '+filepath+'/SeisCL > ../tests/out 2>../tests/err'
+#print(cmdlaunch)
+#pipes = subprocess.Popen(cmdlaunch,stdout=subprocess.PIPE, stderr=subprocess.PIPE,shell=True)
+#while (pipes.poll() is None):
+#    time.sleep(1)
+#sys.stdout.write('Forward calculation completed \n')
+#sys.stdout.flush()
+#
+#dout = h5mat.loadmat(filenames['dout'])
+#din={}
+#din['src_pos']=dout['src_pos']
+#din['rec_pos']=dout['rec_pos']
+#din['vx']=np.transpose(dout['vxout'])
+#din['vz']=np.transpose(dout['vzout'])
+##din['p']=np.transpose(dout['pout'])
+#h5mat.savemat(filenames['din'], din , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
 
 
 #________________Calculate gradient______________
 csts['MOVOUT']=0
-model['vp'][18:28,90:110]= 3500
-model['taup'][18:28,90:110]= 0.02
+model['vp'][slices]= 3500
+model['taup'][slices]= 0.02
 csts['gradout']=1
-csts['resout']=1
+csts['resout']=0
 csts['gradfreqs']=np.append(csts['gradfreqs'], csts['f0'])
 h5mat.savemat(filenames['csts'], csts , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)
 h5mat.savemat(filenames['model'], model , appendmat=False, format='7.3', store_python_metadata=True, truncate_existing=True)

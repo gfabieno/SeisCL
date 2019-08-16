@@ -21,6 +21,7 @@ from python.SeisCL import SeisCL, SeisCLError
 
 def test_fp16_forward(seis, ref=None, plot=False):
     
+    seis = define_rec_src(seis)
     pars = {}
     pars['vp'] = np.zeros(seis.csts['N']) + 3500
     pars['vs'] = pars['vp'] * 0 + 2000
@@ -61,19 +62,24 @@ def test_fp16_forward(seis, ref=None, plot=False):
 
 def test_fp16_grad(seis, ref=None, plot=False):
     
+    seis = define_rec_src(seis)
     pars = {}
     pars['vp'] = np.zeros(seis.csts['N']) + 3500
     pars['vs'] = pars['vp'] * 0 + 2000
     pars['rho'] = pars['vp'] * 0 + 2000
-    slices = tuple([slice(d-5,d+5) for d in seis.csts['N']])
+    slices = [slice(d//2-5,d//2+5) for d in seis.csts['N']]
     slicesp = [slice(seis.csts['nab'], -seis.csts['nab']) for _ in seis.csts['N']]
     slicesp[1:-1] = [d//2 for d in seis.csts['N'][1:-1]]
+    if seis.csts["freesurf"] ==1:
+        slices[0] = slice(5, 15)
+        slicesp[0] = slice(0, -seis.csts['nab'])
     slicesp = tuple(slicesp)
+    slices = tuple(slices)
     if seis.csts['L'] > 0:
         pars['taup'] = pars['vp'] * 0 + 0.1
         pars['taus'] = pars['vp'] * 0 + 0.1
     
-    for fp16 in range(0,3):
+    for fp16 in range(0,4):
         print("    Testing FP16=%d....." %fp16 , end = '')
         seis.csts['FP16'] = fp16
         try :
@@ -98,7 +104,7 @@ def test_fp16_grad(seis, ref=None, plot=False):
             else:
                 err = (np.sum([np.sum((g-r)**2) for g,r in zip(grad, ref)])
                        /np.sum([np.sum((r)**2) for r in ref]))
-                if err > 0.001:
+                if err > 0.01:
                     if plot:
                         plt.imshow(grad[0][slicesp]-ref[0][slicesp], aspect='auto')
                         plt.show()
@@ -108,6 +114,42 @@ def test_fp16_grad(seis, ref=None, plot=False):
         except(SeisCLError) as msg:
             print("failed:")
             print(msg)
+
+def define_rec_src(seis):
+
+    """
+        _________________________Sources and receivers__________________________
+    """
+    if seis.csts['freesurf'] == 1:
+        indz0 = 5
+    else:
+        indz0 = seis.csts['nab']+5
+
+    ii=0
+    seis.rec_pos = np.empty((8,0))
+    seis.src_pos = np.empty((5,0))
+    
+    toappend=np.zeros((5,1))
+    toappend[0,:]=(seis.csts['nab']+5)*seis.csts['dh']
+    toappend[1,:]=(seis.csts['N'][1]//2)*seis.csts['dh']
+    toappend[2,:]=(indz0)*seis.csts['dh']
+    toappend[3,:]=ii
+    toappend[4,:]=100
+
+    seis.src_pos=np.append(seis.src_pos, toappend, axis=1)
+    for jj in range(0,seis.csts['N'][0]-seis.csts['nab']-indz0):
+        toappend=np.zeros((8,1))
+        toappend[0,:]=(seis.csts['N'][1]-seis.csts['nab']-5)*seis.csts['dh']
+        toappend[1,:]=(seis.csts['N'][1]//2)*seis.csts['dh']
+        toappend[2,:]=(indz0+jj)*seis.csts['dh']
+        toappend[3,:]=ii
+        toappend[4,:]=seis.csts['rec_pos'].shape[1]+1
+        seis.rec_pos=np.append(seis.rec_pos, toappend, axis=1)
+    seis.fill_src()
+    seis.rec_pos_all = seis.rec_pos
+    seis.src_pos_all = seis.src_pos
+
+    return seis
 
 
 if __name__ == "__main__":
@@ -135,29 +177,6 @@ if __name__ == "__main__":
     seis.csts['FDORDER']=8
     seis.csts['abs_type'] = 2
     seis.csts['N']=np.array([64,64,64])
-    """
-    _________________________Sources and receivers______________________________
-    """
-    for ii in range(0,seis.csts['N'][0]-2*seis.csts['nab']-10,60):
-        toappend=np.zeros((5,1))
-        toappend[0,:]=(seis.csts['nab']+5)*seis.csts['dh']
-        toappend[1,:]=(seis.csts['N'][1]//2)*seis.csts['dh']
-        toappend[2,:]=(seis.csts['nab']+5+ii)*seis.csts['dh']
-        toappend[3,:]=ii
-        toappend[4,:]=100
-        seis.src_pos=np.append(seis.src_pos, toappend, axis=1)
-        for jj in range(0,seis.csts['N'][0]-2*seis.csts['nab']-10):
-            toappend=np.zeros((8,1))
-            toappend[0,:]=(seis.csts['N'][1]-seis.csts['nab']-5)*seis.csts['dh']
-            toappend[1,:]=(seis.csts['N'][1]//2)*seis.csts['dh']
-            toappend[2,:]=(seis.csts['nab']+5+jj)*seis.csts['dh']
-            toappend[3,:]=ii
-            toappend[4,:]=seis.csts['rec_pos'].shape[1]+1
-            seis.rec_pos=np.append(seis.rec_pos, toappend, axis=1)
-    seis.fill_src()
-    seis.rec_pos_all = seis.rec_pos
-    seis.src_pos_all = seis.src_pos
-
 
     # ND, L, freesurf, abs_type, FDORDER, forward, NGPU, NPROC
 
@@ -244,6 +263,15 @@ if __name__ == "__main__":
         seis.csts['L'] = 0
         seis.csts['freesurf'] = 1
         test_fp16_forward(seis, ref=None, plot=args.plot)
+
+    name = "3D_elas_grad_surface"
+    if args.test == name or args.test == "all":
+        print("Testing %s" % name)
+        seis.csts['N'] = np.array([64,64,64])
+        seis.csts['ND'] = 3
+        seis.csts['L'] = 0
+        seis.csts['freesurf'] = 1
+        test_fp16_grad(seis, ref=None, plot=args.plot)
 
 
 

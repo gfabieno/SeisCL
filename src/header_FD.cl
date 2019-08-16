@@ -16,6 +16,7 @@
 #define __prec float
 #define __prec2 float
 #define __pprec float
+#define __cprec1 float
 #define __h22f2(x) (x)
 #define __f22h2(x) (x)
 #define __pconv(x) (x)

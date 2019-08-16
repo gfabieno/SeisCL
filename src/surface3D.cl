@@ -104,8 +104,8 @@ FUNDEF void freesurface(        GLOBARG float *vx,         GLOBARG float *vy,   
     int gidy = get_global_id(0) + FDOH;
     int gidx = get_global_id(1) + FDOH;
     #else
-    int gidx = blockIdx.x*blockDim.x + threadIdx.x + FDOH;
-    int gidy = blockIdx.y*blockDim.y + threadIdx.y + FDOH;
+    int gidy = blockIdx.x*blockDim.x + threadIdx.x + FDOH;
+    int gidx = blockIdx.y*blockDim.y + threadIdx.y + FDOH;
     #endif
     int gidz=FDOH;
     

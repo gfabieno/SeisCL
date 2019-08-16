@@ -321,7 +321,7 @@ char *get_build_options(device *dev,
             
         }
     }
-    for (i=0;i<m->FDOH;i++){
+    for (i=0;i<MAX_FD_ORDER/2;i++){
         sprintf(src,"-D HC%d=%9.9ff ",i+1,m->hc[i+1]);
         strcat(build_options,src);
         
@@ -488,7 +488,7 @@ int get_build_options(device *dev,
             sprintf(build_options[*n-1],"-D N%d=%d ",i,(*dev).N[i]+m->FDORDER);
         }
     }
-    for (i=0;i<m->FDOH;i++){
+    for (i=0;i<MAX_FD_ORDER/2;i++){
         *n+=1;
         sprintf(build_options[*n-1],"-D HC%d=%9.9f ",i+1,m->hc[i+1]);
     }

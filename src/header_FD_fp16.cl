@@ -65,10 +65,13 @@
 
 #if FP16==3
     #define __cprec half2
+    #define __cprec1 half
 #elif FP16==0
     #define __cprec float
+    #define __cprec1 float
 #else
     #define __cprec float2
+    #define __cprec1 float
 #endif
 #if FP16==0
     #define initc0(v) x=0.0f

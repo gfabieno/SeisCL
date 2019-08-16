@@ -19,6 +19,7 @@
 #include "surface2D_SH.hcl"
 #include "surface3D.hcl"
 #include "surface3D_half2.hcl"
+#include "surface3D_adj.hcl"
 #include "update_adjs2D.hcl"
 #include "update_adjs2D_half2.hcl"
 #include "update_adjs2D_SH.hcl"
@@ -908,6 +909,7 @@ int assign_modeling_case(model * m){
             updatev_adj = update_adjv3D_source;
             updates_adj = update_adjs3D_source;
             surface = surface3D_source;
+            surface_adj = surface3D_adj_source;
             savebnd = savebnd3D_source;
             
         }
@@ -917,6 +919,7 @@ int assign_modeling_case(model * m){
             updatev_adj = update_adjv3D_half2_source;
             updates_adj = update_adjs3D_half2_source;
             surface = surface3D_half2_source;
+            surface_adj = surface3D_adj_source;
             savebnd = savebnd3D_source;
         }
     }

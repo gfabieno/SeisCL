@@ -613,6 +613,7 @@ FUNDEF void update_adjs(int offcomm,
 // Absorbing boundary
 #if ABS_TYPE==2
     {
+        #if FREESURF==0
         if (gidz-FDOH<NAB){
             sxyr[indv]*=taper[gidz-FDOH];
             syzr[indv]*=taper[gidz-FDOH];
@@ -621,6 +622,7 @@ FUNDEF void update_adjs(int offcomm,
             syyr[indv]*=taper[gidz-FDOH];
             szzr[indv]*=taper[gidz-FDOH];
         }
+        #endif
 
         if (gidz>NZ-NAB-FDOH-1){
             sxyr[indv]*=taper[NZ-FDOH-gidz-1];

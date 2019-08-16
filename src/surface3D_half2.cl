@@ -36,8 +36,8 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,   GLOBARG __prec2 *vy,
     int gidy = get_global_id(0) + FDOH;
     int gidx = get_global_id(1) + FDOH;
     #else
-    int gidx = blockIdx.x*blockDim.x + threadIdx.x + FDOH;
-    int gidy = blockIdx.y*blockDim.y + threadIdx.y + FDOH;
+    int gidy = blockIdx.x*blockDim.x + threadIdx.x + FDOH;
+    int gidx = blockIdx.y*blockDim.y + threadIdx.y + FDOH;
     #endif
     int gidz=FDOH;
     
@@ -48,7 +48,8 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,   GLOBARG __prec2 *vy,
     int lsizez=NZ;
     int lsizey=NY;
     
-    /* Global work size is padded to be a multiple of local work size. The padding elements must not be updated */
+    /* Global work size is padded to be a multiple of local work size.
+       The padding elements must not be updated */
     if (gidy>(NY-FDOH-1) || gidx>(NX-FDOH-1) ){
         return;
     }
@@ -56,16 +57,18 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,   GLOBARG __prec2 *vy,
     __prec f, g, h;
     __cprec  vxx2, vyy2, vzz2;
     int m;
-    int indp = (gidx-FDOH)*(NY-2*FDOH)*(NZ*DIV-2*FDOH)+(gidy-FDOH)*(NZ*DIV-2*FDOH)+(gidz-FDOH);
+    int indp = ( (gidx-FDOH)*(NY-2*FDOH)*(NZ*DIV-2*FDOH)
+                +(gidy-FDOH)*(NZ*DIV-2*FDOH)
+                +(gidz-FDOH));
     
     /*Mirroring the components of the stress tensor to make
      a stress free surface (method of imaging, Levander, 1988)*/
     szz[indv(gidz, gidy, gidx)]=0.0;
     #if LVE>0
-    int l;
-    for (l=0; l<LVE; l++){
-        rzz[l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz]=0.0;
-    }
+        int l;
+        for (l=0; l<LVE; l++){
+            rzz[l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz]=0.0;
+        }
     #endif
     
     for (m=1; m<=FDOH; m++) {
@@ -78,161 +81,58 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,   GLOBARG __prec2 *vy,
     vyy2 = Dym(vy);
     vzz2 = Dzm(vz);
     #if FP16>0
-    __prec  vxx = vxx2.x;
-    __prec  vyy = vyy2.x;
-    __prec  vzz = vzz2.x;
+        __prec  vxx = vxx2.x;
+        __prec  vyy = vyy2.x;
+        __prec  vzz = vzz2.x;
     #else
-    __prec  vxx = vxx2;
-    __prec  vyy = vyy2;
-    __prec  vzz = vzz2;
+        __prec  vxx = vxx2;
+        __prec  vyy = vyy2;
+        __prec  vzz = vzz2;
     #endif
-                                                
-   
-//// Absorbing boundary
-//#if ABS_TYPE==2
-//{
-//    if (gidy-FDOH<NAB){
-//        sxx(gidz,gidy,gidx)*=1.0/taper[gidy-FDOH];
-//        syy(gidz,gidy,gidx)*=1.0/taper[gidy-FDOH];
-//    }
-//
-//    if (gidy>NY-NAB-FDOH-1){
-//        sxx(gidz,gidy,gidx)*=1.0/taper[NY-FDOH-gidy-1];
-//        syy(gidz,gidy,gidx)*=1.0/taper[NY-FDOH-gidy-1];
-//    }
-//
-//#if DEV==0 & MYLOCALID==0
-//    if (gidx-FDOH<NAB){
-//        sxx(gidz,gidy,gidx)*=1.0/taper[gidx-FDOH];
-//        syy(gidz,gidy,gidx)*=1.0/taper[gidx-FDOH];
-//    }
-//#endif
-//
-//#if DEV==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-//    if (gidx>NX-NAB-FDOH-1){
-//        sxx(gidz,gidy,gidx)*=1.0/taper[NX-FDOH-gidx-1];
-//        syy(gidz,gidy,gidx)*=1.0/taper[NX-FDOH-gidx-1];
-//    }
-//#endif
-//}
-//#endif
-    
-//// Correct spatial derivatives to implement CPML
-//#if ABS_TYPE==1
-//    {
-//        int i,j,k,ind;
-//
-//        if (gidy-FDOH<NAB){
-//            i =gidx-FDOH;
-//            j =gidy-FDOH;
-//            k =gidz-FDOH;
-//
-//            vyy = vyy / K_y[j] + psi_vyy(k,j,i);
-//        }
-//
-//        else if (gidy>NY-NAB-FDOH-1){
-//
-//            i =gidx-FDOH;
-//            j =gidy - NY+NAB+FDOH+NAB;
-//            k =gidz-FDOH;
-//            ind=2*NAB-1-j;
-//            vyy = vyy / K_y[ind+1] + psi_vyy(k,j,i);
-//        }
-//#if DEV==0 & MYLOCALID==0
-//        if (gidx-FDOH<NAB){
-//
-//            i =gidx-FDOH;
-//            j =gidy-FDOH;
-//            k =gidz-FDOH;
-//
-//            vxx = vxx / K_x[i] + psi_vxx(k,j,i);
-//        }
-//#endif
-//
-//#if DEV==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-//        if (gidx>NX-NAB-FDOH-1){
-//
-//            i =gidx - NX+NAB+FDOH+NAB;
-//            j =gidy-FDOH;
-//            k =gidz-FDOH;
-//            ind=2*NAB-1-i;
-//            vxx = vxx /K_x[ind+1] + psi_vxx(k,j,i);
-//        }
-//#endif
-//    }
-//#endif
 
     #if LVE==0
-    f=mu[indp]*(__prec)2.0f;
-    g=M[indp];
-    h=-((g-f)*(g-f)*(vxx+vyy)/g)-((g-f)*vzz);
-    sxx[indv(gidz,gidy,gidx)]+=(__prec)pdir*h;
-    syy[indv(gidz,gidy,gidx)]+=(__prec)pdir*h;
+        f=mu[indp]*(__prec)2.0f;
+        g=M[indp];
+        h=-((g-f)*(g-f)*(vxx+vyy)/g)-((g-f)*vzz);
+        sxx[indv(gidz,gidy,gidx)]+=(__prec)pdir*h;
+        syy[indv(gidz,gidy,gidx)]+=(__prec)pdir*h;
     #else
-    float b,d,e, sumxx, sumyy;
-    /* partially updating sxx and syy in the same way*/
-    f=mu[indp]*(__prec)2.0*((__prec)1.0+L*taus[indp]);
-    g=M[indp]*(1.0+L*taup[indp]);
-    h=-((g-f)*(g-f)*(vxx+vyy)/g)-((g-f)*vzz);
+        float b,d,e, sumxx, sumyy;
+        /* partially updating sxx and syy in the same way*/
+        f=mu[indp]*(__prec)2.0*((__prec)1.0+L*taus[indp]);
+        g=M[indp]*(1.0+L*taup[indp]);
+        h=-((g-f)*(g-f)*(vxx+vyy)/g)-((g-f)*vzz);
     
-    sumxx=0;sumyy=0;
-    for (l=0;l<LVE;l++){
-        sumxx+=rxx[l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz];
-        sumyy+=ryy[l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz];
-    }
+        sumxx=0;sumyy=0;
+        for (l=0;l<LVE;l++){
+            sumxx+=rxx[l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz];
+            sumyy+=ryy[l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz];
+        }
     
-    sxx[indv(gidz,gidy,gidx)]+=(__prec)pdir*(h-(DT/2.0*sumxx));
-    syy[indv(gidz,gidy,gidx)]+=(__prec)pdir*(h-(DT/2.0*sumyy));
+        sxx[indv(gidz,gidy,gidx)]+=(__prec)pdir*(h-(DT/2.0*sumxx));
+        syy[indv(gidz,gidy,gidx)]+=(__prec)pdir*(h-(DT/2.0*sumyy));
     
-    /* updating the memory-variable rxx, ryy at the free surface */
+        /* updating the memory-variable rxx, ryy at the free surface */
     
-    d=2.0*mu[indp]*taus[indp];
-    e=M[indp]*taup[indp];
-    sumxx=0;sumyy=0;
-    for (l=0;l<LVE;l++){
-        b=eta[l]/(1.0+(eta[l]*0.5));
-        h=b*(((d-e)*((f/g)-1.0)*(vxx+vyy))-((d-e)*vzz));
-        rxx[l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz]+=(__prec)pdir*h;
-        ryy[l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz]+=(__prec)pdir*h;
-        
-        sumxx+=rxx[l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz];
-        sumyy+=ryy[l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz];
-    }
+        d=2.0*mu[indp]*taus[indp];
+        e=M[indp]*taup[indp];
+        sumxx=0;sumyy=0;
+        for (l=0;l<LVE;l++){
+            b=eta[l]/(1.0+(eta[l]*0.5));
+            h=b*(((d-e)*((f/g)-1.0)*(vxx+vyy))-((d-e)*vzz));
+            rxx[l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz]+=(__prec)pdir*h;
+            ryy[l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz]+=(__prec)pdir*h;
+            
+            sumxx+=rxx[l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz];
+            sumyy+=ryy[l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz];
+        }
     
-    /*completely updating the stresses sxx and syy */
-    sxx[indv(gidz,gidy,gidx)]+=(__prec)pdir*(DT/2.0*sumxx);
-    syy[indv(gidz,gidy,gidx)]+=(__prec)pdir*(DT/2.0*sumyy);
+        /*completely updating the stresses sxx and syy */
+        sxx[indv(gidz,gidy,gidx)]+=(__prec)pdir*(DT/2.0*sumxx);
+        syy[indv(gidz,gidy,gidx)]+=(__prec)pdir*(DT/2.0*sumyy);
     
-#endif
+    #endif
 
-//// Absorbing boundary
-//#if ABS_TYPE==2
-//    {
-//        if (gidy-FDOH<NAB){
-//            sxx(gidz,gidy,gidx)*=taper[gidy-FDOH];
-//            syy(gidz,gidy,gidx)*=taper[gidy-FDOH];
-//        }
-//        
-//        if (gidy>NY-NAB-FDOH-1){
-//            sxx(gidz,gidy,gidx)*=taper[NY-FDOH-gidy-1];
-//            syy(gidz,gidy,gidx)*=taper[NY-FDOH-gidy-1];
-//        }
-//        
-//#if DEV==0 & MYLOCALID==0
-//        if (gidx-FDOH<NAB){
-//            sxx(gidz,gidy,gidx)*=taper[gidx-FDOH];
-//            syy(gidz,gidy,gidx)*=taper[gidx-FDOH];
-//        }
-//#endif
-//        
-//#if DEV==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-//        if (gidx>NX-NAB-FDOH-1){
-//            sxx(gidz,gidy,gidx)*=taper[NX-FDOH-gidx-1];
-//            syy(gidz,gidy,gidx)*=taper[NX-FDOH-gidx-1];
-//        }
-//#endif
-//    }
-//#endif
     
 }
 

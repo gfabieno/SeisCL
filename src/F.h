@@ -68,6 +68,7 @@
 #define MAX_KERNELS 100
 #define MAX_KERN_STR 200000
 #define BLOCK_SIZE 256
+#define MAX_FD_ORDER 12
 //#define __DEBUGGING__
 
 
@@ -200,6 +201,7 @@ typedef struct variable{
     
     int       to_output;
     int       for_grad;
+    int       to_res;
     int  to_comm;
     int num_ele;
     int active;

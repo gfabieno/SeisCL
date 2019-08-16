@@ -438,11 +438,13 @@ FUNDEF void update_adjv(int offcomm,
 // Absorbing boundary
 #if ABS_TYPE==2
     {
+        #if FREESURF==0
         if (gidz-FDOH<NAB){
             vxr[indv]*=taper[gidz-FDOH];
             vyr[indv]*=taper[gidz-FDOH];
             vzr[indv]*=taper[gidz-FDOH];
         }
+        #endif
 
         if (gidz>NZ-NAB-FDOH-1){
             vxr[indv]*=taper[NZ-FDOH-gidz-1];
