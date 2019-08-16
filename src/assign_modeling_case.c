@@ -1243,7 +1243,7 @@ int assign_modeling_case(model * m){
     }
 
     //Flag variables to output
-    if (!state){
+    if (!state && m->GRADOUT==0){
         if (m->VARSOUT==1){
             for (i=0;i<m->nvars;i++){
                 if (strcmp(m->vars[i].name,"vx")==0)

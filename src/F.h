@@ -201,7 +201,6 @@ typedef struct variable{
     
     int       to_output;
     int       for_grad;
-    int       to_res;
     int  to_comm;
     int num_ele;
     int active;
