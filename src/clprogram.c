@@ -368,7 +368,7 @@ int compile(const char *program_source,
             const char * build_options,
             const char * cache_dir,
             int devid,
-            int ctxid)
+            int procid)
 {
     /* Routine to build a kernel from the source file contained in a c string*/
     
@@ -379,13 +379,13 @@ int compile(const char *program_source,
     // Create output file name
     char filename_bin[PATH_MAX];
     snprintf(filename_bin, sizeof(filename_bin), "%s/%s-%d-%d.bin",
-             cache_dir, program_name, ctxid, devid);
+             cache_dir, program_name, procid, devid);
     char filename_src[PATH_MAX];
     snprintf(filename_src, sizeof(filename_src), "%s/%s-%d-%d.src",
-             cache_dir, program_name, ctxid, devid);
+             cache_dir, program_name, procid, devid);
     char filename_opt[PATH_MAX];
     snprintf(filename_opt, sizeof(filename_opt), "%s/%s-%d-%d.opt",
-             cache_dir, program_name, ctxid, devid);
+             cache_dir, program_name, procid, devid);
     
     int same;
     same =  prog_compare(filename_opt, (char *)build_options);
@@ -575,7 +575,7 @@ int compile(const char *program_source,
             int noptions,
             const char * cache_dir,
             int devid,
-            int ctxid)
+            int procid)
 {
     /* Routine to build a kernel from the source file contained in a c string*/
     
@@ -589,13 +589,13 @@ int compile(const char *program_source,
     // Create output file name
     char filename_bin[PATH_MAX];
     snprintf(filename_bin, sizeof(filename_bin), "%s/%s-%d-%d.bin",
-             cache_dir, program_name, ctxid, devid);
+             cache_dir, program_name, procid, devid);
     char filename_src[PATH_MAX];
     snprintf(filename_src, sizeof(filename_src), "%s/%s-%d-%d.src",
-             cache_dir, program_name, ctxid, devid);
+             cache_dir, program_name, procid, devid);
     char filename_opt[PATH_MAX];
     snprintf(filename_opt, sizeof(filename_opt), "%s/%s-%d-%d.opt",
-             cache_dir, program_name, ctxid, devid);
+             cache_dir, program_name, procid, devid);
     
     int same;
     char concat_options[5000] = {0};
@@ -696,6 +696,8 @@ int prog_create(model * m,
     int shared_size = 0;
     int memsize = 0;
     int noptions=0;
+    
+    prog->context = &dev->context;
     #ifdef __SEISCL__
     const char * build_options = get_build_options(dev,
                                                    m,
@@ -711,7 +713,7 @@ int prog_create(model * m,
                     build_options,
                     m->cache_dir,
                     dev->DEVID,
-                    dev->ctx_id);
+                    dev->PROCID);
     
     
     #else
@@ -727,6 +729,7 @@ int prog_create(model * m,
                               prog->LCOMM,
                               prog->COMM,
                               prog->DIRPROP);
+    
     state = compile((*prog).src,
                     (*prog).prog,
                     &(*prog).module,
@@ -736,7 +739,7 @@ int prog_create(model * m,
                     noptions,
                     m->cache_dir,
                     dev->DEVID,
-                    dev->ctx_id);
+                    dev->PROCID);
     if (build_options){
         for (i=0;i<noptions;i++){
             GFree(build_options[i]);
@@ -1048,6 +1051,7 @@ int prog_launch(QUEUE *inqueue, clprogram * prog){
                             prog->inputs,
                             NULL );
     if (prog->outevent){
+        state  = cuCtxSetCurrent(*prog->context);
         if (!prog->event){
             state =  cuEventCreate(&prog->event, CU_EVENT_DISABLE_TIMING);
         }

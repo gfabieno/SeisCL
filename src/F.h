@@ -101,6 +101,7 @@ typedef struct clbuf {
     int free_host;
     int free_pin;
     
+    CONTEXT * context;
     int outevent_r;
     int outevent_s;
     EVENT event_r;
@@ -138,6 +139,7 @@ typedef struct clprogram {
     PROGRAM prog;
     MODULE module;
     KERNEL kernel;
+    CONTEXT * context;
     char ** input_list;
     int ninputs;
     void * inputs[2000];
@@ -344,7 +346,7 @@ typedef struct device {
     int OFFSET;
     int OFFSETfd;
     int DEVID;
-    int ctx_id;
+    int PROCID;
     int NBND;
     int par_scale;
     

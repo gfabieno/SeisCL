@@ -265,7 +265,7 @@ CL_INT connect_devices(device ** dev, model * m)
     // Create command queues for each devices
     for (i=0;i<m->NUM_DEVICES;i++){
         (*dev)[i].DEVID = i;
-        (*dev)[i].ctx_id = cl_plat_numid;
+        (*dev)[i].PROCID = m->MYID;
         (*dev)[i].cudev = devices[allow_devs[i]];
         if (!state)
             (*dev)[i].queue = clCreateCommandQueue(m->context,
@@ -291,6 +291,7 @@ CL_INT connect_devices(device ** dev, model * m)
     // Create command queues for each devices
     for (i=0;i<m->NUM_DEVICES;i++){
         // Create a context with the specified devices
+        (*dev)[i].PROCID = m->MYID;
         __GUARD cuDeviceGet(&(*dev)[i].cudev, allow_devs[i]);
         __GUARD cuCtxCreate(&(*dev)[i].context,
                             0,

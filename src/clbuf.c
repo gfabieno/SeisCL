@@ -46,8 +46,9 @@ CL_INT clbuf_send(QUEUE *inqueue, clbuf * buf)
     if (buf->nwait_s >0){
         state = cuStreamWaitEvent(*inqueue, *buf->waits_s, 0);
     }
-    state = cuMemcpyHtoDAsync( buf->mem, (void*)buf->host, buf->size, *inqueue );
+    state = cuMemcpyHtoDAsync(buf->mem, (void*)buf->host, buf->size, *inqueue);
     if (buf->outevent_s){
+        state  = cuCtxSetCurrent(*buf->context);
         if (!buf->event_s){
             state =  cuEventCreate(&buf->event_s, CU_EVENT_DISABLE_TIMING);
         }
@@ -89,11 +90,9 @@ CL_INT clbuf_sendfrom(QUEUE *inqueue,
     if (buf->nwait_s >0){
         state = cuStreamWaitEvent(*inqueue, *buf->waits_s, 0);
     }
-    state = cuMemcpyHtoDAsync (buf->mem,
-                             ptr,
-                             buf->size,
-                             *inqueue );
+    state = cuMemcpyHtoDAsync(buf->mem, ptr, buf->size, *inqueue );
     if (buf->outevent_s){
+        state  = cuCtxSetCurrent(*buf->context);
         if (!buf->event_s){
             state =  cuEventCreate(&buf->event_s, CU_EVENT_DISABLE_TIMING);
         }
@@ -138,6 +137,7 @@ CL_INT clbuf_read(QUEUE *inqueue, clbuf * buf)
     }
     state= cuMemcpyDtoHAsync ( buf->host, buf->mem, buf->size, *inqueue );
     if (buf->outevent_r){
+        state  = cuCtxSetCurrent(*buf->context);
         if (!buf->event_r){
             state =  cuEventCreate(&buf->event_r, CU_EVENT_DISABLE_TIMING);
         }
@@ -186,6 +186,7 @@ CL_INT clbuf_readto(QUEUE *inqueue,
     }
     state= cuMemcpyDtoHAsync(ptr, buf->mem, buf->size, *inqueue);
     if (buf->outevent_r){
+        state  = cuCtxSetCurrent(*buf->context);
         if (!buf->event_r){
             state =  cuEventCreate(&buf->event_r, CU_EVENT_DISABLE_TIMING);
         }
@@ -209,6 +210,7 @@ CL_INT clbuf_create(CONTEXT *incontext, clbuf * buf)
     #else
     state = cuMemAlloc( &(*buf).mem , (*buf).size);
     #endif
+    buf->context = incontext;
     if (state !=CUCL_SUCCESS) fprintf(stderr,
                                     "Error: clbuf_create: %s\n",
                                     clerrors(state));
@@ -223,6 +225,8 @@ CL_INT clbuf_create_pin(CONTEXT *incontext, QUEUE *inqueue,
     size_t sizepin;
     /*Create pinned memory */
     CL_INT state = 0;
+    
+    buf->context = incontext;
     #ifdef __SEISCL__
     (*buf).mem = clCreateBuffer(*incontext,
                                 CL_MEM_READ_WRITE,
