@@ -170,6 +170,7 @@ FUNDEF void freesurface(GLOBARG float *vx,  GLOBARG float *vz,
         /*completely updating the stresses sxx  */
     }
     sxx[indv(gidz,gidx)]+=pdir*(DT/2.0*sump);
+    
 #endif
     
 }

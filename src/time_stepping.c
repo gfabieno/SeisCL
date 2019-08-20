@@ -108,7 +108,7 @@ int movout(model * m, device ** dev, int t, int s){
         }
         
     }
-    
+
     // Aggregate in a global buffers all variables from all devices.
     // Local and global variables don't have the same size, the first being
     // padded by FDORDER/2 on all sides, so we need to transform coordinates

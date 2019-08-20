@@ -669,10 +669,7 @@ int readhdf5(struct filenames files, model * m) {
     
     /* Model file__________________________________
      __________________________________________________________________*/
-    
 
-
-    
 
     /* Open the model file. */
     file_id = -1;
