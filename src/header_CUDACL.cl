@@ -1,6 +1,7 @@
 /*Macros for writing kernels compatible with CUDA and OpenCL */
 
 #ifdef __OPENCL_VERSION__
+    #pragma OPENCL EXTENSION cl_khr_fp16 : enable
     #define FUNDEF __kernel
     #define LFUNDEF
     #define GLOBARG __global

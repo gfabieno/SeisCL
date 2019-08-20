@@ -96,6 +96,7 @@ int movout(model * m, device ** dev, int t, int s){
     int d, i, j, elm, elfd;
     int k,l;
     int Nel=1;
+    int Nelg;
     int Nm[MAX_DIMS];
     int Nfd[MAX_DIMS];
 
@@ -109,31 +110,39 @@ int movout(model * m, device ** dev, int t, int s){
         
     }
 
+    Nelg=0;
+    for (d=0;d<m->NUM_DEVICES;d++){
+        Nel=1;
+        for (j=0;j<m->NDIM;j++){
+            Nel*=(*dev)[d].N[j];
+        }
+        Nelg+=Nel;
+    }
+
     // Aggregate in a global buffers all variables from all devices.
     // Local and global variables don't have the same size, the first being
     // padded by FDORDER/2 on all sides, so we need to transform coordinates
     for (d=0;d<m->NUM_DEVICES;d++){
         WAITQUEUE((*dev)[d].queue);
+        //Number of elements mapped from local to global buffer
+        Nel=1;
+        for (j=0;j<m->NDIM;j++){
+            Nel*=(*dev)[d].N[j];
+        }
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].to_output){
-                
-                //Number of elements mapped from local to global buffer
-                Nel=1;
-                for (j=0;j<m->NDIM;j++){
-                    Nel*=(*dev)[d].N[j];
-                }
                 for (j=0;j<Nel;j++){
                     //Linear indice in global buffer of this element
-                    elm=s*m->NT/m->MOVOUT*Nel
-                       +((t+1)/m->MOVOUT-1)*Nel
-                       +j;
+                    elm=s*m->NT/m->MOVOUT*Nelg
+                       +((t+1)/m->MOVOUT-1)*Nelg
+                        +j ;
                     // Indices for each dimensions for global Nm and local Nfd
                     for (k=0;k<m->NDIM;k++){
                         Nm[k]=j;
                         for (l=0;l<k;l++){
                             Nm[k]=Nm[k]/(*dev)[d].N[l];
                         }
-                        Nm[k]=Nm[k]%(*dev)[d].N[l];
+                        Nm[k]=Nm[k]%(*dev)[d].N[k];
                         Nfd[k]=Nm[k]+m->FDOH;
                         for (l=0;l<k;l++){
                             Nfd[k]*=(*dev)[d].N[l]+m->FDORDER;
@@ -145,11 +154,9 @@ int movout(model * m, device ** dev, int t, int s){
                         elfd+=Nfd[k];
                     }
                     (*dev)[d].vars[i].gl_mov[elm]=(*dev)[d].vars[i].cl_var.host[elfd];
-                    
                 }
             }
         }
-        
     }
     
     return state;
@@ -620,9 +627,10 @@ int time_stepping(model * m, device ** dev) {
             }
 
             // Outputting the movie
-            if (m->MOVOUT>0 && (m->BACK_PROP_TYPE!=1 && m->GRADOUT==1)
-                && (t+1)%m->MOVOUT==0 && state==0)
+            if (m->MOVOUT>0 && !(m->BACK_PROP_TYPE==1 && m->GRADOUT==1)
+                && (t+1)%m->MOVOUT==0 && state==0){
                 movout( m, dev, t, s);
+            }
             
             #ifdef __SEISCL__
             // Flush all the previous commands to the computing device

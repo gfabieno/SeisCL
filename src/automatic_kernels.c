@@ -150,7 +150,7 @@ int kernel_varout(device * dev,
                 }
                 strcat(temp,", -src_scale");
                 if (abs(vars[i].scaler)>0){
-                    sprintf(temp2,"+ %d", -vars[i].scaler );
+                    sprintf(temp2,"+ %d", vars[i].scaler );
                     strcat(temp, temp2);
                 }
                 strcat(temp, ")");
@@ -188,7 +188,7 @@ int kernel_varout(device * dev,
                     }
                     strcat(temp,", -src_scale");
                     if (abs(scaler)>0){
-                        sprintf(temp2,"+ %d", -scaler );
+                        sprintf(temp2,"+ %d", scaler );
                         strcat(temp, temp2);
                     }
                     strcat(temp, ")");
@@ -1216,16 +1216,32 @@ int kernel_fcom_out(device * dev,
         }
     }
     
+    char prec[6];
+    
+    if (dev->FP16==0){
+        sprintf(prec, "float");
+    }
+    else if (dev->FP16==1){
+        sprintf(prec, "float2");
+    }
+    else{
+        sprintf(prec, "half2");
+    }
+    
     strcat(temp, FUNDEF"void fill_transfer_buff_out(");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_comm==upid){
-            strcat(temp, GLOBARG"float * ");
+            strcat(temp, GLOBARG);
+            strcat(temp, prec);
+            strcat(temp, " * ");
             strcat(temp, vars[i].name);
             if (adj>0){
                 strcat(temp, "r");
             }
             strcat(temp, ", ");
-            strcat(temp, GLOBARG"float * ");
+            strcat(temp, GLOBARG);
+            strcat(temp, prec);
+            strcat(temp, " * ");
             strcat(temp, vars[i].name);
             if (adj>0){
                 strcat(temp, "r");
@@ -1275,7 +1291,7 @@ int kernel_fcom_out(device * dev,
                 strcat(temp, ptemp);
             }
             if (i<dev->NDIM-1){
-                sprintf(ptemp,")%%(N%s-2*fdoh);\n",dev->N_names[i]);
+                sprintf(ptemp,")%%(N%s-2*FDOH);\n",dev->N_names[i]);
                 strcat(temp, ptemp);
             }
             else
@@ -1291,7 +1307,12 @@ int kernel_fcom_out(device * dev,
         sprintf(ptemp,"gid%s",dev->N_names[i]);
         strcat(temp, ptemp);
         for (j=0;j<i;j++){
-            sprintf(ptemp,"*(N%s-2*FDOH)",dev->N_names[j]);
+            if (j==0 && dev->FP16>0){
+                sprintf(ptemp,"*(N%s-FDOH)",dev->N_names[j]);
+            }
+            else{
+                sprintf(ptemp,"*(N%s-2*FDOH)",dev->N_names[j]);
+            }
             strcat(temp, ptemp);
         }
         if (i!=dev->NDIM-1){
@@ -1302,13 +1323,28 @@ int kernel_fcom_out(device * dev,
         }
     }
     char temp2[100]={0};
+    int precsize;
+    int div;
+    if (dev->FP16==0){
+        precsize = sizeof(float);
+        div=1;
+    }
+    else if (dev->FP16==1){
+        precsize = sizeof(float)*2;
+        div=2;
+    }
+    else{
+        precsize = sizeof(float);
+        div=2;
+    }
+    
     if (buff12==1){
         sprintf(temp2,"    if (idbuf>%d-1){\n",
-                (int)(vars[0].cl_buf1.size/sizeof(float)));
+                (int)(vars[0].cl_buf1.size/precsize));
     }
     else{
         sprintf(temp2,"    if (idbuf>%d-1){\n",
-                (int)(vars[0].cl_buf2.size/sizeof(float)));
+                (int)(vars[0].cl_buf2.size/precsize));
     }
     strcat(temp,temp2);
     strcat(temp,  "        return;\n"
@@ -1316,8 +1352,14 @@ int kernel_fcom_out(device * dev,
 
     strcat(temp,"    int idvar=");
     for (i=0;i<dev->NDIM;i++){
-        if (i!=dev->NDIM-1)
-            sprintf(ptemp,"(gid%s+FDOH)",dev->N_names[i]);
+        if (i!=dev->NDIM-1){
+            if (i==0 && dev->FP16>0){
+                sprintf(ptemp,"(gid%s+FDOH/2)",dev->N_names[i]);
+            }
+            else {
+                sprintf(ptemp,"(gid%s+FDOH)",dev->N_names[i]);
+            }
+        }
         else{
             if (buff12==1)
                 sprintf(ptemp,"(gid%s+FDOH)",dev->N_names[i]);
@@ -1335,7 +1377,7 @@ int kernel_fcom_out(device * dev,
         }
     }
     strcat(temp,";\n\n");
-    
+
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_comm==upid){
             if (adj==0){
@@ -1353,7 +1395,7 @@ int kernel_fcom_out(device * dev,
     strcat(temp, "\n}");
     
     
-    printf("%s\n\n%lu\n",temp, strlen(temp));
+//    printf("%s\n\n%lu\n",temp, strlen(temp));
     
     __GUARD prog_source(prog, "fill_transfer_buff_out", temp, 0, NULL);
     
@@ -1381,16 +1423,35 @@ int kernel_fcom_in(device * dev,
         }
     }
     
+    char prec[6];
+    int div;
+    if (dev->FP16==0){
+        sprintf(prec, "float");
+        div=1;
+    }
+    else if (dev->FP16==1){
+        sprintf(prec, "float2");
+        div=2;
+    }
+    else{
+        sprintf(prec, "half2");
+        div=2;
+    }
+    
     strcat(temp, FUNDEF"void fill_transfer_buff_in(");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_comm==upid){
-            strcat(temp, GLOBARG"float * ");
+            strcat(temp, GLOBARG);
+            strcat(temp, prec);
+            strcat(temp, " * ");
             strcat(temp, vars[i].name);
             if (adj>0){
                 strcat(temp, "r");
             }
             strcat(temp, ", ");
-            strcat(temp, GLOBARG"float * ");
+            strcat(temp, GLOBARG);
+            strcat(temp, prec);
+            strcat(temp, " * ");
             strcat(temp, vars[i].name);
             if (adj>0){
                 strcat(temp, "r");
@@ -1439,7 +1500,7 @@ int kernel_fcom_in(device * dev,
                 strcat(temp, ptemp);
             }
             if (i<dev->NDIM-1){
-                sprintf(ptemp,")%%(N%s-2*fdoh);\n",dev->N_names[i]);
+                sprintf(ptemp,")%%(N%s-2*FDOH);\n",dev->N_names[i]);
                 strcat(temp, ptemp);
             }
             else
@@ -1455,7 +1516,12 @@ int kernel_fcom_in(device * dev,
         sprintf(ptemp,"gid%s",dev->N_names[i]);
         strcat(temp, ptemp);
         for (j=0;j<i;j++){
-            sprintf(ptemp,"*(N%s-2*FDOH)",dev->N_names[j]);
+            if (j==0 && dev->FP16>0){
+                sprintf(ptemp,"*(N%s-FDOH)",dev->N_names[j]);
+            }
+            else{
+                sprintf(ptemp,"*(N%s-2*FDOH)",dev->N_names[j]);
+            }
             strcat(temp, ptemp);
         }
         if (i!=dev->NDIM-1){
@@ -1463,10 +1529,17 @@ int kernel_fcom_in(device * dev,
         }
     }
     strcat(temp,";\n");
+
     strcat(temp,"    int idvar=");
     for (i=0;i<dev->NDIM;i++){
-        if (i!=dev->NDIM-1)
-            sprintf(ptemp,"(gid%s+FDOH)",dev->N_names[i]);
+        if (i!=dev->NDIM-1){
+            if (i==0 && dev->FP16>0){
+                sprintf(ptemp,"(gid%s+FDOH/2)",dev->N_names[i]);
+            }
+            else {
+                sprintf(ptemp,"(gid%s+FDOH)",dev->N_names[i]);
+            }
+        }
         else{
             if (buff12==1)
                 sprintf(ptemp,"(gid%s)",dev->N_names[i]);
@@ -1485,14 +1558,25 @@ int kernel_fcom_in(device * dev,
     }
     strcat(temp,";\n\n");
     
+    
+    int precsize;
+    if (dev->FP16==0){
+        precsize = sizeof(float);
+    }
+    else if (dev->FP16==1){
+        precsize = sizeof(float)*2;
+    }
+    else{
+        precsize = sizeof(float);
+    }
     char temp2[100]={0};
     if (buff12==1){
         sprintf(temp2,"    if (idbuf>%d-1){\n",
-                (int)(vars[0].cl_buf1.size/sizeof(float)));
+                (int)(vars[0].cl_buf1.size/precsize));
     }
     else{
         sprintf(temp2,"    if (idbuf>%d-1){\n",
-                (int)(vars[0].cl_buf1.size/sizeof(float)));
+                (int)(vars[0].cl_buf1.size/precsize));
     }
     strcat(temp,temp2);
     strcat(temp,  "        return;\n"
@@ -1512,6 +1596,7 @@ int kernel_fcom_in(device * dev,
                         vars[i].name, vars[i].name, buff12);
             }
             strcat(temp, ptemp);
+            
         }
     }
     

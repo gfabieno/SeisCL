@@ -8,9 +8,9 @@ import matplotlib.animation as animation
 
 file = h5.File("SeisCL_movie.mat", "r")
 mov = file['movvx']
-print(mov.shape)
+print(np.max(mov))
 
-plt.imshow(np.transpose(mov[0,0,:,:]))
+plt.imshow(np.transpose(mov[0,30,:,:]))
 plt.show()
 
 fig = plt.figure()

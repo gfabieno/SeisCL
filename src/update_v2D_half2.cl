@@ -152,7 +152,7 @@ FUNDEF void update_v(int offcomm,
         return;
     #endif
     #endif
-    
+
      // Correct spatial derivatives to implement CPML
     #if ABS_TYPE==1
     {
@@ -218,7 +218,7 @@ FUNDEF void update_v(int offcomm,
         #endif
        }
     #endif
-    
+
     //Define and load private parameters and variables
     __cprec lvx = __h22f2(vx[indv]);
     __cprec lvz = __h22f2(vz[indv]);

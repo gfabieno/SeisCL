@@ -89,7 +89,7 @@
     }
     #else
     LFUNDEF float2 scalefun(float2 a, int scaler ){
-        
+
         float2 output;
         output.x  = ldexp(a.x, scaler);
         output.y  = ldexp(a.y, scaler);
@@ -103,7 +103,7 @@
     }
     #else
     LFUNDEF float2 scalefun(float2 a, int scaler ){
-        
+
         float2 output;
         output.x  = scalbnf(a.x, scaler);
         output.y  = scalbnf(a.y, scaler);
@@ -122,28 +122,28 @@ LFUNDEF float __hpi(float *a ){
 }
 #else
 LFUNDEF __prec2 __hp(LOCID __prec *a ){
-    
+
     __prec2 output;
     *((__prec *)&output) = *a;
     *((__prec *)&output+1) = *(a+1);
     return output;
 }
 LFUNDEF __prec2 __hpi(LOCID __prec *a ){
-    
+
     __prec2 output;
     *((__prec *)&output) = *a;
     *((__prec *)&output+1) = *(a-1);
     return output;
 }
 LFUNDEF __prec2 __hpg(GLOBARG float *a ){
-    
+
     __prec2 output;
     *((__prec *)&output) = *a;
     *((__prec *)&output+1) = *(a+1);
     return output;
 }
 LFUNDEF __prec2 __hpgi(GLOBARG float *a ){
-    
+
     __prec2 output;
     *((__prec *)&output) = *a;
     *((__prec *)&output+1) = *(a-1);
@@ -624,63 +624,4 @@ do {\
                        HC6*(__h22f2(__hp(&v[ind1(DIV*lidz+5,lidy,lidx)]))-__h22f2(__hp(&v[ind1(DIV*lidz-6,lidy,lidx)]))))
 #endif
 
-////Forward stencil in z, without vector type
-//#if   FDOH ==1
-//    #define Dzp1(v) HC1*(__h22f2(v[ind2(lidz+1,lidy,lidx)])-__h22f2(v[ind2(lidz,lidy,lidx)]))
-//#elif FDOH ==2
-//    #define Dzp1(v) (HC1*(__h22f2(v[ind2(lidz+1,lidy,lidx)])-__h22f2(v[ind2(lidz,lidy,lidx)]))\
-//                      +HC2*(__h22f2(v[ind2(lidz+2,lidy,lidx)])-__h22f2(v[ind2(lidz-1,lidy,lidx)])))
-//#elif FDOH ==3
-//    #define Dzp1(v) (HC1*(__h22f2(v[ind2(lidz+1,lidy,lidx)])-__h22f2(v[ind2(lidz,lidy,lidx)]))+\
-//                       HC2*(__h22f2(v[ind2(lidz+2,lidy,lidx)])-__h22f2(v[ind2(lidz-1,lidy,lidx)]))+\
-//                       HC3*(__h22f2(v[ind2(lidz+3,lidy,lidx)])-__h22f2(v[ind2(lidz-2,lidy,lidx)])))
-//#elif FDOH ==4
-//    #define Dzp1(v) (HC1*(__h22f2(v[ind2(lidz+1,lidy,lidx)])-__h22f2(v[ind2(lidz,lidy,lidx)]))+\
-//                       HC2*(__h22f2(v[ind2(lidz+2,lidy,lidx)])-__h22f2(v[ind2(lidz-1,lidy,lidx)]))+\
-//                       HC3*(__h22f2(v[ind2(lidz+3,lidy,lidx)])-__h22f2(v[ind2(lidz-2,lidy,lidx)]))+\
-//                       HC4*(__h22f2(v[ind2(lidz+4,lidy,lidx)])-__h22f2(v[ind2(lidz-3,lidy,lidx)])))
-//#elif FDOH ==5
-//    #define Dzp1(v) (HC1*(__h22f2(v[ind2(lidz+1,lidy,lidx)])-__h22f2(v[ind2(lidz,lidy,lidx)]))+\
-//                       HC2*(__h22f2(v[ind2(lidz+2,lidy,lidx)])-__h22f2(v[ind2(lidz-1,lidy,lidx)]))+\
-//                       HC3*(__h22f2(v[ind2(lidz+3,lidy,lidx)])-__h22f2(v[ind2(lidz-2,lidy,lidx)]))+\
-//                       HC4*(__h22f2(v[ind2(lidz+4,lidy,lidx)])-__h22f2(v[ind2(lidz-3,lidy,lidx)]))+\
-//                       HC5*(__h22f2(v[ind2(lidz+5,lidy,lidx)])-__h22f2(v[ind2(lidz-4,lidy,lidx)])))
-//#elif FDOH ==6
-//    #define Dzp1(v) (HC1*(__h22f2(v[ind2(lidz+1,lidy,lidx)])-__h22f2(v[ind2(lidz,lidy,lidx)]))+\
-//                       HC2*(__h22f2(v[ind2(lidz+2,lidy,lidx)])-__h22f2(v[ind2(lidz-1,lidy,lidx)]))+\
-//                       HC3*(__h22f2(v[ind2(lidz+3,lidy,lidx)])-__h22f2(v[ind2(lidz-2,lidy,lidx)]))+\
-//                       HC4*(__h22f2(v[ind2(lidz+4,lidy,lidx)])-__h22f2(v[ind2(lidz-3,lidy,lidx)]))+\
-//                       HC5*(__h22f2(v[ind2(lidz+5,lidy,lidx)])-__h22f2(v[ind2(lidz-4,lidy,lidx)]))+\
-//                       HC6*(__h22f2(v[ind2(lidz+6,lidy,lidx)])-__h22f2(v[ind2(lidz-5,lidy,lidx)])))
-//#endif
-//
-////Backward stencil in z, without vector type
-//#if   FDOH ==1
-//    #define Dzm1(v) HC1*(__h22f2(v[ind2(lidz,lidy,lidx)])-__h22f2(v[ind2(lidz-1,lidy,lidx)]))
-//#elif FDOH ==2
-//    #define Dzm1(v) (HC1*(__h22f2(v[ind2(lidz,lidy,lidx)])-__h22f2(v[ind2(lidz-1,lidy,lidx)]))\
-//                      +HC2*(__h22f2(v[ind2(lidz+1,lidy,lidx)])-__h22f2(v[ind2(lidz-2,lidy,lidx)])))
-//#elif FDOH ==3
-//    #define Dzm1(v) (HC1*(__h22f2(v[ind2(lidz,lidy,lidx)])-__h22f2(v[ind2(lidz-1,lidy,lidx)]))+\
-//                       HC2*(__h22f2(v[ind2(lidz+1,lidy,lidx)])-__h22f2(v[ind2(lidz-2,lidy,lidx)]))+\
-//                       HC3*(__h22f2(v[ind2(lidz+2,lidy,lidx)])-__h22f2(v[ind2(lidz-3,lidy,lidx)])))
-//#elif FDOH ==4
-//    #define Dzm1(v) (HC1*(__h22f2(v[ind2(lidz,lidy,lidx)])-__h22f2(v[ind2(lidz-1,lidy,lidx)]))+\
-//                       HC2*(__h22f2(v[ind2(lidz+1,lidy,lidx)])-__h22f2(v[ind2(lidz-2,lidy,lidx)]))+\
-//                       HC3*(__h22f2(v[ind2(lidz+2,lidy,lidx)])-__h22f2(v[ind2(lidz-3,lidy,lidx)]))+\
-//                       HC4*(__h22f2(v[ind2(lidz+3,lidy,lidx)])-__h22f2(v[ind2(lidz-4,lidy,lidx)])))
-//#elif FDOH ==5
-//    #define Dzm1(v) (HC1*(__h22f2(v[ind2(lidz,lidy,lidx)])-__h22f2(v[ind2(lidz-1,lidy,lidx)]))+\
-//                       HC2*(__h22f2(v[ind2(lidz+1,lidy,lidx)])-__h22f2(v[ind2(lidz-2,lidy,lidx)]))+\
-//                       HC3*(__h22f2(v[ind2(lidz+2,lidy,lidx)])-__h22f2(v[ind2(lidz-3,lidy,lidx)]))+\
-//                       HC4*(__h22f2(v[ind2(lidz+3,lidy,lidx)])-__h22f2(v[ind2(lidz-4,lidy,lidx)]))+\
-//                       HC5*(__h22f2(v[ind2(lidz+4,lidy,lidx)])-__h22f2(v[ind2(lidz-5,lidy,lidx)])))
-//#elif FDOH ==6
-//    #define Dzm1(v) (HC1*(__h22f2(v[ind2(lidz,lidy,lidx)])-__h22f2(v[ind2(lidz-1,lidy,lidx)]))+\
-//                       HC2*(__h22f2(v[ind2(lidz+1,lidy,lidx)])-__h22f2(v[ind2(lidz-2,lidy,lidx)]))+\
-//                       HC3*(__h22f2(v[ind2(lidz+2,lidy,lidx)])-__h22f2(v[ind2(lidz-3,lidy,lidx)]))+\
-//                       HC4*(__h22f2(v[ind2(lidz+3,lidy,lidx)])-__h22f2(v[ind2(lidz-4,lidy,lidx)]))+\
-//                       HC5*(__h22f2(v[ind2(lidz+4,lidy,lidx)])-__h22f2(v[ind2(lidz-5,lidy,lidx)]))+\
-//                       HC6*(__h22f2(v[ind2(lidz+5,lidy,lidx)])-__h22f2(v[ind2(lidz-6,lidy,lidx)])))
-//#endif
 

@@ -19,7 +19,8 @@ sys.path.append('../')
 from python.SeisCL import SeisCL, SeisCLError
 
 
-def test_fp16_forward(seis, ref=None, plot=False):
+
+def test_seisout(seis, plot=False):
     
     seis = define_rec_src(seis)
     pars = {}
@@ -30,7 +31,62 @@ def test_fp16_forward(seis, ref=None, plot=False):
         pars['taup'] = pars['vp'] * 0 + 0.1
         pars['taus'] = pars['vp'] * 0 + 0.1
     
-    for fp16 in range(0,4):
+    for seisout in range(1,5):
+        ref = None
+        print("    Testing seisout=%d" %seisout)
+        for fp16 in range(0,2):
+            print("        Testing fp16=%d....." %fp16 , end = '')
+            seis.csts['FP16'] = fp16
+            seis.csts['seisout'] = seisout
+            try :
+                seis.set_forward(seis.src_pos_all[3,:], pars, withgrad=False)
+                seis.execute()
+                data = seis.read_data()
+                if plot:
+                    clip = 1.0
+                    vmin = np.min(data[0]) * clip
+                    vmax = -vmin
+                    plt.imshow(data[0], aspect='auto', vmin=vmin, vmax=vmax)
+                    plt.show()
+                if ref is None:
+                    ref = data
+                    print("passed")
+                else:
+                    err = (np.sum([np.sum((d-r)**2) for d,r in zip(data, ref)])
+                           /np.sum([np.sum((r)**2) for r in ref]))
+                    if err > 0.001:
+                        if plot:
+                            plt.imshow(data[0]-ref[0], aspect='auto')
+                            plt.show()
+                        raise SeisCLError("    Error with data referance too large: %e"
+                                          % err)
+                    print("passed (error %e)" % err)
+            except(SeisCLError) as msg:
+                print("failed:")
+                print(msg)
+
+def test_fp16_forward(seis, ref=None, plot=False, ngpu=1):
+    
+    seis = define_rec_src(seis)
+    pars = {}
+    pars['vp'] = np.zeros(seis.csts['N']) + 3500
+    pars['vs'] = pars['vp'] * 0 + 2000
+    pars['rho'] = pars['vp'] * 0 + 2000
+    if seis.csts['L'] > 0:
+        pars['taup'] = pars['vp'] * 0 + 0.1
+        pars['taus'] = pars['vp'] * 0 + 0.1
+    
+    if ngpu > 1:
+        seis.csts['FP16'] = 0
+        seis.csts['nmax_dev'] = 1
+        seis.set_forward(seis.src_pos_all[3,:], pars, withgrad=False)
+        seis.execute()
+        data = seis.read_data()
+        ref = data
+        seis.csts['nmax_dev'] = ngpu
+
+
+    for fp16 in range(0,1):
         print("    Testing FP16=%d....." %fp16 , end = '')
         seis.csts['FP16'] = fp16
         try :
@@ -59,6 +115,8 @@ def test_fp16_forward(seis, ref=None, plot=False):
         except(SeisCLError) as msg:
             print("failed:")
             print(msg)
+
+    seis.csts['nmax_dev'] = 1
 
 def test_fp16_grad(seis, ref=None, plot=False):
     
@@ -130,7 +188,7 @@ def define_rec_src(seis):
     seis.src_pos = np.empty((5,0))
     
     toappend=np.zeros((5,1))
-    toappend[0,:]=(seis.csts['nab']+5)*seis.csts['dh']
+    toappend[0,:]=(seis.csts['N'][-1]//2-15)*seis.csts['dh'] #(seis.csts['nab']+5)*seis.csts['dh']
     toappend[1,:]=(seis.csts['N'][1]//2)*seis.csts['dh']
     toappend[2,:]=(indz0)*seis.csts['dh']
     toappend[3,:]=ii
@@ -139,7 +197,7 @@ def define_rec_src(seis):
     seis.src_pos=np.append(seis.src_pos, toappend, axis=1)
     for jj in range(0,seis.csts['N'][0]-seis.csts['nab']-indz0):
         toappend=np.zeros((8,1))
-        toappend[0,:]=(seis.csts['N'][1]-seis.csts['nab']-5)*seis.csts['dh']
+        toappend[0,:]=(seis.csts['N'][-1]//2+15)*seis.csts['dh']#(seis.csts['N'][1]-seis.csts['nab']-5)*seis.csts['dh']
         toappend[1,:]=(seis.csts['N'][1]//2)*seis.csts['dh']
         toappend[2,:]=(indz0+jj)*seis.csts['dh']
         toappend[3,:]=ii
@@ -273,6 +331,22 @@ if __name__ == "__main__":
         seis.csts['freesurf'] = 1
         test_fp16_grad(seis, ref=None, plot=args.plot)
 
+    name = "2D_NGPU_forward"
+    if args.test == name or args.test == "all":
+        print("Testing %s" % name)
+        seis.csts['N'] = np.array([64,256])
+        seis.csts['L'] = 0
+        seis.csts['ND'] = 2
+        seis.csts['freesurf'] = 0
+        test_fp16_forward(seis, ref=None, plot=args.plot, ngpu=3)
 
+    name = "3D_seisout"
+    if args.test == name or args.test == "all":
+        print("Testing %s" % name)
+        seis.csts['N'] = np.array([64,64,64])
+        seis.csts['L'] = 0
+        seis.csts['ND'] = 3
+        seis.csts['freesurf'] = 0
+        test_seisout(seis, plot=args.plot)
 
 
