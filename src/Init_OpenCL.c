@@ -199,7 +199,7 @@ CL_INT connect_devices(device ** dev, model * m)
         fprintf(stdout,"Found %d Accelerator, ", nalldevices);
     else if (m->device_type==CL_DEVICE_TYPE_CPU)
         fprintf(stdout,"Found %d CPU, ", nalldevices);
-    fprintf(stdout,"connecting to  %d devices:\n", num_allow_devs);
+    
     
     
     __GUARD clGetDeviceIDs(clplateform,
@@ -236,6 +236,7 @@ CL_INT connect_devices(device ** dev, model * m)
     }
     #ifdef __SEISCL__
     // Print some information about the returned devices
+    fprintf(stdout,"connecting to  %d devices:\n", m->NUM_DEVICES);
     if (!state){
         for (i=0;i<m->NUM_DEVICES;i++){
             __GUARD clGetDeviceInfo(devices[allow_devs[i]],
@@ -286,7 +287,7 @@ CL_INT connect_devices(device ** dev, model * m)
     GMALLOC(*dev, sizeof(device)*m->NUM_DEVICES);
     
     // Print some information about the returned devices
-    fprintf(stdout,"Connecting to %d devices: \n",m->NUM_DEVICES);
+    fprintf(stdout,"Connecting to %d devices: \n", (int)m->NUM_DEVICES);
     // Create command queues for each devices
     for (i=0;i<m->NUM_DEVICES;i++){
         // Create a context with the specified devices
@@ -342,9 +343,7 @@ int Init_CUDA(model * m, device ** dev)  {
     int workdim = 0;
     int lsize[MAX_DIMS];
     int gsize[MAX_DIMS];
-    int gsize_com1[MAX_DIMS];
-    int gsize_com2[MAX_DIMS];
-    int gsize_fcom[MAX_DIMS];
+    int gsize_com[MAX_DIMS];
     int LCOMM=0;
     int offcom1=0;
     int offcom2=0;
@@ -591,23 +590,11 @@ int Init_CUDA(model * m, device ** dev)  {
                 offcom1=0;
                 offcom2=0;
                 if (d>0 || m->MYLOCALID>0){
-                    if (m->FP16==0){
-                        gsize_com1[0] = slicesize*m->FDOH;
-                    }
-                    else{
-                        gsize_com1[0] = slicesize*m->FDOH/2;
-                    }
                     LCOMM+=m->FDOH;
                     offcom1=m->FDOH;
                     
                 }
                 if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
-                    if (m->FP16==0){
-                        gsize_com2[0] = slicesize*m->FDOH;
-                    }
-                    else{
-                        gsize_com2[0] = slicesize*m->FDOH/2;
-                    }
                     LCOMM+=m->FDOH;
                     offcom2=di->N[m->NDIM-1]-m->FDOH;
                 }
@@ -615,10 +602,10 @@ int Init_CUDA(model * m, device ** dev)  {
                         || d<m->NUM_DEVICES-1
                         || m->MYLOCALID<m->NLOCALP-1){
                     if (m->FP16==0){
-                        gsize_fcom[0] = slicesize*m->FDOH;
+                        gsize_com[0] = slicesize*m->FDOH;
                     }
                     else{
-                        gsize_fcom[0] = slicesize*m->FDOH/2;
+                        gsize_com[0] = slicesize*m->FDOH/2;
                     }
                 }
                 if (m->FP16==0){
@@ -649,23 +636,16 @@ int Init_CUDA(model * m, device ** dev)  {
                                 +(lsize[i]-di->N[i]%lsize[i])%lsize[i];
                     }
                 }
+                
                 LCOMM=0;
                 offcom1=0;
                 offcom2=0;
                 if (d>0 || m->MYLOCALID>0){
-                    for (i=0;i<m->NDIM-1;i++){
-                        gsize_com1[i] = gsize[i];
-                    }
-                    gsize_com1[m->NDIM-1] = lsize[m->NDIM-1];
                     LCOMM+=lsize[m->NDIM-1];
                     offcom1=(int)lsize[m->NDIM-1];
                     
                 }
                 if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
-                    for (i=0;i<m->NDIM-1;i++){
-                        gsize_com2[i] = gsize[i];
-                    }
-                    gsize_com2[m->NDIM-1] = lsize[m->NDIM-1];
                     LCOMM+=lsize[m->NDIM-1];
                     offcom2=di->N[m->NDIM-1]-(int)lsize[m->NDIM-1];
                 }
@@ -674,9 +654,9 @@ int Init_CUDA(model * m, device ** dev)  {
                         || m->MYLOCALID<m->NLOCALP-1){
                     
                     for (i=0;i<m->NDIM-1;i++){
-                        gsize_fcom[i] = di->N[i];
+                        gsize_com[i] = gsize[i];
                     }
-                    gsize_fcom[m->NDIM-1] = m->FDOH;
+                    gsize_com[m->NDIM-1] = lsize[m->NDIM-1];
                     
                 }
 
@@ -685,7 +665,6 @@ int Init_CUDA(model * m, device ** dev)  {
                                   %lsize[m->NDIM-1])%lsize[m->NDIM-1];
                 
                 workdim=m->NDIM;
-
             }
         }
         
@@ -704,19 +683,19 @@ int Init_CUDA(model * m, device ** dev)  {
                     di->ups_f[i].center.gsize[j]=gsize[j];
                     di->ups_f[i].center.lsize[j]=lsize[j];
                     di->ups_f[i].com1.wdim=workdim;
-                    di->ups_f[i].com1.gsize[j]=gsize_com1[j];
+                    di->ups_f[i].com1.gsize[j]=gsize_com[j];
                     di->ups_f[i].com1.lsize[j]=lsize[j];
                     di->ups_f[i].com2.wdim=workdim;
-                    di->ups_f[i].com2.gsize[j]=gsize_com2[j];
+                    di->ups_f[i].com2.gsize[j]=gsize_com[j];
                     di->ups_f[i].com2.lsize[j]=lsize[j];
                     di->ups_f[i].fcom1_in.wdim=workdim;
-                    di->ups_f[i].fcom1_in.gsize[j]=gsize_fcom[j];
+                    di->ups_f[i].fcom1_in.gsize[j]=gsize_com[j];
                     di->ups_f[i].fcom2_in.wdim=workdim;
-                    di->ups_f[i].fcom2_in.gsize[j]=gsize_fcom[j];
+                    di->ups_f[i].fcom2_in.gsize[j]=gsize_com[j];
                     di->ups_f[i].fcom1_out.wdim=workdim;
-                    di->ups_f[i].fcom1_out.gsize[j]=gsize_fcom[j];
+                    di->ups_f[i].fcom1_out.gsize[j]=gsize_com[j];
                     di->ups_f[i].fcom2_out.wdim=workdim;
-                    di->ups_f[i].fcom2_out.gsize[j]=gsize_fcom[j];
+                    di->ups_f[i].fcom2_out.gsize[j]=gsize_com[j];
                 }
             }
             //Struct for the adjoint modeling
@@ -732,19 +711,19 @@ int Init_CUDA(model * m, device ** dev)  {
                         di->ups_adj[i].center.gsize[j]=gsize[j];
                         di->ups_adj[i].center.lsize[j]=lsize[j];
                         di->ups_adj[i].com1.wdim=workdim;
-                        di->ups_adj[i].com1.gsize[j]=gsize_com1[j];
+                        di->ups_adj[i].com1.gsize[j]=gsize_com[j];
                         di->ups_adj[i].com1.lsize[j]=lsize[j];
                         di->ups_adj[i].com2.wdim=workdim;
-                        di->ups_adj[i].com2.gsize[j]=gsize_com2[j];
+                        di->ups_adj[i].com2.gsize[j]=gsize_com[j];
                         di->ups_adj[i].com2.lsize[j]=lsize[j];
                         di->ups_adj[i].fcom1_in.wdim=workdim;
-                        di->ups_adj[i].fcom1_in.gsize[j]=gsize_fcom[j];
+                        di->ups_adj[i].fcom1_in.gsize[j]=gsize_com[j];
                         di->ups_adj[i].fcom2_in.wdim=workdim;
-                        di->ups_adj[i].fcom2_in.gsize[j]=gsize_fcom[j];
+                        di->ups_adj[i].fcom2_in.gsize[j]=gsize_com[j];
                         di->ups_adj[i].fcom1_out.wdim=workdim;
-                        di->ups_adj[i].fcom1_out.gsize[j]=gsize_fcom[j];
+                        di->ups_adj[i].fcom1_out.gsize[j]=gsize_com[j];
                         di->ups_adj[i].fcom2_out.wdim=workdim;
-                        di->ups_adj[i].fcom2_out.gsize[j]=gsize_fcom[j];
+                        di->ups_adj[i].fcom2_out.gsize[j]=gsize_com[j];
                     }
                 }
             }

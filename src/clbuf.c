@@ -168,7 +168,7 @@ CL_INT clbuf_readto(QUEUE *inqueue,
         }
         event=&buf->event_r;
     }
-    
+
     /*Read memory from device to the host*/
     state = clEnqueueReadBuffer(*inqueue,
                               buf->mem,

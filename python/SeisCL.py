@@ -237,6 +237,21 @@ class SeisCL():
                 toload = ["vx", "vy", "vz"]
         if self.csts['seisout'] == 2:
             toload = ["p"]
+        if self.csts['seisout'] == 3:
+            if self.csts['ND'] == 2:
+                toload = ["sxx", "szz", "sxz"]
+            if self.csts['ND'] == 21:
+                toload = ["sxy", "syz"]
+            if self.csts['ND'] == 3:
+                toload = ["sxx", "syy", "szz", "sxz", "sxy", "syz"]
+        if self.csts['seisout'] == 4:
+            if self.csts['ND'] == 2:
+                toload = ["vx", "vz","sxx", "szz", "sxz"]
+            if self.csts['ND'] == 21:
+                toload = ["vy", "sxy", "syz"]
+            if self.csts['ND'] == 3:
+                toload = ["vx", "vy", "vz",
+                          "sxx", "syy", "szz", "sxz", "sxy", "syz"]
 
         return toload
 

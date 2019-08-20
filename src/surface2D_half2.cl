@@ -44,18 +44,18 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,  GLOBARG __prec *vz,
     int gidx = blockIdx.x*blockDim.x + threadIdx.x + FDOH;
     #endif
     int gidz=FDOH;
-    
+
     //For the FD templates in header_FD to work, we must define:
     int lidx= gidx;
     int lidz= gidz/DIV;
     int lsizez=NZ;
-    
+
     /* Global work size is padded to be a multiple of local work size.
      The padding elements must not be updated */
     if ( gidx>(NX-FDOH-1) ){
         return;
     }
-    
+
     __prec f, g, h;
     __prec sump;
     __cprec  vxx2, vzz2;
@@ -76,7 +76,7 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,  GLOBARG __prec *vz,
         szz[indv(gidz-m,gidx)]=-szz[indv(gidz+m,gidx)];
         sxz[indv(gidz-m,gidx)]=-sxz[indv(gidz+m-1,gidx)];
     }
-    
+
     vxx2 = Dxm(vx);
     vzz2 = Dzm(vz);
     #if FP16>0
@@ -180,7 +180,7 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,  GLOBARG __prec *vz,
     }
     sxx[indv(gidz,gidx)]+=(__prec)pdir*(DT/2.0*sump);
 #endif
-    
+
 }
 
 
