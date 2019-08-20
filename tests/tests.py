@@ -86,7 +86,7 @@ def test_fp16_forward(seis, ref=None, plot=False, ngpu=1):
         seis.csts['nmax_dev'] = ngpu
 
 
-    for fp16 in range(0,1):
+    for fp16 in range(0,4):
         print("    Testing FP16=%d....." %fp16 , end = '')
         seis.csts['FP16'] = fp16
         try :
