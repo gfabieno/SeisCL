@@ -267,6 +267,7 @@ CL_INT connect_devices(device ** dev, model * m)
         (*dev)[i].DEVID = i;
         (*dev)[i].PROCID = m->MYID;
         (*dev)[i].cudev = devices[allow_devs[i]];
+        (*dev)[i].context_ptr = &m->context;
         if (!state)
             (*dev)[i].queue = clCreateCommandQueue(m->context,
                                                devices[allow_devs[i]],
@@ -296,6 +297,7 @@ CL_INT connect_devices(device ** dev, model * m)
         __GUARD cuCtxCreate(&(*dev)[i].context,
                             0,
                             (*dev)[i].cudev);
+        (*dev)[i].context_ptr = &(*dev)[i].context;
         __GUARD cuDeviceGetName(device_name,
                                 sizeof(vendor_name),
                                 (*dev)[i].cudev);
@@ -360,7 +362,7 @@ int Init_CUDA(model * m, device ** dev)  {
         
         di=&(*dev)[d];
         #ifndef __SEISCL__
-        __GUARD cuCtxSetCurrent ( di->context );
+        __GUARD cuCtxSetCurrent(di->context);
         __GUARD cuMemAlloc( &di->cuda_null , sizeof(float));
         #endif
         di->FP16=m->FP16;
@@ -761,15 +763,15 @@ int Init_CUDA(model * m, device ** dev)  {
                     if (m->FP16>1){
                         di->pars[i].cl_par.size/=2;
                     }
-                    __GUARD clbuf_create(&m->context,&di->pars[i].cl_par);
+                    __GUARD clbuf_create(di->context_ptr,&di->pars[i].cl_par);
                     __GUARD clbuf_send(&di->queue,&di->pars[i].cl_par);
                     if (m->GRADOUT && m->BACK_PROP_TYPE==1){
                         di->pars[i].cl_grad.size=sizeof(float)*parsize;
-                        __GUARD clbuf_create(&m->context, &di->pars[i].cl_grad);
+                        __GUARD clbuf_create(di->context_ptr, &di->pars[i].cl_grad);
                     }
                     if (m->HOUT && m->BACK_PROP_TYPE==1){
                         di->pars[i].cl_H.size=sizeof(float)*parsize;
-                        __GUARD clbuf_create( &m->context, &di->pars[i].cl_H);
+                        __GUARD clbuf_create(di->context_ptr, &di->pars[i].cl_H);
                     }
                     
                 }
@@ -783,13 +785,13 @@ int Init_CUDA(model * m, device ** dev)  {
             di->src_recs.cl_src_pos.size=sizeof(float) * 5 * m->src_recs.nsmax;
             di->src_recs.cl_rec_pos.size=sizeof(float) * 8 * m->src_recs.ngmax;
             di->src_recs.cl_src.size=sizeof(float) * m->NT * m->src_recs.nsmax;
-            __GUARD clbuf_create( &m->context, &di->src_recs.cl_src_pos);
-            __GUARD clbuf_create( &m->context, &di->src_recs.cl_rec_pos);
-            __GUARD clbuf_create( &m->context, &di->src_recs.cl_src);
+            __GUARD clbuf_create(di->context_ptr, &di->src_recs.cl_src_pos);
+            __GUARD clbuf_create(di->context_ptr, &di->src_recs.cl_rec_pos);
+            __GUARD clbuf_create(di->context_ptr, &di->src_recs.cl_src);
             if (m->GRADSRCOUT){
                 di->src_recs.cl_grad_src.size=sizeof(float)
                 * m->NT * m->src_recs.nsmax;
-                __GUARD clbuf_create(&m->context,&di->src_recs.cl_grad_src);
+                __GUARD clbuf_create(di->context_ptr,&di->src_recs.cl_grad_src);
             }
         }
         
@@ -823,7 +825,7 @@ int Init_CUDA(model * m, device ** dev)  {
             di->vars[i].cl_var.size=sizeof(float)*di->vars[i].num_ele;
             if (m->FP16>1)
                 di->vars[i].cl_var.size/=2;
-            __GUARD clbuf_create( &m->context, &di->vars[i].cl_var);
+            __GUARD clbuf_create( di->context_ptr, &di->vars[i].cl_var);
             //Create variable buffers for the boundary of the domain
             if ( di->vars[i].to_comm
                 && (d>0 || m->MYLOCALID>0
@@ -835,20 +837,20 @@ int Init_CUDA(model * m, device ** dev)  {
                     if (m->FP16 >1){
                         di->vars[i].cl_buf1.size/=2;
                     }
-                    __GUARD clbuf_create_pin(&m->context,
+                    __GUARD clbuf_create_pin(di->context_ptr,
                                              &di->queuecomm,
                                              &di->vars[i].cl_buf1);
-//                    __GUARD clbuf_create(&m->context,
+//                    __GUARD clbuf_create(di->context_ptr,
 //                                         &di->vars[i].cl_buf1);
 //                    GMALLOC(di->vars[i].cl_buf1.host, di->vars[i].cl_buf1.size);
                     di->vars[i].cl_buf2.size=sizeof(float)*m->FDOH*slicesize;
                     if (m->FP16 >1){
                         di->vars[i].cl_buf2.size/=2;
                     }
-                    __GUARD clbuf_create_pin(&m->context,
+                    __GUARD clbuf_create_pin(di->context_ptr,
                                              &di->queuecomm,
                                              &di->vars[i].cl_buf2);
-//                    __GUARD clbuf_create(&m->context,
+//                    __GUARD clbuf_create(di->context_ptr,
 //                                         &di->vars[i].cl_buf2);
 //                    GMALLOC(di->vars[i].cl_buf2.host, di->vars[i].cl_buf2.size);
                     
@@ -860,7 +862,7 @@ int Init_CUDA(model * m, device ** dev)  {
                 //Memory for recordings for this device on host side
                 di->vars[i].cl_varout.size=sizeof(float)
                                           * m->NT * m->src_recs.ngmax;
-                __GUARD clbuf_create( &m->context, &di->vars[i].cl_varout);
+                __GUARD clbuf_create( di->context_ptr, &di->vars[i].cl_varout);
                 GMALLOC(di->vars[i].cl_varout.host, di->vars[i].cl_varout.size);
                 di->vars[i].cl_varout.free_host=1;
                 
@@ -875,7 +877,7 @@ int Init_CUDA(model * m, device ** dev)  {
 
                 di->vars[i].cl_fvar.size=2*sizeof(float)
                                         * di->vars[i].num_ele * m->NFREQS;
-                __GUARD clbuf_create(&m->context,&di->vars[i].cl_fvar);
+                __GUARD clbuf_create(di->context_ptr,&di->vars[i].cl_fvar);
                 GMALLOC(di->vars[i].cl_fvar.host,di->vars[i].cl_fvar.size);
                 di->vars[i].cl_fvar.free_host=1;
                 di->vars[i].cl_fvar_adj.size= di->vars[i].cl_fvar.size;
@@ -903,7 +905,7 @@ int Init_CUDA(model * m, device ** dev)  {
                 //Memory for recordings for this device on host side
                 di->trans_vars[i].cl_varout.size=sizeof(float)
                 * m->NT * m->src_recs.ngmax;
-                __GUARD clbuf_create( &m->context, &di->trans_vars[i].cl_varout);
+                __GUARD clbuf_create( di->context_ptr, &di->trans_vars[i].cl_varout);
                 GMALLOC(di->trans_vars[i].cl_varout.host, di->trans_vars[i].cl_varout.size);
                 di->trans_vars[i].cl_varout.free_host=1;
             }
@@ -917,7 +919,7 @@ int Init_CUDA(model * m, device ** dev)  {
             //Size of constants does not depend of domain decomposition
             di->csts[i].cl_cst.size=sizeof(float)*di->csts[i].num_ele;
             di->csts[i].cl_cst.host=m->csts[i].gl_cst;
-            __GUARD clbuf_create( &m->context, &di->csts[i].cl_cst);
+            __GUARD clbuf_create( di->context_ptr, &di->csts[i].cl_cst);
             __GUARD clbuf_send( &di->queue, &di->csts[i].cl_cst);
             
         }
@@ -957,16 +959,16 @@ int Init_CUDA(model * m, device ** dev)  {
                     di->ups_adj[j].v2com[di->ups_adj[j].nvcom]=&di->vars_adj[i];
                     di->ups_adj[j].nvcom++;
                 }
-                __GUARD clbuf_create( &m->context, &di->vars_adj[i].cl_var);
+                __GUARD clbuf_create( di->context_ptr, &di->vars_adj[i].cl_var);
                 if (di->vars[i].to_comm && (d>0
                                             || m->MYLOCALID>0
                                             || d<m->NUM_DEVICES-1
                                             || m->MYLOCALID<m->NLOCALP-1)){
                     
-                    __GUARD clbuf_create_pin(&m->context,
+                    __GUARD clbuf_create_pin(di->context_ptr,
                                              &di->queuecomm,
                                              &di->vars_adj[i].cl_buf1);
-                    __GUARD clbuf_create_pin(&m->context,
+                    __GUARD clbuf_create_pin(di->context_ptr,
                                              &di->queuecomm,
                                              &di->vars_adj[i].cl_buf2);
                 }
@@ -1016,7 +1018,7 @@ int Init_CUDA(model * m, device ** dev)  {
                         di->vars[i].cl_varbnd.size/=2;
                         di->vars[i].cl_varbnd.sizepin/=2;
                     }
-                    __GUARD clbuf_create_pin( &m->context,
+                    __GUARD clbuf_create_pin( di->context_ptr,
                                               &di->queuecomm,
                                               &di->vars[i].cl_varbnd);
                 }

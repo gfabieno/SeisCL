@@ -377,6 +377,7 @@ typedef struct device {
     boundary_conditions bnd_cnds;
     
     CONTEXT context;
+    CONTEXT * context_ptr;
     DEVICE cudev;
 
 } device;
