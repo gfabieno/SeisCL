@@ -10,8 +10,8 @@ file = h5.File("SeisCL_movie.mat", "r")
 mov = file['movvx']
 print(np.max(mov))
 
-plt.imshow(np.transpose(mov[0,30,:,:]))
-plt.show()
+#plt.imshow(np.transpose(mov[0,10,:,:]))
+#plt.show()
 
 fig = plt.figure()
 ims = []

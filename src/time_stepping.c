@@ -20,7 +20,7 @@
 /*Main part of the program. Perform FD time stepping */
 
 #include "F.h"
-
+#include "third_party/NVIDIA_FP16/fp16_conversion.h"
 
 int reduce_seis(model * m, device ** dev, int s){
     // Transfer the variables to output to host and reduce in global buffer
@@ -99,6 +99,8 @@ int movout(model * m, device ** dev, int t, int s){
     int Nelg;
     int Nm[MAX_DIMS];
     int Nfd[MAX_DIMS];
+    half * hptr;
+    float * fptr;
 
     // Tranfer all variables to ouput to host for this time step
     for (d=0;d<m->NUM_DEVICES;d++){
@@ -131,6 +133,12 @@ int movout(model * m, device ** dev, int t, int s){
         }
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].to_output){
+                if (m->FP16<2){
+                    fptr = (*dev)[d].vars[i].cl_var.host;
+                }
+                else{
+                    hptr = (half*)(*dev)[d].vars[i].cl_var.host;
+                }
                 for (j=0;j<Nel;j++){
                     //Linear indice in global buffer of this element
                     elm=s*m->NT/m->MOVOUT*Nelg
@@ -153,7 +161,12 @@ int movout(model * m, device ** dev, int t, int s){
                     for (k=0;k<m->NDIM;k++){
                         elfd+=Nfd[k];
                     }
-                    (*dev)[d].vars[i].gl_mov[elm]=(*dev)[d].vars[i].cl_var.host[elfd];
+                    if (m->FP16<2){
+                        (*dev)[d].vars[i].gl_mov[elm]=fptr[elfd];
+                    }
+                    else{
+                        (*dev)[d].vars[i].gl_mov[elm]=half_to_float(hptr[elfd]);
+                    }
                 }
             }
         }

@@ -260,5 +260,4 @@ FUNDEF void update_v(int offcomm,
     //Write updated values to global memory
     vx[indv] = __f22h2(lvx);
     vz[indv] = __f22h2(lvz);
-    
 }

@@ -428,6 +428,9 @@ int Init_CUDA(model * m, device ** dev)  {
                 di->NX0+=(*dev)[i].N[m->NDIM-1];
                 di->OFFSET+=(*dev)[i].N[m->NDIM-1]*slicesize;
             }
+            if (m->FP16>1){
+                di->OFFSET/=2;
+            }
             
         }
 
@@ -691,12 +694,16 @@ int Init_CUDA(model * m, device ** dev)  {
                     di->ups_f[i].com2.lsize[j]=lsize[j];
                     di->ups_f[i].fcom1_in.wdim=workdim;
                     di->ups_f[i].fcom1_in.gsize[j]=gsize_com[j];
+                    di->ups_f[i].fcom1_in.lsize[j]=lsize[j];
                     di->ups_f[i].fcom2_in.wdim=workdim;
                     di->ups_f[i].fcom2_in.gsize[j]=gsize_com[j];
+                    di->ups_f[i].fcom2_in.lsize[j]=lsize[j];
                     di->ups_f[i].fcom1_out.wdim=workdim;
                     di->ups_f[i].fcom1_out.gsize[j]=gsize_com[j];
+                    di->ups_f[i].fcom1_out.lsize[j]=lsize[j];
                     di->ups_f[i].fcom2_out.wdim=workdim;
                     di->ups_f[i].fcom2_out.gsize[j]=gsize_com[j];
+                    di->ups_f[i].fcom2_out.lsize[j]=lsize[j];
                 }
             }
             //Struct for the adjoint modeling
@@ -878,7 +885,12 @@ int Init_CUDA(model * m, device ** dev)  {
             // If we want the movie, allocate memory for variables
             if (m->MOVOUT){
                 if (m->vars[i].to_output){
-                    di->vars[i].gl_mov=&m->vars[i].gl_mov[di->OFFSET];
+                    if (m->FP16<2){
+                        di->vars[i].gl_mov=&m->vars[i].gl_mov[di->OFFSET];
+                    }
+                    else{
+                        di->vars[i].gl_mov=&m->vars[i].gl_mov[2*di->OFFSET];
+                    }
                     GMALLOC(di->vars[i].cl_var.host,
                             di->vars[i].num_ele*sizeof(float));
                     di->vars[i].cl_var.free_host=1;

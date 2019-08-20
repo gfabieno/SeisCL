@@ -512,13 +512,12 @@ int kernel_sources(model * m,
            "    }\n\n");
     if (m->FREESURF==1){
         sprintf(temp2,"    if (pdir==-1 && k<2*FDOH){\n" );
+        strcat(temp, temp2);
+        strcat(temp,
+               "        return;\n"
+               "    }\n\n");
     }
-    strcat(temp, temp2);
-    strcat(temp,
-           "        return;\n"
-           "    }\n\n");
-    
-    
+   
     
     strcat(temp,"    int source_type= src_pos[4+5*gid];\n");
     if (dev->FP16==0){
@@ -1338,16 +1337,35 @@ int kernel_fcom_out(device * dev,
         div=2;
     }
     
-    if (buff12==1){
-        sprintf(temp2,"    if (idbuf>%d-1){\n",
-                (int)(vars[0].cl_buf1.size/precsize));
+//    if (buff12==1){
+//        sprintf(temp2,"    if (idbuf>%d-1){\n",
+//                (int)(vars[0].cl_buf1.size/precsize));
+//    }
+//    else{
+//        sprintf(temp2,"    if (idbuf>%d-1){\n",
+//                (int)(vars[0].cl_buf2.size/precsize));
+//    }
+//    strcat(temp,temp2);
+//    strcat(temp,  "        return;\n"
+//           "    }\n\n");
+    
+    if (dev->FP16==0){
+        sprintf(temp2,"    if (gid%s > (N%s - 2*FDOH-1)",
+                dev->N_names[0], dev->N_names[0]);
     }
     else{
-        sprintf(temp2,"    if (idbuf>%d-1){\n",
-                (int)(vars[0].cl_buf2.size/precsize));
+        sprintf(temp2,"    if (gid%s > (N%s - FDOH-1)",
+                dev->N_names[0], dev->N_names[0]);
     }
-    strcat(temp,temp2);
-    strcat(temp,  "        return;\n"
+    strcat(temp, temp2);
+    for (i=1;i<dev->NDIM-1;i++){
+        sprintf(temp2," || gid%s > (N%s - 2*FDOH-1)",
+                dev->N_names[i], dev->N_names[i]);
+        strcat(temp, temp2);
+    }
+    sprintf(temp2," || gid%s > FDOH-1 ){\n", dev->N_names[dev->NDIM-1]);
+    strcat(temp, temp2);
+    strcat(temp, "        return;\n"
            "    }\n\n");
 
     strcat(temp,"    int idvar=");
@@ -1570,17 +1588,36 @@ int kernel_fcom_in(device * dev,
         precsize = sizeof(float);
     }
     char temp2[100]={0};
-    if (buff12==1){
-        sprintf(temp2,"    if (idbuf>%d-1){\n",
-                (int)(vars[0].cl_buf1.size/precsize));
+//    if (buff12==1){
+//        sprintf(temp2,"    if (idbuf>%d-1){\n",
+//                (int)(vars[0].cl_buf1.size/precsize));
+//    }
+//    else{
+//        sprintf(temp2,"    if (idbuf>%d-1){\n",
+//                (int)(vars[0].cl_buf1.size/precsize));
+//    }
+//    strcat(temp,temp2);
+//    strcat(temp,  "        return;\n"
+//           "    };\n\n");
+    
+    if (dev->FP16==0){
+        sprintf(temp2,"    if (gid%s > (N%s - 2*FDOH-1)",
+                dev->N_names[0], dev->N_names[0]);
     }
     else{
-        sprintf(temp2,"    if (idbuf>%d-1){\n",
-                (int)(vars[0].cl_buf1.size/precsize));
+        sprintf(temp2,"    if (gid%s > (N%s - FDOH-1)",
+                dev->N_names[0], dev->N_names[0]);
     }
-    strcat(temp,temp2);
-    strcat(temp,  "        return;\n"
-           "    };\n\n");
+     strcat(temp, temp2);
+    for (i=1;i<dev->NDIM-1;i++){
+        sprintf(temp2," || gid%s > (N%s - 2*FDOH-1)",
+                dev->N_names[i], dev->N_names[i]);
+        strcat(temp, temp2);
+    }
+    sprintf(temp2," || gid%s > FDOH-1 ){\n", dev->N_names[dev->NDIM-1]);
+    strcat(temp, temp2);
+    strcat(temp, "        return;\n"
+                 "    }\n\n");
     
     
     for (i=0;i<dev->nvars;i++){
@@ -1596,10 +1633,10 @@ int kernel_fcom_in(device * dev,
                         vars[i].name, vars[i].name, buff12);
             }
             strcat(temp, ptemp);
-            
         }
     }
-    
+//    sprintf(ptemp,"    printf(\"%%d\\n\", gidX);\n");
+    strcat(temp, ptemp);
     strcat(temp, "\n}");
     
     
