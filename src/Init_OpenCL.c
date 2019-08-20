@@ -396,7 +396,6 @@ int Init_CUDA(model * m, device ** dev)  {
 
             di->OFFSET=0;
             di->NX0=0;
-            di->OFFSETfd=0;
 
             //Some useful sizes can now be computed for this device
             parsize=1;
@@ -428,7 +427,6 @@ int Init_CUDA(model * m, device ** dev)  {
             for (i=0;i<d;i++){
                 di->NX0+=(*dev)[i].N[m->NDIM-1];
                 di->OFFSET+=(*dev)[i].N[m->NDIM-1]*slicesize;
-                di->OFFSETfd+=((*dev)[i].N[m->NDIM-1]+m->FDORDER)*slicesizefd;
             }
             
         }
@@ -827,34 +825,26 @@ int Init_CUDA(model * m, device ** dev)  {
                 di->vars[i].cl_var.size/=2;
             __GUARD clbuf_create( di->context_ptr, &di->vars[i].cl_var);
             //Create variable buffers for the boundary of the domain
-            if ( di->vars[i].to_comm
-                && (d>0 || m->MYLOCALID>0
-                        || d<m->NUM_DEVICES-1
-                        || m->MYLOCALID<m->NLOCALP-1)){
+            if ( di->vars[i].to_comm && (d>0 || m->MYLOCALID>0
+                                     || d<m->NUM_DEVICES-1
+                                     || m->MYLOCALID<m->NLOCALP-1)){
                     
-                    //On the device side
-                    di->vars[i].cl_buf1.size=sizeof(float)*m->FDOH*slicesize;
-                    if (m->FP16 >1){
-                        di->vars[i].cl_buf1.size/=2;
-                    }
-                    __GUARD clbuf_create_pin(di->context_ptr,
-                                             &di->queuecomm,
-                                             &di->vars[i].cl_buf1);
-//                    __GUARD clbuf_create(di->context_ptr,
-//                                         &di->vars[i].cl_buf1);
-//                    GMALLOC(di->vars[i].cl_buf1.host, di->vars[i].cl_buf1.size);
-                    di->vars[i].cl_buf2.size=sizeof(float)*m->FDOH*slicesize;
-                    if (m->FP16 >1){
-                        di->vars[i].cl_buf2.size/=2;
-                    }
-                    __GUARD clbuf_create_pin(di->context_ptr,
-                                             &di->queuecomm,
-                                             &di->vars[i].cl_buf2);
-//                    __GUARD clbuf_create(di->context_ptr,
-//                                         &di->vars[i].cl_buf2);
-//                    GMALLOC(di->vars[i].cl_buf2.host, di->vars[i].cl_buf2.size);
-                    
+                //On the device side
+                di->vars[i].cl_buf1.size=sizeof(float)*m->FDOH*slicesize;
+                if (m->FP16 >1){
+                    di->vars[i].cl_buf1.size/=2;
                 }
+                __GUARD clbuf_create_pin(di->context_ptr,
+                                         &di->queuecomm,
+                                         &di->vars[i].cl_buf1);
+                di->vars[i].cl_buf2.size=sizeof(float)*m->FDOH*slicesize;
+                if (m->FP16 >1){
+                    di->vars[i].cl_buf2.size/=2;
+                }
+                __GUARD clbuf_create_pin(di->context_ptr,
+                                         &di->queuecomm,
+                                         &di->vars[i].cl_buf2);
+            }
             
             // Create the buffers to output variables at receivers locations
             if (di->vars[i].to_output){

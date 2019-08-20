@@ -344,7 +344,6 @@ typedef struct device {
     char * N_names[MAX_DIMS];
     int NX0;
     int OFFSET;
-    int OFFSETfd;
     int DEVID;
     int PROCID;
     int NBND;
