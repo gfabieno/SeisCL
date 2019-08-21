@@ -815,7 +815,7 @@ int time_stepping(model * m, device ** dev) {
     }
     
     if (state && m->MPI_INIT==1)
-        MPI_Bcast( &state, 1, MPI_INT, m->MYID, MPI_COMM_WORLD );
+        MPI_Bcast( &state, 1, MPI_INT, m->GID, MPI_COMM_WORLD );
     
     
     return state;

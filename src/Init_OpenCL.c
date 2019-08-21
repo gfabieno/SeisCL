@@ -205,15 +205,15 @@ CL_INT connect_devices(device ** dev, model * m)
     
     if (!state){
         for (i=0;i<nalldevices;i++){
-            devid = m->MYID;
+            devid = m->LID % nalldevices;
             allowed=1;
             for (j=0;j<m->n_no_use_GPUs;j++){
-                if (m->no_use_GPUs[j]!=i){
+                if (m->no_use_GPUs[j]!=devid){
                     allowed=0;
                 }
             }
             if (allowed){
-                allow_devs[n]=i;
+                allow_devs[n]=devid;
                 n++;
             }
             
@@ -264,7 +264,7 @@ CL_INT connect_devices(device ** dev, model * m)
         // Create command queues for each devices
         for (i=0;i<m->NUM_DEVICES;i++){
             (*dev)[i].DEVID = i;
-            (*dev)[i].PROCID = m->MYID;
+            (*dev)[i].PROCID = m->GID;
             (*dev)[i].cudev = devices[allow_devs[i]];
             (*dev)[i].context_ptr = &m->context;
             if (!state)
@@ -284,7 +284,7 @@ CL_INT connect_devices(device ** dev, model * m)
         // Create command queues for each devices
         for (i=0;i<m->NUM_DEVICES;i++){
             // Create a context with the specified devices
-            (*dev)[i].PROCID = m->MYID;
+            (*dev)[i].PROCID = m->GID;
             __GUARD cuDeviceGet(&(*dev)[i].cudev, allow_devs[i]);
             __GUARD cuCtxCreate(&(*dev)[i].context,
                                 0,
@@ -1190,7 +1190,7 @@ int Init_CUDA(model * m, device ** dev)  {
     __GUARD event_dependency(m, dev, adj);
 
     if (state && m->MPI_INIT==1)
-        MPI_Bcast( &state, 1, MPI_INT, m->MYID, MPI_COMM_WORLD );
+        MPI_Bcast( &state, 1, MPI_INT, m->GID, MPI_COMM_WORLD );
     
     return state;
 

@@ -427,8 +427,10 @@ typedef struct model {
     int DTNYQ;
     int NDIM;
     
-    int MYID;
-    int NP;
+    int GID; //The global MPI Process ID
+    int GNP; //The global number of MPI Processes
+    int LID; //The local MPI Process ID for this node
+    int LNP;   //The local number MPI Processes for this node
     int NGROUP;
     int MYGROUPID;
     int MYLOCALID;

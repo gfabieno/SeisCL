@@ -108,7 +108,7 @@ int Init_MPI(model * m) {
     //Communicate vectors
     {
         if (m->n_no_use_GPUs>0){
-            if (m->MYID!=0){
+            if (m->GID!=0){
                 GMALLOC(m->no_use_GPUs,sizeof(int)*m->n_no_use_GPUs);
             }
             
@@ -119,7 +119,7 @@ int Init_MPI(model * m) {
         }
         
         
-        if (m->MYID!=0){
+        if (m->GID!=0){
             GMALLOC(m->src_recs.nsrc,sizeof(int)*m->src_recs.ns);
             GMALLOC(m->src_recs.src_pos,sizeof(float*)*m->src_recs.ns);
             GMALLOC(m->src_recs.src_pos[0],sizeof(float)*m->src_recs.allns*5);
@@ -142,7 +142,7 @@ int Init_MPI(model * m) {
             MPI_Barrier(MPI_COMM_WORLD);
         }
         
-        if (m->MYID!=0){
+        if (m->GID!=0){
             for (i=1; i<m->src_recs.ns; i++){
                 m->src_recs.src_pos[i]=m->src_recs.src_pos[i-1]+m->src_recs.nsrc[i-1]*5;
                 m->src_recs.src[i]=m->src_recs.src[i-1]+m->src_recs.nsrc[i-1]*m->NT;
@@ -153,7 +153,7 @@ int Init_MPI(model * m) {
     }
     
     //Communicate parameters and variables
-    if (m->MYID!=0){
+    if (m->GID!=0){
         __GUARD assign_modeling_case(m);
     }
 
@@ -219,7 +219,7 @@ int Init_MPI(model * m) {
         for (i=0;i<m->nvars;i++){
             if (m->vars[i].to_output){
 
-                if (m->MYID!=0){
+                if (m->GID!=0){
                     var_alloc_out(&m->vars[i].gl_var_res, m);
                     var_alloc_out(&m->vars[i].gl_varin, m);
                 }
@@ -231,7 +231,7 @@ int Init_MPI(model * m) {
         for (i=0;i<m->ntvars;i++){
             if (m->trans_vars[i].to_output){
 
-                if (m->MYID!=0){
+                if (m->GID!=0){
                     var_alloc_out(&m->trans_vars[i].gl_var_res, m);
                     var_alloc_out(&m->trans_vars[i].gl_varin, m);
                 }
@@ -246,26 +246,26 @@ int Init_MPI(model * m) {
     //Assign a group within wich domain decomposition is performed.
     //Different groups are assigned different sources
     {
-        m->NGROUP=m->NP/m->MPI_NPROC_SHOT;
+        m->NGROUP=m->GNP/m->MPI_NPROC_SHOT;
         if (m->NGROUP<1){
             m->NGROUP=1;
-            m->MPI_NPROC_SHOT=m->NP;
+            m->MPI_NPROC_SHOT=m->GNP;
         }
 
-        m->MYGROUPID=m->MYID/m->MPI_NPROC_SHOT;
+        m->MYGROUPID=m->GID/m->MPI_NPROC_SHOT;
 
-        if (m->NP>m->MPI_NPROC_SHOT){
+        if (m->GNP>m->MPI_NPROC_SHOT){
             if (m->MYGROUPID>m->NGROUP-1){
                 m->NLOCALP=m->MPI_NPROC_SHOT;
             }
             else{
-                m->NLOCALP=m->MPI_NPROC_SHOT+m->NP%m->MPI_NPROC_SHOT;
+                m->NLOCALP=m->MPI_NPROC_SHOT+m->GNP%m->MPI_NPROC_SHOT;
             }
-            m->MYLOCALID=m->MYID-m->MYGROUPID*m->MPI_NPROC_SHOT;
+            m->MYLOCALID=m->GID-m->MYGROUPID*m->MPI_NPROC_SHOT;
         }
         else{
-            m->NLOCALP=m->NP;
-            m->MYLOCALID=m->MYID;
+            m->NLOCALP=m->GNP;
+            m->MYLOCALID=m->GID;
         }
     }
     

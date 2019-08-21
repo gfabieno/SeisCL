@@ -836,7 +836,7 @@ int readhdf5(struct filenames files, model * m) {
     if (state && m->MPI_INIT==1) MPI_Bcast( &state,
                                            1,
                                            MPI_INT,
-                                           m->MYID,
+                                           m->GID,
                                            MPI_COMM_WORLD );
     
     return state;

@@ -88,33 +88,32 @@ int main(int argc, char **argv) {
     
     /* Initialize MPI environment */
     MPI_Init(&argc, &argv);
-    MPI_Comm_size(MPI_COMM_WORLD, &m.NP);
-    MPI_Comm_rank(MPI_COMM_WORLD, &m.MYID);
+    MPI_Comm_size(MPI_COMM_WORLD, &m.GNP);
+    MPI_Comm_rank(MPI_COMM_WORLD, &m.GID);
     MPI_Initialized(&m.MPI_INIT);
     // Get the name of the processor
     char processor_name[MPI_MAX_PROCESSOR_NAME];
     int name_len;
     MPI_Get_processor_name(processor_name, &name_len);
     MPI_Comm node_comm;
-    int nodeid;
     int color=0;
     for (i=0; i<MPI_MAX_PROCESSOR_NAME; i++){
         color += (int)processor_name[i];
     }
     MPI_Comm_split(MPI_COMM_WORLD, color, 0, &node_comm);
-    MPI_Comm_size(node_comm, &m.NP);
-    MPI_Comm_rank(node_comm, &nodeid);
+    MPI_Comm_size(node_comm, &m.LNP);
+    MPI_Comm_rank(node_comm, &m.LID);
     MPI_Comm_free(&node_comm);
     
-    fprintf(stdout,"Process %d, processor %s, node process %d, pid %d\n",
-            m.MYID, processor_name, nodeid, getpid());
+    fprintf(stdout,"Process %d/%d, processor %s, node process %d/%d, pid %d\n",
+            m.GID, m.GNP, processor_name, m.LID, m.LNP,  getpid());
     fflush(stdout);
-//    if (m.MYID == 0) sleep(30);
+//    if (m.GID == 0) sleep(30);
     
     
     // Root process reads the input files
     time1=MPI_Wtime();
-    if (m.MYID==0){
+    if (m.GID==0){
         if (!state) state = readhdf5(file, &m);
     }
     time2=MPI_Wtime();
@@ -135,12 +134,12 @@ int main(int argc, char **argv) {
     time5=MPI_Wtime();
 
     //Reduce to process 0 all required outputs
-    if (m.NP > 1){
+    if (m.GNP > 1){
         if (!state) state = Out_MPI(&m);
     }
 
     // Write the ouputs to hdf5 files
-    if (m.MYID==0){
+    if (m.GID==0){
         if (!state) state = writehdf5(file, &m) ;
     }
     time6=MPI_Wtime();
@@ -149,8 +148,8 @@ int main(int argc, char **argv) {
     if (!state){
         double * times=NULL;
 
-        if (m.MYID==0){
-            times=malloc(sizeof(double)*6*m.NP);
+        if (m.GID==0){
+            times=malloc(sizeof(double)*6*m.GNP);
         }
 
         double t1=time2-time1;
@@ -161,22 +160,22 @@ int main(int argc, char **argv) {
         double t6=(time6-time1);
 
         if (!state) MPI_Gather(&t1, 1, MPI_DOUBLE , &times[0]     , 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        if (!state) MPI_Gather(&t2, 1, MPI_DOUBLE , &times[  m.NP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        if (!state) MPI_Gather(&t3, 1, MPI_DOUBLE , &times[2*m.NP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        if (!state) MPI_Gather(&t4, 1, MPI_DOUBLE , &times[3*m.NP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        if (!state) MPI_Gather(&t5, 1, MPI_DOUBLE , &times[4*m.NP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        if (!state) MPI_Gather(&t6, 1, MPI_DOUBLE , &times[5*m.NP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        if (!state) MPI_Gather(&t2, 1, MPI_DOUBLE , &times[  m.GNP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        if (!state) MPI_Gather(&t3, 1, MPI_DOUBLE , &times[2*m.GNP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        if (!state) MPI_Gather(&t4, 1, MPI_DOUBLE , &times[3*m.GNP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        if (!state) MPI_Gather(&t5, 1, MPI_DOUBLE , &times[4*m.GNP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        if (!state) MPI_Gather(&t6, 1, MPI_DOUBLE , &times[5*m.GNP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-        if (m.MYID==0){
+        if (m.GID==0){
             fprintf(stdout,"\nRun time for each process:\n\n");
-            for (i=0;i<m.NP;i++){
+            for (i=0;i<m.GNP;i++){
                 fprintf(stdout,"Process: %d\n", i);
                 fprintf(stdout,"Read variables: %f\n",times[i]);
-                fprintf(stdout,"Intialize model: %f\n", times[i+m.NP]);
-                fprintf(stdout,"Intialize OpenCL: \%f\n", times[i+2*m.NP]);
-                fprintf(stdout,"Time for modeling: %f\n", times[i+3*m.NP]);
-                fprintf(stdout,"Outputting files: \%f\n", times[i+4*m.NP]);
-                fprintf(stdout,"Total time of process: %f\n\n",times[i+5*m.NP]);
+                fprintf(stdout,"Intialize model: %f\n", times[i+m.GNP]);
+                fprintf(stdout,"Intialize OpenCL: \%f\n", times[i+2*m.GNP]);
+                fprintf(stdout,"Time for modeling: %f\n", times[i+3*m.GNP]);
+                fprintf(stdout,"Outputting files: \%f\n", times[i+4*m.GNP]);
+                fprintf(stdout,"Total time of process: %f\n\n",times[i+5*m.GNP]);
             }
 
             fprintf(stdout,"Total real time of the program is: %f s\n",t6) ;

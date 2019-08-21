@@ -79,21 +79,21 @@ int Out_MPI(model * m)  {
             if (m->vars[i].to_output){
                 __GUARD buf_reduce_float(m->vars[i].gl_varout[0],
                                          m->src_recs.allng*m->NT,
-                                         m->MYID);
+                                         m->GID);
             }
         }
         for (i=0;i<m->ntvars;i++){
             if (m->trans_vars[i].to_output){
                 __GUARD buf_reduce_float(m->trans_vars[i].gl_varout[0],
                                          m->src_recs.allng*m->NT,
-                                         m->MYID);
+                                         m->GID);
             }
         }
     }
     // Add the rms value of all processing elements
     if (m->RMSOUT){
-        __GUARD buf_reduce_float(&m->rms,1,m->MYID);
-        __GUARD buf_reduce_float(&m->rmsnorm,1,m->MYID);
+        __GUARD buf_reduce_float(&m->rms,1,m->GID);
+        __GUARD buf_reduce_float(&m->rmsnorm,1,m->GID);
     }
     
     // Gather the residuals from all processing elements
@@ -102,14 +102,14 @@ int Out_MPI(model * m)  {
             if (m->vars[i].to_output){
                 __GUARD buf_reduce_float(m->vars[i].gl_var_res[0],
                                          m->src_recs.allng*m->NT,
-                                         m->MYID);
+                                         m->GID);
             }
         }
         for (i=0;i<m->ntvars;i++){
             if (m->trans_vars[i].to_output){
                 __GUARD buf_reduce_float(m->trans_vars[i].gl_var_res[0],
                                         m->src_recs.allng*m->NT,
-                                         m->MYID);
+                                         m->GID);
             }
         }
     }
@@ -121,7 +121,7 @@ int Out_MPI(model * m)  {
                 __GUARD buf_reduce_float(m->vars[i].gl_mov,
                                          m->vars[i].num_ele*
                                                  m->src_recs.ns*m->NT/m->MOVOUT,
-                                         m->MYID);
+                                         m->GID);
             }
         }
     }
@@ -133,20 +133,20 @@ int Out_MPI(model * m)  {
             if (m->pars[i].to_grad){
                 __GUARD buf_reduce_double(m->pars[i].gl_grad,
                                          m->pars[i].num_ele,
-                                         m->MYID);
+                                         m->GID);
             }
         }
         if (m->GRADSRCOUT==1){
             __GUARD buf_reduce_double(m->src_recs.gradsrc[0],
                                       m->src_recs.allns*m->NT,
-                                      m->MYID);
+                                      m->GID);
         }
         if (m->HOUT==1){
             for (i=0;i<m->npars;i++){
                 if (m->pars[i].to_grad){
                     __GUARD buf_reduce_double(m->pars[i].gl_H,
                                               m->pars[i].num_ele,
-                                              m->MYID);
+                                              m->GID);
                 }
             }
         }
