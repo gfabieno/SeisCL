@@ -21,7 +21,7 @@
 
 #include "F.h"
 #ifdef __SEISCL__
-int get_platform( model * m, cl_platform_id*  clplateform, int * cl_plat_numid)
+int get_platform(model * m, cl_platform_id* clplateform, int * cl_plat_numid)
 {
     /* Find all platforms , and select the first with the desired device type */
     
@@ -31,6 +31,7 @@ int get_platform( model * m, cl_platform_id*  clplateform, int * cl_plat_numid)
     int state=0;
     int i,j,k;
     cl_int device_found;
+    cl_uint nalldevices;
     
     //Check that a suitable device type was given
     if (m->pref_device_type!=CL_DEVICE_TYPE_GPU &&
@@ -63,18 +64,18 @@ int get_platform( model * m, cl_platform_id*  clplateform, int * cl_plat_numid)
                                       m->pref_device_type,
                                       0,
                                       NULL,
-                                      &m->NUM_DEVICES);
+                                      &nalldevices);
         
-        if(device_found==CL_SUCCESS && m->NUM_DEVICES>0){
+        if(device_found==CL_SUCCESS && nalldevices>0){
             //Check if any GPU is flagged not to be used
-            for (j=0;j<m->NUM_DEVICES;j++){
+            for (j=0;j<nalldevices;j++){
                 for (k=0;k<m->n_no_use_GPUs;k++){
                     if (m->no_use_GPUs[k]==j)
-                        m->NUM_DEVICES-=1;
+                        nalldevices-=1;
                 }
             }
             
-            if (m->NUM_DEVICES<1){
+            if (nalldevices<1){
                 fprintf(stdout,"Warning: No allowed devices could be found");
                 return 1;
             }
@@ -93,8 +94,8 @@ int get_platform( model * m, cl_platform_id*  clplateform, int * cl_plat_numid)
                                           CL_DEVICE_TYPE_GPU,
                                           0,
                                           NULL,
-                                          &m->NUM_DEVICES);
-            if(device_found == CL_SUCCESS && m->NUM_DEVICES>0){
+                                          &nalldevices);
+            if(device_found == CL_SUCCESS && nalldevices>0){
                 *clplateform = clPlatformIDs[i];
                 * cl_plat_numid = i;
                 m->device_type=CL_DEVICE_TYPE_GPU;
@@ -109,8 +110,8 @@ int get_platform( model * m, cl_platform_id*  clplateform, int * cl_plat_numid)
                                           CL_DEVICE_TYPE_ACCELERATOR,
                                           0,
                                           NULL,
-                                          &m->NUM_DEVICES);
-            if(device_found == CL_SUCCESS && m->NUM_DEVICES>0){
+                                          &nalldevices);
+            if(device_found == CL_SUCCESS && nalldevices>0){
                 *clplateform = clPlatformIDs[i];
                 * cl_plat_numid = i;
                 m->device_type=CL_DEVICE_TYPE_ACCELERATOR;
@@ -125,8 +126,8 @@ int get_platform( model * m, cl_platform_id*  clplateform, int * cl_plat_numid)
                                           CL_DEVICE_TYPE_CPU,
                                           0,
                                           NULL,
-                                          &m->NUM_DEVICES);
-            if(device_found == CL_SUCCESS && m->NUM_DEVICES>0){
+                                          &nalldevices);
+            if(device_found == CL_SUCCESS && nalldevices>0){
                 *clplateform = clPlatformIDs[i];
                 * cl_plat_numid = i;
                 m->device_type=CL_DEVICE_TYPE_CPU;
@@ -149,9 +150,6 @@ int get_platform( model * m, cl_platform_id*  clplateform, int * cl_plat_numid)
         
     }
     
-    //Verify that we do not use more than the allowed number of devices
-    m->NUM_DEVICES=m->NUM_DEVICES>m->nmax_dev ? m->nmax_dev : m->NUM_DEVICES;
-    
     GFree(clPlatformIDs);
     if (state !=CL_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
     
@@ -169,12 +167,11 @@ CL_INT connect_devices(device ** dev, model * m)
     #else
     int nalldevices=0;
     #endif
-    CL_UINT num_allow_devs=0;
     DEVICE *devices=NULL;
     int *allow_devs=NULL;
     CL_CHAR vendor_name[1024] = {0};
     CL_CHAR device_name[1024] = {0};
-    int i,j,n;
+    int i,j,n, devid;
     int allowed;
 
     if (m->nmax_dev<1){
@@ -183,43 +180,33 @@ CL_INT connect_devices(device ** dev, model * m)
         m->nmax_dev=1;
     }
     #ifdef __SEISCL__
-    cl_platform_id  clplateform = NULL;
-    int cl_plat_numid;
-    __GUARD get_platform( m, &clplateform, &cl_plat_numid);
-//    m->NUM_DEVICES = 3; //line 217, 231, 258 changed
-    GMALLOC(*dev, sizeof(device)*m->NUM_DEVICES);
-    
-    
-    // Find the number of prefered devices
-    __GUARD clGetDeviceIDs(clplateform,m->device_type,0, NULL, &nalldevices);
-    GMALLOC(devices,sizeof(cl_device_id)*nalldevices);
-    if (m->device_type==CL_DEVICE_TYPE_GPU)
-        fprintf(stdout,"Found %d GPU, ", nalldevices);
-    else if (m->device_type==CL_DEVICE_TYPE_ACCELERATOR)
-        fprintf(stdout,"Found %d Accelerator, ", nalldevices);
-    else if (m->device_type==CL_DEVICE_TYPE_CPU)
-        fprintf(stdout,"Found %d CPU, ", nalldevices);
-    
-    
-    
-    __GUARD clGetDeviceIDs(clplateform,
-                           m->device_type,
-                           nalldevices,
-                           devices,
-                           NULL);
-    
-    
-    GMALLOC(allow_devs,sizeof(int)*m->NUM_DEVICES);
+        cl_platform_id  clplateform = NULL;
+        int cl_plat_numid;
+        __GUARD get_platform(m, &clplateform, &cl_plat_numid);
+
+        // Find the number of prefered devices
+        __GUARD clGetDeviceIDs(clplateform, m->device_type,
+                               0, NULL, &nalldevices);
+        if (m->device_type==CL_DEVICE_TYPE_GPU)
+            fprintf(stdout,"Found %d GPU, ", nalldevices);
+        else if (m->device_type==CL_DEVICE_TYPE_ACCELERATOR)
+            fprintf(stdout,"Found %d Accelerator, ", nalldevices);
+        else if (m->device_type==CL_DEVICE_TYPE_CPU)
+            fprintf(stdout,"Found %d CPU, ", nalldevices);
+
     #else
-    __GUARD cuInit(0);
-    __GUARD cuDeviceGetCount ( &nalldevices );
-    GMALLOC(allow_devs,sizeof(int)*nalldevices);
+        __GUARD cuInit(0);
+        __GUARD cuDeviceGetCount(&nalldevices);
     #endif
     
+    GMALLOC(allow_devs,sizeof(int)*nalldevices);
     //Collect all allowed devices
     n=0;
+    
     if (!state){
         for (i=0;i<nalldevices;i++){
+            devid = m->MYID
+            
             allowed=1;
             for (j=0;j<m->n_no_use_GPUs;j++){
                 if (m->no_use_GPUs[j]!=i){
@@ -228,16 +215,30 @@ CL_INT connect_devices(device ** dev, model * m)
             }
             if (allowed){
                 allow_devs[n]=i;
-                //allow_devs[n]=0;
                 n++;
             }
             
         }
     }
-    #ifdef __SEISCL__
+    
+    //Verify that we do not use more than the allowed number of devices
+    m->NUM_DEVICES = n;
+    if (m->NUM_DEVICES > m->nmax_dev)
+        m->NUM_DEVICES=m->nmax_dev;
+    GMALLOC(*dev, sizeof(device)*m->NUM_DEVICES);
+    
     // Print some information about the returned devices
     fprintf(stdout,"connecting to  %d devices:\n", m->NUM_DEVICES);
-    if (!state){
+    
+    #ifdef __SEISCL__
+    
+        GMALLOC(devices,sizeof(cl_device_id)*nalldevices);
+        __GUARD clGetDeviceIDs(clplateform,
+                               m->device_type,
+                               nalldevices,
+                               devices,
+                               NULL);
+    
         for (i=0;i<m->NUM_DEVICES;i++){
             __GUARD clGetDeviceInfo(devices[allow_devs[i]],
                                     CL_DEVICE_VENDOR,
@@ -252,61 +253,54 @@ CL_INT connect_devices(device ** dev, model * m)
             fprintf(stdout,"-Device %d: %s %s\n",
                     allow_devs[i], vendor_name, device_name);
         }
-    }
 
-    // Create a context with the specified devices
-    if (!state) m->context = clCreateContext(NULL,
-                                             m->NUM_DEVICES,//1,
-                                             devices,
-                                             NULL,
-                                             NULL,
-                                             &state);
+        // Create a context with the specified devices
+        if (!state) m->context = clCreateContext(NULL,
+                                                 m->NUM_DEVICES,//1,
+                                                 devices,
+                                                 NULL,
+                                                 NULL,
+                                                 &state);
     
-    // Create command queues for each devices
-    for (i=0;i<m->NUM_DEVICES;i++){
-        (*dev)[i].DEVID = i;
-        (*dev)[i].PROCID = m->MYID;
-        (*dev)[i].cudev = devices[allow_devs[i]];
-        (*dev)[i].context_ptr = &m->context;
-        if (!state)
-            (*dev)[i].queue = clCreateCommandQueue(m->context,
-                                               devices[allow_devs[i]],
-                                               0 ,
-                                               &state);
-        if (!state)
-            (*dev)[i].queuecomm = clCreateCommandQueue(m->context,
+        // Create command queues for each devices
+        for (i=0;i<m->NUM_DEVICES;i++){
+            (*dev)[i].DEVID = i;
+            (*dev)[i].PROCID = m->MYID;
+            (*dev)[i].cudev = devices[allow_devs[i]];
+            (*dev)[i].context_ptr = &m->context;
+            if (!state)
+                (*dev)[i].queue = clCreateCommandQueue(m->context,
                                                    devices[allow_devs[i]],
                                                    0 ,
                                                    &state);
-    }
-    GFree(devices);
+            if (!state)
+                (*dev)[i].queuecomm = clCreateCommandQueue(m->context,
+                                                       devices[allow_devs[i]],
+                                                       0 ,
+                                                       &state);
+        }
+        GFree(devices);
     #else
-    m->NUM_DEVICES = n;
-    if (m->NUM_DEVICES > m->nmax_dev){
-        m->NUM_DEVICES=m->nmax_dev;
-    }
-    GMALLOC(*dev, sizeof(device)*m->NUM_DEVICES);
-    
-    // Print some information about the returned devices
-    fprintf(stdout,"Connecting to %d devices: \n", (int)m->NUM_DEVICES);
-    // Create command queues for each devices
-    for (i=0;i<m->NUM_DEVICES;i++){
-        // Create a context with the specified devices
-        (*dev)[i].PROCID = m->MYID;
-        __GUARD cuDeviceGet(&(*dev)[i].cudev, allow_devs[i]);
-        __GUARD cuCtxCreate(&(*dev)[i].context,
-                            0,
-                            (*dev)[i].cudev);
-        (*dev)[i].context_ptr = &(*dev)[i].context;
-        __GUARD cuDeviceGetName(device_name,
-                                sizeof(vendor_name),
+
+        // Create command queues for each devices
+        for (i=0;i<m->NUM_DEVICES;i++){
+            // Create a context with the specified devices
+            (*dev)[i].PROCID = m->MYID;
+            __GUARD cuDeviceGet(&(*dev)[i].cudev, allow_devs[i]);
+            __GUARD cuCtxCreate(&(*dev)[i].context,
+                                0,
                                 (*dev)[i].cudev);
-        fprintf(stdout,"-Device %d: %s \n",allow_devs[i], device_name);
-        __GUARD cuStreamCreate( &(*dev)[i].queue, CU_STREAM_NON_BLOCKING );
-        __GUARD cuStreamCreate( &(*dev)[i].queuecomm, CU_STREAM_NON_BLOCKING );
-        
-    }
+            (*dev)[i].context_ptr = &(*dev)[i].context;
+            __GUARD cuDeviceGetName(device_name,
+                                    sizeof(vendor_name),
+                                    (*dev)[i].cudev);
+            fprintf(stdout,"-Device %d: %s \n", allow_devs[i], device_name);
+            __GUARD cuStreamCreate(&(*dev)[i].queue, CU_STREAM_NON_BLOCKING);
+            __GUARD cuStreamCreate(&(*dev)[i].queuecomm,CU_STREAM_NON_BLOCKING);
+        }
+    
     #endif
+    
     if (state !=CUCL_SUCCESS) fprintf(stderr,
                                       "Error: Devices connection failed: %s\n",
                                       clerrors(state));
