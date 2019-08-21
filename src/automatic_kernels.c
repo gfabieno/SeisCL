@@ -766,11 +766,14 @@ int kernel_residuals(device * dev,
                 
             }
             strcat(temp, vars[i].name);
+            strcat(temp, "out[NT*gid+nt]");
             if (dev->FP16==0){
-                strcat(temp, "out[NT*gid+nt];\n");
+                strcat(temp, ";\n");
+            }
+            else if (dev->FP16==1){
+                strcat(temp, ",res_scale);\n");
             }
             else{
-                strcat(temp, "out[NT*gid+nt]");
                 strcat(temp, ",res_scale));\n");
             }
             
@@ -823,7 +826,7 @@ int kernel_residuals(device * dev,
     
     strcat(temp, "\n}");
     
-       __GUARD prog_source(prog, "residuals", temp, 0, NULL);
+    __GUARD prog_source(prog, "residuals", temp, 0, NULL);
 
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
     

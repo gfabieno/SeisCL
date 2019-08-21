@@ -65,7 +65,76 @@ def test_seisout(seis, plot=False):
                 print("failed:")
                 print(msg)
 
-def test_fp16_forward(seis, ref=None, plot=False, ngpu=1):
+def test_backpropagation(seis, plot=False, ngpu=1, nmpi=1):
+    
+    seis = define_rec_src(seis)
+    pars = {}
+    
+    pars['vp'] = np.zeros(seis.csts['N']) + 3500
+    pars['vs'] = pars['vp'] * 0 + 2000
+    pars['rho'] = pars['vp'] * 0 + 2000
+    slices = [slice(d//2-5,d//2+5) for d in seis.csts['N']]
+    slicesp = [slice(seis.csts['nab'], -seis.csts['nab']) for _ in seis.csts['N']]
+    
+    slicesp[1:-1] = [d//2 for d in seis.csts['N'][1:-1]]
+    if seis.csts["freesurf"] ==1:
+        slices[0] = slice(5, 15)
+        slicesp[0] = slice(0, -seis.csts['nab'])
+    slicesp = [0, 1] + slicesp
+    slicesp = tuple(slicesp)
+    slices = tuple(slices)
+    if seis.csts['L'] > 0:
+        pars['taup'] = pars['vp'] * 0 + 0.1
+        pars['taus'] = pars['vp'] * 0 + 0.1
+    
+    seis.csts['FP16'] = 0
+    seis.csts['nmax_dev'] = 1
+    seis.NP = 1
+
+    seis.csts['MOVOUT'] = 1
+    seis.csts['seisout'] = 1
+    pars['vp'] = np.zeros(seis.csts['N']) + 3500
+    pars['vp'][slices]= 4000
+    seis.set_forward(seis.src_pos_all[3,:], pars, withgrad=False)
+    seis.execute()
+    data = seis.read_data()
+    seis.write_data({"vx":data[0]})
+    pars['vp'] = np.zeros(seis.csts['N']) + 3500
+
+    if ngpu > 1 or nmpi > 1:
+        seis.csts['nmax_dev'] = ngpu
+        seis.NP = nmpi
+    
+    for fp16 in range(0,4):
+        print("    Testing FP16=%d....." %fp16 , end = '')
+        seis.csts['FP16'] = fp16
+        try :
+
+            seis.set_forward(seis.src_pos_all[3,:], pars, withgrad=True)
+            seis.execute()
+            file = h5.File("./seiscl/SeisCL_movie.mat", "r")
+            mov = file['movvx'][slicesp]
+            file.close()
+            
+            if plot:
+                plt.imshow(mov, aspect='auto')
+                plt.show()
+
+            err = np.max(mov)
+            if err > 1e-4:
+                raise SeisCLError("    Error with data referance too large: %e"
+                                  % err)
+            print("passed (error %e)" % err)
+        except(SeisCLError) as msg:
+            print("failed:")
+            print(msg)
+
+    seis.csts['MOVOUT'] = 0
+    seis.csts['seisout'] = 2
+    seis.csts['nmax_dev'] = 1
+    seis.NP = 1
+
+def test_fp16_forward(seis, ref=None, plot=False, ngpu=1, nmpi=1):
     
     seis = define_rec_src(seis)
     pars = {}
@@ -76,14 +145,16 @@ def test_fp16_forward(seis, ref=None, plot=False, ngpu=1):
         pars['taup'] = pars['vp'] * 0 + 0.1
         pars['taus'] = pars['vp'] * 0 + 0.1
     
-    if ngpu > 1:
+    if ngpu > 1 or nmpi > 1:
         seis.csts['FP16'] = 0
         seis.csts['nmax_dev'] = 1
+        seis.NP = 1
         seis.set_forward(seis.src_pos_all[3,:], pars, withgrad=False)
         seis.execute()
         data = seis.read_data()
         ref = data
         seis.csts['nmax_dev'] = ngpu
+        seis.NP = nmpi
 
 
     for fp16 in range(0,4):
@@ -116,9 +187,10 @@ def test_fp16_forward(seis, ref=None, plot=False, ngpu=1):
             print("failed:")
             print(msg)
 
+    seis.NP = 1
     seis.csts['nmax_dev'] = 1
 
-def test_fp16_grad(seis, ref=None, plot=False):
+def test_fp16_grad(seis, ref=None, plot=False, ngpu=1, nmpi=1):
     
     seis = define_rec_src(seis)
     pars = {}
@@ -137,18 +209,38 @@ def test_fp16_grad(seis, ref=None, plot=False):
         pars['taup'] = pars['vp'] * 0 + 0.1
         pars['taus'] = pars['vp'] * 0 + 0.1
     
+    seis.csts['FP16'] = 0
+    seis.csts['nmax_dev'] = 1
+    seis.NP = 1
+
+#    seis.csts['MOVOUT'] = 1
+#    seis.csts['seisout'] = 1
+    pars['vp'] = np.zeros(seis.csts['N']) + 3500
+    pars['vp'][slices]= 4000
+    seis.set_forward(seis.src_pos_all[3,:], pars, withgrad=False)
+    seis.execute()
+    data = seis.read_data()
+    seis.write_data({"p":data[0]})
+    pars['vp'] = np.zeros(seis.csts['N']) + 3500
+
+    if ngpu > 1 or nmpi > 1:
+        seis.csts['FP16'] = 0
+        seis.set_forward(seis.src_pos_all[3,:], pars, withgrad=True)
+        seis.execute()
+        grad = seis.read_grad()
+        ref = grad
+        if plot:
+            for g in grad:
+                plt.imshow(g[slicesp], aspect='auto')
+                plt.show()
+        seis.csts['nmax_dev'] = ngpu
+        seis.NP = nmpi
+    
+    
     for fp16 in range(0,4):
         print("    Testing FP16=%d....." %fp16 , end = '')
         seis.csts['FP16'] = fp16
         try :
-            if fp16==0:
-                pars['vp'] = np.zeros(seis.csts['N']) + 3500
-                pars['vp'][slices]= 4000
-                seis.set_forward(seis.src_pos_all[3,:], pars, withgrad=False)
-                seis.execute()
-                data = seis.read_data()
-                seis.write_data({"p":data[0]})
-            pars['vp'] = np.zeros(seis.csts['N']) + 3500
             seis.set_forward(seis.src_pos_all[3,:], pars, withgrad=True)
             seis.execute()
             grad = seis.read_grad()
@@ -172,6 +264,9 @@ def test_fp16_grad(seis, ref=None, plot=False):
         except(SeisCLError) as msg:
             print("failed:")
             print(msg)
+
+    seis.NP = 1
+    seis.csts['nmax_dev'] = 1
 
 def define_rec_src(seis):
 
@@ -337,15 +432,14 @@ if __name__ == "__main__":
         seis.csts['freesurf'] = 0
         test_fp16_forward(seis, ref=None, plot=args.plot, ngpu=3)
 
-    name = "2D_NMPI_forward"
+    name = "2D_NGPU_grad"
     if args.test == name or args.test == "all":
         print("Testing %s" % name)
         seis.csts['N'] = np.array([64,256])
         seis.csts['L'] = 0
         seis.csts['ND'] = 2
         seis.csts['freesurf'] = 0
-        seis.csts['MPI_NPROC_SHOT'] = 3
-        test_fp16_forward(seis, ref=None, plot=args.plot, ngpu=1)
+        test_fp16_grad(seis, ref=None, plot=args.plot, ngpu=3)
 
     name = "3D_NGPU_forward"
     if args.test == name or args.test == "all":
@@ -356,6 +450,28 @@ if __name__ == "__main__":
         seis.csts['freesurf'] = 0
         test_fp16_forward(seis, ref=None, plot=args.plot, ngpu=3)
 
+    name = "2D_MPI_forward"
+    if args.test == name or args.test == "all":
+        print("Testing %s" % name)
+        seis.csts['N'] = np.array([64,256])
+        seis.csts['L'] = 0
+        seis.csts['ND'] = 2
+        seis.csts['freesurf'] = 0
+        seis.csts['MPI_NPROC_SHOT'] = 3
+        test_fp16_forward(seis, ref=None, plot=args.plot, nmpi=3)
+        seis.NP = 1
+
+    name = "3D_MPI_forward"
+    if args.test == name or args.test == "all":
+        print("Testing %s" % name)
+        seis.csts['N'] = np.array([64,64,256])
+        seis.csts['L'] = 0
+        seis.csts['ND'] = 3
+        seis.csts['freesurf'] = 0
+        seis.csts['MPI_NPROC_SHOT'] = 3
+        test_fp16_forward(seis, ref=None, plot=args.plot, nmpi=3)
+        seis.NP = 1
+
     name = "3D_seisout"
     if args.test == name or args.test == "all":
         print("Testing %s" % name)
@@ -364,5 +480,17 @@ if __name__ == "__main__":
         seis.csts['ND'] = 3
         seis.csts['freesurf'] = 0
         test_seisout(seis, plot=args.plot)
+
+    name = "2D_NGPU_backpropagation"
+    if args.test == name or args.test == "all":
+        print("Testing %s" % name)
+        seis.csts['N'] = np.array([64,256])
+        seis.csts['L'] = 0
+        seis.csts['ND'] = 2
+        seis.csts['freesurf'] = 0
+        test_backpropagation(seis, plot=args.plot, ngpu=3)
+
+
+    ## TEST grad with vx, vz
 
 

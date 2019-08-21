@@ -205,7 +205,7 @@ CL_INT connect_devices(device ** dev, model * m)
     
     if (!state){
         for (i=0;i<nalldevices;i++){
-            devid = m->LID % nalldevices;
+            devid = (m->LID + i) % nalldevices ;
             allowed=1;
             for (j=0;j<m->n_no_use_GPUs;j++){
                 if (m->no_use_GPUs[j]!=devid){
@@ -269,7 +269,6 @@ CL_INT connect_devices(device ** dev, model * m)
     
         // Create command queues for each devices
         for (i=0;i<m->NUM_DEVICES;i++){
-            (*dev)[i].DEVID = i;
             (*dev)[i].PROCID = m->GID;
             (*dev)[i].cudev = devices[allow_devs[i]];
             (*dev)[i].context_ptr = &m->context;
@@ -355,6 +354,7 @@ int Init_CUDA(model * m, device ** dev)  {
     int LCOMM=0;
     int offcom1=0;
     int offcom2=0;
+    int bufoff, bufoff2;
     struct device * di;
     
     // Connect all OpenCL devices that can be used in a single context
@@ -399,7 +399,7 @@ int Init_CUDA(model * m, device ** dev)  {
             else
                 di->N[m->NDIM-1]= di->N[m->NDIM-1]/m->NUM_DEVICES;
 
-            di->OFFSET=0;
+            bufoff=0;
             di->NX0=0;
 
             //Some useful sizes can now be computed for this device
@@ -420,22 +420,26 @@ int Init_CUDA(model * m, device ** dev)  {
             // NX0 is the x location of the first element for this device
             for (i=0;i<m->MYLOCALID;i++){
                 if (i<m->N[m->NDIM-1]%m->NLOCALP){
-                    di->OFFSET+=(m->N[m->NDIM-1]/m->NLOCALP+1)*slicesize;
+                    bufoff+=(m->N[m->NDIM-1]/m->NLOCALP+1)*slicesize;
                     di->NX0+=(m->N[m->NDIM-1]/m->NLOCALP+1);
                 }
                 else{
-                    di->OFFSET+=(m->N[m->NDIM-1]/m->NLOCALP)*slicesize;
+                    bufoff+=(m->N[m->NDIM-1]/m->NLOCALP)*slicesize;
                     di->NX0+=(m->N[m->NDIM-1]/m->NLOCALP);
                 }
                 
             }
             for (i=0;i<d;i++){
                 di->NX0+=(*dev)[i].N[m->NDIM-1];
-                di->OFFSET+=(*dev)[i].N[m->NDIM-1]*slicesize;
+                bufoff+=(*dev)[i].N[m->NDIM-1]*slicesize;
             }
             if (m->FP16>1){
-                di->OFFSET/=2;
+                bufoff2=bufoff/2;
             }
+            else{
+                bufoff2=bufoff;
+            }
+                
             
         }
 
@@ -747,17 +751,19 @@ int Init_CUDA(model * m, device ** dev)  {
             di->npars=m->npars;
             GMALLOC(di->pars, sizeof(parameter)*m->npars);
 
-            // Create a pointer at the right position (OFFSET) of the decomposed
+            // Create a pointer at the right position (bufoff) of the decomposed
             // model and assign memory buffers on the host side for each device
+            // grad and Hessian buffers are always floats, so we use bufoff
+            // instead of bufoff2
             if (!state){
                 for (i=0;i<m->npars;i++){
                     di->pars[i]=m->pars[i];
-                    di->pars[i].cl_par.host=&m->pars[i].gl_par[di->OFFSET];
+                    di->pars[i].cl_par.host=&m->pars[i].gl_par[bufoff2];
                     di->pars[i].num_ele=parsize;
                     if (m->pars[i].to_grad){
-                        di->pars[i].cl_grad.host=&m->pars[i].gl_grad[di->OFFSET];
+                        di->pars[i].cl_grad.host=&m->pars[i].gl_grad[bufoff];
                         if (m->pars[i].gl_H){
-                            di->pars[i].cl_H.host=&m->pars[i].gl_H[di->OFFSET];
+                            di->pars[i].cl_H.host=&m->pars[i].gl_H[bufoff];
                         }
                     }
                 }
@@ -890,12 +896,7 @@ int Init_CUDA(model * m, device ** dev)  {
             // If we want the movie, allocate memory for variables
             if (m->MOVOUT){
                 if (m->vars[i].to_output){
-                    if (m->FP16<2){
-                        di->vars[i].gl_mov=&m->vars[i].gl_mov[di->OFFSET];
-                    }
-                    else{
-                        di->vars[i].gl_mov=&m->vars[i].gl_mov[2*di->OFFSET];
-                    }
+                    di->vars[i].gl_mov=&m->vars[i].gl_mov[bufoff2];
                     GMALLOC(di->vars[i].cl_var.host,
                             di->vars[i].num_ele*sizeof(float));
                     di->vars[i].cl_var.free_host=1;

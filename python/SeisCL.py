@@ -27,6 +27,7 @@ class SeisCL():
         self.file_datalist = None     #File with a list of all data (see setter)
         self.progname = 'SeisCL_MPI'
         self.workdir = './seiscl'
+        self.NP = 1
 
         #_____________________Simulation constants _______________________
         self.csts = {}
@@ -338,7 +339,8 @@ class SeisCL():
         """
         if workdir is None:
             workdir = self.workdir
-        cmd = 'mpirun -np 1 '+self.progname+' '+workdir+'/'+self.file+' '+workdir+'/'+self.file_din
+        cmd = 'mpirun -np ' + str(self.NP) + ' ' + self.progname \
+              + ' '+workdir+'/'+self.file+' '+workdir+'/'+self.file_din
         return cmd
 
     def execute(self, workdir=None):

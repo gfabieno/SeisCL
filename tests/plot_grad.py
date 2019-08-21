@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-file = h5.File("SeisCL_gout.mat", "r")
+file = h5.File("./seiscl/SeisCL_gout.mat", "r")
 
 slices = [d//2 for d in file["gradvp"].shape]
 slices[0] = slice(16, -16)

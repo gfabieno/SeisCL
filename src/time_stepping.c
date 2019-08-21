@@ -518,16 +518,14 @@ int initialize_adj(model * m, device ** dev, int s, int * pdir){
         }
         
         //Assign the propagation direction to kernels
-        for (d=0;d<m->NUM_DEVICES;d++){
-            for (i=0;i<(*dev)[d].nprogs;i++){
-                if ((*dev)[d].progs[i]->pdir>0){
-                    ind=(*dev)[d].progs[i]->pdir-1;
-                    __GUARD prog_arg((*dev)[d].progs[i], ind, pdir, sizeof(int));
-                }
-                if ((*dev)[d].progs[i]->rcinput>0){
-                    ind=(*dev)[d].progs[i]->rcinput-1;
-                    __GUARD prog_arg((*dev)[d].progs[i], ind, &m->src_recs.res_scales[s], sizeof(int));
-                }
+        for (i=0;i<(*dev)[d].nprogs;i++){
+            if ((*dev)[d].progs[i]->pdir>0){
+                ind=(*dev)[d].progs[i]->pdir-1;
+                __GUARD prog_arg((*dev)[d].progs[i], ind, pdir, sizeof(int));
+            }
+            if ((*dev)[d].progs[i]->rcinput>0){
+                ind=(*dev)[d].progs[i]->rcinput-1;
+                __GUARD prog_arg((*dev)[d].progs[i], ind, &m->src_recs.res_scales[s], sizeof(int));
             }
         }
         

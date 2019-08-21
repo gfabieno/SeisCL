@@ -115,7 +115,7 @@ FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 
     if (gid<NZbnd*FDOH){//front
         gidf=gid;
         i=gidf/NZbnd+lbnd;
-        k=gidf%NZbnd+lbnds;
+        k=gidf%NZbnd+lbnds/DIV;
     }
 
     else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*FDOH/DIV){//bottom
@@ -154,7 +154,7 @@ FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 
     if (gid<NZbnd*FDOH){//back
         gidf=gid;
         i=gidf/(NZbnd)+NXbnd;//+NAB;
-        k=gidf%NZbnd+lbnds;
+        k=gidf%NZbnd+lbnds/DIV;
     }
 
     else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*FDOH/DIV){//bottom
@@ -191,7 +191,7 @@ FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 
     int lbnds = FDOH;
 #endif
 
-    if (gid<(NXbnd)*FDOH){//bottom
+    if (gid<(NXbnd)*FDOH/DIV){//bottom
         gidf=gid;
         i=gidf%(NXbnd)+FDOH;
         k=gidf/(NXbnd)+NZbnd+lbnds/DIV-FDOH/DIV;
