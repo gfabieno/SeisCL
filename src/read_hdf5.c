@@ -54,38 +54,38 @@ int read_seis(hid_t file_id, hid_t memtype, const char * invar, float * varptr, 
     
     int state=0, ii,n;
     hid_t dataset_id=0, dataspace=0, memspace=0;
-    hsize_t OFFSET[2], count[2];
+    hsize_t offset[2], count[2];
     
     dataset_id = H5Dopen2(file_id, invar, H5P_DEFAULT);
     
     dataspace = H5Dget_space(dataset_id);
 
     
-    OFFSET[1]=0;
-    OFFSET[0]=0;
+    offset[1]=0;
+    offset[0]=0;
     count[0]=1;
     count[1]=NT;
 
-    OFFSET[0]=(hsize_t)tracesid[4]-1;
+    offset[0]=(hsize_t)tracesid[4]-1;
     n=0;
     for (ii=1;ii<ntraces;ii++){
         
-        if (((hsize_t)tracesid[4+8*ii]-1)==OFFSET[0]+count[0]){
+        if (((hsize_t)tracesid[4+8*ii]-1)==offset[0]+count[0]){
             count[0]+=1;
         }
         else{
 
         memspace = H5Screate_simple(2,count,NULL);
-        state = H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, OFFSET, NULL, count, NULL);
+        state = H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, offset, NULL, count, NULL);
         if (0>H5Dread(dataset_id, memtype, memspace, dataspace, H5P_DEFAULT, &varptr[n*NT])) {state=1;fprintf(stderr, "Error: Cannot read variable %s\n", &invar[1]);};
         
         n=ii;
         count[0]=1;
-        OFFSET[0]=(hsize_t)tracesid[4+8*ii]-1;
+        offset[0]=(hsize_t)tracesid[4+8*ii]-1;
         }
     }
     memspace = H5Screate_simple(2,count,NULL);
-    state = H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, OFFSET, NULL, count, NULL);
+    state = H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, offset, NULL, count, NULL);
     if (0>H5Dread(dataset_id, memtype, memspace, dataspace, H5P_DEFAULT, &varptr[n*NT])) {state=1;fprintf(stderr, "Error: Cannot read variable %s\n", &invar[1]);};
 
     if (dataset_id) H5Dclose(dataset_id);
