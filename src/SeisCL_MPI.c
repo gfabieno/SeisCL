@@ -95,8 +95,19 @@ int main(int argc, char **argv) {
     char processor_name[MPI_MAX_PROCESSOR_NAME];
     int name_len;
     MPI_Get_processor_name(processor_name, &name_len);
-    fprintf(stdout,"Process %d processor %s, with pid %d\n", m.MYID,
-            processor_name, getpid());
+    MPI_Comm node_comm;
+    int nodeid;
+    int color=0;
+    for (i=0; i<MPI_MAX_PROCESSOR_NAME; i++){
+        color += (int)processor_name[i];
+    }
+    MPI_Comm_split(MPI_COMM_WORLD, color, 0, &node_comm);
+    MPI_Comm_size(node_comm, &m.NP);
+    MPI_Comm_rank(node_comm, &nodeid);
+    MPI_Comm_free(&node_comm);
+    
+    fprintf(stdout,"Process %d, processor %s, node process %d, pid %d\n",
+            m.MYID, processor_name, nodeid, getpid());
     fflush(stdout);
 //    if (m.MYID == 0) sleep(30);
     

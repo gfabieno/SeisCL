@@ -419,9 +419,6 @@ typedef struct model {
     int RMSOUT;
     int INPUTRES;
     int L;
-    int MYID;
-    int NP;
-
 
     int ND;
     int tmax;
@@ -430,6 +427,8 @@ typedef struct model {
     int DTNYQ;
     int NDIM;
     
+    int MYID;
+    int NP;
     int NGROUP;
     int MYGROUPID;
     int MYLOCALID;

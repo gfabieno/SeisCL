@@ -205,8 +205,7 @@ CL_INT connect_devices(device ** dev, model * m)
     
     if (!state){
         for (i=0;i<nalldevices;i++){
-            devid = m->MYID
-            
+            devid = m->MYID;
             allowed=1;
             for (j=0;j<m->n_no_use_GPUs;j++){
                 if (m->no_use_GPUs[j]!=i){
