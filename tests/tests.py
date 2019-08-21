@@ -238,9 +238,6 @@ if __name__ == "__main__":
 
     # ND, L, freesurf, abs_type, FDORDER, forward, NGPU, NPROC
 
-
-
-
     name = "2D_elastic_forward"
     if args.test == name or args.test == "all":
         print("Testing %s" % name)
@@ -339,6 +336,16 @@ if __name__ == "__main__":
         seis.csts['ND'] = 2
         seis.csts['freesurf'] = 0
         test_fp16_forward(seis, ref=None, plot=args.plot, ngpu=3)
+
+    name = "2D_NMPI_forward"
+    if args.test == name or args.test == "all":
+        print("Testing %s" % name)
+        seis.csts['N'] = np.array([64,256])
+        seis.csts['L'] = 0
+        seis.csts['ND'] = 2
+        seis.csts['freesurf'] = 0
+        seis.csts['MPI_NPROC_SHOT'] = 3
+        test_fp16_forward(seis, ref=None, plot=args.plot, ngpu=1)
 
     name = "3D_NGPU_forward"
     if args.test == name or args.test == "all":

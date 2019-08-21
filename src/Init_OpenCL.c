@@ -227,7 +227,7 @@ CL_INT connect_devices(device ** dev, model * m)
     GMALLOC(*dev, sizeof(device)*m->NUM_DEVICES);
     
     // Print some information about the returned devices
-    fprintf(stdout,"connecting to  %d devices:\n", m->NUM_DEVICES);
+    fprintf(stdout,"Process %d connecting to %d devices:", m->GID, m->NUM_DEVICES);
     
     #ifdef __SEISCL__
     
@@ -249,8 +249,14 @@ CL_INT connect_devices(device ** dev, model * m)
                                     sizeof(device_name),
                                     device_name,
                                     NULL);
-            fprintf(stdout,"-Device %d: %s %s\n",
+            fprintf(stdout," Device %d( %s %s)",
                     allow_devs[i], vendor_name, device_name);
+            if (i<m->NUM_DEVICES-1){
+                fprintf(stdout,",");
+            }
+            else{
+                fprintf(stdout,"\n");
+            }
         }
 
         // Create a context with the specified devices
@@ -293,7 +299,13 @@ CL_INT connect_devices(device ** dev, model * m)
             __GUARD cuDeviceGetName(device_name,
                                     sizeof(vendor_name),
                                     (*dev)[i].cudev);
-            fprintf(stdout,"-Device %d: %s \n", allow_devs[i], device_name);
+            fprintf(stdout," Device %d (%s)", allow_devs[i], device_name);
+            if (i<m->NUM_DEVICES-1){
+                fprintf(stdout,",");
+            }
+            else{
+                fprintf(stdout,"\n");
+            }
             __GUARD cuStreamCreate(&(*dev)[i].queue, CU_STREAM_NON_BLOCKING);
             __GUARD cuStreamCreate(&(*dev)[i].queuecomm,CU_STREAM_NON_BLOCKING);
         }
