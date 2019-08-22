@@ -190,7 +190,6 @@ FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 
     int lbnd = FDOH+NAB;
     int lbnds = FDOH;
 #endif
-
     if (gid<(NXbnd)*FDOH/DIV){//bottom
         gidf=gid;
         i=gidf%(NXbnd)+FDOH;
@@ -207,7 +206,7 @@ FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 
     }
 
 #endif
-
+    
     indv = i*NZ+k;
 #if ND==2
     vxbnd[gid]=vx[indv];

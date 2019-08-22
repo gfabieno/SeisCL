@@ -841,7 +841,6 @@ int Init_CUDA(model * m, device ** dev)  {
             if ( di->vars[i].to_comm && (d>0 || m->MYLOCALID>0
                                              || d<m->NUM_DEVICES-1
                                              || m->MYLOCALID<m->NLOCALP-1)){
-                    
                 //On the device side
                 di->vars[i].cl_buf1.size=sizeof(float)*m->FDOH*slicesize;
                 if (m->FP16 >1){
@@ -891,7 +890,7 @@ int Init_CUDA(model * m, device ** dev)  {
             // If we want the movie, allocate memory for variables
             if (m->MOVOUT){
                 if (m->vars[i].to_output){
-                    di->vars[i].gl_mov=&m->vars[i].gl_mov[bufoff2];
+                    di->vars[i].gl_mov=&m->vars[i].gl_mov[bufoff];
                     GMALLOC(di->vars[i].cl_var.host,
                             di->vars[i].num_ele*sizeof(float));
                     di->vars[i].cl_var.free_host=1;
@@ -990,8 +989,8 @@ int Init_CUDA(model * m, device ** dev)  {
                     +(di->N[1]-2*m->NAB-2*m->FDOH)*(lenz)
                     *2*m->FDOH;
                 
-                else if ( (d==0 && m->MYGROUPID==0)
-                         || (d==m->NUM_DEVICES-1 && m->MYGROUPID==m->NLOCALP-1))
+                else if ( (d==0 && m->MYLOCALID==0)
+                         || (d==m->NUM_DEVICES-1 && m->MYLOCALID==m->NLOCALP-1))
                     di->NBND=(di->N[2]-m->NAB)*(di->N[1]-2*m->NAB)*2*m->FDOH
                     +(di->N[2]-m->NAB)*(lenz)*2*m->FDOH
                     +(di->N[1]-2*m->NAB-2*m->FDOH)*(lenz)*m->FDOH;
@@ -1001,17 +1000,16 @@ int Init_CUDA(model * m, device ** dev)  {
                     di->N[2]*(lenz)*2*m->FDOH;
             }
             else{
-                if (m->NUM_DEVICES==1 && m->NLOCALP==1)
-                    di->NBND=(di->N[1]-2*m->NAB)*2*m->FDOH+
-                    (lenz)*2*m->FDOH;
-                
-                else if ( (d==0 && m->MYGROUPID==0)
-                         || (d==m->NUM_DEVICES-1 && m->MYGROUPID==m->NLOCALP-1))
-                    di->NBND=(lenz)*m->FDOH+
-                                (di->N[1]-m->NAB)*2*m->FDOH;
-                
-                else
+                if (m->NUM_DEVICES==1 && m->NLOCALP==1){
+                    di->NBND=(di->N[1]-2*m->NAB)*2*m->FDOH+(lenz)*2*m->FDOH;
+                }
+                else if ( (d==0 && m->MYLOCALID==0)
+                         || (d==(m->NUM_DEVICES-1) && m->MYLOCALID==(m->NLOCALP-1))){
+                    di->NBND=(lenz)*m->FDOH+ (di->N[1]-m->NAB)*2*m->FDOH;
+                    }
+                else{
                     di->NBND= (di->N[1])*2*m->FDOH;
+                }
             }
             for (i=0;i<m->nvars;i++){
                 if (di->vars[i].to_comm){
@@ -1190,7 +1188,6 @@ int Init_CUDA(model * m, device ** dev)  {
         
         
     }
-    
     int adj = 0;
     if (m->GRADOUT && m->BACK_PROP_TYPE==1){
         adj=1;

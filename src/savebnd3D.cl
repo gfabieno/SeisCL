@@ -133,32 +133,32 @@ FUNDEF void savebnd(GLOBARG __prec2 *vx,         GLOBARG __prec2 *vy,      GLOBA
         gidf=gid;
         i=gidf/(NYbnd*NZbnd)+lbnd;
         j=(gidf/NZbnd)%NYbnd+lbnd;
-        k=gidf%NZbnd+lbnds;
+        k=gidf%NZbnd+lbnds/DIV;
     }
     else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*FDOH){//left
         gidf=gid-NYbnd*NZbnd*FDOH;
         i=gidf/(NZbnd*FDOH)+lbnd+FDOH;
         j=(gidf/NZbnd)%FDOH+lbnd;
-        k=gidf%NZbnd+lbnds;
+        k=gidf%NZbnd+lbnds/DIV;
     }
     else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*2*FDOH){//right
         gidf=gid-NYbnd*NZbnd*FDOH-NZbnd*(NXbnd-FDOH)*FDOH;
         i=gidf/(NZbnd*FDOH)+lbnd+FDOH;
         j=(gidf/NZbnd)%FDOH+NYbnd+NAB;
-        k=gidf%NZbnd+lbnds;
+        k=gidf%NZbnd+lbnds/DIV;
     }
     else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*2*FDOH+(NYbnd-2*FDOH)*(NXbnd-FDOH)*FDOH/DIV){//down
         gidf=gid-NYbnd*NZbnd*FDOH-NZbnd*(NXbnd-FDOH)*2*FDOH;
-        i=gidf/(FDOH*(NYbnd-2*FDOH))+lbnd+FDOH;
-        j=(gidf/FDOH)%(NYbnd-2*FDOH)+lbnd+FDOH;
-        k=gidf%FDOH+NZbnd+lbnds/DIV-FDOH/DIV;
+        i=gidf/(FDOH/DIV*(NYbnd-2*FDOH))+lbnd+FDOH;
+        j=(gidf/(FDOH/DIV))%(NYbnd-2*FDOH)+lbnd+FDOH;
+        k=gidf%(FDOH/DIV)+NZbnd+lbnds/DIV-FDOH/DIV;
 
     }
     else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*2*FDOH+(NYbnd-2*FDOH)*(NXbnd-FDOH)*2*FDOH/DIV){//up
         gidf=gid-NYbnd*NZbnd*FDOH-NZbnd*(NXbnd-FDOH)*2*FDOH-(NYbnd-2*FDOH)*(NXbnd-FDOH)*FDOH/DIV;
-        i=gidf/(FDOH*(NYbnd-2*FDOH))+lbnd+FDOH;
-        j=(gidf/FDOH)%(NYbnd-2*FDOH)+lbnd+FDOH;
-        k=gidf%FDOH+lbnds/DIV;
+        i=gidf/(FDOH/DIV*(NYbnd-2*FDOH))+lbnd+FDOH;
+        j=(gidf/(FDOH/DIV))%(NYbnd-2*FDOH)+lbnd+FDOH;
+        k=gidf%(FDOH/DIV)+lbnds/DIV;
     }
     else{
         return;
@@ -188,32 +188,32 @@ FUNDEF void savebnd(GLOBARG __prec2 *vx,         GLOBARG __prec2 *vy,      GLOBA
         gidf=gid;
         i=gidf/(NYbnd*NZbnd)+NXbnd;
         j=(gidf/NZbnd)%NYbnd+lbnd;
-        k=gidf%NZbnd+lbnds;
+        k=gidf%NZbnd+lbnds/DIV;
     }
     else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*FDOH){//left
         gidf=gid-NYbnd*NZbnd*FDOH;
         i=gidf/(NZbnd*FDOH)+FDOH;
         j=(gidf/NZbnd)%FDOH+lbnd;
-        k=gidf%NZbnd+lbnds;
+        k=gidf%NZbnd+lbnds/DIV;
     }
     else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*2*FDOH){//right
         gidf=gid-NYbnd*NZbnd*FDOH-NZbnd*(NXbnd-FDOH)*FDOH;
         i=gidf/(NZbnd*FDOH)+FDOH;
         j=(gidf/NZbnd)%FDOH+NYbnd+NAB;
-        k=gidf%NZbnd+lbnds;
+        k=gidf%NZbnd+lbnds/DIV;
     }
     else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*2*FDOH+(NYbnd-2*FDOH)*(NXbnd-FDOH)*FDOH/DIV){//down
         gidf=gid-NYbnd*NZbnd*FDOH-NZbnd*(NXbnd-FDOH)*2*FDOH;
-        i=gidf/(FDOH*(NYbnd-2*FDOH))+FDOH;
-        j=(gidf/FDOH)%(NYbnd-2*FDOH)+lbnd+FDOH;
-        k=gidf%FDOH+NZbnd+lbnds/DIV-FDOH/DIV;
+        i=gidf/(FDOH/DIV*(NYbnd-2*FDOH))+FDOH;
+        j=(gidf/(FDOH/DIV))%(NYbnd-2*FDOH)+lbnd+FDOH;
+        k=gidf%(FDOH/DIV)+NZbnd+lbnds/DIV-FDOH/DIV;
 
     }
     else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*2*FDOH+(NYbnd-2*FDOH)*(NXbnd-FDOH)*2*FDOH/DIV){//up
         gidf=gid-NYbnd*NZbnd*FDOH-NZbnd*(NXbnd-FDOH)*2*FDOH-(NYbnd-2*FDOH)*(NXbnd-FDOH)*FDOH/DIV;
-        i=gidf/(FDOH*(NYbnd-2*FDOH))+FDOH;
-        j=(gidf/FDOH)%(NYbnd-2*FDOH)+lbnd+FDOH;
-        k=gidf%FDOH+lbnds/DIV;
+        i=gidf/(FDOH/DIV*(NYbnd-2*FDOH))+FDOH;
+        j=(gidf/(FDOH/DIV))%(NYbnd-2*FDOH)+lbnd+FDOH;
+        k=gidf%(FDOH/DIV)+lbnds/DIV;
     }
     else{
         return;
@@ -242,26 +242,26 @@ FUNDEF void savebnd(GLOBARG __prec2 *vx,         GLOBARG __prec2 *vy,      GLOBA
         gidf=gid;
         i=gidf/(NZbnd*FDOH)+FDOH;
         j=(gidf/NZbnd)%FDOH+lbnd;
-        k=gidf%NZbnd+lbnds;
+        k=gidf%NZbnd+lbnds/DIV;
     }
     else if (gid<NZbnd*NXbnd*2*FDOH){//right
         gidf=gid-NZbnd*NXbnd*FDOH;
         i=gidf/(NZbnd*FDOH)+FDOH;
         j=(gidf/NZbnd)%FDOH+NYbnd+NAB;
-        k=gidf%NZbnd+lbnds;
+        k=gidf%NZbnd+lbnds/DIV;
     }
     else if (gid<NZbnd*NXbnd*2*FDOH+(NYbnd-2*FDOH)*NXbnd*FDOH/DIV){//down
         gidf=gid-NZbnd*NXbnd*2*FDOH;
-        i=gidf/(FDOH*(NYbnd-2*FDOH))+FDOH;
-        j=(gidf/FDOH)%(NYbnd-2*FDOH)+lbnd+FDOH;
-        k=gidf%FDOH+NZbnd+lbnds/DIV-FDOH/DIV;
+        i=gidf/(FDOH/DIV*(NYbnd-2*FDOH))+FDOH;
+        j=(gidf/(FDOH/DIV))%(NYbnd-2*FDOH)+lbnd+FDOH;
+        k=gidf%(FDOH/DIV)+NZbnd+lbnds/DIV-FDOH/DIV;
 
     }
     else if (gid<NZbnd*NXbnd*2*FDOH+(NYbnd-2*FDOH)*NXbnd*2*FDOH/DIV){//up
         gidf=gid-NZbnd*NXbnd*2*FDOH-(NYbnd-2*FDOH)*NXbnd*FDOH/DIV;
-        i=gidf/(FDOH*(NYbnd-2*FDOH))+FDOH;
-        j=(gidf/FDOH)%(NYbnd-2*FDOH)+lbnd+FDOH;
-        k=gidf%FDOH+lbnds/DIV;
+        i=gidf/(FDOH/DIV*(NYbnd-2*FDOH))+FDOH;
+        j=(gidf/(FDOH/DIV))%(NYbnd-2*FDOH)+lbnd+FDOH;
+        k=gidf%(FDOH/DIV)+lbnds/DIV;
     }
     else{
         return;

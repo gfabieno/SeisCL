@@ -112,13 +112,9 @@ int movout(model * m, device ** dev, int t, int s){
         
     }
 
-    Nelg=0;
-    for (d=0;d<m->NUM_DEVICES;d++){
-        Nel=1;
-        for (j=0;j<m->NDIM;j++){
-            Nel*=(*dev)[d].N[j];
-        }
-        Nelg+=Nel;
+    Nelg=1;
+    for (j=0;j<m->NDIM;j++){
+        Nelg*=m->N[j];
     }
 
     // Aggregate in a global buffers all variables from all devices.

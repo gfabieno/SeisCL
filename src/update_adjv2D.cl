@@ -213,9 +213,8 @@ FUNDEF void update_adjv(int offcomm,
         // Inject the boundary values
         m=inject_ind(gidz,  gidx);
         if (m!=-1){
-            vx[indv]= vxbnd[m];
-            vz[indv]= vzbnd[m];
-            
+            vx[indv] = vxbnd[m];
+            vz[indv] = vzbnd[m];
         }
     }
 #endif
