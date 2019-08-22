@@ -450,6 +450,15 @@ if __name__ == "__main__":
         seis.csts['freesurf'] = 0
         test_fp16_forward(seis, ref=None, plot=args.plot, ngpu=3)
 
+    name = "3D_NGPU_grad"
+    if args.test == name or args.test == "all":
+        print("Testing %s" % name)
+        seis.csts['N'] = np.array([64,64,256])
+        seis.csts['L'] = 0
+        seis.csts['ND'] = 3
+        seis.csts['freesurf'] = 0
+        test_fp16_grad(seis, ref=None, plot=args.plot, ngpu=3)
+
     name = "2D_MPI_forward"
     if args.test == name or args.test == "all":
         print("Testing %s" % name)
@@ -460,7 +469,20 @@ if __name__ == "__main__":
         seis.csts['MPI_NPROC_SHOT'] = 3
         test_fp16_forward(seis, ref=None, plot=args.plot, nmpi=3)
         seis.NP = 1
+        seis.csts['MPI_NPROC_SHOT'] = 1
 
+    name = "2D_MPI_grad"
+    if args.test == name or args.test == "all":
+        print("Testing %s" % name)
+        seis.csts['N'] = np.array([64,256])
+        seis.csts['L'] = 0
+        seis.csts['ND'] = 2
+        seis.csts['freesurf'] = 0
+        seis.csts['MPI_NPROC_SHOT'] = 3
+        test_fp16_grad(seis, ref=None, plot=args.plot, nmpi=3)
+        seis.NP = 1
+        seis.csts['MPI_NPROC_SHOT'] = 1
+    
     name = "3D_MPI_forward"
     if args.test == name or args.test == "all":
         print("Testing %s" % name)
@@ -471,7 +493,20 @@ if __name__ == "__main__":
         seis.csts['MPI_NPROC_SHOT'] = 3
         test_fp16_forward(seis, ref=None, plot=args.plot, nmpi=3)
         seis.NP = 1
+        seis.csts['MPI_NPROC_SHOT'] = 1
 
+    name = "3D_MPI_grad"
+    if args.test == name or args.test == "all":
+        print("Testing %s" % name)
+        seis.csts['N'] = np.array([64,64,256])
+        seis.csts['L'] = 0
+        seis.csts['ND'] = 3
+        seis.csts['freesurf'] = 0
+        seis.csts['MPI_NPROC_SHOT'] = 3
+        test_fp16_grad(seis, ref=None, plot=args.plot, nmpi=3)
+        seis.NP = 1
+        seis.csts['MPI_NPROC_SHOT'] = 1
+    
     name = "3D_seisout"
     if args.test == name or args.test == "all":
         print("Testing %s" % name)
@@ -490,7 +525,42 @@ if __name__ == "__main__":
         seis.csts['freesurf'] = 0
         test_backpropagation(seis, plot=args.plot, ngpu=3)
 
+    name = "2D_MPI_backpropagation"
+    if args.test == name or args.test == "all":
+        print("Testing %s" % name)
+        seis.csts['N'] = np.array([64,256])
+        seis.csts['L'] = 0
+        seis.csts['ND'] = 2
+        seis.csts['freesurf'] = 0
+        seis.csts['MPI_NPROC_SHOT'] = 4
+        test_backpropagation(seis, plot=args.plot, nmpi=3)
+        seis.NP = 1
+        seis.csts['MPI_NPROC_SHOT'] = 1
 
+    name = "3D_NGPU_backpropagation"
+    if args.test == name or args.test == "all":
+        print("Testing %s" % name)
+        seis.csts['NT'] = 300
+        seis.csts['N'] = np.array([48,48,144])
+        seis.csts['L'] = 0
+        seis.csts['ND'] = 3
+        seis.csts['freesurf'] = 0
+        test_backpropagation(seis, plot=args.plot, ngpu=3)
+        seis.csts['NT'] = 875
+
+    name = "3D_MPI_backpropagation"
+    if args.test == name or args.test == "all":
+        print("Testing %s" % name)
+        seis.csts['NT'] = 300
+        seis.csts['N'] = np.array([48,48,144])
+        seis.csts['L'] = 0
+        seis.csts['ND'] = 3
+        seis.csts['freesurf'] = 0
+        seis.csts['MPI_NPROC_SHOT'] = 3
+        test_backpropagation(seis, plot=args.plot, nmpi=3)
+        seis.csts['NT'] = 875
+        seis.NP = 1
+        seis.csts['MPI_NPROC_SHOT'] = 1
     ## TEST grad with vx, vz
 
 

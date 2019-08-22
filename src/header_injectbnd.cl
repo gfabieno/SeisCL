@@ -122,7 +122,7 @@
             i=i-FDOH;
             j=j-FDOH;
 //            #if FREESURF==0
-            m=NYbnd*NZbnd*FDOH+(NXbnd-FDOH)*NZbnd*FDOH*2+(NXbnd-FDOH)*(NYbnd-2*FDOH)*FDOH/DIV+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
+            m=NYbnd*NZbnd*FDOH+(NXbnd-FDOH)*NZbnd*FDOH*2+(NXbnd-FDOH)*(NYbnd-2*FDOH)*FDOH/DIV+i*(NYbnd-2*FDOH)*FDOH/DIV+j*FDOH/DIV+k;
 //            #else
 //            m=-1;
 //            #endif
@@ -131,7 +131,7 @@
             i=i-FDOH;
             j=j-FDOH;
             k=k-NZbnd+FDOH/DIV;
-            m=NYbnd*NZbnd*FDOH+(NXbnd-FDOH)*NZbnd*FDOH*2+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
+            m=NYbnd*NZbnd*FDOH+(NXbnd-FDOH)*NZbnd*FDOH*2+i*(NYbnd-2*FDOH)*FDOH/DIV+j*FDOH/DIV+k;
         }
     #elif DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         int NXbnd = (NX-2*FDOH-NAB);
@@ -166,18 +166,18 @@
             j=j-NYbnd+FDOH;
             m=NYbnd*NZbnd*FDOH+(NXbnd-FDOH)*NZbnd*FDOH+i*FDOH*NZbnd+j*NZbnd+k;
         }
-        else if (k<FDOH){//up
+        else if (k<FDOH/DIV){//up
             j=j-FDOH;
 //            #if FREESURF==0
-            m=NYbnd*NZbnd*FDOH+(NXbnd-FDOH)*NZbnd*FDOH*2+(NXbnd-FDOH)*(NYbnd-2*FDOH)*FDOH/DIV+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
+            m=NYbnd*NZbnd*FDOH+(NXbnd-FDOH)*NZbnd*FDOH*2+(NXbnd-FDOH)*(NYbnd-2*FDOH)*FDOH/DIV+i*(NYbnd-2*FDOH)*FDOH/DIV+j*FDOH/DIV+k;
 //            #else
 //            m=-1;
 //            #endif
         }
         else {//down
-            j=j-FDOH/DIV;
-            k=k-NZbnd+FDOH;
-            m=NYbnd*NZbnd*FDOH+(NXbnd-FDOH)*NZbnd*FDOH*2+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
+            j=j-FDOH;
+            k=k-NZbnd+FDOH/DIV;
+            m=NYbnd*NZbnd*FDOH+(NXbnd-FDOH)*NZbnd*FDOH*2+i*(NYbnd-2*FDOH)*FDOH/DIV+j*FDOH/DIV+k;
         }
         
     #else
@@ -213,7 +213,7 @@
             j=j-FDOH;
             
 //        #if FREESURF==0
-            m=NXbnd*NZbnd*FDOH*2+NXbnd*(NYbnd-2*FDOH)*FDOH/DIV+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
+            m=NXbnd*NZbnd*FDOH*2+NXbnd*(NYbnd-2*FDOH)*FDOH/DIV+i*(NYbnd-2*FDOH)*FDOH/DIV+j*FDOH/DIV+k;
 //        #else
 //            m=-1;
 //        #endif
@@ -221,7 +221,7 @@
         else {//down
             j=j-FDOH;
             k=k-NZbnd+FDOH/DIV;
-            m=NXbnd*NZbnd*FDOH*2+i*(NYbnd-2*FDOH)*FDOH+j*FDOH+k;
+            m=NXbnd*NZbnd*FDOH*2+i*(NYbnd-2*FDOH)*FDOH/DIV+j*FDOH/DIV+k;
         }
         
     #endif
@@ -358,7 +358,6 @@
         }
         
     #else
-        
         int NXbnd = (NX-2*FDOH);
     #if FREESURF==0
         int NZbnd = (NZ- 2*FDOH/DIV- 2*NAB/DIV);

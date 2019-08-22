@@ -10,13 +10,17 @@ file = h5.File("./seiscl/SeisCL_movie.mat", "r")
 mov = file['movvx']
 print(np.max(mov))
 
-plt.imshow(np.transpose(mov[0,1,16:-16,16:-16]))
+slices = [d//2 for d in file['movvx'].shape[2:]]
+slices[0] = slice(16, -16)
+slices[-1] = slice(16, -16)
+
+plt.imshow(np.transpose(mov[tuple([0,1]+slices)]))
 plt.show()
 
 fig = plt.figure()
 ims = []
 for ii in range(mov.shape[1]):
-    im = plt.imshow(np.transpose(mov[0,ii,16:-16,16:-16]), animated=True)
+    im = plt.imshow(np.transpose(mov[tuple([0,ii]+slices)]), animated=True)
     ims.append([im])
 
 ani = animation.ArtistAnimation(fig, ims, interval=50, blit=True,
