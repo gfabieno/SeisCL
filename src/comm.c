@@ -22,9 +22,9 @@
 int wait_for_event(EVENT *event){
     #ifdef __SEISCL__
     return clWaitForEvents(1, event);
-#else
+    #else
     return cuEventSynchronize(*event);
-#endif
+    #endif
     
 }
 
@@ -41,7 +41,6 @@ int comm1_MPI(model * m, device ** dev, int adj, int ui){
     
     if (adj && m->BACK_PROP_TYPE==1){
         for (i=0;i<(*dev)[0].ups_adj[ui].nvcom;i++){
-
             __GUARD wait_for_event(&(*dev)[0].ups_adj[ui].v2com[i]->cl_buf1.event_r);
 
             MPI_Sendrecv_replace(

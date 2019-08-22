@@ -269,7 +269,6 @@ CL_INT connect_devices(device ** dev, model * m)
     
         // Create command queues for each devices
         for (i=0;i<m->NUM_DEVICES;i++){
-            (*dev)[i].PROCID = m->GID;
             (*dev)[i].cudev = devices[allow_devs[i]];
             (*dev)[i].context_ptr = &m->context;
             if (!state)
@@ -289,7 +288,6 @@ CL_INT connect_devices(device ** dev, model * m)
         // Create command queues for each devices
         for (i=0;i<m->NUM_DEVICES;i++){
             // Create a context with the specified devices
-            (*dev)[i].PROCID = m->GID;
             __GUARD cuDeviceGet(&(*dev)[i].cudev, allow_devs[i]);
             __GUARD cuCtxCreate(&(*dev)[i].context,
                                 0,
@@ -333,7 +331,6 @@ int Init_CUDA(model * m, device ** dev)  {
     int parsize=0;
     int fdsize=0;
     int slicesize=0;
-    int slicesizefd=0;
     #ifdef __SEISCL__
     cl_device_id device=0;
     cl_ulong local_mem_size=0;
@@ -400,37 +397,35 @@ int Init_CUDA(model * m, device ** dev)  {
                 di->N[m->NDIM-1]= di->N[m->NDIM-1]/m->NUM_DEVICES;
 
             bufoff=0;
-            di->NX0=0;
+            di->OFFSET=0;
 
             //Some useful sizes can now be computed for this device
             parsize=1;
             fdsize=1;
             slicesize=1;
-            slicesizefd=1;
             for (i=0;i<m->NDIM;i++){
                 fdsize*=di->N[i]+m->FDORDER;
                 parsize*=di->N[i];
             }
             for (i=0;i<m->NDIM-1;i++){
-                slicesizefd*=di->N[i]+m->FDORDER;
                 slicesize*=di->N[i];
             }
             
             //Offset is the location in the model for this device from address 0
-            // NX0 is the x location of the first element for this device
+            // OFFSET is the x location of the first element for this device
             for (i=0;i<m->MYLOCALID;i++){
                 if (i<m->N[m->NDIM-1]%m->NLOCALP){
                     bufoff+=(m->N[m->NDIM-1]/m->NLOCALP+1)*slicesize;
-                    di->NX0+=(m->N[m->NDIM-1]/m->NLOCALP+1);
+                    di->OFFSET+=(m->N[m->NDIM-1]/m->NLOCALP+1);
                 }
                 else{
                     bufoff+=(m->N[m->NDIM-1]/m->NLOCALP)*slicesize;
-                    di->NX0+=(m->N[m->NDIM-1]/m->NLOCALP);
+                    di->OFFSET+=(m->N[m->NDIM-1]/m->NLOCALP);
                 }
                 
             }
             for (i=0;i<d;i++){
-                di->NX0+=(*dev)[i].N[m->NDIM-1];
+                di->OFFSET+=(*dev)[i].N[m->NDIM-1];
                 bufoff+=(*dev)[i].N[m->NDIM-1]*slicesize;
             }
             if (m->FP16>1){
@@ -844,8 +839,8 @@ int Init_CUDA(model * m, device ** dev)  {
             __GUARD clbuf_create( di->context_ptr, &di->vars[i].cl_var);
             //Create variable buffers for the boundary of the domain
             if ( di->vars[i].to_comm && (d>0 || m->MYLOCALID>0
-                                     || d<m->NUM_DEVICES-1
-                                     || m->MYLOCALID<m->NLOCALP-1)){
+                                             || d<m->NUM_DEVICES-1
+                                             || m->MYLOCALID<m->NLOCALP-1)){
                     
                 //On the device side
                 di->vars[i].cl_buf1.size=sizeof(float)*m->FDOH*slicesize;

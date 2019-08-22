@@ -337,7 +337,7 @@ char *get_build_options(device *dev,
             "-D VARSOUT=%d -D RESOUT=%d  -D RMSOUT=%d -D MOVOUT=%d "
             "-D GRADOUT=%d -D HOUT=%d -D GRADSRCOUT=%d -D DIRPROP=%d "
             "-D RESTYPE=%d -D FP16=%d",
-            (*m).NDIM, (*dev).NX0, (*m).FDOH, (*m).dt/(*m).dh, (*m).dh,
+            (*m).NDIM, (*dev).OFFSET, (*m).FDOH, (*m).dt/(*m).dh, (*m).dh,
             (*m).dt, (*m).dt/2.0, (*m).NT, (*m).NAB, (*dev).NBND,
             (*dev).LOCAL_OFF, (*m).L, (*dev).DEVID, (*m).NUM_DEVICES,
             (*m).ND, (*m).ABS_TYPE, (*m).FREESURF, LCOMM,
@@ -499,7 +499,7 @@ int get_build_options(device *dev,
     *n+=1;
     sprintf(build_options[*n-1],"-D NDIM=%d ",(*m).NDIM);
     *n+=1;
-    sprintf(build_options[*n-1],"-D OFFSET=%d",(*dev).NX0);
+    sprintf(build_options[*n-1],"-D OFFSET=%d",(*dev).OFFSET);
     *n+=1;
     sprintf(build_options[*n-1],"-D FDOH=%d",(*m).FDOH);
     *n+=1;
@@ -713,7 +713,7 @@ int prog_create(model * m,
                     build_options,
                     m->cache_dir,
                     dev->DEVID,
-                    dev->PROCID);
+                    m->GID);
     
     
     #else
@@ -739,7 +739,7 @@ int prog_create(model * m,
                     noptions,
                     m->cache_dir,
                     dev->DEVID,
-                    dev->PROCID);
+                    m->GID);
     if (build_options){
         for (i=0;i<noptions;i++){
             GFree(build_options[i]);

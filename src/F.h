@@ -342,10 +342,8 @@ typedef struct device {
     int NDIM;
     int N[MAX_DIMS];
     char * N_names[MAX_DIMS];
-    int NX0;
     int OFFSET;
     int DEVID;
-    int PROCID;
     int NBND;
     int par_scale;
     

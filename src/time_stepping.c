@@ -58,8 +58,8 @@ int reduce_seis(model * m, device ** dev, int s){
             if ((*dev)[d].vars[k].to_output){
                 for ( i=0;i<(*dev)[d].src_recs.nrec[s];i++){
                     posx=(int)floor((*dev)[d].src_recs.rec_pos[s][8*i]/m->dh);
-                    if (posx>=(*dev)[d].NX0
-                        && posx<((*dev)[d].NX0+(*dev)[d].N[(*dev)[d].NDIM-1])){
+                    if (posx>=(*dev)[d].OFFSET
+                        && posx<((*dev)[d].OFFSET+(*dev)[d].N[(*dev)[d].NDIM-1])){
                         
                         for (j=0;j<m->NT;j++){
                             (*dev)[d].vars[k].gl_varout[s][i*m->NT+j]+=
@@ -73,8 +73,8 @@ int reduce_seis(model * m, device ** dev, int s){
             if ((*dev)[d].trans_vars[k].to_output){
                 for ( i=0;i<(*dev)[d].src_recs.nrec[s];i++){
                     posx=(int)floor((*dev)[d].src_recs.rec_pos[s][8*i]/m->dh);
-                    if (posx>=(*dev)[d].NX0
-                        && posx<((*dev)[d].NX0+(*dev)[d].N[(*dev)[d].NDIM-1])){
+                    if (posx>=(*dev)[d].OFFSET
+                        && posx<((*dev)[d].OFFSET+(*dev)[d].N[(*dev)[d].NDIM-1])){
                         
                         for (j=0;j<m->NT;j++){
                             (*dev)[d].trans_vars[k].gl_varout[s][i*m->NT+j]+=
