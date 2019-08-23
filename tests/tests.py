@@ -237,7 +237,7 @@ def test_fp16_grad(seis, ref=None, plot=False, ngpu=1, nmpi=1):
         seis.NP = nmpi
     
     
-    for fp16 in range(1,2):
+    for fp16 in range(0,4):
         print("    Testing FP16=%d....." %fp16 , end = '')
         seis.csts['FP16'] = fp16
         try :
@@ -254,7 +254,7 @@ def test_fp16_grad(seis, ref=None, plot=False, ngpu=1, nmpi=1):
             else:
                 err = (np.sum([np.sum((g-r)**2) for g,r in zip(grad, ref)])
                        /np.sum([np.sum((r)**2) for r in ref]))
-                if err > 0:#:0.000001:
+                if err > 0.001:
                     if plot:
                         plt.imshow(grad[0][slicesp]-ref[0][slicesp], aspect='auto')
                         plt.show()
