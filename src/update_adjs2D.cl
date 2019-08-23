@@ -448,7 +448,7 @@ FUNDEF void update_adjs(int offcomm,
     float c5=0.25*c3;
 
     float dM=c1*( sxx[indv]+szz[indv] )*( lsxx+lszz );
-
+    
     gradM[indp]+=-dM;
     gradmu[indp]+=-c3*(sxz[indv]*lsxz)+dM-c5*(  (sxx[indv]-szz[indv])*(lsxx-lszz)  );
 

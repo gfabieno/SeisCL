@@ -180,10 +180,9 @@ int save_bnd(model * m, device ** dev, int t){
     int offset;
     
     for (d=0;d<m->NUM_DEVICES;d++){
+        
         (*dev)[d].grads.savebnd.outevent=1;
-        
         __GUARD prog_launch(&(*dev)[d].queue, &(*dev)[d].grads.savebnd);
-        
         lv=-1;
         l0=-1;
         for (i=0;i<m->nvars;i++){
@@ -214,12 +213,12 @@ int save_bnd(model * m, device ** dev, int t){
         (*dev)[d].grads.savebnd.waits=&(*dev)[d].vars[lv].cl_varbnd.event_r;
     }
 
-    
     return state;
 }
 
 int inject_bnd(model * m, device ** dev, int t){
-//TODO overlapped comm and a kernel to inject the wavefield
+//TODO overlap comm and a kernel to inject the wavefield.
+// Must create a new kernel for injecting boundaries to do so.
     int state=0;
     int d,i;
     int offset;
@@ -228,7 +227,6 @@ int inject_bnd(model * m, device ** dev, int t){
     
     for (d=0;d<m->NUM_DEVICES;d++){
 
-       
         
         if (m->FP16>1){
             offset =(*dev)[d].NBND*(t-1)/2;
@@ -239,35 +237,17 @@ int inject_bnd(model * m, device ** dev, int t){
 
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].to_comm){
-                __GUARD clbuf_sendfrom(&(*dev)[d].queuecomm,
+                __GUARD clbuf_sendfrom(&(*dev)[d].queue,
                                        &(*dev)[d].vars[i].cl_varbnd,
                                        &(*dev)[d].vars[i].cl_varbnd.host[offset]);
             }
         }
-        
-        lv=-1;
-        l0=-1;
-        for (i=0;i<m->nvars;i++){
-            if ((*dev)[d].vars[i].to_comm){
-                if (l0<0){
-                    l0=i;
-                }
-                lv=i;
-            }
-        }
-        (*dev)[d].ups_adj[0].center.outevent = 1;
-        (*dev)[d].vars[lv].cl_varbnd.outevent_s=1;
-        (*dev)[d].vars[l0].cl_varbnd.nwait_s=1;
-        (*dev)[d].vars[l0].cl_varbnd.waits_s=&(*dev)[d].ups_adj[0].center.event;
-        
-        
     }
-    
     
     return state;
 }
 
-int update_grid(model * m, device ** dev){
+int update_grid(model * m, device ** dev, int docomm){
     /*Update operations of one iteration */
     int state=0;
     int d, i;
@@ -298,23 +278,24 @@ int update_grid(model * m, device ** dev){
 
         }
         
-        // Communication between devices and MPI processes
-        if (m->NUM_DEVICES>1 || m->NLOCALP>1)
-            __GUARD comm(m, dev, 0, i);
+        if (docomm==1){
+            // Communication between devices and MPI processes
+            if (m->NUM_DEVICES>1 || m->NLOCALP>1)
+                __GUARD comm(m, dev, 0, i);
 
-        // Transfer memory in communication buffers to variables' buffers
-        for (d=0;d<m->NUM_DEVICES;d++){
+            // Transfer memory in communication buffers to variables' buffers
+            for (d=0;d<m->NUM_DEVICES;d++){
 
-            if (d>0 || m->MYLOCALID>0){
-                __GUARD prog_launch(   &(*dev)[d].queue,
-                                       &(*dev)[d].ups_f[i].fcom1_in);
-            }
-            if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
-                __GUARD prog_launch(   &(*dev)[d].queue,
-                                       &(*dev)[d].ups_f[i].fcom2_in);
+                if (d>0 || m->MYLOCALID>0){
+                    __GUARD prog_launch(   &(*dev)[d].queue,
+                                           &(*dev)[d].ups_f[i].fcom1_in);
+                }
+                if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
+                    __GUARD prog_launch(   &(*dev)[d].queue,
+                                           &(*dev)[d].ups_f[i].fcom2_in);
+                }
             }
         }
-        
     }
 
 
@@ -356,35 +337,37 @@ int update_grid_adj(model * m, device ** dev){
             //Launch kernel on the interior elements
             __GUARD prog_launch( &(*dev)[d].queue,
                                 &(*dev)[d].ups_adj[i].center);
-            
+//            cuStreamSynchronize((*dev)[d].queue);
+//            cuStreamSynchronize((*dev)[d].queuecomm);
         }
         
         // Communication between devices and MPI processes
         if (m->NUM_DEVICES>1 || m->NLOCALP>1)
             __GUARD comm(m, dev, 1, i);
         
-        
+//        for (d=0;d<m->NUM_DEVICES;d++){
+//            cuStreamSynchronize((*dev)[d].queue);
+//            cuStreamSynchronize((*dev)[d].queuecomm);
+//        }
         // Transfer memory in communication buffers to variables' buffers
         for (d=0;d<m->NUM_DEVICES;d++){
-            
             if (d>0 || m->MYLOCALID>0){
-                __GUARD prog_launch(   &(*dev)[d].queue,
+                __GUARD prog_launch(&(*dev)[d].queue,
                                     &(*dev)[d].ups_f[i].fcom1_in);
                 if (m->BACK_PROP_TYPE==1){
-                    __GUARD prog_launch(   &(*dev)[d].queue,
+                    __GUARD prog_launch(&(*dev)[d].queue,
                                         &(*dev)[d].ups_adj[i].fcom1_in);
                 }
             }
             if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
-                __GUARD prog_launch(   &(*dev)[d].queue,
+                __GUARD prog_launch(&(*dev)[d].queue,
                                     &(*dev)[d].ups_f[i].fcom2_in);
                 if (m->BACK_PROP_TYPE==1){
-                    __GUARD prog_launch(   &(*dev)[d].queue,
+                    __GUARD prog_launch(&(*dev)[d].queue,
                                         &(*dev)[d].ups_adj[i].fcom2_in);
                 }
             }
         }
-
         
     }
 
@@ -611,7 +594,13 @@ int time_stepping(model * m, device ** dev) {
             }
             
             // Apply all updates
-            __GUARD update_grid(m, dev);
+            if (t<(m->tmax-1)){
+                __GUARD update_grid(m, dev, 1);
+            }
+            else{
+                __GUARD update_grid(m, dev, 0);
+            }
+            
             
             // Save the boundaries
             if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1)
@@ -664,8 +653,7 @@ int time_stepping(model * m, device ** dev) {
         if ( m->GRADOUT || m->RMSOUT || m->RESOUT ){
             __GUARD m->res_scale(m,s);
         }
-        
-
+       
         // Calculation of the gradient for this shot, if required
         if (m->GRADOUT==1){
             
