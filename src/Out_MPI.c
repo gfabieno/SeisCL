@@ -152,7 +152,7 @@ int Out_MPI(model * m)  {
         }
     }
 
-    MPI_Comm_free(m.mpigroupcomm);
+    MPI_Comm_free(&m->mpigroupcomm);
     MPI_Barrier(MPI_COMM_WORLD);
 
     return state;
