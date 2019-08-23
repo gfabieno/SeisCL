@@ -1091,7 +1091,7 @@ int Init_CUDA(model * m, device ** dev)  {
                     __GUARD prog_create(m, di,  &di->ups_adj[i].com2);
                     
                     if (m->BACK_PROP_TYPE==1){
-                        __GUARD kernel_fcom_out( di, di->vars,
+                        __GUARD kernel_fcom_out(di, di->vars,
                                                 &di->ups_adj[i].fcom2_out, i+1, 2, 1);
                         __GUARD prog_create(m, di,  &di->ups_adj[i].fcom2_out);
                         __GUARD kernel_fcom_in(di ,di->vars,
