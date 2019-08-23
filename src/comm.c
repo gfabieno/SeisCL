@@ -40,7 +40,7 @@ int comm1_MPI(model * m, device ** dev, int adj, int ui){
     // an event for fcom1_in.
     
     if (adj && m->BACK_PROP_TYPE==1){
-        
+
         for (i=0;i<(*dev)[0].ups_adj[ui].nvcom;i++){
             __GUARD wait_for_event(&(*dev)[0].ups_adj[ui].v2com[i]->cl_buf1.event_r);
 
@@ -72,11 +72,10 @@ int comm1_MPI(model * m, device ** dev, int adj, int ui){
                     MPI_COMM_WORLD,
                     NULL);
         
-        __GUARD clbuf_send(
-                           &(*dev)[0].queuecomm,
+        __GUARD clbuf_send(&(*dev)[0].queuecomm,
                            &(*dev)[0].ups_f[ui].v2com[i]->cl_buf1);
+        
     }
-
     return state;
     
 }
@@ -137,7 +136,7 @@ int comm(model * m, device ** dev, int adj, int ui){
     
     int state = 0;
     int d,i, ld;
-    
+
     //Read buffers for comunnication between MPI processes sharing this shot
     if (m->MYLOCALID>0){
         //For all MPI processes except the first, com1 must occur on the firt
@@ -291,7 +290,7 @@ int comm(model * m, device ** dev, int adj, int ui){
     if (m->MYLOCALID % 2 == 0 && m->MYLOCALID>0){
         __GUARD comm1_MPI(m, dev, adj, ui);
     }
-    
+
     if (m->MYLOCALID % 2 != 0 && m->MYLOCALID<m->NLOCALP-1){
         __GUARD comm2_MPI(m, dev, adj, ui);
     }

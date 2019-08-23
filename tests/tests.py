@@ -105,7 +105,7 @@ def test_backpropagation(seis, plot=False, ngpu=1, nmpi=1):
         seis.csts['nmax_dev'] = ngpu
         seis.NP = nmpi
     
-    for fp16 in range(0,4):
+    for fp16 in range(1,4):
         print("    Testing FP16=%d....." %fp16 , end = '')
         seis.csts['FP16'] = fp16
         try :
@@ -213,7 +213,7 @@ def test_fp16_grad(seis, ref=None, plot=False, ngpu=1, nmpi=1):
     seis.csts['nmax_dev'] = 1
     seis.NP = 1
 
-#    seis.csts['MOVOUT'] = 1
+#    seis.csts['MOVOUT'] = 20
 #    seis.csts['seisout'] = 1
     pars['vp'] = np.zeros(seis.csts['N']) + 3500
     pars['vp'][slices]= 4000
@@ -237,7 +237,7 @@ def test_fp16_grad(seis, ref=None, plot=False, ngpu=1, nmpi=1):
         seis.NP = nmpi
     
     
-    for fp16 in range(0,4):
+    for fp16 in range(1,2):
         print("    Testing FP16=%d....." %fp16 , end = '')
         seis.csts['FP16'] = fp16
         try :
@@ -254,7 +254,7 @@ def test_fp16_grad(seis, ref=None, plot=False, ngpu=1, nmpi=1):
             else:
                 err = (np.sum([np.sum((g-r)**2) for g,r in zip(grad, ref)])
                        /np.sum([np.sum((r)**2) for r in ref]))
-                if err > 0.01:
+                if err > 0:#:0.000001:
                     if plot:
                         plt.imshow(grad[0][slicesp]-ref[0][slicesp], aspect='auto')
                         plt.show()
@@ -478,8 +478,8 @@ if __name__ == "__main__":
         seis.csts['L'] = 0
         seis.csts['ND'] = 2
         seis.csts['freesurf'] = 0
-        seis.csts['MPI_NPROC_SHOT'] = 3
-        test_fp16_grad(seis, ref=None, plot=args.plot, nmpi=3)
+        seis.csts['MPI_NPROC_SHOT'] = 4
+        test_fp16_grad(seis, ref=None, plot=args.plot, nmpi=4)
         seis.NP = 1
         seis.csts['MPI_NPROC_SHOT'] = 1
     

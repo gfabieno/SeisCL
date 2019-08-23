@@ -1029,7 +1029,6 @@ int Init_CUDA(model * m, device ** dev)  {
 
 
         }
-        
         // Create the update kernels
         di->nupdates=m->nupdates;
         for (i=0;i<m->nupdates;i++){

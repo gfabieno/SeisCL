@@ -335,7 +335,6 @@ FUNDEF void update_adjv(int offcomm,
     vxr[indv] = __f22h2(lvxr);
     vzr[indv] = __f22h2(lvzr);
 
-
     // Density gradient calculation on the fly
     #if BACK_PROP_TYPE==1
     lvxr=(sxxr_x1+sxzr_z2)*lrip;
