@@ -560,7 +560,7 @@ int res_scale(model * m, int s)
                       1,
                       MPI_INT,
                       MPI_MIN,
-                      MPI_COMM_WORLD);
+                      m->mpigroupcomm);
     }
     
     return 0;

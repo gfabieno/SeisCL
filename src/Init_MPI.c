@@ -268,7 +268,8 @@ int Init_MPI(model * m) {
             m->MYLOCALID=m->GID;
         }
     }
-    
+
+    MPI_Comm_split(MPI_COMM_WORLD, m->MYGROUPID, 0, &m->mpigroupcomm);
     
     MPI_Barrier(MPI_COMM_WORLD);
 

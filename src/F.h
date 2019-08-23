@@ -435,6 +435,7 @@ typedef struct model {
     int MPI_NPROC_SHOT;
     int NLOCALP;
     int MPI_INIT;
+    MPI_Comm mpigroupcomm;
     
     int BACK_PROP_TYPE;
     int par_type;
