@@ -14,8 +14,13 @@ LFLAGS= -lm -lrt -lhdf5 -L/usr/local/hdf5/lib -L/usr/lib64/ -lz -pipe
 CFLAGS= -g
 
 # Option to turn off MPI
-ifdef -nompi
+ifdef nompi
 $(info Building SeisCL without MPI support)
+ifeq ($(UNAME_S),Darwin)
+CC=clang
+LFLAGS= -lm -lhdf5 -L/opt/local/lib
+CFLAGS= -I/opt/local/include
+endif
 CFLAGS+= -D__NOMPI__
 else
 $(info Building SeisCL with MPI support)
@@ -113,7 +118,7 @@ SeisCL_MPI_SRC= \
 	    time_stepping.c \
 	    writehdf5.c
 
-ifndef -nompi
+ifndef nompi
 SeisCL_MPI_SRC+=\
         Init_MPI.c \
         Out_MPI.c

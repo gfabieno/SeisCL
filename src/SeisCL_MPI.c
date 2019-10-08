@@ -18,11 +18,17 @@
  --------------------------------------------------------------------------*/
 #include "F.h"
 
+
+double wtime(){
 #ifndef __NOMPI__
-#define WTIME MPI_Wtime()
+    return WTIME MPI_Wtime();
 #else
-#define WTIME time(NULL)
+    struct timeval time;
+    gettimeofday(&time, NULL);
+    return (double) time.tv_sec + time.tv_usec * 1e-6;
 #endif
+}
+
 
 int main(int argc, char **argv) {
     
@@ -118,30 +124,34 @@ int main(int argc, char **argv) {
     #endif
     
     // Root process reads the input files
-    time1=WTIME;
+    time1=wtime();
     if (m.GID==0){
         if (!state) state = readhdf5(file, &m);
     }
-    time2=WTIME;
+    time2=wtime();
     
     // Initiate and transfer data on all process
     #ifndef __NOMPI__
     if (!state) state = Init_MPI(&m);
+    #else
+    m.NLOCALP = 1;
+    m.GNP = 1;
+    m.NGROUP = 1;
     #endif
     
     if (!state) state = Init_cst(&m);
     if (!state) state = Init_data(&m);
     if (!state) state = Init_model(&m);
 
-    time3=WTIME;
+    time3=wtime();
 
     if (!state) state = Init_CUDA(&m, &dev);
 
-    time4=WTIME;
+    time4=wtime();
     // Main part, where seismic modeling occurs
     if (!state) state = time_stepping(&m, &dev);
 
-    time5=WTIME;
+    time5=wtime();
     
     #ifndef __NOMPI__
     //Reduce to process 0 all required outputs
@@ -154,7 +164,7 @@ int main(int argc, char **argv) {
     if (m.GID==0){
         if (!state) state = writehdf5(file, &m) ;
     }
-    time6=WTIME;
+    time6=wtime();
 
     //Output time for each part of the program
     if (!state){

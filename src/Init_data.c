@@ -19,6 +19,23 @@
 
 #include "F.h"
 
+int var_alloc_out(float *** var, model *m ){
+    int state=0;
+    int i;
+    
+    GMALLOC(*var,sizeof(float*)*m->src_recs.ns);
+    GMALLOC((*var)[0],sizeof(float)*m->src_recs.allng*m->NT);
+    if (!state){
+        for (i=1; i<m->src_recs.ns; i++){
+            (*var)[i]=(*var)[i-1]+m->src_recs.nrec[i-1]*m->NT;
+        }
+    }
+    
+    
+    return state;
+    
+}
+
 int Init_data(model * m) {
     
     int state=0, i;

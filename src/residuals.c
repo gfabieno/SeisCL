@@ -59,7 +59,6 @@ int var_res_raw(model * m, int s)
 {
     
     int t,g,n,i,f, thisfreq;
-    int x,y,z, pos=0;
     int state=0;
     float *rms_scaling=NULL, *rms_scaling0=NULL;
     float *rmsnorm_scaling=NULL;

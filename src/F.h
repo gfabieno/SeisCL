@@ -19,8 +19,6 @@
 
 /* This is a collection of utility functions for OpenCL */
 
-
-
 #include <stdlib.h>
 #include <math.h>
 #include <stdio.h>

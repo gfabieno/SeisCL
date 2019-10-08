@@ -222,8 +222,6 @@ int inject_bnd(model * m, device ** dev, int t){
     int state=0;
     int d,i;
     int offset;
-    int lv=-1;
-    int l0=-1;
     
     for (d=0;d<m->NUM_DEVICES;d++){
 

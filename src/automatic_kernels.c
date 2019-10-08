@@ -846,7 +846,6 @@ int kernel_gradinit(device * dev,
     int i;
     
     char temp[MAX_KERN_STR]={0};
-    char temp2[100]={0};
     char * p=(char*)temp;
     
 
@@ -1261,7 +1260,6 @@ int kernel_fcom_out(device * dev,
     
     
     //Indice if local memory is used
-    char * names[] = {"x","y","z"};
     if (dev->LOCAL_OFF==0){
         for (i=0;i<dev->NDIM;i++){
             #ifdef __SEISCL__
@@ -1487,9 +1485,7 @@ int kernel_fcom_in(device * dev,
         p++;
     p[-2]='\0';
     strcat(temp, "){\n\n");
-    
-    
-    char * names[] = {"x","y","z"};
+
     if (dev->LOCAL_OFF==0){
         for (i=0;i<dev->NDIM;i++){
             #ifdef __SEISCL__
