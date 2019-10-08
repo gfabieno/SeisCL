@@ -10,8 +10,8 @@ ifeq ($(shell hash h5cc),)
 else
   CC=h5cc
 endif
-LFLAGS= -lm -lrt -lhdf5 -L/usr/local/hdf5/lib -L/usr/lib64/ -lz -pipe
-CFLAGS= -g
+LFLAGS= -lm -lrt -lhdf5 -L/usr/local/hdf5/lib -L/usr/lib64/ -lz -pipe -L/usr/lib64/openmpi/lib/
+CFLAGS= -g -I/usr/include/openmpi-x86_64
 
 # Option to turn off MPI
 ifdef nompi

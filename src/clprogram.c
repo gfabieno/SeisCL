@@ -695,6 +695,7 @@ int prog_create(model * m,
     char str2comp[50];
     int shared_size = 0;
     int memsize = 0;
+    int noptions=0;
     
     prog->context = &dev->context;
     #ifdef __SEISCL__
