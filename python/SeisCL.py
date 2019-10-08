@@ -8,6 +8,7 @@ import h5py as h5
 import numpy as np
 import subprocess
 import os
+import shutil
 from obspy.core import Trace, Stream
 
 class SeisCLError(Exception):
@@ -23,12 +24,33 @@ class SeisCL():
         """
 
 
-        self.file = 'SeisCL'     #Filename for models and parameters (see setter)
+        self.file = 'SeisCL'    #Filename for models and parameters (see setter)
         self.file_datalist = None     #File with a list of all data (see setter)
         self.progname = 'SeisCL_MPI'
         self.workdir = './seiscl'
         self.NP = 1
+        
+        #__________Check if SeisCL exists and choose the implemenation__________
         self.with_mpi = False
+        self.with_docker = False
+        self.docker_name = 'seiscl:v0'
+        if shutil.which(self.progname):
+            if shutil.which("mpirun"):
+                self.with_mpi = True
+        elif shutil.which("docker"):
+            pipes = subprocess.Popen("docker inspect --type=image "
+                                     + self.docker_name,
+                                     stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE, shell=True)
+            stdout, stderr = pipes.communicate()
+            if stderr:
+                raise SeisCLError("No working SeisCL program found")
+            else:
+                self.with_docker = True
+        else:
+            raise SeisCLError("No working SeisCL program found")
+        
+
 
         #_____________________Simulation constants _______________________
         self.csts = {}
@@ -340,12 +362,22 @@ class SeisCL():
         """
         if workdir is None:
             workdir = self.workdir
+        workdir = os.path.abspath(workdir)
+        file_din = os.path.abspath(self.file_din)
+        path_din = os.path.dirname(file_din)
         cmd = ''
         if self.with_mpi:
             cmd+= 'mpirun -np ' + str(self.NP) + ' '
+        elif self.with_docker:
+            cmd+= 'docker run --gpus all -v ' + workdir + ':' + workdir + ' '
+            cmd+= '-v ' + path_din + ':' + path_din + ' '
+            cmd+= ' -w ' + workdir + ' '
+            cmd+= '--user $(id -u):$(id -g) '
+            cmd+= self.docker_name + ' '
+        
         cmd += self.progname
         cmd += ' '+workdir+'/'+self.file
-        cmd += ' ' + workdir + '/' + self.file_din
+        cmd += ' ' +file_din
         return cmd
 
     def execute(self, workdir=None):
