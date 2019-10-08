@@ -28,6 +28,7 @@ class SeisCL():
         self.progname = 'SeisCL_MPI'
         self.workdir = './seiscl'
         self.NP = 1
+        self.with_mpi = False
 
         #_____________________Simulation constants _______________________
         self.csts = {}
@@ -339,8 +340,12 @@ class SeisCL():
         """
         if workdir is None:
             workdir = self.workdir
-        cmd = 'mpirun -np ' + str(self.NP) + ' ' + self.progname \
-              + ' '+workdir+'/'+self.file+' '+workdir+'/'+self.file_din
+        cmd = ''
+        if self.with_mpi:
+            cmd+= 'mpirun -np ' + str(self.NP) + ' '
+        cmd += self.progname
+        cmd += ' '+workdir+'/'+self.file
+        cmd += ' ' + workdir + '/' + self.file_din
         return cmd
 
     def execute(self, workdir=None):
