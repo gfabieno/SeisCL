@@ -354,16 +354,13 @@ void mu(void * mptr){
         
         float ws=2.0*PI*m->f0;
         float sumu=0.0;
-        
-        for (i=0;i<num_ele;i++){
-            sumu=0.0;
-            for (l=0;l<m->L;l++){
-                sumu+= ((ws*ws*pts[l]*pts[l]*taus[i])
-                        /(1.0+ws*ws*pts[l]*pts[l]));
-            }
-            mu[i]=mu[i]/(1.0+sumu);
+        for (l=0;l<m->L;l++){
+            sumu+= ((ws*ws*pts[l]*pts[l])
+                    /(1.0+ws*ws*pts[l]*pts[l]));
         }
-        
+        for (i=0;i<num_ele;i++){
+            mu[i]=mu[i]/(1.0+sumu*taus[i]);
+        }
         free(pts);
     }
     
