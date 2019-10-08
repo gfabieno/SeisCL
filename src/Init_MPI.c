@@ -157,19 +157,6 @@ int Init_MPI(model * m) {
         __GUARD assign_modeling_case(m);
     }
 
-    if (m->restype==0){
-        m->res_calc = &var_res_raw;
-        m->res_scale = &res_scale;
-    }
-    else if (m->restype==1){
-        m->res_calc = &rtm_res;
-        m->res_scale = &res_scale;
-    }
-    else{
-        fprintf(stderr, "Error: Unknown restype\n");
-        return 1;
-    }
-
     MPI_Barrier(MPI_COMM_WORLD);
 
     if (!state){
@@ -190,30 +177,7 @@ int Init_MPI(model * m) {
 
     }
 
-    //Allocate memory of variables
-    for (i=0;i<m->nvars;i++){
-        if (m->vars[i].to_output){
-            var_alloc_out(&m->vars[i].gl_varout, m);
-            if (m->MOVOUT>0){
-                GMALLOC(m->vars[i].gl_mov,sizeof(float)*
-                        m->src_recs.ns*m->vars[i].num_ele*m->NT/m->MOVOUT);
-            }
-        }
-    }
-    for (i=0;i<m->ntvars;i++){
-        if (m->trans_vars[i].to_output){
-            var_alloc_out(&m->trans_vars[i].gl_varout, m);
-        }
-    }
 
-    if (m->GRADSRCOUT==1){
-        GMALLOC(m->src_recs.gradsrc,sizeof(float*)*m->src_recs.ns);
-        GMALLOC(m->src_recs.gradsrc[0],sizeof(float)*m->src_recs.allns*m->NT);
-        for (i=1;i<m->src_recs.ns;i++){
-            m->src_recs.gradsrc[i]=m->src_recs.gradsrc[i-1]
-            +m->src_recs.nsrc[i-1]*m->NT;
-        }
-    }
     //Allocate and broadcast the data in
     if (m->RMSOUT==1 || m->RESOUT==1 || m->GRADOUT==1){
         for (i=0;i<m->nvars;i++){

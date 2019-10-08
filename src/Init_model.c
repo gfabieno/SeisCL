@@ -62,13 +62,9 @@ int Init_model(model * m) {
                     if (srcmax<fabsf(m->src_recs.src[i][t])){
                         srcmax=fabsf(m->src_recs.src[i][t]);
                     }
-                    m->src_recs.src_scales[i]=-log2(srcmax*m->dt*1.0); //0.1 0.001
+                    m->src_recs.src_scales[i]=-log2(srcmax*m->dt*1.0);
             }
         }
-    }
-
-    if (m->GRADOUT==1){
-        GMALLOC(m->src_recs.res_scales, sizeof(int)*m->src_recs.ns);
     }
     
     if (m->FP16>1){
@@ -80,6 +76,7 @@ int Init_model(model * m) {
 
         }
     }
+    
     if (m->FP16==1 && m->halfpar>0){
         for (i=0;i<m->npars;i++){
             for (j=0;j<m->pars[i].num_ele;j++){
@@ -88,9 +85,12 @@ int Init_model(model * m) {
             
         }
     }
-
+    
+   
+    #ifndef __NOMPI__
     if (state && m->MPI_INIT==1)
         MPI_Bcast( &state, 1, MPI_INT, m->GID, MPI_COMM_WORLD );
+    #endif
     
     return state;
 

@@ -28,7 +28,7 @@ int wait_for_event(EVENT *event){
     
 }
 
-
+#ifndef __NOMPI__
 int comm1_MPI(model * m, device ** dev, int adj, int ui){
     int state=0;
     int i;
@@ -128,7 +128,7 @@ int comm2_MPI(model * m, device ** dev, int adj, int ui){
     return state;
     
 }
-
+#endif
 
 int comm(model * m, device ** dev, int adj, int ui){
     /* Communication for domain decompositon for MPI (between processes)
@@ -276,6 +276,7 @@ int comm(model * m, device ** dev, int adj, int ui){
     }
     #endif
     
+    #ifndef __NOMPI__
     // Wait for Opencl buffers to be read, send MPI bufers and write to devices
     // Processess with even ID in the group send and receive buffers 1 first,
     // and then buffers 2, vice versa for odd IDs
@@ -294,7 +295,8 @@ int comm(model * m, device ** dev, int adj, int ui){
     if (m->MYLOCALID % 2 != 0 && m->MYLOCALID<m->NLOCALP-1){
         __GUARD comm2_MPI(m, dev, adj, ui);
     }
-
+    #endif
+    
     return state;
     
 }

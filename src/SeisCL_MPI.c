@@ -18,6 +18,11 @@
  --------------------------------------------------------------------------*/
 #include "F.h"
 
+#ifndef __NOMPI__
+#define WTIME MPI_Wtime()
+#else
+#define WTIME time(NULL)
+#endif
 
 int main(int argc, char **argv) {
     
@@ -87,6 +92,7 @@ int main(int argc, char **argv) {
 
     
     /* Initialize MPI environment */
+    #ifndef __NOMPI__
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &m.GNP);
     MPI_Comm_rank(MPI_COMM_WORLD, &m.GID);
@@ -109,40 +115,46 @@ int main(int argc, char **argv) {
             m.GID, m.GNP, processor_name, m.LID, m.LNP,  getpid());
     fflush(stdout);
 //    if (m.GID == 0) sleep(30);
-    
+    #endif
     
     // Root process reads the input files
-    time1=MPI_Wtime();
+    time1=WTIME;
     if (m.GID==0){
         if (!state) state = readhdf5(file, &m);
     }
-    time2=MPI_Wtime();
+    time2=WTIME;
     
     // Initiate and transfer data on all process
+    #ifndef __NOMPI__
     if (!state) state = Init_MPI(&m);
+    #endif
+    
     if (!state) state = Init_cst(&m);
+    if (!state) state = Init_data(&m);
     if (!state) state = Init_model(&m);
 
-    time3=MPI_Wtime();
+    time3=WTIME;
 
     if (!state) state = Init_CUDA(&m, &dev);
 
-    time4=MPI_Wtime();
+    time4=WTIME;
     // Main part, where seismic modeling occurs
     if (!state) state = time_stepping(&m, &dev);
 
-    time5=MPI_Wtime();
-
+    time5=WTIME;
+    
+    #ifndef __NOMPI__
     //Reduce to process 0 all required outputs
     if (m.GNP > 1){
         if (!state) state = Out_MPI(&m);
     }
-
+    #endif
+    
     // Write the ouputs to hdf5 files
     if (m.GID==0){
         if (!state) state = writehdf5(file, &m) ;
     }
-    time6=MPI_Wtime();
+    time6=WTIME;
 
     //Output time for each part of the program
     if (!state){
@@ -158,13 +170,23 @@ int main(int argc, char **argv) {
         double t4=(time5-time4);
         double t5=(time6-time5);
         double t6=(time6-time1);
-
-        if (!state) MPI_Gather(&t1, 1, MPI_DOUBLE , &times[0]     , 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        if (!state) MPI_Gather(&t2, 1, MPI_DOUBLE , &times[  m.GNP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        if (!state) MPI_Gather(&t3, 1, MPI_DOUBLE , &times[2*m.GNP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        if (!state) MPI_Gather(&t4, 1, MPI_DOUBLE , &times[3*m.GNP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        if (!state) MPI_Gather(&t5, 1, MPI_DOUBLE , &times[4*m.GNP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        if (!state) MPI_Gather(&t6, 1, MPI_DOUBLE , &times[5*m.GNP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        
+        #ifndef __NOMPI__
+        if (!state) MPI_Gather(&t1, 1, MPI_DOUBLE , &times[0]     ,
+                               1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        if (!state) MPI_Gather(&t2, 1, MPI_DOUBLE , &times[  m.GNP],
+                               1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        if (!state) MPI_Gather(&t3, 1, MPI_DOUBLE , &times[2*m.GNP],
+                               1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        if (!state) MPI_Gather(&t4, 1, MPI_DOUBLE , &times[3*m.GNP],
+                               1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        if (!state) MPI_Gather(&t5, 1, MPI_DOUBLE , &times[4*m.GNP],
+                               1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        if (!state) MPI_Gather(&t6, 1, MPI_DOUBLE , &times[5*m.GNP],
+                               1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        #else
+        times[0]=t1;times[1]=t2;times[2]=t3;times[3]=t4;times[4]=t5;times[5]=t6;
+        #endif
 
         if (m.GID==0){
             fprintf(stdout,"\nRun time for each process:\n\n");
@@ -190,9 +212,11 @@ int main(int argc, char **argv) {
 ////        sleep(300000);
 //        MPI_Abort(MPI_COMM_WORLD, state);
 //    }
+    #ifndef __NOMPI__
     if (m.MPI_INIT==1){
         MPI_Finalize();
     }
+    #endif
     
     return state;
     

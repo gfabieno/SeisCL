@@ -25,8 +25,7 @@ int Init_cst(model * m) {
     
     int state=0;
     int i;
-    
-    
+        
     __GUARD holbergcoeff(m->FDORDER, m->MAXRELERROR, m->hc);
     if (m->halfpar==2){
         for (i=0;i<7;i++){

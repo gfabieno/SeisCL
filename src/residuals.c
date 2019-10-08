@@ -555,12 +555,14 @@ int res_scale(model * m, int s)
     }
     if (m->FP16>0){
         m->src_recs.res_scales[s]=-log2(resmax/10.0);
+        #ifndef __NOMPI__
         MPI_Allreduce(&m->src_recs.res_scales[s],
                       &m->src_recs.res_scales[s],
                       1,
                       MPI_INT,
                       MPI_MIN,
                       m->mpigroupcomm);
+        #endif
     }
     
     return 0;

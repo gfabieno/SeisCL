@@ -3,23 +3,33 @@
 
 UNAME_S := $(shell uname -s)
 
-
-ifeq ($(UNAME_S),Linux)
+# Choosing compiler and options
+#On some clusters, it is better to use the wrapper h5cc
 ifeq ($(shell hash h5cc),)
-  CC=mpicc
+  CC=gcc
 else
   CC=h5cc
 endif
-LFLAGS= -lm -lrt -lmpi -lOpenCL -lhdf5 -L/usr/local/hdf5/lib -L/usr/lib64/ -lz -pipe
+LFLAGS= -lm -lrt -lhdf5 -L/usr/local/hdf5/lib -L/usr/lib64/ -lz -pipe
 CFLAGS= -g
+
+# Option to turn off MPI
+ifdef -nompi
+$(info Building SeisCL without MPI support)
+CFLAGS+= -D__NOMPI__
+else
+$(info Building SeisCL with MPI support)
+ifeq ($(UNAME_S),Linux)
 CFLAGS += $(shell mpicc -showme:compile)
 LDFLAGS += $(shell mpicc -showme:link)
 endif
 ifeq ($(UNAME_S),Darwin)
-    CC=mpicc
+CC=mpicc
 LFLAGS= -lm -lmpi -lhdf5 -L/opt/local/lib
 CFLAGS= -Wall -O3 -I/opt/local/include
 endif
+endif
+
 
 # Option to choose cuda or OpenCL
 ifeq ($(api),cuda)
@@ -37,41 +47,42 @@ endif
 $(info Building SeisCL with OpenCL)
 endif
 
+
 SeisCL_CL= \
 	savebnd2D.cl \
 	savebnd3D.cl \
 	surface2D.cl \
 	surface2D_half2.cl \
-    	surface2D_adj.cl \
+    surface2D_adj.cl \
 	surface2D_SH.cl \
 	surface3D.cl \
 	surface3D_half2.cl \
 	surface3D_adj.cl \
 	update_adjs2D.cl \
-    	update_adjs2D_half2.cl \
+    update_adjs2D_half2.cl \
 	update_adjs2D_SH.cl \
 	update_adjs3D.cl \
-    	update_adjs3D_half2.cl \
+    update_adjs3D_half2.cl \
 	update_adjv2D.cl \
-    	update_adjv2D_half2.cl \
+    update_adjv2D_half2.cl \
 	update_adjv2D_SH.cl \
 	update_adjv3D.cl \
-    	update_adjv3D_half2.cl \
+    update_adjv3D_half2.cl \
 	update_s2D.cl \
 	update_s2D_half2.cl \
 	update_s2D_SH.cl \
-    	update_s2D_acc.cl \
+    update_s2D_acc.cl \
 	update_s3D.cl \
-    	update_s3D_half2.cl \
+    update_s3D_half2.cl \
 	update_v2D.cl \
 	update_v2D_half2.cl \
 	update_v2D_SH.cl \
-    	update_v2D_acc.cl \
+    update_v2D_acc.cl \
 	update_v3D.cl \
-    	update_v3D_half2.cl \
-    	header_FD.cl \
-    	header_FD_fp16.cl \
-    	header_CUDACL.cl \
+    update_v3D_half2.cl \
+    header_FD.cl \
+    header_FD_fp16.cl \
+    header_CUDACL.cl \
    	header_injectbnd.cl
 
 SeisCL_CL_Headers = $(SeisCL_CL:%.cl=%.hcl)
@@ -89,20 +100,24 @@ SeisCL_MPI_SRC= \
     	event_dependency.c \
 	    Free_OpenCL.c \
     	Init_cst.c \
+        Init_data.c \
 	    Init_model.c \
-	    Init_MPI.c \
 	    Init_OpenCL.c \
     	third_party/KISS_FFT/kiss_fft.c \
     	third_party/KISS_FFT/kiss_fftr.c \
         third_party/SOFI3D/CPML_COEFF.c \
         third_party/SOFI3D/holbergcoeff.c \
-	    Out_MPI.c \
 	    read_hdf5.c\
 	    residuals.c \
 	    SeisCL_MPI.c \
 	    time_stepping.c \
 	    writehdf5.c
 
+ifndef -nompi
+SeisCL_MPI_SRC+=\
+        Init_MPI.c \
+        Out_MPI.c
+endif
 
 SeisCL_MPI_OBJ = $(SeisCL_MPI_SRC:%.c=%.o)
 

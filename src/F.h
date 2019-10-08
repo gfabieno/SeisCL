@@ -46,7 +46,10 @@
 
 #include "CUDA_CL.h"
 
+#ifndef __NOMPI__
 #include <mpi.h>
+#endif
+
 #include <hdf5.h>
 
 #define STRING_SIZE 256
@@ -435,7 +438,9 @@ typedef struct model {
     int MPI_NPROC_SHOT;
     int NLOCALP;
     int MPI_INIT;
+    #ifndef __NOMPI__
     MPI_Comm mpigroupcomm;
+    #endif
     
     int BACK_PROP_TYPE;
     int par_type;
@@ -526,7 +531,11 @@ int Init_cst(model * m);
 
 int Init_model(model * m);
 
+int Init_data(model * m);
+
+#ifndef __NOMPI__
 int Init_MPI(model * m);
+#endif
 
 int Init_CUDA(model * m, device ** dev);
 
@@ -536,8 +545,9 @@ int time_stepping(model * m, device ** dev);
 
 int comm(model * m, device ** dev, int adj, int ui);
 
+#ifndef __NOMPI__
 int Out_MPI(model * m);
-
+#endif
 int writehdf5(struct filenames file, model * m);
 
 int Free_OpenCL(model * m, device * dev) ;

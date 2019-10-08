@@ -1193,8 +1193,10 @@ int Init_CUDA(model * m, device ** dev)  {
     }
     __GUARD event_dependency(m, dev, adj);
 
+    #ifndef __NOMPI__
     if (state && m->MPI_INIT==1)
         MPI_Bcast( &state, 1, MPI_INT, m->GID, MPI_COMM_WORLD );
+    #endif
     
     return state;
 
