@@ -618,7 +618,7 @@ class SeisCL():
     def ricker_wavelet(self):
         tmin = -1.5 / self.csts['f0']
         t = np.linspace(tmin,
-                        self.csts['NT'] * self.csts['dt'] + tmin,
+                        (self.csts['NT']-1) * self.csts['dt'] + tmin,
                         num=self.csts['NT'])
 
         ricker = ((1.0 - 2.0 * (np.pi ** 2) * (self.csts['f0'] ** 2) * (t ** 2))
