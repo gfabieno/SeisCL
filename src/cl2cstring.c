@@ -86,6 +86,8 @@ int main(int argc, char **argv) {
                     break;
                 case '\0':
                     break;
+                case '\r':
+                    break;
                 default:
                     fputc(ch, fh);
             }
