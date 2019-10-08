@@ -76,7 +76,7 @@ int main(int argc, char **argv) {
     if ((homedir = getenv("HOME")) == NULL) {
         homedir = getpwuid(getuid())->pw_dir;
     }
-    snprintf(m.cache_dir, PATH_MAX, "%s%s", homedir, "/.seiscl");
+    snprintf(m.cache_dir, PATH_MAX, "%s%s", filein, "_cache");
 
     if (stat( m.cache_dir, &info ) != 0 ){
         #ifdef __linux__
