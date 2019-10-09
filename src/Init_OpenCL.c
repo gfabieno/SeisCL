@@ -926,7 +926,6 @@ int Init_CUDA(model * m, device ** dev)  {
             
         }
         
-        __GUARD gpu_intialize_sources(&m->context, &(*vcl)[d].program_sources, &(*vcl)[d].kernel_sources, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d]);
         
         // Determine the size of the outside boundary used for the back
         // propagation of the seismic wavefield

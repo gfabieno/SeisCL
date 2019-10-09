@@ -27,7 +27,6 @@ int reduce_seis(model * m, device ** dev, int s){
     int state=0;
     int posx, i, j, k, d;
     
-
     // Transfer the seismogram from GPUs to host
     for (d=0;d<m->NUM_DEVICES;d++){
         for (i=0;i<m->nvars;i++){
