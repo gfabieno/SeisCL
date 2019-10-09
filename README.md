@@ -5,7 +5,7 @@ Modeling is performed with finite-difference in the time-domain, and can be eith
 isotropic acoustic, elastic or viscoelastic.
 SeisCL can be run either on GPUs with CUDA or OpenCL, or CPUs with OpenCL.
 Model decomposition and shot parallelization allows using multiple GPUs/nodes.
-Although written is C/CUDA/OpenCL, a [python interface](python/SeisCL.py) (Python 3) is provided for implementing the
+Although written is C/CUDA/OpenCL, a [python interface](SeisCL/SeisCL.py) (Python 3) is provided for implementing the
 inversion/imaging workflows.
 
 Cite this publication if you use this software:
@@ -64,7 +64,7 @@ The last line is needed because SeisCL_MPI must be on PATH for the Python interf
 to work properly.
 
 Several options can be passed to make to compile different flavors of SeisCL:
-*  api -- Use api=cuda to build SeisCL with Cuda instead of OpenCL
+* api -- Use api=cuda to build SeisCL with Cuda instead of OpenCL
 * nompi -- Use nompi=1 to compile without MPI support.
 * H5LIB -- Use option to set the path to hdf5 libraries (hdf5.so).
 * H5LIB -- Use this option to set the path to hdf5 headers.
@@ -73,16 +73,21 @@ Several options can be passed to make to compile different flavors of SeisCL:
 For example, to compile with Cuda, without MPI support with gcc:
 
     make all api=cuda nompi=1 H5CC=gcc
+    
+Finally, to install the python wrapper to your python environment, you can use pip in the
+root directory of the repo
+
+    pip install .
 
 ## Testing
 
-Several tests can be found in ./tests, organized in two scripts:
+Several tests can be found in ./tests, wihtin two scripts:
 * [test_consistency.py](tests/test_consistency.py), which test that model decomposition, floating point precision options and gradient calculation
 are accurate and working,
 * [test_accuracy.py](tests/test_accuracy.py), which contains comparison with different analytical solutions. For the
 moment, we have analytical solutions for a 3D and 2D homogenous (visco)elastic unbounded space
 and 3D and 2D solutions for an elastic half-space (Lamb and Garvins's problem). See those
-solutions in tests/analytical.
+solutions in [tests/analytical](tests/analytical).
 
 To test for all analytical solutions with plots:
 
