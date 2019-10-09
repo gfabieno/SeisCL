@@ -377,7 +377,7 @@ class SeisCL():
         
         cmd += self.progname
         cmd += ' '+workdir+'/'+self.file
-        cmd += ' ' +file_din
+        cmd += ' ' +self.file_din
         return cmd
 
     def execute(self, workdir=None):

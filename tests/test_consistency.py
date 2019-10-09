@@ -90,6 +90,7 @@ def test_backpropagation(seis, plot=False, ngpu=1, nmpi=1):
     seis.csts['FP16'] = 0
     seis.csts['nmax_dev'] = 1
     seis.NP = 1
+    seis.file_din = seis.workdir + '/SeisCL_din.mat'
 
     seis.csts['MOVOUT'] = 1
     seis.csts['seisout'] = 1
@@ -98,7 +99,7 @@ def test_backpropagation(seis, plot=False, ngpu=1, nmpi=1):
     seis.set_forward(seis.src_pos_all[3,:], pars, withgrad=False)
     seis.execute()
     data = seis.read_data()
-    seis.write_data({"vx":data[0]})
+    seis.write_data({"vx":data[0]}, filename="SeisCL_din.mat")
     pars['vp'] = np.zeros(seis.csts['N']) + 3500
 
     if ngpu > 1 or nmpi > 1:
@@ -212,6 +213,7 @@ def test_fp16_grad(seis, ref=None, plot=False, ngpu=1, nmpi=1):
     seis.csts['FP16'] = 0
     seis.csts['nmax_dev'] = 1
     seis.NP = 1
+    seis.file_din = seis.workdir + '/SeisCL_din.mat'
 
 #    seis.csts['MOVOUT'] = 20
 #    seis.csts['seisout'] = 1
@@ -220,7 +222,7 @@ def test_fp16_grad(seis, ref=None, plot=False, ngpu=1, nmpi=1):
     seis.set_forward(seis.src_pos_all[3,:], pars, withgrad=False)
     seis.execute()
     data = seis.read_data()
-    seis.write_data({"p":data[0]})
+    seis.write_data({"p":data[0]}, filename="SeisCL_din.mat")
     pars['vp'] = np.zeros(seis.csts['N']) + 3500
 
     if ngpu > 1 or nmpi > 1:
