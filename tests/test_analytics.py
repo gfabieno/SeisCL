@@ -48,7 +48,7 @@ def ricker_wavelet(f0, NT, dt ):
 
     return ricker
 
-def define_SeisCL(ND=3, dt=0.25e-03, NT=2400, dh=2, f0=20, L=0, FL=[], FDORDER=4,
+def define_SeisCL(ND=3, dt=0.25e-03, NT=800, dh=2, f0=20, L=0, FL=[], FDORDER=4,
                   N=300, nab=112):
     """
     Function to define common parameters of the tests for SeisCL

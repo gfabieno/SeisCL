@@ -309,7 +309,7 @@ def compute_shot(offsets, vp, vs, rho, dt, src, rectype="x", zsrc=1, zrec=1):
         else:
             raise ValueError("rectype must be either \"x\" or \"z\"")
 
-        v = get_source_response(u, src, dt)
+        v = get_source_response(u, src)
         traces[ii] = np.real(v)
 
     return np.transpose(np.array(traces))
