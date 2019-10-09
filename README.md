@@ -52,7 +52,7 @@ https://wiki.tiker.net/OpenCLHowTo).
 *  (Optional) An MPI Library, either [OpenMPI](https://www.open-mpi.org)
 or [MPICH](https://www.mpich.org). If working on a cluster, this should already be installed!
 
-A [Makefile](Makefile) is provided, which may need to be modified for your specific system.
+A [Makefile](src/Makefile) is provided, which may need to be modified for your specific system.
 To compile, just run:
 
     cd src;
