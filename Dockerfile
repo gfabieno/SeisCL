@@ -7,8 +7,10 @@ RUN yum -y install hdf5-devel \
     && yum -y install make \
     && yum -y install git 
 ENV CUDA_PATH /usr/local/cuda
-RUN git clone --single-branch --branch CUDACL_simplify https://github.com/gfabieno/SeisCL.git \
-    && cd SeisCL/src \
-    && make all api=cuda nompi=1
+
+RUN mkdir SeisCL
+COPY src SeisCL
+RUN cd SeisCL \
+    && make all api=cuda nompi=1 H5CC=gcc
 
 ENV PATH="/SeisCL/src:${PATH}"

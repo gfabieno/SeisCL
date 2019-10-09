@@ -21,7 +21,7 @@
 
 double wtime(){
 #ifndef __NOMPI__
-    return WTIME MPI_Wtime();
+    return MPI_Wtime();
 #else
     struct timeval time;
     gettimeofday(&time, NULL);

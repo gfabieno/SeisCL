@@ -1,57 +1,63 @@
 # Makefile for SeisCL
 
+# Edit the following variable for you system
+H5LIB=/usr/lib64/openmpi/lib/
+H5HEAD=/usr/include/openmpi-x86_64/
+H5CC=h5cc
 
 UNAME_S := $(shell uname -s)
-
 # Choosing compiler and options
-#On some clusters, it is better to use the wrapper h5cc
-ifeq ($(shell hash h5cc),)
+# On some clusters, it is better to use the wrapper h5cc
+ifeq ($(shell command -v h5cc),)
   CC=gcc
 else
-  CC=h5cc
+  CC=$(H5CC)
 endif
-LFLAGS= -lm -lrt -lhdf5 -L/usr/local/hdf5/lib -L/usr/lib64/ -lz -pipe -L/usr/lib64/openmpi/lib/
-CFLAGS= -g -I/usr/include/openmpi-x86_64
+LFLAGS= -lm -lrt -lhdf5 -L$(H5LIB) #-L/usr/lib64/ -lz -pipe #-L/usr/lib64/openmpi/lib/
+CFLAGS= -w -O3 -I$(H5HEAD)
 
 # Option to turn off MPI
 ifdef nompi
-$(info Building SeisCL without MPI support)
-ifeq ($(UNAME_S),Darwin)
-CC=clang
-LFLAGS= -lm -lhdf5 -L/opt/local/lib
-CFLAGS= -I/opt/local/include
-endif
-CFLAGS+= -D__NOMPI__
+    $(info Building SeisCL without MPI support)
+
+    ifeq ($(UNAME_S),Darwin)
+    CC=clang
+    LFLAGS= -lm -lhdf5 -L/opt/local/lib
+    CFLAGS= -I/opt/local/include
+    endif
+
+    CFLAGS+= -D__NOMPI__
 else
-$(info Building SeisCL with MPI support)
-ifeq ($(UNAME_S),Linux)
-CFLAGS += $(shell mpicc -showme:compile)
-LDFLAGS += $(shell mpicc -showme:link)
-endif
-ifeq ($(UNAME_S),Darwin)
-CC=mpicc
-LFLAGS= -lm -lmpi -lhdf5 -L/opt/local/lib
-CFLAGS= -Wall -O3 -I/opt/local/include
-endif
+    $(info Building SeisCL with MPI support)
+
+    ifeq ($(UNAME_S),Linux)
+    CFLAGS += $(shell mpicc -showme:compile)
+    LFLAGS += $(shell mpicc -showme:link)
+    endif
+
+    ifeq ($(UNAME_S),Darwin)
+    CC=mpicc
+    LFLAGS= -lm -lmpi -lhdf5 -L/opt/local/lib
+    CFLAGS= -Wall -O3 -I/opt/local/include
+    endif
 endif
 
 
 # Option to choose cuda or OpenCL
 ifeq ($(api),cuda)
-$(info Building SeisCL with CUDA)
-LFLAGS+= -L$(CUDA_PATH)/lib64 -lnvrtc -lcuda -Wl,-rpath,$(CUDA_PATH)/lib64
-CFLAGS+= -I$(CUDA_PATH)/include
+    $(info Building SeisCL with CUDA)
+    LFLAGS+= -L$(CUDA_PATH)/lib64 -lnvrtc -lcuda -Wl,-rpath,$(CUDA_PATH)/lib64
+    CFLAGS+= -I$(CUDA_PATH)/include
 else
-CFLAGS+= -D__SEISCL__
-ifeq ($(UNAME_S),Linux)
-LFLAGS+= -lOpenCL
+    $(info Building SeisCL with OpenCL)
+    CFLAGS+= -D__SEISCL__
+    ifeq ($(UNAME_S),Linux)
+        LFLAGS+= -lOpenCL
+    endif
+    ifeq ($(UNAME_S),Darwin)
+        LFLAGS+= -framework opencl
+    endif
 endif
-ifeq ($(UNAME_S),Darwin)
-LFLAGS+= -framework opencl
-endif
-$(info Building SeisCL with OpenCL)
-endif
-
 
 SeisCL_CL= \
 	savebnd2D.cl \
@@ -128,16 +134,16 @@ SeisCL_MPI_OBJ = $(SeisCL_MPI_SRC:%.c=%.o)
 
 %.o: %.c $(SeisCL_CL_Headers)
 	$(CC) $(CFLAGS) -c -o $@ $<
-	
+
 %.hcl: %.cl cl2cstring
 	./cl2cstring $< $@
 
 
 SeisCL_MPI:	$(SeisCL_CL_Headers) $(SeisCL_MPI_OBJ)
 	$(CC) $(SeisCL_MPI_OBJ) $(LFLAGS) -o SeisCL_MPI
-	
+
 clean:
-	find . -name "*.o" -exec rm {} \; 
+	find . -name "*.o" -exec rm {} \;
 	find . -name "*.c%" -exec rm {} \;
 	find . -name "*.bck" -exec rm {} \;
 	find . -name "*.hcl" -exec rm {} \;
