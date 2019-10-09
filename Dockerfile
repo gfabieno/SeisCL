@@ -13,4 +13,4 @@ COPY src SeisCL
 RUN cd SeisCL \
     && make all api=cuda nompi=1 H5CC=gcc
 
-ENV PATH="/SeisCL/src:${PATH}"
+ENV PATH="/SeisCL:${PATH}"
