@@ -5,7 +5,7 @@ Modeling is performed with finite-difference in the time-domain, and can be eith
 isotropic acoustic, elastic or viscoelastic.
 SeisCL can be run either on GPUs with CUDA or OpenCL, or CPUs with OpenCL.
 Model decomposition and shot parallelization allows using multiples GPUs/nodes.
-Although written is C/CUDA/OpenCL, a python interface is provided for implementing the
+Although written is C/CUDA/OpenCL, a python interface (Python 3) is provided for implementing the
 inversion/imaging workflows.
 
 Cite this publication if you use this software:
@@ -75,15 +75,31 @@ For example, to compile with cuda, without MPI support with gcc:
 
 ## Testing
 
-Several tests can be found in ./tests.
+Several tests can be found in ./tests, organized in two scripts:
+* test_consistency.py, which test that model decomposition, floating point precision options and gradient calculation
+are accurate and working,
+* test_accuracy.py, which contains comparison with different analytical solutions. For the
+moment, we have analytical solutions for a 3D and 2D homogeous (visco)elastic unbouded space
+and 3D and 2D solutions for an elastic half-space (Lamb and Garvins' problem). See those
+solutions in tests/analytical.
+
+To test for all analytical solutions with plots:
+
+    cd tests
+    python test_analytics.py --plot=1
+
+To perform all consistency tests:
+
+    python test_consistency.py
+
+Test scripts are a good start to understand how to use the python interface to SeisCL.
+
+## Usage
 
 
-```
-cd PATH_TO_SEISCL
-mpirun -np N ./SeisCL_MPI INPUT_MODEL_FILE INPUT_DATA_FILE
-```
 
-For the moment, the working directory in terminal must be the directory of the SeisCL binary, as kernels are read and compiled at each program call.
 
-See the Python caller located in tests for the structure of the HDF5 input files.
+
+
+
 
