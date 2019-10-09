@@ -35,7 +35,7 @@ int main(int argc, char **argv) {
     fh = fopen(filename, "r");
     if (fh==NULL){
         
-        fprintf(stderr,"Could not open the file: %s \n", filename);
+        fprintf(stderr,"Error: Could not open the file: %s \n", filename);
     }
     else{
         stat(filename, &statbuf);
@@ -48,17 +48,19 @@ int main(int argc, char **argv) {
     fh = fopen(filename, "w");
     if (fh==NULL){
         
-        fprintf(stderr,"Could not open the file: %s \n", filename);
+        fprintf(stderr,"Error: Could not open the file: %s \n", filename);
     }
     else{
-        fprintf(fh, "const char * ");
+        //fprintf(fh, "const char * ");
+        fprintf(fh, "const char ");
         ii=0;
         while ( (filename[ii]!='.') & (filename[ii]!='\0') & ii<1000){
             fputc(filename[ii], fh);
             ii++;
         }
-        fprintf(fh, "_source = \"");
-        for (ii=0;ii<statbuf.st_size+1;ii++){
+        //fprintf(fh, "_source = \"");
+        fprintf(fh, "_source[] = \"");
+        for (ii=0;ii<statbuf.st_size;ii++){
             ch = program_source[ii];
             switch (ch) {
                 case '\"':
@@ -84,13 +86,15 @@ int main(int argc, char **argv) {
                     break;
                 case '\0':
                     break;
+                case '\r':
+                    break;
                 default:
                     fputc(ch, fh);
             }
         }
-        fprintf(fh, "\";");
+        fprintf(fh, "\";  ");
     }
-
+    fclose(fh);
     free(program_source);
     free(progname);
     return 0;

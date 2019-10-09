@@ -16,1192 +16,1183 @@
  * along with SeisCL. See file COPYING and/or
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  --------------------------------------------------------------------------*/
+
+
+
 #include "F.h"
-
-int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc)  {
-
+#ifdef __SEISCL__
+int get_platform(model * m, cl_platform_id* clplateform, int * cl_plat_numid)
+{
+    /* Find all platforms , and select the first with the desired device type */
+    
+    char chBuffer[1024];
+    cl_uint num_platforms=0;
+    cl_platform_id* clPlatformIDs=NULL;
     int state=0;
-    int i,s,d;
-    size_t buffer_size_s=0;
-    size_t buffer_size_ns=0;
-    size_t buffer_size_ng=0;
-    size_t buffer_size_taper=0;
-    size_t buffer_size_seisout=0;
-    size_t buffer_size_L=0;
-    size_t thissize=0;
-    cl_platform_id sel_plat_id=0;
+    int i,j,k;
+    cl_int device_found;
+    cl_uint nalldevices;
     
-    cl_device_id device=0;
-    cl_ulong global_mem_size=0;
-    cl_ulong local_mem_size=0;
-    cl_ulong required_local_mem_size=0;
-    size_t workitem_size[3];
-    size_t workgroup_size=0;
-    int lsizez=0;
-    int lsizex=0;
-    int lsizey=0;
-    int lcomm=0;
-    int offcomm1=0;
-    int offcomm2=0;
+    //Check that a suitable device type was given
+    if (m->pref_device_type!=CL_DEVICE_TYPE_GPU &&
+        m->pref_device_type!=CL_DEVICE_TYPE_CPU &&
+        m->pref_device_type!=CL_DEVICE_TYPE_ACCELERATOR ){
+        fprintf(stdout," Warning: invalid prefered device type,"
+                       " defaulting to GPU\n");
+        m->pref_device_type=CL_DEVICE_TYPE_GPU;
+    }
     
-    // Find a platform where the prefered device type can be found
-    __GUARD GetPlatformID( &m->pref_device_type, &m->device_type, &sel_plat_id, &m->num_devices, m->n_no_use_GPUs, m->no_use_GPUs);
-    if (m->num_devices>m->nmax_dev)
-        m->num_devices=m->nmax_dev;
+    // Get OpenCL platform count
+    __GUARD clGetPlatformIDs (0, NULL, &num_platforms);
+    if(num_platforms == 0){
+        fprintf(stderr,"Error: No OpenCL platform found!\n\n");
+        return 1;
+    }
+    
 
-    //For each GPU, allocate the memory structures
-    GMALLOC((*vcl),sizeof(struct varcl)*m->num_devices)
-    if (!state) memset ((void*)(*vcl), 0, sizeof(struct varcl)*m->num_devices);
-    GMALLOC((*mloc),sizeof(struct modcstsloc)*m->num_devices)
-    if (!state) memset ((void*)(*mloc), 0, sizeof(struct modcstsloc)*m->num_devices);
+    fprintf(stdout,"Found %u OpenCL platforms:\n", num_platforms);
+    // Allocate the number of platforms
+    GMALLOC(clPlatformIDs,num_platforms * sizeof(cl_platform_id));
     
-    //Connect all GPUs
-    
-    __GUARD connect_allgpus( vcl, &m->context, &m->device_type, &sel_plat_id, m->n_no_use_GPUs, m->no_use_GPUs,m->nmax_dev);
-    
-    
-    //For each device, create the memory buffers and programs on the GPU
-    for (d=0; d<m->num_devices; d++) {
+    // Get platform info for each platform and the platform containing the
+    // prefered device type if found
+    __GUARD clGetPlatformIDs (num_platforms, clPlatformIDs, NULL);
+
+    // Try to find a platform with the prefered device type first
+    for(i = 0; i < num_platforms; ++i){
+        device_found = clGetDeviceIDs(clPlatformIDs[i],
+                                      m->pref_device_type,
+                                      0,
+                                      NULL,
+                                      &nalldevices);
         
-        //The domain of the seismic simulation is decomposed between the devices
-        //along the X direction.
-        if (!state){
-            (*mloc)[d].dev=d;
-            (*mloc)[d].num_devices=m->num_devices;
-            (*mloc)[d].NY=m->NY;
-            (*mloc)[d].NZ=m->NZ;
+        if(device_found==CL_SUCCESS && nalldevices>0){
+            //Check if any GPU is flagged not to be used
+            for (j=0;j<nalldevices;j++){
+                for (k=0;k<m->n_no_use_GPUs;k++){
+                    if (m->no_use_GPUs[k]==j)
+                        nalldevices-=1;
+                }
+            }
             
-            
-            (*mloc)[d].NZ_al0=m->fdoh%16;
-            (*mloc)[d].NZ_al16= ((*mloc)[d].NZ+m->FDORDER)%16;
-            
-            (*mloc)[d].NZ_al0=0;
-            (*mloc)[d].NZ_al16= 0;
-            
-            
-            if (m->MYLOCALID<m->NX%m->NLOCALP){
-                (*mloc)[d].NX=m->NX/m->NLOCALP+1;
-                m->NXP=m->NX/m->NLOCALP+1;
+            if (nalldevices<1){
+                fprintf(stdout,"Warning: No allowed devices could be found");
+                return 1;
             }
             else{
-                (*mloc)[d].NX=m->NX/m->NLOCALP;
-                m->NXP=m->NX/m->NLOCALP;
+                *clplateform = clPlatformIDs[i];
+                * cl_plat_numid = i;
+                m->device_type=m->pref_device_type;
+                break;
             }
-            if (d<(*mloc)[d].NX%m->num_devices)
-                (*mloc)[d].NX= (*mloc)[d].NX/m->num_devices+1;
+        }
+    }
+    // Then if not found, fall back on a platform with GPUs
+    if(*clplateform == NULL){
+        for(i = 0; i < num_platforms; ++i){
+            device_found = clGetDeviceIDs(clPlatformIDs[i],
+                                          CL_DEVICE_TYPE_GPU,
+                                          0,
+                                          NULL,
+                                          &nalldevices);
+            if(device_found == CL_SUCCESS && nalldevices>0){
+                *clplateform = clPlatformIDs[i];
+                * cl_plat_numid = i;
+                m->device_type=CL_DEVICE_TYPE_GPU;
+                break;
+            }
+        }
+    }
+    // Then if not found, fall back on a platform with accelerators
+    if(*clplateform == NULL){
+        for(i = 0; i < num_platforms; ++i){
+            device_found = clGetDeviceIDs(clPlatformIDs[i],
+                                          CL_DEVICE_TYPE_ACCELERATOR,
+                                          0,
+                                          NULL,
+                                          &nalldevices);
+            if(device_found == CL_SUCCESS && nalldevices>0){
+                *clplateform = clPlatformIDs[i];
+                * cl_plat_numid = i;
+                m->device_type=CL_DEVICE_TYPE_ACCELERATOR;
+                break;
+            }
+        }
+    }
+    // Finally, fall back on a platform with CPUs
+    if(*clplateform == NULL){
+        for(i = 0; i < num_platforms; ++i){
+            device_found = clGetDeviceIDs(clPlatformIDs[i],
+                                          CL_DEVICE_TYPE_CPU,
+                                          0,
+                                          NULL,
+                                          &nalldevices);
+            if(device_found == CL_SUCCESS && nalldevices>0){
+                *clplateform = clPlatformIDs[i];
+                * cl_plat_numid = i;
+                m->device_type=CL_DEVICE_TYPE_CPU;
+                break;
+            }
+        }
+    }
+    if(*clplateform == NULL)
+    {
+        fprintf(stderr,"Error: No usable platforms could be found\n\n");
+        state=1;
+    }
+    else{
+        __GUARD clGetPlatformInfo (*clplateform,
+                                   CL_PLATFORM_NAME,
+                                   1024,
+                                   &chBuffer,
+                                   NULL);
+        fprintf(stdout,"Connection to platform %d: %s\n", i, chBuffer);
+        
+    }
+    
+    GFree(clPlatformIDs);
+    if (state !=CL_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
+    
+    return state;
+}
+#endif
+
+CL_INT connect_devices(device ** dev, model * m)
+{
+    /*Routine to connect all computing devices, create context and queues*/
+    
+    int state = 0;
+    #ifdef __SEISCL__
+    CL_UINT nalldevices=0;
+    #else
+    int nalldevices=0;
+    #endif
+    DEVICE *devices=NULL;
+    int *allow_devs=NULL;
+    CL_CHAR vendor_name[1024] = {0};
+    CL_CHAR device_name[1024] = {0};
+    int i,j,n, devid;
+    int allowed;
+
+    if (m->nmax_dev<1){
+        fprintf(stdout,"Warning: maximum number of devices too small,"
+                       "default to 1\n");
+        m->nmax_dev=1;
+    }
+    #ifdef __SEISCL__
+        cl_platform_id  clplateform = NULL;
+        int cl_plat_numid;
+        __GUARD get_platform(m, &clplateform, &cl_plat_numid);
+
+        // Find the number of prefered devices
+        __GUARD clGetDeviceIDs(clplateform, m->device_type,
+                               0, NULL, &nalldevices);
+        if (m->device_type==CL_DEVICE_TYPE_GPU)
+            fprintf(stdout,"Found %d GPU, ", nalldevices);
+        else if (m->device_type==CL_DEVICE_TYPE_ACCELERATOR)
+            fprintf(stdout,"Found %d Accelerator, ", nalldevices);
+        else if (m->device_type==CL_DEVICE_TYPE_CPU)
+            fprintf(stdout,"Found %d CPU, ", nalldevices);
+
+    #else
+        __GUARD cuInit(0);
+        __GUARD cuDeviceGetCount(&nalldevices);
+    #endif
+    
+    GMALLOC(allow_devs,sizeof(int)*nalldevices);
+    //Collect all allowed devices
+    n=0;
+    
+    if (!state){
+        for (i=0;i<nalldevices;i++){
+            devid = (m->LID + i) % nalldevices ;
+            allowed=1;
+            for (j=0;j<m->n_no_use_GPUs;j++){
+                if (m->no_use_GPUs[j]!=devid){
+                    allowed=0;
+                }
+            }
+            if (allowed){
+                allow_devs[n]=devid;
+                n++;
+            }
+            
+        }
+    }
+    
+    //Verify that we do not use more than the allowed number of devices
+    m->NUM_DEVICES = n;
+    if (m->NUM_DEVICES > m->nmax_dev)
+        m->NUM_DEVICES=m->nmax_dev;
+    GMALLOC(*dev, sizeof(device)*m->NUM_DEVICES);
+    
+    // Print some information about the returned devices
+    fprintf(stdout,"Process %d connecting to %d devices:", m->GID, m->NUM_DEVICES);
+    
+    #ifdef __SEISCL__
+    
+        GMALLOC(devices,sizeof(cl_device_id)*nalldevices);
+        __GUARD clGetDeviceIDs(clplateform,
+                               m->device_type,
+                               nalldevices,
+                               devices,
+                               NULL);
+    
+        for (i=0;i<m->NUM_DEVICES;i++){
+            __GUARD clGetDeviceInfo(devices[allow_devs[i]],
+                                    CL_DEVICE_VENDOR,
+                                    sizeof(vendor_name),
+                                    vendor_name,
+                                    NULL);
+            __GUARD clGetDeviceInfo(devices[allow_devs[i]],
+                                    CL_DEVICE_NAME,
+                                    sizeof(device_name),
+                                    device_name,
+                                    NULL);
+            fprintf(stdout," Device %d( %s %s)",
+                    allow_devs[i], vendor_name, device_name);
+            if (i<m->NUM_DEVICES-1){
+                fprintf(stdout,",");
+            }
+            else{
+                fprintf(stdout,"\n");
+            }
+        }
+
+        // Create a context with the specified devices
+        if (!state) m->context = clCreateContext(NULL,
+                                                 m->NUM_DEVICES,//1,
+                                                 devices,
+                                                 NULL,
+                                                 NULL,
+                                                 &state);
+    
+        // Create command queues for each devices
+        for (i=0;i<m->NUM_DEVICES;i++){
+            (*dev)[i].cudev = devices[allow_devs[i]];
+            (*dev)[i].context_ptr = &m->context;
+            if (!state)
+                (*dev)[i].queue = clCreateCommandQueue(m->context,
+                                                   devices[allow_devs[i]],
+                                                   0 ,
+                                                   &state);
+            if (!state)
+                (*dev)[i].queuecomm = clCreateCommandQueue(m->context,
+                                                       devices[allow_devs[i]],
+                                                       0 ,
+                                                       &state);
+        }
+        GFree(devices);
+    #else
+
+        // Create command queues for each devices
+        for (i=0;i<m->NUM_DEVICES;i++){
+            // Create a context with the specified devices
+            __GUARD cuDeviceGet(&(*dev)[i].cudev, allow_devs[i]);
+            __GUARD cuCtxCreate(&(*dev)[i].context,
+                                0,
+                                (*dev)[i].cudev);
+            (*dev)[i].context_ptr = &(*dev)[i].context;
+            __GUARD cuDeviceGetName(device_name,
+                                    sizeof(vendor_name),
+                                    (*dev)[i].cudev);
+            fprintf(stdout," Device %d (%s)", allow_devs[i], device_name);
+            if (i<m->NUM_DEVICES-1){
+                fprintf(stdout,",");
+            }
+            else{
+                fprintf(stdout,"\n");
+            }
+            __GUARD cuStreamCreate(&(*dev)[i].queue, CU_STREAM_NON_BLOCKING);
+            __GUARD cuStreamCreate(&(*dev)[i].queuecomm,CU_STREAM_NON_BLOCKING);
+        }
+    
+    #endif
+    
+    if (state !=CUCL_SUCCESS) fprintf(stderr,
+                                      "Error: Devices connection failed: %s\n",
+                                      clerrors(state));
+    GFree(allow_devs);
+    
+    return state;
+    
+}
+
+
+int Init_CUDA(model * m, device ** dev)  {
+    /* Function that intialize model decomposition on multiple devices on one
+       host. All OpenCL buffers and kernels are created and are contained in a
+       device structure (one for each devices)
+     */
+    //TODO domain decomposition for float2 and half2
+    int state=0;
+    int dimbool;
+    int i,j,d;
+    int parsize=0;
+    int fdsize=0;
+    int slicesize=0;
+    #ifdef __SEISCL__
+    cl_device_id device=0;
+    cl_ulong local_mem_size=0;
+    cl_ulong required_local_mem_size=0;
+    int required_work_size=0;
+    size_t workitem_size[MAX_DIMS];
+    size_t workgroup_size=0;
+    #else
+    int local_mem_size=0;
+    int required_local_mem_size=0;
+    int required_work_size=0;
+    int workgroup_size=0;
+    #endif
+    int workdim = 0;
+    int lsize[MAX_DIMS];
+    int gsize[MAX_DIMS];
+    int gsize_com[MAX_DIMS];
+    int LCOMM=0;
+    int offcom1=0;
+    int offcom2=0;
+    int bufoff, bufoff2;
+    struct device * di;
+    
+    // Connect all OpenCL devices that can be used in a single context
+    __GUARD connect_devices(dev, m);
+
+
+    
+    //For each device, create the memory buffers and programs on the GPU
+    for (d=0; d<m->NUM_DEVICES; d++) {
+        
+        di=&(*dev)[d];
+        #ifndef __SEISCL__
+        __GUARD cuCtxSetCurrent(di->context);
+        __GUARD cuMemAlloc( &di->cuda_null , sizeof(float));
+        #endif
+        di->FP16=m->FP16;
+        /* The domain of the FD simulation is decomposed between the devices and
+        *  MPI processes along the X direction. We must compute the subdomain 
+        *  size, and its location in the domain*/
+        if (!state){
+            di->DEVID=d;
+            di->NDIM=m->NDIM;
+            //Only the last dimensions changes due to domain decomposition
+            for (i=0;i<m->NDIM-1;i++){
+                di->N[i]=m->N[i];
+            }
+            for (i=0;i<m->NDIM;i++){
+                di->N_names[i]=m->N_names[i];
+            }
+            //We first decompose between MPI processess
+            if (m->MYLOCALID<m->N[m->NDIM-1]%m->NLOCALP){
+                di->N[m->NDIM-1]=m->N[m->NDIM-1]/m->NLOCALP+1;
+                m->NXP=m->N[m->NDIM-1]/m->NLOCALP+1;
+            }
+            else{
+                di->N[m->NDIM-1]=m->N[m->NDIM-1]/m->NLOCALP;
+                m->NXP=m->N[m->NDIM-1]/m->NLOCALP;
+            }
+            //Then decompose between devices
+            if (d<di->N[m->NDIM-1]%m->NUM_DEVICES)
+                di->N[m->NDIM-1]= di->N[m->NDIM-1]/m->NUM_DEVICES+1;
             else
-                (*mloc)[d].NX= (*mloc)[d].NX/m->num_devices;
+                di->N[m->NDIM-1]= di->N[m->NDIM-1]/m->NUM_DEVICES;
 
-            (*mloc)[d].offset=0;
-            (*mloc)[d].NX0=0;
-            (*mloc)[d].offsetfd=0;
+            bufoff=0;
+            di->OFFSET=0;
+
+            //Some useful sizes can now be computed for this device
+            parsize=1;
+            fdsize=1;
+            slicesize=1;
+            for (i=0;i<m->NDIM;i++){
+                fdsize*=di->N[i]+m->FDORDER;
+                parsize*=di->N[i];
+            }
+            for (i=0;i<m->NDIM-1;i++){
+                slicesize*=di->N[i];
+            }
             
+            //Offset is the location in the model for this device from address 0
+            // OFFSET is the x location of the first element for this device
             for (i=0;i<m->MYLOCALID;i++){
-                if (i<m->NX%m->NLOCALP){
-                    (*mloc)[d].offset+=(m->NX/m->NLOCALP+1)*m->NY*m->NZ;
-                    (*mloc)[d].NX0+=(m->NX/m->NLOCALP+1);
+                if (i<m->N[m->NDIM-1]%m->NLOCALP){
+                    bufoff+=(m->N[m->NDIM-1]/m->NLOCALP+1)*slicesize;
+                    di->OFFSET+=(m->N[m->NDIM-1]/m->NLOCALP+1);
                 }
                 else{
-                    (*mloc)[d].offset+=(m->NX/m->NLOCALP)*m->NY*m->NZ;
-                    (*mloc)[d].NX0+=(m->NX/m->NLOCALP);
+                    bufoff+=(m->N[m->NDIM-1]/m->NLOCALP)*slicesize;
+                    di->OFFSET+=(m->N[m->NDIM-1]/m->NLOCALP);
                 }
                 
             }
-
-
             for (i=0;i<d;i++){
-                (*mloc)[d].NX0+=(*mloc)[i].NX;
-                (*mloc)[d].offset+=(*mloc)[i].NX*(*mloc)[i].NY*(*mloc)[i].NZ;
-                if (m->ND==3){
-                    (*mloc)[d].offsetfd+=((*mloc)[i].NX+m->FDORDER)*((*mloc)[i].NY+m->FDORDER)*((*mloc)[i].NZ+m->FDORDER);
-                }
-                else {
-                    (*mloc)[d].offsetfd+=((*mloc)[i].NX+m->FDORDER)*((*mloc)[i].NZ+m->FDORDER);
-                }
+                di->OFFSET+=(*dev)[i].N[m->NDIM-1];
+                bufoff+=(*dev)[i].N[m->NDIM-1]*slicesize;
             }
-        }
-
-        // Create a pointer at the right position (offset) of the decomposed model
-        if (!state){
-            if (m->rho)      (*mloc)[d].rho      =&m->rho[(*mloc)[d].offset];
-            if (m->rip)      (*mloc)[d].rip      =&m->rip[(*mloc)[d].offset];
-            if (m->rkp)      (*mloc)[d].rkp      =&m->rkp[(*mloc)[d].offset];
-            if (m->u)        (*mloc)[d].u        =&m->u[(*mloc)[d].offset];
-            if (m->pi)       (*mloc)[d].pi       =&m->pi[(*mloc)[d].offset];
-            if (m->uipkp)    (*mloc)[d].uipkp    =&m->uipkp[(*mloc)[d].offset];
-            if (m->taus)     (*mloc)[d].taus     =&m->taus[(*mloc)[d].offset];
-            if (m->tausipkp) (*mloc)[d].tausipkp =&m->tausipkp[(*mloc)[d].offset];
-            if (m->taup)     (*mloc)[d].taup     =&m->taup[(*mloc)[d].offset];
-            if (m->rjp)      (*mloc)[d].rjp      =&m->rjp[(*mloc)[d].offset];
-            if (m->uipjp)    (*mloc)[d].uipjp    =&m->uipjp[(*mloc)[d].offset];
-            if (m->ujpkp)    (*mloc)[d].ujpkp    =&m->ujpkp[(*mloc)[d].offset];
-            if (m->tausipjp) (*mloc)[d].tausipjp =&m->tausipjp[(*mloc)[d].offset];
-            if (m->tausjpkp) (*mloc)[d].tausjpkp =&m->tausjpkp[(*mloc)[d].offset];
-            
-            if (m->gradrho)  (*mloc)[d].gradrho  =&m->gradrho[(*mloc)[d].offset];
-            if (m->gradM)    (*mloc)[d].gradM    =&m->gradM[(*mloc)[d].offset];
-            if (m->gradmu)   (*mloc)[d].gradmu   =&m->gradmu[(*mloc)[d].offset];
-            if (m->gradtaup) (*mloc)[d].gradtaup =&m->gradtaup[(*mloc)[d].offset];
-            if (m->gradtaus) (*mloc)[d].gradtaus =&m->gradtaus[(*mloc)[d].offset];
-            
-            if (m->Hrho)  (*mloc)[d].Hrho  =&m->Hrho[(*mloc)[d].offset];
-            if (m->HM)    (*mloc)[d].HM    =&m->HM[(*mloc)[d].offset];
-            if (m->Hmu)   (*mloc)[d].Hmu   =&m->Hmu[(*mloc)[d].offset];
-            if (m->Htaup) (*mloc)[d].Htaup =&m->Htaup[(*mloc)[d].offset];
-            if (m->Htaus) (*mloc)[d].Htaus =&m->Htaus[(*mloc)[d].offset];
-            
-            
-            if (m->movvx)  (*mloc)[d].movvx  =&m->movvx[(*mloc)[d].offset];
-            if (m->movvy)  (*mloc)[d].movvy  =&m->movvy[(*mloc)[d].offset];
-            if (m->movvz)  (*mloc)[d].movvz  =&m->movvz[(*mloc)[d].offset];
-            if (m->movout>0){
-                if (m->ND==3){
-                    thissize=((*mloc)[d].NX+m->FDORDER)*((*mloc)[d].NY+m->FDORDER)*((*mloc)[d].NZ+m->FDORDER)*sizeof(cl_float);
-                }
-                else{
-                    thissize=((*mloc)[d].NX+m->FDORDER)*((*mloc)[d].NZ+m->FDORDER)*sizeof(cl_float);
-                }
-                if (m->ND!=21){
-                    GMALLOC((*mloc)[d].buffermovvx,thissize);
-                    GMALLOC((*mloc)[d].buffermovvz,thissize);
-                }
-                if (m->ND==3 || m->ND==21){
-                    GMALLOC((*mloc)[d].buffermovvy,thissize);
-                }
+            if (m->FP16>1){
+                bufoff2=bufoff/2;
+            }
+            else{
+                bufoff2=bufoff;
+            }
                 
-            }
             
-            
-            if (m->gradout==1){
+        }
 
-                
-                if (m->back_prop_type==2){
-                    if (m->ND==3){
-                        thissize=m->nfreqs*((*mloc)[d].NX+m->FDORDER)*((*mloc)[d].NY+m->FDORDER)*((*mloc)[d].NZ+m->FDORDER)*sizeof(cl_float2);
-                    }
-                    else{
-                        thissize=m->nfreqs*((*mloc)[d].NX+m->FDORDER)*((*mloc)[d].NZ+m->FDORDER)*sizeof(cl_float2);
-                    }
-                    
-                    if (m->ND!=21){
-                        GMALLOC((*mloc)[d].f_vx,thissize);
-                        GMALLOC((*mloc)[d].f_vz,thissize);
-                        GMALLOC((*mloc)[d].f_sxx,thissize);
-                        GMALLOC((*mloc)[d].f_szz,thissize);
-                        GMALLOC((*mloc)[d].f_sxz,thissize);
-                        GMALLOC((*mloc)[d].f_vxr,thissize);
-                        GMALLOC((*mloc)[d].f_vzr,thissize);
-                        GMALLOC((*mloc)[d].f_sxxr,thissize);
-                        GMALLOC((*mloc)[d].f_szzr,thissize);
-                        GMALLOC((*mloc)[d].f_sxzr,thissize);
-                    }
-                    
-                    if (m->ND==3 || m->ND==21){
-                        GMALLOC((*mloc)[d].f_vy,thissize);
-                        GMALLOC((*mloc)[d].f_sxy,thissize);
-                        GMALLOC((*mloc)[d].f_syz,thissize);
-                        GMALLOC((*mloc)[d].f_vyr,thissize);
-                        GMALLOC((*mloc)[d].f_sxyr,thissize);
-                        GMALLOC((*mloc)[d].f_syzr,thissize);
-                    }
-                    if (m->ND==3 ){
-                        GMALLOC((*mloc)[d].f_syy,thissize);
-                        GMALLOC((*mloc)[d].f_syyr,thissize);
-                    }
-                    
-                    if (m->L>0){
-                        if (m->ND!=21){
-                            GMALLOC((*mloc)[d].f_rxx,thissize*m->L);
-                            GMALLOC((*mloc)[d].f_rzz,thissize*m->L);
-                            GMALLOC((*mloc)[d].f_rxz,thissize*m->L);
-                            GMALLOC((*mloc)[d].f_rxxr,thissize*m->L);
-                            GMALLOC((*mloc)[d].f_rzzr,thissize*m->L);
-                            GMALLOC((*mloc)[d].f_rxzr,thissize*m->L);
-                        }
-                        
-                        if (m->ND==3 || m->ND==21){
-                            GMALLOC((*mloc)[d].f_rxy,thissize*m->L);
-                            GMALLOC((*mloc)[d].f_ryz,thissize*m->L);
-                            GMALLOC((*mloc)[d].f_rxyr,thissize*m->L);
-                            GMALLOC((*mloc)[d].f_ryzr,thissize*m->L);
-                        }
-                        if (m->ND==3){
-                            GMALLOC((*mloc)[d].f_ryy,thissize*m->L);
-                            GMALLOC((*mloc)[d].f_ryyr,thissize*m->L);
-                        }
-                        
-                        
-                    }
-                    
+        // Get some properties of the device, to define the work sizes
+        {
+            #ifdef __SEISCL__
+            __GUARD clGetCommandQueueInfo( di->queue, CL_QUEUE_DEVICE,
+                                           sizeof(cl_device_id), &device, NULL);
+            __GUARD clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_ITEM_SIZES,
+                                    sizeof(workitem_size), &workitem_size,NULL);
+            __GUARD clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE,
+                                   sizeof(workgroup_size),&workgroup_size,NULL);
+            __GUARD clGetDeviceInfo(device, CL_DEVICE_LOCAL_MEM_SIZE,
+                                   sizeof(local_mem_size),&local_mem_size,NULL);
+            
+            // Intel SDK doesn't give the right max work_group_size our kernels,
+            // we force it here!
+            if (!state && m->pref_device_type==CL_DEVICE_TYPE_CPU)
+                workgroup_size= workgroup_size>1024 ? 1024:workgroup_size;
+            if (!state && m->pref_device_type==CL_DEVICE_TYPE_ACCELERATOR)
+                workgroup_size= workgroup_size>1024 ? 1024:workgroup_size;
+            #else
+            __GUARD  cuDeviceGetAttribute(&workgroup_size,
+                                  CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
+                                  di->cudev );
+            __GUARD  cuDeviceGetAttribute(&local_mem_size,
+                                          CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK,
+                                          di->cudev );
+            __GUARD  cuDeviceGetAttribute(&di->cuda_arc[0],
+                                          CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+                                          di->cudev );
+            __GUARD  cuDeviceGetAttribute(&di->cuda_arc[1],
+                                          CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
+                                          di->cudev );
+            if (m->FP16==3  && (di->cuda_arc[0]*10+di->cuda_arc[1])<53){
+                state=1;
+                fprintf(stderr,"Error: FP16 computation only possible for cuda");
+                fprintf(stderr," arch >=5.3, but device %d arch is %d.%d\n",
+                        d,
+                        di->cuda_arc[0],
+                        di->cuda_arc[1] );
+            }
+            #endif
+            if (state !=CUCL_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
+            
+        }
+
+        // Define the local work size of the update kernels.
+        //By default, it is 32 elements long to have coalesced memory in cuda
+        //Local memory usage must fit the size of local memory of the device
+        if (!state){
+            lsize[0]=32;
+            if (m->NDIM==2){
+                lsize[1]=16;
+            }
+            else{
+                for (i=1;i<m->NDIM;i++){
+                    lsize[i]=(m->FDORDER)/2;
                 }
             }
-
-        }
-
-        
-        // Create the memory to read the seismograms for each shot
-        if (m->vxout && !state){
-            alloc_seismo(&(*mloc)[d].vxout, m->ns, m->allng, m->NT, m->nrec);
-        }
-        if (m->vyout && !state){
-            alloc_seismo(&(*mloc)[d].vyout, m->ns, m->allng, m->NT, m->nrec);
-        }
-        if (m->vzout && !state){
-            alloc_seismo(&(*mloc)[d].vzout, m->ns, m->allng, m->NT, m->nrec);
-        }
-        if (m->sxxout && !state){
-            alloc_seismo(&(*mloc)[d].sxxout, m->ns, m->allng, m->NT, m->nrec);
-        }
-        if (m->syyout && !state){
-            alloc_seismo(&(*mloc)[d].syyout, m->ns, m->allng, m->NT, m->nrec);
-        }
-        if (m->szzout && !state){
-            alloc_seismo(&(*mloc)[d].szzout, m->ns, m->allng, m->NT, m->nrec);
-        }
-        if (m->sxyout && !state){
-            alloc_seismo(&(*mloc)[d].sxyout, m->ns, m->allng, m->NT, m->nrec);
-        }
-        if (m->sxzout && !state){
-            alloc_seismo(&(*mloc)[d].sxzout, m->ns, m->allng, m->NT, m->nrec);
-        }
-        if (m->syzout && !state){
-            alloc_seismo(&(*mloc)[d].syzout, m->ns, m->allng, m->NT, m->nrec);
-        }
-        if (m->pout && !state){
-            alloc_seismo(&(*mloc)[d].pout, m->ns, m->allng, m->NT, m->nrec);
-        }
-        
-        
-        
-        
-        // Get some properties of the device
-        __GUARD  clGetCommandQueueInfo(	(*vcl)[d].cmd_queue, CL_QUEUE_DEVICE, sizeof(cl_device_id), &device, NULL);
-        if (state !=CL_SUCCESS) CLPERR(state);
-        
-        __GUARD clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(workitem_size), &workitem_size, NULL);
-        __GUARD clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(workgroup_size), &workgroup_size, NULL);
-        __GUARD clGetDeviceInfo(device, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(local_mem_size), &local_mem_size, NULL);
-        if (state !=CL_SUCCESS) CLPERR(state);
-        
-        //Intel SDK does not give the right max work_group_size our kernels, we force it here!
-        if (!state && m->pref_device_type==CL_DEVICE_TYPE_CPU) workgroup_size= workgroup_size>1024 ? 1024:workgroup_size;
-        if (!state && m->pref_device_type==CL_DEVICE_TYPE_ACCELERATOR) workgroup_size= workgroup_size>1024 ? 1024:workgroup_size;
-        
-        // Define the local work size and global work size of the device.
-        if (!state){
-            if (workitem_size[0]<m->FDORDER || workitem_size[1]<2|| workitem_size[2]<2){
-                fprintf(stdout,"Maximum device work item size of device %d doesn't support 3D local memory\n", d);
-                fprintf(stdout,"Switching off local memory optimization\n");
-                (*mloc)[d].local_off = 1;
+            #ifdef __SEISCL__
+            dimbool=0;
+            for (i=0;i<m->NDIM;i++){
+                if (workitem_size[i]<2)
+                    dimbool=1;
+            }
+            if (workitem_size[0]<m->FDORDER || dimbool){
+                fprintf(stdout,"Maximum device work item size of device "
+                               "%d doesn't support 3D local memory\n"
+                               "Switching off local memory optimization\n", d);
+                di->LOCAL_OFF = 1;
                 
             }
             else {
-
-                lsizez=32;
-                lsizex=16;
-                lsizey=16;
-                if (m->ND==3){// For 3D
-                    required_local_mem_size = (lsizez+m->FDORDER)*(lsizex+m->FDORDER)*(lsizey+m->FDORDER)*sizeof(float);
-                    while ( (lsizex>(m->FDORDER)/2 && lsizey>(m->FDORDER)/2 &&  required_local_mem_size>local_mem_size) || lsizex*lsizey*lsizez>workgroup_size ){
-                        lsizex-=2;
-                        lsizey-=2;
-                        required_local_mem_size = (lsizez+m->FDORDER)*(lsizex+m->FDORDER)*(lsizey+m->FDORDER)*sizeof(float);
-                    }
-                    if (required_local_mem_size>local_mem_size){
-                        while ( (lsizex>(m->FDORDER)/4 &&  required_local_mem_size>local_mem_size) || lsizex*lsizey*lsizez>workgroup_size ){
-                            lsizex-=2;
-                            required_local_mem_size = (lsizez+m->FDORDER)*(lsizex+m->FDORDER)*(lsizey+m->FDORDER)*sizeof(float);
-                        }
-                    }
-                    if (required_local_mem_size>local_mem_size){
-                        while ( (lsizey>(m->FDORDER)/4 &&  required_local_mem_size>local_mem_size) || lsizex*lsizey*lsizez>workgroup_size ){
-                            lsizey-=2;
-                            required_local_mem_size = (lsizez+m->FDORDER)*(lsizex+m->FDORDER)*(lsizey+m->FDORDER)*sizeof(float);
-                        }
-                    }
-  
-                }
-                if (m->ND==2){// For 2D
-                    required_local_mem_size = (lsizez+m->FDORDER)*(lsizex+m->FDORDER)*sizeof(float);
-                    while ( (lsizex>(m->FDORDER)/4  &&  required_local_mem_size>local_mem_size) || lsizex*lsizez>workgroup_size ){
-                        lsizex-=2;
-                        required_local_mem_size = (lsizez+m->FDORDER)*(lsizex+m->FDORDER)*sizeof(float);
-                    }
-                    
-                }
-                
-                if (required_local_mem_size>0.9*local_mem_size && required_local_mem_size<local_mem_size){
-                    fprintf(stderr,"Warning: local memory needed to perform seismic modeling (%llu bits) exceeds 90%% of the local memory capacity of device %d (%llu bits)\n", required_local_mem_size, d, local_mem_size);
-                }
-                else if (required_local_mem_size>local_mem_size){
-                    
-                    fprintf(stderr,"Local memory needed to perform seismic modeling (%llu bits) exceeds the local memory capacity of device %d (%llu bits)\n", required_local_mem_size, d, local_mem_size );
-                    fprintf(stderr,"Switching off local memory optimization\n");
-                    (*mloc)[d].local_off = 1;
-                }
-                
-            }
-            
-        }
-        if (!state){
-            (*mloc)[d].local_work_size[0] = lsizez;
-            (*mloc)[d].local_work_size[1] = lsizex;
-            (*mloc)[d].local_work_size[2] = lsizey;
-            
-            
-            /* Global sizes for the kernels */
-            if ((*mloc)[d].local_off==1){
-                (*mloc)[d].local_work_size[0] = 1;
-                
-                lcomm=0;
-                offcomm1=0;
-                offcomm2=0;
-                if (d>0 || m->MYLOCALID>0){
-                    (*mloc)[d].global_work_sizecomm1[0] = (*mloc)[d].NY*m->fdoh*(*mloc)[d].NZ;
-                    lcomm+=m->fdoh;
-                    offcomm1=m->fdoh;
-                    
-                }
-                if (d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-                    (*mloc)[d].global_work_sizecomm2[0] = (*mloc)[d].NY*m->fdoh*(*mloc)[d].NZ;
-                    lcomm+=m->fdoh;
-                    offcomm2=(*mloc)[d].NX-m->fdoh;
-                }
-                if (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-                    (*mloc)[d].global_work_size_fillcomm[0] = (*mloc)[d].NY*m->fdoh*(*mloc)[d].NZ;
-                }
-                
-                (*mloc)[d].global_work_size[0] = ((*mloc)[d].NX-lcomm)*(*mloc)[d].NY*(*mloc)[d].NZ;
-                
-                (*vcl)[d].numdim=1;
-                
-            }
-            else{
-                //Check if too many GPUS are used in the domain decomposition
-                if  ((*mloc)[d].NX<3*(*mloc)[d].local_work_size[1]){
-                    state=1;
-                    fprintf(stderr,"Too many GPUs for domain decompositon\n");
-                }
-                
-                
-                //Global work size must be a multiple of local work size
-                if (m->ND==3){// For 3D
-                    
-                    (*mloc)[d].global_work_size[0] = (*mloc)[d].NZ
-                    + ((*mloc)[d].local_work_size[0]-(*mloc)[d].NZ%(*mloc)[d].local_work_size[0])%(*mloc)[d].local_work_size[0];
-                    (*mloc)[d].global_work_size[1] = (*mloc)[d].NY
-                    + ((*mloc)[d].local_work_size[1]-(*mloc)[d].NY%(*mloc)[d].local_work_size[1])%(*mloc)[d].local_work_size[1];
-                    
-                    lcomm=0;
-                    offcomm1=0;
-                    offcomm2=0;
-                    if (d>0 || m->MYLOCALID>0){
-                        (*mloc)[d].global_work_sizecomm1[0] = (*mloc)[d].global_work_size[0];
-                        (*mloc)[d].global_work_sizecomm1[1] = (*mloc)[d].global_work_size[1];
-                        (*mloc)[d].global_work_sizecomm1[2] = (*mloc)[d].local_work_size[2];
-                        lcomm+=(*mloc)[d].local_work_size[2];
-                        offcomm1=(int)(*mloc)[d].local_work_size[2];
-                        
-                    }
-                    if (d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-                        (*mloc)[d].global_work_sizecomm2[0] = (*mloc)[d].global_work_size[0];
-                        (*mloc)[d].global_work_sizecomm2[1] = (*mloc)[d].global_work_size[1];
-                        (*mloc)[d].global_work_sizecomm2[2] = (*mloc)[d].local_work_size[2];
-                        lcomm+=(*mloc)[d].local_work_size[2];
-                        offcomm2=(*mloc)[d].NX-(int)(*mloc)[d].local_work_size[2];
-                    }
-                    if (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-                        (*mloc)[d].global_work_size_fillcomm[0] = (*mloc)[d].NZ;
-                        (*mloc)[d].global_work_size_fillcomm[1] = (*mloc)[d].NY;
-                        (*mloc)[d].global_work_size_fillcomm[2] = m->fdoh;
-                    }
-                    
-                    
-                    (*mloc)[d].global_work_size[2] = (*mloc)[d].NX-lcomm
-                    + ((*mloc)[d].local_work_size[2]-((*mloc)[d].NX-lcomm)%(*mloc)[d].local_work_size[2])%(*mloc)[d].local_work_size[2];
-                    
-                    (*vcl)[d].numdim=3;
-                    
+            #endif
+                if (di->FP16==1){
+                    required_local_mem_size =2*sizeof(float);
                 }
                 else{
-                    (*mloc)[d].global_work_size[0] = (*mloc)[d].NZ
-                    + ((*mloc)[d].local_work_size[0]-(*mloc)[d].NZ%(*mloc)[d].local_work_size[0])%(*mloc)[d].local_work_size[0];
-                    
-                    lcomm=0;
-                    offcomm1=0;
-                    offcomm2=0;
-                    if (d>0 || m->MYLOCALID>0){
-                        (*mloc)[d].global_work_sizecomm1[0] = (*mloc)[d].global_work_size[0];
-                        (*mloc)[d].global_work_sizecomm1[1] = (*mloc)[d].local_work_size[1];
-                        lcomm+=(*mloc)[d].local_work_size[1];
-                        offcomm1=(int)(*mloc)[d].local_work_size[1];
-                    }
-                    if (d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-                        (*mloc)[d].global_work_sizecomm2[0] = (*mloc)[d].global_work_size[0];
-                        (*mloc)[d].global_work_sizecomm2[1] = (*mloc)[d].local_work_size[1];
-                        lcomm+=(*mloc)[d].local_work_size[1];
-                        offcomm2=(*mloc)[d].NX-(int)(*mloc)[d].local_work_size[1];
-                    }
-                    if (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-                        (*mloc)[d].global_work_size_fillcomm[0] = (*mloc)[d].NZ;
-                        (*mloc)[d].global_work_size_fillcomm[1] = m->fdoh;
-                    }
-                    
-                    (*mloc)[d].global_work_size[1] = (*mloc)[d].NX-lcomm
-                    + ((*mloc)[d].local_work_size[1]-((*mloc)[d].NX-lcomm)%(*mloc)[d].local_work_size[1])%(*mloc)[d].local_work_size[1];
-                    
-                    (*vcl)[d].numdim=2;
-                    
+                    required_local_mem_size = sizeof(float);
                 }
+                for (i=0;i<m->NDIM;i++){
+                    required_local_mem_size *= (lsize[i]+m->FDORDER);
+                }
+                required_work_size=1;
+                for (i=0;i<m->NDIM;i++){
+                    required_work_size*=lsize[i];
+                }
+                while ( (lsize[1]>(m->FDORDER)/2
+                         &&  required_local_mem_size>local_mem_size)
+                         || required_work_size>workgroup_size ){
+                       if (di->FP16==1){
+                           required_local_mem_size =2*sizeof(float);
+                       }
+                       else{
+                           required_local_mem_size = sizeof(float);
+                       }
+                    required_work_size=1;
+                    for (i=0;i<m->NDIM;i++){
+                        if (i>0)
+                            lsize[i]-=2;
+                        required_local_mem_size *= (lsize[i]+m->FDORDER);
+                        required_work_size*=lsize[i];
+                    }
+                }
+                for (j=0;j<m->NDIM;j++){
+                    if (required_local_mem_size>local_mem_size){
+                        while ( (lsize[j]>(m->FDORDER)/4
+                                 &&  required_local_mem_size>local_mem_size)
+                                 || required_work_size>workgroup_size ){
+                            if (di->FP16==1){
+                                required_local_mem_size =2*sizeof(float);
+                            }
+                            else{
+                                required_local_mem_size = sizeof(float);
+                            }
+                            required_work_size=1;
+                            lsize[j]-=2;
+                            for (i=0;i<m->NDIM;i++){
+                                required_local_mem_size*=(lsize[i]+m->FDORDER);
+                                required_work_size*=lsize[i];
+                            }
+                        }
+                    }
+                }
+            #ifdef __SEISCL__
+            }
+            #endif
+
+            //Check if too many GPUS are used in the domain decomposition
+            if  (di->N[m->NDIM-1]<3*lsize[m->NDIM-1]){
+                di->LOCAL_OFF = 1;
+                fprintf(stdout,"Warning: Too many GPUs for domain decompositon,"
+                        "Switching off local memory optimization\n");
+            }
+            //Check if the local memory is big enough, else turn it off
+            if (required_local_mem_size>local_mem_size){
+                fprintf(stdout,"Warning: Local memory needed to perform seismic "
+                        "modeling (%llu bits) exceeds the local "
+                        "memory capacity of device %d (%llu bits)\n"
+                        "Switching off local memory optimization\n",
+                        required_local_mem_size, d, local_mem_size );
+                di->LOCAL_OFF = 1;
             }
             
-
+            
+            if (di->LOCAL_OFF==1){
+                lsize[0] = 1;
+            }
+            
         }
         
-        
-        // Calculate the dimension of the buffers needed to transfer memory from/to the GPU
+        // Define the global work size of the update kernels.
+        // To overlap computations and communications, we have 3 kernels:
+        // One for the interior (no communications) and 2 for the front and back
+        // We define here de sizes of those region (offcom1, offcom2)
         if (!state){
-            
-            if (m->ND==3){// For 3D
-                (*vcl)[d].buffer_size_fd    = sizeof(float)
-                * ((*mloc)[d].NX+m->FDORDER)
-                * ((*mloc)[d].NY+m->FDORDER)
-                * ((*mloc)[d].NZ+m->FDORDER);
-            }
-            else{// For 2D
-                (*vcl)[d].buffer_size_fd    = sizeof(float)
-                * ((*mloc)[d].NX+m->FDORDER)
-                * ((*mloc)[d].NZ+m->FDORDER);
-            }
-
-            (*vcl)[d].buffer_size_model = sizeof(float) * (*mloc)[d].NX * (*mloc)[d].NY * (*mloc)[d].NZ;
-            if (m->ND==3){
-                (*vcl)[d].buffer_size_modelc = sizeof(cl_float2)*( (*mloc)[d].NX+m->FDORDER ) *( (*mloc)[d].NY+m->FDORDER )*( (*mloc)[d].NZ+m->FDORDER )* m->nfreqs;
-            }
-            else{
-                (*vcl)[d].buffer_size_modelc = sizeof(cl_float2)*( (*mloc)[d].NX+m->FDORDER )*( (*mloc)[d].NZ+m->FDORDER )* m->nfreqs;
-            }
-            buffer_size_s        = sizeof(float) * m->NT * m->nsmax;
-            buffer_size_ns       = sizeof(float) * 5 * m->nsmax;
-            buffer_size_ng       = sizeof(float) * 8 * m->ngmax;
-            buffer_size_taper    = sizeof(float) * m->nab;
-            buffer_size_seisout     = sizeof(float) * m->NT * m->ngmax;
-            buffer_size_L        = sizeof(float) * m->L;
-            m->buffer_size_comm     = sizeof(float) * m->fdoh*(*mloc)[d].NY*(*mloc)[d].NZ;
-            
-            if (m->abs_type==1){
-                (*vcl)[d].buffer_size_CPML_NX=sizeof(float) * 2*m->nab * (*mloc)[d].NY * (*mloc)[d].NZ;
-                if (m->ND==3){// For 3D
-                    (*vcl)[d].buffer_size_CPML_NY=sizeof(float) * 2*m->nab * (*mloc)[d].NX * (*mloc)[d].NZ;
+            if (di->LOCAL_OFF==1){
+                // If we turn off local memory usage, use one dimension worksize
+                LCOMM=0;
+                offcom1=0;
+                offcom2=0;
+                if (d>0 || m->MYLOCALID>0){
+                    LCOMM+=m->FDOH;
+                    offcom1=m->FDOH;
+                    
                 }
-                (*vcl)[d].buffer_size_CPML_NZ=sizeof(float) * 2*m->nab * (*mloc)[d].NY * (*mloc)[d].NX;
-            }
-            
-            // Determine the size of the outside boundary used for the back propagation of the seismic wavefield
-            if (m->back_prop_type==1){
-            if (m->ND==3){// For 3D
-                if (m->num_devices==1 && m->NLOCALP==1)
-                    (*mloc)[d].Nbnd=((*mloc)[d].NX-2*m->nab)*((*mloc)[d].NY-2*m->nab)*2*m->fdoh+
-                    ((*mloc)[d].NX-2*m->nab)*((*mloc)[d].NZ-2*m->nab-2*m->fdoh)*2*m->fdoh+
-                    ((*mloc)[d].NY-2*m->nab-2*m->fdoh)*((*mloc)[d].NZ-2*m->nab-2*m->fdoh)*2*m->fdoh;
-                
-                else if ( (d==0 && m->MYGROUPID==0) || (d==m->num_devices-1 && m->MYGROUPID==m->NLOCALP-1) )
-                    (*mloc)[d].Nbnd=((*mloc)[d].NX-m->nab)*((*mloc)[d].NY-2*m->nab)*2*m->fdoh+
-                    ((*mloc)[d].NX-m->nab)*((*mloc)[d].NZ-2*m->nab-2*m->fdoh)*2*m->fdoh+
-                    ((*mloc)[d].NY-2*m->nab-2*m->fdoh)*((*mloc)[d].NZ-2*m->nab-2*m->fdoh)*m->fdoh;
-                
-                else
-                    (*mloc)[d].Nbnd=(*mloc)[d].NX*((*mloc)[d].NY-2*m->nab)*2*m->fdoh+
-                    (*mloc)[d].NX*((*mloc)[d].NZ-2*m->nab-2*m->fdoh)*2*m->fdoh;
-            }
-            else{
-                if (m->num_devices==1 && m->NLOCALP==1)
-                    (*mloc)[d].Nbnd=((*mloc)[d].NX-2*m->nab)*2*m->fdoh+
-                    ((*mloc)[d].NZ-2*m->nab-2*m->fdoh)*2*m->fdoh;
-                
-                else if ( (d==0 && m->MYGROUPID==0) || (d==m->num_devices-1 && m->MYGROUPID==m->NLOCALP-1) )
-                    (*mloc)[d].Nbnd=((*mloc)[d].NX-m->nab)*m->fdoh+
-                    ((*mloc)[d].NZ-2*m->nab-m->fdoh)*2*m->fdoh;
-                
-                else
-                    (*mloc)[d].Nbnd= ((*mloc)[d].NX)*2*m->fdoh;
-            }
-            
-            (*mloc)[d].global_work_size_bnd =(*mloc)[d].Nbnd ;
-                
-            
-            
-            //During backpropagation of the seismic field, we inject at the positions given by the absorbing boundary
-                (*vcl)[d].buffer_size_bnd = sizeof(float)*(*mloc)[d].Nbnd;
-            }
-            
-            if (m->ND==3){// For 3D
-                (*mloc)[d].global_work_size_surf[0] = (*mloc)[d].NY;
-                (*mloc)[d].global_work_size_surf[1] = (*mloc)[d].NX;
-                (*mloc)[d].global_work_size_initfd=  (*vcl)[d].buffer_size_fd/sizeof(float);
-                (*mloc)[d].global_work_size_f = ((*mloc)[d].NY+2*m->fdoh)*((*mloc)[d].NX+2*m->fdoh)*((*mloc)[d].NZ+2*m->fdoh);
-                
-                (*mloc)[d].global_work_size_surfgrid[0] = (*mloc)[d].NZ;
-                (*mloc)[d].global_work_size_surfgrid[1] = (*mloc)[d].NY;
-                (*mloc)[d].global_work_size_surfgrid[2] = (*mloc)[d].NZ;
+                if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
+                    LCOMM+=m->FDOH;
+                    offcom2=di->N[m->NDIM-1]-m->FDOH;
+                }
+                if (d>0 || m->MYLOCALID>0
+                        || d<m->NUM_DEVICES-1
+                        || m->MYLOCALID<m->NLOCALP-1){
+                    if (m->FP16==0){
+                        gsize_com[0] = slicesize*m->FDOH;
+                    }
+                    else{
+                        gsize_com[0] = slicesize*m->FDOH/2;
+                    }
+                }
+                if (m->FP16==0){
+                    gsize[0] = (di->N[m->NDIM-1]-LCOMM)*slicesize;
+                }
+                else{
+                    gsize[0] = (di->N[m->NDIM-1]-LCOMM)*slicesize/2;
+                }
+                workdim=1;
                 
             }
             else{
-                (*mloc)[d].global_work_size_surf[0] = (*mloc)[d].NX;
-                (*mloc)[d].global_work_size_initfd= (*vcl)[d].buffer_size_fd/sizeof(float);
-                (*mloc)[d].global_work_size_f = ((*mloc)[d].NX+2*m->fdoh)*((*mloc)[d].NZ+2*m->fdoh);
-                
-                (*mloc)[d].global_work_size_surfgrid[0] = (*mloc)[d].NZ;
-                (*mloc)[d].global_work_size_surfgrid[1] = (*mloc)[d].NX;
-                
-            }
-            (*mloc)[d].global_work_size_init=  (*mloc)[d].NX*(*mloc)[d].NY*(*mloc)[d].NZ;
-            (*mloc)[d].global_work_size_gradsrc = m->NT*m->nsmax ;
-            
-        }
 
-        
-        // Check global memory is sufficient
-        __GUARD clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(global_mem_size), &global_mem_size, NULL);
-        if (state !=CL_SUCCESS) CLPERR(state);
- 
-        if (!state){
-            if (m->ND==3){// For 3D
-                (*mloc)[d].required_global_mem_size += 9*(*vcl)[d].buffer_size_fd + 8*(*vcl)[d].buffer_size_model + buffer_size_s + buffer_size_ns + buffer_size_ng;
-                
-                (*mloc)[d].required_global_mem_size +=  3*buffer_size_seisout;
-                
-                if (m->abs_type==1){
-                    (*mloc)[d].required_global_mem_size+= 36*buffer_size_taper + 6*(*vcl)[d].buffer_size_CPML_NX+ 6*(*vcl)[d].buffer_size_CPML_NY+ 6*(*vcl)[d].buffer_size_CPML_NZ;
+                // When using local work sizes in OpenCL,
+                // global work size must be a multiple of local work size
+                if (m->FP16==0){
+                    for (i=0;i<m->NDIM-1;i++){
+                        gsize[i]=di->N[i]
+                                +(lsize[i]-di->N[i]%lsize[i])%lsize[i];
+                    }
                 }
-                else if (m->abs_type==2){
-                    (*mloc)[d].required_global_mem_size+= buffer_size_taper;
-                }
-                
-                if (m->L>0){
-                    (*mloc)[d].required_global_mem_size+= 6*(*vcl)[d].buffer_size_fd*m->L + 5*(*vcl)[d].buffer_size_model;
-                }
-                
-                if (m->gradout==1 && m->back_prop_type==1 ){
-                    
-                    (*mloc)[d].required_global_mem_size+= 9*(*vcl)[d].buffer_size_fd+ 9*(*vcl)[d].buffer_size_bnd + 3*(*vcl)[d].buffer_size_model;
-                    if (m->L>0){
-                        (*mloc)[d].required_global_mem_size+= 6*(*vcl)[d].buffer_size_fd*m->L + 2*(*vcl)[d].buffer_size_model;
+                else{
+                    //We use half2 and float2 in kernels, and must divide by 2 the
+                    //global size of dim 0
+                    gsize[0]=di->N[0]/2+(lsize[0]-(di->N[0]/2)%lsize[0])%lsize[0];
+                    for (i=1;i<m->NDIM-1;i++){
+                        gsize[i]=di->N[i]
+                                +(lsize[i]-di->N[i]%lsize[i])%lsize[i];
                     }
                 }
                 
-                if (m->gradout==1 && m->back_prop_type==2){
+                LCOMM=0;
+                offcom1=0;
+                offcom2=0;
+                if (d>0 || m->MYLOCALID>0){
+                    LCOMM+=lsize[m->NDIM-1];
+                    offcom1=(int)lsize[m->NDIM-1];
                     
-                    (*mloc)[d].required_global_mem_size+= 9*(*vcl)[d].buffer_size_modelc;
-                    if (m->L>0){
-                        (*mloc)[d].required_global_mem_size+= m->L*6*(*vcl)[d].buffer_size_modelc;
-                    }
                 }
-                
-            }
-            if (m->ND==2){// For 2D
-                (*mloc)[d].required_global_mem_size += 6*(*vcl)[d].buffer_size_fd + 5*(*vcl)[d].buffer_size_model + buffer_size_s + buffer_size_ns + buffer_size_ng;
-                
-                (*mloc)[d].required_global_mem_size +=  3*buffer_size_seisout;
-                
-                if (m->abs_type==1){
-                    (*mloc)[d].required_global_mem_size+= 16*buffer_size_taper + 4*(*vcl)[d].buffer_size_CPML_NX+ 4*(*vcl)[d].buffer_size_CPML_NZ;
+                if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
+                    LCOMM+=lsize[m->NDIM-1];
+                    offcom2=di->N[m->NDIM-1]-(int)lsize[m->NDIM-1];
                 }
-                
-                else if (m->abs_type==2){
-                    (*mloc)[d].required_global_mem_size+=buffer_size_taper;
-                }
-                
-                if (m->L>0){
-                    (*mloc)[d].required_global_mem_size+= 3*(*vcl)[d].buffer_size_fd*m->L + 3*(*vcl)[d].buffer_size_model;
-                }
-                
-                if (m->gradout==1 && m->back_prop_type==1 ){
+                if (d>0 || m->MYLOCALID>0
+                        || d<m->NUM_DEVICES-1
+                        || m->MYLOCALID<m->NLOCALP-1){
                     
-                    (*mloc)[d].required_global_mem_size+= 6*(*vcl)[d].buffer_size_fd+ 5*(*vcl)[d].buffer_size_bnd + 3*(*vcl)[d].buffer_size_model;
-                    if (m->L>0){
-                        (*mloc)[d].required_global_mem_size+= 3*(*vcl)[d].buffer_size_fd*m->L + 2*(*vcl)[d].buffer_size_model;
+                    for (i=0;i<m->NDIM-1;i++){
+                        gsize_com[i] = gsize[i];
                     }
-                }
-                
-                if (m->gradout==1 && m->back_prop_type==2){
+                    gsize_com[m->NDIM-1] = lsize[m->NDIM-1];
                     
-                    (*mloc)[d].required_global_mem_size+= 6*(*vcl)[d].buffer_size_modelc;
-                    if (m->L>0){
-                        (*mloc)[d].required_global_mem_size+= m->L*3*(*vcl)[d].buffer_size_modelc;
-                    }
                 }
-                
-            }
-            if (m->ND==21){// For 2D
-                (*mloc)[d].required_global_mem_size += 3*(*vcl)[d].buffer_size_fd + 3*(*vcl)[d].buffer_size_model + buffer_size_s +buffer_size_ns + buffer_size_ng;
-                
-                (*mloc)[d].required_global_mem_size +=   3*buffer_size_seisout;
-                
-                if (m->abs_type==1){
-                    (*mloc)[d].required_global_mem_size+= 12*buffer_size_taper + 2*(*vcl)[d].buffer_size_CPML_NX+ 2*(*vcl)[d].buffer_size_CPML_NZ;
-                }
-                else if (m->abs_type==2){
-                    (*mloc)[d].required_global_mem_size+=buffer_size_taper;
-                }
-                
-                if (m->L>0){
-                    (*mloc)[d].required_global_mem_size+= 2*(*vcl)[d].buffer_size_fd*m->L + 2*(*vcl)[d].buffer_size_model;
-                }
-                
-                if (m->gradout==1 && m->back_prop_type==1){
-                    
-                    (*mloc)[d].required_global_mem_size+= 3*(*vcl)[d].buffer_size_fd+ 3*(*vcl)[d].buffer_size_bnd + 2*(*vcl)[d].buffer_size_model;
-                    if (m->L>0){
-                        (*mloc)[d].required_global_mem_size+= 2*(*vcl)[d].buffer_size_fd*m->L + 1*(*vcl)[d].buffer_size_model;
-                    }
-                }
-                
-                if (m->gradout==1 && m->back_prop_type==2){
-                    
-                    (*mloc)[d].required_global_mem_size+= 3*(*vcl)[d].buffer_size_modelc;
-                    if (m->L>0){
-                        (*mloc)[d].required_global_mem_size+= m->L*2*(*vcl)[d].buffer_size_modelc;
-                    }
-                }
-                
-            }
-            
 
-            if ((*mloc)[d].required_global_mem_size>0.9*global_mem_size && (*mloc)[d].required_global_mem_size<global_mem_size){
-                fprintf(stderr,"Warning: memory needed to perform seismic modeling (%llu bits) exceeds 90%% of the memory capacity of device %d (%llu bits)\n", (*mloc)[d].required_global_mem_size, d, global_mem_size);
-            }
-            else if ((*mloc)[d].required_global_mem_size>global_mem_size){
+                gsize[m->NDIM-1] = di->N[m->NDIM-1]-LCOMM
+                               +(lsize[m->NDIM-1]-(di->N[m->NDIM-1]-LCOMM)
+                                  %lsize[m->NDIM-1])%lsize[m->NDIM-1];
                 
-                fprintf(stderr,"Memory needed to perform seismic modeling (%llu bits) exceeds the memory capacity of device %d (%llu bits)\nTerminating\n", (*mloc)[d].required_global_mem_size, d, global_mem_size );
-                state=1;
+                workdim=m->NDIM;
             }
         }
         
-        
-       
-        // Create the memory buffers for the seismic variables of the GPU
-        __GUARD create_gpu_memory_buffer_cst( &m->context, buffer_size_ns,              &(*vcl)[d].src_pos);
-        __GUARD create_gpu_memory_buffer_cst( &m->context, buffer_size_ng,              &(*vcl)[d].rec_pos);
-        __GUARD create_gpu_memory_buffer_cst( &m->context, buffer_size_s,               &(*vcl)[d].src);
-        // Allocate memory for the seismograms
-        if ( m->bcastvx){
-            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].vxout);
-        }
-        if ( m->bcastvy){
-            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].vyout);
-        }
-        if ( m->bcastvz){
-            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].vzout);
-        }
-        if ( m->bcastp){
-            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].pout);
-        }
-        if ( m->bcastsxx){
-            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].sxxout);
-        }
-        if ( m->bcastsyy){
-            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].syyout);
-        }
-        if ( m->bcastszz){
-            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].szzout);
-        }
-        if ( m->bcastsxy){
-            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].sxyout);
-        }
-        if ( m->bcastsxz){
-            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].sxzout);
-        }
-        if ( m->bcastsyz){
-            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_seisout,            &(*vcl)[d].syzout);
+        //Create the required updates struct and assign the working size
+        {
+            //Struct for the forward modeling
+            GMALLOC(di->ups_f, m->nupdates*sizeof(update));
+            for (i=0;i<m->nupdates;i++){
+                di->ups_f[i]=m->ups_f[i];
+                GMALLOC(di->ups_f[i].v2com,m->nvars*sizeof(variable*));
+            }
+            
+            for (i=0;i<m->nupdates;i++){
+                for (j=0;j<workdim;j++){
+                    di->ups_f[i].center.wdim=workdim;
+                    di->ups_f[i].center.gsize[j]=gsize[j];
+                    di->ups_f[i].center.lsize[j]=lsize[j];
+                    di->ups_f[i].com1.wdim=workdim;
+                    di->ups_f[i].com1.gsize[j]=gsize_com[j];
+                    di->ups_f[i].com1.lsize[j]=lsize[j];
+                    di->ups_f[i].com2.wdim=workdim;
+                    di->ups_f[i].com2.gsize[j]=gsize_com[j];
+                    di->ups_f[i].com2.lsize[j]=lsize[j];
+                    di->ups_f[i].fcom1_in.wdim=workdim;
+                    di->ups_f[i].fcom1_in.gsize[j]=gsize_com[j];
+                    di->ups_f[i].fcom1_in.lsize[j]=lsize[j];
+                    di->ups_f[i].fcom2_in.wdim=workdim;
+                    di->ups_f[i].fcom2_in.gsize[j]=gsize_com[j];
+                    di->ups_f[i].fcom2_in.lsize[j]=lsize[j];
+                    di->ups_f[i].fcom1_out.wdim=workdim;
+                    di->ups_f[i].fcom1_out.gsize[j]=gsize_com[j];
+                    di->ups_f[i].fcom1_out.lsize[j]=lsize[j];
+                    di->ups_f[i].fcom2_out.wdim=workdim;
+                    di->ups_f[i].fcom2_out.gsize[j]=gsize_com[j];
+                    di->ups_f[i].fcom2_out.lsize[j]=lsize[j];
+                }
+            }
+            //Struct for the adjoint modeling
+            if (m->GRADOUT){
+                GMALLOC(di->ups_adj, m->nupdates*sizeof(update));
+                for (i=0;i<m->nupdates;i++){
+                    di->ups_adj[i]=m->ups_adj[i];
+                    GMALLOC(di->ups_adj[i].v2com,m->nvars*sizeof(variable*));
+                }
+                for (i=0;i<m->nupdates;i++){
+                    for (j=0;j<workdim;j++){
+                        di->ups_adj[i].center.wdim=workdim;
+                        di->ups_adj[i].center.gsize[j]=gsize[j];
+                        di->ups_adj[i].center.lsize[j]=lsize[j];
+                        di->ups_adj[i].com1.wdim=workdim;
+                        di->ups_adj[i].com1.gsize[j]=gsize_com[j];
+                        di->ups_adj[i].com1.lsize[j]=lsize[j];
+                        di->ups_adj[i].com2.wdim=workdim;
+                        di->ups_adj[i].com2.gsize[j]=gsize_com[j];
+                        di->ups_adj[i].com2.lsize[j]=lsize[j];
+                        di->ups_adj[i].fcom1_in.wdim=workdim;
+                        di->ups_adj[i].fcom1_in.gsize[j]=gsize_com[j];
+                        di->ups_adj[i].fcom2_in.wdim=workdim;
+                        di->ups_adj[i].fcom2_in.gsize[j]=gsize_com[j];
+                        di->ups_adj[i].fcom1_out.wdim=workdim;
+                        di->ups_adj[i].fcom1_out.gsize[j]=gsize_com[j];
+                        di->ups_adj[i].fcom2_out.wdim=workdim;
+                        di->ups_adj[i].fcom2_out.gsize[j]=gsize_com[j];
+                    }
+                }
+            }
         }
 
-        if (m->ND!=21){
-            __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].sxx);
-            __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].szz);
-            __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].sxz);
-            __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].vx);
-            __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].vz);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].rip);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].rkp);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].u);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].pi);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].uipkp);
+        // Create parameter structure for this device, its buffers and transfer
+        {
+            di->npars=m->npars;
+            GMALLOC(di->pars, sizeof(parameter)*m->npars);
 
-        }
-        if (m->ND==3 || m->ND==21){
-            __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].syy);
-            __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].sxy);
-            __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].syz);
-            __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].vy);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].rjp);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].uipjp);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].ujpkp);
-        }
-        if (m->ND==3){// For 3D
-            __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].syy);
-        }
-        // Create the visco-elastic variables if visco-elastic is demanded
-        if (m->L>0){
-            __GUARD create_gpu_memory_buffer_cst( &m->context, buffer_size_L,                 &(*vcl)[d].eta);
-            if (m->ND!=21){
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd*m->L, &(*vcl)[d].rxx);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd*m->L, &(*vcl)[d].rzz);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd*m->L, &(*vcl)[d].rxz);
-                __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model,   &(*vcl)[d].taup);
-                __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model,   &(*vcl)[d].taus);
-                __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model,   &(*vcl)[d].tausipkp);
-            }
-            if (m->ND==3 || m->ND==21){
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd*m->L, &(*vcl)[d].ryy);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd*m->L, &(*vcl)[d].rxy);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd*m->L, &(*vcl)[d].ryz);
-                __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model,   &(*vcl)[d].tausipjp);
-                __GUARD create_gpu_memory_buffer_cst( &m->context, (*vcl)[d].buffer_size_model,   &(*vcl)[d].tausjpkp);
-            }
-            if (m->ND==3){// For 3D
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd*m->L, &(*vcl)[d].ryy);
-            }
-        }
-        if (m->abs_type==1){
-            if (m->ND!=21){
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NX,    &(*vcl)[d].psi_sxx_x);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NX,    &(*vcl)[d].psi_sxz_x);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NZ,    &(*vcl)[d].psi_szz_z);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NZ,    &(*vcl)[d].psi_sxz_z);
+            // Create a pointer at the right position (bufoff) of the decomposed
+            // model and assign memory buffers on the host side for each device
+            // grad and Hessian buffers are always floats, so we use bufoff
+            // instead of bufoff2
+            if (!state){
+                for (i=0;i<m->npars;i++){
+                    di->pars[i]=m->pars[i];
+                    di->pars[i].cl_par.host=&m->pars[i].gl_par[bufoff2];
+                    di->pars[i].num_ele=parsize;
+                    if (m->pars[i].to_grad){
+                        di->pars[i].cl_grad.host=&m->pars[i].gl_grad[bufoff];
+                        if (m->pars[i].gl_H){
+                            di->pars[i].cl_H.host=&m->pars[i].gl_H[bufoff];
+                        }
+                    }
+                }
                 
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NX,    &(*vcl)[d].psi_vxx);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NZ,    &(*vcl)[d].psi_vzz);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NZ,    &(*vcl)[d].psi_vxz);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NX,    &(*vcl)[d].psi_vzx);
             }
             
-            __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].K_x);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].a_x);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].b_x);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].K_x_half);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].a_x_half);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].b_x_half);
-            
-            __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].K_z);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].a_z);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].b_z);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].K_z_half);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].a_z_half);
-            __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].b_z_half);
-
-            if (m->ND==3 || m->ND==21){
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NX,    &(*vcl)[d].psi_sxy_x);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NZ,    &(*vcl)[d].psi_syz_z);
-                
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NX,    &(*vcl)[d].psi_vyx);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NZ,    &(*vcl)[d].psi_vyz);
-
-            }
-            if (m->ND==3 ){// For 3D
-                
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NY,    &(*vcl)[d].psi_syy_y);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NY,    &(*vcl)[d].psi_sxy_y);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NY,    &(*vcl)[d].psi_syz_y);
-                
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NY,    &(*vcl)[d].psi_vyy);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NY,    &(*vcl)[d].psi_vxy);
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_CPML_NY,    &(*vcl)[d].psi_vzy);
-                
-                __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].K_y);
-                __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].a_y);
-                __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].b_y);
-                __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].K_y_half);
-                __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].a_y_half);
-                __GUARD create_gpu_memory_buffer_cst( &m->context, 2*buffer_size_taper,    &(*vcl)[d].b_y_half);
+            // Create buffers for all parameters and their gradient,
+            // and transfer to device parameters
+            if (!state){
+                for (i=0;i<m->npars;i++){
+                    di->pars[i].num_ele=parsize;
+                    di->pars[i].cl_par.size=sizeof(float)*parsize;
+                    if (m->FP16>1){
+                        di->pars[i].cl_par.size/=2;
+                    }
+                    __GUARD clbuf_create(di->context_ptr,&di->pars[i].cl_par);
+                    __GUARD clbuf_send(&di->queue,&di->pars[i].cl_par);
+                    if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+                        di->pars[i].cl_grad.size=sizeof(float)*parsize;
+                        __GUARD clbuf_create(di->context_ptr, &di->pars[i].cl_grad);
+                    }
+                    if (m->HOUT && m->BACK_PROP_TYPE==1){
+                        di->pars[i].cl_H.size=sizeof(float)*parsize;
+                        __GUARD clbuf_create(di->context_ptr, &di->pars[i].cl_H);
+                    }
+                    
+                }
             }
             
-        }
-        else if (m->abs_type==2) {
-            __GUARD create_gpu_memory_buffer( &m->context, buffer_size_taper, &(*vcl)[d].taper);
-        }
-        if (state !=CL_SUCCESS) CLPERR(state);
-        // Create the sub-buffers that will transfer seismic variables between the GPUs at each time step
-        if (m->ND!=21){
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxx_sub1, &(*mloc)[d].sxx_sub1);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].szz_sub1, &(*mloc)[d].szz_sub1);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxz_sub1, &(*mloc)[d].sxz_sub1);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vx_sub1, &(*mloc)[d].vx_sub1);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vz_sub1, &(*mloc)[d].vz_sub1);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxx_sub2, &(*mloc)[d].sxx_sub2);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].szz_sub2, &(*mloc)[d].szz_sub2);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxz_sub2, &(*mloc)[d].sxz_sub2);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vx_sub2, &(*mloc)[d].vx_sub2);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vz_sub2, &(*mloc)[d].vz_sub2);
-            
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxx_sub1_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].szz_sub1_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxz_sub1_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vx_sub1_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vz_sub1_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxx_sub2_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].szz_sub2_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxz_sub2_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vx_sub2_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vz_sub2_dev);
-        }
-        if (m->ND==3 || m->ND==21){
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxy_sub1, &(*mloc)[d].sxy_sub1);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].syz_sub1, &(*mloc)[d].syz_sub1);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vy_sub1, &(*mloc)[d].vy_sub1);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxy_sub2, &(*mloc)[d].sxy_sub2);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].syz_sub2, &(*mloc)[d].syz_sub2);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vy_sub2, &(*mloc)[d].vy_sub2);
-            
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxy_sub1_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].syz_sub1_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vy_sub1_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxy_sub2_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].syz_sub2_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vy_sub2_dev);
-            
-        }
-        if (m->ND==3){// For 3D
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].syy_sub1, &(*mloc)[d].syy_sub1);
-            __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].syy_sub2, &(*mloc)[d].syy_sub2);
-            
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].syy_sub1_dev);
-            __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].syy_sub2_dev);
-        }
-
-        // Create the kernels of the devices
-        __GUARD gpu_initialize_update_v(&m->context, &(*vcl)[d].program_v, &(*vcl)[d].kernel_v, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm1, lcomm, 0 );
-        __GUARD gpu_initialize_update_s(&m->context, &(*vcl)[d].program_s, &(*vcl)[d].kernel_s, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm1, lcomm, 0  );
-        __GUARD gpu_intialize_seis(&m->context, &(*vcl)[d].program_initseis, &(*vcl)[d].kernel_initseis, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d]);
-        __GUARD gpu_intialize_seisout(&m->context, &(*vcl)[d].program_seisout, &(*vcl)[d].kernel_seisout, NULL, &(*vcl)[d], m, &(*mloc)[d]);
-        __GUARD gpu_intialize_seisoutinit(&m->context, &(*vcl)[d].program_seisoutinit, &(*vcl)[d].kernel_seisoutinit, NULL, &(*vcl)[d], m, &(*mloc)[d]);
-        if (m->freesurf==1){
-            __GUARD gpu_initialize_surface(&m->context, &(*vcl)[d].program_surf, &(*vcl)[d].kernel_surf, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d] );
         }
         
-        if (d>0 || m->MYLOCALID>0){
-            __GUARD gpu_initialize_update_v(&m->context, &(*vcl)[d].program_vcomm1, &(*vcl)[d].kernel_vcomm1, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], 0 , lcomm, 1);
-            __GUARD gpu_initialize_update_s(&m->context, &(*vcl)[d].program_scomm1, &(*vcl)[d].kernel_scomm1, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], 0 , lcomm, 1);
+        //Set the sources and receivers structure for this device
+        {
+            di->src_recs=m->src_recs;
+            di->src_recs.cl_src_pos.size=sizeof(float) * 5 * m->src_recs.nsmax;
+            di->src_recs.cl_rec_pos.size=sizeof(float) * 8 * m->src_recs.ngmax;
+            di->src_recs.cl_src.size=sizeof(float) * m->NT * m->src_recs.nsmax;
+            __GUARD clbuf_create(di->context_ptr, &di->src_recs.cl_src_pos);
+            __GUARD clbuf_create(di->context_ptr, &di->src_recs.cl_rec_pos);
+            __GUARD clbuf_create(di->context_ptr, &di->src_recs.cl_src);
+            if (m->GRADSRCOUT){
+                di->src_recs.cl_grad_src.size=sizeof(float)
+                * m->NT * m->src_recs.nsmax;
+                __GUARD clbuf_create(di->context_ptr,&di->src_recs.cl_grad_src);
+            }
         }
-        if (d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-            __GUARD gpu_initialize_update_v(&m->context, &(*vcl)[d].program_vcomm2, &(*vcl)[d].kernel_vcomm2, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm2, lcomm, 1 );
-            __GUARD gpu_initialize_update_s(&m->context, &(*vcl)[d].program_scomm2, &(*vcl)[d].kernel_scomm2, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm2, lcomm, 1 );
+        
+        //Allocate the variables structure for this device and create buffers
+        di->nvars=m->nvars;
+        di->ntvars=m->ntvars;
+        GMALLOC(di->vars, sizeof(variable)*m->nvars);
+        if (di->ntvars){
+            GMALLOC(di->trans_vars, sizeof(variable)*m->nvars);
         }
-        if (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1){
-            __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_fill_transfer_buff1_v_in, &(*vcl)[d], m, &(*mloc)[d],0,1,0);
-            __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_fill_transfer_buff2_v_in, &(*vcl)[d], m, &(*mloc)[d],0,2,0);
-            __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_fill_transfer_buff1_v_out, &(*vcl)[d], m, &(*mloc)[d],1,1,0);
-            __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_fill_transfer_buff2_v_out, &(*vcl)[d], m, &(*mloc)[d],1,2,0);
-            __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_fill_transfer_buff1_s_in, &(*vcl)[d], m, &(*mloc)[d],0,1,0);
-            __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_fill_transfer_buff2_s_in, &(*vcl)[d], m, &(*mloc)[d],0,2,0);
-            __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_fill_transfer_buff1_s_out, &(*vcl)[d], m, &(*mloc)[d],1,1,0);
-            __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_fill_transfer_buff2_s_out, &(*vcl)[d], m, &(*mloc)[d],1,2,0);
+        for (i=0;i<m->nvars;i++){
+            di->vars[i]=m->vars[i];
+            //Set the size of the local variables
+            di->vars[i].set_size(di->N, (void*) m, &di->vars[i]);
+        }
+        for (i=0;i<m->ntvars;i++){
+            di->trans_vars[i]=m->trans_vars[i];
+        }
+
+        //Create OpenCL buffers with the right size
+        for (i=0;i<m->nvars;i++){
+            
+            //Add the variable to variables to communicate during update
+            if (di->vars[i].to_comm>0){
+                j=di->vars[i].to_comm-1;
+                di->ups_f[j].v2com[di->ups_f[j].nvcom]=&di->vars[i];
+                di->ups_f[j].nvcom++;
+            }
+            
+            //Create variable buffers for the interior domain
+            di->vars[i].cl_var.size=sizeof(float)*di->vars[i].num_ele;
+            if (m->FP16>1)
+                di->vars[i].cl_var.size/=2;
+            __GUARD clbuf_create( di->context_ptr, &di->vars[i].cl_var);
+            //Create variable buffers for the boundary of the domain
+            if ( di->vars[i].to_comm && (d>0 || m->MYLOCALID>0
+                                             || d<m->NUM_DEVICES-1
+                                             || m->MYLOCALID<m->NLOCALP-1)){
+                //On the device side
+                di->vars[i].cl_buf1.size=sizeof(float)*m->FDOH*slicesize;
+                if (m->FP16 >1){
+                    di->vars[i].cl_buf1.size/=2;
+                }
+                __GUARD clbuf_create_pin(di->context_ptr,
+                                         &di->queuecomm,
+                                         &di->vars[i].cl_buf1);
+                di->vars[i].cl_buf2.size=sizeof(float)*m->FDOH*slicesize;
+                if (m->FP16 >1){
+                    di->vars[i].cl_buf2.size/=2;
+                }
+                __GUARD clbuf_create_pin(di->context_ptr,
+                                         &di->queuecomm,
+                                         &di->vars[i].cl_buf2);
+            }
+            
+            // Create the buffers to output variables at receivers locations
+            if (di->vars[i].to_output){
+                
+                //Memory for recordings for this device on host side
+                di->vars[i].cl_varout.size=sizeof(float)
+                                          * m->NT * m->src_recs.ngmax;
+                __GUARD clbuf_create( di->context_ptr, &di->vars[i].cl_varout);
+                GMALLOC(di->vars[i].cl_varout.host, di->vars[i].cl_varout.size);
+                di->vars[i].cl_varout.free_host=1;
+                
+            }
+            
+            // If we use the DFT for gradient computation,
+            // we create the buffers to hold each frequency
+            if (m->GRADOUT
+                && m->BACK_PROP_TYPE==2
+                && di->vars[i].for_grad){
+                
+
+                di->vars[i].cl_fvar.size=2*sizeof(float)
+                                        * di->vars[i].num_ele * m->NFREQS;
+                __GUARD clbuf_create(di->context_ptr,&di->vars[i].cl_fvar);
+                GMALLOC(di->vars[i].cl_fvar.host,di->vars[i].cl_fvar.size);
+                di->vars[i].cl_fvar.free_host=1;
+                di->vars[i].cl_fvar_adj.size= di->vars[i].cl_fvar.size;
+                GMALLOC(di->vars[i].cl_fvar_adj.host,di->vars[i].cl_fvar.size);
+                di->vars[i].cl_fvar_adj.free_host=1;
+            }
+            
+            // If we want the movie, allocate memory for variables
+            if (m->MOVOUT){
+                if (m->vars[i].to_output){
+                    di->vars[i].gl_mov=&m->vars[i].gl_mov[bufoff];
+                    GMALLOC(di->vars[i].cl_var.host,
+                            di->vars[i].num_ele*sizeof(float));
+                    di->vars[i].cl_var.free_host=1;
+                }
+            }
+            
+        }
+
+        //Create OpenCL buffers for transformed varibales
+        for (i=0;i<m->ntvars;i++){
+            // Create the buffers to output variables at receivers locations
+            if (di->trans_vars[i].to_output){
+                
+                //Memory for recordings for this device on host side
+                di->trans_vars[i].cl_varout.size=sizeof(float)
+                * m->NT * m->src_recs.ngmax;
+                __GUARD clbuf_create( di->context_ptr, &di->trans_vars[i].cl_varout);
+                GMALLOC(di->trans_vars[i].cl_varout.host, di->trans_vars[i].cl_varout.size);
+                di->trans_vars[i].cl_varout.free_host=1;
+            }
+        }
+        
+        //Create constants structure and buffers, transfer to device
+        di->ncsts=m->ncsts;
+        GMALLOC(di->csts, sizeof(constants)*m->ncsts);
+        for (i=0;i<m->ncsts;i++){
+            di->csts[i]=m->csts[i];
+            //Size of constants does not depend of domain decomposition
+            di->csts[i].cl_cst.size=sizeof(float)*di->csts[i].num_ele;
+            di->csts[i].cl_cst.host=m->csts[i].gl_cst;
+            __GUARD clbuf_create( di->context_ptr, &di->csts[i].cl_cst);
+            __GUARD clbuf_send( &di->queue, &di->csts[i].cl_cst);
+            
         }
         
         __GUARD gpu_intialize_sources(&m->context, &(*vcl)[d].program_sources, &(*vcl)[d].kernel_sources, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d]);
         
-        
-        if (state !=CL_SUCCESS) CLPERR(state);
-
-
-        //If we want the gradient by the adjoint model method, we create the variables
-        if (m->gradout==1 ){
+        // Determine the size of the outside boundary used for the back
+        // propagation of the seismic wavefield
+        // TODO: this is ugly and model specific, find a better way
+        if (m->BACK_PROP_TYPE==1 && m->GRADOUT){
             
-            //Residual back propgation memory allocation whith direct field backpropagation
-            if (m->back_prop_type==1){
-                
-
-                
-                //Allocate memory for the varibales that keeps the seismic wavefiled at the boundary. We keep a band of the width of fd order
-                if (m->ND!=21){
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_bnd,    &(*vcl)[d].sxxbnd);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_bnd,    &(*vcl)[d].szzbnd);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_bnd,    &(*vcl)[d].sxzbnd);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_bnd,    &(*vcl)[d].vxbnd);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_bnd,    &(*vcl)[d].vzbnd);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, (*vcl)[d].buffer_size_bnd*m->NT, &(*vcl)[d].sxxbnd_pin, &(*mloc)[d].sxxbnd);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, (*vcl)[d].buffer_size_bnd*m->NT, &(*vcl)[d].szzbnd_pin, &(*mloc)[d].szzbnd);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, (*vcl)[d].buffer_size_bnd*m->NT, &(*vcl)[d].sxzbnd_pin, &(*mloc)[d].sxzbnd);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, (*vcl)[d].buffer_size_bnd*m->NT, &(*vcl)[d].vxbnd_pin, &(*mloc)[d].vxbnd);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, (*vcl)[d].buffer_size_bnd*m->NT, &(*vcl)[d].vzbnd_pin, &(*mloc)[d].vzbnd);
+            GMALLOC(di->vars_adj, sizeof(variable)*m->nvars);
+            for (i=0;i<m->nvars;i++){
+                di->vars_adj[i]=di->vars[i];
+                di->vars_adj[i].cl_varout.free_host=0;
+                di->vars_adj[i].cl_var.mem = 0;
+                di->vars_adj[i].cl_varout.mem = 0;
+                di->vars_adj[i].cl_varbnd.mem = 0;
+                di->vars_adj[i].cl_fvar.mem = 0;
+                di->vars_adj[i].cl_fvar_adj.mem = 0;
+                di->vars_adj[i].cl_buf1.mem = 0;
+                di->vars_adj[i].cl_buf2.mem = 0;
+                di->vars_adj[i].cl_var_res.mem = 0;
+                di->vars_adj[i].cl_var.free_host=0;
+                di->vars_adj[i].cl_varout.free_host=0;
+                di->vars_adj[i].cl_varbnd.free_host=0;
+                di->vars_adj[i].cl_fvar.free_host=0;
+                di->vars_adj[i].cl_fvar_adj.free_host=0;
+                di->vars_adj[i].cl_buf1.free_host=0;
+                di->vars_adj[i].cl_buf2.free_host=0;
+                di->vars_adj[i].cl_var_res.free_host=0;
+            }
+            
+            for (i=0;i<m->nvars;i++){
+                //Add the variable to variables to communicate during update
+                if (di->vars_adj[i].to_comm>0){
+                    j=di->vars_adj[i].to_comm-1;
+                    di->ups_adj[j].v2com[di->ups_adj[j].nvcom]=&di->vars_adj[i];
+                    di->ups_adj[j].nvcom++;
                 }
-                if (m->ND==3 || m->ND==21){// For 3D
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_bnd,    &(*vcl)[d].sxybnd);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_bnd,    &(*vcl)[d].syzbnd);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_bnd,    &(*vcl)[d].vybnd);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, (*vcl)[d].buffer_size_bnd*m->NT, &(*vcl)[d].sxybnd_pin, &(*mloc)[d].sxybnd);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, (*vcl)[d].buffer_size_bnd*m->NT, &(*vcl)[d].syzbnd_pin, &(*mloc)[d].syzbnd);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, (*vcl)[d].buffer_size_bnd*m->NT, &(*vcl)[d].vybnd_pin, &(*mloc)[d].vybnd);
-                }
-                if (m->ND==3){// For 3D
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_bnd,    &(*vcl)[d].syybnd);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, (*vcl)[d].buffer_size_bnd*m->NT, &(*vcl)[d].syybnd_pin, &(*mloc)[d].syybnd);
-                }
-
-                
-                
-                //Allocate the memory for the variables for the residual wavefield
-                if (m->ND!=21){
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].sxx_r);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].szz_r);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].sxz_r);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].vx_r);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].vz_r);
-                    if (m->L>0){
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd*m->L,    &(*vcl)[d].rxx_r);
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd*m->L,    &(*vcl)[d].rzz_r);
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd*m->L,    &(*vcl)[d].rxz_r);
-                    }
-                }
-                if (m->ND==3 || m->ND==21){
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].sxy_r);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].syz_r);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].vy_r);
-                    if (m->L>0){
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd*m->L,    &(*vcl)[d].rxy_r);
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd*m->L,    &(*vcl)[d].ryz_r);
-                    }
-                }
-                if (m->ND==3){// For 3D
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd,    &(*vcl)[d].syy_r);
-                    if (m->L>0){
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_fd*m->L,    &(*vcl)[d].ryy_r);
-                    }
-                }
-
-                
-                //Allocate the gradient output
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradrho);
-                if (m->ND!=21){
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradM);
-                }
-                __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradmu);
-                if (m->L>0){
-                    if (m->ND!=21){
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradtaup);
-                    }
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].gradtaus);
-                }
-                
-                
-                //Allocate H output
-                if (m->Hout==1){
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].Hrho);
-                    if (m->ND!=21){
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].HM);
-                    }
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].Hmu);
-                    if (m->L>0){
-                        if (m->ND!=21){
-                            __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].Htaup);
-                        }
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_model, &(*vcl)[d].Htaus);
-                    }
-                }
-                
-                if (state !=CL_SUCCESS) CLPERR(state);
-                
-                //Create buffers and memory for GPU communication of the residual wavefield
-                if (m->ND!=21){
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxx_r_sub1, &(*mloc)[d].sxx_r_sub1);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].szz_r_sub1, &(*mloc)[d].szz_r_sub1);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxz_r_sub1, &(*mloc)[d].sxz_r_sub1);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vx_r_sub1, &(*mloc)[d].vx_r_sub1);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vz_r_sub1, &(*mloc)[d].vz_r_sub1);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxx_r_sub2, &(*mloc)[d].sxx_r_sub2);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].szz_r_sub2, &(*mloc)[d].szz_r_sub2);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxz_r_sub2, &(*mloc)[d].sxz_r_sub2);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vx_r_sub2, &(*mloc)[d].vx_r_sub2);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vz_r_sub2, &(*mloc)[d].vz_r_sub2);
+                __GUARD clbuf_create( di->context_ptr, &di->vars_adj[i].cl_var);
+                if (di->vars[i].to_comm && (d>0
+                                            || m->MYLOCALID>0
+                                            || d<m->NUM_DEVICES-1
+                                            || m->MYLOCALID<m->NLOCALP-1)){
                     
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxx_r_sub1_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].szz_r_sub1_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxz_r_sub1_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vx_r_sub1_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vz_r_sub1_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxx_r_sub2_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].szz_r_sub2_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxz_r_sub2_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vx_r_sub2_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vz_r_sub2_dev);
+                    __GUARD clbuf_create_pin(di->context_ptr,
+                                             &di->queuecomm,
+                                             &di->vars_adj[i].cl_buf1);
+                    __GUARD clbuf_create_pin(di->context_ptr,
+                                             &di->queuecomm,
+                                             &di->vars_adj[i].cl_buf2);
                 }
-                if (m->ND==3 || m->ND==21){
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxy_r_sub1, &(*mloc)[d].sxy_r_sub1);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].syz_r_sub1, &(*mloc)[d].syz_r_sub1);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vy_r_sub1, &(*mloc)[d].vy_r_sub1);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].sxy_r_sub2, &(*mloc)[d].sxy_r_sub2);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].syz_r_sub2, &(*mloc)[d].syz_r_sub2);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].vy_r_sub2, &(*mloc)[d].vy_r_sub2);
-                    
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxy_r_sub1_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].syz_r_sub1_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vy_r_sub1_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].sxy_r_sub2_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].syz_r_sub2_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].vy_r_sub2_dev);
-                    
-                }
-                if (m->ND==3){// For 3D
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].syy_r_sub1, &(*mloc)[d].syy_r_sub1);
-                    __GUARD create_pinned_memory_buffer(&m->context, &(*vcl)[d].cmd_queuecomm, m->buffer_size_comm, &(*vcl)[d].syy_r_sub2, &(*mloc)[d].syy_r_sub2);
-                    
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].syy_r_sub1_dev);
-                    __GUARD create_gpu_memory_buffer( &m->context, m->buffer_size_comm,    &(*vcl)[d].syy_r_sub2_dev);
-                }
-                
-
             }
-            
-            else if (m->back_prop_type==2){
-                
-                __GUARD create_gpu_memory_buffer( &m->context, sizeof(float)*m->nfreqs, &(*vcl)[d].gradfreqsn);
-                if (m->ND!=21){
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_vx);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_vz);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_sxx);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_szz);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_sxz);
-                    if (m->L>0){
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_rxx);
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_rzz);
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc*m->L, &(*vcl)[d].f_rxz);
-                    }
-                }
-
-                if (m->ND==3 || m->ND==21){
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_vy);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_sxy);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_syz);
-                    if (m->L>0){
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_rxy);
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_ryz);
-                    }
-                }
-                if (m->ND==3){// For 3D
-                    __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_syy);
-                    if (m->L>0){
-                        __GUARD create_gpu_memory_buffer( &m->context, (*vcl)[d].buffer_size_modelc, &(*vcl)[d].f_ryy);
-                    }
-                }
-                if (state !=CL_SUCCESS) CLPERR(state);
-   
+            int lenz;
+            if (m->FREESURF==0){
+                lenz = di->N[0]-2*m->NAB-2*m->FDOH;
             }
-            
-            if (m->gradsrcout ){
-                __GUARD create_gpu_memory_buffer( &m->context, buffer_size_s, &(*vcl)[d].gradsrc);
+            else{
+                lenz = di->N[0]-m->NAB-m->FDOH;
             }
-            
-            
-            //Create the kernels for the backpropagation and gradient computation
-            __GUARD gpu_initialize_update_adjv(&m->context, &(*vcl)[d].program_adjv, &(*vcl)[d].kernel_adjv, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm1, lcomm, 0  );
-            __GUARD gpu_initialize_update_adjs(&m->context, &(*vcl)[d].program_adjs, &(*vcl)[d].kernel_adjs, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm1, lcomm, 0 );
-            
-            if (d>0 || m->MYLOCALID>0){
-                __GUARD gpu_initialize_update_adjv(&m->context, &(*vcl)[d].program_adjvcomm1, &(*vcl)[d].kernel_adjvcomm1, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], 0 , lcomm, 1);
-                __GUARD gpu_initialize_update_adjs(&m->context, &(*vcl)[d].program_adjscomm1, &(*vcl)[d].kernel_adjscomm1, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], 0 , lcomm, 1);
-            }
-            if (d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1 ){
-                __GUARD gpu_initialize_update_adjv(&m->context, &(*vcl)[d].program_adjvcomm2, &(*vcl)[d].kernel_adjvcomm2, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm2, lcomm, 1 );
-                __GUARD gpu_initialize_update_adjs(&m->context, &(*vcl)[d].program_adjscomm2, &(*vcl)[d].kernel_adjscomm2, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d], offcomm2, lcomm, 1 );
-            }
-            if ( (d>0 || m->MYLOCALID>0 || d<m->num_devices-1 || m->MYLOCALID<m->NLOCALP-1) && m->back_prop_type==1 ){
-                __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_adj_fill_transfer_buff1_v_in, &(*vcl)[d], m, &(*mloc)[d],0,1,1);
-                __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_adj_fill_transfer_buff2_v_in, &(*vcl)[d], m, &(*mloc)[d],0,1,1);
-                __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_adj_fill_transfer_buff1_v_out, &(*vcl)[d], m, &(*mloc)[d],1,1,1);
-                __GUARD gpu_intialize_fill_transfer_buff_v(&m->context, &(*vcl)[d].program_fill_transfer_buff_v, &(*vcl)[d].kernel_adj_fill_transfer_buff2_v_out, &(*vcl)[d], m, &(*mloc)[d],1,1,1);
-                __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_adj_fill_transfer_buff1_s_in, &(*vcl)[d], m, &(*mloc)[d],0,1,1);
-                __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_adj_fill_transfer_buff2_s_in, &(*vcl)[d], m, &(*mloc)[d],0,1,1);
-                __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_adj_fill_transfer_buff1_s_out, &(*vcl)[d], m, &(*mloc)[d],1,1,1);
-                __GUARD gpu_intialize_fill_transfer_buff_s(&m->context, &(*vcl)[d].program_fill_transfer_buff_s, &(*vcl)[d].kernel_adj_fill_transfer_buff2_s_out, &(*vcl)[d], m, &(*mloc)[d],1,1,1);
-            }
-
-            __GUARD gpu_intialize_residuals(&m->context, &(*vcl)[d].program_residuals, &(*vcl)[d].kernel_residuals, NULL, &(*vcl)[d], m, &(*mloc)[d]);
-            __GUARD gpu_intialize_grad(&m->context, &(*vcl)[d].program_initgrad, &(*vcl)[d].kernel_initgrad, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d]);
-            __GUARD gpu_intialize_seis_r(&m->context, &(*vcl)[d].program_initseis_r, &(*vcl)[d].kernel_initseis_r, (*mloc)[d].local_work_size, &(*vcl)[d], m, &(*mloc)[d]);
-
-            
-            if (m->back_prop_type==1){
-                __GUARD gpu_initialize_savebnd(&m->context, &(*vcl)[d].program_bnd, &(*vcl)[d].kernel_bnd, NULL, &(*vcl)[d], m, &(*mloc)[d]);
-            }
-            if (m->back_prop_type==2){
-                __GUARD gpu_initialize_savefreqs(&m->context, &(*vcl)[d].program_savefreqs, &(*vcl)[d].kernel_savefreqs, NULL, &(*vcl)[d], m, &(*mloc)[d], 0);
-                __GUARD gpu_initialize_initsavefreqs(&m->context, &(*vcl)[d].program_initsavefreqs, &(*vcl)[d].kernel_initsavefreqs, NULL, &(*vcl)[d], m, &(*mloc)[d]);
-            }
-            if (m->gradsrcout==1){
-                __GUARD gpu_initialize_gradsrc(&m->context, &(*vcl)[d].program_initialize_gradsrc, &(*vcl)[d].kernel_initialize_gradsrc, NULL, &(*vcl)[d], m, &(*mloc)[d]);
-                
-            }
-            if (state !=CL_SUCCESS) CLPERR(state);
-        }
-
-        /*Transfer memory from host to the device*/
-        if ((*m).abs_type==1){
-            
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].K_x, m->K_x );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].a_x, m->a_x );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].b_x, m->b_x );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].K_x_half, m->K_x_half );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].a_x_half, m->a_x_half );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].b_x_half, m->b_x_half );
-            
             if (m->ND==3){// For 3D
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].K_y, m->K_y );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].a_y, m->a_y );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].b_y, m->b_y );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].K_y_half, m->K_y_half );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].a_y_half, m->a_y_half );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].b_y_half, m->b_y_half );
+                if (m->NUM_DEVICES==1 && m->NLOCALP==1)
+                    di->NBND=(di->N[2]-2*m->NAB)*(di->N[1]-2*m->NAB)*2*m->FDOH
+                    +(di->N[2]-2*m->NAB)*(lenz)*2*m->FDOH
+                    +(di->N[1]-2*m->NAB-2*m->FDOH)*(lenz)
+                    *2*m->FDOH;
+                
+                else if ( (d==0 && m->MYLOCALID==0)
+                         || (d==m->NUM_DEVICES-1 && m->MYLOCALID==m->NLOCALP-1))
+                    di->NBND=(di->N[2]-m->NAB)*(di->N[1]-2*m->NAB)*2*m->FDOH
+                    +(di->N[2]-m->NAB)*(lenz)*2*m->FDOH
+                    +(di->N[1]-2*m->NAB-2*m->FDOH)*(lenz)*m->FDOH;
+                
+                else
+                    di->NBND=di->N[2]*(di->N[1]-2*m->NAB)*2*m->FDOH+
+                    di->N[2]*(lenz)*2*m->FDOH;
+            }
+            else{
+                if (m->NUM_DEVICES==1 && m->NLOCALP==1){
+                    di->NBND=(di->N[1]-2*m->NAB)*2*m->FDOH+(lenz)*2*m->FDOH;
+                }
+                else if ( (d==0 && m->MYLOCALID==0)
+                         || (d==(m->NUM_DEVICES-1) && m->MYLOCALID==(m->NLOCALP-1))){
+                    di->NBND=(lenz)*m->FDOH+ (di->N[1]-m->NAB)*2*m->FDOH;
+                    }
+                else{
+                    di->NBND= (di->N[1])*2*m->FDOH;
+                }
+            }
+            for (i=0;i<m->nvars;i++){
+                if (di->vars[i].to_comm){
+                    di->vars[i].cl_varbnd.size=sizeof(float) * di->NBND;
+                    di->vars[i].cl_varbnd.sizepin=sizeof(float) *di->NBND*m->NT;
+                    if (m->FP16>1){
+                        di->vars[i].cl_varbnd.size/=2;
+                        di->vars[i].cl_varbnd.sizepin/=2;
+                    }
+                    __GUARD clbuf_create_pin( di->context_ptr,
+                                              &di->queuecomm,
+                                              &di->vars[i].cl_varbnd);
+                }
             }
             
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].K_z, m->K_z );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].a_z, m->a_z );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].b_z, m->b_z );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].K_z_half, m->K_z_half );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].a_z_half, m->a_z_half );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, 2*buffer_size_taper,    &(*vcl)[d].b_z_half, m->b_z_half );
-            
-            
         }
-        else if ((*m).abs_type==2){
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, buffer_size_taper,    &(*vcl)[d].taper, m->taper );
-        }
-        
-        if (m->ND!=21){
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].rip,   (*mloc)[d].rip );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].rkp,   (*mloc)[d].rkp );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].uipkp, (*mloc)[d].uipkp );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].u,     (*mloc)[d].u );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].pi,    (*mloc)[d].pi );
-            if (m->L>0){
-                __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].taup, (*mloc)[d].taup );
-                __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].taus, (*mloc)[d].taus );
-                __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].tausipkp, (*mloc)[d].tausipkp );
+        // Create the update kernels
+        di->nupdates=m->nupdates;
+        for (i=0;i<m->nupdates;i++){
+            di->ups_f[i].center.OFFCOMM=offcom1;
+            di->ups_f[i].center.LCOMM=LCOMM;
+            __GUARD prog_create(m, di,  &di->ups_f[i].center);
+            if (d>0 || m->MYLOCALID>0){
+                di->ups_f[i].com1.OFFCOMM=0;
+                di->ups_f[i].com1.LCOMM=LCOMM;
+                di->ups_f[i].com1.COMM=1;
+                __GUARD prog_create(m, di,  &di->ups_f[i].com1);
+                
+                __GUARD kernel_fcom_out( di ,di->vars,
+                                        &di->ups_f[i].fcom1_out, i+1, 1, 0);
+                __GUARD prog_create(m, di,  &di->ups_f[i].fcom1_out);
+                __GUARD kernel_fcom_in( di ,di->vars,
+                                       &di->ups_f[i].fcom1_in, i+1, 1, 0);
+                __GUARD prog_create(m, di,  &di->ups_f[i].fcom1_in);
+            }
+            if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
+                di->ups_f[i].com2.OFFCOMM=offcom2;
+                di->ups_f[i].com2.LCOMM=LCOMM;
+                di->ups_f[i].com2.COMM=1;
+                __GUARD prog_create(m, di,  &di->ups_f[i].com2);
+                
+                __GUARD kernel_fcom_out( di, di->vars,
+                                     &di->ups_f[i].fcom2_out, i+1, 2, 0);
+                __GUARD prog_create(m, di,  &di->ups_f[i].fcom2_out);
+                __GUARD kernel_fcom_in(di ,di->vars,
+                                   &di->ups_f[i].fcom2_in, i+1, 2, 0);
+                __GUARD prog_create(m, di,  &di->ups_f[i].fcom2_in);
             }
         }
-        
-        if (m->ND==3 || m->ND==21){
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].rjp,   (*mloc)[d].rjp );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].uipjp, (*mloc)[d].uipjp );
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].ujpkp, (*mloc)[d].ujpkp );
-            if (m->L>0){
-                    __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].tausipjp, (*mloc)[d].tausipjp );
-                    __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, (*vcl)[d].buffer_size_model, &(*vcl)[d].tausjpkp, (*mloc)[d].tausjpkp );
-            }
-        }
-        
-        if (m->L>0){
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, sizeof(float)*m->L,        &(*vcl)[d].eta,  m->eta );
-        }
-        
-        if (m->gradout==1 && m->back_prop_type==2 ){
-            __GUARD transfer_gpu_memory( &(*vcl)[d].cmd_queue, sizeof(float)*m->nfreqs, &(*vcl)[d].gradfreqsn,   m->gradfreqsn );
-        }
-        
-        if (state !=CL_SUCCESS) CLPERR(state);
-        
-    }
+        if (m->GRADOUT){
+            for (i=0;i<m->nupdates;i++){
+                di->ups_adj[i].center.OFFCOMM=offcom1;
+                di->ups_adj[i].center.LCOMM=LCOMM;
+                __GUARD prog_create(m, di,  &di->ups_adj[i].center);
+                if (d>0 || m->MYLOCALID>0){
+                    di->ups_adj[i].com1.OFFCOMM=0;
+                    di->ups_adj[i].com1.LCOMM=LCOMM;
+                    di->ups_adj[i].com1.COMM=1;
+                    __GUARD prog_create(m, di,  &di->ups_adj[i].com1);
+                    
+                    if (m->BACK_PROP_TYPE==1){
+                        __GUARD kernel_fcom_out( di ,di->vars,
+                                                &di->ups_adj[i].fcom1_out, i+1, 1, 1);
+                        __GUARD prog_create(m, di,  &di->ups_adj[i].fcom1_out);
+                        __GUARD kernel_fcom_in( di ,di->vars,
+                                               &di->ups_adj[i].fcom1_in, i+1, 1, 1);
+                        __GUARD prog_create(m, di,  &di->ups_adj[i].fcom1_in);
 
-    if (state && m->MPI_INIT==1) MPI_Bcast( &state, 1, MPI_INT, m->MYID, MPI_COMM_WORLD );
+                    }
+                }
+                if (d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1){
+                    di->ups_adj[i].com2.OFFCOMM=offcom2;
+                    di->ups_adj[i].com2.LCOMM=LCOMM;
+                    di->ups_adj[i].com2.COMM=1;
+                    __GUARD prog_create(m, di,  &di->ups_adj[i].com2);
+                    
+                    if (m->BACK_PROP_TYPE==1){
+                        __GUARD kernel_fcom_out(di, di->vars,
+                                                &di->ups_adj[i].fcom2_out, i+1, 2, 1);
+                        __GUARD prog_create(m, di,  &di->ups_adj[i].fcom2_out);
+                        __GUARD kernel_fcom_in(di ,di->vars,
+                                               &di->ups_adj[i].fcom2_in, i+1, 2, 1);
+                        __GUARD prog_create(m, di,  &di->ups_adj[i].fcom2_in);
+                    }
+                }
+            }
+        }
+        
+        //Create automaticly kernels for gradient, variable inti, sources ...
+        __GUARD kernel_sources(m, di,  &di->src_recs.sources);
+        __GUARD prog_create(m, di,  &di->src_recs.sources);
+        
+        if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){
+            __GUARD kernel_varout(di, &di->src_recs.varsout);
+            __GUARD prog_create(m, di,  &di->src_recs.varsout);
+            
+            __GUARD kernel_varoutinit(di, &di->src_recs.varsoutinit);
+            __GUARD prog_create(m, di,  &di->src_recs.varsoutinit);
+        }
+        
+        __GUARD kernel_varinit(di, m, di->vars, &di->bnd_cnds.init_f, 0);
+        __GUARD prog_create(m, di,  &di->bnd_cnds.init_f);
+        
+        if (m->GRADOUT){
+            __GUARD kernel_residuals(di,
+                                     &di->src_recs.residuals,
+                                     m->BACK_PROP_TYPE);
+            __GUARD prog_create(m, di,  &di->src_recs.residuals);
+            
+            if (m->BACK_PROP_TYPE==1){
+                __GUARD kernel_varinit(di,m,
+                                       di->vars_adj,
+                                       &di->bnd_cnds.init_adj, 1);
+                __GUARD prog_create(m, di,  &di->bnd_cnds.init_adj);
+                
+                
+                __GUARD kernel_gradinit(di, di->pars, &di->grads.init);
+                __GUARD prog_create(m, di,  &di->grads.init);
+                
+            }
+            else if(m->BACK_PROP_TYPE==2){
+                __GUARD kernel_initsavefreqs(di, di->vars,
+                                                      &di->grads.initsavefreqs);
+                __GUARD prog_create(m, di,  &di->grads.initsavefreqs);
+                
+                
+                kernel_savefreqs(di, di->vars, &di->grads.savefreqs);
+                __GUARD prog_create(m, di,  &di->grads.savefreqs);
+                
+            }
+            
+            if (m->GRADSRCOUT){
+                __GUARD kernel_init_gradsrc( &di->src_recs.init_gradsrc);
+                __GUARD prog_create(m, di,  &di->src_recs.init_gradsrc);
+            }
+        }
+    
+        
+        //TODO Boundary conditions should be included in the update kernel
+        //TODO Adjoint free surface
+        if (m->FREESURF){
+            di->bnd_cnds.surf=m->bnd_cnds.surf;
+            __GUARD prog_create(m, di,  &di->bnd_cnds.surf);
+            di->bnd_cnds.surf.wdim=m->NDIM-1;
+            for (i=1;i<m->NDIM;i++){
+                di->bnd_cnds.surf.gsize[i-1]=di->N[i];
+            }
+            if (m->GRADOUT){
+                di->bnd_cnds.surf_adj=m->bnd_cnds.surf_adj;
+                __GUARD prog_create(m, di,  &di->bnd_cnds.surf_adj);
+                di->bnd_cnds.surf_adj.wdim=m->NDIM-1;
+                for (i=1;i<m->NDIM;i++){
+                    di->bnd_cnds.surf_adj.gsize[i-1]=di->N[i];
+                }
+            }
+        }
+        
+        //TODO Create automatically the kernel for saving boundary
+        //TODO Implement random boundaries instead
+        if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+            di->grads.savebnd=m->grads.savebnd;
+            __GUARD prog_create(m, di,  &di->grads.savebnd);
+            if (m->FP16==0){
+                di->grads.savebnd.gsize[0]=di->NBND;
+            }
+            else{
+                di->grads.savebnd.gsize[0]=di->NBND/2;
+            }
+            di->grads.savebnd.wdim=1;
+        }
+    }
+    
+    int adj = 0;
+    if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+        adj=1;
+    }
+    __GUARD event_dependency(m, dev, adj);
+
+    #ifndef __NOMPI__
+    if (state && m->MPI_INIT==1)
+        MPI_Bcast( &state, 1, MPI_INT, m->GID, MPI_COMM_WORLD );
+    #endif
     
     return state;
 

@@ -17,301 +17,269 @@
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  --------------------------------------------------------------------------*/
 
-/*Kernels to save boundary wavefield in 3D if backpropagation is used in the computation of the gradient */
+/*Kernels to save boundary wavefield in 3D if backpropagation is used in
+ the computation of the gradient */
 
-
-#define lbnd (fdoh+nab)
-
-#define rho(z,y,x)     rho[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define rip(z,y,x)     rip[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define rjp(z,y,x)     rjp[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define rkp(z,y,x)     rkp[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define uipjp(z,y,x) uipjp[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define ujpkp(z,y,x) ujpkp[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define uipkp(z,y,x) uipkp[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define u(z,y,x)         u[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define pi(z,y,x)       pi[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define grad(z,y,x)   grad[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define grads(z,y,x) grads[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define amp1(z,y,x)   amp1[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define amp2(z,y,x)   amp2[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-
-#define taus(z,y,x)         taus[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define tausipjp(z,y,x) tausipjp[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define tausjpkp(z,y,x) tausjpkp[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define tausipkp(z,y,x) tausipkp[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define taup(z,y,x)         taup[((x)-fdoh)*(NY-2*fdoh)*(NZ-2*fdoh)+((y)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-
-#define vx(z,y,x)   vx[(x)*NY*NZ+(y)*NZ+(z)]
-#define vy(z,y,x)   vy[(x)*NY*NZ+(y)*NZ+(z)]
-#define vz(z,y,x)   vz[(x)*NY*NZ+(y)*NZ+(z)]
-#define sxx(z,y,x) sxx[(x)*NY*NZ+(y)*NZ+(z)]
-#define syy(z,y,x) syy[(x)*NY*NZ+(y)*NZ+(z)]
-#define szz(z,y,x) szz[(x)*NY*NZ+(y)*NZ+(z)]
-#define sxy(z,y,x) sxy[(x)*NY*NZ+(y)*NZ+(z)]
-#define syz(z,y,x) syz[(x)*NY*NZ+(y)*NZ+(z)]
-#define sxz(z,y,x) sxz[(x)*NY*NZ+(y)*NZ+(z)]
-
-#define vxout(y,x) vxout[(y)*NT+(x)]
-#define vyout(y,x) vyout[(y)*NT+(x)]
-#define vzout(y,x) vzout[(y)*NT+(x)]
-#define vx0(y,x) vx0[(y)*NT+(x)]
-#define vy0(y,x) vy0[(y)*NT+(x)]
-#define vz0(y,x) vz0[(y)*NT+(x)]
-#define rx(y,x) rx[(y)*NT+(x)]
-#define ry(y,x) ry[(y)*NT+(x)]
-#define rz(y,x) rz[(y)*NT+(x)]
-
-#if local_off==0
-
-#define lvx(z,y,x)   lvx[(x)*lsizey*lsizez+(y)*lsizez+(z)]
-#define lvy(z,y,x)   lvy[(x)*lsizey*lsizez+(y)*lsizez+(z)]
-#define lvz(z,y,x)   lvz[(x)*lsizey*lsizez+(y)*lsizez+(z)]
-#define lsxx(z,y,x) lsxx[(x)*lsizey*lsizez+(y)*lsizez+(z)]
-#define lsyy(z,y,x) lsyy[(x)*lsizey*lsizez+(y)*lsizez+(z)]
-#define lszz(z,y,x) lszz[(x)*lsizey*lsizez+(y)*lsizez+(z)]
-#define lsxy(z,y,x) lsxy[(x)*lsizey*lsizez+(y)*lsizez+(z)]
-#define lsyz(z,y,x) lsyz[(x)*lsizey*lsizez+(y)*lsizez+(z)]
-#define lsxz(z,y,x) lsxz[(x)*lsizey*lsizez+(y)*lsizez+(z)]
-
+#if FP16==0
+    #define __prec float
+    #define __prec2 float
+    #define DIV 1
+#elif FP16==1
+    #define __prec float
+    #define __prec2 float2
+    #define DIV 2
+#else
+    #define __prec half
+    #define __prec2 half2
+    #define DIV 2
 #endif
 
 
-
-#define PI (3.141592653589793238462643383279502884197169)
-#define srcpos_loc(y,x) srcpos_loc[(y)*nsrc+(x)]
-#define signals(y,x) signals[(y)*NT+(x)]
-
-
-__kernel void savebnd(__global float *vx,         __global float *vy,      __global float *vz,
-                      __global float *sxx,        __global float *syy,     __global float *szz,
-                      __global float *sxy,        __global float *syz,     __global float *sxz,
-                      __global float *vxbnd,      __global float *vybnd,   __global float *vzbnd,
-                      __global float *sxxbnd,     __global float *syybnd,  __global float *szzbnd,
-                      __global float *sxybnd,     __global float *syzbnd,  __global float *sxzbnd)
+FUNDEF void savebnd(GLOBARG __prec2 *vx,         GLOBARG __prec2 *vy,      GLOBARG __prec2 *vz,
+                    GLOBARG __prec2 *sxx,        GLOBARG __prec2 *syy,     GLOBARG __prec2 *szz,
+                    GLOBARG __prec2 *sxy,        GLOBARG __prec2 *syz,     GLOBARG __prec2 *sxz,
+                    GLOBARG __prec2 *vxbnd,      GLOBARG __prec2 *vybnd,   GLOBARG __prec2 *vzbnd,
+                    GLOBARG __prec2 *sxxbnd,     GLOBARG __prec2 *syybnd,  GLOBARG __prec2 *szzbnd,
+                    GLOBARG __prec2 *sxybnd,     GLOBARG __prec2 *syzbnd,  GLOBARG __prec2 *sxzbnd)
 {
-// If we have one device and one processing element in the group, we need all 6 sides of the boundary
-#if num_devices==1 & NLOCALP==1
-    int gid = get_global_id(0);
-    int NXbnd = (NX-2*fdoh-2*nab);
-    int NYbnd = (NY-2*fdoh-2*nab);
-    int NZbnd = (NZ-2*fdoh-2*nab);
-    int i,j,k;
+
+    int i,j,k,indv;
     int gidf;
-    
-    if (gid<NYbnd*NZbnd*fdoh){//front
+
+// If we have one device and one processing element in the group, we need all 6 sides of the boundary
+#if NUM_DEVICES==1 & NLOCALP==1
+    #ifdef __OPENCL_VERSION__
+    int gid = get_global_id(0);
+    #else
+    int gid = blockIdx.x*blockDim.x + threadIdx.x;
+    #endif
+    int NXbnd = (NX-2*FDOH-2*NAB);
+    int NYbnd = (NY-2*FDOH-2*NAB);
+    #if FREESURF==0
+    int NZbnd = (NZ- 2*FDOH/DIV- 2*NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH+NAB;
+    #else
+    int NZbnd = (NZ- 2*FDOH/DIV- NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH;
+    #endif
+
+    if (gid<NYbnd*NZbnd*FDOH){//front
         gidf=gid;
         i=gidf/(NYbnd*NZbnd)+lbnd;
         j=(gidf/NZbnd)%NYbnd+lbnd;
-        k=gidf%NZbnd+lbnd;
+        k=gidf%NZbnd+lbnds/DIV;
     }
-    else if (gid<NYbnd*NZbnd*2*fdoh){//back
-        gidf=gid-NYbnd*NZbnd*fdoh;
-        i=gidf/(NYbnd*NZbnd)+NXbnd+nab;
+    else if (gid<NYbnd*NZbnd*2*FDOH){//back
+        gidf=gid-NYbnd*NZbnd*FDOH;
+        i=gidf/(NYbnd*NZbnd)+NXbnd+NAB;
         j=(gidf/NZbnd)%NYbnd+lbnd;
-        k=gidf%NZbnd+lbnd;
+        k=gidf%NZbnd+lbnds/DIV;
     }
-    else if (gid<NYbnd*NZbnd*2*fdoh+NZbnd*(NXbnd-2*fdoh)*fdoh){//left
-        gidf=gid-NYbnd*NZbnd*2*fdoh;
-        i=gidf/(NZbnd*fdoh)+lbnd+fdoh;
-        j=(gidf/NZbnd)%fdoh+lbnd;
-        k=gidf%NZbnd+lbnd;
+    else if (gid<NYbnd*NZbnd*2*FDOH+NZbnd*(NXbnd-2*FDOH)*FDOH){//left
+        gidf=gid-NYbnd*NZbnd*2*FDOH;
+        i=gidf/(NZbnd*FDOH)+lbnd+FDOH;
+        j=(gidf/NZbnd)%FDOH+lbnd;
+        k=gidf%NZbnd+lbnds/DIV;
     }
-    else if (gid<NYbnd*NZbnd*2*fdoh+NZbnd*(NXbnd-2*fdoh)*2*fdoh){//right
-        gidf=gid-NYbnd*NZbnd*2*fdoh-NZbnd*(NXbnd-2*fdoh)*fdoh;
-        i=gidf/(NZbnd*fdoh)+lbnd+fdoh;
-        j=(gidf/NZbnd)%fdoh+NYbnd+nab;
-        k=gidf%NZbnd+lbnd;
+    else if (gid<NYbnd*NZbnd*2*FDOH+NZbnd*(NXbnd-2*FDOH)*2*FDOH){//right
+        gidf=gid-NYbnd*NZbnd*2*FDOH-NZbnd*(NXbnd-2*FDOH)*FDOH;
+        i=gidf/(NZbnd*FDOH)+lbnd+FDOH;
+        j=(gidf/NZbnd)%FDOH+NYbnd+NAB;
+        k=gidf%NZbnd+lbnds/DIV;
 
     }
-    else if (gid<NYbnd*NZbnd*2*fdoh+NZbnd*(NXbnd-2*fdoh)*2*fdoh+(NYbnd-2*fdoh)*(NXbnd-2*fdoh)*fdoh){//up
-        gidf=gid-NYbnd*NZbnd*2*fdoh-NZbnd*(NXbnd-2*fdoh)*2*fdoh;
-        i=gidf/(fdoh*(NYbnd-2*fdoh))+lbnd+fdoh;
-        j=(gidf/fdoh)%(NYbnd-2*fdoh)+lbnd+fdoh;
-        k=gidf%fdoh+lbnd;
+    else if (gid<NYbnd*NZbnd*2*FDOH+NZbnd*(NXbnd-2*FDOH)*2*FDOH+(NYbnd-2*FDOH)*(NXbnd-2*FDOH)*FDOH/DIV){//down
+        gidf=gid-NYbnd*NZbnd*2*FDOH-NZbnd*(NXbnd-2*FDOH)*2*FDOH;
+        i=gidf/(FDOH/DIV*(NYbnd-2*FDOH))+lbnd+FDOH;
+        j=(gidf/(FDOH/DIV))%(NYbnd-2*FDOH)+lbnd+FDOH;
+        k=gidf%(FDOH/DIV)+NZbnd+lbnds/DIV-FDOH/DIV;
+
 
     }
-    else if (gid<NYbnd*NZbnd*2*fdoh+NZbnd*(NXbnd-2*fdoh)*2*fdoh+(NYbnd-2*fdoh)*(NXbnd-2*fdoh)*2*fdoh){//down
-        gidf=gid-NYbnd*NZbnd*2*fdoh-NZbnd*(NXbnd-2*fdoh)*2*fdoh-(NYbnd-2*fdoh)*(NXbnd-2*fdoh)*fdoh;
-        i=gidf/(fdoh*(NYbnd-2*fdoh))+lbnd+fdoh;
-        j=(gidf/fdoh)%(NYbnd-2*fdoh)+lbnd+fdoh;
-        k=gidf%fdoh+NZbnd+nab;
+    else if (gid<NYbnd*NZbnd*2*FDOH+NZbnd*(NXbnd-2*FDOH)*2*FDOH+(NYbnd-2*FDOH)*(NXbnd-2*FDOH)*2*FDOH/DIV){//up
+        gidf=gid-NYbnd*NZbnd*2*FDOH-NZbnd*(NXbnd-2*FDOH)*2*FDOH-(NYbnd-2*FDOH)*(NXbnd-2*FDOH)*FDOH/DIV;
+        i=gidf/(FDOH/DIV*(NYbnd-2*FDOH))+lbnd+FDOH;
+        j=(gidf/(FDOH/DIV))%(NYbnd-2*FDOH)+lbnd+FDOH;
+        k=gidf%(FDOH/DIV)+lbnds/DIV;
     }
     else{
         return;
     }
 
-
-
-    vxbnd[gid]=vx(k,j,i);
-    vybnd[gid]=vy(k,j,i);
-    vzbnd[gid]=vz(k,j,i);
-    sxxbnd[gid]=sxx(k,j,i);
-    syybnd[gid]=syy(k,j,i);
-    szzbnd[gid]=szz(k,j,i);
-    sxybnd[gid]=sxy(k,j,i);
-    syzbnd[gid]=syz(k,j,i);
-    sxzbnd[gid]=sxz(k,j,i);
 
 // If we have domain decomposition and it is the first device, we need 5 sides of the boundary
-#elif dev==0 & MYGROUPID==0
+#elif DEVID==0 & MYLOCALID==0
+    #ifdef __OPENCL_VERSION__
     int gid = get_global_id(0);
-    int NXbnd = (NX-2*fdoh-nab);
-    int NYbnd = (NY-2*fdoh-2*nab);
-    int NZbnd = (NZ-2*fdoh-2*nab);
-    int i,j,k;
-    int gidf;
-    
-    if (gid<NYbnd*NZbnd*fdoh){//front
+    #else
+    int gid = blockIdx.x*blockDim.x + threadIdx.x;
+    #endif
+    int NXbnd = (NX-2*FDOH-NAB);
+    int NYbnd = (NY-2*FDOH-2*NAB);
+    #if FREESURF==0
+    int NZbnd = (NZ- 2*FDOH/DIV- 2*NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH+NAB;
+    #else
+    int NZbnd = (NZ- 2*FDOH/DIV- NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH;
+    #endif
+
+
+    if (gid<NYbnd*NZbnd*FDOH){//front
         gidf=gid;
         i=gidf/(NYbnd*NZbnd)+lbnd;
         j=(gidf/NZbnd)%NYbnd+lbnd;
-        k=gidf%NZbnd+lbnd;
+        k=gidf%NZbnd+lbnds/DIV;
     }
-    else if (gid<NYbnd*NZbnd*fdoh+NZbnd*(NXbnd-fdoh)*fdoh){//left
-        gidf=gid-NYbnd*NZbnd*fdoh;
-        i=gidf/(NZbnd*fdoh)+lbnd+fdoh;
-        j=(gidf/NZbnd)%fdoh+lbnd;
-        k=gidf%NZbnd+lbnd;
+    else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*FDOH){//left
+        gidf=gid-NYbnd*NZbnd*FDOH;
+        i=gidf/(NZbnd*FDOH)+lbnd+FDOH;
+        j=(gidf/NZbnd)%FDOH+lbnd;
+        k=gidf%NZbnd+lbnds/DIV;
     }
-    else if (gid<NYbnd*NZbnd*fdoh+NZbnd*(NXbnd-fdoh)*2*fdoh){//right
-        gidf=gid-NYbnd*NZbnd*fdoh-NZbnd*(NXbnd-fdoh)*fdoh;
-        i=gidf/(NZbnd*fdoh)+lbnd+fdoh;
-        j=(gidf/NZbnd)%fdoh+NYbnd+nab;
-        k=gidf%NZbnd+lbnd;
+    else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*2*FDOH){//right
+        gidf=gid-NYbnd*NZbnd*FDOH-NZbnd*(NXbnd-FDOH)*FDOH;
+        i=gidf/(NZbnd*FDOH)+lbnd+FDOH;
+        j=(gidf/NZbnd)%FDOH+NYbnd+NAB;
+        k=gidf%NZbnd+lbnds/DIV;
     }
-    else if (gid<NYbnd*NZbnd*fdoh+NZbnd*(NXbnd-fdoh)*2*fdoh+(NYbnd-2*fdoh)*(NXbnd-fdoh)*fdoh){//up
-        gidf=gid-NYbnd*NZbnd*fdoh-NZbnd*(NXbnd-fdoh)*2*fdoh;
-        i=gidf/(fdoh*(NYbnd-2*fdoh))+lbnd+fdoh;
-        j=(gidf/fdoh)%(NYbnd-2*fdoh)+lbnd+fdoh;
-        k=gidf%fdoh+lbnd;
+    else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*2*FDOH+(NYbnd-2*FDOH)*(NXbnd-FDOH)*FDOH/DIV){//down
+        gidf=gid-NYbnd*NZbnd*FDOH-NZbnd*(NXbnd-FDOH)*2*FDOH;
+        i=gidf/(FDOH/DIV*(NYbnd-2*FDOH))+lbnd+FDOH;
+        j=(gidf/(FDOH/DIV))%(NYbnd-2*FDOH)+lbnd+FDOH;
+        k=gidf%(FDOH/DIV)+NZbnd+lbnds/DIV-FDOH/DIV;
+
     }
-    else if (gid<NYbnd*NZbnd*fdoh+NZbnd*(NXbnd-fdoh)*2*fdoh+(NYbnd-2*fdoh)*(NXbnd-fdoh)*2*fdoh){//down
-        gidf=gid-NYbnd*NZbnd*fdoh-NZbnd*(NXbnd-fdoh)*2*fdoh-(NYbnd-2*fdoh)*(NXbnd-fdoh)*fdoh;
-        i=gidf/(fdoh*(NYbnd-2*fdoh))+lbnd+fdoh;
-        j=(gidf/fdoh)%(NYbnd-2*fdoh)+lbnd+fdoh;
-        k=gidf%fdoh+NZbnd+nab;
+    else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*2*FDOH+(NYbnd-2*FDOH)*(NXbnd-FDOH)*2*FDOH/DIV){//up
+        gidf=gid-NYbnd*NZbnd*FDOH-NZbnd*(NXbnd-FDOH)*2*FDOH-(NYbnd-2*FDOH)*(NXbnd-FDOH)*FDOH/DIV;
+        i=gidf/(FDOH/DIV*(NYbnd-2*FDOH))+lbnd+FDOH;
+        j=(gidf/(FDOH/DIV))%(NYbnd-2*FDOH)+lbnd+FDOH;
+        k=gidf%(FDOH/DIV)+lbnds/DIV;
     }
     else{
         return;
     }
-    
-    
-    vxbnd[gid]=vx(k,j,i);
-    vybnd[gid]=vy(k,j,i);
-    vzbnd[gid]=vz(k,j,i);
-    sxxbnd[gid]=sxx(k,j,i);
-    syybnd[gid]=syy(k,j,i);
-    szzbnd[gid]=szz(k,j,i);
-    sxybnd[gid]=sxy(k,j,i);
-    syzbnd[gid]=syz(k,j,i);
-    sxzbnd[gid]=sxz(k,j,i);
+
 
 // If we have domain decomposition and it is the last device, we need 5 sides of the boundary
-#elif dev==num_devices-1 & MYGROUPID==NLOCALP-1
+#elif DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+    #ifdef __OPENCL_VERSION__
     int gid = get_global_id(0);
-    int NXbnd = (NX-2*fdoh-nab);
-    int NYbnd = (NY-2*fdoh-2*nab);
-    int NZbnd = (NZ-2*fdoh-2*nab);
-    int i,j,k;
-    int gidf;
-    
-    if (gid<NYbnd*NZbnd*fdoh){//back
+    #else
+    int gid = blockIdx.x*blockDim.x + threadIdx.x;
+    #endif
+    int NXbnd = (NX-2*FDOH-NAB);
+    int NYbnd = (NY-2*FDOH-2*NAB);
+#if FREESURF==0
+    int NZbnd = (NZ- 2*FDOH/DIV- 2*NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH+NAB;
+#else
+    int NZbnd = (NZ- 2*FDOH/DIV- NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH;
+#endif
+
+    if (gid<NYbnd*NZbnd*FDOH){//back
         gidf=gid;
         i=gidf/(NYbnd*NZbnd)+NXbnd;
         j=(gidf/NZbnd)%NYbnd+lbnd;
-        k=gidf%NZbnd+lbnd;
+        k=gidf%NZbnd+lbnds/DIV;
     }
-    else if (gid<NYbnd*NZbnd*fdoh+NZbnd*(NXbnd-fdoh)*fdoh){//left
-        gidf=gid-NYbnd*NZbnd*fdoh;
-        i=gidf/(NZbnd*fdoh)+fdoh;
-        j=(gidf/NZbnd)%fdoh+lbnd;
-        k=gidf%NZbnd+lbnd;
+    else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*FDOH){//left
+        gidf=gid-NYbnd*NZbnd*FDOH;
+        i=gidf/(NZbnd*FDOH)+FDOH;
+        j=(gidf/NZbnd)%FDOH+lbnd;
+        k=gidf%NZbnd+lbnds/DIV;
     }
-    else if (gid<NYbnd*NZbnd*fdoh+NZbnd*(NXbnd-fdoh)*2*fdoh){//right
-        gidf=gid-NYbnd*NZbnd*fdoh-NZbnd*(NXbnd-fdoh)*fdoh;
-        i=gidf/(NZbnd*fdoh)+fdoh;
-        j=(gidf/NZbnd)%fdoh+NYbnd+nab;
-        k=gidf%NZbnd+lbnd;
+    else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*2*FDOH){//right
+        gidf=gid-NYbnd*NZbnd*FDOH-NZbnd*(NXbnd-FDOH)*FDOH;
+        i=gidf/(NZbnd*FDOH)+FDOH;
+        j=(gidf/NZbnd)%FDOH+NYbnd+NAB;
+        k=gidf%NZbnd+lbnds/DIV;
     }
-    else if (gid<NYbnd*NZbnd*fdoh+NZbnd*(NXbnd-fdoh)*2*fdoh+(NYbnd-2*fdoh)*(NXbnd-fdoh)*fdoh){//up
-        gidf=gid-NYbnd*NZbnd*fdoh-NZbnd*(NXbnd-fdoh)*2*fdoh;
-        i=gidf/(fdoh*(NYbnd-2*fdoh))+fdoh;
-        j=(gidf/fdoh)%(NYbnd-2*fdoh)+lbnd+fdoh;
-        k=gidf%fdoh+lbnd;
+    else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*2*FDOH+(NYbnd-2*FDOH)*(NXbnd-FDOH)*FDOH/DIV){//down
+        gidf=gid-NYbnd*NZbnd*FDOH-NZbnd*(NXbnd-FDOH)*2*FDOH;
+        i=gidf/(FDOH/DIV*(NYbnd-2*FDOH))+FDOH;
+        j=(gidf/(FDOH/DIV))%(NYbnd-2*FDOH)+lbnd+FDOH;
+        k=gidf%(FDOH/DIV)+NZbnd+lbnds/DIV-FDOH/DIV;
+
     }
-    else if (gid<NYbnd*NZbnd*fdoh+NZbnd*(NXbnd-fdoh)*2*fdoh+(NYbnd-2*fdoh)*(NXbnd-fdoh)*2*fdoh){//down
-        gidf=gid-NYbnd*NZbnd*fdoh-NZbnd*(NXbnd-fdoh)*2*fdoh-(NYbnd-2*fdoh)*(NXbnd-fdoh)*fdoh;
-        i=gidf/(fdoh*(NYbnd-2*fdoh))+fdoh;
-        j=(gidf/fdoh)%(NYbnd-2*fdoh)+lbnd+fdoh;
-        k=gidf%fdoh+NZbnd+nab;
+    else if (gid<NYbnd*NZbnd*FDOH+NZbnd*(NXbnd-FDOH)*2*FDOH+(NYbnd-2*FDOH)*(NXbnd-FDOH)*2*FDOH/DIV){//up
+        gidf=gid-NYbnd*NZbnd*FDOH-NZbnd*(NXbnd-FDOH)*2*FDOH-(NYbnd-2*FDOH)*(NXbnd-FDOH)*FDOH/DIV;
+        i=gidf/(FDOH/DIV*(NYbnd-2*FDOH))+FDOH;
+        j=(gidf/(FDOH/DIV))%(NYbnd-2*FDOH)+lbnd+FDOH;
+        k=gidf%(FDOH/DIV)+lbnds/DIV;
     }
     else{
         return;
     }
-    
-    
-    vxbnd[gid]=vx(k,j,i);
-    vybnd[gid]=vy(k,j,i);
-    vzbnd[gid]=vz(k,j,i);
-    sxxbnd[gid]=sxx(k,j,i);
-    syybnd[gid]=syy(k,j,i);
-    szzbnd[gid]=szz(k,j,i);
-    sxybnd[gid]=sxy(k,j,i);
-    syzbnd[gid]=syz(k,j,i);
-    sxzbnd[gid]=sxz(k,j,i);
 
 // If we have domain decomposition and it is a middle device, we need 4 sides of the boundary
-#else 
+#else
+    #ifdef __OPENCL_VERSION__
     int gid = get_global_id(0);
-    int NXbnd = (NX-2*fdoh);
-    int NYbnd = (NY-2*fdoh-2*nab);
-    int NZbnd = (NZ-2*fdoh-2*nab);
-    int i,j,k;
-    int gidf;
-    
+    #else
+    int gid = blockIdx.x*blockDim.x + threadIdx.x;
+    #endif
+    int NXbnd = (NX-2*FDOH);
+    int NYbnd = (NY-2*FDOH-2*NAB);
+    #if FREESURF==0
+    int NZbnd = (NZ- 2*FDOH/DIV- 2*NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH+NAB;
+    #else
+    int NZbnd = (NZ- 2*FDOH/DIV- NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH;
+    #endif
 
-    if (gid<NZbnd*NXbnd*fdoh){//left
+    if (gid<NZbnd*NXbnd*FDOH){//left
         gidf=gid;
-        i=gidf/(NZbnd*fdoh)+fdoh;
-        j=(gidf/NZbnd)%fdoh+lbnd;
-        k=gidf%NZbnd+lbnd;
+        i=gidf/(NZbnd*FDOH)+FDOH;
+        j=(gidf/NZbnd)%FDOH+lbnd;
+        k=gidf%NZbnd+lbnds/DIV;
     }
-    else if (gid<NZbnd*NXbnd*2*fdoh){//right
-        gidf=gid-NZbnd*NXbnd*fdoh;
-        i=gidf/(NZbnd*fdoh)+fdoh;
-        j=(gidf/NZbnd)%fdoh+NYbnd+nab;
-        k=gidf%NZbnd+lbnd;
+    else if (gid<NZbnd*NXbnd*2*FDOH){//right
+        gidf=gid-NZbnd*NXbnd*FDOH;
+        i=gidf/(NZbnd*FDOH)+FDOH;
+        j=(gidf/NZbnd)%FDOH+NYbnd+NAB;
+        k=gidf%NZbnd+lbnds/DIV;
     }
-    else if (gid<NZbnd*NXbnd*2*fdoh+(NYbnd-2*fdoh)*NXbnd*fdoh){//up
-        gidf=gid-NZbnd*NXbnd*2*fdoh;
-        i=gidf/(fdoh*(NYbnd-2*fdoh))+fdoh;
-        j=(gidf/fdoh)%(NYbnd-2*fdoh)+lbnd+fdoh;
-        k=gidf%fdoh+lbnd;
+    else if (gid<NZbnd*NXbnd*2*FDOH+(NYbnd-2*FDOH)*NXbnd*FDOH/DIV){//down
+        gidf=gid-NZbnd*NXbnd*2*FDOH;
+        i=gidf/(FDOH/DIV*(NYbnd-2*FDOH))+FDOH;
+        j=(gidf/(FDOH/DIV))%(NYbnd-2*FDOH)+lbnd+FDOH;
+        k=gidf%(FDOH/DIV)+NZbnd+lbnds/DIV-FDOH/DIV;
+
     }
-    else if (gid<NZbnd*NXbnd*2*fdoh+(NYbnd-2*fdoh)*NXbnd*2*fdoh){//down
-        gidf=gid-NZbnd*NXbnd*2*fdoh-(NYbnd-2*fdoh)*NXbnd*fdoh;
-        i=gidf/(fdoh*(NYbnd-2*fdoh))+fdoh;
-        j=(gidf/fdoh)%(NYbnd-2*fdoh)+lbnd+fdoh;
-        k=gidf%fdoh+NZbnd+nab;
+    else if (gid<NZbnd*NXbnd*2*FDOH+(NYbnd-2*FDOH)*NXbnd*2*FDOH/DIV){//up
+        gidf=gid-NZbnd*NXbnd*2*FDOH-(NYbnd-2*FDOH)*NXbnd*FDOH/DIV;
+        i=gidf/(FDOH/DIV*(NYbnd-2*FDOH))+FDOH;
+        j=(gidf/(FDOH/DIV))%(NYbnd-2*FDOH)+lbnd+FDOH;
+        k=gidf%(FDOH/DIV)+lbnds/DIV;
     }
     else{
         return;
     }
-    
-    
-    vxbnd[gid]=vx(k,j,i);
-    vybnd[gid]=vy(k,j,i);
-    vzbnd[gid]=vz(k,j,i);
-    sxxbnd[gid]=sxx(k,j,i);
-    syybnd[gid]=syy(k,j,i);
-    szzbnd[gid]=szz(k,j,i);
-    sxybnd[gid]=sxy(k,j,i);
-    syzbnd[gid]=syz(k,j,i);
-    sxzbnd[gid]=sxz(k,j,i);
 
 #endif
-    
+
+    indv = i*NY*NZ+j*NZ+k;
+
+    vxbnd[gid]=vx[indv];
+    vybnd[gid]=vy[indv];
+    vzbnd[gid]=vz[indv];
+    sxxbnd[gid]=sxx[indv];
+    syybnd[gid]=syy[indv];
+    szzbnd[gid]=szz[indv];
+    sxybnd[gid]=sxy[indv];
+    syzbnd[gid]=syz[indv];
+    sxzbnd[gid]=sxz[indv];
     
 }
 

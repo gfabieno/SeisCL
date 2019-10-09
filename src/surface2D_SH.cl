@@ -19,23 +19,23 @@
 
 /*This is the kernel that implement the free surface condition for SH waves*/
 
-#define syz(z,x) syz[(x)*NZ+(z)]
+#define syz(z,x) syz[(x)*(NZ)+(z)]
 
 __kernel void surface(        __global float *syz)
 {
     /*Indice definition */
-    int gidx = get_global_id(0) + fdoh;
-    int gidz=fdoh;
+    int gidx = get_global_id(0) + FDOH;
+    int gidz=FDOH;
     
     /* Global work size is padded to be a multiple of local work size. The padding elements must not be updated */
-    if ( gidx>(NX-fdoh-1) ){
+    if ( gidx>(NX-FDOH-1) ){
         return;
     }
     
     /*Mirroring the components of the stress tensor to make
      a stress free surface (method of imaging, Levander, 1988)*/
     
-    for (int m=1; m<=fdoh; m++) {
+    for (int m=1; m<=FDOH; m++) {
         syz(gidz-m, gidx)=-syz(gidz+m-1, gidx);
     }
 

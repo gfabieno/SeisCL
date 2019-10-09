@@ -19,261 +19,157 @@
 
 /*This is the kernel that implement the free surface condition in 2D*/
 
-/*Define useful macros to be able to write a matrix formulation in 2D with OpenCl */
-#define rho(z,x)    rho[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define rip(z,x)    rip[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define rkp(z,x)    rkp[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define uipkp(z,x) uipkp[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define u(z,x)        u[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define pi(z,x)      pi[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define grad(z,x)  grad[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define grads(z,x) grads[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define amp1(z,x)  amp1[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define amp2(z,x)  amp2[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
+#define psi_vx_x(z,x) psi_vx_x[(x)*(NZ-2*FDOH)+(z)]
+#define psi_vzx(z,x) psi_vzx[(x)*(NZ-2*FDOH)+(z)]
 
-#define taus(z,x)        taus[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define tausipkp(z,x) tausipkp[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
-#define taup(z,x)        taup[((x)-fdoh)*(NZ-2*fdoh)+((z)-fdoh)]
+#define psi_vxz(z,x) psi_vxz[(x)*(2*NAB)+(z)]
+#define psi_vzz(z,x) psi_vzz[(x)*(2*NAB)+(z)]
 
-#define vx(z,x)  vx[(x)*NZ+(z)]
-#define vz(z,x)  vz[(x)*NZ+(z)]
-#define sxx(z,x) sxx[(x)*NZ+(z)]
-#define szz(z,x) szz[(x)*NZ+(z)]
-#define sxz(z,x) sxz[(x)*NZ+(z)]
+#define indv(z,x)  (x)*(NZ)+(z)
 
-#define rxx(z,x,l) rxx[(l)*NX*NZ+(x)*NZ+(z)]
-#define rzz(z,x,l) rzz[(l)*NX*NZ+(x)*NZ+(z)]
-#define rxz(z,x,l) rxz[(l)*NX*NZ+(x)*NZ+(z)]
-
-#if local_off==0
-
-#define lvx(z,x)  lvx[(x)*lsizez+(z)]
-#define lvz(z,x)  lvz[(x)*lsizez+(z)]
-#define lsxx(z,x) lsxx[(x)*lsizez+(z)]
-#define lszz(z,x) lszz[(x)*lsizez+(z)]
-#define lsxz(z,x) lsxz[(x)*lsizez+(z)]
-
-#endif
-
-
-#define vxout(y,x) vxout[(y)*NT+(x)]
-#define vzout(y,x) vzout[(y)*NT+(x)]
-#define vx0(y,x) vx0[(y)*NT+(x)]
-#define vz0(y,x) vz0[(y)*NT+(x)]
-#define rx(y,x) rx[(y)*NT+(x)]
-#define rz(y,x) rz[(y)*NT+(x)]
-
-#define psi_vxx(z,x) psi_vxx[(x)*(NZ-2*fdoh)+(z)]
-#define psi_vzx(z,x) psi_vzx[(x)*(NZ-2*fdoh)+(z)]
-
-#define psi_vxz(z,x) psi_vxz[(x)*(2*nab)+(z)]
-#define psi_vzz(z,x) psi_vzz[(x)*(2*nab)+(z)]
-
-
-#define PI (3.141592653589793238462643383279502884197169)
-#define srcpos_loc(y,x) srcpos_loc[(y)*nsrc+(x)]
-#define signals(y,x) signals[(y)*NT+(x)]
-
-
-
-__kernel void surface(        __global float *vx,         __global float *vz,
-                              __global float *sxx,        __global float *szz,      __global float *sxz,
-                              __global float *pi,         __global float *u,        __global float *rxx,
-                              __global float *rzz,        __global float *taus,     __global float *taup,
-                              __global float *eta, __global float *K_x, __global float *psi_vxx)
+FUNDEF void freesurface(GLOBARG float *vx,  GLOBARG float *vz,
+                    GLOBARG float *sxx, GLOBARG float *szz,
+                    GLOBARG float *sxz, GLOBARG float *M,
+                    GLOBARG float *mu,  GLOBARG float *rxx,
+                    GLOBARG float *rzz, GLOBARG float *taus,
+                    GLOBARG float *taup,GLOBARG float *eta,
+                    GLOBARG float *K_x, GLOBARG float *psi_vx_x,
+                    GLOBARG float *taper, int pdir)
 {
     /*Indice definition */
-    int gidx = get_global_id(0) + fdoh;
-    int gidz=fdoh;
+    #ifdef __OPENCL_VERSION__
+    int gidx = get_global_id(0) + FDOH;
+    #else
+    int gidx = blockIdx.x*blockDim.x + threadIdx.x + FDOH;
+    #endif
+    int gidz=FDOH;
     
+    //For the FD templates in header_FD to work, we must define:
+    int lidx= gidx;
+    int lidz= gidz;
+    int lsizez=NZ;
     
-    /* Global work size is padded to be a multiple of local work size. The padding elements must not be updated */
-    if ( gidx>(NX-fdoh-1) ){
+    /* Global work size is padded to be a multiple of local work size.
+     The padding elements must not be updated */
+    if ( gidx>(NX-FDOH-1) ){
         return;
     }
-    
+
     float f, g, h;
+    float sump;
     float  vxx, vzz;
-    int m;
-    
+    int l, m;
+    int indp = (gidx-FDOH)*(NZ-2*FDOH)+(gidz-FDOH);
+
     /*Mirroring the components of the stress tensor to make
      a stress free surface (method of imaging, Levander, 1988)*/
-    szz(gidz, gidx)=0.0;
-#if Lve>0
-    rzz(gidz, gidx)=0.0;
-#endif
-    
-    for (m=1; m<=fdoh; m++) {
-        szz(gidz-m,  gidx)=-szz(gidz+m,  gidx);
-        sxz(gidz-m,  gidx)=-sxz(gidz+m-1, gidx);
+    szz[indv(gidz, gidx)]=0.0;
+    #if LVE>0
+    for (l=0; l<LVE; l++){
+        rzz[(l)*NX*NZ+(gidx)*NZ+(gidz)]=0.0;
     }
-				
-    
-#if   fdoh==1
-    {
-        vxx = (vx(gidz,gidx)-vx(gidz,gidx-1))/DH;
-        vzz = (vz(gidz,gidx)-vz(gidz-1,gidx))/DH;
-    }
-#elif fdoh==2
-    {
-        vxx = (hc1*(vx(gidz,gidx)  -vx(gidz,gidx-1))+
-               hc2*(vx(gidz,gidx+1)-vx(gidz,gidx-2)))/DH;
-        
-        
-        vzz = (hc1*(vz(gidz,gidx)  -vz(gidz-1,gidx))+
-               hc2*(vz(gidz+1,gidx)-vz(gidz-2,gidx)))/DH;
-    }
-#elif fdoh==3
-    {
-        vxx = (hc1*(vx(gidz,gidx)  -vx(gidz,gidx-1))+
-               hc2*(vx(gidz,gidx+1)-vx(gidz,gidx-2))+
-               hc3*(vx(gidz,gidx+2)-vx(gidz,gidx-3)))/DH;
-        
-        vzz = (hc1*(vz(gidz,gidx)-vz(gidz-1,gidx))+
-               hc2*(vz(gidz+1,gidx)-vz(gidz-2,gidx))+
-               hc3*(vz(gidz+2,gidx)-vz(gidz-3,gidx)))/DH;
-        
-    }
-#elif fdoh==4
-    {
-        vxx = (hc1*(vx(gidz,gidx)  -vx(gidz,gidx-1))+
-               hc2*(vx(gidz,gidx+1)-vx(gidz,gidx-2))+
-               hc3*(vx(gidz,gidx+2)-vx(gidz,gidx-3))+
-               hc4*(vx(gidz,gidx+3)-vx(gidz,gidx-4)))/DH;
-        
-        vzz = (hc1*(vz(gidz,gidx)  -vz(gidz-1,gidx))+
-               hc2*(vz(gidz+1,gidx)-vz(gidz-2,gidx))+
-               hc3*(vz(gidz+2,gidx)-vz(gidz-3,gidx))+
-               hc4*(vz(gidz+3,gidx)-vz(gidz-4,gidx)))/DH;
-    }
-#elif fdoh==5
-    {
-        vxx = (hc1*(vx(gidz,gidx)  -vx(gidz,gidx-1))+
-               hc2*(vx(gidz,gidx+1)-vx(gidz,gidx-2))+
-               hc3*(vx(gidz,gidx+2)-vx(gidz,gidx-3))+
-               hc4*(vx(gidz,gidx+3)-vx(gidz,gidx-4))+
-               hc5*(vx(gidz,gidx+4)-vx(gidz,gidx-5)))/DH;
-        
-        
-        vzz = (hc1*(vz(gidz,gidx)  -vz(gidz-1,gidx))+
-               hc2*(vz(gidz+1,gidx)-vz(gidz-2,gidx))+
-               hc3*(vz(gidz+2,gidx)-vz(gidz-3,gidx))+
-               hc4*(vz(gidz+3,gidx)-vz(gidz-4,gidx))+
-               hc5*(vz(gidz+4,gidx)-vz(gidz-5,gidx)))/DH;
-        
-        
-    }
-#elif fdoh==6
-    {
-        vxx = (hc1*(vx(gidz,gidx)  -vx(gidz,gidx-1))+
-               hc2*(vx(gidz,gidx+1)-vx(gidz,gidx-2))+
-               hc3*(vx(gidz,gidx+2)-vx(gidz,gidx-3))+
-               hc4*(vx(gidz,gidx+3)-vx(gidz,gidx-4))+
-               hc5*(vx(gidz,gidx+4)-vx(gidz,gidx-5))+
-               hc6*(vx(gidz,gidx+5)-vx(gidz,gidx-6)))/DH;
-        
-        
-        vzz = (hc1*(vz(gidz,gidx)  -vz(gidz-1,gidx))+
-               hc2*(vz(gidz+1,gidx)-vz(gidz-2,gidx))+
-               hc3*(vz(gidz+2,gidx)-vz(gidz-3,gidx))+
-               hc4*(vz(gidz+3,gidx)-vz(gidz-4,gidx))+
-               hc5*(vz(gidz+4,gidx)-vz(gidz-5,gidx))+
-               hc6*(vz(gidz+5,gidx)-vz(gidz-6,gidx)))/DH;
-    }
-#endif
-    
-    //TODO Solution is unstable that way, I don't know why
-    // Absorbing boundary
-#if abstype==2
-    {
-        
-#if dev==0 & MYLOCALID==0
-        if (gidx-fdoh<nab){
-            sxx(gidz,gidx)*=1.0/taper[gidx-fdoh];
-        }
-#endif
-        
-#if dev==num_devices-1 & MYLOCALID==NLOCALP-1
-        if (gidx>NX-nab-fdoh-1){
-            sxx(gidz,gidx)*=1.0/taper[NX-fdoh-gidx-1];
-        }
-#endif
-    }
-#endif
-    
-    // Correct spatial derivatives to implement CPML
-#if abs_type==1
-    {
-        int i,k,ind;
-#if dev==0 & MYLOCALID==0
-        if (gidx-fdoh<nab){
-            
-            i =gidx-fdoh;
-            k =gidz-fdoh;
-            
-            vxx = vxx / K_x[i] + psi_vxx(k,i);
-        }
-#endif
-        
-#if dev==num_devices-1 & MYLOCALID==NLOCALP-1
-        if (gidx>NX-nab-fdoh-1){
-            
-            i =gidx - NX+nab+fdoh+nab;
-            k =gidz-fdoh;
-            ind=2*nab-1-i;
-            vxx = vxx /K_x[ind+1] + psi_vxx(k,i);
-        }
-#endif
-    }
-#endif
-    
+    #endif
 
-    
-    
-#if Lve==0
-				f=u(gidz,  gidx)*2.0;
-				g=pi(gidz,  gidx);
-				h=-(DT*(g-f)*(g-f)*(vxx)/g)-(DT*(g-f)*vzz);
-				sxx(gidz,  gidx)+=h;
-#else
+    for (m=1; m<=FDOH; m++) {
+        szz[indv(gidz-m,gidx)]=-szz[indv(gidz+m,gidx)];
+        sxz[indv(gidz-m,gidx)]=-sxz[indv(gidz+m-1,gidx)];
+    }
+
+    vxx = Dxm(vx);
+    vzz = Dzm(vz);
+
+//    // Correct spatial derivatives to implement CPML
+//    #if ABS_TYPE==1
+//    {
+//        int i,k,ind;
+//    #if DEVID==0 & MYLOCALID==0
+//        if (gidx-FDOH<NAB){
+//
+//            i =gidx-FDOH;
+//            k =gidz-FDOH;
+//
+//            vxx = vxx / K_x[i] + psi_vx_x(k,i);
+//        }
+//    #endif
+//
+//    #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+//        if (gidx>NX-NAB-FDOH-1){
+//
+//            i =gidx - NX+NAB+FDOH+NAB;
+//            k =gidz-FDOH;
+//            ind=2*NAB-1-i;
+//            vxx = vxx /K_x[ind+1] + psi_vx_x(k,i);
+//        }
+//    #endif
+//    }
+//    #endif
+
+    #if LVE==0
+    f=mu[indp]*2.0;
+    g=M[indp];
+    h=-((g-f)*(g-f)*(vxx)/g)-((g-f)*vzz);
+
+//    // Absorbing boundary
+//    #if ABS_TYPE==2
+//        {
+//
+//        #if DEVID==0 & MYLOCALID==0
+//            if (gidx-FDOH<NAB){
+//                h*=taper[gidx-FDOH];
+//            }
+//        #endif
+//
+//        #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+//            if (gidx>NX-NAB-FDOH-1){
+//                h*=taper[NX-FDOH-gidx-1];
+//            }
+//        #endif
+//        }
+//    #endif
+    sxx[indv(gidz,gidx)]+=pdir*h;
+
+    #else
     float b,d,e;
     /* partially updating sxx  in the same way*/
-    f=u(gidz,  gidx)*2.0*(1.0+L*taus(gidz,  gidx));
-    g=pi(gidz,  gidx)*(1.0+L*taup(gidz,  gidx));
-    h=-(DT*(g-f)*(g-f)*(vxx)/g)-(DT*(g-f)*vzz);
-    sxx(gidz,  gidx)+=h-(DT/2.0*rxx(gidz,  gidx));
-    
+    f=mu[indp]*2.0*(1.0+LVE*taus[indp]);
+    g=M[indp]*(1.0+LVE*taup[indp]);
+    h=-((g-f)*(g-f)*(vxx)/g)-((g-f)*vzz);
+//    #if ABS_TYPE==2
+//        {
+//
+//        #if DEVID==0 & MYLOCALID==0
+//            if (gidx-FDOH<NAB){
+//                h*=taper[gidx-FDOH];
+//            }
+//        #endif
+//
+//        #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+//            if (gidx>NX-NAB-FDOH-1){
+//                h*=taper[NX-FDOH-gidx-1];
+//            }
+//        #endif
+//        }
+//    #endif
+
+    sump=0;
+    for (l=0;l<LVE;l++){
+        sump+=rxx[(l)*NX*NZ+(gidx)*NZ+(gidz)];
+    }
+    sxx[indv(gidz,gidx)]+=pdir* (h - DT/2.0*sump);
+
     /* updating the memory-variable rxx at the free surface */
-    
-    d=2.0*u(gidz,  gidx)*taus(gidz,  gidx);
-    e=pi(gidz,  gidx)*taup(gidz,  gidx);
-    for (m=0;m<Lve;m++){
-        b=eta[m]/(1.0+(eta[m]*0.5));
-        h=b*(((d-e)*((f/g)-1.0)*(vxx+vyy))-((d-e)*vzz));
-        rxx(gidz,  gidx)+=h;
+    d=2.0*mu[indp]*taus[indp];
+    e=M[indp]*taup[indp];
+
+    sump=0;
+    for (l=0;l<LVE;l++){
+        b=eta[l]/(1.0+(eta[l]*0.5));
+        h=b*(((d-e)*((f/g)-1.0)*vxx)-((d-e)*vzz));
+        rxx[(l)*NX*NZ+(gidx)*NZ+(gidz)]+=pdir*h;
+        /*completely updating the stresses sxx  */
     }
+    sxx[indv(gidz,gidx)]+=pdir*(DT/2.0*sump);
     
-    /*completely updating the stresses sxx  */
-    sxx(gidz,  gidx)+=(DT/2.0*rxx(gidz,  gidx));
-    
-#endif
-    
-// Absorbing boundary
-#if abstype==2
-    {
-  
-#if dev==0 & MYLOCALID==0
-        if (gidx-fdoh<nab){
-            sxx(gidz,gidx)*=taper[gidx-fdoh];
-        }
-#endif
-        
-#if dev==num_devices-1 & MYLOCALID==NLOCALP-1
-        if (gidx>NX-nab-fdoh-1){
-            sxx(gidz,gidx)*=taper[NX-fdoh-gidx-1];
-        }
-#endif
-    }
 #endif
 
 }

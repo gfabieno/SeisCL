@@ -19,43 +19,62 @@
 
 /* This is a collection of utility functions for OpenCL */
 
-
-
 #include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
 #include <float.h>
+#include <stdint.h>
 //#include <cmath>
 
 //#include <libc.h>
 #include <string.h>
+#include <ctype.h>
 #include <assert.h>
 #include <sys/sysctl.h>
 #include <sys/stat.h>
+#include <unistd.h>
+#include <pwd.h>
 //#include <mach/mach_time.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <limits.h>
 
-#include "kiss_fft.h"
-#include "kiss_fftr.h"
+#include "third_party/KISS_FFT/kiss_fft.h"
+#include "third_party/KISS_FFT/kiss_fftr.h"
 
-#ifdef __APPLE__
-#include <OpenCL/opencl.h>
-#else
-#include <CL/cl.h>
+#include "CUDA_CL.h"
+
+#ifndef __NOMPI__
+#include <mpi.h>
 #endif
 
-#include <mpi.h>
 #include <hdf5.h>
 
 #define STRING_SIZE 256
 #define PI (3.141592653589793238462643383279502884197169)
 
-#define GMALLOC(x,y) if (!state) if (!((x)=malloc((y)))) {state=1;fprintf(stderr,"malloc failed at line %d in %s()\n",__LINE__,__func__);};
+#define GMALLOC(x,y) ({\
+            if (!state) if (!((x)=malloc((y)))) {state=1;fprintf(stderr,"Error: malloc failed at line %d in %s()\n",__LINE__,__func__);};\
+            if (!state) memset((x),0,(y));\
+            })
+
 #define GFree(x) if ((x)) free( (x) );(x)=NULL;
 
-#define __GUARD if (!state) state=
-#define CLGUARD(x) if (!state) if (!(state = (x) )) {fprintf(stderr,"OpenCL function failed at line %d in %s()\n",__LINE__,__func__);};
+#define __GUARD if (state) {return state;} else state=
+#define CLGUARD(x) if (!state) if (!(state = (x) )) {fprintf(stderr,"Error: OpenCL function failed at line %d in %s()\n",__LINE__,__func__);};
 
-#define CLPERR(err) fprintf(stderr,"Function %s at line %d: %s\n",__func__, __LINE__,gpu_error_code((err)))
+
+
+#define MAX_DIMS 10
+#define MAX_KERNELS 100
+#define MAX_KERN_STR 200000
+#define BLOCK_SIZE 256
+#define MAX_FD_ORDER 12
+//#define __DEBUGGING__
+
+
+struct device;
+struct model;
 
 
 struct filenames {
@@ -66,845 +85,530 @@ struct filenames {
     char gout[1024];
     char rmsout[1024];
     char movout[1024];
+    char res[1024];
 };
 
-// Structure containing all OpenCL variables
-struct varcl {
-    
-    cl_command_queue cmd_queue;
-    cl_command_queue cmd_queuecomm;
-    
-    size_t buffer_size_model;
-    size_t buffer_size_modelc;
-    size_t buffer_size_fd;
-    size_t buffer_size_bnd;
-    size_t buffer_size_surf_ref;
 
+/* _____________Structure to intereact with OpenCL memory buffers ____________*/
+typedef struct clbuf {
     
-    size_t buffer_size_CPML_NX;
-    size_t buffer_size_CPML_NY;
-    size_t buffer_size_CPML_NZ;
+    MEM mem;
+    size_t size;
     
-    int numdim;
+    MEM pin;
+    size_t sizepin;
+    float * host;
+    int free_host;
+    int free_pin;
+    
+    CONTEXT * context;
+    int outevent_r;
+    int outevent_s;
+    EVENT event_r;
+    EVENT event_s;
+    
+    int nwait_r;
+    EVENT * waits_r;
+    int nwait_s;
+    EVENT * waits_s;
+    
+} clbuf;
 
-    cl_mem sxx;
-    cl_mem syy;
-    cl_mem szz;
-    cl_mem sxy;
-    cl_mem syz;
-    cl_mem sxz;
-    cl_mem vx;
-    cl_mem vy;
-    cl_mem vz;
-    
-    
-    cl_mem rip;
-    cl_mem rjp;
-    cl_mem rkp;
-    cl_mem u;
-    cl_mem pi;
-    cl_mem uipjp;
-    cl_mem ujpkp;
-    cl_mem uipkp;
-    
-    cl_mem taup;
-    cl_mem taus;
-    cl_mem tausipjp;
-    cl_mem tausjpkp;
-    cl_mem tausipkp;
-    cl_mem eta;
-    cl_mem rxx;
-    cl_mem ryy;
-    cl_mem rzz;
-    cl_mem rxy;
-    cl_mem ryz;
-    cl_mem rxz;
-    
-    cl_mem taper;
-    
-    
-    cl_mem K_x;
-    cl_mem a_x;
-    cl_mem b_x;
-    cl_mem K_x_half;
-    cl_mem a_x_half;
-    cl_mem b_x_half;
-    
-    cl_mem K_y;
-    cl_mem a_y;
-    cl_mem b_y;
-    cl_mem K_y_half;
-    cl_mem a_y_half;
-    cl_mem b_y_half;
-    
-    cl_mem K_z;
-    cl_mem a_z;
-    cl_mem b_z;
-    cl_mem K_z_half;
-    cl_mem a_z_half;
-    cl_mem b_z_half;
+CL_INT clbuf_send(QUEUE *inqueue,  clbuf * buf);
 
-    cl_mem psi_sxx_x;
-    cl_mem psi_sxy_x;
-    cl_mem psi_sxz_x;
-    cl_mem psi_syy_y;
-    cl_mem psi_sxy_y;
-    cl_mem psi_syz_y;
-    cl_mem psi_szz_z;
-    cl_mem psi_sxz_z;
-    cl_mem psi_syz_z;
-    
-    
-    cl_mem psi_vxx;
-    cl_mem psi_vyy;
-    cl_mem psi_vzz;
-    cl_mem psi_vxy;
-    cl_mem psi_vxz;
-    cl_mem psi_vyx;
-    cl_mem psi_vyz;
-    cl_mem psi_vzx;
-    cl_mem psi_vzy;
-    
-    
-    cl_mem src;
-    cl_mem src_pos;
-    cl_mem rec_pos;
-    cl_mem vxout;
-    cl_mem vyout;
-    cl_mem vzout;
-    cl_mem sxxout;
-    cl_mem syyout;
-    cl_mem szzout;
-    cl_mem sxyout;
-    cl_mem sxzout;
-    cl_mem syzout;
-    cl_mem pout;
-    
-    cl_mem sxx_r;
-    cl_mem syy_r;
-    cl_mem szz_r;
-    cl_mem sxy_r;
-    cl_mem syz_r;
-    cl_mem sxz_r;
-    cl_mem vx_r;
-    cl_mem vy_r;
-    cl_mem vz_r;
-    
-    cl_mem rxx_r;
-    cl_mem ryy_r;
-    cl_mem rzz_r;
-    cl_mem rxy_r;
-    cl_mem ryz_r;
-    cl_mem rxz_r;
+CL_INT clbuf_sendfrom(QUEUE *inqueue, clbuf * buf, void * ptr);
 
-    cl_mem sxxbnd;
-    cl_mem syybnd;
-    cl_mem szzbnd;
-    cl_mem sxybnd;
-    cl_mem syzbnd;
-    cl_mem sxzbnd;
-    cl_mem vxbnd;
-    cl_mem vybnd;
-    cl_mem vzbnd;
-    
-    cl_mem sxxbnd_pin;
-    cl_mem syybnd_pin;
-    cl_mem szzbnd_pin;
-    cl_mem sxybnd_pin;
-    cl_mem syzbnd_pin;
-    cl_mem sxzbnd_pin;
-    cl_mem vxbnd_pin;
-    cl_mem vybnd_pin;
-    cl_mem vzbnd_pin;
-    
-    cl_mem rx;
-    cl_mem ry;
-    cl_mem rz;
-    cl_mem rp;
-    cl_mem gradrho;
-    cl_mem gradM;
-    cl_mem gradmu;
-    cl_mem gradtaup;
-    cl_mem gradtaus;
-    cl_mem gradsrc;
-    
-    cl_mem gradfreqs;
-    cl_mem gradfreqsn;
-    
-    cl_mem Hrho;
-    cl_mem HM;
-    cl_mem Hmu;
-    cl_mem Htaup;
-    cl_mem Htaus;
-    
-    cl_mem f_sxx;
-    cl_mem f_syy;
-    cl_mem f_szz;
-    cl_mem f_sxy;
-    cl_mem f_syz;
-    cl_mem f_sxz;
-    cl_mem f_vx;
-    cl_mem f_vy;
-    cl_mem f_vz;
-    
-    cl_mem f_rxx;
-    cl_mem f_ryy;
-    cl_mem f_rzz;
-    cl_mem f_rxy;
-    cl_mem f_ryz;
-    cl_mem f_rxz;
-    
-    cl_mem sxx_sub1;
-    cl_mem syy_sub1;
-    cl_mem szz_sub1;
-    cl_mem sxy_sub1;
-    cl_mem syz_sub1;
-    cl_mem sxz_sub1;
-    cl_mem vx_sub1;
-    cl_mem vy_sub1;
-    cl_mem vz_sub1;
-    
-    cl_mem sxx_sub1_dev;
-    cl_mem syy_sub1_dev;
-    cl_mem szz_sub1_dev;
-    cl_mem sxy_sub1_dev;
-    cl_mem syz_sub1_dev;
-    cl_mem sxz_sub1_dev;
-    cl_mem vx_sub1_dev;
-    cl_mem vy_sub1_dev;
-    cl_mem vz_sub1_dev;
-    
-    cl_mem sxx_sub2;
-    cl_mem syy_sub2;
-    cl_mem szz_sub2;
-    cl_mem sxy_sub2;
-    cl_mem syz_sub2;
-    cl_mem sxz_sub2;
-    cl_mem vx_sub2;
-    cl_mem vy_sub2;
-    cl_mem vz_sub2;
-    
-    cl_mem sxx_sub2_dev;
-    cl_mem syy_sub2_dev;
-    cl_mem szz_sub2_dev;
-    cl_mem sxy_sub2_dev;
-    cl_mem syz_sub2_dev;
-    cl_mem sxz_sub2_dev;
-    cl_mem vx_sub2_dev;
-    cl_mem vy_sub2_dev;
-    cl_mem vz_sub2_dev;
-    
-    cl_mem sxx_r_sub1;
-    cl_mem syy_r_sub1;
-    cl_mem szz_r_sub1;
-    cl_mem sxy_r_sub1;
-    cl_mem syz_r_sub1;
-    cl_mem sxz_r_sub1;
-    cl_mem vx_r_sub1;
-    cl_mem vy_r_sub1;
-    cl_mem vz_r_sub1;
-    
-    cl_mem sxx_r_sub1_dev;
-    cl_mem syy_r_sub1_dev;
-    cl_mem szz_r_sub1_dev;
-    cl_mem sxy_r_sub1_dev;
-    cl_mem syz_r_sub1_dev;
-    cl_mem sxz_r_sub1_dev;
-    cl_mem vx_r_sub1_dev;
-    cl_mem vy_r_sub1_dev;
-    cl_mem vz_r_sub1_dev;
-    
-    cl_mem sxx_r_sub2;
-    cl_mem syy_r_sub2;
-    cl_mem szz_r_sub2;
-    cl_mem sxy_r_sub2;
-    cl_mem syz_r_sub2;
-    cl_mem sxz_r_sub2;
-    cl_mem vx_r_sub2;
-    cl_mem vy_r_sub2;
-    cl_mem vz_r_sub2;
-    
-    cl_mem sxx_r_sub2_dev;
-    cl_mem syy_r_sub2_dev;
-    cl_mem szz_r_sub2_dev;
-    cl_mem sxy_r_sub2_dev;
-    cl_mem syz_r_sub2_dev;
-    cl_mem sxz_r_sub2_dev;
-    cl_mem vx_r_sub2_dev;
-    cl_mem vy_r_sub2_dev;
-    cl_mem vz_r_sub2_dev;
-    
-    cl_kernel kernel_v;
-    cl_kernel kernel_vcomm1;
-    cl_kernel kernel_vcomm2;
-    cl_kernel kernel_fill_transfer_buff1_v_out;
-    cl_kernel kernel_fill_transfer_buff2_v_out;
-    cl_kernel kernel_fill_transfer_buff1_v_in;
-    cl_kernel kernel_fill_transfer_buff2_v_in;
-    cl_kernel kernel_s;
-    cl_kernel kernel_scomm1;
-    cl_kernel kernel_scomm2;
-    cl_kernel kernel_fill_transfer_buff1_s_out;
-    cl_kernel kernel_fill_transfer_buff2_s_out;
-    cl_kernel kernel_fill_transfer_buff1_s_in;
-    cl_kernel kernel_fill_transfer_buff2_s_in;
-    cl_kernel kernel_surf;
-    cl_kernel kernel_initseis;
-    cl_kernel kernel_initseis_r;
-    cl_kernel kernel_initgrad;
-    cl_kernel kernel_seisout;
-    cl_kernel kernel_seisoutinit;
-    cl_kernel kernel_residuals;
-    cl_kernel kernel_adjv;
-    cl_kernel kernel_adjvcomm1;
-    cl_kernel kernel_adjvcomm2;
-    cl_kernel kernel_adj_fill_transfer_buff1_v_out;
-    cl_kernel kernel_adj_fill_transfer_buff2_v_out;
-    cl_kernel kernel_adj_fill_transfer_buff1_v_in;
-    cl_kernel kernel_adj_fill_transfer_buff2_v_in;
-    cl_kernel kernel_adjs;
-    cl_kernel kernel_adjscomm1;
-    cl_kernel kernel_adjscomm2;
-    cl_kernel kernel_adj_fill_transfer_buff1_s_out;
-    cl_kernel kernel_adj_fill_transfer_buff2_s_out;
-    cl_kernel kernel_adj_fill_transfer_buff1_s_in;
-    cl_kernel kernel_adj_fill_transfer_buff2_s_in;
-    cl_kernel kernel_bnd;
-    cl_kernel kernel_savefreqs;
-    cl_kernel kernel_initsavefreqs;
-    cl_kernel kernel_initialize_gradsrc;
-    cl_kernel kernel_surfgrid_coarse2fine;
-    cl_kernel kernel_surfgrid_fine2coarse;
-    cl_kernel kernel_sources;
-    
-    cl_program program_v;
-    cl_program program_s;
-    cl_program program_vcomm1;
-    cl_program program_vcomm2;
-    cl_program program_scomm1;
-    cl_program program_scomm2;
-    cl_program program_fill_transfer_buff_v;
-    cl_program program_fill_transfer_buff_s;
-    cl_program program_surf;
-    cl_program program_initseis;
-    cl_program program_initseis_r;
-    cl_program program_initgrad;
-    cl_program program_seisout;
-    cl_program program_seisoutinit;
-    cl_program program_residuals;
-    cl_program program_adjv;
-    cl_program program_adjs;
-    cl_program program_adjvcomm1;
-    cl_program program_adjvcomm2;
-    cl_program program_adjscomm1;
-    cl_program program_adjscomm2;
-    cl_program program_bnd;
-    cl_program program_savefreqs;
-    cl_program program_initsavefreqs;
-    cl_program program_initialize_gradsrc;
-    cl_program program_surfgrid_coarse2fine;
-    cl_program program_surfgrid_fine2coarse;
-    cl_program program_sources;
-    
-    cl_event event_readMPI1[6];
-    cl_event event_readMPI2[6];
+CL_INT clbuf_read(QUEUE *inqueue, clbuf * buf);
 
-    cl_event event_readv1;
-    cl_event event_readv2;
-    cl_event event_reads1;
-    cl_event event_reads2;
-    
-    cl_event event_writev1;
-    cl_event event_writev2;
-    
-    cl_event event_writes1;
-    cl_event event_writes2;
-    
-    cl_event event_updatev_comm1;
-    cl_event event_updatev_comm2;
-    cl_event event_updates_comm1;
-    cl_event event_updates_comm2;
+CL_INT clbuf_readto(QUEUE *inqueue,
+                 clbuf * buf,
+                 void * ptr);
 
-    cl_event event_bndsave;
-    cl_event event_bndtransf;
-    cl_event event_bndsave2;
-    cl_event event_bndtransf2;
+CL_INT clbuf_create(CONTEXT *incontext, clbuf * buf);
 
-    
-};
+CL_INT clbuf_create_pin(CONTEXT *incontext, QUEUE *inqueue,clbuf * buf);
 
-// Structure containing all seismic parameters
-struct modcsts {
+
+/* ____________________Structure to execute OpenCL kernels____________________*/
+
+
+typedef struct clprogram {
     
-    int NY;
-    int NX;
-    int NZ;
-    int NXP;
-    int NT;
-    int FDORDER;
-    int fdo;
-    int fdoh;
-    int nab;
-    int MAXRELERROR;
-    int gradout;
-    int gradsrcout;
-    int Hout;
-    int seisout;
-    int movout;
-    int resout;
-    int rmsout;
+    const char * name;
+    char src[MAX_KERN_STR];
+    PROGRAM prog;
+    MODULE module;
+    KERNEL kernel;
+    CONTEXT * context;
+    char ** input_list;
+    int ninputs;
+    void * inputs[2000];
+    int tinput;
+    int pdir;
+    int nsinput;
+    int nrinput;
+    int scinput;
+    int rcinput;
+    size_t lsize[MAX_DIMS];
+    size_t gsize[MAX_DIMS];
+    size_t bsize[MAX_DIMS];
+    size_t shared_size;
+    int wdim;
+    
+    int OFFCOMM;
+    int LCOMM;
+    int COMM;
+    int DIRPROP;
+
+    int outevent;
+    EVENT event;
+    
+    int nwait;
+    EVENT * waits;
+    
+} clprogram;
+
+
+int prog_source(clprogram * prog,
+                char* name,
+                const char * source,
+                int nheaders,
+                const char ** headers);
+
+int prog_launch( QUEUE *inqueue, clprogram * prog);
+
+int prog_create(struct model * m, struct device * dev,clprogram * prog);
+
+int prog_arg(clprogram * prog, int i, void * mem, int size);
+
+
+/* ___________Structure for variables, or what is to be modelled______________*/
+typedef struct variable{
+    
+    const char * name;
+    
+    clbuf cl_var;
+    clbuf cl_varout;
+    clbuf cl_varbnd;
+    clbuf cl_fvar;
+    clbuf cl_fvar_adj;
+    clbuf cl_buf1;
+    clbuf cl_buf2;
+    clbuf cl_var_res;
+
+    float **    gl_varout;
+    float **    gl_varin;
+    float   *   gl_mov;
+    float **    gl_var_res;
+    
+    int       to_output;
+    int       for_grad;
+    int  to_comm;
+    int num_ele;
+    int active;
+    int scaler;
+    
+    int n2ave;
+    const char ** var2ave;
+    
+    void (*set_size)(int* , void *, void *);
+    
+} variable;
+
+int var_alloc_out(float *** var, struct model *m );
+int var_res_raw(struct model * m, int s);
+int rtm_res(struct model * m, int s);
+int res_scale(struct model * m, int s);
+
+/* _____________Structure for parameters, or what can be inverted_____________*/
+typedef struct parameter{
+    
+    const char * name;
+    
+    clbuf   cl_par;
+    clbuf   cl_grad;
+    clbuf   cl_H;
+    float * gl_par;
+    float * gl_grad;
+    float * gl_H;
+    int num_ele;
+    int active;
+    float scaler;
+    
+    const char * to_read;
+    int to_grad;
+    void (*transform)(void *);
+
+
+} parameter;
+
+int calc_grad(struct model * m, struct device * dev);
+int transf_grad(struct model * m);
+
+/* ____Structure for constants, which vectors broadcasted to all devices______*/
+typedef struct constants{
+    
+    const char * name;
+    
+    clbuf   cl_cst;
+    float  * gl_cst;
+    int num_ele;
+    const char * to_read;
+
+    void (*transform)(void *, void *, int);
+    
+} constants;
+
+/* ______________Structure that control sources and receivers ________________*/
+typedef struct sources_records{
+
+    clbuf cl_src;
+    clbuf cl_src_pos;
+    clbuf cl_rec_pos;
+    clbuf cl_grad_src;
+    
+    clprogram sources;
+    clprogram varsout;
+    clprogram varsoutinit;
+    clprogram residuals;
+    clprogram init_gradsrc;
+
     int ns;
     int nsmax;
     int ngmax;
-    int L;
-    int MYID;
-    int NP;
     int allng;
     int allns;
     int smin;
     int smax;
-    int freesurf;
+    int *nsrc;
+    int *nrec;
+    int * src_scales;
+    int * res_scales;
+    float **src;
+    float **gradsrc;
+    float **src_pos;
+    float **rec_pos;
+
+} sources_records;
+
+/* ________________Structure that defines an update step _____________________*/
+typedef struct update{
+
+    const char * name;
+
+    clprogram center;
+    clprogram com1;
+    clprogram com2;
+    clprogram fcom1_out;
+    clprogram fcom2_out;
+    clprogram fcom1_in;
+    clprogram fcom2_in;
+    
+    int nvcom;
+    variable ** v2com;
+    
+
+} update;
+
+/* _____________Structure that defines the boundary conditions _______________*/
+typedef struct boundary_conditions{
+    
+    clprogram surf;
+    clprogram surf_adj;
+    clprogram init_f;
+    clprogram init_adj;
+
+} boundary_conditions;
+
+/* _____________Structure that defines the gradient_______________*/
+typedef struct gradients {
+
+    clprogram init;
+    clprogram savefreqs;
+    clprogram initsavefreqs;
+    clprogram savebnd;
+
+} gradients;
+
+
+/* _____________Structure that holds all information of a device _____________*/
+typedef struct device {
+    
+    QUEUE queue;
+    QUEUE queuecomm;
+    MEM cuda_null;
+
+    int workdim;
+    int NDIM;
+    int N[MAX_DIMS];
+    char * N_names[MAX_DIMS];
+    int OFFSET;
+    int DEVID;
+    int NBND;
+    int par_scale;
+    
+    int LOCAL_OFF;
+    int FP16;
+    int cuda_arc[2];
+    
+    clprogram * progs[MAX_KERNELS];
+    int nprogs;
+
+    variable * vars;
+    variable * vars_adj;
+    int nvars;
+    parameter * pars;
+    int npars;
+    constants * csts;
+    int ncsts;
+    
+    variable * trans_vars;
+    int ntvars;
+    
+    update * ups_f;
+    update * ups_adj;
+    int nupdates;
+    
+    sources_records src_recs;
+    gradients grads;
+    boundary_conditions bnd_cnds;
+    
+    CONTEXT context;
+    CONTEXT * context_ptr;
+    DEVICE cudev;
+
+} device;
+
+/* _____________Structure that holds all information of a MPI process_________*/
+typedef struct model {
+    
+    char cache_dir[PATH_MAX];
+
+    variable * vars;
+    variable * vars_adj;
+    int nvars;
+    parameter * pars;
+    int npars;
+    constants * csts;
+    int ncsts;
+    
+    variable * trans_vars;
+    int ntvars;
+    
+    update * ups_f;
+    update * ups_adj;
+    int nupdates;
+    
+    sources_records src_recs;
+    gradients grads;
+    boundary_conditions bnd_cnds;
+
+    int NXP;
+    int NT;
+    int FDORDER;
+    int FDOH;
+    int MAXRELERROR;
+    int GRADOUT;
+    int GRADSRCOUT;
+    int HOUT;
+    int VARSOUT;
+    int MOVOUT;
+    int RESOUT;
+    int RMSOUT;
+    int INPUTRES;
+    int L;
+
     int ND;
     int tmax;
     int tmin;
-    int NTnyq;
-    int dtnyq;
+    int NTNYQ;
+    int DTNYQ;
+    int NDIM;
     
+    int GID; //The global MPI Process ID
+    int GNP; //The global number of MPI Processes
+    int LID; //The local MPI Process ID for this node
+    int LNP;   //The local number MPI Processes for this node
     int NGROUP;
     int MYGROUPID;
     int MYLOCALID;
     int MPI_NPROC_SHOT;
     int NLOCALP;
     int MPI_INIT;
+    #ifndef __NOMPI__
+    MPI_Comm mpigroupcomm;
+    #endif
     
-    int back_prop_type;
-    int param_type;
-    int nfreqs;
-    float * gradfreqs;
-    float * gradfreqsn;
+    int BACK_PROP_TYPE;
+    int par_type;
+    int NFREQS;
+
     float rms;
     float rmsnorm;
     float fmin, fmax;
     
-
+    int scalerms;
+    int scaleshot;
+    int scalermsnorm;
     
-    int restype;
-    int (*res_calc)(struct modcsts * , int );
+    float TAU;
+    float f0;
     
-    
-    cl_float2 * f_sxx;
-    cl_float2 * f_syy;
-    cl_float2 * f_szz;
-    cl_float2 * f_sxy;
-    cl_float2 * f_syz;
-    cl_float2 * f_sxz;
-    cl_float2 * f_vx;
-    cl_float2 * f_vy;
-    cl_float2 * f_vz;
-    cl_float2 * f_rxx;
-    cl_float2 * f_ryy;
-    cl_float2 * f_rzz;
-    cl_float2 * f_rxy;
-    cl_float2 * f_ryz;
-    cl_float2 * f_rxz;
-    
-    cl_float2 * f_sxxr;
-    cl_float2 * f_syyr;
-    cl_float2 * f_szzr;
-    cl_float2 * f_sxyr;
-    cl_float2 * f_syzr;
-    cl_float2 * f_sxzr;
-    cl_float2 * f_vxr;
-    cl_float2 * f_vyr;
-    cl_float2 * f_vzr;
-    cl_float2 * f_rxxr;
-    cl_float2 * f_ryyr;
-    cl_float2 * f_rzzr;
-    cl_float2 * f_rxyr;
-    cl_float2 * f_ryzr;
-    cl_float2 * f_rxzr;
-
     float vpmax;
     float vsmin;
-    
-    int abs_type;
+
+    float dt;
+    float dh;
+
+    int NAB;
+    int FREESURF;
+    int ABS_TYPE;
     float VPPML;
     float FPML;
     float NPOWER;
     float K_MAX_CPML;
+    float abpc;
     
+    double hc[7];
+
+    int restype;
     
-    float * K_x;
-    float * a_x;
-    float * b_x;
-    float * K_x_half;
-    float * a_x_half;
-    float * b_x_half;
-    float * K_y;
-    float * a_y;
-    float * b_y;
-    float * K_y_half;
-    float * a_y_half;
-    float * b_y_half;
-    float * K_z;
-    float * a_z;
-    float * b_z;
-    float * K_z_half;
-    float * a_z_half;
-    float * b_z_half;
+    int N[MAX_DIMS];
+    char * N_names[MAX_DIMS];
+   
     
     int nmax_dev;
     int *no_use_GPUs;
     int n_no_use_GPUs;
-    cl_device_type pref_device_type;
-    cl_device_type device_type;
-    cl_uint num_devices;
-    cl_context context;
-    size_t buffer_size_comm;
-    
-    float dt;
-    float dh;
-    float dhi;
-    float abpc;
-    
-    double hc[7];
-    
-    float *rho;
-    float *rip;
-    float *rjp;
-    float *rkp;
-    float *u;
-    float *pi;
-    float *uipjp;
-    float *ujpkp;
-    float *uipkp;
-    float *taper;
-    double *gradrho, *gradM, *gradmu, *gradtaup, *gradtaus;
-    double *Hrho;
-    double *HM;
-    double *Hmu;
-    double *Htaup;
-    double *Htaus;
-    float **gradsrc;
-    float **rx, **ry, **rz, **rp;
-    float *taus;
-    float *tausipjp;
-    float *tausjpkp;
-    float *tausipkp;
-    float *taup;
-    float *FL;
-    float *eta;
-    float TAU;
-    float f0;
-    float *topo;
-    int topowidth;
-    
-    int *nsrc;
-    int *nrec;
-    float **src;
-    float **src_pos;
-    float **rec_pos;
-    float **vxout;
-    float **vyout;
-    float **vzout;
-    float **sxxout;
-    float **syyout;
-    float **szzout;
-    float **sxyout;
-    float **sxzout;
-    float **syzout;
-    float **pout;
-    float **vx0;
-    float **vy0;
-    float **vz0;
-    float **p0;
-    int bcastvx;
-    int bcastvy;
-    int bcastvz;
-    int bcastp;
-    int bcastsxx;
-    int bcastsyy;
-    int bcastszz;
-    int bcastsxy;
-    int bcastsxz;
-    int bcastsyz;
-    
-    float *movvx;
-    float *movvy;
-    float *movvz;
-    
-    
-    
-    float **weight;
-    float **mute;
-    int weightlength;
-    int scalerms;
-    int scaleshot;
-    int scalermsnorm;
+    DEVICE_TYPE pref_device_type;
+    DEVICE_TYPE device_type;
+    CL_UINT NUM_DEVICES;
+    CONTEXT context;
+    int FP16;
+    int halfpar;
+    int par_scale;
 
-  
-};
+    int (*res_calc)(struct model * , int );
+    int (*res_scale)(struct model * , int );
+    int (*check_stability)(void *);
+    int (*set_par_scale)(void *);
 
-// Structure containing all seismic paramters local to the processing element
-struct modcstsloc {
-    
-    int NY;
-    int NX;
-    int NZ;
-    int NX0;
-    int offset;
-    int offsetfd;
-    int dev;
-    int num_devices;
-    int Nbnd;
-    int NZ_al16;
-    int NZ_al0;
-    
-    size_t local_work_size[3];
-    size_t global_work_size[3];
-    size_t global_work_sizecomm2[3];
-    size_t global_work_sizecomm1[3];
-    size_t global_work_size_fillcomm[3];
-    size_t global_work_size_surf[2];
-    size_t global_work_size_initfd;
-    size_t global_work_size_init;
-    size_t global_work_size_f;
-    size_t global_work_size_bnd;
-    size_t global_work_size_gradsrc;
-    size_t global_work_size_surfgrid[3];
-    size_t global_work_size_sources;
-    
-    int local_off;
-    cl_ulong required_global_mem_size;
-    
-    float *rho;
-    float *rip;
-    float *rjp;
-    float *rkp;
-    float *u;
-    float *pi;
-    float *uipjp;
-    float *ujpkp;
-    float *uipkp;
-    
-    float *movvx;
-    float *movvy;
-    float *movvz;
-    float *buffermovvx;
-    float *buffermovvy;
-    float *buffermovvz;
-    
-    
-    double *gradrho, *gradM, *gradmu, *gradtaup, *gradtaus;
-    double *Hrho;
-    double *HM;
-    double *Hmu;
-    double *Htaup;
-    double *Htaus;
+} model;
 
-    float *taus;
-    float *tausipjp;
-    float *tausjpkp;
-    float *tausipkp;
-    float *taup;
-    float **vxout;
-    float **vyout;
-    float **vzout;
-    float **sxxout;
-    float **syyout;
-    float **szzout;
-    float **sxyout;
-    float **sxzout;
-    float **syzout;
-    float **pout;
-    
-    float * sxx_sub1;
-    float * syy_sub1;
-    float * szz_sub1;
-    float * sxy_sub1;
-    float * syz_sub1;
-    float * sxz_sub1;
-    float * vx_sub1;
-    float * vy_sub1;
-    float * vz_sub1;
-    
-    float * sxx_sub2;
-    float * syy_sub2;
-    float * szz_sub2;
-    float * sxy_sub2;
-    float * syz_sub2;
-    float * sxz_sub2;
-    float * vx_sub2;
-    float * vy_sub2;
-    float * vz_sub2;
-    
-    float * sxx_r_sub1;
-    float * syy_r_sub1;
-    float * szz_r_sub1;
-    float * sxy_r_sub1;
-    float * syz_r_sub1;
-    float * sxz_r_sub1;
-    float * vx_r_sub1;
-    float * vy_r_sub1;
-    float * vz_r_sub1;
-    
-    float * sxx_r_sub2;
-    float * syy_r_sub2;
-    float * szz_r_sub2;
-    float * sxy_r_sub2;
-    float * syz_r_sub2;
-    float * sxz_r_sub2;
-    float * vx_r_sub2;
-    float * vy_r_sub2;
-    float * vz_r_sub2;
+int append_update(update * up, int * ind, char * name, const char * source,
+                  int nheaders, const char ** headers);
+int append_var(model * m,
+               int *ind,
+               const char * name,
+               int for_grad,
+               int to_comm,
+               void (*set_size)(int* , void *, void *));
+int append_par(model * m,
+               int *ind,
+               const char * name,
+               const char * to_read,
+               void (*transform)(void *));
+int append_cst(model * m,
+               const char * name,
+               const char * to_read,
+               int num_ele,
+               void (*transform)(void *, void *, int));
+constants * get_cst(constants * csts, int ncsts, const char * name);
+parameter * get_par(parameter * pars, int npars, const char * name);
+variable * get_var(variable * vars, int nvars, const char * name);
 
-    float * sxxbnd;
-    float * syybnd;
-    float * szzbnd;
-    float * sxybnd;
-    float * syzbnd;
-    float * sxzbnd;
-    float * vxbnd;
-    float * vybnd;
-    float * vzbnd;
-    
-    cl_float2 * f_sxx;
-    cl_float2 * f_syy;
-    cl_float2 * f_szz;
-    cl_float2 * f_sxy;
-    cl_float2 * f_syz;
-    cl_float2 * f_sxz;
-    cl_float2 * f_vx;
-    cl_float2 * f_vy;
-    cl_float2 * f_vz;
-    cl_float2 * f_rxx;
-    cl_float2 * f_ryy;
-    cl_float2 * f_rzz;
-    cl_float2 * f_rxy;
-    cl_float2 * f_ryz;
-    cl_float2 * f_rxz;
-    
-    cl_float2 * f_sxxr;
-    cl_float2 * f_syyr;
-    cl_float2 * f_szzr;
-    cl_float2 * f_sxyr;
-    cl_float2 * f_syzr;
-    cl_float2 * f_sxzr;
-    cl_float2 * f_vxr;
-    cl_float2 * f_vyr;
-    cl_float2 * f_vzr;
-    cl_float2 * f_rxxr;
-    cl_float2 * f_ryyr;
-    cl_float2 * f_rzzr;
-    cl_float2 * f_rxyr;
-    cl_float2 * f_ryzr;
-    cl_float2 * f_rxzr;
-    
+/* __________________________SeisCL functions________________________________*/
+
+int readhdf5(struct filenames files, model * m);
+
+int assign_modeling_case(model * m);
 
 
-};
+int Init_cst(model * m);
+
+int Init_model(model * m);
+
+int Init_data(model * m);
+
+#ifndef __NOMPI__
+int Init_MPI(model * m);
+#endif
+
+int Init_CUDA(model * m, device ** dev);
+
+int event_dependency( model * m,  device ** dev, int adj);
+
+int time_stepping(model * m, device ** dev);
+
+int comm(model * m, device ** dev, int adj, int ui);
+
+#ifndef __NOMPI__
+int Out_MPI(model * m);
+#endif
+int writehdf5(struct filenames file, model * m);
+
+int Free_OpenCL(model * m, device * dev) ;
+
+const char *clerrors(int err);
 
 
+/* __________________________Data Processing________________________________*/
 
-// SeisCL function definition
+int butterworth(float * data,
+                float fcl,
+                float fch,
+                float dt,
+                int NT,
+                int tmax,
+                int ntrace,
+                int order);
 
-int toMPI(struct modcsts * mptr);
+/* ______________________Automatic kernels functions__________________________*/
+int kernel_varout(device * dev,
+                  clprogram * prog);
 
-int Init_cst(struct modcsts * m);
+int kernel_varoutinit(device * dev,
+                      clprogram * prog);
 
-int Init_model(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc);
+int kernel_varinit(device * dev,
+                   model * m,
+                   variable * vars,
+                   clprogram * prog,
+                   int BACK_PROP_TYPE);
 
-int Init_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc);
+int kernel_residuals(device * dev,
+                     clprogram * prog,
+                     int BACK_PROP_TYPE);
 
-int Free_OpenCL(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc) ;
+int kernel_gradinit(device * dev,
+                    parameter * pars,
+                    clprogram * prog);
 
-int time_stepping(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc);
+int kernel_initsavefreqs(device * dev,
+                         variable * vars,
+                         clprogram * prog);
 
-int comm_v(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc, int bstep);
+int kernel_savefreqs(device * dev,
+                     variable * vars,
+                     clprogram * prog);
 
-int comm_s(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc, int bstep);
+int kernel_init_gradsrc(clprogram * prog);
 
-int readhdf5(struct filenames files, struct modcsts * m);
+int kernel_fcom_out(device * dev,
+                    variable * vars,
+                    clprogram * prog,
+                    int upid,
+                    int buff12,
+                    int adj);
 
-int Init_MPI(struct modcsts * m);
+int kernel_fcom_in(device * dev,
+                   variable * vars,
+                   clprogram * prog,
+                   int upid,
+                   int buff12,
+                   int adj);
 
-int writehdf5(struct filenames file, struct modcsts * m);
-
-int Free_MPI(struct modcsts * m) ;
-
-int Out_MPI(struct filenames file, struct modcsts * m);
-
-
-cl_int GetPlatformID( cl_device_type * pref_device_type, cl_device_type * device_type, cl_platform_id* clsel_plat_id, cl_uint  *outnum_devices, int n_no_use_GPUs, int * no_use_GPUs);
-
-cl_int connect_allgpus(struct varcl ** vcl, cl_context *incontext, cl_device_type * device_type, cl_platform_id* clsel_plat_id, int n_no_use_GPUs, int * no_use_GPUs, int nmax_dev);
-
-cl_int get_device_num(cl_uint * num_devices);
-
-cl_int create_gpu_kernel(const char * filename, cl_program *program, cl_context *context, cl_kernel *kernel, const char * program_name, const char * build_options);
-
-cl_int create_gpu_kernel_from_string(const char *program_source, cl_program *program, cl_context *context, cl_kernel *kernel, const char * program_name, const char * build_options);
-
-cl_int transfer_gpu_memory( cl_command_queue *inqueue, size_t buffer_size, cl_mem *var_mem, float *var);
-
-cl_int read_gpu_memory( cl_command_queue *inqueue, size_t buffer_size, cl_mem *var_mem, void *var);
-
-cl_int create_gpu_memory_buffer(cl_context *incontext, size_t buffer_size, cl_mem *var_mem);
-
-cl_int create_gpu_memory_buffer_cst(cl_context *incontext, size_t buffer_size, cl_mem *var_mem);
-
-cl_int create_pinned_memory_buffer(cl_context *incontext, cl_command_queue *inqueue, size_t buffer_size, cl_mem *var_mem, float **var_buf);
-
-cl_int create_gpu_subbuffer(cl_mem *var_mem, cl_mem *sub_mem, cl_buffer_region * region);
-
-cl_int launch_gpu_kernel( cl_command_queue *inqueue, cl_kernel *kernel, int ndim, size_t global_work_size[2], size_t local_work_size[2], int numevent, cl_event * waitlist, cl_event * eventout);
-
-double machcore(uint64_t endTime, uint64_t startTime);
-
-char *gpu_error_code(cl_int err);
-
-
-int gpu_intialize_seis(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc );
-int gpu_intialize_seis_r(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm , struct modcstsloc *inmloc );
-int gpu_intialize_grad(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm , struct modcstsloc *inmloc );
-
-int gpu_initialize_update_v(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc, int bndoff, int lcomm, int comm);
-int gpu_initialize_update_s(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc, int bndoff, int lcomm , int comm);
-int gpu_initialize_surface(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc );
-
-int gpu_intialize_seisout(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc );
-int gpu_intialize_seisoutinit(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc );
-int gpu_intialize_residuals(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc );
-
-int gpu_initialize_update_adjv(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm , struct modcstsloc *inmloc, int bndoff, int lcomm, int comm );
-int gpu_initialize_update_adjs(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm , struct modcstsloc *inmloc, int bndoff , int lcomm, int comm);
-int gpu_initialize_savebnd(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc  );
-int holbergcoeff(struct modcsts *inm);
-int gpu_initialize_savefreqs(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc, int dirprop );
-int gpu_initialize_initsavefreqs(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc );
-int gpu_initialize_gradsrc(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc );
-
-int gpu_intialize_surfgrid_coarse2fine(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem_c, struct modcsts *inm_c, struct modcstsloc *inmloc_c ,struct varcl *inmem_f, struct modcsts *inm_f, struct modcstsloc *inmloc_f,size_t *local_work_size );
-int gpu_intialize_surfgrid_fine2coarse(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem_c, struct modcsts *inm_c, struct modcstsloc *inmloc_c ,struct varcl *inmem_f, struct modcsts *inm_f, struct modcstsloc *inmloc_f );
-
-int gpu_intialize_fill_transfer_buff_s(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc, int out, int comm, int adj );
-int gpu_intialize_fill_transfer_buff_v(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc, int out, int comm, int adj );
-
-int gpu_intialize_sources(cl_context  * pcontext, cl_program  * program, cl_kernel * pkernel, size_t *local_work_size, struct varcl *inmem, struct modcsts *inm, struct modcstsloc *inmloc );
-
-void CPML_coeff(struct modcsts * m);
-
-int calc_grad(struct modcsts* m, struct modcstsloc * mloc);
-
-int calc_Hessian(struct modcsts* mglob, struct modcstsloc * m);
-
-int butterworth(float * data, float fcl, float fch, float dt, int NT, int tmax, int ntrace, int order);
-
-int res_raw(struct modcsts * mptr, int s);
-int res_amp(struct modcsts * mptr, int s);
-
-int Init_surfgrid(struct modcsts * m, struct varcl ** vcl, struct modcstsloc ** mloc, struct modcsts * m_s, struct varcl ** vcl_s, struct modcstsloc ** mloc_s);
-
-int alloc_seismo(float *** var, int ns, int allng, int NT, int * nrec );
-
+int kernel_sources(model * m,
+                   device * dev,
+                   clprogram * prog);
 

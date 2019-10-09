@@ -19,17 +19,27 @@
 #include "F.h"
 
 
+double wtime(){
+#ifndef __NOMPI__
+    return MPI_Wtime();
+#else
+    struct timeval time;
+    gettimeofday(&time, NULL);
+    return (double) time.tv_sec + time.tv_usec * 1e-6;
+#endif
+}
+
+
 int main(int argc, char **argv) {
     
     int state=0;
 
-    struct modcsts m={};
-    struct modcstsloc *mloc=NULL;
-    struct varcl *vcl=NULL;
+    model m={0};
+    device *dev=NULL;
 
     
     int i;
-    double time1=0.0, time2=0.0, time3=0.0, time4=0.0, time5=0.0;
+    double time1=0.0, time2=0.0, time3=0.0, time4=0.0, time5=0.0, time6=0.0;
 
     
     //Input files name is an argument
@@ -49,6 +59,7 @@ int main(int argc, char **argv) {
     snprintf(file.gout, sizeof(file.gout), "%s%s", filein, "_gout.mat");
     snprintf(file.rmsout, sizeof(file.rmsout), "%s%s", filein, "_rms.mat");
     snprintf(file.movout, sizeof(file.movout), "%s%s", filein, "_movie.mat");
+    snprintf(file.res, sizeof(file.res), "%s%s", filein, "_res.mat");
     
     if (argc>2){
         filedata=argv[2];
@@ -59,98 +70,165 @@ int main(int argc, char **argv) {
         snprintf(file.din, sizeof(file.din), "%s%s", filedata, "_din.mat");
     }
     
+    /* Check if cache directory exists and create dir if not */
+    struct stat info;
+    const char *homedir;
+    if ((homedir = getenv("HOME")) == NULL) {
+        homedir = getpwuid(getuid())->pw_dir;
+    }
+    snprintf(m.cache_dir, PATH_MAX, "%s%s", filein, "_cache");
+
+    if (stat( m.cache_dir, &info ) != 0 ){
+        #ifdef __linux__
+        mkdir(m.cache_dir, 0777);
+        #elif defined __APPLE__
+        mkdir(m.cache_dir, 0777);
+        #else
+        _mkdir(m.cache_dir);
+        #endif
+        printf( "Cache directory created: %s \n", m.cache_dir );
+    }
+    else if(info.st_mode & S_IFDIR )
+        printf( "Cache directory already exists: %s \n", m.cache_dir );
+    else{
+        state =1;
+        printf( "%s already exists and is not a directory\n", m.cache_dir );
+    }
     
+
     
     /* Initialize MPI environment */
+    #ifndef __NOMPI__
     MPI_Init(&argc, &argv);
-    MPI_Comm_size(MPI_COMM_WORLD, &m.NP);
-    MPI_Comm_rank(MPI_COMM_WORLD, &m.MYID);
+    MPI_Comm_size(MPI_COMM_WORLD, &m.GNP);
+    MPI_Comm_rank(MPI_COMM_WORLD, &m.GID);
     MPI_Initialized(&m.MPI_INIT);
     // Get the name of the processor
     char processor_name[MPI_MAX_PROCESSOR_NAME];
     int name_len;
     MPI_Get_processor_name(processor_name, &name_len);
-    fprintf(stdout,"MPI connected to processor %s\n",processor_name);
+    MPI_Comm node_comm;
+    int color=0;
+    for (i=0; i<MPI_MAX_PROCESSOR_NAME; i++){
+        color += (int)processor_name[i];
+    }
+    MPI_Comm_split(MPI_COMM_WORLD, color, 0, &node_comm);
+    MPI_Comm_size(node_comm, &m.LNP);
+    MPI_Comm_rank(node_comm, &m.LID);
+    MPI_Comm_free(&node_comm);
     
-    //if (m.MYID== 0 ) sleep(600);
+    fprintf(stdout,"Process %d/%d, processor %s, node process %d/%d, pid %d\n",
+            m.GID, m.GNP, processor_name, m.LID, m.LNP,  getpid());
+    fflush(stdout);
+//    if (m.GID == 0) sleep(30);
+    #endif
     
     // Root process reads the input files
-    time1=MPI_Wtime();
-    if (m.MYID==0){
-        __GUARD readhdf5(file, &m);
+    time1=wtime();
+    if (m.GID==0){
+        if (!state) state = readhdf5(file, &m);
     }
-    time2=MPI_Wtime();
+    time2=wtime();
     
     // Initiate and transfer data on all process
-    __GUARD Init_MPI(&m);
-    __GUARD Init_cst(&m);
-    __GUARD Init_model(&m, &vcl, &mloc);
+    #ifndef __NOMPI__
+    if (!state) state = Init_MPI(&m);
+    #else
+    m.NLOCALP = 1;
+    m.GNP = 1;
+    m.NGROUP = 1;
+    #endif
     
-    time3=MPI_Wtime();
-    
-    __GUARD Init_OpenCL(&m, &vcl, &mloc);
+    if (!state) state = Init_cst(&m);
+    if (!state) state = Init_data(&m);
+    if (!state) state = Init_model(&m);
 
-    
-    
-    
+    time3=wtime();
 
-    
-    time4=MPI_Wtime();
-    
-    
+    if (!state) state = Init_CUDA(&m, &dev);
+
+    time4=wtime();
     // Main part, where seismic modeling occurs
-    __GUARD time_stepping(&m, &vcl, &mloc);
+    if (!state) state = time_stepping(&m, &dev);
+
+    time5=wtime();
     
-    time5=MPI_Wtime();
+    #ifndef __NOMPI__
+    //Reduce to process 0 all required outputs
+    if (m.GNP > 1){
+        if (!state) state = Out_MPI(&m);
+    }
+    #endif
     
-    
+    // Write the ouputs to hdf5 files
+    if (m.GID==0){
+        if (!state) state = writehdf5(file, &m) ;
+    }
+    time6=wtime();
+
     //Output time for each part of the program
-    {
+    if (!state){
         double * times=NULL;
-        
-        if (m.MYID==0){
-            times=malloc(sizeof(double)*5*m.NP);
+
+        if (m.GID==0){
+            times=malloc(sizeof(double)*6*m.GNP);
         }
-        
+
         double t1=time2-time1;
         double t2=time3-time2;
         double t3=time4-time3;
-        double t4=(time5-time4)/(m.smax-m.smin)/m.NT;
-        double t5=(time5-time1);
+        double t4=(time5-time4);
+        double t5=(time6-time5);
+        double t6=(time6-time1);
         
-        if (!state) MPI_Gather(&t1, 1, MPI_DOUBLE , &times[0]     , 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        if (!state) MPI_Gather(&t2, 1, MPI_DOUBLE , &times[  m.NP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        if (!state) MPI_Gather(&t3, 1, MPI_DOUBLE , &times[2*m.NP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        if (!state) MPI_Gather(&t4, 1, MPI_DOUBLE , &times[3*m.NP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        if (!state) MPI_Gather(&t5, 1, MPI_DOUBLE , &times[4*m.NP], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        
-        if (m.MYID==0){
-            fprintf(stdout,"Run time for each process:\n");
-            fprintf(stdout,"process read_variables init_model init_opencl time_per_shot_per_step total_time_per_device\n");
-            
-            for (i=0;i<m.NP;i++){
-                
-                fprintf(stdout,"%d %f %f %f %f %f\n",i, times[i], times[i+m.NP], times[i+2*m.NP], times[i+3*m.NP], times[i+4*m.NP]) ;
+        #ifndef __NOMPI__
+        if (!state) MPI_Gather(&t1, 1, MPI_DOUBLE , &times[0]     ,
+                               1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        if (!state) MPI_Gather(&t2, 1, MPI_DOUBLE , &times[  m.GNP],
+                               1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        if (!state) MPI_Gather(&t3, 1, MPI_DOUBLE , &times[2*m.GNP],
+                               1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        if (!state) MPI_Gather(&t4, 1, MPI_DOUBLE , &times[3*m.GNP],
+                               1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        if (!state) MPI_Gather(&t5, 1, MPI_DOUBLE , &times[4*m.GNP],
+                               1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        if (!state) MPI_Gather(&t6, 1, MPI_DOUBLE , &times[5*m.GNP],
+                               1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        #else
+        times[0]=t1;times[1]=t2;times[2]=t3;times[3]=t4;times[4]=t5;times[5]=t6;
+        #endif
+
+        if (m.GID==0){
+            fprintf(stdout,"\nRun time for each process:\n\n");
+            for (i=0;i<m.GNP;i++){
+                fprintf(stdout,"Process: %d\n", i);
+                fprintf(stdout,"Read variables: %f\n",times[i]);
+                fprintf(stdout,"Intialize model: %f\n", times[i+m.GNP]);
+                fprintf(stdout,"Intialize OpenCL: \%f\n", times[i+2*m.GNP]);
+                fprintf(stdout,"Time for modeling: %f\n", times[i+3*m.GNP]);
+                fprintf(stdout,"Outputting files: \%f\n", times[i+4*m.GNP]);
+                fprintf(stdout,"Total time of process: %f\n\n",times[i+5*m.GNP]);
             }
-            fprintf(stdout,"Total real time of the program is: %f s\n",t5) ;
+
+            fprintf(stdout,"Total real time of the program is: %f s\n",t6) ;
             free(times);
         }
     }
-    
-    //Write ouput files
-    __GUARD Out_MPI(file, &m);
-    
-    
-    // Free the memory
-    Free_OpenCL(&m, &vcl, &mloc);
-    Free_MPI(&m);
-    
 
+    // Free the memory
+    Free_OpenCL(&m, dev);
+
+//    if (state){
+////        sleep(300000);
+//        MPI_Abort(MPI_COMM_WORLD, state);
+//    }
+    #ifndef __NOMPI__
     if (m.MPI_INIT==1){
         MPI_Finalize();
     }
+    #endif
     
-    return 0;
+    return state;
     
 }
 

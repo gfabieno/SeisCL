@@ -17,153 +17,14 @@
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  --------------------------------------------------------------------------*/
 
-/*Gradient calculation in the frequency domain */
 #include "F.h"
+#include "third_party/NVIDIA_FP16/fp16_conversion.h"
 
-#define rho(z,y,x) rho[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define rip(z,y,x) rip[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define rjp(z,y,x) rjp[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define rkp(z,y,x) rkp[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define uipjp(z,y,x) uipjp[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define ujpkp(z,y,x) ujpkp[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define uipkp(z,y,x) uipkp[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define u(z,y,x) u[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define pi(z,y,x) pi[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
+/*Gradient calculation in the frequency domain */
 
 
-#define gradrho(z,y,x) gradrho[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define gradM(z,y,x) gradM[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define gradmu(z,y,x) gradmu[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define gradtaup(z,y,x) gradtaup[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define gradtaus(z,y,x) gradtaus[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-
-#define Hrho(z,y,x) Hrho[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define HM(z,y,x) HM[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define Hmu(z,y,x) Hmu[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define Htaup(z,y,x) Htaup[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define Htaus(z,y,x) Htaus[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-
-#define pp(z,y,x) pp[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define mp(z,y,x) mp[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define up(z,y,x) up[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define tpp(z,y,x) tpp[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define tsp(z,y,x) tsp[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-
-#define mm(z,y,x) mm[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define um(z,y,x) um[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define tpm(z,y,x) tpm[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define tsm(z,y,x) tsm[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-
-#define uu(z,y,x) uu[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define tpu(z,y,x) tpu[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define tsu(z,y,x) tsu[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-
-#define tptp(z,y,x) tptp[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define tstp(z,y,x) tstp[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-
-#define tsts(z,y,x) tsts[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-
-#define vxout(y,x) vxout[(y)*m->NT+(x)]
-#define vyout(y,x) vyout[(y)*m->NT+(x)]
-#define vzout(y,x) vzout[(y)*m->NT+(x)]
-#define vx0(y,x) vx0[(y)*m->NT+(x)]
-#define vy0(y,x) vy0[(y)*m->NT+(x)]
-#define vz0(y,x) vz0[(y)*m->NT+(x)]
-#define rx(y,x) rx[(y)*m->NT+(x)]
-#define ry(y,x) ry[(y)*m->NT+(x)]
-#define rz(y,x) rz[(y)*m->NT+(x)]
-
-#define vxcum(y,x) vxcum[(y)*m->NT+(x)]
-#define vycum(y,x) vycum[(y)*m->NT+(x)]
-
-#define u_in(z,y,x) u_in[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define pi_in(z,y,x) pi_in[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define uL(z,y,x) uL[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define piL(z,y,x) piL[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define taus(z,y,x) taus[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define tausipjp(z,y,x) tausipjp[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define tausjpkp(z,y,x) tausjpkp[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define tausipkp(z,y,x) tausipkp[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-#define taup(z,y,x) taup[(x)*m->NY*m->NZ+(y)*m->NZ+(z)]
-
-
-#define PI (3.141592653589793238462643383279502884197169)
-
-#define f_vx3(z,y,x,f)   f_vx[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_vy3(z,y,x,f)   f_vy[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_vz3(z,y,x,f)   f_vz[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_sxx3(z,y,x,f) f_sxx[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_syy3(z,y,x,f) f_syy[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_szz3(z,y,x,f) f_szz[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_sxy3(z,y,x,f) f_sxy[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_syz3(z,y,x,f) f_syz[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_sxz3(z,y,x,f) f_sxz[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-
-#define f_rxx3(z,y,x,l,f) f_rxx[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_ryy3(z,y,x,l,f) f_ryy[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_rzz3(z,y,x,l,f) f_rzz[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_rxy3(z,y,x,l,f) f_rxy[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_ryz3(z,y,x,l,f) f_ryz[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_rxz3(z,y,x,l,f) f_rxz[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-
-#define f_vxr3(z,y,x,f)   f_vxr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_vyr3(z,y,x,f)   f_vyr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_vzr3(z,y,x,f)   f_vzr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_sxxr3(z,y,x,f) f_sxxr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_syyr3(z,y,x,f) f_syyr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_szzr3(z,y,x,f) f_szzr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_sxyr3(z,y,x,f) f_sxyr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_syzr3(z,y,x,f) f_syzr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_sxzr3(z,y,x,f) f_sxzr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-
-#define f_rxxr3(z,y,x,l,f) f_rxxr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_ryyr3(z,y,x,l,f) f_ryyr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_rzzr3(z,y,x,l,f) f_rzzr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_rxyr3(z,y,x,l,f) f_rxyr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_ryzr3(z,y,x,l,f) f_ryzr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_rxzr3(z,y,x,l,f) f_rxzr[(f)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NY+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((y)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-
-
-
-
-
-
-
-
-#define f_vx2(z,x,f)   f_vx[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_vy2(z,x,f)   f_vy[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_vz2(z,x,f)   f_vz[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_sxx2(z,x,f) f_sxx[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_syy2(z,x,f) f_syy[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_szz2(z,x,f) f_szz[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_sxy2(z,x,f) f_sxy[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_syz2(z,x,f) f_syz[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_sxz2(z,x,f) f_sxz[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-
-#define f_rxx2(z,x,l,f) f_rxx[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_ryy2(z,x,l,f) f_ryy[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_rzz2(z,x,l,f) f_rzz[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_rxy2(z,x,l,f) f_rxy[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_ryz2(z,x,l,f) f_ryz[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_rxz2(z,x,l,f) f_rxz[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-
-#define f_vxr2(z,x,f)   f_vxr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_vyr2(z,x,f)   f_vyr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_vzr2(z,x,f)   f_vzr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_sxxr2(z,x,f) f_sxxr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_syyr2(z,x,f) f_syyr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_szzr2(z,x,f) f_szzr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_sxyr2(z,x,f) f_sxyr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_syzr2(z,x,f) f_syzr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_sxzr2(z,x,f) f_sxzr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-
-#define f_rxxr2(z,x,l,f) f_rxxr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_ryyr2(z,x,l,f) f_ryyr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_rzzr2(z,x,l,f) f_rzzr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_rxyr2(z,x,l,f) f_rxyr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_ryzr2(z,x,l,f) f_ryzr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-#define f_rxzr2(z,x,l,f) f_rxzr[(f)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)*mglob->L+(l)*(m->NX+mglob->FDORDER)*(m->NZ+mglob->FDORDER)+((x)+mglob->fdoh)*(m->NZ+mglob->FDORDER)+((z)+mglob->fdoh)]
-
+//TODO Write gradient computation in frequency for CUDA
+#ifdef __SEISCL__
 //Some functions to perfom complex operations with OpenCl vectors
 
 static inline float
@@ -247,10 +108,15 @@ cl_norm(cl_float2 a)
 }
 
 // Coefficient of the scalar products
-int grad_coefvisc_0(double (*c)[24],float M, float mu, float taup, float taus, float rho, float ND, float L, float al){
-    
-    
-    
+int grad_coefvisc_0(double (*c)[24],
+                    float M,
+                    float mu,
+                    float taup,
+                    float taus,
+                    float rho,
+                    float ND,
+                    float L,
+                    float al){
     
     double fact1=pow(ND*M*(1.0+L*taup)*(1.0+al*taus)-2.0*(ND-1.0)*mu*(1.0+L*taus)*(1.0+al*taup),2.0);
     double fact2=pow(ND*M*taup*(1.0+al*taus)-2.0*(ND-1.0)*mu*taus*(1.0+al*taup),2.0);
@@ -293,9 +159,9 @@ int grad_coefelast_0(double (*c)[24],float M, float mu, float taup, float taus, 
     (*c)[3]= 2.0*sqrtf(rho*mu)*(ND+1.0)/3.0/pow(ND*M-2.0*(ND-1.0)*mu,2.0);
     (*c)[4]= 2.0*sqrtf(rho*mu)*1.0/( 2*ND*mu*mu );
     
-    (*c)[16]= 2.0*sqrtf(rho*M)*1.0/pow(ND*M-2.0*(ND-1.0)*mu,2.0);
+    (*c)[16]= M/rho*1.0/pow(ND*M-2.0*(ND-1.0)*mu,2.0);
     
-    (*c)[18]= M/rho*1.0/( mu*mu);
+    (*c)[18]= mu/rho*1.0/( mu*mu);
     (*c)[19]= mu/rho*(ND+1.0)/3.0/pow(ND*M-2.0*(ND-1.0)*mu,2.0);
     (*c)[20]= mu/rho*1.0/( 2*ND*mu*mu );
     
@@ -383,7 +249,9 @@ int grad_coefelast_2(double (*c)[24],float M, float mu, float taup, float taus, 
     (*c)[3]= 2.0*sqrtf(mu/rho)*(ND+1.0)/3.0/pow(ND*M-2.0*(ND-1.0)*mu,2.0);
     (*c)[4]= 2.0*sqrtf(mu/rho)*1.0/( 2*ND*mu*mu );
     
-    (*c)[18]= -M/rho*1.0/( mu*mu);
+    (*c)[16]= -M/rho*(1.0+L*taup)*(1.0+al*taup)*pow(1.0+al*taus,2);
+    
+    (*c)[18]= -mu/rho*1.0/( mu*mu);
     (*c)[19]= -mu/rho*(ND+1.0)/3.0/pow(ND*M-2.0*(ND-1.0)*mu,2.0);
     (*c)[20]= -mu/rho*1.0/( 2*ND*mu*mu );
     
@@ -506,9 +374,9 @@ int grad_coefelast_3_SH(double (*c)[24],float M, float mu, float taup, float tau
 }
 
 
-int calc_grad(struct modcsts* mglob, struct modcstsloc * m)  {
+int calc_grad(model * m, device * dev)  {
     
-    int i,j,k,f,l;
+    int i,j,k,f,l, n;
     float df,freq,ND, al,w0;
     double c[24]={0}, dot[17]={0};
     float * tausigl=NULL;
@@ -517,69 +385,82 @@ int calc_grad(struct modcsts* mglob, struct modcstsloc * m)  {
     
     cl_float2 sxxzz, sxxzzr, sxx_mzz, szz_mxx;
     cl_float2 rxxzz, rxxzzr, rxx_mzz, rzz_mxx;
-    cl_float2 one={1,1};
+
+    int NX=0, NY=0, NZ=0;
+    int indfd, indm, indL;
     
-    int (*c_calc)(double (*c)[24],float M, float mu, float taup, float taus, float rho, float ND, float L, float al)=NULL;
+    int (*c_calc)(double (*c)[24],
+                  float M,
+                  float mu,
+                  float taup,
+                  float taus,
+                  float rho,
+                  float ND,
+                  float L,
+                  float al)=NULL;
     
-    ND=(float)mglob->ND;
-    df=1.0/mglob->NTnyq/mglob->dt/mglob->dtnyq;
+    ND=(float)m->ND;
+    df=1.0/m->NTNYQ/m->dt/m->DTNYQ;
     
-    w0=2.0*PI*mglob->f0;
+    w0=2.0*PI*m->f0;
     al=0;
+    float * gradfreqsn = get_cst( m->csts, m->ncsts, "gradfreqsn")->gl_cst;
     
-    if (mglob->L>0){
-        tausigl=malloc(sizeof(float)*mglob->L);
-        for (l=0;l<mglob->L;l++){
-            tausigl[l]=1.0/(2.0*PI*mglob->FL[l]);
-            al+=pow(w0/(2.0*PI*mglob->FL[l]),2)/(1.0+pow(w0/(2.0*PI*mglob->FL[l]),2));
+    if (m->L>0){
+        tausigl=malloc(sizeof(float)*m->L);
+        float * FL = get_cst( m->csts,m->ncsts, "FL")->gl_cst;
+        for (l=0;l<m->L;l++){
+            tausigl[l]=  1.0/(2.0*PI*FL[l]);
+            al+=      pow(w0/(2.0*PI*FL[l]),2)
+                /(1.0+pow(w0/(2.0*PI*FL[l]),2));
         }
     }
     
     // Choose the right parameters depending on the dimensions
-    if (mglob->ND!=21){
-        if (mglob->param_type==0){
-            if (mglob->L>0)
+    if (m->ND!=21){
+        if (m->par_type==0){
+            if (m->L>0)
                 c_calc=&grad_coefvisc_0;
             else
                 c_calc=&grad_coefelast_0;
         }
-        else if (mglob->param_type==1){
-            if (mglob->L>0)
+        else if (m->par_type==1){
+            if (m->L>0)
                 c_calc=&grad_coefvisc_1;
             else
                 c_calc=&grad_coefelast_1;
         }
-        else if (mglob->param_type==2){
-            if (mglob->L>0)
+        else if (m->par_type==2){
+            if (m->L>0)
                 c_calc=&grad_coefvisc_2;
             else
                 c_calc=&grad_coefelast_2;
         }
-        else if (mglob->param_type==3){
+        else if (m->par_type==3){
             c_calc=&grad_coefvisc_3;
             
         }
     }
-    else if (mglob->ND==21){
-        if (mglob->param_type==0){
-            if (mglob->L>0)
+    else if (m->ND==21){
+        if (m->par_type==0){
+            if (m->L>0)
                 c_calc=&grad_coefvisc_0_SH;
             else
                 c_calc=&grad_coefelast_0_SH;
         }
-        else if (mglob->param_type==1){
-            if (mglob->L>0)
+        else if (m->par_type==1){
+            if (m->L>0)
                 c_calc=&grad_coefvisc_1_SH;
             else
                 c_calc=&grad_coefelast_1_SH;
         }
-        else if (mglob->param_type==2){
-            if (mglob->L>0)
+        else if (m->par_type==2){
+            if (m->L>0)
                 c_calc=&grad_coefvisc_2_SH;
             else
                 c_calc=&grad_coefelast_2_SH;
         }
-        else if (mglob->param_type==3){
+        else if (m->par_type==3){
             c_calc=&grad_coefvisc_3_SH;
             
         }
@@ -587,87 +468,272 @@ int calc_grad(struct modcsts* mglob, struct modcstsloc * m)  {
         
     }
     
+    cl_float2 * fvx=NULL;
+    cl_float2 * fvy=NULL;
+    cl_float2 * fvz=NULL;
     
+    cl_float2 * fvxr=NULL;
+    cl_float2 * fvyr=NULL;
+    cl_float2 * fvzr=NULL;
     
+    cl_float2 * fsxx=NULL;
+    cl_float2 * fsyy=NULL;
+    cl_float2 * fszz=NULL;
+    cl_float2 * fsxy=NULL;
+    cl_float2 * fsxz=NULL;
+    cl_float2 * fsyz=NULL;
+    
+    cl_float2 * fsxxr=NULL;
+    cl_float2 * fsyyr=NULL;
+    cl_float2 * fszzr=NULL;
+    cl_float2 * fsxyr=NULL;
+    cl_float2 * fsxzr=NULL;
+    cl_float2 * fsyzr=NULL;
+    
+    cl_float2 * frxx=NULL;
+    cl_float2 * fryy=NULL;
+    cl_float2 * frzz=NULL;
+    cl_float2 * frxy=NULL;
+    cl_float2 * frxz=NULL;
+    cl_float2 * fryz=NULL;
+    
+    cl_float2 * frxxr=NULL;
+    cl_float2 * fryyr=NULL;
+    cl_float2 * frzzr=NULL;
+    cl_float2 * frxyr=NULL;
+    cl_float2 * frxzr=NULL;
+    cl_float2 * fryzr=NULL;
+    
+    for (i=0;i<m->nvars;i++){
+        
+        if (strcmp(dev->vars[i].name,"vx")==0){
+            fvx=(cl_float2*)dev->vars[i].cl_fvar.host;
+            fvxr=(cl_float2*)dev->vars[i].cl_fvar_adj.host;
+        }
+        if (strcmp(dev->vars[i].name,"vy")==0){
+            fvy=(cl_float2*)dev->vars[i].cl_fvar.host;
+            fvyr=(cl_float2*)dev->vars[i].cl_fvar_adj.host;
+        }
+        if (strcmp(dev->vars[i].name,"vz")==0){
+            fvz=(cl_float2*)dev->vars[i].cl_fvar.host;
+            fvzr=(cl_float2*)dev->vars[i].cl_fvar_adj.host;
+        }
+        if (strcmp(dev->vars[i].name,"sxx")==0){
+            fsxx=(cl_float2*)dev->vars[i].cl_fvar.host;
+            fsxxr=(cl_float2*)dev->vars[i].cl_fvar_adj.host;
+        }
+        if (strcmp(dev->vars[i].name,"syy")==0){
+            fsyy=(cl_float2*)dev->vars[i].cl_fvar.host;
+            fsyyr=(cl_float2*)dev->vars[i].cl_fvar_adj.host;
+        }
+        if (strcmp(dev->vars[i].name,"szz")==0){
+            fszz=(cl_float2*)dev->vars[i].cl_fvar.host;
+            fszzr=(cl_float2*)dev->vars[i].cl_fvar_adj.host;
+        }
+        if (strcmp(dev->vars[i].name,"sxy")==0){
+            fsxy=(cl_float2*)dev->vars[i].cl_fvar.host;
+            fsxyr=(cl_float2*)dev->vars[i].cl_fvar_adj.host;
+        }
+        if (strcmp(dev->vars[i].name,"sxz")==0){
+            fsxz=(cl_float2*)dev->vars[i].cl_fvar.host;
+            fsxzr=(cl_float2*)dev->vars[i].cl_fvar_adj.host;
+        }
+        if (strcmp(dev->vars[i].name,"syz")==0){
+            fsyz=(cl_float2*)dev->vars[i].cl_fvar.host;
+            fsyzr=(cl_float2*)dev->vars[i].cl_fvar_adj.host;
+        }
+        if (strcmp(dev->vars[i].name,"rxx")==0){
+            frxx=(cl_float2*)dev->vars[i].cl_fvar.host;
+            frxxr=(cl_float2*)dev->vars[i].cl_fvar_adj.host;
+        }
+        if (strcmp(dev->vars[i].name,"ryy")==0){
+            fryy=(cl_float2*)dev->vars[i].cl_fvar.host;
+            fryyr=(cl_float2*)dev->vars[i].cl_fvar_adj.host;
+        }
+        if (strcmp(dev->vars[i].name,"rzz")==0){
+            frzz=(cl_float2*)dev->vars[i].cl_fvar.host;
+            frzzr=(cl_float2*)dev->vars[i].cl_fvar_adj.host;
+        }
+        if (strcmp(dev->vars[i].name,"rxy")==0){
+            frxy=(cl_float2*)dev->vars[i].cl_fvar.host;
+            frxyr=(cl_float2*)dev->vars[i].cl_fvar_adj.host;
+        }
+        if (strcmp(dev->vars[i].name,"rxz")==0){
+            frxz=(cl_float2*)dev->vars[i].cl_fvar.host;
+            frxzr=(cl_float2*)dev->vars[i].cl_fvar_adj.host;
+        }
+        if (strcmp(dev->vars[i].name,"ryz")==0){
+            fryz=(cl_float2*)dev->vars[i].cl_fvar.host;
+            fryzr=(cl_float2*)dev->vars[i].cl_fvar_adj.host;
+        }
+        
+    }
+    
+    float *rho=NULL, *gradrho=NULL, *Hrho=NULL;
+    float *M=NULL, *gradM=NULL, *HM=NULL;
+    float *mu=NULL, *gradmu=NULL, *Hmu=NULL;
+    float *taup=NULL, *gradtaup=NULL, *Htaup=NULL;
+    float *taus=NULL, *gradtaus=NULL, *Htaus=NULL;
+    
+    for (i=0;i<m->npars;i++){
+        if (strcmp(dev->pars[i].name,"rho")==0){
+            rho=dev->pars[i].cl_par.host;
+            gradrho=dev->pars[i].cl_grad.host;
+            Hrho=dev->pars[i].cl_H.host;
+        }
+        if (strcmp(dev->pars[i].name,"M")==0){
+            M=dev->pars[i].cl_par.host;
+            gradM=dev->pars[i].cl_grad.host;
+            HM=dev->pars[i].cl_H.host;
+        }
+        if (strcmp(dev->pars[i].name,"mu")==0){
+            mu=dev->pars[i].cl_par.host;
+            gradmu=dev->pars[i].cl_grad.host;
+            Hmu=dev->pars[i].cl_H.host;
+        }
+        if (strcmp(dev->pars[i].name,"taup")==0){
+            taup=dev->pars[i].cl_par.host;
+            gradtaup=dev->pars[i].cl_grad.host;
+            Htaup=dev->pars[i].cl_H.host;
+        }
+        if (strcmp(dev->pars[i].name,"taus")==0){
+            taus=dev->pars[i].cl_par.host;
+            gradtaus=dev->pars[i].cl_grad.host;
+            Htaus=dev->pars[i].cl_H.host;
+        }
+    }
     
     if (ND==3){
-        
-        for (i=0;i<m->NX;i++){
-            for (j=0;j<m->NY;j++){
-                for (k=0;k<m->NZ;k++){
-                    for (f=0;f<mglob->nfreqs;f++){
+        NX=dev->N[2];
+        NY=dev->N[1];
+        NZ=dev->N[0];
+    }
+    else{
+        NX=dev->N[1];
+        NZ=dev->N[0];
+    }
+    
+    if (ND==3){
+        for (i=0;i<NX;i++){
+            for (j=0;j<NY;j++){
+                for (k=0;k<NZ;k++){
+                    for (f=0;f<m->NFREQS;f++){
+
+                        indfd= f*(NX+m->FDORDER)*(NY+m->FDORDER)*(NZ+m->FDORDER)
+                             +(i+m->FDOH)*(NY+m->FDORDER)*(NZ+m->FDORDER)
+                             +(j+m->FDOH)*(NZ+m->FDORDER)
+                             +(k+m->FDOH);
+                        indm=i*NY*NZ+j*NZ+k;
+
+                        freq=2.0*PI*df* gradfreqsn[f];
                         
-                        freq=2.0*PI*df* (float)mglob->gradfreqsn[f];
-                        
-                        if (mglob->L>0)
-                            c_calc(&c,m->pi(k,j,i), m->u(k,j,i), m->taup(k,j,i), m->taus(k,j,i), m->rho(k,j,i), ND,mglob->L,al);
+                        if (m->L>0)
+                            c_calc(&c,M[indm], mu[indm], taup[indm], taus[indm], rho[indm], ND,m->L,al);
                         else
-                            c_calc(&c,m->pi(k,j,i), m->u(k,j,i), 0, 0, m->rho(k,j,i), ND,mglob->L,al);
+                            c_calc(&c,M[indm], mu[indm], 0, 0, rho[indm], ND,m->L,al);
+                        
+                        if (mu[indm]<1){
+                            for (n=2;n<8;n++){
+                                c[n]=0;
+                            }
+                            for (n=10;n<16;n++){
+                                c[n]=0;
+                            }
+                            for (n=18;n<24;n++){
+                                c[n]=0;
+                            }
+
+                        }
 
                         dot[1]=0;dot[5]=0;dot[6]=0;dot[7]=0;
-                        for (l=0;l<mglob->L;l++){
-                            m->f_sxx3(k,j,i,f)=cl_diff2(m->f_sxx3(k,j,i,f), cl_integral(m->f_rxx3(k,j,i,f,l),freq));
-                            m->f_szz3(k,j,i,f)=cl_diff2(m->f_szz3(k,j,i,f), cl_integral(m->f_rzz3(k,j,i,f,l),freq));
-                            m->f_syy3(k,j,i,f)=cl_diff2(m->f_syy3(k,j,i,f), cl_integral(m->f_ryy3(k,j,i,f,l),freq));
-                            m->f_sxz3(k,j,i,f)=cl_diff2(m->f_sxz3(k,j,i,f), cl_integral(m->f_rxz3(k,j,i,f,l),freq));
-                            m->f_sxy3(k,j,i,f)=cl_diff2(m->f_sxy3(k,j,i,f), cl_integral(m->f_rxy3(k,j,i,f,l),freq));
-                            m->f_syz3(k,j,i,f)=cl_diff2(m->f_syz3(k,j,i,f), cl_integral(m->f_ryz3(k,j,i,f,l),freq));
+                        for (l=0;l<m->L;l++){
+                            indL= f*(NX+m->FDORDER)*(NY+m->FDORDER)*(NZ+m->FDORDER)*m->L
+                                +l*(NX+m->FDORDER)*(NY+m->FDORDER)*(NZ+m->FDORDER)
+                                +(i+m->FDOH)*(NY+m->FDORDER)*(NZ+m->FDORDER)
+                                +(j+m->FDOH)*(NZ+m->FDORDER)
+                                +(k+m->FDOH);
+                            fsxx[indfd]=cl_diff2(fsxx[indfd], cl_integral(frxx[indL],freq));
+                            fszz[indfd]=cl_diff2(fszz[indfd], cl_integral(frzz[indL],freq));
+                            fsyy[indfd]=cl_diff2(fsyy[indfd], cl_integral(fryy[indL],freq));
+                            fsxz[indfd]=cl_diff2(fsxz[indfd], cl_integral(frxz[indL],freq));
+                            fsxy[indfd]=cl_diff2(fsxy[indfd], cl_integral(frxy[indL],freq));
+                            fsyz[indfd]=cl_diff2(fsyz[indfd], cl_integral(fryz[indL],freq));
                             
-                            m->f_sxxr3(k,j,i,f)=cl_diff2(m->f_sxxr3(k,j,i,f), cl_integral(m->f_rxxr3(k,j,i,f,l),freq));
-                            m->f_szzr3(k,j,i,f)=cl_diff2(m->f_szzr3(k,j,i,f), cl_integral(m->f_rzzr3(k,j,i,f,l),freq));
-                            m->f_syyr3(k,j,i,f)=cl_diff2(m->f_syyr3(k,j,i,f), cl_integral(m->f_ryyr3(k,j,i,f,l),freq));
-                            m->f_sxzr3(k,j,i,f)=cl_diff2(m->f_sxzr3(k,j,i,f), cl_integral(m->f_rxzr3(k,j,i,f,l),freq));
-                            m->f_sxyr3(k,j,i,f)=cl_diff2(m->f_sxyr3(k,j,i,f), cl_integral(m->f_rxyr3(k,j,i,f,l),freq));
-                            m->f_syzr3(k,j,i,f)=cl_diff2(m->f_syzr3(k,j,i,f), cl_integral(m->f_ryz3(k,j,i,f,l),freq));
+                            fsxxr[indfd]=cl_diff2(fsxxr[indfd], cl_integral(frxxr[indL],freq));
+                            fszzr[indfd]=cl_diff2(fszzr[indfd], cl_integral(frzzr[indL],freq));
+                            fsyyr[indfd]=cl_diff2(fsyyr[indfd], cl_integral(fryyr[indL],freq));
+                            fsxzr[indfd]=cl_diff2(fsxzr[indfd], cl_integral(frxzr[indL],freq));
+                            fsxyr[indfd]=cl_diff2(fsxyr[indfd], cl_integral(frxyr[indL],freq));
+                            fsyzr[indfd]=cl_diff2(fsyzr[indfd], cl_integral(fryz[indL],freq));
                             
                             
-                            rxxyyzz=    cl_add(m->f_rxx3(k,j,i,f,l), m->f_ryy3(k,j,i,f,l), m->f_rzz3(k,j,i,f,l));
-                            rxxyyzzr=   cl_add(m->f_rxxr3(k,j,i,f,l), m->f_ryyr3(k,j,i,f,l), m->f_rzzr3(k,j,i,f,l));
-                            rxx_myyzz= cl_diff(m->f_rxx3(k,j,i,f,l), m->f_ryy3(k,j,i,f,l), m->f_rzz3(k,j,i,f,l));
-                            ryy_mxxzz= cl_diff(m->f_rxx3(k,j,i,f,l), m->f_ryy3(k,j,i,f,l), m->f_rzz3(k,j,i,f,l));
-                            rzz_mxxyy= cl_diff(m->f_rxx3(k,j,i,f,l), m->f_ryy3(k,j,i,f,l), m->f_rzz3(k,j,i,f,l));
-                            dot[1]+=cl_rm( rxxyyzzr, rxxyyzz, tausigl[l],freq )/mglob->NTnyq;
+                            rxxyyzz=    cl_add(frxx[indL], fryy[indL], frzz[indL]);
+                            rxxyyzzr=   cl_add(frxxr[indL], fryyr[indL], frzzr[indL]);
+                            rxx_myyzz= cl_diff(frxx[indL], fryy[indL], frzz[indL]);
+                            ryy_mxxzz= cl_diff(frxx[indL], fryy[indL], frzz[indL]);
+                            rzz_mxxyy= cl_diff(frxx[indL], fryy[indL], frzz[indL]);
+                            dot[1]+=cl_rm( rxxyyzzr, rxxyyzz, tausigl[l],freq )/m->NTNYQ;
                             
-                            dot[5]+=(+cl_rm( m->f_rxyr3(k,j,i,f,l), m->f_rxy3(k,j,i,f,l) , tausigl[l],freq)
-                                     +cl_rm( m->f_rxzr3(k,j,i,f,l), m->f_rxz3(k,j,i,f,l) , tausigl[l],freq)
-                                     +cl_rm( m->f_ryzr3(k,j,i,f,l), m->f_ryz3(k,j,i,f,l) , tausigl[l],freq))/mglob->NTnyq;
+                            dot[5]+=(+cl_rm( frxyr[indL], frxy[indL] , tausigl[l],freq)
+                                     +cl_rm( frxzr[indL], frxz[indL] , tausigl[l],freq)
+                                     +cl_rm( fryzr[indL], fryz[indL] , tausigl[l],freq))/m->NTNYQ;
                             dot[6]=dot[1];
-                            dot[7]+=(+cl_rm( m->f_rxxr3(k,j,i,f,l), rxx_myyzz , tausigl[l],freq)
-                                     +cl_rm( m->f_ryyr3(k,j,i,f,l), ryy_mxxzz , tausigl[l],freq)
-                                     +cl_rm( m->f_rzzr3(k,j,i,f,l), rzz_mxxyy , tausigl[l],freq))/mglob->NTnyq;
+                            dot[7]+=(+cl_rm( frxxr[indL], rxx_myyzz , tausigl[l],freq)
+                                     +cl_rm( fryyr[indL], ryy_mxxzz , tausigl[l],freq)
+                                     +cl_rm( frzzr[indL], rzz_mxxyy , tausigl[l],freq))/m->NTNYQ;
                         }
                         
-                        sxxyyzz=    cl_add(m->f_sxx3(k,j,i,f), m->f_syy3(k,j,i,f), m->f_szz3(k,j,i,f));
-                        sxxyyzzr=   cl_add(m->f_sxxr3(k,j,i,f),m->f_syyr3(k,j,i,f),m->f_szzr3(k,j,i,f));
-                        sxx_myyzz= cl_diff(m->f_sxx3(k,j,i,f), m->f_syy3(k,j,i,f), m->f_szz3(k,j,i,f));
-                        syy_mxxzz= cl_diff(m->f_syy3(k,j,i,f), m->f_sxx3(k,j,i,f), m->f_szz3(k,j,i,f));
-                        szz_mxxyy= cl_diff(m->f_szz3(k,j,i,f), m->f_sxx3(k,j,i,f), m->f_syy3(k,j,i,f));
+                        sxxyyzz=    cl_add(fsxx[indfd], fsyy[indfd], fszz[indfd]);
+                        sxxyyzzr=   cl_add(fsxxr[indfd],fsyyr[indfd],fszzr[indfd]);
+                        sxx_myyzz= cl_diff(fsxx[indfd], fsyy[indfd], fszz[indfd]);
+                        syy_mxxzz= cl_diff(fsyy[indfd], fsxx[indfd], fszz[indfd]);
+                        szz_mxxyy= cl_diff(fszz[indfd], fsxx[indfd], fsyy[indfd]);
 
-                        dot[0]=freq*cl_itreal( sxxyyzzr, sxxyyzz )/mglob->NTnyq;
-                        dot[2]=freq*(+cl_itreal( m->f_sxyr3(k,j,i,f), m->f_sxy3(k,j,i,f) )
-                                     +cl_itreal( m->f_sxzr3(k,j,i,f), m->f_sxz3(k,j,i,f) )
-                                     +cl_itreal( m->f_syzr3(k,j,i,f), m->f_syz3(k,j,i,f) ))/mglob->NTnyq;
+                        dot[0]=freq*cl_itreal( sxxyyzzr, sxxyyzz )/m->NTNYQ;
+                        dot[2]=freq*(+cl_itreal( fsxyr[indfd], fsxy[indfd] )
+                                     +cl_itreal( fsxzr[indfd], fsxz[indfd] )
+                                     +cl_itreal( fsyzr[indfd], fsyz[indfd] ))/m->NTNYQ;
                         dot[3]=dot[0];
-                        dot[4]=freq*(+cl_itreal( m->f_sxxr3(k,j,i,f), sxx_myyzz )
-                                     +cl_itreal( m->f_syyr3(k,j,i,f), syy_mxxzz )
-                                     +cl_itreal( m->f_szzr3(k,j,i,f), szz_mxxyy ))/mglob->NTnyq;
+                        dot[4]=freq*(+cl_itreal( fsxxr[indfd], sxx_myyzz )
+                                     +cl_itreal( fsyyr[indfd], syy_mxxzz )
+                                     +cl_itreal( fszzr[indfd], szz_mxxyy ))/m->NTNYQ;
 
                         
                         dot[8]=freq*(
-                                     cl_itreal( m->f_vxr3(k,j,i,f), m->f_vx3(k,j,i,f) ) +
-                                     cl_itreal( m->f_vyr3(k,j,i,f), m->f_vy3(k,j,i,f) ) +
-                                     cl_itreal( m->f_vzr3(k,j,i,f), m->f_vz3(k,j,i,f) )
-                                     )/mglob->NTnyq;
+                                     cl_itreal( fvxr[indfd], fvx[indfd] ) +
+                                     cl_itreal( fvyr[indfd], fvy[indfd] ) +
+                                     cl_itreal( fvzr[indfd], fvz[indfd] )
+                                     )/m->NTNYQ;
                         
-                        m->gradM(k,j,i)+=c[0]*dot[0]-c[1]*dot[1];
-                        m->gradmu(k,j,i)+=c[2]*dot[2]-c[3]*dot[3]+c[4]*dot[4]-c[5]*dot[5]+c[6]*dot[6]-c[7]*dot[7];
+                        gradM[indm]+=   -c[0]*dot[0]
+                                        +c[1]*dot[1];
+                        gradmu[indm]+=  -c[2]*dot[2]
+                                        +c[3]*dot[3]
+                                        -c[4]*dot[4]
+                                        +c[5]*dot[5]
+                                        -c[6]*dot[6]
+                                        +c[7]*dot[7];
                         
-                        if (mglob->L>0){
-                            m->gradtaup(k,j,i)+=c[8]*dot[0]-c[9]*dot[1];
-                            m->gradtaus(k,j,i)+=c[10]*dot[2]-c[11]*dot[3]+c[12]*dot[4]-c[13]*dot[5]+c[14]*dot[6]-c[15]*dot[7];
+                        if (m->L>0){
+                             gradtaup[indm]+=-c[8]*dot[0]
+                                             +c[9]*dot[1];
+                             gradtaus[indm]+=-c[10]*dot[2]
+                                             +c[11]*dot[3]
+                                             -c[12]*dot[4]
+                                             +c[13]*dot[5]
+                                             -c[14]*dot[6]
+                                             +c[15]*dot[7];
                         }
                         
-                        m->gradrho(k,j,i)+=dot[8] +c[16]*dot[0]-c[17]*dot[1]  +c[18]*dot[2]-c[19]*dot[3]+c[20]*dot[4]-c[21]*dot[5]+c[22]*dot[6]-c[23]*dot[7];
+                         gradrho[indm]+=-dot[8]
+                                        +c[16]*dot[0]
+                                        -c[17]*dot[1]
+                                        +c[18]*dot[2]
+                                        -c[19]*dot[3]
+                                        +c[20]*dot[4]
+                                        -c[21]*dot[5]
+                                        +c[22]*dot[6]
+                                        -c[23]*dot[7];
 
                     }
                     
@@ -678,101 +744,169 @@ int calc_grad(struct modcsts* mglob, struct modcstsloc * m)  {
     }
     else if (ND==2){
         
-        for (i=0;i<m->NX;i++){
-            for (k=0;k<m->NZ;k++){
-                for (f=0;f<mglob->nfreqs;f++){
+        for (i=0;i<NX;i++){
+            for (k=0;k<NZ;k++){
+                for (f=0;f<m->NFREQS;f++){
                     
-                    freq=2.0*PI*df* (float)mglob->gradfreqsn[f];
+                    indfd= f*(NX+m->FDORDER)*(NZ+m->FDORDER)
+                         +(i+m->FDOH)*(NZ+m->FDORDER)
+                         +(k+m->FDOH);
+                    indm=i*NZ+k;
                     
-                    if (mglob->L>0)
-                        c_calc(&c,m->pi(k,0,i), m->u(k,0,i), m->taup(k,0,i), m->taus(k,0,i), m->rho(k,0,i), ND,mglob->L,al);
+                    freq=2.0*PI*df* gradfreqsn[f];
+                    if (m->L>0)
+                        c_calc(&c,M[indm], mu[indm], taup[indm], taus[indm], rho[indm], ND,m->L,al);
                     else
-                        c_calc(&c,m->pi(k,0,i), m->u(k,0,i), 0, 0, m->rho(k,0,i), ND,mglob->L,al);
+                        c_calc(&c,M[indm], mu[indm], 0, 0, rho[indm], ND,m->L,al);
+                    
+                    if (mu[indm]<1){
+                        for (n=2;n<8;n++){
+                            c[n]=0;
+                        }
+                        for (n=10;n<16;n++){
+                            c[n]=0;
+                        }
+                        for (n=18;n<24;n++){
+                            c[n]=0;
+                        }
+                        
+                    }
                     
                     dot[1]=0;dot[5]=0;dot[6]=0;dot[7]=0;
-                    for (l=0;l<mglob->L;l++){
-                        m->f_sxx2(k,i,f)=cl_diff2(m->f_sxx2(k,i,f), cl_integral(m->f_rxx2(k,i,f,l),freq) );
-                        m->f_szz2(k,i,f)=cl_diff2(m->f_szz2(k,i,f), cl_integral(m->f_rzz2(k,i,f,l),freq) );
-                        m->f_sxz2(k,i,f)=cl_diff2(m->f_sxz2(k,i,f), cl_integral(m->f_rxz2(k,i,f,l),freq) );
-                        m->f_sxxr2(k,i,f)=cl_diff2(m->f_sxxr2(k,i,f), cl_integral(m->f_rxxr2(k,i,f,l),freq) );
-                        m->f_szzr2(k,i,f)=cl_diff2(m->f_szzr2(k,i,f), cl_integral(m->f_rzzr2(k,i,f,l),freq) );
-                        m->f_sxzr2(k,i,f)=cl_diff2(m->f_sxzr2(k,i,f), cl_integral(m->f_rxzr2(k,i,f,l),freq) );
+                    for (l=0;l<m->L;l++){
+                        indL= f*(NX+m->FDORDER)*(NZ+m->FDORDER)*m->L
+                            +l*(NX+m->FDORDER)*(NZ+m->FDORDER)
+                            +(i+m->FDOH)*(NZ+m->FDORDER)
+                            +(k+m->FDOH);
+
+                        fsxx[indfd]=cl_diff2(fsxx[indfd], cl_integral(frxx[indL],freq) );
+                        fszz[indfd]=cl_diff2(fszz[indfd], cl_integral(frzz[indL],freq) );
+                        fsxz[indfd]=cl_diff2(fsxz[indfd], cl_integral(frxz[indL],freq) );
+                        fsxxr[indfd]=cl_diff2(fsxxr[indfd], cl_integral(frxxr[indL],freq) );
+                        fszzr[indfd]=cl_diff2(fszzr[indfd], cl_integral(frzzr[indL],freq) );
+                        fsxzr[indfd]=cl_diff2(fsxzr[indfd], cl_integral(frxzr[indL],freq) );
                         
-                        rxxzz=    cl_add2(m->f_rxx2(k,i,f,l), m->f_rzz2(k,i,f,l));
-                        rxxzzr=   cl_add2(m->f_rxxr2(k,i,f,l),m->f_rzzr2(k,i,f,l));
-                        rxx_mzz= cl_diff2(m->f_rxx2(k,i,f,l), m->f_rzz2(k,i,f,l));
-                        rzz_mxx= cl_diff2(m->f_rzz2(k,i,f,l), m->f_rxx2(k,i,f,l));
+                        rxxzz=    cl_add2(frxx[indL], frzz[indL]);
+                        rxxzzr=   cl_add2(frxxr[indL],frzzr[indL]);
+                        rxx_mzz= cl_diff2(frxx[indL], frzz[indL]);
+                        rzz_mxx= cl_diff2(frzz[indL], frxx[indL]);
                         
-                        dot[1]+=cl_rm( rxxzzr, rxxzz, tausigl[l],freq )/mglob->NTnyq;
+                        dot[1]+=cl_rm( rxxzzr, rxxzz, tausigl[l],freq )/m->NTNYQ;
                         
-                        dot[5]+=(cl_rm( m->f_rxzr2(k,i,f,l), m->f_rxz2(k,i,f,l) , tausigl[l],freq) )/mglob->NTnyq;
+                        dot[5]+=(cl_rm( frxzr[indL], frxz[indL] , tausigl[l],freq) )/m->NTNYQ;
                         dot[6]=dot[1];
-                        dot[7]+=(+cl_rm( m->f_rxxr2(k,i,f,l), rxx_mzz , tausigl[l],freq)
-                                 +cl_rm( m->f_rzzr2(k,i,f,l), rzz_mxx , tausigl[l],freq))/mglob->NTnyq;
+                        dot[7]+=(+cl_rm( frxxr[indL], rxx_mzz , tausigl[l],freq)
+                                 +cl_rm( frzzr[indL], rzz_mxx , tausigl[l],freq))/m->NTNYQ;
                         
                     }
-                    sxxzz=    cl_add2(m->f_sxx2(k,i,f), m->f_szz2(k,i,f));
-                    sxxzzr=   cl_add2(m->f_sxxr2(k,i,f),m->f_szzr2(k,i,f));
-                    sxx_mzz= cl_diff2(m->f_sxx2(k,i,f), m->f_szz2(k,i,f));
-                    szz_mxx= cl_diff2(m->f_szz2(k,i,f), m->f_sxx2(k,i,f));
+                    sxxzz=    cl_add2(fsxx[indfd], fszz[indfd]);
+                    sxxzzr=   cl_add2(fsxxr[indfd],fszzr[indfd]);
+                    sxx_mzz= cl_diff2(fsxx[indfd], fszz[indfd]);
+                    szz_mxx= cl_diff2(fszz[indfd], fsxx[indfd]);
                     
 
                     
-                    dot[0]=freq*cl_itreal( sxxzzr, sxxzz )/mglob->NTnyq;
-                    dot[2]=freq* ( cl_itreal( m->f_sxzr2(k,i,f), m->f_sxz2(k,i,f))  )/mglob->NTnyq;
+                    dot[0]=freq*cl_itreal( sxxzzr, sxxzz )/m->NTNYQ;
+                    dot[2]=freq* ( cl_itreal( fsxzr[indfd], fsxz[indfd])  )/m->NTNYQ;
                     dot[3]=dot[0];
-                    dot[4]=freq*(+cl_itreal( m->f_sxxr2(k,i,f), sxx_mzz )
-                                 +cl_itreal( m->f_szzr2(k,i,f), szz_mxx ))/mglob->NTnyq;
+                    dot[4]=freq*(+cl_itreal( fsxxr[indfd], sxx_mzz )
+                                 +cl_itreal( fszzr[indfd], szz_mxx ))/m->NTNYQ;
 
-                    dot[8]=freq*(cl_itreal( m->f_vxr2(k,i,f), m->f_vx2(k,i,f) ) + cl_itreal( m->f_vzr2(k,i,f), m->f_vz2(k,i,f) ))/mglob->NTnyq;
+                    dot[8]=freq*(cl_itreal( fvxr[indfd], fvx[indfd] ) + cl_itreal( fvzr[indfd], fvz[indfd] ))/m->NTNYQ;
                     
                     
-                    m->gradM(k,0,i)+=c[0]*dot[0]-c[1]*dot[1];
-                    m->gradmu(k,0,i)+=c[2]*dot[2]-c[3]*dot[3]+c[4]*dot[4]-c[5]*dot[5]+c[6]*dot[6]-c[7]*dot[7];
+                    gradM[indm]+= -c[0]*dot[0]
+                                  +c[1]*dot[1];
+
+                    gradmu[indm]+=-c[2]*dot[2]
+                                 +c[3]*dot[3]
+                                 -c[4]*dot[4]
+                                 +c[5]*dot[5]
+                                 -c[6]*dot[6]
+                                 +c[7]*dot[7];
                     
-                    if (mglob->L>0){
-                        m->gradtaup(k,0,i)+=c[8]*dot[0]-c[9]*dot[1];
-                        m->gradtaus(k,0,i)+=c[10]*dot[2]-c[11]*dot[3]+c[12]*dot[4]-c[13]*dot[5]+c[14]*dot[6]-c[15]*dot[7];
+                    if (m->L>0){
+                        gradtaup[indm]+= -c[8]*dot[0]
+                                        +c[9]*dot[1];
+                        gradtaus[indm]+= -c[10]*dot[2]
+                                        +c[11]*dot[3]
+                                        -c[12]*dot[4]
+                                        +c[13]*dot[5]
+                                        -c[14]*dot[6]
+                                        +c[15]*dot[7];
                     }
                     
-                    m->gradrho(k,0,i)+=dot[8] +c[16]*dot[0]-c[17]*dot[1]+c[18]*dot[2]-c[19]*dot[3]+c[20]*dot[4]-c[21]*dot[5]+c[22]*dot[6]-c[23]*dot[7];
+                    gradrho[indm]+=-dot[8]
+                                    +c[16]*dot[0]
+                                    -c[17]*dot[1]
+                                    +c[18]*dot[2]
+                                    -c[19]*dot[3]
+                                    +c[20]*dot[4]
+                                    -c[21]*dot[5]
+                                    +c[22]*dot[6]
+                                    -c[23]*dot[7];
                     
-                    if(mglob->Hout){
+                    if(m->HOUT){
                         dot[1]=0;dot[5]=0;dot[6]=0;dot[7]=0;
-                        for (l=0;l<mglob->L;l++){
-                            rxxzz=    cl_add2(m->f_rxx2(k,i,f,l), m->f_rzz2(k,i,f,l));
-                            rxx_mzz= cl_diff2(m->f_rxx2(k,i,f,l), m->f_rzz2(k,i,f,l));
-                            rzz_mxx= cl_diff2(m->f_rzz2(k,i,f,l), m->f_rxx2(k,i,f,l));
+                        for (l=0;l<m->L;l++){
+                            indL= f*(NX+m->FDORDER)*(NZ+m->FDORDER)*m->L
+                            +l*(NX+m->FDORDER)*(NZ+m->FDORDER)
+                            +(i+m->FDOH)*(NZ+m->FDORDER)
+                            +(k+m->FDOH);
+
+                            rxxzz=    cl_add2(frxx[indL], frzz[indL]);
+                            rxx_mzz= cl_diff2(frxx[indL], frzz[indL]);
+                            rzz_mxx= cl_diff2(frzz[indL], frxx[indL]);
                             
-                            dot[1]+=cl_norm(cl_add2( rxxzz, cl_derivative(rxxzz, freq*tausigl[l])) )/mglob->NTnyq;
-                            dot[5]+=cl_norm(cl_add2( m->f_rxz2(k,i,f,l), cl_derivative(m->f_rxz2(k,i,f,l), freq*tausigl[l])) )/mglob->NTnyq;
+                            dot[1]+=cl_norm(cl_add2( rxxzz, cl_derivative(rxxzz, freq*tausigl[l])) )/m->NTNYQ;
+                            dot[5]+=cl_norm(cl_add2( frxz[indL], cl_derivative(frxz[indL], freq*tausigl[l])) )/m->NTNYQ;
                             dot[6]=dot[1];
                             dot[7]+=(cl_norm(cl_add2( rxx_mzz, cl_derivative(rxx_mzz, freq*tausigl[l])) )
-                                    +cl_norm(cl_add2( rzz_mxx, cl_derivative(rzz_mxx, freq*tausigl[l])) ))/mglob->NTnyq;
+                                    +cl_norm(cl_add2( rzz_mxx, cl_derivative(rzz_mxx, freq*tausigl[l])) ))/m->NTNYQ;
                             
                         }
-                        sxxzz=    cl_add2(m->f_sxx2(k,i,f), m->f_szz2(k,i,f));
-                        sxx_mzz= cl_diff2(m->f_sxx2(k,i,f), m->f_szz2(k,i,f));
-                        szz_mxx= cl_diff2(m->f_szz2(k,i,f), m->f_sxx2(k,i,f));
+                        sxxzz=    cl_add2(fsxx[indfd], fszz[indfd]);
+                        sxx_mzz= cl_diff2(fsxx[indfd], fszz[indfd]);
+                        szz_mxx= cl_diff2(fszz[indfd], fsxx[indfd]);
                         
                         
-                        dot[0]=cl_norm(cl_derivative(sxxzz, freq))/mglob->NTnyq;
-                        dot[2]=cl_norm(cl_derivative(m->f_sxz2(k,i,f), freq))/mglob->NTnyq;
+                        dot[0]=cl_norm(cl_derivative(sxxzz, freq))/m->NTNYQ;
+                        dot[2]=cl_norm(cl_derivative(fsxz[indfd], freq))/m->NTNYQ;
                         dot[3]=dot[0];
                         dot[4]=(cl_norm(cl_derivative(sxx_mzz, freq))
-                                    +cl_norm(cl_derivative(szz_mxx, freq)))/mglob->NTnyq;
-                        dot[8]=(cl_norm(cl_derivative(m->f_vx2(k,i,f), freq))
-                                +cl_norm(cl_derivative(m->f_vz2(k,i,f), freq)))/mglob->NTnyq;
+                                    +cl_norm(cl_derivative(szz_mxx, freq)))/m->NTNYQ;
+                        dot[8]=(cl_norm(cl_derivative(fvx[indfd], freq))
+                                +cl_norm(cl_derivative(fvz[indfd], freq)))/m->NTNYQ;
                         
-                        m->HM(k,0,i)+=c[0]*dot[0]-c[1]*dot[1];
-                        m->Hmu(k,0,i)+=c[2]*dot[2]-c[3]*dot[3]+c[4]*dot[4]-c[5]*dot[5]+c[6]*dot[6]-c[7]*dot[7];
+                        HM[indm]+=   c[0]*dot[0]
+                                    -c[1]*dot[1];
+                        Hmu[indm]+=  c[2]*dot[2]
+                                    -c[3]*dot[3]
+                                    +c[4]*dot[4]
+                                    -c[5]*dot[5]
+                                    +c[6]*dot[6]
+                                    -c[7]*dot[7];
                         
-                        if (mglob->L>0){
-                            m->Htaup(k,0,i)+=c[8]*dot[0]-c[9]*dot[1];
-                            m->Htaus(k,0,i)+=c[10]*dot[2]-c[11]*dot[3]+c[12]*dot[4]-c[13]*dot[5]+c[14]*dot[6]-c[15]*dot[7];
+                        if (m->L>0){
+                            Htaup[indm]+=c[8]*dot[0]
+                                        -c[9]*dot[1];
+                            Htaus[indm]+=c[10]*dot[2]
+                                        -c[11]*dot[3]
+                                        +c[12]*dot[4]
+                                        -c[13]*dot[5]
+                                        +c[14]*dot[6]
+                                        -c[15]*dot[7];
                         }
                         
-                        m->Hrho(k,0,i)+=dot[8] +c[16]*dot[0]-c[17]*dot[1]+c[18]*dot[2]-c[19]*dot[3]+c[20]*dot[4]-c[21]*dot[5]+c[22]*dot[6]-c[23]*dot[7];
+                        Hrho[indm]+=dot[8]
+                                    -c[16]*dot[0]
+                                    +c[17]*dot[1]
+                                    -c[18]*dot[2]
+                                    +c[19]*dot[3]
+                                    -c[20]*dot[4]
+                                    +c[21]*dot[5]
+                                    -c[22]*dot[6]
+                                    +c[23]*dot[7];
                         
                     }
                     
@@ -784,34 +918,42 @@ int calc_grad(struct modcsts* mglob, struct modcstsloc * m)  {
     }
     else if (ND==21){
         
-        for (i=0;i<m->NX;i++){
-            for (k=0;k<m->NZ;k++){
-                for (f=0;f<mglob->nfreqs;f++){
+        for (i=0;i<NX;i++){
+            for (k=0;k<NZ;k++){
+                for (f=0;f<m->NFREQS;f++){
                     
-                    freq=2.0*PI*df* (float)mglob->gradfreqsn[f];
+                    indfd= f*(NX+m->FDORDER)*(NZ+m->FDORDER)
+                    +(i+m->FDOH)*(NZ+m->FDORDER)
+                    +(k+m->FDOH);
+                    indm=i*NZ+k;
                     
-                    if (mglob->L>0)
-                        c_calc(&c,0, m->u(k,0,i), 0, m->taus(k,0,i), m->rho(k,0,i), ND, mglob->L, al);
+                    freq=2.0*PI*df* gradfreqsn[f];
+                    if (m->L>0)
+                        c_calc(&c,M[indm], mu[indm], taup[indm], taus[indm], rho[indm], ND,m->L,al);
                     else
-                        c_calc(&c,0, m->u(k,0,i), 0, 0, m->rho(k,0,i), ND, mglob->L, al);
+                        c_calc(&c,M[indm], mu[indm], 0, 0, rho[indm], ND,m->L,al);
                     
                     
-                    dot[0]=freq*(cl_itreal(m->f_sxyr2(k,i,f),m->f_sxy2(k,i,f))+ cl_itreal(m->f_syzr2(k,i,f),m->f_syz2(k,i,f)) )/mglob->NTnyq;
+                    dot[0]=freq*(cl_itreal(fsxyr[indfd],fsxy[indfd])+ cl_itreal(fsyzr[indfd],fsyz[indfd]) )/m->NTNYQ;
 
-                    for (l=0;l<mglob->L;l++){
-                        dot[1]=(cl_rm( m->f_rxyr2(k,i,l,f), m->f_rxy2(k,i,l,f),tausigl[l],freq )+cl_rm( m->f_ryzr2(k,i,l,f), m->f_ryz2(k,i,l,f),tausigl[l],freq ))/mglob->NTnyq;
+                    for (l=0;l<m->L;l++){
+                        indL= f*(NX+m->FDORDER)*(NZ+m->FDORDER)*m->L
+                        +l*(NX+m->FDORDER)*(NZ+m->FDORDER)
+                        +(i+m->FDOH)*(NZ+m->FDORDER)
+                        +(k+m->FDOH);
+                        dot[1]=(cl_rm( frxyr[indL], frxy[indL],tausigl[l],freq )+cl_rm( fryzr[indL], fryz[indL],tausigl[l],freq ))/m->NTNYQ;
                     }
                     
-                    dot[2]=freq*(cl_itreal( m->f_vyr2(k,i,f), m->f_vy2(k,i,f) ))/mglob->NTnyq;
+                    dot[2]=freq*(cl_itreal( fvyr[indfd], fvy[indfd] ))/m->NTNYQ;
                     
 
-                    m->gradmu(k,0,i)+=c[0]*dot[0]-c[1]*dot[1];
+                    gradmu[indm]+=-c[0]*dot[0]+c[1]*dot[1];
                     
-                    if (mglob->L>0){
-                        m->gradtaus(k,0,i)+=c[2]*dot[0]-c[3]*dot[1];
+                    if (m->L>0){
+                        gradtaus[indm]+=-c[2]*dot[0]+c[3]*dot[1];
                     }
                     
-                    m->gradrho(k,0,i)+=dot[2] +c[4]*dot[0]-c[5]*dot[1]  ;
+                    gradrho[indm]+=-dot[2] +c[4]*dot[0]-c[5]*dot[1]  ;
                     
                 }
             }
@@ -819,9 +961,150 @@ int calc_grad(struct modcsts* mglob, struct modcstsloc * m)  {
         
     }
     
-        
+    
     if (tausigl) free(tausigl);
     return 0;
     
 }
+#else
+int calc_grad(struct model * m, struct device * dev){
+    return 0;
+}
+#endif
+
+int transf_grad(model * m) {
+    //TODO perform forward and back transform to replace Init_model and trans_grad
+    int state=0;
+    int i, j, num_ele=0;
+    half * hpar;
+    
+    float * rho = get_par(m->pars, m->npars, "rho")->gl_par;
+    float * gradrho = get_par(m->pars, m->npars, "rho")->gl_grad;
+    float * Hrho = get_par(m->pars, m->npars, "rho")->gl_H;
+    num_ele = get_par(m->pars, m->npars, "rho")->num_ele;
+    float * M = get_par(m->pars, m->npars, "M")->gl_par;
+    float * gradM = get_par(m->pars, m->npars, "M")->gl_grad;
+    float * HM = get_par(m->pars, m->npars, "M")->gl_H;
+    float * mu = get_par(m->pars, m->npars, "mu")->gl_par;
+    float * gradmu = get_par(m->pars, m->npars, "mu")->gl_grad;
+    float * Hmu = get_par(m->pars, m->npars, "mu")->gl_H;
+
+    int scaler=m->par_scale;
+    
+    if (m->FP16>1){
+        for (i=0;i<m->npars;i++){
+            hpar = (half*)m->pars[i].gl_par;
+            for (j=m->pars[i].num_ele-1;j>=0;j--){
+                m->pars[i].gl_par[j] = half_to_float(hpar[j]);
+            }
+            
+        }
+    }
+    
+    for (i=0;i<num_ele;i++){
+        rho[i]= 1.0/rho[i]*m->dt/m->dh*powf(2,-scaler);
+        gradrho[i]/=m->dt;
+    }
+    if (M){
+        for (i=0;i<num_ele;i++){
+            M[i]*=m->dh/m->dt*powf(2,-scaler);
+            gradM[i]/=m->dt;
+        }
+    }
+    if (mu){
+        for (i=0;i<num_ele;i++){
+            mu[i]*=m->dh/m->dt*powf(2,-scaler);
+            gradmu[i]/=m->dt;
+        }
+    }
+
+    if (m->par_type==0){
+        
+        for (i=0;i<num_ele;i++){
+            gradrho[i]= gradrho[i]+M[i]/rho[i]*gradM[i];
+            if (mu[i]>0){
+                gradrho[i]= gradrho[i]+mu[i]/rho[i]*gradmu[i];
+            }
+        }
+        if (Hrho){
+            for (i=0;i<num_ele;i++){
+                Hrho[i]= Hrho[i]+M[i]/rho[i]*HM[i];
+            }
+            if (mu[i]>0){
+                Hrho[i]= Hrho[i]+mu[i]/rho[i]*Hmu[i];
+            }
+        }
+        if (M){
+            for (i=0;i<num_ele;i++){
+                gradM[i]  = 2.0*sqrt((double)rho[i]*(double)M[i])*gradM[i];
+            }
+        }
+        if (HM){
+            for (i=0;i<num_ele;i++){
+                HM[i]  = 2.0*sqrt((double)rho[i]*(double)M[i])*HM[i];
+            }
+        }
+        if (mu){
+            for (i=0;i<num_ele;i++){
+                gradmu[i] = 2.0*sqrt((double)rho[i]*(double)mu[i])*gradmu[i];
+            }
+        }
+        if (Hmu){
+            for (i=0;i<num_ele;i++){
+                Hmu[i] = 2.0*sqrt((double)rho[i]*(double)mu[i])*Hmu[i];
+            }
+        }
+    }
+    else if (m->par_type==1){
+        
+    }
+    else if (m->par_type==2){
+        for (i=0;i<num_ele;i++){
+            gradrho[i]= gradrho[i]+M[i]/rho[i]*gradM[i];
+            if (mu[i]>0){
+                gradrho[i]= gradrho[i]+mu[i]/rho[i]*gradmu[i];
+            }
+        }
+        
+        if (Hrho){
+            for (i=0;i<num_ele;i++){
+                Hrho[i]= Hrho[i]+M[i]/rho[i]*HM[i];
+                if (mu[i]>0){
+                    Hrho[i]= Hrho[i]+mu[i]/rho[i]*Hmu[i];
+                }
+            }
+        }
+        if (M){
+            for (i=0;i<num_ele;i++){
+                gradM[i]  = 2.0*sqrt((double)M[i]/(double)rho[i])*gradM[i];
+            }
+        }
+        if (HM){
+            for (i=0;i<num_ele;i++){
+                HM[i]  = 2.0*sqrt((double)M[i]/(double)rho[i])*HM[i];
+            }
+        }
+        if (mu){
+            for (i=0;i<num_ele;i++){
+                gradmu[i] = 2.0*sqrt((double)mu[i]/(double)rho[i])*gradmu[i];
+            }
+        }
+        if (Hmu){
+            for (i=0;i<num_ele;i++){
+                Hmu[i] = 2.0*sqrt((double)mu[i]/(double)rho[i])*Hmu[i];
+            }
+        }
+    }
+    else{
+        fprintf(stdout,"Warning: Gradiant transformation not implemented: ");
+        fprintf(stdout,"Outputting grad for M,mu,rho parametrization\n");
+    }
+    
+    
+    
+    return state;
+
+}
+
+
 

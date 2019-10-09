@@ -1,21 +1,3 @@
-/*------------------------------------------------------------------------
- * Copyright (C) 2016 For the list of authors, see file AUTHORS.
- *
- * This file is part of SeisCL.
- *
- * SeisCL is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, version 3.0 of the License only.
- *
- * SeisCL is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with SeisCL. See file COPYING and/or
- * <http://www.gnu.org/licenses/gpl-3.0.html>.
- --------------------------------------------------------------------------*/
 /*
 Copyright (c) 2003-2004, Mark Borgerding
 
@@ -49,7 +31,7 @@ kiss_fftr_cfg kiss_fftr_alloc(int nfft,int inverse_fft,void * mem,size_t * lenme
     size_t subsize, memneeded;
 
     if (nfft & 1) {
-        fprintf(stderr,"Real FFT optimization must be even.\n");
+        fprintf(stderr,"Error: Real FFT optimization must be even.\n");
         return NULL;
     }
     nfft >>= 1;
@@ -89,7 +71,7 @@ void kiss_fftr(kiss_fftr_cfg st,const kiss_fft_scalar *timedata,kiss_fft_cpx *fr
     kiss_fft_cpx fpnk,fpk,f1k,f2k,tw,tdc;
 
     if ( st->substate->inverse) {
-        fprintf(stderr,"kiss fft usage error: improper alloc\n");
+        fprintf(stderr,"Error: kiss fft usage error: improper alloc\n");
         exit(1);
     }
 
@@ -144,7 +126,7 @@ void kiss_fftri(kiss_fftr_cfg st,const kiss_fft_cpx *freqdata,kiss_fft_scalar *t
     int k, ncfft;
 
     if (st->substate->inverse == 0) {
-        fprintf (stderr, "kiss fft usage error: improper alloc\n");
+        fprintf (stderr, "Error: kiss fft usage error: improper alloc\n");
         exit (1);
     }
 

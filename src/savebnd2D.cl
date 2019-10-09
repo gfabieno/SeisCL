@@ -20,155 +20,204 @@
 /*Kernels to save boundary wavefield in 2D if backpropagation is used in the computation of the gradient */
 
 /*Define useful macros to be able to write a matrix formulation in 2D with OpenCl */
-#define vx(z,x)  vx[(x)*NZ+(z)]
-#define vy(z,x)  vy[(x)*NZ+(z)]
-#define vz(z,x)  vz[(x)*NZ+(z)]
-#define sxx(z,x) sxx[(x)*NZ+(z)]
-#define szz(z,x) szz[(x)*NZ+(z)]
-#define sxz(z,x) sxz[(x)*NZ+(z)]
-#define sxy(z,x) sxy[(x)*NZ+(z)]
-#define syz(z,x) syz[(x)*NZ+(z)]
-#define lbnd (fdoh+nab)
+#if FP16==0
 
+#define __prec float
+#define __prec2 float
+#define DIV 1
 
+#elif FP16==1
 
-__kernel void savebnd(__global float *vx,         __global float *vy,      __global float *vz,
-                      __global float *sxx,        __global float *syy,     __global float *szz,
-                      __global float *sxy,        __global float *syz,     __global float *sxz,
-                      __global float *vxbnd,      __global float *vybnd,   __global float *vzbnd,
-                      __global float *sxxbnd,     __global float *syybnd,  __global float *szzbnd,
-                      __global float *sxybnd,     __global float *syzbnd,  __global float *sxzbnd)
+#define __prec float
+#define __prec2 float2
+#define DIV 2
+
+#else
+
+#define __prec half
+#define __prec2 half2
+#define DIV 2
+
+#endif
+
+FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 *szz,
+                                   GLOBARG __prec2 *vx, GLOBARG __prec2 *vz,
+                                   GLOBARG __prec2 *sxxbnd, GLOBARG __prec2 *sxzbnd, GLOBARG __prec2 *szzbnd,
+                                   GLOBARG __prec2 *vxbnd, GLOBARG __prec2 *vzbnd)
 {
     
-#if num_devices==1 & NLOCALP==1
-    int gid = get_global_id(0);
-    int NXbnd = (NX- 2*fdoh- 2*nab);
-    int NZbnd = (NZ- 2*fdoh- 2*nab);
-    int i=0,k=0;
+    int i,k,indv;
     int gidf;
     
-    if (gid<NZbnd*fdoh){//front
+#if NUM_DEVICES==1 & NLOCALP==1
+#ifdef __OPENCL_VERSION__
+    int gid = get_global_id(0);
+#else
+    int gid = blockIdx.x*blockDim.x + threadIdx.x;
+#endif
+    int NXbnd = (NX- 2*FDOH- 2*NAB);
+    #if FREESURF==0
+    int NZbnd = (NZ- 2*FDOH/DIV- 2*NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH+NAB;
+    #else
+    int NZbnd = (NZ- 2*FDOH/DIV- NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH;
+    #endif
+
+    if (gid<NZbnd*FDOH){//front
         gidf=gid;
         i=gidf/NZbnd+lbnd;
-        k=gidf%NZbnd+lbnd;
+        k=gidf%NZbnd+lbnds/DIV;
     }
-    else if (gid<NZbnd*2*fdoh){//back
-        gidf=gid-NZbnd*fdoh;
-        i=gidf/(NZbnd)+NXbnd+nab;
-        k=gidf%NZbnd+lbnd;
+    else if (gid<NZbnd*FDOH*2){//back
+        gidf=gid-NZbnd*FDOH;
+        i=gidf/(NZbnd)+NXbnd+NAB;
+        k=gidf%NZbnd+lbnds/DIV;
+        
     }
-    else if (gid<NZbnd*2*fdoh+(NXbnd - 2*fdoh)*fdoh){//up
-        gidf=gid-NZbnd*2*fdoh;
-        i=gidf%(NXbnd - 2*fdoh)+lbnd+fdoh;
-        k=gidf/(NXbnd- 2*fdoh)+lbnd;
-    }
-    else if (gid<NZbnd*2*fdoh+(NXbnd- 2*fdoh)*2*fdoh){//bottom
-        gidf=gid-NZbnd*2*fdoh-(NXbnd- 2*fdoh)*fdoh;
-        i=gidf%(NXbnd- 2*fdoh)+lbnd+fdoh;
-        k=gidf/(NXbnd- 2*fdoh)+NZbnd+nab;
-    }
+    else if (gid<NZbnd*FDOH*2+(NXbnd - 2*FDOH)*FDOH/DIV){//bottom
+        gidf=gid-NZbnd*FDOH*2;
+        i=gidf%(NXbnd- 2*FDOH)+lbnd+FDOH;
+        k=gidf/(NXbnd- 2*FDOH)+NZbnd+lbnds/DIV-FDOH/DIV;
 
+    }
+    else if (gid<NZbnd*FDOH*2+(NXbnd- 2*FDOH)*2*FDOH/DIV){//up
+        gidf=gid-NZbnd*FDOH*2-(NXbnd- 2*FDOH)*FDOH/DIV;
+        i=gidf%(NXbnd - 2*FDOH)+lbnd+FDOH;
+        k=gidf/(NXbnd- 2*FDOH)+lbnds/DIV;
+    }
     else{
         return;
     }
-    
 
-#elif dev==0 & MYGROUPID==0
-    
+
+#elif DEVID==0 & MYLOCALID==0
+
+#ifdef __OPENCL_VERSION__
     int gid = get_global_id(0);
-    int NXbnd = (NX- 2*fdoh- nab);
-    int NZbnd = (NZ- 2*fdoh-2*nab);
-    int i,k;
-    int gidf;
-    
-    if (gid<NZbnd*fdoh){//front
-        gidf=gid;
-        i=gidf/NZbnd+lbnd;
-        k=gidf%NZbnd+lbnd;
-    }
-
-    else if (gid<NZbnd*fdoh+(NXbnd-fdoh)*fdoh){//up
-        gidf=gid-NZbnd*fdoh;
-        i=gidf%(NXbnd-fdoh)+lbnd+fdoh;
-        k=gidf/(NXbnd-fdoh)+lbnd;
-    }
-    else if (gid<NZbnd*fdoh+(NXbnd-fdoh)*2*fdoh){//bottom
-        gidf=gid-NZbnd*fdoh-(NXbnd-fdoh)*fdoh;
-        i=gidf%(NXbnd-fdoh)+lbnd+fdoh;
-        k=gidf/(NXbnd-fdoh)+NZbnd+nab;
-    }
-    
-    else{
-        return;
-    }
-
-#elif dev==num_devices-1 & MYGROUPID==NLOCALP-1
-    
-    int gid = get_global_id(0);
-    int NXbnd = (NX- 2*fdoh- nab);
-    int NZbnd = (NZ- 2*fdoh-2*nab);
-    int i,k;
-    int gidf;
-    
-    if (gid<NZbnd*fdoh){//back
-        gidf=gid;
-        i=gidf/(NZbnd)+NXbnd;//+nab;
-        k=gidf%NZbnd+lbnd;
-    }
-    
-    else if (gid<NZbnd*fdoh+(NXbnd-fdoh)*fdoh){//up
-        gidf=gid-NZbnd*fdoh;
-        i=gidf%(NXbnd-fdoh)+fdoh;
-        k=gidf/(NXbnd-fdoh)+lbnd;
-    }
-    else if (gid<NZbnd*fdoh+(NXbnd-fdoh)*2*fdoh){//bottom
-        gidf=gid-NZbnd*fdoh-(NXbnd-fdoh)*fdoh;
-        i=gidf%(NXbnd-fdoh)+fdoh;
-        k=gidf/(NXbnd-fdoh)+NZbnd+nab;
-    }
-    
-    else{
-        return;
-    }
-    
-    
-#else 
-    
-    int gid = get_global_id(0);
-    int NXbnd = (NX- 2*fdoh);
-    int NZbnd = (NZ- 2*fdoh-2*nab);
-    int i,k;
-    int gidf;
-    
-
-    if (gid<(NXbnd)*fdoh){//up
-        gidf=gid;
-        i=gidf%(NXbnd)+fdoh;
-        k=gidf/(NXbnd)+lbnd;
-    }
-    else if (gid<NZbnd*fdoh+(NXbnd)*2*fdoh){//bottom
-        gidf=gid-(NXbnd)*fdoh;
-        i=gidf%(NXbnd)+fdoh;
-        k=gidf/(NXbnd)+NZbnd+nab;
-    }
-    
-    else{
-        return;
-    }
-    
+#else
+    int gid = blockIdx.x*blockDim.x + threadIdx.x;
+#endif
+    int NXbnd = (NX- 2*FDOH- NAB);
+#if FREESURF==0
+    int NZbnd = (NZ- 2*FDOH/DIV- 2*NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH+NAB;
+#else
+    int NZbnd = (NZ- 2*FDOH/DIV- NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH;
 #endif
 
+    if (gid<NZbnd*FDOH){//front
+        gidf=gid;
+        i=gidf/NZbnd+lbnd;
+        k=gidf%NZbnd+lbnds/DIV;
+    }
+
+    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*FDOH/DIV){//bottom
+        gidf=gid-NZbnd*FDOH;
+        i=gidf%(NXbnd-FDOH)+lbnd+FDOH;
+        k=gidf/(NXbnd-FDOH)+NZbnd+lbnds/DIV-FDOH/DIV;
+
+    }
+    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*2*FDOH/DIV){//up
+        gidf=gid-NZbnd*FDOH-(NXbnd-FDOH)*FDOH/DIV;
+        i=gidf%(NXbnd-FDOH)+lbnd+FDOH;
+        k=gidf/(NXbnd-FDOH)+lbnds/DIV;
+    }
+    else{
+        return;
+    }
+
+#elif DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+
+#ifdef __OPENCL_VERSION__
+    int gid = get_global_id(0);
+#else
+    int gid = blockIdx.x*blockDim.x + threadIdx.x;
+#endif
+    int NXbnd = (NX- 2*FDOH- NAB);
+#if FREESURF==0
+    int NZbnd = (NZ- 2*FDOH/DIV- 2*NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH+NAB;
+#else
+    int NZbnd = (NZ- 2*FDOH/DIV- NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH;
+#endif
+
+    if (gid<NZbnd*FDOH){//back
+        gidf=gid;
+        i=gidf/(NZbnd)+NXbnd;//+NAB;
+        k=gidf%NZbnd+lbnds/DIV;
+    }
+
+    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*FDOH/DIV){//bottom
+        gidf=gid-NZbnd*FDOH;
+        i=gidf%(NXbnd-FDOH)+FDOH;
+        k=gidf/(NXbnd-FDOH)+NZbnd+lbnds/DIV-FDOH/DIV;
+
+    }
+    else if (gid<NZbnd*FDOH+(NXbnd-FDOH)*2*FDOH/DIV){//up
+        gidf=gid-NZbnd*FDOH-(NXbnd-FDOH)*FDOH/DIV;
+        i=gidf%(NXbnd-FDOH)+FDOH;
+        k=gidf/(NXbnd-FDOH)+lbnds/DIV;
+    }
+    else{
+        return;
+    }
+
+
+#else
+
+#ifdef __OPENCL_VERSION__
+    int gid = get_global_id(0);
+#else
+    int gid = blockIdx.x*blockDim.x + threadIdx.x;
+#endif
+    int NXbnd = (NX- 2*FDOH);
+#if FREESURF==0
+    int NZbnd = (NZ- 2*FDOH/DIV- 2*NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH+NAB;
+#else
+    int NZbnd = (NZ- 2*FDOH/DIV- NAB/DIV);
+    int lbnd = FDOH+NAB;
+    int lbnds = FDOH;
+#endif
+    if (gid<(NXbnd)*FDOH/DIV){//bottom
+        gidf=gid;
+        i=gidf%(NXbnd)+FDOH;
+        k=gidf/(NXbnd)+NZbnd+lbnds/DIV-FDOH/DIV;
+
+    }
+    else if (gid<NZbnd*FDOH+(NXbnd)*2*FDOH/DIV){//up
+        gidf=gid-(NXbnd)*FDOH/DIV;
+        i=gidf%(NXbnd)+FDOH;
+        k=gidf/(NXbnd)+lbnds/DIV;
+    }
+    else{
+        return;
+    }
+
+#endif
+    
+    indv = i*NZ+k;
 #if ND==2
-    vxbnd[gid]=vx(k,i);
-    vzbnd[gid]=vz(k,i);
-    sxxbnd[gid]=sxx(k,i);
-    szzbnd[gid]=szz(k,i);
-    sxzbnd[gid]=sxz(k,i);
+    vxbnd[gid]=vx[indv];
+    vzbnd[gid]=vz[indv];
+    sxxbnd[gid]=sxx[indv];
+    szzbnd[gid]=szz[indv];
+    sxzbnd[gid]=sxz[indv];
 #endif
 #if ND==21
-    vybnd[gid]=vy(k,i);
-    sxybnd[gid]=sxy(k,i);
-    syzbnd[gid]=syz(k,i);
+    vybnd[gid]=vy[indv];
+    sxybnd[gid]=sxy[indv];
+    syzbnd[gid]=syz[indv];
 #endif
     
 }

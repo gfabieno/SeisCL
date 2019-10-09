@@ -33,10 +33,9 @@ int butterworth(float * data, float fcl, float fch, float dt, int NT, int tmax, 
     GMALLOC(buf,sizeof(float)*nfft);
     GMALLOC(H,sizeof(float)*(nfft/2+1));
     GMALLOC(bufout,sizeof(kiss_fft_cpx)*nfft);
-    
-    memset(buf,0,sizeof(float)*nfft);
-    if (!(stf = kiss_fftr_alloc( nfft ,0 ,0,0))) {state=1;fprintf(stderr,"Butterworth failed\n");};
-    if (!(sti = kiss_fftr_alloc( nfft ,1 ,0,0))) {state=1;fprintf(stderr,"Butterworth failed\n");};
+
+    if (!(stf = kiss_fftr_alloc( nfft ,0 ,0,0))) {state=1;fprintf(stderr,"Error: Butterworth failed\n");};
+    if (!(sti = kiss_fftr_alloc( nfft ,1 ,0,0))) {state=1;fprintf(stderr,"Error: Butterworth failed\n");};
 
     
     for (t=0;t<nfft/2+1;t++){
