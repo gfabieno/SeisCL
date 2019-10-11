@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 plt.interactive(False)
 import sys
 sys.path.append('../')
-from python.SeisCL import SeisCL
+from SeisCL import SeisCL
 from analytical.viscoelastic import viscoelastic_3D, viscoelastic_2D
 from analytical import garvin2, lamb3D
 
