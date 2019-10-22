@@ -5,8 +5,8 @@ Modeling is performed with finite-difference in the time-domain, and can be eith
 isotropic acoustic, elastic or viscoelastic.
 SeisCL can be run either on GPUs with CUDA or OpenCL, or CPUs with OpenCL.
 Model decomposition and shot parallelization allows using multiple GPUs/nodes.
-Although written is C/CUDA/OpenCL, a [python interface](SeisCL/SeisCL.py) (Python 3) is provided for implementing the
-inversion/imaging workflows.
+Although written is C/CUDA/OpenCL, a [python interface](SeisCL/SeisCL.py) (Python 3)
+is provided for implementing the inversion/imaging workflows.
 
 Cite this publication if you use this software:
 
@@ -82,8 +82,8 @@ root directory of the repo
 ## Testing
 
 Several tests can be found in ./tests, wihtin two scripts:
-* [test_consistency.py](tests/test_consistency.py), which test that model decomposition, floating point precision options and gradient calculation
-are accurate and working,
+* [test_consistency.py](tests/test_consistency.py), which test that model decomposition,
+floating point precision options and gradient calculation are accurate and working,
 * [test_accuracy.py](tests/test_accuracy.py), which contains comparison with different analytical solutions. For the
 moment, we have analytical solutions for a 3D and 2D homogenous (visco)elastic unbounded space
 and 3D and 2D solutions for an elastic half-space (Lamb and Garvins's problem). See those

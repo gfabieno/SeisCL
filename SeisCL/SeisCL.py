@@ -49,8 +49,6 @@ class SeisCL():
                 self.with_docker = True
         else:
             raise SeisCLError("No working SeisCL program found")
-        
-
 
         #_____________________Simulation constants _______________________
         self.csts = {}
@@ -123,21 +121,11 @@ class SeisCL():
         self.csts['movout'] = 0            #Output movie every n frames
         self.csts['restype'] = 0           #Type of costfunction 0: raw seismic trace cost function. 1: Migration
         self.csts['inputres'] = 0          #Input the residuals for gradient computation
-
-         
-        # Variable for data maipulation, always equal to the self.csts member
-        # (see setter)
-        self.src_pos = np.empty((5,0))
-        self.rec_pos = np.empty((8,0))
-        self.src = np.empty((self.csts['NT'],0))
         
-        #For data manipulation inside this class
+        # These variables list all available sources and receivers
         self.src_pos_all = np.empty((5,0))
         self.rec_pos_all = np.empty((8,0))
-        self.allshotids = []
-        self.srcids = np.empty((0,0))
-        self.recids = np.empty((0,0))
-        self.read_src = False
+        self.src_all = None
 
         self.mute = None
         self.mute_window = np.empty((4,0))
@@ -170,11 +158,12 @@ class SeisCL():
         self.__file_datalist = file_datalist
         if self.file_datalist:
             mat = h5.File(file_datalist, 'r')
-            fields = {'src_pos': 'src_pos_all', 'rec_pos': 'rec_pos_all'}
+            fields = {'src_pos': 'src_pos_all',
+                      'rec_pos': 'rec_pos_all',
+                      'src': 'src_all'}
             for word in fields.keys():
                 data = mat[word]
-                setattr(self, fields[word], np.transpose(data[:,:]) )
-            self.allshotids = self.src_pos_all[3,:]
+                setattr(self, fields[word], np.transpose(data))
     
     #Params returns the list of parameters required by the simulation constants
     @property
@@ -214,40 +203,40 @@ class SeisCL():
     #The variable src_pos, rec_pos and src must always be reflected 
     #in self.csts to be written
     @property
-    def src_pos(self):
+    def _src_pos(self):
         return self.csts['src_pos']
 
-    @src_pos.setter
-    def src_pos(self, src_pos):
-        if not type(src_pos) is np.ndarray:
+    @_src_pos.setter
+    def _src_pos(self, _src_pos):
+        if not type(_src_pos) is np.ndarray:
             raise TypeError('src_pos must be a numpy arrays')
-        if src_pos.shape[0] != 5:
+        if _src_pos.shape[0] != 5:
             raise TypeError('src_pos must be a numpy arrays with dim 5x num of src')
-        self.csts['src_pos'] = src_pos
+        self.csts['src_pos'] = _src_pos
         
     @property
-    def rec_pos(self):
+    def _rec_pos(self):
         return self.csts['rec_pos']
 
-    @rec_pos.setter
-    def rec_pos(self, rec_pos):
-        if not type(rec_pos) is np.ndarray:
+    @_rec_pos.setter
+    def _rec_pos(self, _rec_pos):
+        if not type(_rec_pos) is np.ndarray:
             raise TypeError('rec_pos must be a numpy arrays')
-        if rec_pos.shape[0] != 8:
+        if _rec_pos.shape[0] != 8:
             raise TypeError('rec_pos must be a numpy arrays with dim 8x num of rec')
-        self.csts['rec_pos'] = rec_pos
+        self.csts['rec_pos'] = _rec_pos
         
     @property
-    def src(self):
+    def _src(self):
         return self.csts['src']
 
-    @src.setter
-    def src(self, src):
-        if not type(src) is np.ndarray:
+    @_src.setter
+    def _src(self, _src):
+        if not type(_src) is np.ndarray:
             raise TypeError('src must be a numpy arrays')
-        if src.shape[0] != self.csts['NT']:
+        if _src.shape[0] != self.csts['NT']:
             raise TypeError('src must be a numpy arrays with dim NT x num of src')
-        self.csts['src'] = src
+        self.csts['src'] = _src
 
     @property
     def to_load_names(self):
@@ -296,22 +285,7 @@ class SeisCL():
         if workdir is None:
             workdir = self.workdir
         
-        self.srcids = np.empty((0, 0), 'int')
-        self.recids = np.empty((0, 0), 'int')
-        if len(np.atleast_1d(jobids)) > 1:
-            shots = np.sort(jobids)
-        else:
-            shots = np.atleast_1d(jobids)
-        for shot in shots:
-            src_to_append = np.where(self.src_pos_all[3, :].astype(int) == shot)
-            self.srcids = np.append(self.srcids, src_to_append)
-            rec_to_append = np.where(self.rec_pos_all[3, :].astype(int) == shot)
-            self.recids = np.append(self.recids, rec_to_append)
-        if len(self.srcids) <= 0:
-            raise ValueError('No shot found')
-        self.src_pos = self.src_pos_all[:, self.srcids]
-        self.rec_pos = self.rec_pos_all[:, self.recids]
-        self.prepare_data()
+        self.prepare_data(jobids)
         if withgrad:
             self.csts['gradout'] = 1
         else:
@@ -509,11 +483,11 @@ class SeisCL():
         if filename is None:
             filename = self.file_din
         if 'src_pos' not in data:
-            data['src_pos'] = self.src_pos
+            data['src_pos'] = self._src_pos
         if 'rec_pos' not in data:
-            data['rec_pos'] = self.rec_pos
+            data['rec_pos'] = self._rec_pos
         if 'src' not in data:
-            data['src'] = self.src
+            data['src'] = self._src
         h5mat.savemat(os.path.join(workdir, filename),
                       data,
                       appendmat=False,
@@ -561,24 +535,31 @@ class SeisCL():
                       store_python_metadata=True,
                       truncate_existing=True)
 
-    def read_srcs(self, workdir=None):
+    def invert_source(self, src, datao, datam, srcid=None):
         """
-        Read the source signal for SeisCL file
-
-        @params:
-        workdir (str): The directory in which to write SeisCL files
-
-        @returns:
-
+            Invert for the source signature
+            
+            @params:
+            src (np.array): The source function
+            datao (np.array): The observed seismogram. Time should be axis 0.
+            datam (np.array): The modeled seismogram. Time should be axis 0.
+            srcid (int): The source id. If provided, will overwrite the source
+                         function of srcid in self.file_datalist, so new modeling
+                         will use the updated source.
+            
+            @returns:
+            An array containing the updated source
+        
         """
-        if workdir is None:
-            workdir = self.workdir
-        try:
-            mat = h5.File(os.path.join(workdir, self.file_datalist), 'r')
-            data = mat['src']
-            setattr(self, 'src', np.transpose(data[self.srcids,:]))
-        except :
-            raise SeisCLError('could not read src\n')
+        
+        Dm = np.fft.fft(datam, axis=0)
+        Do = np.fft.fft(datao, axis=0)
+        S = np.fft.fft(np.squeeze(src), axis=0)
+        A = np.sum(np.conj(Dm)*Do, axis=1)/np.sum(Dm * np.conj(Dm), axis=1)
+        src_new = np.real(np.fft.ifft(A*S[:]))
+        if srcid is not None:
+            self.src_all[:, srcid] = src_new
+        return src_new
 
     def write_model(self, params, workdir=None):
         """
@@ -603,7 +584,7 @@ class SeisCL():
                       store_python_metadata=True,
                       truncate_existing=True)
         
-    def prepare_data(self):
+    def prepare_data(self, jobids):
         """
         Prepares receivers and sources arrays to launch computations
 
@@ -612,47 +593,50 @@ class SeisCL():
         @returns:
 
         """
+
+        # Find available source and receiver ids corresponding to jobids
+        if isinstance(jobids, int):
+            jobids = list(jobids)
+        srcids = [id for id in self.src_pos_all[3, :].astype(int)
+                  if id in jobids]
+        recids = [g for g, s in enumerate(self.rec_pos_all[3, :].astype(int))
+                  if s in jobids]
+        if len(srcids) <= 0:
+            raise ValueError('No shot found')
+
+        # Assign the found sources and reveivers to be computed
+        self._src_pos = self.src_pos_all[:, srcids]
+        # If no shot signature were provided, fill the source with generated
+        # wavelets
+        if self.src_all is None:
+            self.src_all = np.stack([self.wavelet_generator()]
+                                    * self.src_pos_all.shape[1], 1)
+        self._src = self.src_all[:, srcids]
+        self._rec_pos = self.rec_pos_all[:, recids]
+
+        # Remove receivers not located between maximum and minumum offset
         validrec=[]
-        for ii in range(0, self.rec_pos.shape[1] ):
-            srcid = np.where(self.src_pos[3,:] == self.rec_pos[3, ii])
-            offset = np.sqrt(np.square(self.rec_pos[0, ii]-self.src_pos[0, srcid])
-                             +np.square(self.rec_pos[1, ii]-self.src_pos[1, srcid])
-                             +np.square(self.rec_pos[2, ii]-self.src_pos[2, srcid])
-                             )
+        for ii in range(0, self._rec_pos.shape[1] ):
+            srcid = np.where(self._src_pos[3,:] == self._rec_pos[3, ii])
+            offset = np.sqrt( (self._rec_pos[0, ii]-self._src_pos[0, srcid])**2
+                             +(self._rec_pos[1, ii]-self._src_pos[1, srcid])**2
+                             +(self._rec_pos[2, ii]-self._src_pos[2, srcid])**2)
             if offset <= self.offmax and offset >= self.offmin:
                 validrec.append(ii)
-        self.rec_pos = self.rec_pos[:, validrec]
-        self.recids = self.recids[validrec]
-        self.rec_pos[4, :] = [x+1 for x in self.recids]
+        self._rec_pos = self._rec_pos[:, validrec]
+        recids = [recids[id] for id in validrec]
+        self._rec_pos[4, :] = [x+1 for x in recids]
 
-        if self.read_src:
-            self.read_srcs()
-        else:
-            self.fill_src()
-      
+        # Assign the mute windows if provided
         if np.any(self.mute_window):
             self.mute = np.transpose(np.tile(self.mute_window,
-                                             (self.rec_pos.shape[1], 1)
-                                             ))
+                                             (self._rec_pos.shape[1], 1)))
             if np.any(self.mute_picks):
-                for ii in range(0, self.recids.size):
-                    self.mute[:3, ii] = self.mute[:3, ii] + self.mute_picks[self.recids[ii]]
-
-    def fill_src(self):
-        """
-        Fill the source array with a signal generated by self.wavelet_generator
-
-        @params:
-
-        @returns:
-
-        """
-        src = self.wavelet_generator()
-
-        nstot = self.src_pos.shape[1]
-        self.src = np.stack([src] * nstot, 1)
+                for ii in range(0, recids.size):
+                    self.mute[:3, ii] = self.mute[:3, ii] + self.mute_picks[recids[ii]]
 
     def ricker_wavelet(self):
+        
         tmin = -1.5 / self.csts['f0']
         t = np.linspace(tmin,
                         (self.csts['NT']-1) * self.csts['dt'] + tmin,
@@ -666,7 +650,8 @@ class SeisCL():
     def save_segy(self, data, name):
 
         dt = self.csts["dt"]
-        out = Stream(Trace(data[:,ii], header=dict(delta=dt)) for ii in range(data.shape[1]))
+        out = Stream(Trace(data[:,ii], header=dict(delta=dt))
+                     for ii in range(data.shape[1]))
         out.write(name, format='SEGY', data_encoding=5)
 
 
@@ -698,9 +683,7 @@ if __name__ == "__main__":
     sx = np.array([seis.csts['N'][1]/2]) * seis.csts['dh']
     sz = np.array([seis.csts['N'][0]/2]) * seis.csts['dh']
     sid = sx*0
-    seis.src_pos = np.stack([sx, sx * 0, sz, sid, sx * 0 + 100], axis=0)
-    seis.src_pos_all = seis.src_pos
-    seis.fill_src()
+    seis.src_pos_all = np.stack([sx, sx * 0, sz, sid, sx * 0 + 100], axis=0)
     
     l1 = (seis.csts['nab'] + 1) * seis.csts['dh']
     l2 = (seis.csts['N'][1] - seis.csts['nab']) * seis.csts['dh']
@@ -708,10 +691,8 @@ if __name__ == "__main__":
     gsid = np.concatenate([s + gx * 0 for s in sid], axis=0)
     gz = gx * 0 + (seis.csts['N'][0]//2) * seis.csts['dh']
     gid = np.arange(0, len(gx))
-    seis.rec_pos = np.stack(
-                            [gx, gx * 0, gz, gsid, gid, gx * 0 + 2, gx * 0, gx * 0],
-                            axis=0)
-    seis.rec_pos_all = seis.rec_pos
+    seis.rec_pos_all = np.stack([gx, gx * 0, gz, gsid, gid,
+                                 gx * 0 + 2, gx * 0, gx * 0], axis=0)
 
     seis.set_forward(seis.src_pos_all[3,:], {"vp": vp, "rho": rho, "vs": vs},
                      withgrad=False)
