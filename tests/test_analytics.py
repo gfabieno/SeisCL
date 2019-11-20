@@ -12,6 +12,8 @@ Args:
 --plot: If 1, will create and show plots
 
 """
+##TODO Analyic for 3D viscoelastic with free surface
+
 import argparse
 import numpy as np
 import os

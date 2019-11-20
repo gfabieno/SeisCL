@@ -372,6 +372,8 @@ class SeisCL():
         if stderr:
             raise SeisCLError(stderr.decode())
 
+        return stdout.decode()
+
     def read_data(self, workdir=None):
         """
         Read the seismogram output by SeisCL
