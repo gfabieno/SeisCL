@@ -56,7 +56,7 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,   GLOBARG __prec2 *vy,
     
     __prec f, g, h;
     __cprec  vxx2, vyy2, vzz2;
-    int m;
+    int m, l;
     int indp = ( (gidx-FDOH)*(NY-2*FDOH)*(NZ*DIV-2*FDOH)
                 +(gidy-FDOH)*(NZ*DIV-2*FDOH)
                 +(gidz-FDOH));
@@ -65,7 +65,6 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,   GLOBARG __prec2 *vy,
      a stress free surface (method of imaging, Levander, 1988)*/
     szz[indv(gidz, gidy, gidx)]=0.0;
     #if LVE>0
-        int l;
         for (l=0; l<LVE; l++){
             rzz[l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz]=0.0;
         }
@@ -99,8 +98,8 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,   GLOBARG __prec2 *vy,
     #else
         float b,d,e, sumxx, sumyy;
         /* partially updating sxx and syy in the same way*/
-        f=mu[indp]*(__prec)2.0*((__prec)1.0+L*taus[indp]);
-        g=M[indp]*(1.0+L*taup[indp]);
+        f=mu[indp]*(__prec)2.0*((__prec)1.0+LVE*taus[indp]);
+        g=M[indp]*(1.0+LVE*taup[indp]);
         h=-((g-f)*(g-f)*(vxx+vyy)/g)-((g-f)*vzz);
     
         sumxx=0;sumyy=0;

@@ -20,6 +20,9 @@
 /*This is the kernel that implement the free surface condition in 3D*/
 
 /*Define useful macros to be able to write a matrix formulation in 2D with OpenCl */
+
+//TODO Correct viscoelastic
+
 #define rho(z,y,x)     rho[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define rip(z,y,x)     rip[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
 #define rjp(z,y,x)     rjp[((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
@@ -118,9 +121,12 @@ FUNDEF void freesurface(        GLOBARG float *vx,         GLOBARG float *vy,   
     /*Mirroring the components of the stress tensor to make
      a stress free surface (method of imaging, Levander, 1988)*/
     szz(gidz, gidy, gidx)=0.0;
-#if LVE>0
-    rzz(gidz, gidy, gidx)=0.0;
-#endif
+    #if LVE>0
+    int l;
+    for (l=0; l<LVE; l++){
+        rzz[l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz]=0.0;
+    }
+    #endif
     
     for (m=1; m<=FDOH; m++) {
         szz(gidz-m, gidy, gidx)=-szz(gidz+m, gidy, gidx);
