@@ -281,9 +281,7 @@ def lamb3D_test(testtype = "inline", vp=3500, vs=2000, rho=2000, taup=0, taus=0,
     else:
         raise ValueError("testype must be either inline or crossline ")
 
-    seis.src_pos = np.stack([[sx], [sy], [sz], [0], [srctype]], axis=0)
-    seis.src_pos_all = seis.src_pos
-    seis.fill_src()
+    seis.src_pos_all = np.stack([[sx], [sy], [sz], [0], [srctype]], axis=0)
 
     gsid = gz * 0
     gid = np.arange(0, len(gz))
@@ -346,9 +344,7 @@ def garvin2D_test(vp=3500, vs=2000, rho=2000, taup=0, taus=0,N=300,
     srctype = 100
     rectype = 0
 
-    seis.src_pos = np.stack([[sx], [sy], [sz], [0], [srctype]], axis=0)
-    seis.src_pos_all = seis.src_pos
-    seis.fill_src()
+    seis.src_pos_all = np.stack([[sx], [sy], [sz], [0], [srctype]], axis=0)
 
     gsid = gz * 0
     gid = np.arange(0, len(gz))
@@ -432,9 +428,7 @@ def homogeneous_test(testname, vp=3500, vs=2000, rho=2000, taup=0, taus=0,
     else:
         raise ValueError("testype must be either inline or crossline ")
 
-    seis.src_pos = np.stack([[sx], [sy], [sz], [0], [2]], axis=0)
-    seis.src_pos_all = seis.src_pos
-    seis.fill_src()
+    seis.src_pos_all = np.stack([[sx], [sy], [sz], [0], [2]], axis=0)
 
     gsid = gz * 0
     gid = np.arange(0, len(gz))

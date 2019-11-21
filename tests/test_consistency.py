@@ -16,7 +16,7 @@ import sys
 import matplotlib.pyplot as plt
 import argparse
 sys.path.append('../')
-from python.SeisCL import SeisCL, SeisCLError
+from SeisCL.SeisCL import SeisCL, SeisCLError
 
 
 
@@ -281,8 +281,8 @@ def define_rec_src(seis):
         indz0 = seis.csts['nab']+5
 
     ii=0
-    seis.rec_pos = np.empty((8,0))
-    seis.src_pos = np.empty((5,0))
+    seis.rec_pos_all = np.empty((8,0))
+    seis.src_pos_all = np.empty((5,0))
     
     toappend=np.zeros((5,1))
     toappend[0,:]=(seis.csts['N'][-1]//2-15)*seis.csts['dh'] #(seis.csts['nab']+5)*seis.csts['dh']
@@ -291,18 +291,15 @@ def define_rec_src(seis):
     toappend[3,:]=ii
     toappend[4,:]=100
 
-    seis.src_pos=np.append(seis.src_pos, toappend, axis=1)
+    seis.src_pos_all=np.append(seis.src_pos_all, toappend, axis=1)
     for jj in range(0,seis.csts['N'][0]-seis.csts['nab']-indz0):
         toappend=np.zeros((8,1))
         toappend[0,:]=(seis.csts['N'][-1]//2+15)*seis.csts['dh']#(seis.csts['N'][1]-seis.csts['nab']-5)*seis.csts['dh']
         toappend[1,:]=(seis.csts['N'][1]//2)*seis.csts['dh']
         toappend[2,:]=(indz0+jj)*seis.csts['dh']
         toappend[3,:]=ii
-        toappend[4,:]=seis.csts['rec_pos'].shape[1]+1
-        seis.rec_pos=np.append(seis.rec_pos, toappend, axis=1)
-    seis.fill_src()
-    seis.rec_pos_all = seis.rec_pos
-    seis.src_pos_all = seis.src_pos
+        toappend[4,:]=seis.rec_pos_all.shape[1]+1
+        seis.rec_pos_all=np.append(seis.rec_pos_all, toappend, axis=1)
 
     return seis
 
