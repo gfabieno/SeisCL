@@ -208,7 +208,7 @@ CL_INT connect_devices(device ** dev, model * m)
             devid = (m->LID + i) % nalldevices ;
             allowed=1;
             for (j=0;j<m->n_no_use_GPUs;j++){
-                if (m->no_use_GPUs[j]!=devid){
+                if (m->no_use_GPUs[j]==devid){
                     allowed=0;
                 }
             }
