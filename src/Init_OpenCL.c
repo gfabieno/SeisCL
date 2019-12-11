@@ -265,7 +265,7 @@ CL_INT connect_devices(device ** dev, model * m)
         // Create a context with the specified devices
         if (!state) m->context = clCreateContext(NULL,
                                                  m->NUM_DEVICES,//1,
-                                                 selected_devices[i],
+                                                 selected_devices,
                                                  NULL,
                                                  NULL,
                                                  &state);
