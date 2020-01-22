@@ -656,7 +656,37 @@ class SeisCL():
                      for ii in range(data.shape[1]))
         out.write(name, format='SEGY', data_encoding=5)
 
+    def fill_src_rec_reg(self, dg=2, ds=5, dsx=2, dsz=2, dgsz=0):
 
+        NX = self.csts['NX']
+        dlx = self.csts['nab'] + dsx
+        if self.csts['freesurf'] == 0:
+            dlz = self.csts['nab'] + dsz
+        else:
+            dlz = dsz
+        gx = np.arange(dlx, NX - dlx, dg) * self.csts['dh']
+        gz = gx * 0 + (dlz + dgsz) * self.csts['dh']
+
+        for ii in range(dlx, NX - dlz, ds):
+            idsrc = self.src_pos_all.shape[1]
+            toappend = np.zeros((5, 1))
+            toappend[0, :] = (ii) * self.csts['dh']
+            toappend[1, :] = 0
+            toappend[2, :] = dlz * self.csts['dh']
+            toappend[3, :] = idsrc
+            toappend[4, :] = 100
+            self.src_pos_all = np.append(self.src_pos_all, toappend, axis=1)
+
+            gid = np.arange(0, len(gx)) + self.rec_pos_all.shape[1] + 1
+            toappend = np.stack([gx,
+                                 gx * 0,
+                                 gz,
+                                 gz * 0 + idsrc,
+                                 gid,
+                                 gx * 0 + 2,
+                                 gx * 0,
+                                 gx * 0], 0)
+            self.rec_pos_all = np.append(self.rec_pos_all, toappend, axis=1)
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
