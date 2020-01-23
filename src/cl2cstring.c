@@ -62,34 +62,36 @@ int main(int argc, char **argv) {
         fprintf(fh, "_source[] = \"");
         for (ii=0;ii<statbuf.st_size;ii++){
             ch = program_source[ii];
-            switch (ch) {
-                case '\"':
-                    fputs("\\\"", fh);
-                    break;
-                case '\'':
-                    fputs("\\\'", fh);
-                    break;
-                case '\\':
-                    fputs("\\\\", fh);
-                    break;
-                case '\a':
-                    fputs("\\a", fh);
-                    break;
-                case '\b':
-                    fputs("\\b", fh);
-                    break;
-                case '\n':
-                    fputs("\\n", fh);
-                    break;
-                case '\t':
-                    fputs("\\t", fh);
-                    break;
-                case '\0':
-                    break;
-                case '\r':
-                    break;
-                default:
-                    fputc(ch, fh);
+            if (ch >=0 && ch <=125){
+                switch (ch) {
+                    case '\"':
+                        fputs("\\\"", fh);
+                        break;
+                    case '\'':
+                        fputs("\\\'", fh);
+                        break;
+                    case '\\':
+                        fputs("\\\\", fh);
+                        break;
+                    case '\a':
+                        fputs("\\a", fh);
+                        break;
+                    case '\b':
+                        fputs("\\b", fh);
+                        break;
+                    case '\n':
+                        fputs("\\n", fh);
+                        break;
+                    case '\t':
+                        fputs("\\t", fh);
+                        break;
+                    case '\0':
+                        break;
+                    case '\r':
+                        break;
+                    default:
+                        fputc(ch, fh);
+                }
             }
         }
         fprintf(fh, "\";  ");
