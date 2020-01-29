@@ -397,10 +397,38 @@ class SeisCL():
             if word+"out" in mat:
                 datah5 = mat[word+"out"]
                 data = np.transpose(datah5)
-                output.append(data)  
+                output.append(data)
                 
         if not output:
             raise SeisCLError('Could not read data: variables not found')
+            
+        return output
+        
+    def read_movie(self, workdir=None):
+        """
+        Read the movie output by SeisCL
+
+        @params:
+        workdir (str): The directory in which to write SeisCL files
+
+        @returns:
+        output (list): A list containing each outputted variable
+        """
+        if workdir is None:
+            workdir = self.workdir
+        try:
+            mat = h5.File(workdir + "/" + self.file_movout, 'r')
+        except OSError:
+            raise SeisCLError('Could not read data')
+        output = []
+        for word in self.to_load_names:
+            if "mov" + word in mat:
+                datah5 = mat["mov" + word]
+                #data = np.transpose(datah5)
+                output.append(datah5)
+                
+        if not output:
+            raise SeisCLError('Could not read movie: variables not found')
             
         return output
     
