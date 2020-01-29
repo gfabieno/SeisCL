@@ -208,7 +208,7 @@ CL_INT connect_devices(device ** dev, model * m)
             devid = (m->LID + i) % nalldevices ;
             allowed=1;
             for (j=0;j<m->n_no_use_GPUs;j++){
-                if (m->no_use_GPUs[j]!=devid){
+                if (m->no_use_GPUs[j]==devid){
                     allowed=0;
                 }
             }
@@ -237,14 +237,17 @@ CL_INT connect_devices(device ** dev, model * m)
                                nalldevices,
                                devices,
                                NULL);
+        DEVICE *selected_devices=NULL;
+        GMALLOC(selected_devices, sizeof(cl_device_id)*m->NUM_DEVICES);
     
         for (i=0;i<m->NUM_DEVICES;i++){
-            __GUARD clGetDeviceInfo(devices[allow_devs[i]],
+            selected_devices[i] = devices[allow_devs[i]];
+            __GUARD clGetDeviceInfo(selected_devices[i],
                                     CL_DEVICE_VENDOR,
                                     sizeof(vendor_name),
                                     vendor_name,
                                     NULL);
-            __GUARD clGetDeviceInfo(devices[allow_devs[i]],
+            __GUARD clGetDeviceInfo(selected_devices[i],
                                     CL_DEVICE_NAME,
                                     sizeof(device_name),
                                     device_name,
@@ -262,27 +265,28 @@ CL_INT connect_devices(device ** dev, model * m)
         // Create a context with the specified devices
         if (!state) m->context = clCreateContext(NULL,
                                                  m->NUM_DEVICES,//1,
-                                                 devices,
+                                                 selected_devices,
                                                  NULL,
                                                  NULL,
                                                  &state);
     
         // Create command queues for each devices
         for (i=0;i<m->NUM_DEVICES;i++){
-            (*dev)[i].cudev = devices[allow_devs[i]];
+            (*dev)[i].cudev = selected_devices[i];
             (*dev)[i].context_ptr = &m->context;
             if (!state)
                 (*dev)[i].queue = clCreateCommandQueue(m->context,
-                                                   devices[allow_devs[i]],
+                                                   selected_devices[i],
                                                    0 ,
                                                    &state);
             if (!state)
                 (*dev)[i].queuecomm = clCreateCommandQueue(m->context,
-                                                       devices[allow_devs[i]],
+                                                       selected_devices[i],
                                                        0 ,
                                                        &state);
         }
         GFree(devices);
+        GFree(selected_devices);
     #else
 
         // Create command queues for each devices
