@@ -122,6 +122,8 @@ class SeisCL():
         self.csts['restype'] = 0           #Type of costfunction 0: raw seismic trace cost function. 1: Migration
         self.csts['inputres'] = 0          #Input the residuals for gradient computation
         
+        self.csts['FP16'] = 0              #FP16 computation: 0:FP32 1:FP32 vector, 2: FP16 IO 3: FP16 IO + COMP
+        
         # These variables list all available sources and receivers
         self.src_pos_all = np.empty((5,0))
         self.rec_pos_all = np.empty((8,0))
