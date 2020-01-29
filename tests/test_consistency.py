@@ -92,7 +92,7 @@ def test_backpropagation(seis, plot=False, ngpu=1, nmpi=1):
     seis.NP = 1
     seis.file_din = seis.workdir + '/SeisCL_din.mat'
 
-    seis.csts['MOVOUT'] = 1
+    seis.csts['movout'] = 1
     seis.csts['seisout'] = 1
     pars['vp'] = np.zeros(seis.csts['N']) + 3500
     pars['vp'][slices]= 4000
@@ -130,7 +130,7 @@ def test_backpropagation(seis, plot=False, ngpu=1, nmpi=1):
             print("failed:")
             print(msg)
 
-    seis.csts['MOVOUT'] = 0
+    seis.csts['movout'] = 0
     seis.csts['seisout'] = 2
     seis.csts['nmax_dev'] = 1
     seis.NP = 1
@@ -215,7 +215,7 @@ def test_fp16_grad(seis, ref=None, plot=False, ngpu=1, nmpi=1):
     seis.NP = 1
     seis.file_din = seis.workdir + '/SeisCL_din.mat'
 
-#    seis.csts['MOVOUT'] = 20
+#    seis.csts['movout'] = 20
 #    seis.csts['seisout'] = 1
     pars['vp'] = np.zeros(seis.csts['N']) + 3500
     pars['vp'][slices]= 4000

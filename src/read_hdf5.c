@@ -358,13 +358,13 @@ int readhdf5(struct filenames files, model * m) {
         __GUARD checkscalar(file_id, "/restype");
         __GUARD readvar(file_id, H5T_NATIVE_INT,   "/restype", &m->restype);
     }
-    if (!state) if (1==H5Lexists( file_id, "/HOUT", H5P_DEFAULT)){
-        __GUARD checkscalar(file_id, "/HOUT");
-        __GUARD readvar(file_id, H5T_NATIVE_INT,   "/HOUT", &m->HOUT);
+    if (!state) if (1==H5Lexists( file_id, "/Hout", H5P_DEFAULT)){
+        __GUARD checkscalar(file_id, "/Hout");
+        __GUARD readvar(file_id, H5T_NATIVE_INT,   "/Hout", &m->HOUT);
     }
-    if (!state) if (1==H5Lexists( file_id, "/MOVOUT", H5P_DEFAULT)){
-        __GUARD checkscalar(file_id, "/MOVOUT");
-        __GUARD readvar(file_id, H5T_NATIVE_INT,   "/MOVOUT", &m->MOVOUT);
+    if (!state) if (1==H5Lexists( file_id, "/movout", H5P_DEFAULT)){
+        __GUARD checkscalar(file_id, "/movout");
+        __GUARD readvar(file_id, H5T_NATIVE_INT,   "/movout", &m->MOVOUT);
     }
 
     if (H5Lexists( file_id, "/param_type", H5P_DEFAULT) ){
