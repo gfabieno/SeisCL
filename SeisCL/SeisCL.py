@@ -10,6 +10,7 @@ import subprocess
 import os
 import shutil
 from obspy.core import Trace, Stream
+from obspy.io.segy.segy import _read_segy
 
 class SeisCLError(Exception):
     pass
@@ -685,6 +686,11 @@ class SeisCL():
         out = Stream(Trace(data[:,ii], header=dict(delta=dt))
                      for ii in range(data.shape[1]))
         out.write(name, format='SEGY', data_encoding=5)
+
+    def read_segy(self, name):
+
+        segy = _read_segy(name)
+        return np.transpose(np.array([trace.data for trace in segy.traces]))
 
     def fill_src_rec_reg(self, dg=2, ds=5, dsx=2, dsz=2, dgsz=0):
 
