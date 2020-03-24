@@ -19,7 +19,7 @@
 
 /*This is the kernel that implement the free surface condition in 3D*/
 
-#define indv(z,y,x)  (x)*(NY*NZ*DIV)+(y)*(NZ*DIV)+(z)
+#define indv(z,y,x) (x)*(NY*NZ*DIV)+(y)*(NZ*DIV)+(z)
 
 FUNDEF void freesurface(GLOBARG __prec2 *vx,   GLOBARG __prec2 *vy,
                         GLOBARG __prec *vz,   GLOBARG __prec *sxx,
@@ -29,7 +29,8 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,   GLOBARG __prec2 *vy,
                         GLOBARG __prec *mu,   GLOBARG __prec *rxx,
                         GLOBARG __prec *ryy,  GLOBARG __prec *rzz,
                         GLOBARG __prec *taus, GLOBARG __prec *taup,
-                        GLOBARG float *eta, int pdir)
+                        GLOBARG float *eta, GLOBARG float *taper,
+                        int pdir)
 {
     /*Indice definition */
     #ifdef __OPENCL_VERSION__
@@ -66,7 +67,7 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,   GLOBARG __prec2 *vy,
     szz[indv(gidz, gidy, gidx)]=0.0;
     #if LVE>0
         for (l=0; l<LVE; l++){
-            rzz[l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz]=0.0;
+            rzz[l*NX*NY*NZ*DIV + gidx*NY*NZ*DIV + gidy*NZ*DIV +gidz]=0.0;
         }
     #endif
     
@@ -93,6 +94,26 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,   GLOBARG __prec2 *vy,
         f=mu[indp]*(__prec)2.0f;
         g=M[indp];
         h=-((g-f)*(g-f)*(vxx+vyy)/g)-((g-f)*vzz);
+        #if ABS_TYPE==2
+            {
+            if (gidy-FDOH<NAB){
+                    h*=taper[gidy-FDOH];
+            }
+            if (gidy>NY-NAB-FDOH-1){
+                    h*=taper[NY-FDOH-gidy-1];
+            }
+            #if DEVID==0 & MYLOCALID==0
+                if (gidx-FDOH<NAB){
+                    h*=taper[gidx-FDOH];
+                }
+            #endif
+            #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+                if (gidx>NX-NAB-FDOH-1){
+                    h*=taper[NX-FDOH-gidx-1];
+                }
+            #endif
+            }
+        #endif
         sxx[indv(gidz,gidy,gidx)]+=(__prec)pdir*h;
         syy[indv(gidz,gidy,gidx)]+=(__prec)pdir*h;
     #else
@@ -104,31 +125,81 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,   GLOBARG __prec2 *vy,
     
         sumxx=0;sumyy=0;
         for (l=0;l<LVE;l++){
-            sumxx+=rxx[l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz];
-            sumyy+=ryy[l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz];
+            sumxx+=rxx[l*NX*NY*NZ*DIV + gidx*NY*NZ*DIV + gidy*NZ*DIV +gidz];
+            sumyy+=ryy[l*NX*NY*NZ*DIV + gidx*NY*NZ*DIV + gidy*NZ*DIV +gidz];
         }
-    
-        sxx[indv(gidz,gidy,gidx)]+=(__prec)pdir*(h-(DT/2.0*sumxx));
-        syy[indv(gidz,gidy,gidx)]+=(__prec)pdir*(h-(DT/2.0*sumyy));
+        #if ABS_TYPE==2
+            {
+            if (gidy-FDOH<NAB){
+                    h*=taper[gidy-FDOH];
+                    sumxx*=taper[gidy-FDOH];
+                    sumyy*=taper[gidy-FDOH];
+            }
+            if (gidy>NY-NAB-FDOH-1){
+                    h*=taper[NY-FDOH-gidy-1];
+                    sumxx*=taper[NY-FDOH-gidy-1];
+                    sumyy*=taper[NY-FDOH-gidy-1];
+            }
+            #if DEVID==0 & MYLOCALID==0
+                if (gidx-FDOH<NAB){
+                    h*=taper[gidx-FDOH];
+                    sumxx*=taper[gidx-FDOH];
+                    sumyy*=taper[gidx-FDOH];
+                }
+            #endif
+            #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+                if (gidx>NX-NAB-FDOH-1){
+                    h*=taper[NX-FDOH-gidx-1];
+                    sumxx*=taper[NX-FDOH-gidx-1];
+                    sumyy*=taper[NX-FDOH-gidx-1];
+                }
+            #endif
+            }
+        #endif
+        sxx[indv(gidz,gidy,gidx)]+=(__prec)pdir*(h-(DT2*sumxx));
+        syy[indv(gidz,gidy,gidx)]+=(__prec)pdir*(h-(DT2*sumyy));
     
         /* updating the memory-variable rxx, ryy at the free surface */
     
-        d=2.0*mu[indp]*taus[indp];
-        e=M[indp]*taup[indp];
+        d=2.0*mu[indp]*taus[indp]/DT;
+        e=M[indp]*taup[indp]/DT;
         sumxx=0;sumyy=0;
         for (l=0;l<LVE;l++){
             b=eta[l]/(1.0+(eta[l]*0.5));
             h=b*(((d-e)*((f/g)-1.0)*(vxx+vyy))-((d-e)*vzz));
-            rxx[l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz]+=(__prec)pdir*h;
-            ryy[l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz]+=(__prec)pdir*h;
+            rxx[l*NX*NY*NZ*DIV + gidx*NY*NZ*DIV + gidy*NZ*DIV +gidz]+=(__prec)pdir*h;
+            ryy[l*NX*NY*NZ*DIV + gidx*NY*NZ*DIV + gidy*NZ*DIV +gidz]+=(__prec)pdir*h;
             
-            sumxx+=rxx[l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz];
-            sumyy+=ryy[l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz];
+            sumxx+=rxx[l*NX*NY*NZ*DIV + gidx*NY*NZ*DIV + gidy*NZ*DIV +gidz];
+            sumyy+=ryy[l*NX*NY*NZ*DIV + gidx*NY*NZ*DIV + gidy*NZ*DIV +gidz];
         }
-    
+        #if ABS_TYPE==2
+            {
+            if (gidy-FDOH<NAB){
+                    sumxx*=taper[gidy-FDOH];
+                    sumyy*=taper[gidy-FDOH];
+            }
+            if (gidy>NY-NAB-FDOH-1){
+                    sumxx*=taper[NY-FDOH-gidy-1];
+                    sumyy*=taper[NY-FDOH-gidy-1];
+            }
+            #if DEVID==0 & MYLOCALID==0
+                if (gidx-FDOH<NAB){
+                    sumxx*=taper[gidx-FDOH];
+                    sumyy*=taper[gidx-FDOH];
+                }
+            #endif
+            #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+                if (gidx>NX-NAB-FDOH-1){
+                    sumxx*=taper[NX-FDOH-gidx-1];
+                    sumyy*=taper[NX-FDOH-gidx-1];
+                }
+            #endif
+            }
+        #endif
         /*completely updating the stresses sxx and syy */
-        sxx[indv(gidz,gidy,gidx)]+=(__prec)pdir*(DT/2.0*sumxx);
-        syy[indv(gidz,gidy,gidx)]+=(__prec)pdir*(DT/2.0*sumyy);
+        sxx[indv(gidz,gidy,gidx)]+=(__prec)pdir*(DT2*sumxx);
+        syy[indv(gidz,gidy,gidx)]+=(__prec)pdir*(DT2*sumyy);
     
     #endif
 
