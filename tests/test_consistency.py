@@ -394,6 +394,15 @@ if __name__ == "__main__":
         seis.csts['L'] = 0
         seis.csts['freesurf'] = 1
         test_fp16_forward(seis, ref=None, plot=args.plot)
+        
+    name = "2D_visco_forward_surface"
+    if args.test == name or args.test == "all":
+        print("Testing %s" % name)
+        seis.csts['N'] = np.array([64,64])
+        seis.csts['ND'] = 2
+        seis.csts['L'] = 1
+        seis.csts['freesurf'] = 1
+        test_fp16_forward(seis, ref=None, plot=args.plot)
 
     name = "2D_elas_grad_surface"
     if args.test == name or args.test == "all":
@@ -410,6 +419,15 @@ if __name__ == "__main__":
         seis.csts['N'] = np.array([64,64,64])
         seis.csts['ND'] = 3
         seis.csts['L'] = 0
+        seis.csts['freesurf'] = 1
+        test_fp16_forward(seis, ref=None, plot=args.plot)
+        
+    name = "3D_visco_forward_surface"
+    if args.test == name or args.test == "all":
+        print("Testing %s" % name)
+        seis.csts['N'] = np.array([64,64,64])
+        seis.csts['ND'] = 3
+        seis.csts['L'] = 1
         seis.csts['freesurf'] = 1
         test_fp16_forward(seis, ref=None, plot=args.plot)
 
