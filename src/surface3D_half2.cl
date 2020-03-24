@@ -117,12 +117,12 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,   GLOBARG __prec2 *vy,
         sxx[indv(gidz,gidy,gidx)]+=(__prec)pdir*h;
         syy[indv(gidz,gidy,gidx)]+=(__prec)pdir*h;
     #else
-        float b,d,e, sumxx, sumyy;
+        __prec b,d,e, sumxx, sumyy;
         /* partially updating sxx and syy in the same way*/
-        f=mu[indp]*(__prec)2.0*((__prec)1.0+LVE*taus[indp]);
-        g=M[indp]*(1.0+LVE*taup[indp]);
+        f=mu[indp]*(__prec)2.0*((__prec)1.0+(__prec)LVE*taus[indp]);
+        g=M[indp]*((__prec)1.0+(__prec)LVE*taup[indp]);
         h=-((g-f)*(g-f)*(vxx+vyy)/g)-((g-f)*vzz);
-    
+
         sumxx=0;sumyy=0;
         for (l=0;l<LVE;l++){
             sumxx+=rxx[l*NX*NY*NZ*DIV + gidx*NY*NZ*DIV + gidy*NZ*DIV +gidz];
@@ -156,20 +156,20 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,   GLOBARG __prec2 *vy,
             #endif
             }
         #endif
-        sxx[indv(gidz,gidy,gidx)]+=(__prec)pdir*(h-(DT2*sumxx));
-        syy[indv(gidz,gidy,gidx)]+=(__prec)pdir*(h-(DT2*sumyy));
-    
+        sxx[indv(gidz,gidy,gidx)]+=(__prec)pdir*(h-((__prec)DT2*sumxx));
+        syy[indv(gidz,gidy,gidx)]+=(__prec)pdir*(h-((__prec)DT2*sumyy));
+
         /* updating the memory-variable rxx, ryy at the free surface */
-    
-        d=2.0*mu[indp]*taus[indp]/DT;
-        e=M[indp]*taup[indp]/DT;
+
+        d=(__prec)2.0*mu[indp]*taus[indp]/(__prec)DT;
+        e=M[indp]*taup[indp]/(__prec)DT;
         sumxx=0;sumyy=0;
         for (l=0;l<LVE;l++){
-            b=eta[l]/(1.0+(eta[l]*0.5));
-            h=b*(((d-e)*((f/g)-1.0)*(vxx+vyy))-((d-e)*vzz));
+            b=(__prec)(eta[l]/(1.0+(eta[l]*0.5)));
+            h=b*(((d-e)*((f/g)-(__prec)1.0)*(vxx+vyy))-((d-e)*vzz));
             rxx[l*NX*NY*NZ*DIV + gidx*NY*NZ*DIV + gidy*NZ*DIV +gidz]+=(__prec)pdir*h;
             ryy[l*NX*NY*NZ*DIV + gidx*NY*NZ*DIV + gidy*NZ*DIV +gidz]+=(__prec)pdir*h;
-            
+
             sumxx+=rxx[l*NX*NY*NZ*DIV + gidx*NY*NZ*DIV + gidy*NZ*DIV +gidz];
             sumyy+=ryy[l*NX*NY*NZ*DIV + gidx*NY*NZ*DIV + gidy*NZ*DIV +gidz];
         }
@@ -198,12 +198,11 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,   GLOBARG __prec2 *vy,
             }
         #endif
         /*completely updating the stresses sxx and syy */
-        sxx[indv(gidz,gidy,gidx)]+=(__prec)pdir*(DT2*sumxx);
-        syy[indv(gidz,gidy,gidx)]+=(__prec)pdir*(DT2*sumyy);
+        sxx[indv(gidz,gidy,gidx)]+=(__prec)pdir*((__prec)DT2*sumxx);
+        syy[indv(gidz,gidy,gidx)]+=(__prec)pdir*((__prec)DT2*sumyy);
     
     #endif
 
-    
 }
 
 

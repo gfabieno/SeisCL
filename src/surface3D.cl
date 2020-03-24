@@ -32,7 +32,7 @@ FUNDEF void freesurface(        GLOBARG float *vx,         GLOBARG float *vy,   
                               GLOBARG float *ryy,        GLOBARG float *rzz,
                               GLOBARG float *taus,       GLOBARG float *taup,     GLOBARG float *eta, GLOBARG float *K_x, GLOBARG float *psi_vx_x,
                               GLOBARG float *K_y, GLOBARG float *psi_vy_y,
-                              GLOBARG float *taper)
+                              GLOBARG float *taper, int pdir)
 {
     /*Indice definition */
     #ifdef __OPENCL_VERSION__
@@ -161,8 +161,8 @@ FUNDEF void freesurface(        GLOBARG float *vx,         GLOBARG float *vy,   
     float b,d,e, sumx, sumy;
     int indr;
     /* partially updating sxx and syy in the same way*/
-    f=mu[indp]*2.0*(1.0+L*taus[indp]);
-    g=M[indp]*(1.0+L*taup[indp]);
+    f=mu[indp]*2.0*(1.0+LVE*taus[indp]);
+    g=M[indp]*(1.0+LVE*taup[indp]);
     h=-((g-f)*(g-f)*(vxx+vyy)/g)-((g-f)*vzz);
 
     sumx=0;

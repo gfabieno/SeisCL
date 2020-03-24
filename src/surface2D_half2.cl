@@ -138,20 +138,19 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,  GLOBARG __prec *vz,
     sxx[indv(gidz,gidx)]+=(__prec)pdir*h;
 
     #else
-    float b,d,e;
+    __prec b,d,e;
     /* partially updating sxx  in the same way*/
-    f=mu[indp]*2.0*(1.0+LVE*taus[indp]);
-    g=M[indp]*(1.0+LVE*taup[indp]);
+    f=mu[indp]*(__prec)2.0*((__prec)1.0+(__prec)LVE*taus[indp]);
+    g=M[indp]*((__prec)1.0+(__prec)LVE*taup[indp]);
     h=-((g-f)*(g-f)*(vxx)/g)-((g-f)*vzz);
 
     sump=0;
     for (l=0;l<LVE;l++){
         sump+=rxx[(l)*NX*NZ*DIV+(gidx)*NZ*DIV+(gidz)];
     }
-    h+=-DT2*sump;
+    h+=-(__prec)DT2*sump;
     #if ABS_TYPE==2
         {
-
         #if DEVID==0 & MYLOCALID==0
             if (gidx-FDOH<NAB){
                 h*=taper[gidx-FDOH];
@@ -165,23 +164,21 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,  GLOBARG __prec *vz,
         #endif
         }
     #endif
-    sxx[indv(gidz,gidx)]+=(__prec)pdir* (h);
+    sxx[indv(gidz,gidx)]+=(__prec)pdir * (h);
 
     /* updating the memory-variable rxx at the free surface */
-    d=2.0*mu[indp]*taus[indp]/DT;
-    e=M[indp]*taup[indp]/DT;
+    d=(__prec)2.0*mu[indp]*taus[indp]/(__prec)DT;
+    e=M[indp]*taup[indp]/(__prec)DT;
 
     sump=0;
     for (l=0;l<LVE;l++){
-        b=eta[l]/(1.0+(eta[l]*0.5));
-        h=b*(((d-e)*((f/g)-1.0)*vxx)-((d-e)*vzz));
+        b=(__prec)(eta[l]/(1.0+(eta[l]*0.5)));
+        h=b*(((d-e)*((f/g)-(__prec)1.0)*vxx)-((d-e)*vzz));
         rxx[(l)*NX*NZ*DIV+(gidx)*NZ*DIV+(gidz)]+=(__prec)pdir*h;
         sump+=rxx[(l)*NX*NZ*DIV+(gidx)*NZ*DIV+(gidz)];
-        /*completely updating the stresses sxx  */
     }
     #if ABS_TYPE==2
         {
-
         #if DEVID==0 & MYLOCALID==0
             if (gidx-FDOH<NAB){
                 sump*=taper[gidx-FDOH];
@@ -195,7 +192,7 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,  GLOBARG __prec *vz,
         #endif
         }
     #endif
-    sxx[indv(gidz,gidx)]+=(__prec)pdir*(DT/2.0*sump);
+    sxx[indv(gidz,gidx)]+=(__prec)pdir*((__prec)DT2*sump);
 #endif
 
 }
