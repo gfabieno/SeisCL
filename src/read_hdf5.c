@@ -670,7 +670,6 @@ int readhdf5(struct filenames files, model * m) {
     /* Model file__________________________________
      __________________________________________________________________*/
 
-
     /* Open the model file. */
     file_id = -1;
     if (!state) file_id = H5Fopen(files.model, H5F_ACC_RDWR, H5P_DEFAULT);
@@ -701,7 +700,6 @@ int readhdf5(struct filenames files, model * m) {
     /* Close files. */
     if (file_id>=0) H5Fclose(file_id);
     file_id=-1;
-    
 
     /* Data in file__________________________________
      __________________________________________________________________*/
