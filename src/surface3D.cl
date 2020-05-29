@@ -21,18 +21,33 @@
 
 /*Define useful macros to be able to write a matrix formulation in 2D with OpenCl */
 
-//TODO Correct viscoelastic
+
+#define psi_vx_x(z,y,x) psi_vx_x[(x)*(NY-2*FDOH)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
+#define psi_vy_x(z,y,x) psi_vy_x[(x)*(NY-2*FDOH)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
+#define psi_vz_x(z,y,x) psi_vz_x[(x)*(NY-2*FDOH)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
+
+#define psi_vx_y(z,y,x) psi_vx_y[(x)*(2*NAB)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
+#define psi_vy_y(z,y,x) psi_vy_y[(x)*(2*NAB)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
+#define psi_vz_y(z,y,x) psi_vz_y[(x)*(2*NAB)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
+
+#define psi_vx_z(z,y,x) psi_vx_z[(x)*(NY-2*FDOH)*(2*NAB)+(y)*(2*NAB)+(z)]
+#define psi_vy_z(z,y,x) psi_vy_z[(x)*(NY-2*FDOH)*(2*NAB)+(y)*(2*NAB)+(z)]
+#define psi_vz_z(z,y,x) psi_vz_z[(x)*(NY-2*FDOH)*(2*NAB)+(y)*(2*NAB)+(z)]
 
 #define indv(z,y,x) (x)*NZ*NY+(y)*NZ+(z)
 
-FUNDEF void freesurface(        GLOBARG float *vx,         GLOBARG float *vy,       GLOBARG float *vz,
-                              GLOBARG float *sxx,        GLOBARG float *syy,      GLOBARG float *szz,
-                              GLOBARG float *sxy,        GLOBARG float *syz,      GLOBARG float *sxz,
-                              GLOBARG float *M,         GLOBARG float *mu,        GLOBARG float *rxx,
-                              GLOBARG float *ryy,        GLOBARG float *rzz,
-                              GLOBARG float *taus,       GLOBARG float *taup,     GLOBARG float *eta, GLOBARG float *K_x, GLOBARG float *psi_vx_x,
-                              GLOBARG float *K_y, GLOBARG float *psi_vy_y,
-                              GLOBARG float *taper, int pdir)
+FUNDEF void freesurface(GLOBARG float *vx,  GLOBARG float *vy,
+                        GLOBARG float *vz,  GLOBARG float *sxx,
+                        GLOBARG float *syy, GLOBARG float *szz,
+                        GLOBARG float *sxy, GLOBARG float *syz,
+                        GLOBARG float *sxz, GLOBARG float *M,
+                        GLOBARG float *mu,  GLOBARG float *rxx,
+                        GLOBARG float *ryy, GLOBARG float *rzz,
+                        GLOBARG float *taus,GLOBARG float *taup,
+                        GLOBARG float *eta, GLOBARG float *K_x,
+                        GLOBARG float *psi_vx_x, GLOBARG float *K_y,
+                        GLOBARG float *psi_vy_y, GLOBARG float *taper,
+                        int pdir)
 {
     /*Indice definition */
     #ifdef __OPENCL_VERSION__
@@ -83,50 +98,50 @@ FUNDEF void freesurface(        GLOBARG float *vx,         GLOBARG float *vy,   
     vzz = Dzm(vz);
 
 
-//// Correct spatial derivatives to implement CPML
-//#if ABS_TYPE==1
-//    {
-//        int i,j,k,ind;
-//
-//        if (gidy-FDOH<NAB){
-//            i =gidx-FDOH;
-//            j =gidy-FDOH;
-//            k =gidz-FDOH;
-//
-//            vyy = vyy / K_y[j] + psi_vyy(k,j,i);
-//        }
-//
-//        else if (gidy>NY-NAB-FDOH-1){
-//
-//            i =gidx-FDOH;
-//            j =gidy - NY+NAB+FDOH+NAB;
-//            k =gidz-FDOH;
-//            ind=2*NAB-1-j;
-//            vyy = vyy / K_y[ind+1] + psi_vyy(k,j,i);
-//        }
-//#if DEV==0 & MYLOCALID==0
-//        if (gidx-FDOH<NAB){
-//
-//            i =gidx-FDOH;
-//            j =gidy-FDOH;
-//            k =gidz-FDOH;
-//
-//            vxx = vxx / K_x[i] + psi_vxx(k,j,i);
-//        }
-//#endif
-//
-//#if DEV==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-//        if (gidx>NX-NAB-FDOH-1){
-//
-//            i =gidx - NX+NAB+FDOH+NAB;
-//            j =gidy-FDOH;
-//            k =gidz-FDOH;
-//            ind=2*NAB-1-i;
-//            vxx = vxx /K_x[ind+1] + psi_vxx(k,j,i);
-//        }
-//#endif
-//    }
-//#endif
+// Correct spatial derivatives to implement CPML
+#if ABS_TYPE==1
+    {
+        int i,j,k,ind;
+
+        if (gidy-FDOH<NAB){
+            i =gidx-FDOH;
+            j =gidy-FDOH;
+            k =gidz-FDOH;
+
+            vyy = vyy / K_y[j] + psi_vy_y(k,j,i);
+        }
+
+        else if (gidy>NY-NAB-FDOH-1){
+
+            i =gidx-FDOH;
+            j =gidy - NY+NAB+FDOH+NAB;
+            k =gidz-FDOH;
+            ind=2*NAB-1-j;
+            vyy = vyy / K_y[ind+1] + psi_vy_y(k,j,i);
+        }
+        #if DEV==0 & MYLOCALID==0
+        if (gidx-FDOH<NAB){
+
+            i =gidx-FDOH;
+            j =gidy-FDOH;
+            k =gidz-FDOH;
+
+            vxx = vxx / K_x[i] + psi_vx_x(k,j,i);
+        }
+        #endif
+
+        #if DEV==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+        if (gidx>NX-NAB-FDOH-1){
+
+            i =gidx - NX+NAB+FDOH+NAB;
+            j =gidy-FDOH;
+            k =gidz-FDOH;
+            ind=2*NAB-1-i;
+            vxx = vxx /K_x[ind+1] + psi_vx_x(k,j,i);
+        }
+        #endif
+    }
+#endif
 
 #if LVE==0
     f=mu[indp]*2.0f;

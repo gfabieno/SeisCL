@@ -610,12 +610,16 @@ class SeisCL():
         for param in self.params:
             if param not in params:
                 raise SeisCLError('Parameter with %s not defined\n' % param)
-        h5mat.savemat(os.path.join(workdir, self.file_model),
-                      params,
-                      appendmat=False,
-                      format='7.3',
-                      store_python_metadata=True,
-                      truncate_existing=True)
+        with h5.File(os.path.join(workdir, self.file_model), "w") as file:
+            for param in params:
+                file[param] = np.transpose(params[param].astype(np.float32))
+        #
+        # h5mat.savemat(os.path.join(workdir, self.file_model),
+        #               params,
+        #               appendmat=False,
+        #               format='7.3',
+        #               store_python_metadata=True,
+        #               truncate_existing=True)
         
     def prepare_data(self, jobids):
         """

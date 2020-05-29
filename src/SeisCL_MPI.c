@@ -125,11 +125,12 @@ int main(int argc, char **argv) {
     
     // Root process reads the input files
     time1=wtime();
+
     if (m.GID==0){
         if (!state) state = readhdf5(file, &m);
     }
     time2=wtime();
-    
+
     // Initiate and transfer data on all process
     #ifndef __NOMPI__
     if (!state) state = Init_MPI(&m);
@@ -138,11 +139,11 @@ int main(int argc, char **argv) {
     m.GNP = 1;
     m.NGROUP = 1;
     #endif
-    
+
+
     if (!state) state = Init_cst(&m);
     if (!state) state = Init_data(&m);
     if (!state) state = Init_model(&m);
-
     time3=wtime();
 
     if (!state) state = Init_CUDA(&m, &dev);
