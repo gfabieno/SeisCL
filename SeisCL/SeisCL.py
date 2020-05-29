@@ -70,7 +70,7 @@ class SeisCL():
 
         # Position of each shots. Array [sx sy sz srcid src_type] x nb sources
         # srcid is the source number (same srcid are fired simulatneously)
-        # src_type: 100: Explosive, 1: Force in X, 2: Force in Y, 3:Force in Z
+        # src_type: 100: Explosive, 0: Force in X, 1: Force in Y, 2:Force in Z
         self.csts['src_pos'] = np.empty((5,0))
         # Position of the receivers. [gx gy gz srcid recid - - -] x nb receivers
         # srcid is the source number recid is the trace number in the record

@@ -245,7 +245,7 @@ typedef struct parameter{
 int calc_grad(struct model * m, struct device * dev);
 int transf_grad(struct model * m);
 
-/* ____Structure for constants, which vectors broadcasted to all devices______*/
+/* ____Structure for constant vectors broadcasted to all devices______*/
 typedef struct constants{
     
     const char * name;
@@ -258,6 +258,7 @@ typedef struct constants{
     void (*transform)(void *, void *, int);
     
 } constants;
+
 
 /* ______________Structure that control sources and receivers ________________*/
 typedef struct sources_records{

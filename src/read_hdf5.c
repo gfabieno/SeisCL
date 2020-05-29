@@ -218,7 +218,310 @@ int checkmatNDIM_atleast(hid_t file_id, const char * invar, int NDIM, hsize_t * 
     return state;
 }
 
+int readscalar(hid_t file_id, hid_t memtype, const char * name, void * varptr){
+    
+    int state =0;
+    __GUARD checkexists(file_id, name);
+    __GUARD checkscalar(file_id, name);
+    __GUARD readvar(file_id, memtype, name, varptr);
+    
+    return state;
+}
 
+int read_csts(struct filenames files, model * m){
+    
+    hid_t       file_id=0;
+    hsize_t     dimsND[MAX_DIMS],dims2D[2],dimsfreqs[2];
+    int         state =0, maxrecid, tempstate;
+    float thisid=0, tmaxf=0, tminf=0;
+    int  i=0,  nsg=0, n=0, p=0;
+    float *src0=NULL, *src_pos0=NULL, *rec_pos0=NULL ;
+    char temp[100]={0};
+    
+    /* Open the input file. */
+    file_id = -1;
+    file_id = H5Fopen(files.csts, H5F_ACC_RDWR, H5P_DEFAULT);
+    if (!state) if (file_id<0) {state=1;fprintf(stderr, "Error: Could not open the input file csts");};
+    
+    
+    /* Basic variables__________________________________
+     __________________________________________________________________*/
+    
+    /* Read basic scalar variables */
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/NT", &m->NT);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/ND", &m->ND);
+    __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/dt", &m->dt);
+    __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/dh", &m->dh);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/FDORDER", &m->FDORDER);
+    m->FDOH=m->FDORDER/2;
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/MAXRELERROR", &m->MAXRELERROR);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/freesurf", &m->FREESURF);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/nab", &m->NAB);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/abs_type", &m->ABS_TYPE);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/L", &m->L);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/gradout", &m->GRADOUT);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/gradsrcout", &m->GRADSRCOUT);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/seisout", &m->VARSOUT);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/resout", &m->RESOUT);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/rmsout", &m->RMSOUT);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/pref_device_type", &m->pref_device_type);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/nmax_dev", &m->nmax_dev);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/MPI_NPROC_SHOT", &m->MPI_NPROC_SHOT);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/back_prop_type", &m->BACK_PROP_TYPE);
+    
+    /* Visco-elastic modeling*/
+    if (m->L>0){
+        __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/f0", &m->f0);
+    }
+    
+    /*Absorbing boundary variables*/
+    if (m->ABS_TYPE==2){
+        __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/abpc", &m->abpc);
+    }
+    else if (m->ABS_TYPE==1){
+        __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/VPPML", &m->VPPML);
+        __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/FPML", &m->FPML);
+        __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/NPOWER", &m->NPOWER);
+        __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/K_MAX_CPML",&m->K_MAX_CPML);
+    }
+    
+    /*Optional variables*/
+    readscalar(file_id, H5T_NATIVE_FLOAT,   "/fmax", &m->fmax);
+    readscalar(file_id, H5T_NATIVE_FLOAT,   "/fmin", &m->fmin);
+    readscalar(file_id, H5T_NATIVE_INT,   "/scalerms", &m->scalerms);
+    readscalar(file_id, H5T_NATIVE_INT,   "/scaleshot", &m->scaleshot);
+    readscalar(file_id, H5T_NATIVE_INT,"/scalermsnorm",&m->scalermsnorm);
+    readscalar(file_id, H5T_NATIVE_INT,   "/restype", &m->restype);
+    readscalar(file_id, H5T_NATIVE_INT,   "/Hout", &m->HOUT);
+    readscalar(file_id, H5T_NATIVE_INT,   "/movout", &m->MOVOUT);
+    readscalar(file_id, H5T_NATIVE_INT, "/param_type", &m->par_type);
+    readscalar(file_id, H5T_NATIVE_INT, "/FP16", &m->FP16);
+    readscalar(file_id, H5T_NATIVE_INT, "/input_res", &m->INPUTRES);
+    readscalar(file_id, H5T_NATIVE_INT, "/halfpar", &m->halfpar);
+    readscalar(file_id, H5T_NATIVE_FLOAT,   "/tmax", &tmaxf);
+    if (tmaxf>0){
+        m->tmax=tmaxf/m->dt;
+    }
+    else {
+        m->tmax=m->NT;
+    }
+
+    __GUARD readscalar(file_id, H5T_NATIVE_FLOAT,   "/tmin", &tminf);
+    if (tminf>0){
+        m->tmin=tminf/m->dt;
+    }
+    if (m->tmin>m->tmax){
+        fprintf(stderr, "Error: tmax<tmin\n");
+        return 1;
+    }
+
+        
+    if (m->ND==3){
+        m->NDIM=3;
+    }
+    else{
+        m->NDIM=2;
+    }
+    
+    __GUARD checkexists(file_id,"/N");
+    __GUARD getdimmat(file_id, "/N", 2, dims2D);
+    if (m->NDIM!=dims2D[0]*dims2D[1]){
+        fprintf(stderr, "Error: Number of dimensions mismatch\n");
+        return 1;
+    }
+    __GUARD readvar(file_id, H5T_NATIVE_INT, "/N", m->N);
+
+    for (i=0;i<m->NDIM;i++){
+        dimsND[i]=m->N[m->NDIM-1-i];
+    }
+    #ifndef __SeisCL__
+    // N[0] should be a multiple of 2 because we use float2 in kernels
+    if (m->N[0]%2!=0){
+        fprintf(stderr, "Error: N[0] must be a multiple of 2\n");
+        return 1;
+    }
+    #endif
+    
+    
+    
+    /* Read baned GPUs */
+    __GUARD getNDIM(file_id, "/no_use_GPUs", &n);
+    
+    if (!state){
+        if (n>1){
+            __GUARD getdimmat(file_id, "/no_use_GPUs", 2, dims2D);
+            m->n_no_use_GPUs=(int)dims2D[0]*(int)dims2D[1];
+            if (m->n_no_use_GPUs>0){
+                GMALLOC(m->no_use_GPUs,sizeof(int)*m->n_no_use_GPUs);
+                __GUARD readvar(file_id,
+                                H5T_NATIVE_INT,
+                                "/no_use_GPUs",
+                                m->no_use_GPUs);
+            }
+        }
+        else
+            m->n_no_use_GPUs=0;
+    }
+            
+    if (m->BACK_PROP_TYPE==2 && m->GRADOUT==1){
+        __GUARD checkexists(file_id,"/gradfreqs");
+        __GUARD getdimmat(file_id, "/gradfreqs", 2, dimsfreqs);
+        if (dimsfreqs[0]<2 & dimsfreqs[1]>0)
+            m->NFREQS=(int)dimsfreqs[1];
+        else if (dimsfreqs[1]<2 & dimsfreqs[0]>0)
+            m->NFREQS=(int)dimsfreqs[0];
+    }
+        
+                
+    /* Sources and receivers variables__________________________________
+     __________________________________________________________________*/
+    
+    /* Check that variables exist */
+    __GUARD checkexists(file_id,"/src");
+    __GUARD checkexists(file_id,"/src_pos");
+    __GUARD checkexists(file_id,"/rec_pos");
+    
+    /* Check that the variables are in the required format */
+    __GUARD getdimmat(file_id, "/src_pos", 2, dims2D);
+    if (!state){
+        if(dims2D[1]!=5) {
+            fprintf(stderr, "Error: src_pos dimension 1 must be 5\n");
+            return 1;
+        }
+    }
+    m->src_recs.allns=(int)dims2D[0];
+    dims2D[1]=m->NT;
+    if (!state){
+        if (checkmatNDIM(file_id, "/src",  2, dims2D)){
+            fprintf(stderr, "Error: Variable src must be nt x number of sources\n");
+            return 1;
+        }
+    }
+
+    __GUARD getdimmat(file_id, "/rec_pos", 2, dims2D);
+    if (!state){
+        if(dims2D[1]!=8) {
+            fprintf(stderr, "Error: rec_pos dimension 1 must be 8\n");
+            return 1;
+        }
+    }
+    m->src_recs.allng=(int)dims2D[0];
+    
+    /* Assign the memory */
+    GMALLOC(src_pos0,sizeof(float)*m->src_recs.allns*5);
+    GMALLOC(src0,sizeof(float)*m->src_recs.allns*m->NT);
+    GMALLOC(rec_pos0,sizeof(float)*m->src_recs.allng*8);
+    
+    /* Read variables */
+    __GUARD readvar(file_id, H5T_NATIVE_FLOAT, "/src_pos", src_pos0);
+    __GUARD readvar(file_id, H5T_NATIVE_FLOAT, "/src", src0);
+    __GUARD readvar(file_id, H5T_NATIVE_FLOAT, "/rec_pos", rec_pos0);
+    
+    /* Determine the number of shots to simulate */
+    if (!state){
+        m->src_recs.ns=0;
+        thisid=-9999;
+        for (i=0;i<m->src_recs.allns;i++){
+            if (thisid<src_pos0[3+i*5]){
+                thisid=src_pos0[3+i*5];
+                m->src_recs.ns+=1;
+            }
+            else if (thisid>src_pos0[3+i*5]){
+                printf("Sources ids must be sorted in ascending order");
+                return 1;
+            }
+            
+        }
+        
+        nsg=0;
+        thisid=-9999;
+        maxrecid=0;
+        for (i=0;i<m->src_recs.allng;i++){
+            maxrecid=  (maxrecid > rec_pos0[4+i*8]) ? maxrecid : rec_pos0[4+i*8];
+            if (thisid<rec_pos0[3+i*8]){
+                thisid=rec_pos0[3+i*8];
+                nsg+=1;
+            }
+            else if (thisid>rec_pos0[3+i*8]){
+                printf("Src ids in rec_pos must be sorted in ascending order\n");
+                return 1;
+            }
+            
+        }
+        if (!state){
+            if (nsg!=m->src_recs.ns){
+                fprintf(stderr, "Error: Number of sources ids in src_pos and rec_pos "
+                                "are not the same\n");
+                return 1;
+            }
+        }
+    }
+    
+    /* Assign the 2D arrays in which shot and receivers variables are stored */
+    GMALLOC(m->src_recs.src_pos,sizeof(float*)*m->src_recs.ns);
+    GMALLOC(m->src_recs.src,sizeof(float*)*m->src_recs.ns);
+    GMALLOC(m->src_recs.nsrc,sizeof(int)*m->src_recs.ns);
+    GMALLOC(m->src_recs.rec_pos,sizeof(float*)*m->src_recs.ns);
+    GMALLOC(m->src_recs.nrec,sizeof(int)*m->src_recs.ns);
+    
+    if (!state){
+        
+        // Determine the number of sources positions per shot
+        thisid=src_pos0[3];
+        n=1;
+        p=0;
+        for (i=1;i<m->src_recs.allns;i++){
+            if (thisid==src_pos0[3+i*5]){
+                n+=1;
+            }
+            else{
+                m->src_recs.nsrc[p]=n;
+                n=1;
+                p=p+1;
+                thisid=src_pos0[3+i*5];
+            }
+            
+        }
+        m->src_recs.nsrc[m->src_recs.ns-1]=n;
+        
+        // Determine the number of receiver positions per shot
+        thisid=rec_pos0[3];
+        n=1;
+        p=0;
+        for (i=1;i<m->src_recs.allng;i++){
+            if (thisid==rec_pos0[3+i*8]){
+                n+=1;
+            }
+            else{
+                m->src_recs.nrec[p]=n;
+                n=1;
+                p=p+1;
+                thisid=rec_pos0[3+i*8];
+            }
+            
+        }
+        m->src_recs.nrec[m->src_recs.ns-1]=n;
+        
+        //Assign the right number of shots and geophones for each shot
+        m->src_recs.src_pos[0]=src_pos0;
+        m->src_recs.src[0]=src0;
+        m->src_recs.rec_pos[0]=rec_pos0;
+        for (i=1;i<m->src_recs.ns;i++){
+            m->src_recs.src_pos[i]=m->src_recs.src_pos[i-1]+m->src_recs.nsrc[i-1]*5;
+            m->src_recs.src[i]=m->src_recs.src[i-1]+m->src_recs.nsrc[i-1]*m->NT;
+            m->src_recs.rec_pos[i]=m->src_recs.rec_pos[i-1]+m->src_recs.nrec[i-1]*8;
+        }
+        
+        //Compute the maximum number of geophones and shots within a source id
+        m->src_recs.nsmax=0;
+        m->src_recs.ngmax=0;
+        for (i=0;i<m->src_recs.ns; i++){
+            m->src_recs.nsmax = fmax(m->src_recs.nsmax, m->src_recs.nsrc[i]);
+            m->src_recs.ngmax = fmax(m->src_recs.ngmax, m->src_recs.nrec[i]);
+        }
+    }
+    return state;
+}
 
 int readhdf5(struct filenames files, model * m) {
     
