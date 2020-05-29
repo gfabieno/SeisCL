@@ -133,6 +133,7 @@ class SeisCL():
         self.mute = None
         self.mute_window = np.empty((4,0))
         self.mute_picks = np.empty((1,0))
+        self.filter_offset = False
         self.offmin = -float('Inf')
         self.offmax = float('Inf')
 
@@ -652,16 +653,17 @@ class SeisCL():
         self._rec_pos = self.rec_pos_all[:, recids]
 
         # Remove receivers not located between maximum and minumum offset
-        validrec=[]
-        for ii in range(0, self._rec_pos.shape[1] ):
-            srcid = np.where(self._src_pos[3,:] == self._rec_pos[3, ii])
-            offset = np.sqrt( (self._rec_pos[0, ii]-self._src_pos[0, srcid])**2
-                             +(self._rec_pos[1, ii]-self._src_pos[1, srcid])**2
-                             +(self._rec_pos[2, ii]-self._src_pos[2, srcid])**2)
-            if offset <= self.offmax and offset >= self.offmin:
-                validrec.append(ii)
-        self._rec_pos = self._rec_pos[:, validrec]
-        recids = [recids[id] for id in validrec]
+        if self.filter_offset:
+            validrec=[]
+            for ii in range(0, self._rec_pos.shape[1] ):
+                srcid = np.where(self._src_pos[3,:] == self._rec_pos[3, ii])
+                offset = np.sqrt( (self._rec_pos[0, ii]-self._src_pos[0, srcid])**2
+                                 +(self._rec_pos[1, ii]-self._src_pos[1, srcid])**2
+                                 +(self._rec_pos[2, ii]-self._src_pos[2, srcid])**2)
+                if offset <= self.offmax and offset >= self.offmin:
+                    validrec.append(ii)
+            self._rec_pos = self._rec_pos[:, validrec]
+            recids = [recids[id] for id in validrec]
         self._rec_pos[4, :] = [x+1 for x in recids]
 
         # Assign the mute windows if provided
