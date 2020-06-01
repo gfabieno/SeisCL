@@ -378,7 +378,7 @@ class SeisCL():
 
         return stdout.decode()
 
-    def read_data(self, workdir=None):
+    def read_data(self, workdir=None, filename=None):
         """
         Read the seismogram output by SeisCL
 
@@ -388,10 +388,13 @@ class SeisCL():
         @returns:
         output (list): A list containing each outputted variable
         """
+        
         if workdir is None:
             workdir = self.workdir
+        if filename is None:
+            filename = self.file_dout
         try:
-            mat = h5.File(workdir + "/" + self.file_dout, 'r')
+            mat = h5.File(os.path.join(workdir, filename), 'r')
         except OSError:
             raise SeisCLError('Could not read data')
         output = []
@@ -406,7 +409,7 @@ class SeisCL():
             
         return output
         
-    def read_movie(self, workdir=None):
+    def read_movie(self, workdir=None, filename=None):
         """
         Read the movie output by SeisCL
 
@@ -418,8 +421,10 @@ class SeisCL():
         """
         if workdir is None:
             workdir = self.workdir
+        if filename is None:
+            filename = self.file_movout
         try:
-            mat = h5.File(workdir + "/" + self.file_movout, 'r')
+            mat = h5.File(os.path.join(workdir, filename), 'r')
         except OSError:
             raise SeisCLError('Could not read data')
         output = []
@@ -434,7 +439,7 @@ class SeisCL():
             
         return output
     
-    def read_grad(self, workdir=None, param_names=None):
+    def read_grad(self, workdir=None, param_names=None, filename=None):
         """
         Read the gradient output by SeisCL
 
@@ -447,18 +452,20 @@ class SeisCL():
         """
         if workdir is None:
             workdir = self.workdir
+        if filename is None:
+            filename = self.file_gout
         if param_names is None:
             param_names = self.params
         toread = ['grad'+name for name in param_names]
         try:
-            mat = h5.File(workdir + "/" + self.file_gout, 'r')
+            mat = h5.File(os.path.join(workdir, filename), 'r')
             output = [np.transpose(mat[v]) for v in toread]
         except OSError:
             raise SeisCLError('Could not read grad')
 
         return output 
     
-    def read_Hessian(self,  workdir=None, param_names=None):
+    def read_Hessian(self,  workdir=None, param_names=None, filename=None):
         """
         Read the approximate hessian output by SeisCL
 
@@ -473,16 +480,18 @@ class SeisCL():
             workdir = self.workdir
         if param_names is None:
             param_names = self.params
+        if filename is None:
+            filename = self.file_gout
         toread = ['H' + name for name in param_names]
         try:
-            mat = h5.File(workdir + "/" + self.file_gout, 'r')
+            mat = h5.File(os.path.join(workdir, filename), 'r')
             output = [np.transpose(mat[v]) for v in toread]
         except OSError:
             raise SeisCLError('Could not read Hessian')
 
         return output
 
-    def read_rms(self, workdir=None):
+    def read_rms(self, workdir=None, filename=None):
         """
         Read the rms value output by SeisCL
 
@@ -495,8 +504,10 @@ class SeisCL():
         """
         if workdir is None:
             workdir = self.workdir
+        if filename is None:
+            filename = self.file_rms
         try:
-            mat = h5.File(workdir + "/" + self.file_rms, 'r')
+            mat = h5.File(os.path.join(workdir, filename), 'r')
         except OSError:
             raise SeisCLError('Forward modeling failed, could not read rms\n')
             
@@ -529,7 +540,7 @@ class SeisCL():
                       store_python_metadata=True,
                       truncate_existing=True)
 
-    def read_csts(self, workdir=None):
+    def read_csts(self, workdir=None, filename=None):
         """
         Read the constants from the constants file
 
@@ -541,8 +552,10 @@ class SeisCL():
         """
         if workdir is None:
             workdir = self.workdir
+        if filename is None:
+            filename = self.file_csts
         try:
-           mat = h5mat.loadmat(os.path.join(workdir, self.file_csts),
+           mat = h5mat.loadmat(os.path.join(workdir, filename),
                                variable_names=[param for param in self.csts])
            for word in mat:
                if word in self.csts:
@@ -550,7 +563,7 @@ class SeisCL():
         except (h5mat.lowlevel.CantReadError, NotImplementedError):
            raise SeisCLError('could not read parameter file \n')
 
-    def write_csts(self, workdir=None):
+    def write_csts(self, workdir=None, filename=None):
         """
         Write the constants to the constants file
 
@@ -562,7 +575,9 @@ class SeisCL():
         """
         if workdir is None:
             workdir = self.workdir
-        h5mat.savemat(os.path.join(workdir, self.file_csts),
+        if filename is None:
+            filename = self.file_csts
+        h5mat.savemat(os.path.join(workdir, filename),
                       self.csts,
                       appendmat=False,
                       format='7.3',
