@@ -19,7 +19,6 @@
 
 #include "F.h"
 
-
 int kernel_varout(device * dev,
                   clprogram * prog){
  
@@ -961,21 +960,23 @@ int kernel_initsavefreqs(device * dev,
         p++;
     p[-2]='\0';
     strcat(temp, "){\n\n");
-    
+
+
     #ifdef __SEISCL__
-    strcat(temp,"    int gid = get_global_id(0);\n");
+        strcat(temp,"    int gid = get_global_id(0);\n");
+        strcat(temp,"    float2 f20 = 0.0;\n");
     #else
     if (dev->NDIM==2){
-        
-        strcat(temp,"int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
-               "int gidx = blockIdx.y*blockDim.y + threadIdx.y;\n"
-               "int gid = gidx*blockDim.x*gridDim.x+gidz;\n");
+        strcat(temp,"    float2 f20 = make_float2(0.0, 0.0);\n");
+        strcat(temp,"    int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
+               "    int gidx = blockIdx.y*blockDim.y + threadIdx.y;\n"
+               "    int gid = gidx*blockDim.x*gridDim.x+gidz;\n");
     }
     else if (dev->NDIM==3){
-        strcat(temp,"int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
-               "int gidy = blockIdx.y*blockDim.y + threadIdx.y;\n"
-               "int gidx = blockIdx.y*blockDim.z + threadIdx.z;\n"
-               "int gid = gidx*blockDim.x*gridDim.x*blockDim.y*gridDim.y"
+        strcat(temp,"    int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
+               "    int gidy = blockIdx.y*blockDim.y + threadIdx.y;\n"
+               "    int gidx = blockIdx.y*blockDim.z + threadIdx.z;\n"
+               "    int gid = gidx*blockDim.x*gridDim.x*blockDim.y*gridDim.y"
                "+gidy*blockDim.x*gridDim.x +gidz;\n");
     }
     #endif
@@ -989,7 +990,7 @@ int kernel_initsavefreqs(device * dev,
             strcat(temp, "    ");
             strcat(temp, "    f");
             strcat(temp, vars[i].name);
-            strcat(temp, "[gid]=0;\n");
+            strcat(temp, "[gid]=f20;\n");
         }
     }
     
@@ -1039,7 +1040,7 @@ int kernel_savefreqs(device * dev,
         }
     }
     
-    strcat(temp, FUNDEF"void savefreqs(__constant float *gradfreqsn, int nt, ");
+    strcat(temp, FUNDEF"void savefreqs("GLOBARG"float * gradfreqsn, int nt, ");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
             strcat(temp, GLOBARG"float * ");
@@ -1054,10 +1055,9 @@ int kernel_savefreqs(device * dev,
         p++;
     p[-2]='\0';
     strcat(temp, "){\n\n");
-    
-    strcat(temp,"    int freq,l;\n"
+
+    strcat(temp,"    int freq;\n"
                 "    float2 fact[NFREQS]={0};\n");
-    
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
             strcat(temp, "    float  l");
@@ -1071,27 +1071,23 @@ int kernel_savefreqs(device * dev,
     strcat(temp, ";\n\n");
     
     #ifdef __SEISCL__
-    strcat(temp,"    int gid = get_global_id(0);\n"
-                "    int gsize=get_global_size(0);\n\n" );
+    strcat(temp,"    int gid = get_global_id(0);\n\n" );
     #else
     if (dev->NDIM==2){
-        
+
         strcat(temp,"int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
                "    int gidx = blockIdx.y*blockDim.y + threadIdx.y;\n"
-               "    int gid = gidx*blockDim.x*gridDim.x+gidz;\n"
-               "    int gsize=blockDim.x * gridDim.x*blockDim.y * gridDim.y;\n\n");
+               "    int gid = gidx*blockDim.x*gridDim.x+gidz;\n\n");
     }
     else if (dev->NDIM==3){
         strcat(temp,"    int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
                "    int gidy = blockIdx.y*blockDim.y + threadIdx.y;\n"
                "    int gidx = blockIdx.y*blockDim.z + threadIdx.z;\n"
                "    int gid = gidx*blockDim.x*gridDim.x*blockDim.y*gridDim.y"
-               "+gidy*blockDim.x*gridDim.x +gidz;\n"
-               "    int gsize=blockDim.x * gridDim.x*blockDim.y * gridDim.y"
-               "*blockDim.z * gridDim.z;\n\n");
+               "+gidy*blockDim.x*gridDim.x +gidz;\n\n");
     }
     #endif
-    
+
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
             sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
@@ -1106,16 +1102,16 @@ int kernel_savefreqs(device * dev,
         }
     }
 
-    
+
     strcat(temp,"\n"
         "    for (freq=0;freq<NFREQS;freq++){\n"
         "        fact[freq].x = DTNYQ*DT*cospi(2.0*gradfreqsn[freq]*nt/NTNYQ);\n"
         "        fact[freq].y = -DTNYQ*DT*sinpi(2.0*gradfreqsn[freq]*nt/NTNYQ);\n"
         "    }\n\n"
            );
-    
-    
-    
+
+
+
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
             sprintf(ptemp,"    if (gid<%d){\n", vars[i].num_ele);
@@ -1126,10 +1122,19 @@ int kernel_savefreqs(device * dev,
             strcat(temp, "        f");
             strcat(temp, vars[i].name);
             strcat(temp, "[gid+freq*");
-            sprintf(ptemp, "%d]+=fact[freq]*l", vars[i].num_ele);
+            sprintf(ptemp, "%d].x+=fact[freq].x*l", vars[i].num_ele);
             strcat(temp,ptemp);
             strcat(temp, vars[i].name);
             strcat(temp, ";\n");
+
+            strcat(temp, "        f");
+            strcat(temp, vars[i].name);
+            strcat(temp, "[gid+freq*");
+            sprintf(ptemp, "%d].y+=fact[freq].y*l", vars[i].num_ele);
+            strcat(temp,ptemp);
+            strcat(temp, vars[i].name);
+            strcat(temp, ";\n");
+
             strcat(temp, "    }\n");
             strcat(temp,"    }\n");
         }
@@ -1139,7 +1144,7 @@ int kernel_savefreqs(device * dev,
 
        __GUARD prog_source(prog, "savefreqs", temp, 0, NULL);
     
-    printf("%s\n\n%lu\n",temp, strlen(temp));
+//    printf("%s\n\n%lu\n",temp, strlen(temp));
 #ifdef __SEISCL__
     prog->gsize[0] = 1;
     for (i=0;i<dev->NDIM;i++){

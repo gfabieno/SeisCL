@@ -576,7 +576,7 @@ int time_stepping(model * m, device ** dev) {
                 
                 for (d=0;d<m->NUM_DEVICES;d++){
                     thist=(t-m->tmin)/m->DTNYQ;
-                    ind = (*dev)[d].progs[i]->tinput-1;
+                    ind = (*dev)[d].grads.savefreqs.tinput-1;
                     __GUARD prog_arg(&(*dev)[d].grads.savefreqs, ind, &thist, sizeof(int));
                     __GUARD prog_launch( &(*dev)[d].queue,
                                          &(*dev)[d].grads.savefreqs);
@@ -749,7 +749,7 @@ int time_stepping(model * m, device ** dev) {
                         if ((*dev)[d].vars[i].for_grad){
                             __GUARD clbuf_readto(&(*dev)[d].queue,
                                                  &(*dev)[d].vars[i].cl_fvar,
-                                                 &(*dev)[d].vars[i].cl_fvar_adj.host);
+                                                 (*dev)[d].vars[i].cl_fvar_adj.host);
                         }
 
                     }

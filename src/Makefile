@@ -14,7 +14,7 @@ else
   CC=$(H5CC)
 endif
 LFLAGS= -lm -lrt -lhdf5 -L$(H5LIB) #-L/usr/lib64/ -lz -pipe #-L/usr/lib64/openmpi/lib/
-CFLAGS= -w -O3 -I$(H5HEAD)
+CFLAGS= -w -O3 -g -I$(H5HEAD)
 
 # Option to turn off MPI
 ifdef nompi

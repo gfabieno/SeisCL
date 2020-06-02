@@ -545,6 +545,8 @@ int get_build_options(device *dev,
     *n+=1;
     sprintf(build_options[*n-1],"-D NTNYQ=%d", (*m).NTNYQ);
     *n+=1;
+    sprintf(build_options[*n-1],"-D DTNYQ=%d", (*m).DTNYQ);
+    *n+=1;
     sprintf(build_options[*n-1],"-D VARSOUT=%d",(*m).VARSOUT);
     *n+=1;
     sprintf(build_options[*n-1],"-D RESOUT=%d",(*m).RESOUT);
