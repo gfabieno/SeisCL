@@ -370,7 +370,7 @@ def garvin2D_test(vp=3500, vs=2000, rho=2000, taup=0, taus=0,N=300,
     compare_data(datafd, analytic, gx - sx+ dh/2, seis.csts['dt'], "Garvin2D",
                  plots=plots)
 
-def homogeneous_test(testname, vp=3500, vs=2000, rho=2000, taup=0, taus=0,
+def homogeneous_test(testname, vp=3500, vs=2000, rho=2000, taup=0, taus=0, L=1,
                        N=300, ND=3, FDORDER=4, plots=True, testtype="inline"):
     """
     Tests for a 2D or 3D homogeneous elastic or viscoelastic infinite space,
@@ -402,8 +402,9 @@ def homogeneous_test(testname, vp=3500, vs=2000, rho=2000, taup=0, taus=0,
     N = seis.csts['N'][0]
     NT = seis.csts['NT']
     if taup != 0 or taus != 0:
-        seis.csts['L'] = 1
-        seis.csts['FL'] = np.array([seis.csts["f0"]])
+        seis.csts['L'] = L
+        FL = [seis.csts["f0"]/(l+1) for l in range(L)]
+        seis.csts['FL'] = np.array(FL)
 
     if testtype == "inline":
         sx = N // 2 * dh
@@ -559,4 +560,10 @@ if __name__ == "__main__":
         homogeneous_test(testname=name, ND=2,
                            testtype="inline", plots=args.plot,
                            taup=0.2, taus=0.2, N=args.N)
+
+    name = "viscoelastic_3D_crossline_2L"
+    if args.test == name or args.test == "all":
+        print("Testing: " + name + " ....... ", end='')
+        homogeneous_test(testname=name, testtype="crossline", plots=args.plot,
+                         taup=0.1, taus=0.1, N=args.N)
 
