@@ -639,15 +639,20 @@ class SeisCL():
                 for ii in range(0, recids.size):
                     self.mute[:3, ii] = self.mute[:3, ii] + self.mute_picks[recids[ii]]
 
-    def ricker_wavelet(self):
+    def ricker_wavelet(self, f0 = None, NT = None, dt = None):
+            
+            if NT is None:
+                NT = self.csts['NT']
+            if f0 is None:
+                f0 = self.csts['f0']
+            if dt is None:
+                dt = self.csts['dt']
         
-        tmin = -1.5 / self.csts['f0']
-        t = np.linspace(tmin,
-                        (self.csts['NT']-1) * self.csts['dt'] + tmin,
-                        num=self.csts['NT'])
+            tmin = -1.5 / f0
+            t = np.linspace(tmin, (NT-1) * dt + tmin, num=NT)
 
-        ricker = ((1.0 - 2.0 * (np.pi ** 2) * (self.csts['f0'] ** 2) * (t ** 2))
-                  * np.exp(-(np.pi ** 2) * (self.csts['f0'] ** 2) * (t ** 2)))
+            ricker = ((1.0 - 2.0 * (np.pi ** 2) * (f0 ** 2) * (t ** 2))
+                    * np.exp(-(np.pi ** 2) * (f0 ** 2) * (t ** 2)))
 
         return ricker
 
