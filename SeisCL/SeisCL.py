@@ -599,8 +599,12 @@ class SeisCL():
         """
 
         # Find available source and receiver ids corresponding to jobids
-        if isinstance(jobids, int):
-            jobids = list(jobids)
+
+        # if isinstance(jobids, int):
+        #     jobids = list(jobids)
+        if np.issubdtype(type(jobids), np.integer):
+            jobids = [jobids]
+            
         srcids = [id for id in self.src_pos_all[3, :].astype(int)
                   if id in jobids]
         recids = [g for g, s in enumerate(self.rec_pos_all[3, :].astype(int))
