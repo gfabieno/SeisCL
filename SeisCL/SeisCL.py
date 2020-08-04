@@ -666,19 +666,19 @@ class SeisCL():
     def fill_src_rec_reg(self, dg=2, nbs=1, dsx=2, dsz=2, dgsz=0):
 
         self.src_pos_all = np.empty((5, 0))
-        self.rec_pos_all = np.empty((8,0))
+        self.rec_pos_all = np.empty((8, 0))
         self.src_all = None
 
-        NX = self.csts['NX']
+        NX = self.csts['N'][1]
         dlx = self.csts['nab'] + dsx
         if self.csts['freesurf'] == 0:
             dlz = self.csts['nab'] + dsz
         else:
             dlz = dsz
-        gx = np.arange(dlx, NX - dlx, dg) * self.csts['dh']
+        gx = np.arange(dlx + dsx, NX - dlx, dg) * self.csts['dh']
         gz = gx * 0 + (dlz + dgsz) * self.csts['dh']
 
-        for ii in range(dlx, NX - dlz, ds):
+        for ii in np.linspace(dlx, NX-dlx, nbs):
             idsrc = self.src_pos_all.shape[1]
             toappend = np.zeros((5, 1))
             toappend[0, :] = (ii) * self.csts['dh']
@@ -688,6 +688,16 @@ class SeisCL():
             toappend[4, :] = 100
             self.src_pos_all = np.append(self.src_pos_all, toappend, axis=1)
 
+            gid = np.arange(0, len(gx)) + self.rec_pos_all.shape[1] + 1
+            toappend = np.stack([gx,
+                                 gz * 0,
+                                 gz,
+                                 gz * 0 + idsrc,
+                                 gid,
+                                 gx * 0 + 2,
+                                 gx * 0,
+                                 gx * 0], 0)
+            self.rec_pos_all = np.append(self.rec_pos_all, toappend, axis=1)
             gid = np.arange(0, len(gx)) + self.rec_pos_all.shape[1] + 1
             toappend = np.stack([gx,
                                  gx * 0,
