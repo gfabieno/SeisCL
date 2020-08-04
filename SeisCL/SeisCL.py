@@ -690,6 +690,67 @@ class SeisCL():
                                  gx * 0], 0)
             self.rec_pos_all = np.append(self.rec_pos_all, toappend, axis=1)
 
+
+    def DrawDomain2D(self):
+        import matplotlib as mpl
+        import matplotlib.pyplot as plt
+        import matplotlib.patches as patches
+
+        sx = self.src_pos_all[0]
+        sy = self.src_pos_all[1]
+
+        gx = self.rec_pos_all[0]
+        gy = self.rec_pos_all[1]
+
+        N = self.csts['N'][0]
+        dh = self.csts['dh']
+        nab = self.csts['nab']
+
+        mpl.rcParams['hatch.linewidth'] = 0.5
+
+        _, ax = plt.subplots(1, 1, figsize=[5, 5])
+
+        ax.plot(sx, sy, marker='.', linestyle='none', markersize=15, color = 'k', label = 'source')
+
+        ax.plot(gx, gy, marker='v', linestyle='none', markersize=5, markerfacecolor="None",
+                markeredgecolor='k', markeredgewidth=1, label = 'receiver')
+
+        plt.xlim((0, N*dh))
+        plt.ylim((0, N*dh))
+
+        plt.gca().invert_yaxis()
+
+
+        PmlRect = { 'East' : patches.Rectangle((0, 0), nab*dh, N*dh, linewidth=2,
+                                edgecolor='k', facecolor='none', hatch = '/'),
+                    'West' : patches.Rectangle(((N-nab)*dh, 0), nab*dh, N*dh, linewidth=2,
+                                edgecolor='k', facecolor='none', hatch = '/'),
+                    'North': patches.Rectangle((nab*dh, 0), (N-2*nab)*dh, nab*dh, linewidth=2,
+                                edgecolor='k', facecolor='none', hatch = '/'),
+                    'South': patches.Rectangle((nab*dh, (N-nab)*dh), (N-2*nab)*dh, nab*dh, linewidth=2,
+                                edgecolor='k', facecolor='none', hatch = '/')
+                    }
+
+        for r in PmlRect:
+            ax.add_artist(PmlRect[r])
+            rx, ry = PmlRect[r].get_xy()
+            cx = rx + PmlRect[r].get_width()/2.0
+            cy = ry + PmlRect[r].get_height()/2.0
+
+            if r is 'North' or r is 'South':
+                    ax.annotate('Perfectly matched layer', (cx, cy), color='k', weight='bold', 
+                        fontsize=8, ha='center', va='center')
+
+            elif r is 'East' or r is 'West':
+                    ax.annotate('Perfectly matched layer', (cx, cy), color='k', weight='bold', 
+                        fontsize=8, ha='left', va='center', rotation = 90)
+
+        plt.legend(loc  = 4)
+
+        plt.show()
+
+
+
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     tmax = 0.5
