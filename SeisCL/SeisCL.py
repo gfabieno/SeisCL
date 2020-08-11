@@ -695,18 +695,18 @@ class SeisCL():
 
     def ricker_wavelet(self, f0 = None, NT = None, dt = None):
             
-            if NT is None:
-                NT = self.csts['NT']
-            if f0 is None:
-                f0 = self.csts['f0']
-            if dt is None:
-                dt = self.csts['dt']
-        
-            tmin = -1.5 / f0
-            t = np.linspace(tmin, (NT-1) * dt + tmin, num=NT)
+        if NT is None:
+            NT = self.csts['NT']
+        if f0 is None:
+            f0 = self.csts['f0']
+        if dt is None:
+            dt = self.csts['dt']
 
-            ricker = ((1.0 - 2.0 * (np.pi ** 2) * (f0 ** 2) * (t ** 2))
-                    * np.exp(-(np.pi ** 2) * (f0 ** 2) * (t ** 2)))
+        tmin = -1.5 / f0
+        t = np.linspace(tmin, (NT-1) * dt + tmin, num=NT)
+
+        ricker = ((1.0 - 2.0 * (np.pi ** 2) * (f0 ** 2) * (t ** 2))
+                * np.exp(-(np.pi ** 2) * (f0 ** 2) * (t ** 2)))
 
         return ricker
 
