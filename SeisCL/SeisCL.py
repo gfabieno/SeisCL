@@ -648,8 +648,12 @@ class SeisCL():
         """
 
         # Find available source and receiver ids corresponding to jobids
-        if isinstance(jobids, int):
-            jobids = list(jobids)
+
+        # if isinstance(jobids, int):
+        #     jobids = list(jobids)
+        if np.issubdtype(type(jobids), np.integer):
+            jobids = [jobids]
+            
         srcids = [id for id in self.src_pos_all[3, :].astype(int)
                   if id in jobids]
         recids = [g for g, s in enumerate(self.rec_pos_all[3, :].astype(int))
@@ -689,15 +693,20 @@ class SeisCL():
                 for ii in range(0, recids.size):
                     self.mute[:3, ii] = self.mute[:3, ii] + self.mute_picks[recids[ii]]
 
-    def ricker_wavelet(self):
+    def ricker_wavelet(self, f0 = None, NT = None, dt = None):
+            
+            if NT is None:
+                NT = self.csts['NT']
+            if f0 is None:
+                f0 = self.csts['f0']
+            if dt is None:
+                dt = self.csts['dt']
         
-        tmin = -1.5 / self.csts['f0']
-        t = np.linspace(tmin,
-                        (self.csts['NT']-1) * self.csts['dt'] + tmin,
-                        num=self.csts['NT'])
+            tmin = -1.5 / f0
+            t = np.linspace(tmin, (NT-1) * dt + tmin, num=NT)
 
-        ricker = ((1.0 - 2.0 * (np.pi ** 2) * (self.csts['f0'] ** 2) * (t ** 2))
-                  * np.exp(-(np.pi ** 2) * (self.csts['f0'] ** 2) * (t ** 2)))
+            ricker = ((1.0 - 2.0 * (np.pi ** 2) * (f0 ** 2) * (t ** 2))
+                    * np.exp(-(np.pi ** 2) * (f0 ** 2) * (t ** 2)))
 
         return ricker
 
@@ -714,14 +723,17 @@ class SeisCL():
         return np.transpose(np.array([trace.data for trace in segy.traces]))
 
     def fill_src_rec_reg(self, dg=2, ds=5, dsx=2, dsz=2, dgsz=0):
+        self.src_pos_all = np.empty((5, 0))
+        self.rec_pos_all = np.empty((8, 0))
+        self.src_all = None
 
-        NX = self.csts['NX']
+        NX = self.csts['N'][1]
         dlx = self.csts['nab'] + dsx
         if self.csts['freesurf'] == 0:
             dlz = self.csts['nab'] + dsz
         else:
             dlz = dsz
-        gx = np.arange(dlx, NX - dlx, dg) * self.csts['dh']
+        gx = np.arange(dlx + dsx, NX - dlx, dg) * self.csts['dh']
         gz = gx * 0 + (dlz + dgsz) * self.csts['dh']
 
         for ii in range(dlx, NX - dlx, ds):
@@ -734,6 +746,16 @@ class SeisCL():
             toappend[4, :] = 100
             self.src_pos_all = np.append(self.src_pos_all, toappend, axis=1)
 
+            gid = np.arange(0, len(gx)) + self.rec_pos_all.shape[1] + 1
+            toappend = np.stack([gx,
+                                 gz * 0,
+                                 gz,
+                                 gz * 0 + idsrc,
+                                 gid,
+                                 gx * 0 + 2,
+                                 gx * 0,
+                                 gx * 0], 0)
+            self.rec_pos_all = np.append(self.rec_pos_all, toappend, axis=1)
             gid = np.arange(0, len(gx)) + self.rec_pos_all.shape[1] + 1
             toappend = np.stack([gx,
                                  gx * 0,
@@ -777,6 +799,102 @@ class SeisCL():
                                  gx * 0,
                                  gx * 0], 0)
             self.rec_pos_all = np.append(self.rec_pos_all, toappend, axis=1)
+
+    def DrawDomain2D(self, model, ax= None, ShowAbs= False, ShowSrcRec = False):
+        import matplotlib.pyplot as plt
+        import matplotlib.patches as patches
+
+        Nx = self.csts['N'][0]
+        Ny = self.csts['N'][1]
+        dh = self.csts['dh']
+
+        if not ax:
+            _, ax = plt.subplots(1, 1)
+
+        im = ax.imshow(model, extent=[0, Ny*dh, Nx*dh, 0])
+        ax.set_xlabel('Distance (m)')
+        ax.set_ylabel('Depth (m)')
+
+        cbar = plt.colorbar(im)
+        cbar.set_label('Velocity (m/s)')
+
+        if ShowSrcRec:
+            self.DrawSrcRec(ax)
+
+        if ShowAbs:
+            self.DrawLayers(ax)
+
+        plt.show()
+
+    def DrawSrcRec(self, ax):
+        import matplotlib.pyplot as plt
+        sx = self.src_pos_all[0]
+        sy = self.src_pos_all[2]
+
+        gx = self.rec_pos_all[0, :]
+        gy = self.rec_pos_all[2, :]
+
+        ax.plot(sx, sy, marker='.', linestyle='none', markersize=15,
+                color='k', label='source')
+
+        ax.plot(gx, gy, marker='v', linestyle='none', markersize=8,
+                markerfacecolor="None", markeredgecolor='k',
+                markeredgewidth=1, label='receiver')
+
+        plt.legend(loc=4)
+
+    def DrawLayers(self, ax):
+        import matplotlib as mpl
+        from matplotlib.patches import Rectangle
+        import matplotlib.pyplot as plt
+        from matplotlib.patheffects import withStroke
+
+        mpl.rcParams['hatch.linewidth'] = 0.5
+
+        nab = self.csts['nab']
+        Nx = self.csts['N'][0]
+        Ny = self.csts['N'][1]
+        dh = self.csts['dh']
+
+        AbsRect = {'East': Rectangle((0, 0), nab*dh, Nx*dh, linewidth=2,
+                                     edgecolor='k', facecolor='none', hatch='/'),
+                   'West': Rectangle(((Ny-nab)*dh, 0), nab*dh, Nx*dh, linewidth=2,
+                                     edgecolor='k', facecolor='none', hatch='/'),
+                   'South': Rectangle((nab*dh, (Nx-nab)*dh), (Ny-2*nab)*dh, nab*dh,
+                                      linewidth=2, edgecolor='k',
+                                      facecolor='none', hatch='/')
+                   }
+
+        if not self.csts['freesurf']:
+            AbsRect['North'] = Rectangle((nab*dh, 0), (Ny-2*nab)*dh, nab*dh,
+                                         linewidth=2, edgecolor='k',
+                                         facecolor='none', hatch='/')
+        else:
+            ax.spines['top'].set_linewidth(6)
+            # Not the best way to do it
+            ax.set_title('free surface', fontsize=12)
+
+        if self.csts['abs_type'] == 1:
+            TextLayers = 'PML'
+        else:
+            TextLayers = 'Cerjan'
+
+        for r in AbsRect:
+            ax.add_artist(AbsRect[r])
+            rx, ry = AbsRect[r].get_xy()
+            cx = rx + AbsRect[r].get_width()/2.0
+            cy = ry + AbsRect[r].get_height()/2.0
+
+            if r is 'North' or r is 'South':
+                ax.annotate(TextLayers, (cx, cy), color='k', weight='bold',
+                            fontsize=12, ha='center', va='center',
+                            path_effects=[withStroke(linewidth=3,
+                                                     foreground="w")])
+            elif r is 'East' or r is 'West':
+                ax.annotate(TextLayers, (cx, cy), color='k', weight='bold',
+                            fontsize=12, ha='center', va='center', rotation=90,
+                            path_effects=[withStroke(linewidth=3,
+                                                     foreground="w")])
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt

@@ -669,6 +669,10 @@ int readhdf5(struct filenames files, model * m) {
         __GUARD checkscalar(file_id, "/movout");
         __GUARD readvar(file_id, H5T_NATIVE_INT,   "/movout", &m->MOVOUT);
     }
+    if (!state) if (1==H5Lexists( file_id, "/movout", H5P_DEFAULT)){
+            __GUARD checkscalar(file_id, "/movout");
+            __GUARD readvar(file_id, H5T_NATIVE_INT,   "/movout", &m->MOVOUT);
+        }
 
     if (H5Lexists( file_id, "/param_type", H5P_DEFAULT) ){
         __GUARD checkscalar(file_id, "/param_type");
