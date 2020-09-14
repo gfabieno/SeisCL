@@ -17,5 +17,6 @@ setup(name='SeisCL',
                         'numpy',
                         'hdf5storage',
                         'h5py',
-                        'scipy'],
+                        'scipy',
+                        'sklearn'],
       zip_safe=False)
