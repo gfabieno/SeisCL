@@ -756,16 +756,6 @@ class SeisCL():
                                  gx * 0,
                                  gx * 0], 0)
             self.rec_pos_all = np.append(self.rec_pos_all, toappend, axis=1)
-            gid = np.arange(0, len(gx)) + self.rec_pos_all.shape[1] + 1
-            toappend = np.stack([gx,
-                                 gx * 0,
-                                 gz,
-                                 gz * 0 + idsrc,
-                                 gid,
-                                 gx * 0 + 2,
-                                 gx * 0,
-                                 gx * 0], 0)
-            self.rec_pos_all = np.append(self.rec_pos_all, toappend, axis=1)
 
     def fill_src_rec_crosshole(self, dg=2, ds=5, dsx=2, dsz=2, dgsz=0):
 
