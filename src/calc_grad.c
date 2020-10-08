@@ -1019,7 +1019,7 @@ int transf_grad(model * m) {
     }
 
     if (m->par_type==0){
-        
+
         for (i=0;i<num_ele;i++){
             gradrho[i]= gradrho[i]+M[i]/rho[i]*gradM[i];
             if (mu[i]>0){
@@ -1029,9 +1029,9 @@ int transf_grad(model * m) {
         if (Hrho){
             for (i=0;i<num_ele;i++){
                 Hrho[i]= Hrho[i]+M[i]/rho[i]*HM[i];
-            }
-            if (mu[i]>0){
-                Hrho[i]= Hrho[i]+mu[i]/rho[i]*Hmu[i];
+                if (mu[i]>0){
+                    Hrho[i]= Hrho[i]+mu[i]/rho[i]*Hmu[i];
+                }
             }
         }
         if (M){
@@ -1056,7 +1056,7 @@ int transf_grad(model * m) {
         }
     }
     else if (m->par_type==1){
-        
+
     }
     else if (m->par_type==2){
         for (i=0;i<num_ele;i++){
@@ -1065,7 +1065,7 @@ int transf_grad(model * m) {
                 gradrho[i]= gradrho[i]+mu[i]/rho[i]*gradmu[i];
             }
         }
-        
+
         if (Hrho){
             for (i=0;i<num_ele;i++){
                 Hrho[i]= Hrho[i]+M[i]/rho[i]*HM[i];

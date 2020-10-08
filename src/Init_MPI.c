@@ -189,7 +189,7 @@ int Init_MPI(model * m) {
         }
     }
 
-    //Assign a group within wich domain decomposition is performed.
+    //Assign a group within which domain decomposition is performed.
     //Different groups are assigned different sources
     {
         m->NGROUP=m->GNP/m->MPI_NPROC_SHOT;

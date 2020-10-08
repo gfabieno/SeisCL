@@ -52,7 +52,7 @@ else
     $(info Building SeisCL with OpenCL)
     CFLAGS+= -D__SEISCL__
     ifeq ($(UNAME_S),Linux)
-        LFLAGS+= -lOpenCL
+        LFLAGS+= -L$(CUDA_PATH)/lib64 -lOpenCL
     endif
     ifeq ($(UNAME_S),Darwin)
         LFLAGS+= -framework opencl

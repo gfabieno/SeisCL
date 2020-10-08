@@ -205,9 +205,9 @@ int main(int argc, char **argv) {
                 fprintf(stdout,"Process: %d\n", i);
                 fprintf(stdout,"Read variables: %f\n",times[i]);
                 fprintf(stdout,"Intialize model: %f\n", times[i+m.GNP]);
-                fprintf(stdout,"Intialize OpenCL: \%f\n", times[i+2*m.GNP]);
+                fprintf(stdout,"Intialize OpenCL: %f\n", times[i+2*m.GNP]);
                 fprintf(stdout,"Time for modeling: %f\n", times[i+3*m.GNP]);
-                fprintf(stdout,"Outputting files: \%f\n", times[i+4*m.GNP]);
+                fprintf(stdout,"Outputting files: %f\n", times[i+4*m.GNP]);
                 fprintf(stdout,"Total time of process: %f\n\n",times[i+5*m.GNP]);
             }
 

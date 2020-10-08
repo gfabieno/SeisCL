@@ -108,7 +108,6 @@ int movout(model * m, device ** dev, int t, int s){
                 __GUARD clbuf_read(&(*dev)[d].queue,&(*dev)[d].vars[i].cl_var);
             }
         }
-        
     }
 
     Nelg=1;
@@ -554,10 +553,10 @@ int time_stepping(model * m, device ** dev) {
         // Initialization of the seismic variables
         pdir=1;
         __GUARD initialize_forward(m, dev, s, &pdir);
-        
+
         // Loop for forward time stepping
         for (t=0;t<m->tmax; t++){
-            
+
             //Assign the time step value to kernels
             for (d=0;d<m->NUM_DEVICES;d++){
                 for (i=0;i<(*dev)[d].nprogs;i++){
@@ -567,13 +566,13 @@ int time_stepping(model * m, device ** dev) {
                     }
                 }
             }
-            
+
             //Save the selected frequency if the gradient is obtained by DFT
             if (m->GRADOUT==1
                 && m->BACK_PROP_TYPE==2
                 && t>=m->tmin
                 && (t-m->tmin)%m->DTNYQ==0){
-                
+
                 for (d=0;d<m->NUM_DEVICES;d++){
                     thist=(t-m->tmin)/m->DTNYQ;
                     ind = (*dev)[d].grads.savefreqs.tinput-1;
@@ -581,15 +580,15 @@ int time_stepping(model * m, device ** dev) {
                     __GUARD prog_launch( &(*dev)[d].queue,
                                          &(*dev)[d].grads.savefreqs);
                 }
-                
+
             }
-            
+
             // Inject the sources
             for (d=0;d<m->NUM_DEVICES;d++){
                 __GUARD prog_launch( &(*dev)[d].queue,
                                     &(*dev)[d].src_recs.sources);
             }
-            
+
             // Apply all updates
             if (t<(m->tmax-1)){
                 __GUARD update_grid(m, dev, 1);
@@ -597,12 +596,12 @@ int time_stepping(model * m, device ** dev) {
             else{
                 __GUARD update_grid(m, dev, 0);
             }
-            
-            
+
+
             // Save the boundaries
             if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1)
                 __GUARD save_bnd( m, dev, t);
-            
+
             // Computing the free surface
             if (m->FREESURF==1){
                 for (d=0;d<m->NUM_DEVICES;d++){
@@ -624,7 +623,7 @@ int time_stepping(model * m, device ** dev) {
                 && (t+1)%m->MOVOUT==0 && state==0){
                 movout( m, dev, t, s);
             }
-            
+
             #ifdef __SEISCL__
             // Flush all the previous commands to the computing device
             for (d=0;d<m->NUM_DEVICES;d++){
@@ -634,9 +633,9 @@ int time_stepping(model * m, device ** dev) {
                 __GUARD clFlush((*dev)[d].queue);
             }
             #endif
-            
+
         }
-        
+
 
         // Aggregate the seismograms in the output variable
         if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){
@@ -650,10 +649,10 @@ int time_stepping(model * m, device ** dev) {
         if ( m->GRADOUT || m->RMSOUT || m->RESOUT ){
             __GUARD m->res_scale(m,s);
         }
-       
+
         // Calculation of the gradient for this shot, if required
         if (m->GRADOUT==1){
-            
+
             // Initialize adjoint time stepping
             pdir=-1;
             __GUARD initialize_adj(m, dev, s, &pdir);
@@ -719,7 +718,7 @@ int time_stepping(model * m, device ** dev) {
                 if (m->MOVOUT>0 && m->BACK_PROP_TYPE==1
                     && (t)%m->MOVOUT==0 && state==0)
                     movout(m, dev, t, s);
-                
+
                 #ifdef __SEISCL__
                 for (d=0;d<m->NUM_DEVICES;d++){
                     if (d>0 || d<m->NUM_DEVICES-1){
@@ -730,7 +729,7 @@ int time_stepping(model * m, device ** dev) {
                 #endif
 
             }
-            
+
             // Transfer  the source gradient to the host
             if (m->GRADSRCOUT==1){
                 for (d=0;d<m->NUM_DEVICES;d++){
@@ -783,16 +782,16 @@ int time_stepping(model * m, device ** dev) {
                                        &(*dev)[d].pars[i].cl_H);
                 }
             }
-            
+
         }
-        
+
         for (d=0;d<m->NUM_DEVICES;d++){
             __GUARD WAITQUEUE((*dev)[d].queue);
         }
-        
+
         __GUARD transf_grad(m);
     }
-    
+
     #ifndef __NOMPI__
     if (state && m->MPI_INIT==1)
         MPI_Bcast( &state, 1, MPI_INT, m->GID, MPI_COMM_WORLD );

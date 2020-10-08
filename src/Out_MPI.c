@@ -131,7 +131,7 @@ int Out_MPI(model * m)  {
         
         for (i=0;i<m->npars;i++){
             if (m->pars[i].to_grad){
-                __GUARD buf_reduce_double(m->pars[i].gl_grad,
+                __GUARD buf_reduce_float(m->pars[i].gl_grad,
                                          m->pars[i].num_ele,
                                          m->GID);
             }
@@ -144,7 +144,7 @@ int Out_MPI(model * m)  {
         if (m->HOUT==1){
             for (i=0;i<m->npars;i++){
                 if (m->pars[i].to_grad){
-                    __GUARD buf_reduce_double(m->pars[i].gl_H,
+                    __GUARD buf_reduce_float(m->pars[i].gl_H,
                                               m->pars[i].num_ele,
                                               m->GID);
                 }

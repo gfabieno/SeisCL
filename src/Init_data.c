@@ -66,7 +66,7 @@ int Init_data(model * m) {
             }
         }
     }
-    
+
     for (i=0;i<m->ntvars;i++){
         if (m->trans_vars[i].to_output){
             var_alloc_out(&m->trans_vars[i].gl_varout, m);

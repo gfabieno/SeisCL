@@ -308,7 +308,7 @@ int writehdf5(struct filenames file, model * m) {
                 writetomat(&file_id,name,m->vars[i].gl_mov,m->NDIM+2,dims);
             }
         }
-        
+
         if (file_id) H5Fclose(file_id);
     }
     
