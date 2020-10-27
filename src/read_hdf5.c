@@ -1047,6 +1047,9 @@ int readhdf5(struct filenames files, model * m) {
                                       m->NT);
                     anyout=1;
                 }
+                else{
+                    m->vars[i].to_output=0;
+                }
             }
             for (i=0;i<m->ntvars;i++){
                 if (1==H5Lexists( file_id, m->trans_vars[i].name, H5P_DEFAULT)){
@@ -1068,6 +1071,9 @@ int readhdf5(struct filenames files, model * m) {
                                       m->src_recs.allng,
                                       m->NT);
                     anyout=1;
+                }
+                else{
+                    m->trans_vars[i].to_output=0;
                 }
             }
             
