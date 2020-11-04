@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <float.h>
 #include <stdint.h>
+#include <unistd.h>
 //#include <cmath>
 
 //#include <libc.h>
@@ -259,6 +260,19 @@ typedef struct constants{
     
 } constants;
 
+/* ____Structure for simulation variables to be read______*/
+typedef struct inputcsts{
+
+    const char * name;
+
+    clbuf   cl_cst;
+    float  * gl_cst;
+    int num_ele;
+    const char * to_read;
+
+    void (*transform)(void *, void *, int);
+
+} constants;
 
 /* ______________Structure that control sources and receivers ________________*/
 typedef struct sources_records{
@@ -384,7 +398,7 @@ typedef struct device {
 typedef struct model {
     
     char cache_dir[PATH_MAX];
-
+    int printkernels;
     variable * vars;
     variable * vars_adj;
     int nvars;

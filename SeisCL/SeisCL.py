@@ -11,29 +11,239 @@ import os
 import shutil
 from obspy.core import Trace, Stream
 from obspy.io.segy.segy import _read_segy
+from prettytable import PrettyTable
+
+import matplotlib as mpl
+from matplotlib.patches import Rectangle
+import matplotlib.pyplot as plt
+from matplotlib.patheffects import withStroke
+mpl.rcParams['hatch.linewidth'] = 0.5
 
 class SeisCLError(Exception):
     pass
 
-class SeisCL():
+csts = [ 'N', 'ND', 'dh', 'dt', 'NT', 'freesurf', 'FDORDER', 'MAXRELERROR',
+        'L', 'f0', 'FL', 'src_pos', 'rec_pos', 'src', 'abs_type', 'VPPML',
+        'NPOWER', 'FPML', 'K_MAX_CPML', 'nab', 'abpc', 'pref_device_type',
+        'no_use_GPUs', 'MPI_NPROC_SHOT', 'nmax_dev', 'back_prop_type', 'param_type',
+        'gradfreqs', 'tmax', 'tmin', 'scalerms',  'scalermsnorm', 'scaleshot',
+        'fmin', 'fmax', 'gradout', 'Hout', 'gradsrcout', 'seisout', 'resout',
+        'rmsout', 'movout', 'restype', 'inputres', 'FP16']
+
+
+class SeisCL:
     """ A class that implements an interface to SeisCL
         (https://github.com/gfabieno/SeisCL.git)
     """
-    def __init__(self):
+
+    def __init__(self,
+
+                 N:  np.ndarray = None, ND: int = 2, dh: float = 10,
+                 dt: float = 0.0008, NT: int = 875,
+
+                 L: int = 0, f0: float = 15, FL: np.ndarray = np.array(15),
+
+                 FDORDER: int = 8, MAXRELERROR: int = 1, FP16: int = 0,
+
+                 src_pos_all:  np.ndarray = np.empty((5, 0)),
+                 rec_pos_all:  np.ndarray = np.empty((8, 0)),
+                 src_all:  np.ndarray = None,
+
+                 freesurf: int = 0, abs_type: int = 1,
+                 VPPML: float = 3500, NPOWER: float = 2,  FPML: float = 15,
+                 K_MAX_CPML: float = 2, nab: int = 16, abpc: float = 6,
+
+                 with_docker: bool = False, with_mpi: bool = False,
+                 NP: int = 1, pref_device_type: int = 4,
+                 MPI_NPROC_SHOT: int = 1, nmax_dev: int = 1,
+                 no_use_GPUs:  np.ndarray = np.empty((1, 0)),
+
+                 gradout: int = 0, Hout: int = 0, gradsrcout: int = 0,
+                 back_prop_type: int = 1,
+                 gradfreqs:  np.ndarray = np.empty((1, 0)), param_type: int = 0,
+                 tmax: float = 0, tmin: float = 0, fmin: float = 0,
+                 fmax:float = 0, filter_offset: bool = False,
+                 offmin: float = -float('Inf'), offmax: float = float('Inf'),
+                 inputres: int = 0, restype: int = 0, scalerms: int = 0,
+                 scalermsnorm: int = 0, scaleshot: int = 0,
+
+                 seisout: int = 2, resout: int = 0, rmsout: int = 0,
+                 movout: int = 0,
+
+                 file: str = "SeisCL", workdir: str = "./seiscl",
+                 ):
         """
-            Define variables that are needed for SeisCL input files
+        You can define parameters controlling forward and adjoint computations
+        in the __init__ method or afterward.
+
+        Parameters defining the spatial and temporal grid:
+        :param N:                Grid size [NZ, NX] in 2D or [NZ, NY, NX] in 3D
+        :param ND:               Flag for dimension.
+                                 3: 3D, 2: 2D P-SV, 21: 2D SH, 22: 2D acoustic
+        :param dh:               Grid spatial spacing
+        :param dt:               Time step size
+        :param NT:               Number of time steps
+
+        Parameters for the Generalized Standard linear solid implementing
+        seismic attenuation.
+        :param L:                Number of attenuation mechanism (L=0 elastic)
+        :param f0:               Central frequency of the relaxation. Also used
+                                 as the peak frequency of the default ricker
+                                 wavelet source
+        :param FL:               Frequencies of the attenuation mechanism
+
+        Parameters of the finite difference stencils
+        :param FDORDER:          Order of the finite difference stencil
+                                 Values: 2, 4, 6, 8, 10, 12
+        :param MAXRELERROR:      Select method to compute FD coefficients
+                                 0: Taylor-coeff.
+                                 Holberg-coeff with maximum phase velocity error
+                                 1: 0.1 % 2: 0.5 % 3: 1.0 % 4: 3.0 %
+        :param FP16:             FP16 computation:
+                                 0:FP32
+                                 1:FP32 vectorized, (faster than 0)
+                                 2: FP16 IO (computation are performed in FP32)
+                                 3: FP16 IO + COMP (computation in FP16,
+                                                    requires CUDA)
+
+        Parameters controlling the acquisition
+        :param src_pos_all:      Position of all shots containted in dataset
+                                 Array [sx sy sz srcid src_type] x nb sources
+                                 The same srcid are fired simulatneously
+                                 src_type: 100: Explosive, 0: Force in X, 1:
+                                 Force in Y, 2:Force in Z
+        :param rec_pos_all:      Position of all the receivers in the dataset
+                                 Array [gx gy gz srcid recid - - -] x nb traces
+                                 srcid is the source number
+                                 recid is the trace number in the record
+        :param src_all:          Source signals. NT x number of sources
+
+        Parameters defining the Boundary conditions
+        :param freesurf:         Include a free surface 0: no, 1: yes
+        :param abs_type:         Absorbing boundary type:
+                                 1: CPML, 2: Absorbing layer of Cerjan
+        :param VPPML:            Vp velocity near CPML boundary
+        :param NPOWER:           Exponent used in CMPL frame update
+        :param FPML:             Dominant frequency of the wavefield
+        :param K_MAX_CPML:       Coefficient involved in CPML
+                                 (may influence simulation stability)
+        :param nab:              Width in grid points of the absorbing layer
+        :param abpc:             Exponential decay for absorbing layer of Cerjan
+
+        Parameters controlling parallelization
+        :param with_docker:      If True, use a docker implementation of SeisCL
+        :param with_mpi:         Use mpi parallelization (True) or not.
+        :param NP:               Number of MPI processes to launch
+        :param pref_device_type: Type of processor used (OpenCL version):
+                                 2: CPU, 4: GPU, 8: Accelerator
+        :param MPI_NPROC_SHOT:   Maximum number of MPI process (nodes or gpus)
+                                 involved in domain decomposition
+        :param nmax_dev:         Maximum number of GPUs per process
+        :param no_use_GPUs:      Array of device numbers that should not be used
+        Example: 1--On a node with 4 GPUs, to use all 4 GPUs, each gpu computes
+                 a different shot: with_mpi=True, NP=4, nmax_dev=1
+                 2-- On a node with 4 GPUS, all of them used for model
+                 decomposition: with_mpi=True, NP=1, nmax_dev=4
+
+        Parameters controlling how the gradient is computed.
+        :param gradout:          Output gradient 1:yes, 0: no
+        :param Hout:             Output approximate Hessian 1:yes, 0: no
+        :param gradsrcout:       Output source gradient 1:yes, 0: no
+        :param back_prop_type:   Type of gradient calculation:
+                                 1: backpropagation (elastic only)
+                                 2: Discrete Fourier transform
+        :param gradfreqs:        Frequencies of gradient with DFT
+        :param param_type:       Type of parametrization:
+                                 0:(rho,vp,vs,taup,taus)
+                                 1:(rho, M, mu, taup, taus),
+                                 2:(rho, Ip, Is, taup, taus)
+        :param tmax:             Maximum time of gradient computation
+        :param tmin:             Minimum time of gradient computation
+        :param fmin:             Maximum frequency of gradient. A butterworh
+                                 filter is used to remove frequencies lower
+                                 than fmin
+        :param fmax:             Minimum frequency of gradient. A butterworh
+                                 filter is used to remove frequencies lower
+                                 than fmin
+        :param filter_offset:    If true, will only allow the minimum and
+                                 maximum offset during computation
+        :param offmin:           Maximum offset to compute
+        :param offmax:           Minimum offset to compute
+        :param inputres:         If 1, the gradient computation needs the
+                                 residuals (adjoint sources) to be provided.
+                                 This allows to  compute the cost and adjoint
+                                 sources in python, providing more flexibility.
+                                 If 0, SeisCL computes the cost and adjoint
+                                 sources.
+
+        The rest of these parameters apply if inputres=0
+        :param restype:          Type of costfunction
+                                 0: l2 cost. 1: Cross-correlation of traces
+        :param scalerms:         Scale each modeled and recorded traces
+                                 according to its rms value, then scale residual
+                                 by recorded trace rms when computing cost
+        :param scalermsnorm:     Scale each modeled and recorded traces
+                                 according to its rms value before computing
+                                 cost
+        :param scaleshot:        Scale all of the traces in each shot by the
+                                 shot total rms value when computing cost
+
+        Parameters setting the type of outputs
+        :param seisout:          Output seismograms
+                                 1: output velocities,
+                                 2: output pressure,
+                                 3: output stresses, output everything
+        :param resout:           Output residuals 1:yes, 0: no
+        :param rmsout:           Output rms value of the cost 1:yes, 0: no
+        :param movout:           Output movie every n frames
+
+        Parameters for file creation
+        :param file:            Base name of the file to create for SeisCL.
+                                Created files will be appended thr right suffix,
+                                i.e. the model file will be file_model.mat
+        :param workdir:         The name of the directory in which to create
+                                the file for SeisCL
         """
 
+        self.N = N
+        self.ND = ND
+        self.dh = dh
+        self.dt = dt
+        self.NT = NT
 
-        self.file = 'SeisCL'    #Filename for models and parameters (see setter)
-        self.file_datalist = None     #File with a list of all data (see setter)
+        self.L = L
+        self.f0 = f0
+        self.FL = FL
+
+        self.FDORDER = FDORDER
+        self.MAXRELERROR = MAXRELERROR
+        self.FP16 = FP16
+
+        self.src_pos_all = src_pos_all
+        self.rec_pos_all = rec_pos_all
+        self.src_all = src_all
+        self.src_pos = None
+        self.rec_pos = None
+        self.src = None
+
+        self.freesurf = freesurf
+        self.abs_type = abs_type
+        self.VPPML = VPPML
+        self.NPOWER = NPOWER
+        self.FPML = FPML
+        self.K_MAX_CPML = K_MAX_CPML
+        self.nab = nab
+        self.abpc = abpc
+
+        self.with_docker = with_docker
+        self.with_mpi = with_mpi
+        self.NP = NP
+        self.pref_device_type = pref_device_type
+        self.MPI_NPROC_SHOT = MPI_NPROC_SHOT
+        self.nmax_dev = nmax_dev
+        self.no_use_GPUs = no_use_GPUs
+        # __________Check if SeisCL exists and choose the implementation________
         self.progname = 'SeisCL_MPI'
-        self.workdir = './seiscl'
-        self.NP = 1
-        
-        #__________Check if SeisCL exists and choose the implemenation__________
-        self.with_mpi = False
-        self.with_docker = False
         self.docker_name = 'seiscl:v0'
         if shutil.which(self.progname):
             if shutil.which("mpirun"):
@@ -51,97 +261,41 @@ class SeisCL():
         else:
             raise SeisCLError("No working SeisCL program found")
 
-        #_____________________Simulation constants _______________________
-        self.csts = {}
-        self.csts['N'] = np.array([200,150])                 #Grid size [NZ, NX]
-        self.csts['ND'] = 2   #Flag for dimension. 3: 3D, 2: 2D P-SV, 21: 2D SH,
-                              #22: 2D acoustic
-        self.csts['dh'] = 10                               #Grid spatial spacing
-        self.csts['dt'] = 0.0008                                 #Time step size
-        self.csts['NT'] = 875                              #Number of time steps
-        self.csts['freesurf'] = 0          #Include a free surface 0: no, 1: yes
-        self.csts['FDORDER'] = 8                 #Order of the finite difference
-                                                         # Values: 2,4,6,8,10,12
-        self.csts['MAXRELERROR'] = 1                     #Select FD coefficients
-                                                         #(0: Taylor, 1:Holberg)
-        self.csts['L'] = 0        #Number of attenuation mechanism (L=0 elastic)
-        self.csts['f0'] = 15                #Central frequency of the relaxation
-        self.csts['FL'] = np.array(15) #Frequencies of the attenuation mechanism
+        self.gradout = gradout
+        self.Hout = Hout
+        self.gradsrcout = gradsrcout
+        self.back_prop_type = back_prop_type
+        self.gradfreqs = gradfreqs
+        self.param_type = param_type
+        self.tmax = tmax
+        self.tmin = tmin
+        self.fmin = fmin
+        self.fmax = fmax
+        self.filter_offset = filter_offset
+        self.offmin = offmin
+        self.offmax = offmax
+        self.inputres = inputres
 
-        # Position of each shots. Array [sx sy sz srcid src_type] x nb sources
-        # srcid is the source number (same srcid are fired simulatneously)
-        # src_type: 100: Explosive, 0: Force in X, 1: Force in Y, 2:Force in Z
-        self.csts['src_pos'] = np.empty((5,0))
-        # Position of the receivers. [gx gy gz srcid recid - - -] x nb receivers
-        # srcid is the source number recid is the trace number in the record
-        self.csts['rec_pos'] = np.empty((8,0))
-        self.csts['src'] = np.empty((self.csts['NT'],0))         #Source signals.
-                                                          # NTxnumber of sources
-        
-        self.csts['abs_type'] = 1                      #Absorbing boundary type:
-                                         # 1: CPML, 2: Absorbing layer of Cerjan
-        self.csts['VPPML'] = 3500                #Vp velocity near CPML boundary
-        self.csts['NPOWER'] = 2              #Exponent used in CMPL frame update
-        self.csts['FPML'] = 15              #Dominant frequency of the wavefield
-        self.csts['K_MAX_CPML'] = 2                 # Coeffienc involved in CPML
-                                          # (may influence simulation stability)
-        self.csts['nab'] = 16       #Width in grid points of the absorbing layer
-        self.csts['abpc'] = 6   #Exponential decay for absorbing layer of Cerjan
-        self.csts['pref_device_type'] = 4               #Type of processor used:
-                                                # 2: CPU, 4: GPU, 8: Accelerator
-        self.csts['nmax_dev'] = 1                       # Maximum number of GPUs
-        self.csts['no_use_GPUs'] = np.empty( (1,0) )    #Array of device numbers
-                                       # that should not be used for computation
-        self.csts['MPI_NPROC_SHOT'] = 1   #Maximum number of MPI process (nodes)
-                                              # involved in domain decomposition
-        
-        self.csts['back_prop_type'] = 1           #Type of gradient calculation:
-                                             # 1: backpropagation (elastic only)
-                                                #  2: Discrete Fourier transform
-        self.csts['param_type'] = 0                    #Type of parametrization:
-                                                   # 0:(rho,vp,vs,taup,taus),
-                                                   # 1:(rho, M, mu, taup, taus),
-                                                   # 2:(rho, Ip, Is, taup, taus)
-        self.csts['gradfreqs'] = np.empty((1,0)) #Frequencies of gradient with DFT
-        self.csts['tmax'] = 0              #Maximum time of gradient computation
-        self.csts['tmin'] = 0              #Minimum time of gradient computation
-        self.csts['scalerms'] = 0          #Scale each modeled and recorded traces according to its rms value, then scale residual by recorded trace rms
-        self.csts['scalermsnorm'] = 0      #Scale each modeled and recorded traces according to its rms value, normalized
-        self.csts['scaleshot'] = 0         #Scale all of the traces in each shot by the shot total rms value
-        self.csts['fmin'] = 0              #Maximum frequency of gradient
-        self.csts['fmax'] = 0              #Minimum frequency of gradient
-        self.csts['mute'] = None           #Muting matrix 5xnumber of traces. [t1 t2 t3 t4 flag] t1 to t4 are mute time with cosine tapers, flag 0: keep data in window, 1: mute data in window
-        self.csts['weight'] = None         # NTxnumber of geophones or 1x number of geophones. Weight each sample, or trace, according to the value of weight for gradient calculation.
-        
-        self.csts['gradout'] = 0           #Output gradient 1:yes, 0: no
-        self.csts['Hout'] = 0              #Output approximate Hessian 1:yes, 0: no
-        self.csts['gradsrcout'] = 0        #Output source gradient 1:yes, 0: no
-        self.csts['seisout'] = 2           #Output seismograms 1: output velocities, 2: output pressure, 3: output stresses, output everything
-        self.csts['resout'] = 0            #Output residuals 1:yes, 0: no
-        self.csts['rmsout'] = 0            #Output rms value 1:yes, 0: no
-        self.csts['movout'] = 0            #Output movie every n frames
-        self.csts['restype'] = 0           #Type of costfunction 0: raw seismic trace cost function. 1: Migration
-        self.csts['inputres'] = 0          #Input the residuals for gradient computation
-        
-        self.csts['FP16'] = 0              #FP16 computation: 0:FP32 1:FP32 vector, 2: FP16 IO 3: FP16 IO + COMP
-        
-        # These variables list all available sources and receivers
-        self.src_pos_all = np.empty((5,0))
-        self.rec_pos_all = np.empty((8,0))
-        self.src_all = None
+        self.restype = restype
+        self.scalerms = scalerms
+        self.scalermsnorm = scalermsnorm
+        self.scaleshot = scaleshot
 
-        self.mute = None
-        self.mute_window = np.empty((4,0))
-        self.mute_picks = np.empty((1,0))
-        self.filter_offset = False
-        self.offmin = -float('Inf')
-        self.offmax = float('Inf')
+        self.seisout = seisout
+        self.resout = resout
+        self.rmsout = rmsout
+        self.movout = movout
+
+        self.file = file
+        self.file_datalist = None
+        self.workdir = workdir
 
         self.wavelet_generator = self.ricker_wavelet
+        self.__to_load_names = None
 
-    #_____________________Setters _______________________
+    # _____________________Setters _______________________
     
-    #When setting a file for the datalist, load the datalist from it
+    # When setting a file for the datalist, load the datalist from it
     @property
     def workdir(self):
         return self.__workdir
@@ -152,7 +306,7 @@ class SeisCL():
         if not os.path.isdir(workdir):
             os.mkdir(workdir)
 
-    #When setting a file for the datalist, load the datalist from it  
+    # When setting a file for the datalist, load the datalist from it
     @property
     def file_datalist(self):
         return self.__file_datalist
@@ -169,25 +323,24 @@ class SeisCL():
                 data = mat[word]
                 setattr(self, fields[word], np.transpose(data))
     
-    #Params returns the list of parameters required by the simulation constants
+    # Params returns the list of parameters required by the simulation constants
     @property
     def params(self):
-        if self.csts['param_type'] == 0:
+        if self.param_type == 0:
             params = ['vp', 'vs', 'rho']
-        elif self.csts['param_type']==1:
-            params = ['M','mu','rho']
-        elif self.csts['param_type']==2:
-            params = ['Ip','Is','rho']
+        elif self.param_type == 1:
+            params = ['M', 'mu', 'rho']
+        elif self.param_type == 2:
+            params = ['Ip', 'Is', 'rho']
         else:
             raise NotImplementedError()
-        if self.csts['L'] > 0:
+        if self.L > 0:
             params.append('taup')
             params.append('taus')
         
         return params
 
-
-    #Given the general filename, set the specific filenames of each files
+    # Given the general filename, set the specific filenames of each files
     @property
     def file(self):
         return self.__file
@@ -204,96 +357,66 @@ class SeisCL():
         self.file_din = file+"_din.mat"
         self.file_res = file + "_res.mat"
 
-    #The variable src_pos, rec_pos and src must always be reflected 
-    #in self.csts to be written
     @property
-    def _src_pos(self):
-        return self.csts['src_pos']
-
-    @_src_pos.setter
-    def _src_pos(self, _src_pos):
-        if not type(_src_pos) is np.ndarray:
-            raise TypeError('src_pos must be a numpy arrays')
-        if _src_pos.shape[0] != 5:
-            raise TypeError('src_pos must be a numpy arrays with dim 5x num of src')
-        self.csts['src_pos'] = _src_pos
-        
-    @property
-    def _rec_pos(self):
-        return self.csts['rec_pos']
-
-    @_rec_pos.setter
-    def _rec_pos(self, _rec_pos):
-        if not type(_rec_pos) is np.ndarray:
-            raise TypeError('rec_pos must be a numpy arrays')
-        if _rec_pos.shape[0] != 8:
-            raise TypeError('rec_pos must be a numpy arrays with dim 8x num of rec')
-        self.csts['rec_pos'] = _rec_pos
-        
-    @property
-    def _src(self):
-        return self.csts['src']
-
-    @_src.setter
-    def _src(self, _src):
-        if not type(_src) is np.ndarray:
-            raise TypeError('src must be a numpy arrays')
-        if _src.shape[0] != self.csts['NT']:
-            raise TypeError('src must be a numpy arrays with dim NT x num of src')
-        self.csts['src'] = _src
+    def csts(self):
+        return self.__dict__
 
     @property
     def to_load_names(self):
-        toload = []
-        if self.csts['seisout'] == 1:
-            if self.csts['ND'] == 2:
+
+        toload = None
+        if self.__to_load_names is not None:
+            toload = self.__to_load_names
+        elif self.seisout == 1:
+            if self.ND == 2:
                 toload = ["vx", "vz"]
-            if self.csts['ND'] == 21:
+            if self.ND == 21:
                 toload = ["vy"]
-            if self.csts['ND'] == 3:
+            if self.ND == 3:
                 toload = ["vx", "vy", "vz"]
-        if self.csts['seisout'] == 2:
+        elif self.seisout == 2:
             toload = ["p"]
-        if self.csts['seisout'] == 3:
-            if self.csts['ND'] == 2:
+        elif self.seisout == 3:
+            if self.ND == 2:
                 toload = ["sxx", "szz", "sxz"]
-            if self.csts['ND'] == 21:
+            if self.ND == 21:
                 toload = ["sxy", "syz"]
-            if self.csts['ND'] == 3:
+            if self.ND == 3:
                 toload = ["sxx", "syy", "szz", "sxz", "sxy", "syz"]
-        if self.csts['seisout'] == 4:
-            if self.csts['ND'] == 2:
-                toload = ["vx", "vz","sxx", "szz", "sxz"]
-            if self.csts['ND'] == 21:
+        elif self.seisout == 4:
+            if self.ND == 2:
+                toload = ["vx", "vz", "sxx", "szz", "sxz"]
+            if self.ND == 21:
                 toload = ["vy", "sxy", "syz"]
-            if self.csts['ND'] == 3:
+            if self.ND == 3:
                 toload = ["vx", "vy", "vz",
                           "sxx", "syy", "szz", "sxz", "sxy", "syz"]
 
         return toload
 
+    @to_load_names.setter
+    def to_load_names(self, values):
+        self.__to_load_names = values
             
     def set_forward(self, jobids, params, workdir=None, withgrad=True):
         """
-        Set up files to launch SeisCL on a selected number of shots
+        Perform actions before doing forward computation (writing files)
 
-        @params:
-        jobids (list): Source ids to compute
-        params (dict): A dictionary containing material parameters
-        workdir (str): The directory in which to write SeisCL files
-        withgrad (bool): If true, SeisCL will output the gradient
-
-        @returns:
-
+        :param jobids: Source ids to compute
+        :param params: A dictionary containing material parameters
+        :param workdir: The directory in which to write SeisCL files
+        :param withgrad: If true, SeisCL will output the gradient
         """
+
         if workdir is None:
             workdir = self.workdir
         
         self.prepare_data(jobids)
         if withgrad:
-            self.csts['gradout'] = 1
+            self.gradout = 1
         else:
-            self.csts['gradout'] = 0
+            self.gradout = 0
+        self.N = np.array(params[self.params[0]].shape, dtype=np.int)
         self.write_csts(workdir)
         self.write_model(params, workdir)
 
@@ -302,14 +425,12 @@ class SeisCL():
         Set up files to launch SeisCL when inputing residuals for gradient
         computation
 
-        @params:
-        workdir (str): The directory in which to write SeisCL files
-        residuals (list): A list of residuals for each seismic variable
-
-        @returns:
-
+        :param residuals: A list of residuals for each seismic variable to
+                          output
+        :param workdir: The directory in which to write SeisCL files
+        :return:
         """
-        
+
         if workdir is None:
             workdir = self.workdir
         if residuals is not None:
@@ -322,22 +443,20 @@ class SeisCL():
                           format='7.3',
                           store_python_metadata=True,
                           truncate_existing=True)
-            self.csts['inputres'] = 1
+            self.inputres = 1
         else:
-            self.csts['inputres'] = 0
-        self.csts['gradout'] = 1
+            self.inputres = 0
+        self.gradout = 1
         self.write_csts(workdir)
 
     def callcmd(self, workdir=None):
         """
         Defines the command to launch SeisCL
 
-        @params:
-        workdir (str): The directory in which to write SeisCL files
-
-        @returns:
-        cmd (str): A string containing the command
+        :param workdir: The directory in which to write SeisCL files
+        :return: A string containing the command
         """
+
         if workdir is None:
             workdir = self.workdir
         workdir = os.path.abspath(workdir)
@@ -345,28 +464,28 @@ class SeisCL():
         path_din = os.path.dirname(file_din)
         cmd = ''
         if self.with_mpi:
-            cmd+= 'mpirun -np ' + str(self.NP) + ' '
+            cmd += 'mpirun -np ' + str(self.NP) + ' '
         elif self.with_docker:
-            cmd+= 'docker run --gpus all -v ' + workdir + ':' + workdir + ' '
-            cmd+= '-v ' + path_din + ':' + path_din + ' '
-            cmd+= ' -w ' + workdir + ' '
-            cmd+= '--user $(id -u):$(id -g) '
-            cmd+= self.docker_name + ' '
+            cmd += 'docker run --gpus all -v ' + workdir + ':' + workdir + ' '
+            cmd += '-v ' + path_din + ':' + path_din + ' '
+            cmd += ' -w ' + workdir + ' '
+            cmd += '--user $(id -u):$(id -g) '
+            cmd += self.docker_name + ' '
         
         cmd += self.progname
-        cmd += ' '+workdir+'/'+self.file
-        cmd += ' ' +self.file_din
+        cmd += ' ' + workdir + '/' + self.file
+        cmd += ' ' + self.file_din
         return cmd
 
     def execute(self, workdir=None):
         """
         Launch SeisCL, a wait for it to return
 
-        @params:
-        workdir (str): The directory in which to write SeisCL files
+        :param workdir: The directory in which to write SeisCL files
 
-        @returns:
+        :return The stdout of SeisCL
         """
+
         if workdir is None:
             workdir = self.workdir
         pipes = subprocess.Popen(self.callcmd(workdir),
@@ -382,13 +501,13 @@ class SeisCL():
         """
         Read the seismogram output by SeisCL
 
-        @params:
-        workdir (str): The directory in which to write SeisCL files
+        :param workdir: The directory in which the data file is found
+        :param filename: The name of the file containing the data
 
-        @returns:
-        output (list): A list containing each outputted variable
+        :return: A list containing the simulated data for each variable to
+                 output, given by self.to_load_names
         """
-        
+
         if workdir is None:
             workdir = self.workdir
         if filename is None:
@@ -413,12 +532,13 @@ class SeisCL():
         """
         Read the movie output by SeisCL
 
-        @params:
-        workdir (str): The directory in which to write SeisCL files
+        :param workdir: The directory of the movie file
+        :param filename: The filename of the movie
 
-        @returns:
-        output (list): A list containing each outputted variable
+        :return: A list containing the movie for each variable to
+                 output, given by self.to_load_names
         """
+
         if workdir is None:
             workdir = self.workdir
         if filename is None:
@@ -431,7 +551,6 @@ class SeisCL():
         for word in self.to_load_names:
             if "mov" + word in mat:
                 datah5 = mat["mov" + word]
-                #data = np.transpose(datah5)
                 output.append(datah5)
                 
         if not output:
@@ -441,15 +560,14 @@ class SeisCL():
     
     def read_grad(self, workdir=None, param_names=None, filename=None):
         """
-        Read the gradient output by SeisCL
 
-        @params:
-        workdir (str): The directory in which to write SeisCL files
-        param_names (list) List the variable names to read the gradient
+        :param workdir: The directory of the gradient file
+        :param param_names: List the variable names to read the gradient
+        :param filename: The filename of the gradient
 
-        @returns:
-        output (list): A list containing each gradient
+        :return: A list containing the gradient of each parameter
         """
+
         if workdir is None:
             workdir = self.workdir
         if filename is None:
@@ -469,13 +587,13 @@ class SeisCL():
         """
         Read the approximate hessian output by SeisCL
 
-        @params:
-        workdir (str): The directory in which to write SeisCL files
-        param_names (list) List the variable names to read the gradient
+        :param workdir: The directory of the gradient file
+         :param param_names: List the variable names to read the gradient
+        :param filename: The filename of the gradient
 
-        @returns:
-        output (list): A list containing each gradient
+        :return: A list containing the Hessian of each parameter
         """
+
         if workdir is None:
             workdir = self.workdir
         if param_names is None:
@@ -493,15 +611,15 @@ class SeisCL():
 
     def read_rms(self, workdir=None, filename=None):
         """
-        Read the rms value output by SeisCL
+        Read the cost value output by SeisCL
 
-        @params:
-        workdir (str): The directory in which to write SeisCL files
-
-        @returns:
-        rms (float): The normalized rms value
-        rms_norm (float) :Normalization factor
+        :param workdir: The directory of the rms file
+        :param filename: Name of the file containing the cost
+        :returns:
+            rms: the normalized rms values
+            rms_norm: Noramlization factor
         """
+
         if workdir is None:
             workdir = self.workdir
         if filename is None:
@@ -515,24 +633,24 @@ class SeisCL():
             
     def write_data(self, data, workdir=None, filename=None):
         """
-        Write the data file for SeisCL
+        Writes the data in hdf5 format
 
-        @params:
-        data (dict): A dictionary containing the variables names and the data
-
-        @returns:
+        :param data: A dictionary containing the variables names and the data
+        :param workdir: The directory in which to write the data
+        :param filename: The filname of the output data
 
         """
+
         if workdir is None:
             workdir = self.workdir
         if filename is None:
             filename = self.file_din
         if 'src_pos' not in data:
-            data['src_pos'] = self._src_pos
+            data['src_pos'] = self.src_pos
         if 'rec_pos' not in data:
-            data['rec_pos'] = self._rec_pos
+            data['rec_pos'] = self.rec_pos
         if 'src' not in data:
-            data['src'] = self._src
+            data['src'] = self.src
         h5mat.savemat(os.path.join(workdir, filename),
                       data,
                       appendmat=False,
@@ -542,43 +660,41 @@ class SeisCL():
 
     def read_csts(self, workdir=None, filename=None):
         """
-        Read the constants from the constants file
+        Read the parameters from SeisCL constants file, and replace fields in
+        self with values found in the file.
 
-        @params:
-        workdir (str): The directory in which to write SeisCL files
-
-        @returns:
-
+        :param workdir: The directory of the constants files
+        :param filename: The filename of the constant files
         """
+
         if workdir is None:
             workdir = self.workdir
         if filename is None:
             filename = self.file_csts
         try:
-           mat = h5mat.loadmat(os.path.join(workdir, filename),
-                               variable_names=[param for param in self.csts])
-           for word in mat:
-               if word in self.csts:
-                   self.csts[word] = mat[word]
+            mat = h5mat.loadmat(os.path.join(workdir, filename),
+                                variable_names=[param for param in self.csts])
+            for word in mat:
+                if word in csts:
+                    self.__dict__[word] = mat[word]
         except (h5mat.lowlevel.CantReadError, NotImplementedError):
-           raise SeisCLError('could not read parameter file \n')
+            raise SeisCLError('could not read parameter file \n')
 
     def write_csts(self, workdir=None, filename=None):
         """
         Write the constants to the constants file
 
-        @params:
-        workdir (str): The directory in which to write SeisCL files
-
-        @returns:
-
+        :param workdir: The directory of the constants files
+        :param filename: The filename of the constant files
         """
+
         if workdir is None:
             workdir = self.workdir
         if filename is None:
             filename = self.file_csts
+
         h5mat.savemat(os.path.join(workdir, filename),
-                      self.csts,
+                      {el: self.__dict__[el] for el in csts},
                       appendmat=False,
                       format='7.3',
                       store_python_metadata=True,
@@ -586,26 +702,22 @@ class SeisCL():
 
     def invert_source(self, src, datao, datam, srcid=None):
         """
-            Invert for the source signature
-            
-            @params:
-            src (np.array): The source function
-            datao (np.array): The observed seismogram. Time should be axis 0.
-            datam (np.array): The modeled seismogram. Time should be axis 0.
-            srcid (int): The source id. If provided, will overwrite the source
-                         function of srcid in self.file_datalist, so new modeling
-                         will use the updated source.
-            
-            @returns:
-            An array containing the updated source
-        
+        Invert for the source signature provided observed and modeled data
+
+        :param src: The source function
+        :param datao: The observed seismogram. Time should be axis 0.
+        :param datam: The modeled seismogram. Time should be axis 0.
+        :param srcid: The source id. If provided, will overwrite the source
+                         function of srcid in self.src_all,
+                         so new modeling will use the updated source.
+        :return: An array containing the updated source
         """
-        
-        Dm = np.fft.fft(datam, axis=0)
-        Do = np.fft.fft(datao, axis=0)
-        S = np.fft.fft(np.squeeze(src), axis=0)
-        A = np.sum(np.conj(Dm)*Do, axis=1)/np.sum(Dm * np.conj(Dm), axis=1)
-        src_new = np.real(np.fft.ifft(A*S[:]))
+
+        dm = np.fft.fft(datam, axis=0)
+        do = np.fft.fft(datao, axis=0)
+        s = np.fft.fft(np.squeeze(src), axis=0)
+        a = np.sum(np.conj(dm) * do, axis=1) / np.sum(dm * np.conj(dm), axis=1)
+        src_new = np.real(np.fft.ifft(a * s[:]))
         if srcid is not None:
             self.src_all[:, srcid] = src_new
         return src_new
@@ -614,13 +726,11 @@ class SeisCL():
         """
         Write model parameters to the model files
 
-        @params:
-        workdir (str): The directory in which to write SeisCL files
-        param_names (dict) Dictionary with parameters name and their value
-
-        @returns:
-
+        :param params: Dictionary with parameters name and their value
+        :param workdir: The directory in which to write SeisCL files
+        :return:
         """
+
         if workdir is None:
             workdir = self.workdir
         for param in self.params:
@@ -629,119 +739,136 @@ class SeisCL():
         with h5.File(os.path.join(workdir, self.file_model), "w") as file:
             for param in params:
                 file[param] = np.transpose(params[param].astype(np.float32))
-        #
-        # h5mat.savemat(os.path.join(workdir, self.file_model),
-        #               params,
-        #               appendmat=False,
-        #               format='7.3',
-        #               store_python_metadata=True,
-        #               truncate_existing=True)
-        
-    def prepare_data(self, jobids):
+
+    def prepare_data(self, srcids):
         """
         Prepares receivers and sources arrays to launch computations
 
-        @params:
-
-        @returns:
-
+        :param srcids: The source ids of the source to compute
         """
 
-        # Find available source and receiver ids corresponding to jobids
-
-        # if isinstance(jobids, int):
-        #     jobids = list(jobids)
-        if np.issubdtype(type(jobids), np.integer):
-            jobids = [jobids]
+        # Find available source and receiver ids corresponding to srcids
+        if np.issubdtype(type(srcids), np.integer):
+            srcids = [srcids]
             
-        srcids = [id for id in self.src_pos_all[3, :].astype(int)
-                  if id in jobids]
+        srcids = [el for el in self.src_pos_all[3, :].astype(int)
+                  if el in srcids]
         recids = [g for g, s in enumerate(self.rec_pos_all[3, :].astype(int))
-                  if s in jobids]
+                  if s in srcids]
         if len(srcids) <= 0:
             raise ValueError('No shot found')
 
         # Assign the found sources and reveivers to be computed
-        self._src_pos = self.src_pos_all[:, srcids]
+        self.src_pos = self.src_pos_all[:, srcids]
         # If no shot signature were provided, fill the source with generated
         # wavelets
         if self.src_all is None:
             self.src_all = np.stack([self.wavelet_generator()]
                                     * self.src_pos_all.shape[1], 1)
-        self._src = self.src_all[:, srcids]
-        self._rec_pos = self.rec_pos_all[:, recids]
+        self.src = self.src_all[:, srcids]
+        self.rec_pos = self.rec_pos_all[:, recids]
 
-        # Remove receivers not located between maximum and minumum offset
+        # Remove receivers not located between maximum and minimum offset
         if self.filter_offset:
-            validrec=[]
-            for ii in range(0, self._rec_pos.shape[1] ):
-                srcid = np.where(self._src_pos[3,:] == self._rec_pos[3, ii])
-                offset = np.sqrt( (self._rec_pos[0, ii]-self._src_pos[0, srcid])**2
-                                 +(self._rec_pos[1, ii]-self._src_pos[1, srcid])**2
-                                 +(self._rec_pos[2, ii]-self._src_pos[2, srcid])**2)
-                if offset <= self.offmax and offset >= self.offmin:
+            validrec = []
+            for ii in range(0, self.rec_pos.shape[1]):
+                srcid = np.where(self.src_pos[3, :] == self.rec_pos[3, ii])
+                offset = np.sqrt(
+                    (self.rec_pos[0, ii]-self.src_pos[0, srcid])**2
+                    + (self.rec_pos[1, ii]-self.src_pos[1, srcid])**2
+                    + (self.rec_pos[2, ii]-self.src_pos[2, srcid])**2
+                )
+                if self.offmax >= offset >= self.offmin:
                     validrec.append(ii)
-            self._rec_pos = self._rec_pos[:, validrec]
-            recids = [recids[id] for id in validrec]
-        self._rec_pos[4, :] = [x+1 for x in recids]
+            self.rec_pos = self.rec_pos[:, validrec]
+            recids = [recids[el] for el in validrec]
 
-        # Assign the mute windows if provided
-        if np.any(self.mute_window):
-            self.mute = np.transpose(np.tile(self.mute_window,
-                                             (self._rec_pos.shape[1], 1)))
-            if np.any(self.mute_picks):
-                for ii in range(0, recids.size):
-                    self.mute[:3, ii] = self.mute[:3, ii] + self.mute_picks[recids[ii]]
+        self.rec_pos[4, :] = [x+1 for x in recids]
 
-    def ricker_wavelet(self, f0 = None, NT = None, dt = None, tmin=None):
-            
+    def ricker_wavelet(self, f0=None, NT=None, dt=None, tmin=None):
+        """
+        Compute a ricker wavelet
+
+        :param f0: Peak frequency of the wavelet
+        :param NT: Number of time steps
+        :param dt: Sampling time
+        :param tmin: Time delay before time 0 relative to the center of the
+                     wavelet
+        :return: ricker: An array containing the wavelet
+        """
         if NT is None:
-            NT = self.csts['NT']
+            NT = self.NT
         if f0 is None:
-            f0 = self.csts['f0']
+            f0 = self.f0
         if dt is None:
-            dt = self.csts['dt']
+            dt = self.dt
         if tmin is None:
             tmin = -1.5 / f0
         t = np.linspace(tmin, (NT-1) * dt + tmin, num=int(NT))
 
         ricker = ((1.0 - 2.0 * (np.pi ** 2) * (f0 ** 2) * (t ** 2))
-                * np.exp(-(np.pi ** 2) * (f0 ** 2) * (t ** 2)))
+                  * np.exp(-(np.pi ** 2) * (f0 ** 2) * (t ** 2)))
 
         return ricker
 
     def save_segy(self, data, name):
+        """
+        Saves the data in a SEGY file. The
+        only header that is set is the time interval.
 
-        dt = self.csts["dt"]
-        out = Stream(Trace(data[:,ii], header=dict(delta=dt))
+        :param data: The array of dimension nt X nb traces containing the data
+        :param name: Name of the SEGY file to write
+        """
+        #TODO write receivers and sources position and test
+
+        out = Stream(Trace(data[:, ii], header=dict(delta=self.dt))
                      for ii in range(data.shape[1]))
         out.write(name, format='SEGY', data_encoding=5)
 
     def read_segy(self, name):
+        """
+        Read a SEGY file and places returns the data in an array of dimension
+        nt X nb traces
 
+        :param name: Name of the segyfile
+
+        :return: A numpy array containing the data
+        """
         segy = _read_segy(name)
         return np.transpose(np.array([trace.data for trace in segy.traces]))
 
-    def fill_src_rec_reg(self, dg=2, ds=5, dsx=2, dsz=2, dgsz=0):
+    def surface_acquisition_2d(self, dg=2, ds=5, dsx=2, dsz=2, dgsz=0):
+        """
+        Fills the sources and receivers position (src_pos_all and rec_pos_all)
+        for a regular surface acquisition.
+
+        :param dg: Spacing between receivers (in grid points)
+        :param ds: Spacing between sources (in grid points)
+        :param dsx: X distance from the absorbing boundary of the first source
+        :param dsz: Depth of the sources relative to the free surface or of the
+                    absorbing boundary
+        :param dgsz: Depth of the receivers relative to the depth of the sources
+        """
+
         self.src_pos_all = np.empty((5, 0))
         self.rec_pos_all = np.empty((8, 0))
         self.src_all = None
 
-        NX = self.csts['N'][1]
-        dlx = self.csts['nab'] + dsx
-        if self.csts['freesurf'] == 0:
-            dlz = self.csts['nab'] + dsz
+        nx = self.N[1]
+        dlx = self.nab + dsx
+        if self.freesurf == 0:
+            dlz = self.nab + dsz
         else:
             dlz = dsz
-        gx = np.arange(dlx + dsx, NX - dlx, dg) * self.csts['dh']
-        gz = gx * 0 + (dlz + dgsz) * self.csts['dh']
+        gx = np.arange(dlx + dsx, nx - dlx, dg) * self.dh
+        gz = gx * 0 + (dlz + dgsz) * self.dh
 
-        for ii in range(dlx, NX - dlx, ds):
+        for ii in range(dlx, nx - dlx, ds):
             idsrc = self.src_pos_all.shape[1]
             toappend = np.zeros((5, 1))
-            toappend[0, :] = (ii) * self.csts['dh']
+            toappend[0, :] = (ii) * self.dh
             toappend[1, :] = 0
-            toappend[2, :] = dlz * self.csts['dh']
+            toappend[2, :] = dlz * self.dh
             toappend[3, :] = idsrc
             toappend[4, :] = 100
             self.src_pos_all = np.append(self.src_pos_all, toappend, axis=1)
@@ -757,24 +884,34 @@ class SeisCL():
                                  gx * 0], 0)
             self.rec_pos_all = np.append(self.rec_pos_all, toappend, axis=1)
 
-    def fill_src_rec_crosshole(self, dg=2, ds=5, dsx=2, dsz=2, dgsz=0):
+    def crosshole_acquisition_2d(self, dg=2, ds=5, dsx=2, dsz=2):
+        """
+        Fills the sources and receivers position (src_pos_all and rec_pos_all)
+        for 2D multi-offset crosshole acquisition.
 
-        NX = self.csts['NX']
-        NZ = self.csts['NZ']
-        dlx = self.csts['nab'] + dsx
-        if self.csts['freesurf'] == 0:
-            dlz = self.csts['nab'] + dsz
+        :param dg: Spacing of the receivers (in grid points)
+        :param ds: Spacing of the source (in grid points)
+        :param dsx: X distance from the absorbing boundary of the sources (left)
+                    and receivers (right)
+        :param dsz: Z distance from the absorbing boundary or the free surface
+                    for both sources and receivers
+        """
+
+        nz, nx = self.N
+        dlx = self.nab + dsx
+        if self.freesurf == 0:
+            dlz = self.nab + dsz
         else:
             dlz = dsz
-        gz = np.arange(dlz, NZ - dlz, dg) * self.csts['dh']
-        gx = gz * 0 + (NX - dlx) * self.csts['dh']
+        gz = np.arange(dlz, nz - dlz, dg) * self.dh
+        gx = gz * 0 + (nx - dlx) * self.dh
 
-        for ii in range(dlz, NZ - dlz, ds):
+        for ii in range(dlz, nz - dlz, ds):
             idsrc = self.src_pos_all.shape[1]
             toappend = np.zeros((5, 1))
-            toappend[0, :] = dlx * self.csts['dh']
+            toappend[0, :] = dlx * self.dh
             toappend[1, :] = 0
-            toappend[2, :] = (ii) * self.csts['dh']
+            toappend[2, :] = (ii) * self.dh
             toappend[3, :] = idsrc
             toappend[4, :] = 100
             self.src_pos_all = np.append(self.src_pos_all, toappend, axis=1)
@@ -790,34 +927,45 @@ class SeisCL():
                                  gx * 0], 0)
             self.rec_pos_all = np.append(self.rec_pos_all, toappend, axis=1)
 
-    def DrawDomain2D(self, model, ax= None, ShowAbs= False, ShowSrcRec = False):
-        import matplotlib.pyplot as plt
-        import matplotlib.patches as patches
+    def DrawDomain2D(self, model, ax=None, showabs=False, showsrcrec=False):
+        """
+        Draws the 2D model with absorbing boundary position or receivers and
+        sources positions
 
-        Nx = self.csts['N'][0]
-        Ny = self.csts['N'][1]
-        dh = self.csts['dh']
+        :param model: The 2D array of the model to draw
+        :param ax: The axis on which to plot
+        :param showabs: If True, draws the absorbing boundary
+        :param showsrcrec: If True, draws the sources and receivers positions
+
+        """
+
+        nz, nx = self.N
+        dh = self.dh
 
         if not ax:
             _, ax = plt.subplots(1, 1)
 
-        im = ax.imshow(model, extent=[0, Ny*dh, Nx*dh, 0])
+        im = ax.imshow(model, extent=[0, nx*dh, nz*dh, 0])
         ax.set_xlabel('Distance (m)')
         ax.set_ylabel('Depth (m)')
 
         cbar = plt.colorbar(im)
         cbar.set_label('Velocity (m/s)')
 
-        if ShowSrcRec:
+        if showsrcrec:
             self.DrawSrcRec(ax)
 
-        if ShowAbs:
+        if showabs:
             self.DrawLayers(ax)
 
         plt.show()
 
     def DrawSrcRec(self, ax):
-        import matplotlib.pyplot as plt
+        """
+        Draws the sources and receivers position
+
+        :param ax: Axis on which to draw the positions
+        """
         sx = self.src_pos_all[0]
         sy = self.src_pos_all[2]
 
@@ -834,29 +982,22 @@ class SeisCL():
         plt.legend(loc=4)
 
     def DrawLayers(self, ax):
-        import matplotlib as mpl
-        from matplotlib.patches import Rectangle
-        import matplotlib.pyplot as plt
-        from matplotlib.patheffects import withStroke
 
-        mpl.rcParams['hatch.linewidth'] = 0.5
+        nab = self.nab
+        nz, nx = self.N
+        dh = self.dh
 
-        nab = self.csts['nab']
-        Nx = self.csts['N'][0]
-        Ny = self.csts['N'][1]
-        dh = self.csts['dh']
-
-        AbsRect = {'East': Rectangle((0, 0), nab*dh, Nx*dh, linewidth=2,
+        AbsRect = {'East': Rectangle((0, 0), nab*dh, nz*dh, linewidth=2,
                                      edgecolor='k', facecolor='none', hatch='/'),
-                   'West': Rectangle(((Ny-nab)*dh, 0), nab*dh, Nx*dh, linewidth=2,
+                   'West': Rectangle(((nx-nab)*dh, 0), nab*dh, nz*dh, linewidth=2,
                                      edgecolor='k', facecolor='none', hatch='/'),
-                   'South': Rectangle((nab*dh, (Nx-nab)*dh), (Ny-2*nab)*dh, nab*dh,
+                   'South': Rectangle((nab*dh, (nz-nab)*dh), (nx-2*nab)*dh, nab*dh,
                                       linewidth=2, edgecolor='k',
                                       facecolor='none', hatch='/')
                    }
 
-        if not self.csts['freesurf']:
-            AbsRect['North'] = Rectangle((nab*dh, 0), (Ny-2*nab)*dh, nab*dh,
+        if not self.freesurf:
+            AbsRect['North'] = Rectangle((nab*dh, 0), (nx-2*nab)*dh, nab*dh,
                                          linewidth=2, edgecolor='k',
                                          facecolor='none', hatch='/')
         else:
@@ -864,7 +1005,7 @@ class SeisCL():
             # Not the best way to do it
             ax.set_title('free surface', fontsize=12)
 
-        if self.csts['abs_type'] == 1:
+        if self.abs_type == 1:
             TextLayers = 'PML'
         else:
             TextLayers = 'Cerjan'
@@ -886,51 +1027,35 @@ class SeisCL():
                             path_effects=[withStroke(linewidth=3,
                                                      foreground="w")])
 
-if __name__ == "__main__":
-    import matplotlib.pyplot as plt
-    tmax = 0.5
-    seis = SeisCL()
-    seis.csts['dh'] = 2.5
-    seis.csts['dt'] = 2e-4
-    seis.csts['NT'] = tmax // seis.csts['dt']
 
-    seis.csts['f0'] = 40
-    seis.csts['freesurf'] = 0
-    seis.csts['FDORDER'] = 4
-    seis.csts['abs_type'] = 1
-    seis.csts['seisout'] = 2
+if __name__ == "__main__":
+
+    tmax = 0.25
+    seis = SeisCL()
+    seis.dh = 2.5
+    seis.dt = 2e-4
+    seis.NT = tmax // seis.dt
+    seis.f0 = 40
+    seis.freesurf = 0
+    seis.FDORDER = 4
+    seis.abs_type = 1
+    seis.seisout = 2
     
-    vp = np.zeros([200,200]) + 3500
+    vp = np.zeros([200, 200]) + 3500
     vs = vp * 0 + 2000
     rho = vp * 0 + 2000
 
+    seis.N = np.array(vp.shape)
+    seis.surface_acquisition_2d()
 
-    """
-    _________________________Sources and receivers______________________________
-    """
-    seis.csts['N'] = np.array(vp.shape)
-
-    sx = np.array([seis.csts['N'][1]/2]) * seis.csts['dh']
-    sz = np.array([seis.csts['N'][0]/2]) * seis.csts['dh']
-    sid = sx*0
-    seis.src_pos_all = np.stack([sx, sx * 0, sz, sid, sx * 0 + 100], axis=0)
-    
-    l1 = (seis.csts['nab'] + 1) * seis.csts['dh']
-    l2 = (seis.csts['N'][1] - seis.csts['nab']) * seis.csts['dh']
-    gx = np.arange(l1, l2, seis.csts['dh'])
-    gsid = np.concatenate([s + gx * 0 for s in sid], axis=0)
-    gz = gx * 0 + (seis.csts['N'][0]//2) * seis.csts['dh']
-    gid = np.arange(0, len(gx))
-    seis.rec_pos_all = np.stack([gx, gx * 0, gz, gsid, gid,
-                                 gx * 0 + 2, gx * 0, gx * 0], axis=0)
-
-    seis.set_forward(seis.src_pos_all[3,:], {"vp": vp, "rho": rho, "vs": vs},
+    seis.set_forward(seis.src_pos_all[3, :],
+                     {"vp": vp, "rho": rho, "vs": vs},
                      withgrad=False)
     seis.execute()
-    data = seis.read_data()[0]
-    clip = 0.01
-    vmin = np.min(data) * clip
-    vmax = -vmin
-    plt.imshow(data, aspect='auto', vmin=vmin, vmax=vmax)
-    plt.show()
+    sdata = seis.read_data()[0]
 
+    clip = 0.01
+    vmin = np.min(sdata) * clip
+    vmax = -vmin
+    plt.imshow(sdata, aspect='auto', vmin=vmin, vmax=vmax)
+    plt.show()

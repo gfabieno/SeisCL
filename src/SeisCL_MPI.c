@@ -36,23 +36,49 @@ int main(int argc, char **argv) {
 
     model m={0};
     device *dev=NULL;
-
-    
     int i;
     double time1=0.0, time2=0.0, time3=0.0, time4=0.0, time5=0.0, time6=0.0;
-
-    
-    //Input files name is an argument
     struct filenames file={};
     const char * filein;
-    const char * filedata;
-    if (argc>1){
-        filein=argv[1];
-    }
-    else {
-        filein="SeisCL";
-    }
-   
+    const char * filedata=NULL;
+    int index;
+    int c;
+
+    opterr = 0;
+    while ((c = getopt (argc, argv, "hp")) != -1)
+        switch (c)
+        {
+            case 'h':
+                fprintf (stdout, "Option help");
+                break;
+            case 'p':
+                m.printkernels = 1;
+                break;
+            case '?':
+                fprintf (stderr,
+                         "Unknown option character `\\x%x'.\n",
+                         optopt);
+                return 1;
+            default:
+                abort();
+        }
+
+    filein="SeisCL";
+    for (index = optind; index < argc; index++)
+        switch (index - optind) {
+            case 0:
+                filein = argv[index];
+                break;
+            case 1:
+                filedata = argv[index];
+                break;
+            default:
+                fprintf (stderr,
+                         "Too many default argument, expected 2");
+                return 1;
+        }
+
+    //Input files name is an argument
     snprintf(file.model, sizeof(file.model), "%s%s", filein, "_model.mat");
     snprintf(file.csts, sizeof(file.csts), "%s%s", filein, "_csts.mat");
     snprintf(file.dout, sizeof(file.dout), "%s%s", filein, "_dout.mat");
@@ -60,16 +86,21 @@ int main(int argc, char **argv) {
     snprintf(file.rmsout, sizeof(file.rmsout), "%s%s", filein, "_rms.mat");
     snprintf(file.movout, sizeof(file.movout), "%s%s", filein, "_movie.mat");
     snprintf(file.res, sizeof(file.res), "%s%s", filein, "_res.mat");
-    
-    if (argc>2){
-        filedata=argv[2];
-        snprintf(file.din, sizeof(file.din), "%s", filedata);
-    }
-    else {
-        filedata=filein;
+    if (filedata == NULL){
         snprintf(file.din, sizeof(file.din), "%s%s", filedata, "_din.mat");
     }
-    
+    else {
+        snprintf(file.din, sizeof(file.din), "%s", filedata);
+    }
+    fprintf (stdout, "Input files for SeisCL: \n");
+    fprintf (stdout, "    model: %s \n", file.model);
+    fprintf (stdout, "    constants: %s \n", file.csts);
+    fprintf (stdout, "    output data: %s \n", file.dout);
+    fprintf (stdout, "    output gradient: %s \n", file.gout);
+    fprintf (stdout, "    output rms: %s \n", file.rmsout);
+    fprintf (stdout, "    output movie: %s \n", file.movout);
+    fprintf (stdout, "    input data: %s \n\n", file.din);
+
     /* Check if cache directory exists and create dir if not */
     struct stat info;
     const char *homedir;
@@ -92,13 +123,12 @@ int main(int argc, char **argv) {
         printf( "Cache directory already exists: %s \n", m.cache_dir );
     else{
         state =1;
-        printf( "%s already exists and is not a directory\n", m.cache_dir );
+        printf( "%s already exists and is not a directory\n\n", m.cache_dir );
     }
-    
 
-    
     /* Initialize MPI environment */
     #ifndef __NOMPI__
+    printf( "\nInitializing MPI\n", m.cache_dir );
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &m.GNP);
     MPI_Comm_rank(MPI_COMM_WORLD, &m.GID);
@@ -117,7 +147,7 @@ int main(int argc, char **argv) {
     MPI_Comm_rank(node_comm, &m.LID);
     MPI_Comm_free(&node_comm);
     
-    fprintf(stdout,"Process %d/%d, processor %s, node process %d/%d, pid %d\n",
+    fprintf(stdout,"    Process %d/%d, processor %s, node process %d/%d, pid %d\n",
             m.GID, m.GNP, processor_name, m.LID, m.LNP,  getpid());
     fflush(stdout);
 //    if (m.GID == 0) sleep(30);
@@ -146,6 +176,7 @@ int main(int argc, char **argv) {
     if (!state) state = Init_model(&m);
     time3=wtime();
 
+    printf( "\nInitializing GPUs\n", m.cache_dir );
     if (!state) state = Init_CUDA(&m, &dev);
 
     time4=wtime();
