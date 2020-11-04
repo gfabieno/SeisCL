@@ -229,7 +229,7 @@ int readscalar(hid_t file_id, hid_t memtype, const char * name, void * varptr){
 }
 
 int read_csts(struct filenames files, model * m){
-    
+
     hid_t       file_id=0;
     hsize_t     dimsND[MAX_DIMS],dims2D[2],dimsfreqs[2];
     int         state =0, maxrecid, tempstate;
@@ -237,16 +237,16 @@ int read_csts(struct filenames files, model * m){
     int  i=0,  nsg=0, n=0, p=0;
     float *src0=NULL, *src_pos0=NULL, *rec_pos0=NULL ;
     char temp[100]={0};
-    
+
     /* Open the input file. */
     file_id = -1;
     file_id = H5Fopen(files.csts, H5F_ACC_RDWR, H5P_DEFAULT);
     if (!state) if (file_id<0) {state=1;fprintf(stderr, "Error: Could not open the input file csts");};
-    
-    
+
+
     /* Basic variables__________________________________
      __________________________________________________________________*/
-    
+
     /* Read basic scalar variables */
     __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/NT", &m->NT);
     __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/ND", &m->ND);
@@ -268,12 +268,12 @@ int read_csts(struct filenames files, model * m){
     __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/nmax_dev", &m->nmax_dev);
     __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/MPI_NPROC_SHOT", &m->MPI_NPROC_SHOT);
     __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/back_prop_type", &m->BACK_PROP_TYPE);
-    
+
     /* Visco-elastic modeling*/
     if (m->L>0){
         __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/f0", &m->f0);
     }
-    
+
     /*Absorbing boundary variables*/
     if (m->ABS_TYPE==2){
         __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/abpc", &m->abpc);
@@ -284,7 +284,7 @@ int read_csts(struct filenames files, model * m){
         __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/NPOWER", &m->NPOWER);
         __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/K_MAX_CPML",&m->K_MAX_CPML);
     }
-    
+
     /*Optional variables*/
     readscalar(file_id, H5T_NATIVE_FLOAT,   "/fmax", &m->fmax);
     readscalar(file_id, H5T_NATIVE_FLOAT,   "/fmin", &m->fmin);
@@ -315,14 +315,14 @@ int read_csts(struct filenames files, model * m){
         return 1;
     }
 
-        
+
     if (m->ND==3){
         m->NDIM=3;
     }
     else{
         m->NDIM=2;
     }
-    
+
     __GUARD checkexists(file_id,"/N");
     __GUARD getdimmat(file_id, "/N", 2, dims2D);
     if (m->NDIM!=dims2D[0]*dims2D[1]){
@@ -341,12 +341,12 @@ int read_csts(struct filenames files, model * m){
         return 1;
     }
     #endif
-    
-    
-    
+
+
+
     /* Read baned GPUs */
     __GUARD getNDIM(file_id, "/no_use_GPUs", &n);
-    
+
     if (!state){
         if (n>1){
             __GUARD getdimmat(file_id, "/no_use_GPUs", 2, dims2D);
@@ -362,7 +362,7 @@ int read_csts(struct filenames files, model * m){
         else
             m->n_no_use_GPUs=0;
     }
-            
+
     if (m->BACK_PROP_TYPE==2 && m->GRADOUT==1){
         __GUARD checkexists(file_id,"/gradfreqs");
         __GUARD getdimmat(file_id, "/gradfreqs", 2, dimsfreqs);
@@ -371,16 +371,16 @@ int read_csts(struct filenames files, model * m){
         else if (dimsfreqs[1]<2 & dimsfreqs[0]>0)
             m->NFREQS=(int)dimsfreqs[0];
     }
-        
-                
+
+
     /* Sources and receivers variables__________________________________
      __________________________________________________________________*/
-    
+
     /* Check that variables exist */
     __GUARD checkexists(file_id,"/src");
     __GUARD checkexists(file_id,"/src_pos");
     __GUARD checkexists(file_id,"/rec_pos");
-    
+
     /* Check that the variables are in the required format */
     __GUARD getdimmat(file_id, "/src_pos", 2, dims2D);
     if (!state){
@@ -406,17 +406,17 @@ int read_csts(struct filenames files, model * m){
         }
     }
     m->src_recs.allng=(int)dims2D[0];
-    
+
     /* Assign the memory */
     GMALLOC(src_pos0,sizeof(float)*m->src_recs.allns*5);
     GMALLOC(src0,sizeof(float)*m->src_recs.allns*m->NT);
     GMALLOC(rec_pos0,sizeof(float)*m->src_recs.allng*8);
-    
+
     /* Read variables */
     __GUARD readvar(file_id, H5T_NATIVE_FLOAT, "/src_pos", src_pos0);
     __GUARD readvar(file_id, H5T_NATIVE_FLOAT, "/src", src0);
     __GUARD readvar(file_id, H5T_NATIVE_FLOAT, "/rec_pos", rec_pos0);
-    
+
     /* Determine the number of shots to simulate */
     if (!state){
         m->src_recs.ns=0;
@@ -430,9 +430,9 @@ int read_csts(struct filenames files, model * m){
                 printf("Sources ids must be sorted in ascending order");
                 return 1;
             }
-            
+
         }
-        
+
         nsg=0;
         thisid=-9999;
         maxrecid=0;
@@ -446,7 +446,7 @@ int read_csts(struct filenames files, model * m){
                 printf("Src ids in rec_pos must be sorted in ascending order\n");
                 return 1;
             }
-            
+
         }
         if (!state){
             if (nsg!=m->src_recs.ns){
@@ -456,16 +456,16 @@ int read_csts(struct filenames files, model * m){
             }
         }
     }
-    
+
     /* Assign the 2D arrays in which shot and receivers variables are stored */
     GMALLOC(m->src_recs.src_pos,sizeof(float*)*m->src_recs.ns);
     GMALLOC(m->src_recs.src,sizeof(float*)*m->src_recs.ns);
     GMALLOC(m->src_recs.nsrc,sizeof(int)*m->src_recs.ns);
     GMALLOC(m->src_recs.rec_pos,sizeof(float*)*m->src_recs.ns);
     GMALLOC(m->src_recs.nrec,sizeof(int)*m->src_recs.ns);
-    
+
     if (!state){
-        
+
         // Determine the number of sources positions per shot
         thisid=src_pos0[3];
         n=1;
@@ -480,10 +480,10 @@ int read_csts(struct filenames files, model * m){
                 p=p+1;
                 thisid=src_pos0[3+i*5];
             }
-            
+
         }
         m->src_recs.nsrc[m->src_recs.ns-1]=n;
-        
+
         // Determine the number of receiver positions per shot
         thisid=rec_pos0[3];
         n=1;
@@ -498,10 +498,10 @@ int read_csts(struct filenames files, model * m){
                 p=p+1;
                 thisid=rec_pos0[3+i*8];
             }
-            
+
         }
         m->src_recs.nrec[m->src_recs.ns-1]=n;
-        
+
         //Assign the right number of shots and geophones for each shot
         m->src_recs.src_pos[0]=src_pos0;
         m->src_recs.src[0]=src0;
@@ -511,7 +511,7 @@ int read_csts(struct filenames files, model * m){
             m->src_recs.src[i]=m->src_recs.src[i-1]+m->src_recs.nsrc[i-1]*m->NT;
             m->src_recs.rec_pos[i]=m->src_recs.rec_pos[i-1]+m->src_recs.nrec[i-1]*8;
         }
-        
+
         //Compute the maximum number of geophones and shots within a source id
         m->src_recs.nsmax=0;
         m->src_recs.ngmax=0;
@@ -682,9 +682,9 @@ int readhdf5(struct filenames files, model * m) {
         __GUARD checkscalar(file_id, "/FP16");
         __GUARD readvar(file_id, H5T_NATIVE_INT, "/FP16", &m->FP16);
     }
-    if (H5Lexists( file_id, "/input_res", H5P_DEFAULT) ){
-        __GUARD checkscalar(file_id, "/input_res");
-        __GUARD readvar(file_id, H5T_NATIVE_INT, "/input_res", &m->INPUTRES);
+    if (H5Lexists( file_id, "/inputres", H5P_DEFAULT) ){
+        __GUARD checkscalar(file_id, "/inputres");
+        __GUARD readvar(file_id, H5T_NATIVE_INT, "/inputres", &m->INPUTRES);
     }
 //#ifdef __SEISCL__
 //    if (m->FP16!=0){
