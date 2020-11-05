@@ -59,7 +59,7 @@ class SeisCL:
                  no_use_GPUs:  np.ndarray = np.empty((1, 0)),
 
                  gradout: int = 0, Hout: int = 0, gradsrcout: int = 0,
-                 back_prop_type: int = 1,
+                 back_prop_type: int = 1, cropgrad=True,
                  gradfreqs:  np.ndarray = np.empty((1, 0)), param_type: int = 0,
                  tmax: float = 0, tmin: float = 0, fmin: float = 0,
                  fmax:float = 0, filter_offset: bool = False,
@@ -152,6 +152,8 @@ class SeisCL:
         :param back_prop_type:   Type of gradient calculation:
                                  1: backpropagation (elastic only)
                                  2: Discrete Fourier transform
+        :param cropgrad:         If true, when calling read_grad, the gradient
+                                 in the absorbing boundaries are set to 0.
         :param gradfreqs:        Frequencies of gradient with DFT
         :param param_type:       Type of parametrization:
                                  0:(rho,vp,vs,taup,taus)
@@ -265,6 +267,7 @@ class SeisCL:
         self.Hout = Hout
         self.gradsrcout = gradsrcout
         self.back_prop_type = back_prop_type
+        self.cropgrad = cropgrad
         self.gradfreqs = gradfreqs
         self.param_type = param_type
         self.tmax = tmax
@@ -577,10 +580,16 @@ class SeisCL:
         toread = ['grad'+name for name in param_names]
         try:
             mat = h5.File(os.path.join(workdir, filename), 'r')
-            output = [np.transpose(mat[v]) for v in toread]
         except OSError:
             raise SeisCLError('Could not read grad')
-
+        output = [np.transpose(mat[v]) for v in toread]
+        if self.cropgrad:
+            for o in output:
+                if self.freesurf == 0:
+                    o[:self.nab, :] = 0
+                o[-self.nab:, :] = 0
+                o[:, :self.nab] = 0
+                o[:, -self.nab:] = 0
         return output 
     
     def read_Hessian(self,  workdir=None, param_names=None, filename=None):
