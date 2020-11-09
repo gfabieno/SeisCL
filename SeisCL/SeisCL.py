@@ -615,7 +615,13 @@ class SeisCL:
             output = [np.transpose(mat[v]) for v in toread]
         except OSError:
             raise SeisCLError('Could not read Hessian')
-
+        if self.cropgrad:
+            for o in output:
+                if self.freesurf == 0:
+                    o[:self.nab, :] = 0
+                o[-self.nab:, :] = 0
+                o[:, :self.nab] = 0
+                o[:, -self.nab:] = 0
         return output
 
     def read_rms(self, workdir=None, filename=None):
