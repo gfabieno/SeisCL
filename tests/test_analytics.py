@@ -72,22 +72,22 @@ def define_SeisCL(ND=3, dt=0.25e-03, NT=800, dh=2, f0=20, L=0, FL=[], FDORDER=4,
     """
 
     seis = SeisCL()
-    seis.csts['ND'] = ND
-    seis.csts['N'] = np.array([N for _ in range(ND)])
-    seis.csts['dt'] = dt
-    seis.csts['NT'] = NT
-    seis.csts['dh'] = dh
-    seis.csts['f0'] = f0
-    seis.csts['L'] = L
-    seis.csts['FL'] = np.array(FL)
-    seis.csts['freesurf'] = 0
-    seis.csts['FDORDER'] = FDORDER
-    seis.csts['MAXRELERROR'] = 1
-    seis.csts['MAX'] = FDORDER
-    seis.csts['abs_type'] = 2
-    seis.csts['seisout'] = 1
-    seis.csts['nab'] = nab
-    seis.csts['abpc'] = 3  # 3 nab 112
+    seis.ND = ND
+    seis.N = np.array([N for _ in range(ND)])
+    seis.dt = dt
+    seis.NT = NT
+    seis.dh = dh
+    seis.f0 = f0
+    seis.L = L
+    seis.FL = np.array(FL)
+    seis.freesurf = 0
+    seis.FDORDER = FDORDER
+    seis.MAXRELERROR = 1
+    seis.MAX = FDORDER
+    seis.abs_type = 2
+    seis.seisout = 1
+    seis.nab = nab
+    seis.abpc = 3  # 3 nab 112
 
     workdir = "./seiscl"
     if not os.path.isdir(workdir):
@@ -115,7 +115,7 @@ def fd_solution(seis, fileout, vp=3500, vs=2000, rho=2000, taup=0, taus=0,
         data (list): A list of simulated vx, vy, and vz particle velocities
 
     """
-    N = seis.csts['N']
+    N = seis.N
     if not os.path.isfile(fileout) or recompute:
         vp_a = np.zeros(N) + vp
         vs_a = np.zeros(N) + vs
@@ -254,12 +254,12 @@ def lamb3D_test(testtype = "inline", vp=3500, vs=2000, rho=2000, taup=0, taus=0,
 
     """
     seis = define_SeisCL(N=N)
-    seis.csts["freesurf"] = 1
-    nbuf = seis.csts['FDORDER'] * 2
-    nab = seis.csts['nab']
-    dh = seis.csts['dh']
-    N = seis.csts['N'][0]
-    NT = seis.csts['NT']
+    seis.freesurf = 1
+    nbuf = seis.FDORDER * 2
+    nab = seis.nab
+    dh = seis.dh
+    N = seis.N[0]
+    NT = seis.NT
     
     sx = (nab + nbuf) * dh
     sy = N // 2 * dh
@@ -295,13 +295,13 @@ def lamb3D_test(testtype = "inline", vp=3500, vs=2000, rho=2000, taup=0, taus=0,
     datafd = datafd[rectype]
     
     resamp = 500
-    src = ricker_wavelet(seis.csts["f0"], resamp*NT-1, seis.csts['dt']/resamp)
-    analytic = lamb3D.compute_shot(gx - sx, vp, vs, rho, seis.csts['dt'] / resamp, src,
+    src = ricker_wavelet(seis.f0, resamp*NT-1, seis.dt/resamp)
+    analytic = lamb3D.compute_shot(gx - sx, vp, vs, rho, seis.dt / resamp, src,
                                    srctype="x", rectype="x", linedir=linedir)
     
     datafd = datafd / np.max(datafd)
     analytic = analytic[::resamp,:] / np.max(analytic)
-    compare_data(datafd, analytic, gx-sx, seis.csts['dt'], "Lamb3D_"+testtype,
+    compare_data(datafd, analytic, gx-sx, seis.dt, "Lamb3D_"+testtype,
                  plots=plots)
 
 
@@ -325,12 +325,12 @@ def garvin2D_test(vp=3500, vs=2000, rho=2000, taup=0, taus=0,N=300,
 
     """
     seis = define_SeisCL(ND=2, N=N)
-    seis.csts["freesurf"] = 1
-    nbuf = seis.csts['FDORDER'] * 2
-    nab = seis.csts['nab']
-    dh = seis.csts['dh']
-    N = seis.csts['N'][0]
-    NT = seis.csts['NT']
+    seis.freesurf = 1
+    nbuf = seis.FDORDER * 2
+    nab = seis.nab
+    dh = seis.dh
+    N = seis.N[0]
+    NT = seis.NT
 
     sx = (nab + nbuf) * dh
     sy = 0
@@ -357,17 +357,17 @@ def garvin2D_test(vp=3500, vs=2000, rho=2000, taup=0, taus=0,N=300,
     datafd = datafd[rectype]
 
     resamp = 50
-    src = ricker_wavelet(seis.csts["f0"], resamp * NT - 1,
-                                 seis.csts['dt'] / resamp)
+    src = ricker_wavelet(seis.f0, resamp * NT - 1,
+                                 seis.dt / resamp)
     analytic = garvin2.compute_shot(gx - sx + dh / 2, vp, vs, rho,
-                                    seis.csts['dt'] / resamp, src, rectype="x",
+                                    seis.dt / resamp, src, rectype="x",
                                     zsrc=sz, zrec=gz[0])
 
     datafd = datafd / np.sqrt(np.sum(datafd**2))
     analytic = analytic[::resamp, :]
     analytic = analytic / np.sqrt(np.sum(analytic** 2))
 
-    compare_data(datafd, analytic, gx - sx+ dh/2, seis.csts['dt'], "Garvin2D",
+    compare_data(datafd, analytic, gx - sx+ dh/2, seis.dt, "Garvin2D",
                  plots=plots)
 
 def homogeneous_test(testname, vp=3500, vs=2000, rho=2000, taup=0, taus=0, L=1,
@@ -395,16 +395,16 @@ def homogeneous_test(testname, vp=3500, vs=2000, rho=2000, taup=0, taus=0, L=1,
     Returns:
     """
     seis = define_SeisCL(FDORDER=FDORDER, ND=ND, N=N)
-    seis.csts["freesurf"] = 0
-    nbuf = seis.csts['FDORDER'] * 2
-    nab = seis.csts['nab']
-    dh = seis.csts['dh']
-    N = seis.csts['N'][0]
-    NT = seis.csts['NT']
+    seis.freesurf = 0
+    nbuf = seis.FDORDER * 2
+    nab = seis.nab
+    dh = seis.dh
+    N = seis.N[0]
+    NT = seis.NT
     if taup != 0 or taus != 0:
-        seis.csts['L'] = L
-        FL = [seis.csts["f0"]/(l+1) for l in range(L)]
-        seis.csts['FL'] = np.array(FL)
+        seis.L = L
+        FL = [seis.f0/(l+1) for l in range(L)]
+        seis.FL = np.array(FL)
 
     if testtype == "inline":
         sx = N // 2 * dh
@@ -440,23 +440,23 @@ def homogeneous_test(testname, vp=3500, vs=2000, rho=2000, taup=0, taus=0, L=1,
                          fileout=testname+".mat")
     datafd = datafd[-1]
 
-    src = ricker_wavelet(seis.csts["f0"], 2*NT, seis.csts['dt'])
+    src = ricker_wavelet(seis.f0, 2*NT, seis.dt)
     rec_pos = [[gx[ii]-sx, gy[ii]-sy, gz[ii]-sz] for ii in range(0, len(gx))]
 
     if ND == 3:
         analytic = viscoelastic_3D(vp, vs, rho, taup, taus,
-                                   seis.csts['f0'], seis.csts['FL'],
-                                   seis.csts['dt'], rec_pos, src)
+                                   seis.f0, seis.FL,
+                                   seis.dt, rec_pos, src)
     else:
         analytic = viscoelastic_2D(vp, vs, rho, taup, taus,
-                                   seis.csts['f0'], seis.csts['FL'],
-                                   seis.csts['dt'], rec_pos, src)
+                                   seis.f0, seis.FL,
+                                   seis.dt, rec_pos, src)
     analytic = analytic[-1][:NT, :]
     datafd = datafd / np.sqrt(np.sum(datafd ** 2))
     analytic = analytic / np.sqrt(np.sum(analytic ** 2))
 
 
-    compare_data(datafd, analytic, offsets, seis.csts['dt'], testname,
+    compare_data(datafd, analytic, offsets, seis.dt, testname,
                  plots=plots)
 
 
