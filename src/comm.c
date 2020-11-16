@@ -139,7 +139,7 @@ int comm(model * m, device ** dev, int adj, int ui){
 
     //Read buffers for comunnication between MPI processes sharing this shot
     if (m->MYLOCALID>0){
-        //For all MPI processes except the first, com1 must occur on the firt
+        //For all MPI processes except the first, com1 must occur on the first
         //device
 
 
@@ -180,7 +180,7 @@ int comm(model * m, device ** dev, int adj, int ui){
         }
     }
 
-    //Read buffers for comunnication between devices
+    //Read buffers for communication between devices
     for (d=0;d<m->NUM_DEVICES;d++){
 
         if (d>0){

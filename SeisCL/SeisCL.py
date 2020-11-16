@@ -62,7 +62,7 @@ class SeisCL:
                  back_prop_type: int = 1, cropgrad=True,
                  gradfreqs:  np.ndarray = np.empty((1, 0)), param_type: int = 0,
                  tmax: float = 0, tmin: float = 0, fmin: float = 0,
-                 fmax:float = 0, filter_offset: bool = False,
+                 fmax: float = 0, filter_offset: bool = False,
                  offmin: float = -float('Inf'), offmax: float = float('Inf'),
                  inputres: int = 0, restype: int = 0, scalerms: int = 0,
                  scalermsnorm: int = 0, scaleshot: int = 0,
@@ -440,7 +440,7 @@ class SeisCL:
             data = {}
             for n, word in enumerate(self.to_load_names):
                 data[word+"res"] = residuals[n]
-            h5mat.savemat(workdir+self.file_res,
+            h5mat.savemat(os.path.join(workdir, self.file_res),
                           data,
                           appendmat=False,
                           format='7.3',
@@ -500,29 +500,34 @@ class SeisCL:
 
         return stdout.decode()
 
-    def read_data(self, workdir=None, filename=None):
+    def read_data(self, workdir=None, filename=None, residuals=False):
         """
         Read the seismogram output by SeisCL
 
         :param workdir: The directory in which the data file is found
         :param filename: The name of the file containing the data
+        :param residuals: If true, read the residuals instead of the data
 
-        :return: A list containing the simulated data for each variable to
-                 output, given by self.to_load_names
+        :return: A list containing the simulated data (residuals) for each
+                 variable to output, given by self.to_load_names
         """
 
         if workdir is None:
             workdir = self.workdir
         if filename is None:
             filename = self.file_dout
+        if residuals:
+            suf = "res"
+        else:
+            suf = "out"
         try:
             mat = h5.File(os.path.join(workdir, filename), 'r')
         except OSError:
             raise SeisCLError('Could not read data')
         output = []
         for word in self.to_load_names:
-            if word+"out" in mat:
-                datah5 = mat[word+"out"]
+            if word + suf in mat:
+                datah5 = mat[word + suf]
                 data = np.transpose(datah5)
                 output.append(data)
                 

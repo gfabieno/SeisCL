@@ -87,6 +87,7 @@ struct filenames {
     char rmsout[1024];
     char movout[1024];
     char res[1024];
+    char checkpoint[1024];
 };
 
 
@@ -522,6 +523,8 @@ variable * get_var(variable * vars, int nvars, const char * name);
 /* __________________________SeisCL functions________________________________*/
 
 int readhdf5(struct filenames files, model * m);
+int readvar(hid_t file_id, hid_t memtype, const char * invar, void * varptr);
+checkexists(hid_t file_id, const char * invar);
 
 int assign_modeling_case(model * m);
 
@@ -540,7 +543,7 @@ int Init_CUDA(model * m, device ** dev);
 
 int event_dependency( model * m,  device ** dev, int adj);
 
-int time_stepping(model * m, device ** dev);
+int time_stepping(model * m, device ** dev, struct filenames files);
 
 int comm(model * m, device ** dev, int adj, int ui);
 
@@ -548,6 +551,12 @@ int comm(model * m, device ** dev, int adj, int ui);
 int Out_MPI(model * m);
 #endif
 int writehdf5(struct filenames file, model * m);
+hid_t create_file(const char *filename);
+void writetomat(hid_t* file_id,
+                const char *var,
+                float * varptr,
+                int NDIMs,
+                hsize_t dims[]);
 
 int Free_OpenCL(model * m, device * dev) ;
 

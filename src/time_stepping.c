@@ -89,6 +89,199 @@ int reduce_seis(model * m, device ** dev, int s){
     
 }
 
+int checkpoint_d2h(model * m, device ** dev, struct filenames files, int s){
+    int state=0;
+    int d, i, j;
+    char name[100];
+    hid_t file_id=0;
+    file_id = -1;
+    hsize_t dims[MAX_DIMS];
+    struct stat info;
+
+    if (stat(files.checkpoint, &info ) != 0) {
+        file_id = create_file(files.checkpoint);
+    }
+    else{
+        file_id = H5Fopen(files.checkpoint, H5F_ACC_RDWR, H5P_DEFAULT);
+    }
+    if (file_id<0){
+        state=1;
+        fprintf(stderr,"Error: Could not open the checkpoint file %s",
+                files.checkpoint);
+    }
+
+    for (d=0;d<m->NUM_DEVICES;d++){
+        WAITQUEUE((*dev)[d].queue);
+        for (i=0;i<m->nvars;i++){
+            if ((*dev)[d].vars[i].cl_buf1.host){
+                dims[0] = (*dev)[d].vars[i].cl_buf1.size / sizeof(float);
+                sprintf(name, "src%d_dev%d_%s_buf1h", s, d, (*dev)[d].vars[i].name);
+                writetomat(&file_id, name, (*dev)[d].vars[i].cl_buf1.host,
+                           1, dims);
+            }
+            if ((*dev)[d].vars[i].cl_buf2.host){
+                dims[0] = (*dev)[d].vars[i].cl_buf2.size / sizeof(float);
+                sprintf(name, "src%d_dev%d_%s_buf2h", s, d, (*dev)[d].vars[i].name);
+                writetomat(&file_id, name, (*dev)[d].vars[i].cl_buf2.host,
+                           1, dims);
+            }
+        }
+    }
+
+    // Transfer all variables to output to host for this time step
+    for (d=0;d<m->NUM_DEVICES;d++){
+        for (i=0;i<m->nvars;i++){
+            __GUARD clbuf_read(&(*dev)[d].queue, &(*dev)[d].vars[i].cl_var);
+            if ((*dev)[d].vars[i].cl_buf1.host){
+                __GUARD clbuf_read(&(*dev)[d].queue,
+                                   &(*dev)[d].vars[i].cl_buf1);
+            }
+            if ((*dev)[d].vars[i].cl_buf2.host){
+                __GUARD clbuf_read(&(*dev)[d].queue,
+                                   &(*dev)[d].vars[i].cl_buf2);
+            }
+        }
+    }
+
+    for (d=0;d<m->NUM_DEVICES;d++){
+        WAITQUEUE((*dev)[d].queue);
+        for (i=0;i<m->nvars;i++){
+
+            dims[0] = (*dev)[d].vars[i].num_ele;
+            sprintf(name, "src%d_dev%d_%s", s, d, (*dev)[d].vars[i].name);
+            writetomat(&file_id, name, (*dev)[d].vars[i].cl_var.host,
+                       1, dims);
+
+            dims[0] = (*dev)[d].vars[i].cl_varbnd.sizepin / sizeof(float);
+            sprintf(name, "src%d_dev%d_%s_bnd", s, d, (*dev)[d].vars[i].name);
+            writetomat(&file_id, name, (*dev)[d].vars[i].cl_varbnd.host,
+                       1, dims);
+
+            if ((*dev)[d].vars[i].cl_buf1.host){
+                dims[0] = (*dev)[d].vars[i].cl_buf1.size / sizeof(float);
+                sprintf(name, "src%d_dev%d_%s_buf1d", s, d, (*dev)[d].vars[i].name);
+                writetomat(&file_id, name, (*dev)[d].vars[i].cl_buf1.host,
+                           1, dims);
+            }
+            if ((*dev)[d].vars[i].cl_buf2.host){
+                dims[0] = (*dev)[d].vars[i].cl_buf2.size / sizeof(float);
+                sprintf(name, "src%d_dev%d_%s_buf2d", s, d, (*dev)[d].vars[i].name);
+                writetomat(&file_id, name, (*dev)[d].vars[i].cl_buf2.host,
+                           1, dims);
+            }
+        }
+    }
+
+    if (file_id) H5Fclose(file_id);
+
+    return state;
+}
+
+int checkpoint_h2d(model * m, device ** dev, struct filenames files, int s) {
+    int state = 0;
+    int d, i;
+    char name[100];
+    hid_t file_id = 0;
+    file_id = -1;
+    hsize_t dims[MAX_DIMS];
+    int nwait;
+    EVENT * event;
+
+    file_id = H5Fopen(files.checkpoint, H5F_ACC_RDWR, H5P_DEFAULT);
+    if (file_id < 0) {
+        fprintf(stderr, "Error: Could not open the checkpoint file %s",
+                files.checkpoint);
+    }
+
+    // Transfer all variables to output to host for this time step
+    for (d = 0; d < m->NUM_DEVICES; d++) {
+        for (i = 0; i < m->nvars; i++) {
+            sprintf(name, "src%d_dev%d_%s", s, d, (*dev)[d].vars[i].name);
+            dims[0] = (*dev)[d].vars[i].num_ele;
+            __GUARD checkexists(file_id, name);
+            __GUARD readvar(file_id,
+                            H5T_NATIVE_FLOAT,
+                            name,
+                            (*dev)[d].vars[i].cl_var.host);
+            __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].vars[i].cl_var);
+
+            sprintf(name, "src%d_dev%d_%s_bnd", s, d, (*dev)[d].vars[i].name);
+            dims[0] = (*dev)[d].vars[i].cl_varbnd.sizepin / sizeof(float);
+            __GUARD readvar(file_id,
+                            H5T_NATIVE_FLOAT,
+                            name,
+                            (*dev)[d].vars[i].cl_varbnd.host);
+
+            if ((*dev)[d].vars[i].cl_buf1.host) {
+                dims[0] = (*dev)[d].vars[i].cl_buf1.size / sizeof(float);
+                sprintf(name, "src%d_dev%d_%s_buf1d", s, d,
+                        (*dev)[d].vars[i].name);
+                __GUARD readvar(file_id,
+                                H5T_NATIVE_FLOAT,
+                                name,
+                                (*dev)[d].vars[i].cl_buf1.host);
+                nwait = (*dev)[d].vars[i].cl_buf1.nwait_s;
+                event = (*dev)[d].vars[i].cl_buf1.waits_s;
+                (*dev)[d].vars[i].cl_buf1.nwait_s = 0;
+                (*dev)[d].vars[i].cl_buf1.waits_s = NULL;
+                __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].vars[i].cl_buf1);
+                (*dev)[d].vars[i].cl_buf1.nwait_s = nwait;
+                (*dev)[d].vars[i].cl_buf1.waits_s = event;
+            }
+
+            if ((*dev)[d].vars[i].cl_buf2.host) {
+                dims[0] = (*dev)[d].vars[i].cl_buf2.size / sizeof(float);
+                sprintf(name, "src%d_dev%d_%s_buf2d", s, d,
+                        (*dev)[d].vars[i].name);
+                __GUARD readvar(file_id,
+                                H5T_NATIVE_FLOAT,
+                                name,
+                                (*dev)[d].vars[i].cl_buf2.host);
+                nwait = (*dev)[d].vars[i].cl_buf2.nwait_s;
+                event = (*dev)[d].vars[i].cl_buf2.waits_s;
+                (*dev)[d].vars[i].cl_buf2.nwait_s = 0;
+                (*dev)[d].vars[i].cl_buf2.waits_s = NULL;
+                __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].vars[i].cl_buf2);
+                (*dev)[d].vars[i].cl_buf2.nwait_s = nwait;
+                (*dev)[d].vars[i].cl_buf2.waits_s = event;
+            }
+        }
+    }
+    for (d = 0; d < m->NUM_DEVICES; d++) {
+        WAITQUEUE((*dev)[d].queue);
+        for (i = 0; i < m->nvars; i++) {
+
+            if ((*dev)[d].vars[i].cl_buf1.host) {
+                dims[0] = (*dev)[d].vars[i].cl_buf1.size / sizeof(float);
+                sprintf(name, "src%d_dev%d_%s_buf1h", s, d,
+                        (*dev)[d].vars[i].name);
+                __GUARD readvar(file_id,
+                                H5T_NATIVE_FLOAT,
+                                name,
+                                (*dev)[d].vars[i].cl_buf1.host);
+            }
+
+            if ((*dev)[d].vars[i].cl_buf2.host) {
+                dims[0] = (*dev)[d].vars[i].cl_buf2.size / sizeof(float);
+                sprintf(name, "src%d_dev%d_%s_buf2h", s, d,
+                        (*dev)[d].vars[i].name);
+                __GUARD readvar(file_id,
+                                H5T_NATIVE_FLOAT,
+                                name,
+                                (*dev)[d].vars[i].cl_buf2.host);
+            }
+        }
+    }
+
+    for (d=0;d<m->NUM_DEVICES;d++) {
+        WAITQUEUE((*dev)[d].queue);
+    }
+
+    if (file_id) H5Fclose(file_id);
+
+    return state;
+}
+
 int movout(model * m, device ** dev, int t, int s){
     // Collect the buffers for movie creation
     int state=0;
@@ -247,8 +440,8 @@ int update_grid(model * m, device ** dev, int docomm){
     /*Update operations of one iteration */
     int state=0;
     int d, i;
-    
-    
+
+
     for (i=0;i<m->nupdates;i++){
         
         // Updating the variables
@@ -509,7 +702,7 @@ int initialize_adj(model * m, device ** dev, int s, int * pdir){
     return state;
 }
 
-int time_stepping(model * m, device ** dev) {
+int time_stepping(model * m, device ** dev, struct filenames files) {
     // Performs forward and adjoint modeling for each source point assigned to
     // this group of nodes and devices.
 
@@ -518,6 +711,7 @@ int time_stepping(model * m, device ** dev) {
     int t,s,i,d, thist;
     int ind;
     int pdir = 1;
+    hid_t file_id=0;
    
 
     // Calculate what shots belong to the group this processing element
@@ -546,7 +740,16 @@ int time_stepping(model * m, device ** dev) {
             __GUARD prog_launch( &(*dev)[d].queue, &(*dev)[d].grads.init);
         }
     }
-    
+
+    //Intialize checkpoint file
+    if (m->INPUTRES==1 && m->GRADOUT==0){
+        state = remove(files.checkpoint);
+        if (state)
+            fprintf(stderr, "Could not delete checkpoint file %s\n", files.res);
+        file_id = create_file(files.checkpoint);
+        H5Fclose(file_id);
+    }
+
     // Main loop over shots of this group
     for (s= m->src_recs.smin;s< m->src_recs.smax;s++){
 
@@ -555,99 +758,109 @@ int time_stepping(model * m, device ** dev) {
         __GUARD initialize_forward(m, dev, s, &pdir);
 
         // Loop for forward time stepping
-        for (t=0;t<m->tmax; t++){
-
-            //Assign the time step value to kernels
-            for (d=0;d<m->NUM_DEVICES;d++){
-                for (i=0;i<(*dev)[d].nprogs;i++){
-                    if ((*dev)[d].progs[i]->tinput>0){
-                        ind = (*dev)[d].progs[i]->tinput-1;
-                        __GUARD prog_arg((*dev)[d].progs[i], ind, &t, sizeof(int));
+        if (!(m->INPUTRES && m->GRADOUT)) {
+            for (t = 0; t < m->tmax; t++) {
+                //Assign the time step value to kernels
+                for (d = 0; d < m->NUM_DEVICES; d++) {
+                    for (i = 0; i < (*dev)[d].nprogs; i++) {
+                        if ((*dev)[d].progs[i]->tinput > 0) {
+                            ind = (*dev)[d].progs[i]->tinput - 1;
+                            __GUARD prog_arg((*dev)[d].progs[i], ind, &t,
+                                             sizeof(int));
+                        }
                     }
                 }
-            }
 
-            //Save the selected frequency if the gradient is obtained by DFT
-            if (m->GRADOUT==1
-                && m->BACK_PROP_TYPE==2
-                && t>=m->tmin
-                && (t-m->tmin)%m->DTNYQ==0){
+                //Save the selected frequency if the gradient is obtained by DFT
+                if (m->GRADOUT == 1
+                    && m->BACK_PROP_TYPE == 2
+                    && t >= m->tmin
+                    && (t - m->tmin) % m->DTNYQ == 0) {
 
-                for (d=0;d<m->NUM_DEVICES;d++){
-                    thist=(t-m->tmin)/m->DTNYQ;
-                    ind = (*dev)[d].grads.savefreqs.tinput-1;
-                    __GUARD prog_arg(&(*dev)[d].grads.savefreqs, ind, &thist, sizeof(int));
-                    __GUARD prog_launch( &(*dev)[d].queue,
-                                         &(*dev)[d].grads.savefreqs);
+                    for (d = 0; d < m->NUM_DEVICES; d++) {
+                        thist = (t - m->tmin) / m->DTNYQ;
+                        ind = (*dev)[d].grads.savefreqs.tinput - 1;
+                        __GUARD prog_arg(&(*dev)[d].grads.savefreqs, ind,
+                                         &thist, sizeof(int));
+                        __GUARD prog_launch(&(*dev)[d].queue,
+                                            &(*dev)[d].grads.savefreqs);
+                    }
+
                 }
 
-            }
-
-            // Inject the sources
-            for (d=0;d<m->NUM_DEVICES;d++){
-                __GUARD prog_launch( &(*dev)[d].queue,
-                                    &(*dev)[d].src_recs.sources);
-            }
-
-            // Apply all updates
-            if (t<(m->tmax-1)){
-                __GUARD update_grid(m, dev, 1);
-            }
-            else{
-                __GUARD update_grid(m, dev, 0);
-            }
-
-
-            // Save the boundaries
-            if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1)
-                __GUARD save_bnd( m, dev, t);
-
-            // Computing the free surface
-            if (m->FREESURF==1){
-                for (d=0;d<m->NUM_DEVICES;d++){
-                    __GUARD prog_launch( &(*dev)[d].queue,
-                                        &(*dev)[d].bnd_cnds.surf);
+                // Inject the sources
+                for (d = 0; d < m->NUM_DEVICES; d++) {
+                    __GUARD prog_launch(&(*dev)[d].queue,
+                                        &(*dev)[d].src_recs.sources);
                 }
+
+                // Apply all updates
+                if (t < (m->tmax - 1)) {
+                    __GUARD update_grid(m, dev, 1);
+                } else {
+                    __GUARD update_grid(m, dev, 0);
+                }
+
+
+                // Save the boundaries
+                if ((m->GRADOUT == 1 || m->INPUTRES) && m->BACK_PROP_TYPE == 1)
+                    __GUARD save_bnd(m, dev, t);
+
+                // Computing the free surface
+                if (m->FREESURF == 1) {
+                    for (d = 0; d < m->NUM_DEVICES; d++) {
+                        __GUARD prog_launch(&(*dev)[d].queue,
+                                            &(*dev)[d].bnd_cnds.surf);
+                    }
+                }
+
+                // Outputting seismograms
+                if (m->VARSOUT > 0 || m->GRADOUT || m->RMSOUT || m->RESOUT) {
+                    for (d = 0; d < m->NUM_DEVICES; d++) {
+                        __GUARD prog_launch(&(*dev)[d].queue,
+                                            &(*dev)[d].src_recs.varsout);
+                    }
+                }
+
+                // Outputting the movie
+                if (m->MOVOUT > 0 &&
+                    !(m->BACK_PROP_TYPE == 1 && m->GRADOUT == 1)
+                    && (t + 1) % m->MOVOUT == 0 && state == 0) {
+                    movout(m, dev, t, s);
+                }
+
+#ifdef __SEISCL__
+                // Flush all the previous commands to the computing device
+                for (d = 0; d < m->NUM_DEVICES; d++) {
+                    if (d > 0 || d < m->NUM_DEVICES - 1) {
+                        __GUARD clFlush((*dev)[d].queuecomm);
+                    }
+                    __GUARD clFlush((*dev)[d].queue);
+                }
+#endif
+
             }
 
-            // Outputting seismograms
+            // Aggregate the seismograms in the output variable
             if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){
-                for (d=0;d<m->NUM_DEVICES;d++){
-                    __GUARD prog_launch( &(*dev)[d].queue,
-                                        &(*dev)[d].src_recs.varsout);
-                }
+                __GUARD reduce_seis(m, dev, s);
             }
 
-            // Outputting the movie
-            if (m->MOVOUT>0 && !(m->BACK_PROP_TYPE==1 && m->GRADOUT==1)
-                && (t+1)%m->MOVOUT==0 && state==0){
-                movout( m, dev, t, s);
+            //Calculate the residuals
+            if ((m->GRADOUT || m->RMSOUT || m->RESOUT) && m->INPUTRES==0){
+                __GUARD m->res_calc(m,s);
+            }
+            if (!m->INPUTRES && (m->GRADOUT || m->RMSOUT || m->RESOUT)){
+                __GUARD m->res_scale(m,s);
             }
 
-            #ifdef __SEISCL__
-            // Flush all the previous commands to the computing device
-            for (d=0;d<m->NUM_DEVICES;d++){
-                if (d>0 || d<m->NUM_DEVICES-1){
-                    __GUARD clFlush((*dev)[d].queuecomm);
-                }
-                __GUARD clFlush((*dev)[d].queue);
+            // Save the checkpoints
+            if (m->INPUTRES && m->GRADOUT==0){
+                __GUARD checkpoint_d2h(m, dev, files, s);
             }
-            #endif
-
         }
-
-
-        // Aggregate the seismograms in the output variable
-        if (m->VARSOUT>0 || m->GRADOUT || m->RMSOUT || m->RESOUT){
-            __GUARD reduce_seis(m, dev, s);
-        }
-
-        //Calculate the residuals
-        if ( (m->GRADOUT || m->RMSOUT || m->RESOUT) && m->INPUTRES==0){
-            __GUARD m->res_calc(m,s);
-        }
-        if ( m->GRADOUT || m->RMSOUT || m->RESOUT ){
-            __GUARD m->res_scale(m,s);
+        else {
+            checkpoint_h2d(m, dev, files, s);
         }
 
         // Calculation of the gradient for this shot, if required
@@ -665,14 +878,15 @@ int time_stepping(model * m, device ** dev) {
                     for (i=0;i<(*dev)[d].nprogs;i++){
                         if ((*dev)[d].progs[i]->tinput>0){
                             ind = (*dev)[d].progs[i]->tinput-1;
-                            __GUARD prog_arg((*dev)[d].progs[i], ind, &t, sizeof(int));
+                            __GUARD prog_arg((*dev)[d].progs[i], ind, &t,
+                                             sizeof(int));
                         }
                     }
                 }
 
                 // Inject the forward variables boundaries
                 if (m->BACK_PROP_TYPE==1){
-                    __GUARD inject_bnd( m, dev, t);
+                    __GUARD inject_bnd(m, dev, t);
                 }
 
                 // Computing the free surface
@@ -692,7 +906,6 @@ int time_stepping(model * m, device ** dev) {
                 // Update the adjoint wavefield and perform back-propagation of
                 // forward wavefield
                 __GUARD update_grid_adj(m, dev);
-
                 // Inject the sources with negative sign
                 //TODO not right if source is inside saved boundary
                 if (m->BACK_PROP_TYPE==1){
@@ -708,8 +921,9 @@ int time_stepping(model * m, device ** dev) {
                     for (d=0;d<m->NUM_DEVICES;d++){
                         thist=(t-m->tmin)/m->DTNYQ;
                         ind = (*dev)[d].grads.savefreqs.tinput-1;
-                        __GUARD prog_arg(&(*dev)[d].grads.savefreqs, ind, &thist, sizeof(int));
-                        __GUARD prog_launch( &(*dev)[d].queue,
+                        __GUARD prog_arg(&(*dev)[d].grads.savefreqs, ind,
+                                         &thist, sizeof(int));
+                        __GUARD prog_launch(&(*dev)[d].queue,
                                             &(*dev)[d].grads.savefreqs);
                     }
 

@@ -841,11 +841,9 @@ int Init_CUDA(model * m, device ** dev)  {
             di->vars[i].cl_var.size=sizeof(float)*di->vars[i].num_ele;
             if (m->FP16>1)
                 di->vars[i].cl_var.size/=2;
-            __GUARD clbuf_create( di->context_ptr, &di->vars[i].cl_var);
+            __GUARD clbuf_create(di->context_ptr, &di->vars[i].cl_var);
             //Create variable buffers for the boundary of the domain
-            if ( di->vars[i].to_comm && (d>0 || m->MYLOCALID>0
-                                             || d<m->NUM_DEVICES-1
-                                             || m->MYLOCALID<m->NLOCALP-1)){
+            if (di->vars[i].to_comm && (m->NUM_DEVICES > 1 || m->NLOCALP >1)){
                 //On the device side
                 di->vars[i].cl_buf1.size=sizeof(float)*m->FDOH*slicesize;
                 if (m->FP16 >1){
@@ -901,6 +899,14 @@ int Init_CUDA(model * m, device ** dev)  {
                     di->vars[i].cl_var.free_host=1;
                 }
             }
+            // We need to create the checkpoints if we input the residuals
+            if (m->INPUTRES){
+                if (!di->vars[i].cl_var.host){
+                    GMALLOC(di->vars[i].cl_var.host,
+                            di->vars[i].num_ele * sizeof(float));
+                }
+                di->vars[i].cl_var.free_host=1;
+            }
             
         }
 
@@ -935,12 +941,12 @@ int Init_CUDA(model * m, device ** dev)  {
         // Determine the size of the outside boundary used for the back
         // propagation of the seismic wavefield
         // TODO: this is ugly and model specific, find a better way
-        if (m->BACK_PROP_TYPE==1 && m->GRADOUT){
-            
-            GMALLOC(di->vars_adj, sizeof(variable)*m->nvars);
-            for (i=0;i<m->nvars;i++){
-                di->vars_adj[i]=di->vars[i];
-                di->vars_adj[i].cl_varout.free_host=0;
+        if (m->BACK_PROP_TYPE==1 && m->GRADOUT) {
+
+            GMALLOC(di->vars_adj, sizeof(variable) * m->nvars);
+            for (i = 0; i < m->nvars; i++) {
+                di->vars_adj[i] = di->vars[i];
+                di->vars_adj[i].cl_varout.free_host = 0;
                 di->vars_adj[i].cl_var.mem = 0;
                 di->vars_adj[i].cl_varout.mem = 0;
                 di->vars_adj[i].cl_varbnd.mem = 0;
@@ -949,29 +955,27 @@ int Init_CUDA(model * m, device ** dev)  {
                 di->vars_adj[i].cl_buf1.mem = 0;
                 di->vars_adj[i].cl_buf2.mem = 0;
                 di->vars_adj[i].cl_var_res.mem = 0;
-                di->vars_adj[i].cl_var.free_host=0;
-                di->vars_adj[i].cl_varout.free_host=0;
-                di->vars_adj[i].cl_varbnd.free_host=0;
-                di->vars_adj[i].cl_fvar.free_host=0;
-                di->vars_adj[i].cl_fvar_adj.free_host=0;
-                di->vars_adj[i].cl_buf1.free_host=0;
-                di->vars_adj[i].cl_buf2.free_host=0;
-                di->vars_adj[i].cl_var_res.free_host=0;
+                di->vars_adj[i].cl_var.free_host = 0;
+                di->vars_adj[i].cl_varout.free_host = 0;
+                di->vars_adj[i].cl_varbnd.free_host = 0;
+                di->vars_adj[i].cl_fvar.free_host = 0;
+                di->vars_adj[i].cl_fvar_adj.free_host = 0;
+                di->vars_adj[i].cl_buf1.free_host = 0;
+                di->vars_adj[i].cl_buf2.free_host = 0;
+                di->vars_adj[i].cl_var_res.free_host = 0;
             }
-            
-            for (i=0;i<m->nvars;i++){
+
+            for (i = 0; i < m->nvars; i++) {
                 //Add the variable to variables to communicate during update
-                if (di->vars_adj[i].to_comm>0){
-                    j=di->vars_adj[i].to_comm-1;
-                    di->ups_adj[j].v2com[di->ups_adj[j].nvcom]=&di->vars_adj[i];
+                if (di->vars_adj[i].to_comm > 0) {
+                    j = di->vars_adj[i].to_comm - 1;
+                    di->ups_adj[j].v2com[di->ups_adj[j].nvcom] = &di->vars_adj[i];
                     di->ups_adj[j].nvcom++;
                 }
-                __GUARD clbuf_create( di->context_ptr, &di->vars_adj[i].cl_var);
-                if (di->vars[i].to_comm && (d>0
-                                            || m->MYLOCALID>0
-                                            || d<m->NUM_DEVICES-1
-                                            || m->MYLOCALID<m->NLOCALP-1)){
-                    
+                __GUARD clbuf_create(di->context_ptr, &di->vars_adj[i].cl_var);
+                if (di->vars[i].to_comm && (m->NUM_DEVICES > 1
+                                            || m->NLOCALP >1)) {
+
                     __GUARD clbuf_create_pin(di->context_ptr,
                                              &di->queuecomm,
                                              &di->vars_adj[i].cl_buf1);
@@ -980,6 +984,8 @@ int Init_CUDA(model * m, device ** dev)  {
                                              &di->vars_adj[i].cl_buf2);
                 }
             }
+        }
+        if (m->BACK_PROP_TYPE==1 && (m->GRADOUT || m->INPUTRES)){
             int lenz;
             if (m->FREESURF==0){
                 lenz = di->N[0]-2*m->NAB-2*m->FDOH;
@@ -1029,7 +1035,6 @@ int Init_CUDA(model * m, device ** dev)  {
                                               &di->vars[i].cl_varbnd);
                 }
             }
-            
         }
         // Create the update kernels
         di->nupdates=m->nupdates;
@@ -1174,7 +1179,7 @@ int Init_CUDA(model * m, device ** dev)  {
         
         //TODO Create automatically the kernel for saving boundary
         //TODO Implement random boundaries instead
-        if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+        if ((m->GRADOUT || m->INPUTRES) && m->BACK_PROP_TYPE==1){
             di->grads.savebnd=m->grads.savebnd;
             __GUARD prog_create(m, di,  &di->grads.savebnd);
             if (m->FP16==0){

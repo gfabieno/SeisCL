@@ -25,8 +25,10 @@ int checkexists(hid_t file_id, const char * invar){
     
     int state=0;
     
-    if (1!=H5Lexists( file_id, invar, H5P_DEFAULT))          {state=1;fprintf(stderr, "Error: Variable %s is not defined\n",invar);}
-    
+    if (1!=H5Lexists( file_id, invar, H5P_DEFAULT)){
+        state = 1;
+        fprintf(stderr, "Error: Variable %s is not defined\n", invar);
+    }
     return state;
 }
 
@@ -42,15 +44,23 @@ int checkscalar(hid_t file_id, const char * invar){
     dataspace_id = H5Dget_space( dataset_id );
     rank=H5Sget_simple_extent_ndims(dataspace_id);
     H5Sget_simple_extent_dims(dataspace_id, dims2, NULL );
-    if (rank!=2)                    {state=1;fprintf(stderr, "Error: Variable %s must be of rank 2\n",invar);};
-    if (dims2[0]!=1 || dims2[1]!=1) {state=1;fprintf(stderr, "Error: Variable %s must be of size 1x1 (scalar)\n", &invar[1]);};
+    if (rank!=2){
+        state=1;
+        fprintf(stderr, "Error: Variable %s must be of rank 2\n",invar);
+    }
+    if (dims2[0]!=1 || dims2[1]!=1){
+        state=1;
+        fprintf(stderr, "Error: Variable %s must be of size 1x1 (scalar)\n",
+                &invar[1]);
+        }
     
     if (dataset_id) H5Dclose(dataset_id);
     
     return state;
 }
 
-int read_seis(hid_t file_id, hid_t memtype, const char * invar, float * varptr, float * tracesid, int ntraces, int NT){
+int read_seis(hid_t file_id, hid_t memtype, const char * invar, float * varptr,
+              float * tracesid, int ntraces, int NT){
     
     int state=0, ii,n;
     hid_t dataset_id=0, dataspace=0, memspace=0;
@@ -101,7 +111,10 @@ int readvar(hid_t file_id, hid_t memtype, const char * invar, void * varptr){
     hid_t dataset_id=0;
     
     dataset_id = H5Dopen2(file_id, invar, H5P_DEFAULT);
-    if (0>H5Dread(dataset_id, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, varptr)) {state=1;fprintf(stderr, "Error: Cannot read variable %s\n", &invar[1]);};
+    if (0>H5Dread(dataset_id, memtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, varptr)){
+        state=1;
+        fprintf(stderr, "Error: Cannot read variable %s\n", &invar[1]);
+        }
     
     if (dataset_id) H5Dclose(dataset_id);
     
@@ -120,7 +133,9 @@ int getdimmat(hid_t file_id, const char * invar, int NDIM, hsize_t * dims1){
     dataset_id = H5Dopen2(file_id, invar, H5P_DEFAULT);
     dataspace_id = H5Dget_space( dataset_id );
     rank=H5Sget_simple_extent_ndims(dataspace_id);
-    if (rank!=NDIM) {state=1;fprintf(stderr, "Error: Variable %s must have %d dimensions\n",invar, NDIM);};
+    if (rank!=NDIM) {
+        state=1;
+        fprintf(stderr, "Error: Variable %s must have %d dimensions\n",invar, NDIM);};
     if (!state) H5Sget_simple_extent_dims(dataspace_id, dims1, NULL );
     
     if (dataspace_id) H5Sclose(dataspace_id);
@@ -227,154 +242,76 @@ int readscalar(hid_t file_id, hid_t memtype, const char * name, void * varptr){
     
     return state;
 }
+int read_optional(hid_t file_id, hid_t memtype, const char * name, void * varptr){
 
-int read_csts(struct filenames files, model * m){
+    int state =0;
+    if (1==H5Lexists(file_id, name, H5P_DEFAULT)){
+        __GUARD readvar(file_id, memtype, name, varptr);
+    }
 
-    hid_t       file_id=0;
+    return state;
+}
+int readvector_int(hid_t file_id, const char * name,
+                   void * varptr, int alloc){
+
+    int state =0;
+    int nd, n=0, ii;
+    hsize_t  dimsND[MAX_DIMS];
+
+    __GUARD getNDIM(file_id, name, &nd);
+    __GUARD getdimmat(file_id, name, nd, dimsND);
+    if (!state){
+        if (nd>1){
+            n = (int)dimsND[0];
+            for (ii=0; ii<nd;ii++){
+                n *= (int)dimsND[ii];
+            }
+            if (n>0){
+                if (alloc==1)
+                    GMALLOC(varptr,sizeof(int)*n);
+                __GUARD readvar(file_id,
+                                H5T_NATIVE_INT,
+                                name,
+                                varptr);
+            }
+        }
+    }
+
+    return n;
+}
+int readvector_float(hid_t file_id, const char * name,
+                   void * varptr){
+
+    int state =0;
+    int nd, n=0;
+    hsize_t  dims2D[2];
+
+    __GUARD getNDIM(file_id, name, &nd);
+    __GUARD getdimmat(file_id, name, 2, dims2D);
+    if (!state){
+        if (nd>1){
+            n = (int)dims2D[0]*(int)dims2D[1];
+            if (n>0){
+                GMALLOC(varptr,sizeof(float)*n);
+                __GUARD readvar(file_id,
+                                H5T_NATIVE_FLOAT,
+                                name,
+                                varptr);
+            }
+        }
+    }
+
+    return n;
+}
+
+int read_srcrec(hid_t file_id, model * m){
+
     hsize_t     dimsND[MAX_DIMS],dims2D[2],dimsfreqs[2];
     int         state =0, maxrecid, tempstate;
     float thisid=0, tmaxf=0, tminf=0;
     int  i=0,  nsg=0, n=0, p=0;
     float *src0=NULL, *src_pos0=NULL, *rec_pos0=NULL ;
     char temp[100]={0};
-
-    /* Open the input file. */
-    file_id = -1;
-    file_id = H5Fopen(files.csts, H5F_ACC_RDWR, H5P_DEFAULT);
-    if (!state) if (file_id<0) {state=1;fprintf(stderr, "Error: Could not open the input file csts");};
-
-
-    /* Basic variables__________________________________
-     __________________________________________________________________*/
-
-    /* Read basic scalar variables */
-    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/NT", &m->NT);
-    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/ND", &m->ND);
-    __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/dt", &m->dt);
-    __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/dh", &m->dh);
-    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/FDORDER", &m->FDORDER);
-    m->FDOH=m->FDORDER/2;
-    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/MAXRELERROR", &m->MAXRELERROR);
-    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/freesurf", &m->FREESURF);
-    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/nab", &m->NAB);
-    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/abs_type", &m->ABS_TYPE);
-    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/L", &m->L);
-    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/gradout", &m->GRADOUT);
-    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/gradsrcout", &m->GRADSRCOUT);
-    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/seisout", &m->VARSOUT);
-    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/resout", &m->RESOUT);
-    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/rmsout", &m->RMSOUT);
-    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/pref_device_type", &m->pref_device_type);
-    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/nmax_dev", &m->nmax_dev);
-    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/MPI_NPROC_SHOT", &m->MPI_NPROC_SHOT);
-    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/back_prop_type", &m->BACK_PROP_TYPE);
-
-    /* Visco-elastic modeling*/
-    if (m->L>0){
-        __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/f0", &m->f0);
-    }
-
-    /*Absorbing boundary variables*/
-    if (m->ABS_TYPE==2){
-        __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/abpc", &m->abpc);
-    }
-    else if (m->ABS_TYPE==1){
-        __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/VPPML", &m->VPPML);
-        __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/FPML", &m->FPML);
-        __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/NPOWER", &m->NPOWER);
-        __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/K_MAX_CPML",&m->K_MAX_CPML);
-    }
-
-    /*Optional variables*/
-    readscalar(file_id, H5T_NATIVE_FLOAT,   "/fmax", &m->fmax);
-    readscalar(file_id, H5T_NATIVE_FLOAT,   "/fmin", &m->fmin);
-    readscalar(file_id, H5T_NATIVE_INT,   "/scalerms", &m->scalerms);
-    readscalar(file_id, H5T_NATIVE_INT,   "/scaleshot", &m->scaleshot);
-    readscalar(file_id, H5T_NATIVE_INT,"/scalermsnorm",&m->scalermsnorm);
-    readscalar(file_id, H5T_NATIVE_INT,   "/restype", &m->restype);
-    readscalar(file_id, H5T_NATIVE_INT,   "/Hout", &m->HOUT);
-    readscalar(file_id, H5T_NATIVE_INT,   "/movout", &m->MOVOUT);
-    readscalar(file_id, H5T_NATIVE_INT, "/param_type", &m->par_type);
-    readscalar(file_id, H5T_NATIVE_INT, "/FP16", &m->FP16);
-    readscalar(file_id, H5T_NATIVE_INT, "/input_res", &m->INPUTRES);
-    readscalar(file_id, H5T_NATIVE_INT, "/halfpar", &m->halfpar);
-    readscalar(file_id, H5T_NATIVE_FLOAT,   "/tmax", &tmaxf);
-    if (tmaxf>0){
-        m->tmax=tmaxf/m->dt;
-    }
-    else {
-        m->tmax=m->NT;
-    }
-
-    __GUARD readscalar(file_id, H5T_NATIVE_FLOAT,   "/tmin", &tminf);
-    if (tminf>0){
-        m->tmin=tminf/m->dt;
-    }
-    if (m->tmin>m->tmax){
-        fprintf(stderr, "Error: tmax<tmin\n");
-        return 1;
-    }
-
-
-    if (m->ND==3){
-        m->NDIM=3;
-    }
-    else{
-        m->NDIM=2;
-    }
-
-    __GUARD checkexists(file_id,"/N");
-    __GUARD getdimmat(file_id, "/N", 2, dims2D);
-    if (m->NDIM!=dims2D[0]*dims2D[1]){
-        fprintf(stderr, "Error: Number of dimensions mismatch\n");
-        return 1;
-    }
-    __GUARD readvar(file_id, H5T_NATIVE_INT, "/N", m->N);
-
-    for (i=0;i<m->NDIM;i++){
-        dimsND[i]=m->N[m->NDIM-1-i];
-    }
-    #ifndef __SeisCL__
-    // N[0] should be a multiple of 2 because we use float2 in kernels
-    if (m->N[0]%2!=0){
-        fprintf(stderr, "Error: N[0] must be a multiple of 2\n");
-        return 1;
-    }
-    #endif
-
-
-
-    /* Read baned GPUs */
-    __GUARD getNDIM(file_id, "/no_use_GPUs", &n);
-
-    if (!state){
-        if (n>1){
-            __GUARD getdimmat(file_id, "/no_use_GPUs", 2, dims2D);
-            m->n_no_use_GPUs=(int)dims2D[0]*(int)dims2D[1];
-            if (m->n_no_use_GPUs>0){
-                GMALLOC(m->no_use_GPUs,sizeof(int)*m->n_no_use_GPUs);
-                __GUARD readvar(file_id,
-                                H5T_NATIVE_INT,
-                                "/no_use_GPUs",
-                                m->no_use_GPUs);
-            }
-        }
-        else
-            m->n_no_use_GPUs=0;
-    }
-
-    if (m->BACK_PROP_TYPE==2 && m->GRADOUT==1){
-        __GUARD checkexists(file_id,"/gradfreqs");
-        __GUARD getdimmat(file_id, "/gradfreqs", 2, dimsfreqs);
-        if (dimsfreqs[0]<2 & dimsfreqs[1]>0)
-            m->NFREQS=(int)dimsfreqs[1];
-        else if (dimsfreqs[1]<2 & dimsfreqs[0]>0)
-            m->NFREQS=(int)dimsfreqs[0];
-    }
-
-
-    /* Sources and receivers variables__________________________________
-     __________________________________________________________________*/
 
     /* Check that variables exist */
     __GUARD checkexists(file_id,"/src");
@@ -393,7 +330,7 @@ int read_csts(struct filenames files, model * m){
     dims2D[1]=m->NT;
     if (!state){
         if (checkmatNDIM(file_id, "/src",  2, dims2D)){
-            fprintf(stderr, "Error: Variable src must be nt x number of sources\n");
+            fprintf(stderr, "Error: src must be nt x number of sources\n");
             return 1;
         }
     }
@@ -450,8 +387,8 @@ int read_csts(struct filenames files, model * m){
         }
         if (!state){
             if (nsg!=m->src_recs.ns){
-                fprintf(stderr, "Error: Number of sources ids in src_pos and rec_pos "
-                                "are not the same\n");
+                fprintf(stderr, "Error: Number of sources ids in src_pos and "
+                                "rec_pos are not the same\n");
                 return 1;
             }
         }
@@ -523,11 +460,114 @@ int read_csts(struct filenames files, model * m){
     return state;
 }
 
+int read_csts(hid_t file_id, model * m){
+
+    hsize_t     dimsND[MAX_DIMS],dims2D[2];
+    int         state =0, maxrecid, tempstate;
+    float thisid=0, tmaxf=0, tminf=0;
+    int  i=0,  nsg=0, n=0, p=0;
+    char temp[100]={0};
+
+
+    /* Read basic scalar variables */
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/NT", &m->NT);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/ND", &m->ND);
+    __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/dt", &m->dt);
+    __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/dh", &m->dh);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/FDORDER", &m->FDORDER);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/MAXRELERROR", &m->MAXRELERROR);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/freesurf", &m->FREESURF);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/nab", &m->NAB);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/abs_type", &m->ABS_TYPE);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/L", &m->L);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/gradout", &m->GRADOUT);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/gradsrcout", &m->GRADSRCOUT);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/seisout", &m->VARSOUT);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/resout", &m->RESOUT);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/rmsout", &m->RMSOUT);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/pref_device_type", &m->pref_device_type);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/nmax_dev", &m->nmax_dev);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/MPI_NPROC_SHOT", &m->MPI_NPROC_SHOT);
+    __GUARD readscalar(file_id, H5T_NATIVE_INT,   "/back_prop_type", &m->BACK_PROP_TYPE);
+    __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/f0", &m->f0);
+    __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/abpc", &m->abpc);
+    __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/VPPML", &m->VPPML);
+    __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/FPML", &m->FPML);
+    __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/NPOWER", &m->NPOWER);
+    __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/K_MAX_CPML",&m->K_MAX_CPML);
+
+    /*Optional variables*/
+    read_optional(file_id, H5T_NATIVE_FLOAT,   "/fmax", &m->fmax);
+    read_optional(file_id, H5T_NATIVE_FLOAT,   "/fmin", &m->fmin);
+    read_optional(file_id, H5T_NATIVE_INT,   "/scalerms", &m->scalerms);
+    read_optional(file_id, H5T_NATIVE_INT,   "/scaleshot", &m->scaleshot);
+    read_optional(file_id, H5T_NATIVE_INT,"/scalermsnorm",&m->scalermsnorm);
+    read_optional(file_id, H5T_NATIVE_INT,   "/restype", &m->restype);
+    read_optional(file_id, H5T_NATIVE_INT,   "/Hout", &m->HOUT);
+    read_optional(file_id, H5T_NATIVE_INT,   "/movout", &m->MOVOUT);
+    read_optional(file_id, H5T_NATIVE_INT, "/param_type", &m->par_type);
+    read_optional(file_id, H5T_NATIVE_INT, "/FP16", &m->FP16);
+    read_optional(file_id, H5T_NATIVE_INT, "/inputres", &m->INPUTRES);
+    read_optional(file_id, H5T_NATIVE_INT, "/halfpar", &m->halfpar);
+    read_optional(file_id, H5T_NATIVE_FLOAT,   "/tmax", &tmaxf);
+    read_optional(file_id, H5T_NATIVE_FLOAT,   "/tmin", &tminf);
+
+    if (m->ND==3){
+        m->NDIM=3;
+    }
+    else{
+        m->NDIM=2;
+    }
+    __GUARD checkexists(file_id,"/N");
+    __GUARD getdimmat(file_id, "/N", 2, dims2D);
+    if (m->NDIM!=dims2D[0]*dims2D[1]){
+        fprintf(stderr, "Error: Number of dimensions mismatch\n");
+        return 1;
+    }
+    __GUARD readvar(file_id, H5T_NATIVE_INT, "/N", m->N);
+
+    m->FDOH=m->FDORDER/2;
+
+    if (tmaxf>0)
+        m->tmax=tmaxf/m->dt;
+    else
+        m->tmax=m->NT;
+    if (tminf>0)
+        m->tmin=tminf/m->dt;
+    if (m->tmin>m->tmax){
+        fprintf(stderr, "Error: tmax<tmin\n");
+        return 1;
+    }
+
+    #ifndef __SeisCL__
+    // N[0] should be a multiple of 2 because we use float2 in kernels
+    if (m->N[0]%2!=0){
+        fprintf(stderr, "Error: N[0] must be a multiple of 2\n");
+        return 1;
+    }
+    #endif
+
+    /* Read baned GPUs */
+    m->n_no_use_GPUs = readvector_int(file_id, "/no_use_GPUs", m->no_use_GPUs, 1);
+
+    if (m->BACK_PROP_TYPE==2 && m->GRADOUT==1){
+        __GUARD checkexists(file_id,"/gradfreqs");
+        __GUARD getdimmat(file_id, "/gradfreqs", 2, dims2D);
+        if (dims2D[0]<2 & dims2D[1]>0)
+            m->NFREQS=(int)dims2D[1];
+        else if (dims2D[1]<2 & dims2D[0]>0)
+            m->NFREQS=(int)dims2D[0];
+    }
+
+    return state;
+}
+
 int readhdf5(struct filenames files, model * m) {
     
     hid_t       file_id=0;
     hsize_t     dimsND[MAX_DIMS],dims2D[2],dimsfreqs[2];
     int         state =0, maxrecid;
+    int anyout=0;
     float thisid=0, tmaxf=0, tminf=0;
     int  i=0,  nsg=0, n=0, p=0;
     float *src0=NULL, *src_pos0=NULL, *rec_pos0=NULL ;
@@ -537,428 +577,17 @@ int readhdf5(struct filenames files, model * m) {
     /* Open the input file. */
     file_id = -1;
     file_id = H5Fopen(files.csts, H5F_ACC_RDWR, H5P_DEFAULT);
-    if (!state) if (file_id<0) {state=1;fprintf(stderr, "Error: Could not open the input file csts");};
-    
-    
-    /* Basic variables__________________________________
-     __________________________________________________________________*/
-    
-    /* Check that basic variables exist */
-    __GUARD checkexists(file_id,"/NT");
-    __GUARD checkexists(file_id,"/ND");
-    __GUARD checkexists(file_id,"/dt");
-    __GUARD checkexists(file_id,"/dh");
-    __GUARD checkexists(file_id,"/FDORDER");
-    __GUARD checkexists(file_id,"/MAXRELERROR");
-    __GUARD checkexists(file_id,"/src");
-    __GUARD checkexists(file_id,"/src_pos");
-    __GUARD checkexists(file_id,"/rec_pos");
-    __GUARD checkexists(file_id,"/freesurf");
-    __GUARD checkexists(file_id,"/nab");
-    __GUARD checkexists(file_id,"/abs_type");
-    __GUARD checkexists(file_id,"/L");
-    __GUARD checkexists(file_id,"/gradout");
-    __GUARD checkexists(file_id,"/gradsrcout");
-    __GUARD checkexists(file_id,"/seisout");
-    __GUARD checkexists(file_id,"/resout");
-    __GUARD checkexists(file_id,"/rmsout");
-    __GUARD checkexists(file_id,"/pref_device_type");
-    __GUARD checkexists(file_id,"/nmax_dev");
-    __GUARD checkexists(file_id,"/no_use_GPUs");
-    __GUARD checkexists(file_id,"/MPI_NPROC_SHOT");
-    
-    /* Check that basic variables are in the required format */
-    __GUARD checkscalar(file_id, "/NT");
-    __GUARD checkscalar(file_id, "/ND");
-    __GUARD checkscalar(file_id, "/dt");
-    __GUARD checkscalar(file_id, "/dh");
-    __GUARD checkscalar(file_id, "/FDORDER");
-    __GUARD checkscalar(file_id, "/MAXRELERROR");
-    __GUARD checkscalar(file_id, "/freesurf");
-    __GUARD checkscalar(file_id, "/nab");
-    __GUARD checkscalar(file_id, "/abs_type");
-    __GUARD checkscalar(file_id, "/L");
-    __GUARD checkscalar(file_id, "/gradout");
-    __GUARD checkscalar(file_id, "/gradsrcout");
-    __GUARD checkscalar(file_id, "/seisout");
-    __GUARD checkscalar(file_id, "/resout");
-    __GUARD checkscalar(file_id, "/rmsout");
-    __GUARD checkscalar(file_id, "/pref_device_type");
-    __GUARD checkscalar(file_id, "/nmax_dev");
-    __GUARD checkscalar(file_id, "/MPI_NPROC_SHOT");
-    
-    /* Read basic scalar variables */
-    __GUARD readvar(file_id, H5T_NATIVE_INT,   "/NT", &m->NT);
-    __GUARD readvar(file_id, H5T_NATIVE_INT,   "/ND", &m->ND);
-    __GUARD readvar(file_id, H5T_NATIVE_FLOAT, "/dt", &m->dt);
-    __GUARD readvar(file_id, H5T_NATIVE_FLOAT, "/dh", &m->dh);
-    __GUARD readvar(file_id, H5T_NATIVE_INT,   "/FDORDER", &m->FDORDER);
-    __GUARD readvar(file_id, H5T_NATIVE_INT,   "/MAXRELERROR", &m->MAXRELERROR);
-    __GUARD readvar(file_id, H5T_NATIVE_INT,   "/freesurf", &m->FREESURF);
-    __GUARD readvar(file_id, H5T_NATIVE_INT,   "/nab", &m->NAB);
-    __GUARD readvar(file_id, H5T_NATIVE_INT,   "/abs_type", &m->ABS_TYPE);
-    __GUARD readvar(file_id, H5T_NATIVE_INT,   "/L", &m->L);
-    __GUARD readvar(file_id, H5T_NATIVE_INT,   "/gradout", &m->GRADOUT);
-    __GUARD readvar(file_id, H5T_NATIVE_INT,   "/gradsrcout", &m->GRADSRCOUT);
-    __GUARD readvar(file_id, H5T_NATIVE_INT,   "/seisout", &m->VARSOUT);
-    __GUARD readvar(file_id, H5T_NATIVE_INT,   "/resout", &m->RESOUT);
-    __GUARD readvar(file_id, H5T_NATIVE_INT,   "/rmsout", &m->RMSOUT);
-    __GUARD readvar(file_id, H5T_NATIVE_INT,   "/pref_device_type", &m->pref_device_type);
-    __GUARD readvar(file_id, H5T_NATIVE_INT,   "/nmax_dev", &m->nmax_dev);
-    __GUARD readvar(file_id, H5T_NATIVE_INT,   "/MPI_NPROC_SHOT", &m->MPI_NPROC_SHOT);
-    
-    if (!state) {if (1==H5Lexists( file_id, "/tmax", H5P_DEFAULT)){
-        __GUARD checkscalar(file_id, "/tmax");
-        __GUARD readvar(file_id, H5T_NATIVE_FLOAT,   "/tmax", &tmaxf);
-        m->tmax=tmaxf/m->dt;
-        if (m->tmax<1){
-            m->tmax=m->NT;
-        }
+    if (!state) if (file_id<0) {
+        state=1;
+        fprintf(stderr, "Error: Could not open the input file csts");
     }
-    else{
-        m->tmax=m->NT;
-    }}
-    
-    if (!state) {if (1==H5Lexists( file_id, "/tmin", H5P_DEFAULT)){
-        __GUARD checkscalar(file_id, "/tmin");
-        __GUARD readvar(file_id, H5T_NATIVE_FLOAT,   "/tmin", &tminf);
-        m->tmin=tminf/m->dt;
-    }
-    else
-    {
-        m->tmin=0;
-    }}
-    
-    if (m->tmin>m->tmax){
-        fprintf(stderr, "Error: tmax<tmin\n");
-        return 1;
-    }
-
-    
-    if (!state) {if (1==H5Lexists( file_id, "/fmax", H5P_DEFAULT)){
-        __GUARD checkscalar(file_id, "/fmax");
-        __GUARD readvar(file_id, H5T_NATIVE_FLOAT,   "/fmax", &m->fmax);
-    }}
-    
-    if (!state) {if (1==H5Lexists( file_id, "/fmin", H5P_DEFAULT)){
-        __GUARD checkscalar(file_id, "/fmin");
-        __GUARD readvar(file_id, H5T_NATIVE_FLOAT,   "/fmin", &m->fmin);
-    }}
-    
-    if (!state) if (1==H5Lexists( file_id, "/scalerms", H5P_DEFAULT)){
-        __GUARD checkscalar(file_id, "/scalerms");
-        __GUARD readvar(file_id, H5T_NATIVE_INT,   "/scalerms", &m->scalerms);
-    }
-    if (!state) if (1==H5Lexists( file_id, "/scaleshot", H5P_DEFAULT)){
-        __GUARD checkscalar(file_id, "/scaleshot");
-        __GUARD readvar(file_id, H5T_NATIVE_INT,   "/scaleshot", &m->scaleshot);
-    }
-    if (!state) if (1==H5Lexists( file_id, "/scalermsnorm", H5P_DEFAULT)){
-        __GUARD checkscalar(file_id, "/scalermsnorm");
-        __GUARD readvar(file_id, H5T_NATIVE_INT,"/scalermsnorm",&m->scalermsnorm);
-    }
-    if (!state) if (1==H5Lexists( file_id, "/restype", H5P_DEFAULT)){
-        __GUARD checkscalar(file_id, "/restype");
-        __GUARD readvar(file_id, H5T_NATIVE_INT,   "/restype", &m->restype);
-    }
-    if (!state) if (1==H5Lexists( file_id, "/Hout", H5P_DEFAULT)){
-        __GUARD checkscalar(file_id, "/Hout");
-        __GUARD readvar(file_id, H5T_NATIVE_INT,   "/Hout", &m->HOUT);
-    }
-    if (!state) if (1==H5Lexists( file_id, "/movout", H5P_DEFAULT)){
-        __GUARD checkscalar(file_id, "/movout");
-        __GUARD readvar(file_id, H5T_NATIVE_INT,   "/movout", &m->MOVOUT);
-    }
-    if (!state) if (1==H5Lexists( file_id, "/movout", H5P_DEFAULT)){
-            __GUARD checkscalar(file_id, "/movout");
-            __GUARD readvar(file_id, H5T_NATIVE_INT,   "/movout", &m->MOVOUT);
-        }
-
-    if (H5Lexists( file_id, "/param_type", H5P_DEFAULT) ){
-        __GUARD checkscalar(file_id, "/param_type");
-        __GUARD readvar(file_id, H5T_NATIVE_INT, "/param_type", &m->par_type);
-    }
-    if (H5Lexists( file_id, "/FP16", H5P_DEFAULT) ){
-        __GUARD checkscalar(file_id, "/FP16");
-        __GUARD readvar(file_id, H5T_NATIVE_INT, "/FP16", &m->FP16);
-    }
-    if (H5Lexists( file_id, "/inputres", H5P_DEFAULT) ){
-        __GUARD checkscalar(file_id, "/inputres");
-        __GUARD readvar(file_id, H5T_NATIVE_INT, "/inputres", &m->INPUTRES);
-    }
-//#ifdef __SEISCL__
-//    if (m->FP16!=0){
-//        fprintf(stderr, "Error: The OpenCL version only supports FP16=0\n");
-//        return 1;
-//    }
-//#endif
-    if (H5Lexists( file_id, "/halfpar", H5P_DEFAULT) ){
-        __GUARD checkscalar(file_id, "/halfpar");
-        __GUARD readvar(file_id, H5T_NATIVE_INT, "/halfpar", &m->halfpar);
-    }
-    
-    if (m->ND==3){
-        m->NDIM=3;
-    }
-    else{
-        m->NDIM=2;
-    }
-    
-    __GUARD checkexists(file_id,"/N");
-    __GUARD getdimmat(file_id, "/N", 2, dims2D);
-    if (m->NDIM!=dims2D[0]*dims2D[1]){
-        fprintf(stderr, "Error: Number of dimensions mismatch\n");
-        return 1;
-    }
-    __GUARD readvar(file_id, H5T_NATIVE_INT, "/N", m->N);
-
-    for (i=0;i<m->NDIM;i++){
-        dimsND[i]=m->N[m->NDIM-1-i];
-    }
-    #ifndef __SeisCL__
-    // N[0] should be a multiple of 2 because we use float2 in kernels
-    if (m->N[0]%2!=0){
-        fprintf(stderr, "Error: N[0] must be a multiple of 2\n");
-        return 1;
-    }
-    #endif
-    
-    m->FDOH=m->FDORDER/2;
-    
-    /* Read baned GPUs */
-    __GUARD getNDIM(file_id, "/no_use_GPUs", &n);
-    
-    if (!state){
-        if (n>1){
-            __GUARD getdimmat(file_id, "/no_use_GPUs", 2, dims2D);
-            m->n_no_use_GPUs=(int)dims2D[0]*(int)dims2D[1];
-            if (m->n_no_use_GPUs>0){
-                GMALLOC(m->no_use_GPUs,sizeof(int)*m->n_no_use_GPUs);
-                __GUARD readvar(file_id,
-                                H5T_NATIVE_INT,
-                                "/no_use_GPUs",
-                                m->no_use_GPUs);
-            }
-        }
-        else
-            m->n_no_use_GPUs=0;
-    }
-    
-    __GUARD checkexists(file_id,"/back_prop_type");
-    __GUARD checkscalar(file_id, "/back_prop_type");
-    __GUARD readvar(file_id,
-                    H5T_NATIVE_INT,
-                    "/back_prop_type",
-                    &m->BACK_PROP_TYPE);
-    if (!(m->BACK_PROP_TYPE ==1
-        || m->BACK_PROP_TYPE ==2)) {
-        fprintf(stderr, "Error: bac_prop_type must be 1 or 2\n");
-        return 1;
-    }
-    
-    if (m->BACK_PROP_TYPE==2 && m->GRADOUT==1){
-        __GUARD checkexists(file_id,"/gradfreqs");
-        __GUARD getdimmat(file_id, "/gradfreqs", 2, dimsfreqs);
-        if (dimsfreqs[0]<2 & dimsfreqs[1]>0)
-            m->NFREQS=(int)dimsfreqs[1];
-        else if (dimsfreqs[1]<2 & dimsfreqs[0]>0)
-            m->NFREQS=(int)dimsfreqs[0];
-    }
-    
-    
-    /*Absorbing boundary variables*/
-    
-    if (m->ABS_TYPE==2){
-        __GUARD checkexists(file_id,"/abpc");
-        __GUARD checkscalar(file_id, "/abpc");
-        __GUARD readvar(file_id, H5T_NATIVE_FLOAT, "/abpc", &m->abpc);
-    }
-    else if (m->ABS_TYPE==1){
-        __GUARD checkexists(file_id,"/VPPML");
-        __GUARD checkexists(file_id,"/FPML");
-        __GUARD checkexists(file_id,"/NPOWER");
-        __GUARD checkexists(file_id,"/K_MAX_CPML");
-        
-        __GUARD checkscalar(file_id, "/VPPML");
-        __GUARD checkscalar(file_id, "/FPML");
-        __GUARD checkscalar(file_id, "/NPOWER");
-        __GUARD checkscalar(file_id, "/K_MAX_CPML");
-        
-        __GUARD readvar(file_id, H5T_NATIVE_FLOAT, "/VPPML", &m->VPPML);
-        __GUARD readvar(file_id, H5T_NATIVE_FLOAT, "/FPML", &m->FPML);
-        __GUARD readvar(file_id, H5T_NATIVE_FLOAT, "/NPOWER", &m->NPOWER);
-        __GUARD readvar(file_id, H5T_NATIVE_FLOAT, "/K_MAX_CPML",&m->K_MAX_CPML);
-    }
-    else if (m->ABS_TYPE==0){
-    }
-    else if (!state){
-        fprintf(stderr, "Error: Variable ABS_TYPE allowed values are 0, 1 and 2\n");
-        return 1;
-    }
-    
-    
-    /* Visco-elastic modeling*/
-    if (m->L>0){
-        __GUARD checkexists(file_id,"/f0");
-        __GUARD checkscalar(file_id, "/f0");
-        __GUARD readvar(file_id, H5T_NATIVE_FLOAT, "/f0", &m->f0);
-        
-    }
-
-    
-    /* Sources and receivers variables__________________________________
-     __________________________________________________________________*/
-    
-    /* Check that variables exist */
-    __GUARD checkexists(file_id,"/src");
-    __GUARD checkexists(file_id,"/src_pos");
-    __GUARD checkexists(file_id,"/rec_pos");
-    
-    /* Check that the variables are in the required format */
-    __GUARD getdimmat(file_id, "/src_pos", 2, dims2D);
-    if (!state){
-        if(dims2D[1]!=5) {
-            fprintf(stderr, "Error: src_pos dimension 1 must be 5\n");
-            return 1;
-        }
-    }
-    m->src_recs.allns=(int)dims2D[0];
-    dims2D[1]=m->NT;
-    if (!state){
-        if (checkmatNDIM(file_id, "/src",  2, dims2D)){
-            fprintf(stderr, "Error: Variable src must be nt x number of sources\n");
-            return 1;
-        }
-    }
-    
-    
-    __GUARD getdimmat(file_id, "/rec_pos", 2, dims2D);
-    if (!state){
-        if(dims2D[1]!=8) {
-            fprintf(stderr, "Error: rec_pos dimension 1 must be 8\n");
-            return 1;
-        }
-    }
-    m->src_recs.allng=(int)dims2D[0];
-    
-    /* Assign the memory */
-    GMALLOC(src_pos0,sizeof(float)*m->src_recs.allns*5);
-    GMALLOC(src0,sizeof(float)*m->src_recs.allns*m->NT);
-    GMALLOC(rec_pos0,sizeof(float)*m->src_recs.allng*8);
-    
-    /* Read variables */
-    __GUARD readvar(file_id, H5T_NATIVE_FLOAT, "/src_pos", src_pos0);
-    __GUARD readvar(file_id, H5T_NATIVE_FLOAT, "/src", src0);
-    __GUARD readvar(file_id, H5T_NATIVE_FLOAT, "/rec_pos", rec_pos0);
-    
-    /* Determine the number of shots to simulate */
-    if (!state){
-        m->src_recs.ns=0;
-        thisid=-9999;
-        for (i=0;i<m->src_recs.allns;i++){
-            if (thisid<src_pos0[3+i*5]){
-                thisid=src_pos0[3+i*5];
-                m->src_recs.ns+=1;
-            }
-            else if (thisid>src_pos0[3+i*5]){
-                printf("Sources ids must be sorted in ascending order");
-                return 1;
-            }
-            
-        }
-        
-        nsg=0;
-        thisid=-9999;
-        maxrecid=0;
-        for (i=0;i<m->src_recs.allng;i++){
-            maxrecid=  (maxrecid > rec_pos0[4+i*8]) ? maxrecid : rec_pos0[4+i*8];
-            if (thisid<rec_pos0[3+i*8]){
-                thisid=rec_pos0[3+i*8];
-                nsg+=1;
-            }
-            else if (thisid>rec_pos0[3+i*8]){
-                printf("Src ids in rec_pos must be sorted in ascending order\n");
-                return 1;
-            }
-            
-        }
-        if (!state){
-            if (nsg!=m->src_recs.ns){
-                fprintf(stderr, "Error: Number of sources ids in src_pos and rec_pos "
-                                "are not the same\n");
-                return 1;
-            }
-        }
-    }
-    
-    /* Assign the 2D arrays in which shot and receivers variables are stored */
-    GMALLOC(m->src_recs.src_pos,sizeof(float*)*m->src_recs.ns);
-    GMALLOC(m->src_recs.src,sizeof(float*)*m->src_recs.ns);
-    GMALLOC(m->src_recs.nsrc,sizeof(int)*m->src_recs.ns);
-    GMALLOC(m->src_recs.rec_pos,sizeof(float*)*m->src_recs.ns);
-    GMALLOC(m->src_recs.nrec,sizeof(int)*m->src_recs.ns);
-    
-    if (!state){
-        
-        // Determine the number of sources positions per shot
-        thisid=src_pos0[3];
-        n=1;
-        p=0;
-        for (i=1;i<m->src_recs.allns;i++){
-            if (thisid==src_pos0[3+i*5]){
-                n+=1;
-            }
-            else{
-                m->src_recs.nsrc[p]=n;
-                n=1;
-                p=p+1;
-                thisid=src_pos0[3+i*5];
-            }
-            
-        }
-        m->src_recs.nsrc[m->src_recs.ns-1]=n;
-        
-        // Determine the number of receiver positions per shot
-        thisid=rec_pos0[3];
-        n=1;
-        p=0;
-        for (i=1;i<m->src_recs.allng;i++){
-            if (thisid==rec_pos0[3+i*8]){
-                n+=1;
-            }
-            else{
-                m->src_recs.nrec[p]=n;
-                n=1;
-                p=p+1;
-                thisid=rec_pos0[3+i*8];
-            }
-            
-        }
-        m->src_recs.nrec[m->src_recs.ns-1]=n;
-        
-        //Assign the right number of shots and geophones for each shot
-        m->src_recs.src_pos[0]=src_pos0;
-        m->src_recs.src[0]=src0;
-        m->src_recs.rec_pos[0]=rec_pos0;
-        for (i=1;i<m->src_recs.ns;i++){
-            m->src_recs.src_pos[i]=m->src_recs.src_pos[i-1]+m->src_recs.nsrc[i-1]*5;
-            m->src_recs.src[i]=m->src_recs.src[i-1]+m->src_recs.nsrc[i-1]*m->NT;
-            m->src_recs.rec_pos[i]=m->src_recs.rec_pos[i-1]+m->src_recs.nrec[i-1]*8;
-        }
-        
-        //Compute the maximum number of geophones and shots within a source id
-        m->src_recs.nsmax=0;
-        m->src_recs.ngmax=0;
-        for (i=0;i<m->src_recs.ns; i++){
-            m->src_recs.nsmax = fmax(m->src_recs.nsmax, m->src_recs.nsrc[i]);
-            m->src_recs.ngmax = fmax(m->src_recs.ngmax, m->src_recs.nrec[i]);
-        }
-    }
+    __GUARD read_csts(file_id, m);
+    __GUARD read_srcrec(file_id, m);
 
     //Assign parameters list depending on which case of modeling is desired
     __GUARD assign_modeling_case(m);
     
-    //Read active constants
+    //Read custom constants
     for (i=0;i<m->ncsts;i++){
         if (m->csts[i].to_read  ){
             __GUARD checkexists(file_id,m->csts[i].to_read);
@@ -984,7 +613,10 @@ int readhdf5(struct filenames files, model * m) {
         fprintf(stderr, "Error: Could not open the input file model");
         return 1;
     }
-    
+
+    for (i=0;i<m->NDIM;i++){
+        dimsND[i]=m->N[m->NDIM-1-i];
+    }
     /* Read parameters. */
     for (i=0;i<m->npars;i++){
         if (m->pars[i].to_read){
@@ -1012,17 +644,16 @@ int readhdf5(struct filenames files, model * m) {
      __________________________________________________________________*/
     
     /* Open the data file. */
-    if (m->RMSOUT==1 || m->RESOUT || m->GRADOUT==1){
+    if (m->INPUTRES==0 && (m->RMSOUT==1 || m->RESOUT || m->GRADOUT==1)){
         file_id = -1;
         file_id = H5Fopen(files.din, H5F_ACC_RDWR, H5P_DEFAULT);
         if (!state) if (file_id<0 && m->GRADOUT) {
             fprintf(stderr, "Error: Could not open the input file for data_in\n");
             return 1;
         }
-        
-        int anyout=0;
-        if (file_id>=0){
 
+        anyout=0;
+        if (file_id>=0){
             dims2D[0]=m->src_recs.allng;dims2D[1]=m->NT;
             for (i=0;i<m->nvars;i++){
                 if (1==H5Lexists( file_id, m->vars[i].name, H5P_DEFAULT)){
@@ -1076,9 +707,7 @@ int readhdf5(struct filenames files, model * m) {
                     m->trans_vars[i].to_output=0;
                 }
             }
-            
             H5Fclose(file_id);
-            
         }
 
         if (!anyout){
@@ -1100,49 +729,54 @@ int readhdf5(struct filenames files, model * m) {
         }
         
         dims2D[0]=m->src_recs.allng;dims2D[1]=m->NT;
+        anyout = 0;
         for (i=0;i<m->nvars;i++){
             sprintf(temp,"%sres", m->vars[i].name);
-            if (1==H5Lexists( file_id, temp, H5P_DEFAULT)){
+            if (1==H5Lexists(file_id, temp, H5P_DEFAULT)){
+                m->vars[i].to_output=1;
                 if (checkmatNDIM_atleast(file_id, temp, 2, dims2D)){
                     state=1;
                     fprintf(stderr, "Error: %sres must be nt x number of"
                             "recording stations\n",m->vars[i].name );
                 }
+                var_alloc_out(&m->vars[i].gl_var_res, m);
                 __GUARD readvar(file_id,
                                 H5T_NATIVE_FLOAT,
                                 temp,
                                 m->vars[i].gl_var_res[0]);
-                
+                anyout=1;
             }
-            else if (m->vars[i].to_output){
-                fprintf(stderr, "Error: No residuals for %s\n",m->vars[i].name);
-                return 1;
+            else{
+                m->vars[i].to_output=0;
             }
         }
         for (i=0;i<m->ntvars;i++){
             sprintf(temp,"%sres", m->trans_vars[i].name);
             if (1==H5Lexists( file_id, temp, H5P_DEFAULT)){
+                m->trans_vars[i].to_output=1;
                 if (checkmatNDIM_atleast(file_id, temp, 2, dims2D)) {
                     fprintf(stderr, "Error: %sres must be nt x number of"
                             "recording stations\n",m->trans_vars[i].name);
                     return 1;
                 }
+                var_alloc_out(&m->trans_vars[i].gl_var_res, m);
                 __GUARD readvar(file_id,
                                 H5T_NATIVE_FLOAT,
                                 temp,
                                 m->trans_vars[i].gl_var_res[0]);
+                anyout=1;
             }
-            else if (m->trans_vars[i].to_output){
-                fprintf(stderr, "Error: No residuals for %s\n",
-                        m->trans_vars[i].name);
-                return 1;
+            else{
+                m->trans_vars[i].to_output=0;
             }
         }
-        
+        if (!anyout){
+            fprintf(stderr, "Error: Cannot output without the residuals\n");
+            return 1;
+        }
         H5Fclose(file_id);
-        
     }
-    
+
     #ifndef __NOMPI__
     if (state && m->MPI_INIT==1) MPI_Bcast( &state,
                                            1,
@@ -1150,9 +784,8 @@ int readhdf5(struct filenames files, model * m) {
                                            m->GID,
                                            MPI_COMM_WORLD );
     #endif
-    
+
     return state;
-    
 }
 
 

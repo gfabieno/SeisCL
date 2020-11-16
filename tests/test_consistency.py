@@ -33,7 +33,7 @@ def test_seisout(seis, plot=False):
     for seisout in range(1, 5):
         ref = None
         print("    Testing seisout=%d" % seisout)
-        for fp16 in range(0,2):
+        for fp16 in range(0, 2):
             print("        Testing fp16=%d....." % fp16, end='')
             seis.FP16 = fp16
             seis.seisout = seisout
@@ -158,7 +158,6 @@ def test_fp16_forward(seis, ref=None, plot=False, ngpu=1, nmpi=1):
         seis.nmax_dev = ngpu
         seis.NP = nmpi
 
-
     for fp16 in range(0, 4):
         print("    Testing FP16=%d....." % fp16, end='')
         seis.FP16 = fp16
@@ -182,10 +181,10 @@ def test_fp16_forward(seis, ref=None, plot=False, ngpu=1, nmpi=1):
                     if plot:
                         plt.imshow(data[0]-ref[0], aspect='auto')
                         plt.show()
-                    raise SeisCLError("    Error with data referance too large: %e"
-                                      % err)
+                    raise SeisCLError("    Error with data referance too large:"
+                                      " %e" % err)
                 print("passed (error %e)" % err)
-        except(SeisCLError) as msg:
+        except SeisCLError as msg:
             print("failed:")
             print(msg)
 
@@ -193,7 +192,7 @@ def test_fp16_forward(seis, ref=None, plot=False, ngpu=1, nmpi=1):
     seis.nmax_dev = 1
 
 
-def test_fp16_grad(seis, ref=None, plot=False, ngpu=1, nmpi=1):
+def test_fp16_grad(seis, ref=None, plot=False, ngpu=1, nmpi=1, inputres=0):
     
     seis = define_rec_src(seis)
     pars = {}
@@ -217,8 +216,6 @@ def test_fp16_grad(seis, ref=None, plot=False, ngpu=1, nmpi=1):
     seis.NP = 1
     seis.file_din = seis.workdir + '/SeisCL_din.mat'
 
-#    seis.movout = 20
-#    seis.seisout = 1
     pars['vp'] = np.zeros(seis.N) + 3500
     pars['vp'][slices] = 4000
     seis.set_forward(seis.src_pos_all[3, :], pars, withgrad=False)
@@ -227,31 +224,44 @@ def test_fp16_grad(seis, ref=None, plot=False, ngpu=1, nmpi=1):
     seis.write_data({"p": data[0]}, filename="SeisCL_din.mat")
     pars['vp'] = np.zeros(seis.N) + 3500
 
-    if ngpu > 1 or nmpi > 1:
+    if ngpu > 1 or nmpi > 1 or inputres == 1:
         seis.FP16 = 0
+        seis.resout = 1
         seis.set_forward(seis.src_pos_all[3, :], pars, withgrad=True)
         seis.execute()
+        if inputres == 1:
+            res = seis.read_data(residuals=True)
+        else:
+            res = None
         grad = seis.read_grad()
         ref = grad
         if plot:
             for g in grad:
                 plt.imshow(g[slicesp], aspect='auto')
-                plt.show()
+            plt.show()
         seis.nmax_dev = ngpu
         seis.NP = nmpi
-    
-    
-    for fp16 in range(0,4):
+        seis.resout = 0
+
+    for fp16 in range(0, 4):
         print("    Testing FP16=%d....." % fp16, end='')
         seis.FP16 = fp16
         try:
-            seis.set_forward(seis.src_pos_all[3, :], pars, withgrad=True)
-            seis.execute()
+            if inputres == 1:
+                seis.inputres = 1
+                seis.set_forward(seis.src_pos_all[3, :], pars, withgrad=False)
+                seis.execute()
+                seis.set_backward(residuals=res)
+                seis.execute()
+                seis.inputres = 0
+            else:
+                seis.set_forward(seis.src_pos_all[3, :], pars, withgrad=True)
+                seis.execute()
             grad = seis.read_grad()
             if plot:
                 for g in grad:
                     plt.imshow(g[slicesp], aspect='auto')
-                    plt.show()
+                plt.show()
             if ref is None:
                 ref = grad
                 print("passed")
@@ -337,140 +347,291 @@ if __name__ == "__main__":
 
     # ND, L, freesurf, abs_type, FDORDER, forward, NGPU, NPROC
 
-    name = "2D_elastic_forward"
+    # name = "2D_elastic_forward"
+    # if args.test == name or args.test == "all":
+    #     print("Testing %s" % name)
+    #     seis.N = np.array([64, 64])
+    #     seis.L = 0
+    #     seis.ND = 2
+    #     seis.freesurf = 0
+    #     test_fp16_forward(seis, ref=None, plot=args.plot)
+    #
+    # name = "2D_elastic_grad"
+    # if args.test == name or args.test == "all":
+    #     print("Testing %s" % name)
+    #     seis.N = np.array([64, 64])
+    #     seis.L = 0
+    #     seis.ND = 2
+    #     seis.freesurf = 0
+    #     test_fp16_grad(seis, ref=None, plot=args.plot)
+    #
+    # name = "3D_elastic_forward"
+    # if args.test == name or args.test == "all":
+    #     print("Testing %s" % name)
+    #     seis.N = np.array([64, 64, 64])
+    #     seis.L = 0
+    #     seis.ND = 3
+    #     seis.freesurf = 0
+    #     test_fp16_forward(seis, ref=None, plot=args.plot)
+    #
+    # name = "3D_elastic_grad"
+    # if args.test == name or args.test == "all":
+    #     print("Testing %s" % name)
+    #     seis.N = np.array([64, 64, 64])
+    #     seis.L = 0
+    #     seis.ND = 3
+    #     seis.freesurf = 0
+    #     test_fp16_grad(seis, ref=None, plot=args.plot)
+    #
+    # name = "2D_visco_forward"
+    # if args.test == name or args.test == "all":
+    #     print("Testing %s" % name)
+    #     seis.N = np.array([64, 64])
+    #     seis.L = 1
+    #     seis.ND = 2
+    #     seis.freesurf = 0
+    #     test_fp16_forward(seis, ref=None, plot=args.plot)
+    #
+    # name = "3D_visco_forward"
+    # if args.test == name or args.test == "all":
+    #     print("Testing %s" % name)
+    #     seis.N = np.array([64, 64, 64])
+    #     seis.ND = 3
+    #     seis.L = 1
+    #     seis.freesurf = 0
+    #     test_fp16_forward(seis, ref=None, plot=args.plot)
+    #
+    # name = "2D_elas_forward_surface"
+    # if args.test == name or args.test == "all":
+    #     print("Testing %s" % name)
+    #     seis.N = np.array([64, 64])
+    #     seis.ND = 2
+    #     seis.L = 0
+    #     seis.freesurf = 1
+    #     test_fp16_forward(seis, ref=None, plot=args.plot)
+    #
+    # name = "2D_visco_forward_surface"
+    # if args.test == name or args.test == "all":
+    #     print("Testing %s" % name)
+    #     seis.N = np.array([64, 64])
+    #     seis.ND = 2
+    #     seis.L = 1
+    #     seis.freesurf = 1
+    #     test_fp16_forward(seis, ref=None, plot=args.plot)
+    #
+    # name = "2D_elas_grad_surface"
+    # if args.test == name or args.test == "all":
+    #     print("Testing %s" % name)
+    #     seis.N = np.array([64, 64])
+    #     seis.ND = 2
+    #     seis.L = 0
+    #     seis.freesurf = 1
+    #     test_fp16_grad(seis, ref=None, plot=args.plot)
+    #
+    # name = "3D_elas_forward_surface"
+    # if args.test == name or args.test == "all":
+    #     print("Testing %s" % name)
+    #     seis.N = np.array([64, 64, 64])
+    #     seis.ND = 3
+    #     seis.L = 0
+    #     seis.freesurf = 1
+    #     test_fp16_forward(seis, ref=None, plot=args.plot)
+    #
+    # name = "3D_visco_forward_surface"
+    # if args.test == name or args.test == "all":
+    #     print("Testing %s" % name)
+    #     seis.N = np.array([64, 64, 64])
+    #     seis.ND = 3
+    #     seis.L = 1
+    #     seis.freesurf = 1
+    #     test_fp16_forward(seis, ref=None, plot=args.plot)
+    #
+    # name = "3D_elas_grad_surface"
+    # if args.test == name or args.test == "all":
+    #     print("Testing %s" % name)
+    #     seis.N = np.array([64, 64, 64])
+    #     seis.ND = 3
+    #     seis.L = 0
+    #     seis.freesurf = 1
+    #     test_fp16_grad(seis, ref=None, plot=args.plot)
+    #
+    # name = "2D_NGPU_forward"
+    # if args.test == name or args.test == "all":
+    #     print("Testing %s" % name)
+    #     seis.N = np.array([64, 256])
+    #     seis.L = 0
+    #     seis.ND = 2
+    #     seis.freesurf = 0
+    #     test_fp16_forward(seis, ref=None, plot=args.plot, ngpu=3)
+    #
+    # name = "2D_NGPU_grad"
+    # if args.test == name or args.test == "all":
+    #     print("Testing %s" % name)
+    #     seis.N = np.array([64, 256])
+    #     seis.L = 0
+    #     seis.ND = 2
+    #     seis.freesurf = 0
+    #     test_fp16_grad(seis, ref=None, plot=args.plot, ngpu=3)
+    #
+    # name = "3D_NGPU_forward"
+    # if args.test == name or args.test == "all":
+    #     print("Testing %s" % name)
+    #     seis.N = np.array([64, 64, 256])
+    #     seis.L = 0
+    #     seis.ND = 3
+    #     seis.freesurf = 0
+    #     test_fp16_forward(seis, ref=None, plot=args.plot, ngpu=3)
+    #
+    # name = "3D_NGPU_grad"
+    # if args.test == name or args.test == "all":
+    #     print("Testing %s" % name)
+    #     seis.N = np.array([64, 64, 256])
+    #     seis.L = 0
+    #     seis.ND = 3
+    #     seis.freesurf = 0
+    #     test_fp16_grad(seis, ref=None, plot=args.plot, ngpu=3)
+    #
+    # name = "2D_MPI_forward"
+    # if args.test == name or args.test == "all":
+    #     print("Testing %s" % name)
+    #     seis.N = np.array([64, 256])
+    #     seis.L = 0
+    #     seis.ND = 2
+    #     seis.freesurf = 0
+    #     seis.MPI_NPROC_SHOT = 3
+    #     test_fp16_forward(seis, ref=None, plot=args.plot, nmpi=3)
+    #     seis.NP = 1
+    #     seis.MPI_NPROC_SHOT = 1
+    #
+    # name = "2D_MPI_grad"
+    # if args.test == name or args.test == "all":
+    #     print("Testing %s" % name)
+    #     seis.N = np.array([64, 256])
+    #     seis.L = 0
+    #     seis.ND = 2
+    #     seis.freesurf = 0
+    #     seis.MPI_NPROC_SHOT = 4
+    #     test_fp16_grad(seis, ref=None, plot=args.plot, nmpi=4)
+    #     seis.NP = 1
+    #     seis.MPI_NPROC_SHOT = 1
+    #
+    # name = "3D_MPI_forward"
+    # if args.test == name or args.test == "all":
+    #     print("Testing %s" % name)
+    #     seis.N = np.array([64, 64, 256])
+    #     seis.L = 0
+    #     seis.ND = 3
+    #     seis.freesurf = 0
+    #     seis.MPI_NPROC_SHOT = 3
+    #     test_fp16_forward(seis, ref=None, plot=args.plot, nmpi=3)
+    #     seis.NP = 1
+    #     seis.MPI_NPROC_SHOT = 1
+    #
+    # name = "3D_MPI_grad"
+    # if args.test == name or args.test == "all":
+    #     print("Testing %s" % name)
+    #     seis.N = np.array([64, 64, 256])
+    #     seis.L = 0
+    #     seis.ND = 3
+    #     seis.freesurf = 0
+    #     seis.MPI_NPROC_SHOT = 3
+    #     test_fp16_grad(seis, ref=None, plot=args.plot, nmpi=3)
+    #     seis.NP = 1
+    #     seis.MPI_NPROC_SHOT = 1
+    #
+    # name = "3D_seisout"
+    # if args.test == name or args.test == "all":
+    #     print("Testing %s" % name)
+    #     seis.N = np.array([64, 64, 64])
+    #     seis.L = 0
+    #     seis.ND = 3
+    #     seis.freesurf = 0
+    #     test_seisout(seis, plot=args.plot)
+    #
+    # name = "2D_NGPU_backpropagation"
+    # if args.test == name or args.test == "all":
+    #     print("Testing %s" % name)
+    #     seis.N = np.array([64, 256])
+    #     seis.L = 0
+    #     seis.ND = 2
+    #     seis.freesurf = 0
+    #     test_backpropagation(seis, plot=args.plot, ngpu=3)
+    #
+    # name = "2D_MPI_backpropagation"
+    # if args.test == name or args.test == "all":
+    #     print("Testing %s" % name)
+    #     seis.N = np.array([64, 256])
+    #     seis.L = 0
+    #     seis.ND = 2
+    #     seis.freesurf = 0
+    #     seis.MPI_NPROC_SHOT = 4
+    #     test_backpropagation(seis, plot=args.plot, nmpi=3)
+    #     seis.NP = 1
+    #     seis.MPI_NPROC_SHOT = 1
+    #
+    # name = "3D_NGPU_backpropagation"
+    # if args.test == name or args.test == "all":
+    #     print("Testing %s" % name)
+    #     seis.NT = 300
+    #     seis.N = np.array([48, 48, 144])
+    #     seis.L = 0
+    #     seis.ND = 3
+    #     seis.freesurf = 0
+    #     test_backpropagation(seis, plot=args.plot, ngpu=3)
+    #     seis.NT = 875
+    #
+    # name = "3D_MPI_backpropagation"
+    # if args.test == name or args.test == "all":
+    #     print("Testing %s" % name)
+    #     seis.NT = 300
+    #     seis.N = np.array([48, 48, 144])
+    #     seis.L = 0
+    #     seis.ND = 3
+    #     seis.freesurf = 0
+    #     seis.MPI_NPROC_SHOT = 3
+    #     test_backpropagation(seis, plot=args.plot, nmpi=3)
+    #     seis.NT = 875
+    #     seis.NP = 1
+    #     seis.MPI_NPROC_SHOT = 1
+
+    name = "2D_inputres"
     if args.test == name or args.test == "all":
         print("Testing %s" % name)
         seis.N = np.array([64, 64])
         seis.L = 0
         seis.ND = 2
         seis.freesurf = 0
-        test_fp16_forward(seis, ref=None, plot=args.plot)
+        test_fp16_grad(seis, ref=None, plot=args.plot, inputres=1)
 
-    name = "2D_elastic_grad"
-    if args.test == name or args.test == "all":
-        print("Testing %s" % name)
-        seis.N = np.array([64, 64])
-        seis.L = 0
-        seis.ND = 2
-        seis.freesurf = 0
-        test_fp16_grad(seis, ref=None, plot=args.plot)
-
-    name = "3D_elastic_forward"
+    name = "3D_inputres"
     if args.test == name or args.test == "all":
         print("Testing %s" % name)
         seis.N = np.array([64, 64, 64])
         seis.L = 0
         seis.ND = 3
         seis.freesurf = 0
-        test_fp16_forward(seis, ref=None, plot=args.plot)
+        test_fp16_grad(seis, ref=None, plot=args.plot, inputres=1)
 
-    name = "3D_elastic_grad"
-    if args.test == name or args.test == "all":
-        print("Testing %s" % name)
-        seis.N = np.array([64, 64, 64])
-        seis.L = 0
-        seis.ND = 3
-        seis.freesurf = 0
-        test_fp16_grad(seis, ref=None, plot=args.plot)
-
-    name = "2D_visco_forward"
-    if args.test == name or args.test == "all":
-        print("Testing %s" % name)
-        seis.N = np.array([64, 64])
-        seis.L = 1
-        seis.ND = 2
-        seis.freesurf = 0
-        test_fp16_forward(seis, ref=None, plot=args.plot)
-
-    name = "3D_visco_forward"
-    if args.test == name or args.test == "all":
-        print("Testing %s" % name)
-        seis.N = np.array([64, 64, 64])
-        seis.ND = 3
-        seis.L = 1
-        seis.freesurf = 0
-        test_fp16_forward(seis, ref=None, plot=args.plot)
-
-    name = "2D_elas_forward_surface"
-    if args.test == name or args.test == "all":
-        print("Testing %s" % name)
-        seis.N = np.array([64, 64])
-        seis.ND = 2
-        seis.L = 0
-        seis.freesurf = 1
-        test_fp16_forward(seis, ref=None, plot=args.plot)
-
-    name = "2D_visco_forward_surface"
-    if args.test == name or args.test == "all":
-        print("Testing %s" % name)
-        seis.N = np.array([64, 64])
-        seis.ND = 2
-        seis.L = 1
-        seis.freesurf = 1
-        test_fp16_forward(seis, ref=None, plot=args.plot)
-
-    name = "2D_elas_grad_surface"
-    if args.test == name or args.test == "all":
-        print("Testing %s" % name)
-        seis.N = np.array([64, 64])
-        seis.ND = 2
-        seis.L = 0
-        seis.freesurf = 1
-        test_fp16_grad(seis, ref=None, plot=args.plot)
-
-    name = "3D_elas_forward_surface"
-    if args.test == name or args.test == "all":
-        print("Testing %s" % name)
-        seis.N = np.array([64, 64, 64])
-        seis.ND = 3
-        seis.L = 0
-        seis.freesurf = 1
-        test_fp16_forward(seis, ref=None, plot=args.plot)
-
-    name = "3D_visco_forward_surface"
-    if args.test == name or args.test == "all":
-        print("Testing %s" % name)
-        seis.N = np.array([64, 64, 64])
-        seis.ND = 3
-        seis.L = 1
-        seis.freesurf = 1
-        test_fp16_forward(seis, ref=None, plot=args.plot)
-
-    name = "3D_elas_grad_surface"
-    if args.test == name or args.test == "all":
-        print("Testing %s" % name)
-        seis.N = np.array([64, 64, 64])
-        seis.ND = 3
-        seis.L = 0
-        seis.freesurf = 1
-        test_fp16_grad(seis, ref=None, plot=args.plot)
-
-    name = "2D_NGPU_forward"
+    name = "2D_NGPU_inputres"
     if args.test == name or args.test == "all":
         print("Testing %s" % name)
         seis.N = np.array([64, 256])
         seis.L = 0
         seis.ND = 2
         seis.freesurf = 0
-        test_fp16_forward(seis, ref=None, plot=args.plot, ngpu=3)
+        test_fp16_grad(seis, ref=None, plot=args.plot, ngpu=3, inputres=1)
 
-    name = "2D_NGPU_grad"
+    name = "2D_MPI_inputres"
     if args.test == name or args.test == "all":
         print("Testing %s" % name)
         seis.N = np.array([64, 256])
         seis.L = 0
         seis.ND = 2
         seis.freesurf = 0
-        test_fp16_grad(seis, ref=None, plot=args.plot, ngpu=3)
-
-    name = "3D_NGPU_forward"
-    if args.test == name or args.test == "all":
-        print("Testing %s" % name)
-        seis.N = np.array([64, 64, 256])
-        seis.L = 0
-        seis.ND = 3
-        seis.freesurf = 0
-        test_fp16_forward(seis, ref=None, plot=args.plot, ngpu=3)
+        seis.MPI_NPROC_SHOT = 4
+        test_fp16_grad(seis, ref=None, plot=args.plot, nmpi=4, inputres=1)
+        seis.NP = 1
+        seis.MPI_NPROC_SHOT = 1
 
     name = "3D_NGPU_grad"
     if args.test == name or args.test == "all":
@@ -479,33 +640,9 @@ if __name__ == "__main__":
         seis.L = 0
         seis.ND = 3
         seis.freesurf = 0
-        test_fp16_grad(seis, ref=None, plot=args.plot, ngpu=3)
+        test_fp16_grad(seis, ref=None, plot=args.plot, ngpu=3, inputres=1)
 
-    name = "2D_MPI_forward"
-    if args.test == name or args.test == "all":
-        print("Testing %s" % name)
-        seis.N = np.array([64, 256])
-        seis.L = 0
-        seis.ND = 2
-        seis.freesurf = 0
-        seis.MPI_NPROC_SHOT = 3
-        test_fp16_forward(seis, ref=None, plot=args.plot, nmpi=3)
-        seis.NP = 1
-        seis.MPI_NPROC_SHOT = 1
-
-    name = "2D_MPI_grad"
-    if args.test == name or args.test == "all":
-        print("Testing %s" % name)
-        seis.N = np.array([64, 256])
-        seis.L = 0
-        seis.ND = 2
-        seis.freesurf = 0
-        seis.MPI_NPROC_SHOT = 4
-        test_fp16_grad(seis, ref=None, plot=args.plot, nmpi=4)
-        seis.NP = 1
-        seis.MPI_NPROC_SHOT = 1
-
-    name = "3D_MPI_forward"
+    name = "3D_MPI_inputres"
     if args.test == name or args.test == "all":
         print("Testing %s" % name)
         seis.N = np.array([64, 64, 256])
@@ -513,73 +650,6 @@ if __name__ == "__main__":
         seis.ND = 3
         seis.freesurf = 0
         seis.MPI_NPROC_SHOT = 3
-        test_fp16_forward(seis, ref=None, plot=args.plot, nmpi=3)
-        seis.NP = 1
-        seis.MPI_NPROC_SHOT = 1
-
-    name = "3D_MPI_grad"
-    if args.test == name or args.test == "all":
-        print("Testing %s" % name)
-        seis.N = np.array([64, 64, 256])
-        seis.L = 0
-        seis.ND = 3
-        seis.freesurf = 0
-        seis.MPI_NPROC_SHOT = 3
-        test_fp16_grad(seis, ref=None, plot=args.plot, nmpi=3)
-        seis.NP = 1
-        seis.MPI_NPROC_SHOT = 1
-
-    name = "3D_seisout"
-    if args.test == name or args.test == "all":
-        print("Testing %s" % name)
-        seis.N = np.array([64, 64, 64])
-        seis.L = 0
-        seis.ND = 3
-        seis.freesurf = 0
-        test_seisout(seis, plot=args.plot)
-
-    name = "2D_NGPU_backpropagation"
-    if args.test == name or args.test == "all":
-        print("Testing %s" % name)
-        seis.N = np.array([64, 256])
-        seis.L = 0
-        seis.ND = 2
-        seis.freesurf = 0
-        test_backpropagation(seis, plot=args.plot, ngpu=3)
-
-    name = "2D_MPI_backpropagation"
-    if args.test == name or args.test == "all":
-        print("Testing %s" % name)
-        seis.N = np.array([64, 256])
-        seis.L = 0
-        seis.ND = 2
-        seis.freesurf = 0
-        seis.MPI_NPROC_SHOT = 4
-        test_backpropagation(seis, plot=args.plot, nmpi=3)
-        seis.NP = 1
-        seis.MPI_NPROC_SHOT = 1
-
-    name = "3D_NGPU_backpropagation"
-    if args.test == name or args.test == "all":
-        print("Testing %s" % name)
-        seis.NT = 300
-        seis.N = np.array([48, 48, 144])
-        seis.L = 0
-        seis.ND = 3
-        seis.freesurf = 0
-        test_backpropagation(seis, plot=args.plot, ngpu=3)
-        seis.NT = 875
-
-    name = "3D_MPI_backpropagation"
-    if args.test == name or args.test == "all":
-        print("Testing %s" % name)
-        seis.NT = 300
-        seis.N = np.array([48, 48, 144])
-        seis.L = 0
-        seis.ND = 3
-        seis.freesurf = 0
-        seis.MPI_NPROC_SHOT = 3
-        test_backpropagation(seis, plot=args.plot, nmpi=3)
-        seis.NT = 875
+        test_fp16_grad(seis, ref=None, plot=args.plot, nmpi=3, inputres=1)
         seis.NP = 1
         seis.MPI_NPROC_SHOT = 1

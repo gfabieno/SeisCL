@@ -992,7 +992,7 @@ int assign_modeling_case(model * m){
                                 "surface_adj", surface_adj, 2, headers);
         }
     }
-    if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+    if ((m->GRADOUT || m->INPUTRES) && m->BACK_PROP_TYPE==1){
         __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd, 1, headers);
     }
     

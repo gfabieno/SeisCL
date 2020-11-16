@@ -168,10 +168,16 @@ int Init_MPI(model * m) {
 
                 if (m->GID!=0){
                     var_alloc_out(&m->vars[i].gl_var_res, m);
-                    var_alloc_out(&m->vars[i].gl_varin, m);
+                    if (m->INPUTRES==0)
+                        var_alloc_out(&m->vars[i].gl_varin, m);
                 }
-                if (!state){
-                    MPI_Bcast( m->vars[i].gl_varin[0], m->src_recs.allng*m->NT, MPI_FLOAT, 0, MPI_COMM_WORLD );
+                if (!state && m->INPUTRES==0){
+                    MPI_Bcast(m->vars[i].gl_varin[0], m->src_recs.allng*m->NT,
+                              MPI_FLOAT, 0, MPI_COMM_WORLD );
+                }
+                else{
+                    MPI_Bcast(m->vars[i].gl_var_res[0], m->src_recs.allng*m->NT,
+                              MPI_FLOAT, 0, MPI_COMM_WORLD );
                 }
             }
         }
@@ -180,10 +186,18 @@ int Init_MPI(model * m) {
 
                 if (m->GID!=0){
                     var_alloc_out(&m->trans_vars[i].gl_var_res, m);
-                    var_alloc_out(&m->trans_vars[i].gl_varin, m);
+                    if (m->INPUTRES==0)
+                        var_alloc_out(&m->trans_vars[i].gl_varin, m);
                 }
-                if (!state){
-                    MPI_Bcast( m->trans_vars[i].gl_varin[0], m->src_recs.allng*m->NT, MPI_FLOAT, 0, MPI_COMM_WORLD );
+                if (!state && m->INPUTRES==0){
+                    MPI_Bcast(m->trans_vars[i].gl_varin[0],
+                              m->src_recs.allng*m->NT, MPI_FLOAT, 0,
+                              MPI_COMM_WORLD );
+                }
+                else{
+                    MPI_Bcast(m->trans_vars[i].gl_var_res[0],
+                              m->src_recs.allng*m->NT, MPI_FLOAT, 0,
+                              MPI_COMM_WORLD );
                 }
             }
         }

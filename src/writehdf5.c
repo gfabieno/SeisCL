@@ -221,7 +221,7 @@ int writehdf5(struct filenames file, model * m) {
                 writetomat(&file_id,name,m->trans_vars[i].gl_varout[0],2,dims);
             }
         }
-        if (m->RESOUT){
+        if (m->RESOUT && !m->INPUTRES){
             for (i=0;i<m->nvars;i++){
                 if (m->vars[i].to_output){
                     sprintf(name, "%sres",m->vars[i].name);
