@@ -120,7 +120,7 @@ int main(int argc, char **argv) {
     snprintf(file.checkpoint, sizeof(file.checkpoint), "%s_NP%d%s", filein,
              m.GID, "_checkpoint.mat");
     if (filedata == NULL) {
-        snprintf(file.din, sizeof(file.din), "%s%s", filedata, "_din.mat");
+        snprintf(file.din, sizeof(file.din), "%s%s", filein, "_din.mat");
     } else {
         snprintf(file.din, sizeof(file.din), "%s", filedata);
     }
