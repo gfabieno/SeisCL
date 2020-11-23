@@ -56,7 +56,7 @@ class SeisCL:
                  with_docker: bool = False, with_mpi: bool = False,
                  NP: int = 1, pref_device_type: int = 4,
                  MPI_NPROC_SHOT: int = 1, nmax_dev: int = 1,
-                 no_use_GPUs:  np.ndarray = np.empty((1, 0)),
+                 no_use_GPUs:  np.ndarray = np.array([-1]),
 
                  gradout: int = 0, Hout: int = 0, gradsrcout: int = 0,
                  back_prop_type: int = 1, cropgrad=True,
