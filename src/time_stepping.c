@@ -741,13 +741,18 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
         }
     }
 
-    //Intialize checkpoint file
-    if (m->INPUTRES==1 && m->GRADOUT==0){
+    //Initialize checkpoint file
+    if (m->INPUTRES==1 && m->GRADOUT==0) {
         state = remove(files.checkpoint);
-        if (state)
-            fprintf(stderr, "Could not delete checkpoint file %s\n", files.res);
-        file_id = create_file(files.checkpoint);
-        H5Fclose(file_id);
+        if (errno == ENOENT)
+            state = 0;
+        else if (state){
+            perror("Could not delete checkpoint file");
+            }
+        if (!state) {
+            file_id = create_file(files.checkpoint);
+            H5Fclose(file_id);
+        }
     }
 
     // Main loop over shots of this group

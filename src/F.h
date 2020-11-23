@@ -25,6 +25,7 @@
 #include <float.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <errno.h>
 //#include <cmath>
 
 //#include <libc.h>
