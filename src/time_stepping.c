@@ -89,26 +89,11 @@ int reduce_seis(model * m, device ** dev, int s){
     
 }
 
-int checkpoint_d2h(model * m, device ** dev, struct filenames files, int s){
+int checkpoint_d2h(model * m, device ** dev, hid_t file_id, int s){
     int state=0;
     int d, i, j;
     char name[100];
-    hid_t file_id=0;
-    file_id = -1;
     hsize_t dims[MAX_DIMS];
-    struct stat info;
-
-    if (stat(files.checkpoint, &info ) != 0) {
-        file_id = create_file(files.checkpoint);
-    }
-    else{
-        file_id = H5Fopen(files.checkpoint, H5F_ACC_RDWR, H5P_DEFAULT);
-    }
-    if (file_id<0){
-        state=1;
-        fprintf(stderr,"Error: Could not open the checkpoint file %s",
-                files.checkpoint);
-    }
 
     for (d=0;d<m->NUM_DEVICES;d++){
         WAITQUEUE((*dev)[d].queue);
@@ -147,70 +132,74 @@ int checkpoint_d2h(model * m, device ** dev, struct filenames files, int s){
         WAITQUEUE((*dev)[d].queue);
         for (i=0;i<m->nvars;i++){
 
-            dims[0] = (*dev)[d].vars[i].num_ele;
-            sprintf(name, "src%d_dev%d_%s", s, d, (*dev)[d].vars[i].name);
-            writetomat(&file_id, name, (*dev)[d].vars[i].cl_var.host,
-                       1, dims);
+            if ((*dev)[d].vars[i].cl_var.host){
+                dims[0] = (*dev)[d].vars[i].num_ele;
+                sprintf(name, "src%d_dev%d_%s", s, d, (*dev)[d].vars[i].name);
+                writetomat(&file_id, name, (*dev)[d].vars[i].cl_var.host,
+                           1, dims);
+            }
 
-            dims[0] = (*dev)[d].vars[i].cl_varbnd.sizepin / sizeof(float);
-            sprintf(name, "src%d_dev%d_%s_bnd", s, d, (*dev)[d].vars[i].name);
-            writetomat(&file_id, name, (*dev)[d].vars[i].cl_varbnd.host,
-                       1, dims);
+            if ((*dev)[d].vars[i].cl_varbnd.host) {
+                dims[0] = (*dev)[d].vars[i].cl_varbnd.sizepin / sizeof(float);
+                sprintf(name, "src%d_dev%d_%s_bnd", s, d,
+                        (*dev)[d].vars[i].name);
+                writetomat(&file_id, name, (*dev)[d].vars[i].cl_varbnd.host,
+                           1, dims);
+            }
 
             if ((*dev)[d].vars[i].cl_buf1.host){
                 dims[0] = (*dev)[d].vars[i].cl_buf1.size / sizeof(float);
-                sprintf(name, "src%d_dev%d_%s_buf1d", s, d, (*dev)[d].vars[i].name);
+                sprintf(name, "src%d_dev%d_%s_buf1d", s, d,
+                        (*dev)[d].vars[i].name);
                 writetomat(&file_id, name, (*dev)[d].vars[i].cl_buf1.host,
                            1, dims);
             }
             if ((*dev)[d].vars[i].cl_buf2.host){
                 dims[0] = (*dev)[d].vars[i].cl_buf2.size / sizeof(float);
-                sprintf(name, "src%d_dev%d_%s_buf2d", s, d, (*dev)[d].vars[i].name);
+                sprintf(name, "src%d_dev%d_%s_buf2d", s, d,
+                        (*dev)[d].vars[i].name);
                 writetomat(&file_id, name, (*dev)[d].vars[i].cl_buf2.host,
                            1, dims);
             }
         }
     }
 
-    if (file_id) H5Fclose(file_id);
-
     return state;
 }
 
-int checkpoint_h2d(model * m, device ** dev, struct filenames files, int s) {
+int checkpoint_h2d(model * m, device ** dev, hid_t file_id, int s) {
     int state = 0;
     int d, i;
     char name[100];
-    hid_t file_id = 0;
-    file_id = -1;
     hsize_t dims[MAX_DIMS];
     int nwait;
     EVENT * event;
 
-    file_id = H5Fopen(files.checkpoint, H5F_ACC_RDWR, H5P_DEFAULT);
-    if (file_id < 0) {
-        fprintf(stderr, "Error: Could not open the checkpoint file %s",
-                files.checkpoint);
-    }
 
     // Transfer all variables to output to host for this time step
     for (d = 0; d < m->NUM_DEVICES; d++) {
         for (i = 0; i < m->nvars; i++) {
-            sprintf(name, "src%d_dev%d_%s", s, d, (*dev)[d].vars[i].name);
-            dims[0] = (*dev)[d].vars[i].num_ele;
-            __GUARD checkexists(file_id, name);
-            __GUARD readvar(file_id,
-                            H5T_NATIVE_FLOAT,
-                            name,
-                            (*dev)[d].vars[i].cl_var.host);
-            __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].vars[i].cl_var);
 
-            sprintf(name, "src%d_dev%d_%s_bnd", s, d, (*dev)[d].vars[i].name);
-            dims[0] = (*dev)[d].vars[i].cl_varbnd.sizepin / sizeof(float);
-            __GUARD readvar(file_id,
-                            H5T_NATIVE_FLOAT,
-                            name,
-                            (*dev)[d].vars[i].cl_varbnd.host);
+            if ((*dev)[d].vars[i].cl_var.host){
+                sprintf(name, "src%d_dev%d_%s", s, d, (*dev)[d].vars[i].name);
+                dims[0] = (*dev)[d].vars[i].num_ele;
+                __GUARD checkexists(file_id, name);
+                __GUARD readvar(file_id,
+                                H5T_NATIVE_FLOAT,
+                                name,
+                                (*dev)[d].vars[i].cl_var.host);
+                __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].vars[i].cl_var);
+            }
+
+            if ((*dev)[d].vars[i].cl_varbnd.host){
+                sprintf(name, "src%d_dev%d_%s_bnd", s, d,
+                        (*dev)[d].vars[i].name);
+                dims[0] = (*dev)[d].vars[i].cl_varbnd.sizepin / sizeof(float);
+                __GUARD readvar(file_id,
+                                H5T_NATIVE_FLOAT,
+                                name,
+                                (*dev)[d].vars[i].cl_varbnd.host);
+            }
 
             if ((*dev)[d].vars[i].cl_buf1.host) {
                 dims[0] = (*dev)[d].vars[i].cl_buf1.size / sizeof(float);
@@ -276,8 +265,6 @@ int checkpoint_h2d(model * m, device ** dev, struct filenames files, int s) {
     for (d=0;d<m->NUM_DEVICES;d++) {
         WAITQUEUE((*dev)[d].queue);
     }
-
-    if (file_id) H5Fclose(file_id);
 
     return state;
 }
@@ -742,19 +729,20 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
     }
 
     //Initialize checkpoint file
-    if (m->INPUTRES==1 && m->GRADOUT==0) {
+    if (m->INPUTRES==1 && m->GRADOUT==0){
         state = remove(files.checkpoint);
         if (errno == ENOENT)
             state = 0;
         else if (state){
             perror("Could not delete checkpoint file");
             }
-        if (!state) {
+        if (!state){
             file_id = create_file(files.checkpoint);
-            H5Fclose(file_id);
         }
     }
-
+    if (m->INPUTRES==1 && m->GRADOUT==1){
+        file_id = H5Fopen(files.checkpoint, H5F_ACC_RDWR, H5P_DEFAULT);
+    }
     // Main loop over shots of this group
     for (s= m->src_recs.smin;s< m->src_recs.smax;s++){
 
@@ -861,11 +849,12 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
 
             // Save the checkpoints
             if (m->INPUTRES && m->GRADOUT==0){
-                __GUARD checkpoint_d2h(m, dev, files, s);
+                __GUARD checkpoint_d2h(m, dev, file_id, s);
+
             }
         }
         else {
-            checkpoint_h2d(m, dev, files, s);
+            checkpoint_h2d(m, dev, file_id, s);
         }
 
         // Calculation of the gradient for this shot, if required
@@ -1010,6 +999,8 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
 
         __GUARD transf_grad(m);
     }
+
+    if (file_id) H5Fclose(file_id);
 
     #ifndef __NOMPI__
     if (state && m->MPI_INIT==1)

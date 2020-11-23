@@ -40,7 +40,7 @@ void writetomat(hid_t* file_id,
     H5Tset_size(vls_type_c_id, 4);
     
     
-    if (1!=H5Lexists( *file_id, var, H5P_DEFAULT)){
+    if (1!=H5Lexists(*file_id, var, H5P_DEFAULT)){
         dataspace_id = H5Screate_simple(NDIMs, dims, NULL);
         
         plist_id  = H5Pcreate (H5P_DATASET_CREATE);
@@ -169,7 +169,7 @@ hid_t create_file(const char *filename){
     
     fcpl_id = H5Pcreate (H5P_FILE_CREATE);
     H5Pset_userblock(fcpl_id, 512 );
-    file_id = H5Fcreate( filename, H5F_ACC_TRUNC, fcpl_id, H5P_DEFAULT );
+    file_id = H5Fcreate( filename, H5F_ACC_TRUNC, fcpl_id, H5P_DEFAULT);
     H5Fclose(file_id);
     
     fp = fopen(filename,"r+");
@@ -182,9 +182,8 @@ hid_t create_file(const char *filename){
     fwrite(matbin,sizeof(int),3,fp);
     fclose(fp);
     
-    file_id  = H5Fopen( filename, H5F_ACC_RDWR, H5P_DEFAULT );
-    
-    
+    file_id  = H5Fopen(filename, H5F_ACC_RDWR, H5P_DEFAULT);
+
     return file_id;
 }
 
