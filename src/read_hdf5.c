@@ -96,7 +96,10 @@ int read_seis(hid_t file_id, hid_t memtype, const char * invar, float * varptr,
     }
     memspace = H5Screate_simple(2,count,NULL);
     state = H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, offset, NULL, count, NULL);
-    if (0>H5Dread(dataset_id, memtype, memspace, dataspace, H5P_DEFAULT, &varptr[n*NT])) {state=1;fprintf(stderr, "Error: Cannot read variable %s\n", &invar[1]);};
+    if (0>H5Dread(dataset_id, memtype, memspace, dataspace, H5P_DEFAULT, &varptr[n*NT])) {
+        state=1;
+        fprintf(stderr, "Error: Cannot read variable %s\n", &invar[1]);
+    };
 
     if (dataset_id) H5Dclose(dataset_id);
     
@@ -121,6 +124,19 @@ int readvar(hid_t file_id, hid_t memtype, const char * invar, void * varptr){
     return state;
 }
 
+hssize_t getnelement(hid_t file_id, const char * invar){
+
+    hid_t dataset_id=0, dataspace_id=0;
+    hssize_t n;
+
+    dataset_id = H5Dopen2(file_id, invar, H5P_DEFAULT);
+    dataspace_id = H5Dget_space( dataset_id );
+    n = H5Sget_simple_extent_npoints(dataspace_id);
+    if (dataspace_id) H5Sclose(dataspace_id);
+    if (dataset_id) H5Dclose(dataset_id);
+
+    return n;
+}
 
 
 int getdimmat(hid_t file_id, const char * invar, int NDIM, hsize_t * dims1){
@@ -252,53 +268,41 @@ int read_optional(hid_t file_id, hid_t memtype, const char * name, void * varptr
     return state;
 }
 int readvector_int(hid_t file_id, const char * name,
-                   void * varptr, int alloc){
+                   int ** varptr, int alloc){
 
     int state =0;
-    int nd, n=0, ii;
+    int nd=0, ii;
     hsize_t  dimsND[MAX_DIMS];
+    hssize_t n;
 
-    __GUARD getNDIM(file_id, name, &nd);
-    __GUARD getdimmat(file_id, name, nd, dimsND);
-    if (!state){
-        if (nd>1){
-            n = (int)dimsND[0];
-            for (ii=0; ii<nd;ii++){
-                n *= (int)dimsND[ii];
-            }
-            if (n>0){
-                if (alloc==1)
-                    GMALLOC(varptr,sizeof(int)*n);
-                __GUARD readvar(file_id,
-                                H5T_NATIVE_INT,
-                                name,
-                                varptr);
-            }
-        }
+    n =  getnelement(file_id, name);
+    if (n>0){
+        if (alloc==1)
+            GMALLOC(*varptr,sizeof(int)*n);
+        __GUARD readvar(file_id,
+                        H5T_NATIVE_INT,
+                        name,
+                        *varptr);
     }
 
     return n;
 }
 int readvector_float(hid_t file_id, const char * name,
-                   void * varptr){
+                     void ** varptr, int alloc){
 
     int state =0;
-    int nd, n=0;
-    hsize_t  dims2D[2];
+    int nd=0, ii;
+    hsize_t  dimsND[MAX_DIMS];
+    hssize_t n;
 
-    __GUARD getNDIM(file_id, name, &nd);
-    __GUARD getdimmat(file_id, name, 2, dims2D);
-    if (!state){
-        if (nd>1){
-            n = (int)dims2D[0]*(int)dims2D[1];
-            if (n>0){
-                GMALLOC(varptr,sizeof(float)*n);
-                __GUARD readvar(file_id,
-                                H5T_NATIVE_FLOAT,
-                                name,
-                                varptr);
-            }
-        }
+    n =  getnelement(file_id, name);
+    if (n>0){
+        if (alloc==1)
+            GMALLOC(*varptr,sizeof(float)*n);
+        __GUARD readvar(file_id,
+                        H5T_NATIVE_FLOAT,
+                        name,
+                        *varptr);
     }
 
     return n;
@@ -548,7 +552,25 @@ int read_csts(hid_t file_id, model * m){
     #endif
 
     /* Read baned GPUs */
-    m->n_no_use_GPUs = readvector_int(file_id, "/no_use_GPUs", m->no_use_GPUs, 1);
+    m->n_no_use_GPUs = readvector_int(file_id, "/no_use_GPUs", &m->no_use_GPUs, 1);
+
+//    __GUARD getNDIM(file_id, "/no_use_GPUs", &n);
+//
+//    if (!state){
+//        if (n>1){
+//            __GUARD getdimmat(file_id, "/no_use_GPUs", 2, dims2D);
+//            m->n_no_use_GPUs=(int)dims2D[0]*(int)dims2D[1];
+//            if (m->n_no_use_GPUs>0){
+//                GMALLOC(m->no_use_GPUs,sizeof(int)*m->n_no_use_GPUs);
+//                __GUARD readvar(file_id,
+//                                H5T_NATIVE_INT,
+//                                "/no_use_GPUs",
+//                                m->no_use_GPUs);
+//            }
+//        }
+//        else
+//            m->n_no_use_GPUs=0;
+//    }
 
     if (m->BACK_PROP_TYPE==2 && m->GRADOUT==1){
         __GUARD checkexists(file_id,"/gradfreqs");
