@@ -63,6 +63,11 @@ To compile, just run:
 The last line is needed because SeisCL_MPI must be on PATH for the Python interface
 to work properly.
 
+Note also that the variable CUDA_PATH must be defined. If not, find the cuda 
+directory and define CUDA_PATH:
+
+    echo "export CUDA_PATH=/usr/local/cuda" >> ~/.bashrc    
+
 Several options can be passed to make to compile different flavors of SeisCL:
 * api -- Use api=cuda to build SeisCL with Cuda instead of OpenCL
 * nompi -- Use nompi=1 to compile without MPI support.

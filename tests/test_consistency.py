@@ -6,12 +6,8 @@ Created on Wed Jan 20 20:35:05 2016
 @author: gabrielfabien-ouellet
 """
 
-import re, sys, os, inspect
-import hdf5storage as h5mat
 import h5py as h5
 import numpy as np
-import time
-from shutil import copyfile
 import sys
 import matplotlib.pyplot as plt
 import argparse

@@ -3,7 +3,6 @@
 """
 Interface to SeisCL
 """
-import hdf5storage as h5mat
 import h5py as h5
 import numpy as np
 import subprocess
@@ -11,7 +10,6 @@ import os
 import shutil
 from obspy.core import Trace, Stream
 from obspy.io.segy.segy import _read_segy
-from prettytable import PrettyTable
 
 import matplotlib as mpl
 from matplotlib.patches import Rectangle
@@ -25,8 +23,9 @@ class SeisCLError(Exception):
 csts = [ 'N', 'ND', 'dh', 'dt', 'NT', 'freesurf', 'FDORDER', 'MAXRELERROR',
         'L', 'f0', 'FL', 'src_pos', 'rec_pos', 'src', 'abs_type', 'VPPML',
         'NPOWER', 'FPML', 'K_MAX_CPML', 'nab', 'abpc', 'pref_device_type',
-        'no_use_GPUs', 'MPI_NPROC_SHOT', 'nmax_dev', 'back_prop_type', 'param_type',
-        'gradfreqs', 'tmax', 'tmin', 'scalerms',  'scalermsnorm', 'scaleshot',
+        'no_use_GPUs', 'MPI_NPROC_SHOT', 'nmax_dev', 'back_prop_type',
+        'param_type', 'gradfreqs', 'tmax', 'tmin', 'scalerms',
+        'scalermsnorm', 'scaleshot',
         'fmin', 'fmax', 'gradout', 'Hout', 'gradsrcout', 'seisout', 'resout',
         'rmsout', 'movout', 'restype', 'inputres', 'FP16']
 
@@ -437,15 +436,9 @@ class SeisCL:
         if workdir is None:
             workdir = self.workdir
         if residuals is not None:
-            data = {}
-            for n, word in enumerate(self.to_load_names):
-                data[word+"res"] = residuals[n]
-            h5mat.savemat(os.path.join(workdir, self.file_res),
-                          data,
-                          appendmat=False,
-                          format='7.3',
-                          store_python_metadata=True,
-                          truncate_existing=True)
+            with h5.File(os.path.join(workdir, self.file_res), "w") as f:
+                for n, word in enumerate(self.to_load_names):
+                    f[word+"res"] = np.transpose(residuals[n])
             self.inputres = 1
         else:
             self.inputres = 0
@@ -558,7 +551,7 @@ class SeisCL:
         output = []
         for word in self.to_load_names:
             if "mov" + word in mat:
-                datah5 = mat["mov" + word]
+                datah5 = np.transpose(mat["mov" + word])
                 output.append(datah5)
                 
         if not output:
@@ -671,12 +664,9 @@ class SeisCL:
             data['rec_pos'] = self.rec_pos
         if 'src' not in data:
             data['src'] = self.src
-        h5mat.savemat(os.path.join(workdir, filename),
-                      data,
-                      appendmat=False,
-                      format='7.3',
-                      store_python_metadata=True,
-                      truncate_existing=True)
+        with h5.File(os.path.join(workdir, filename), "w") as f:
+            for word in data:
+                f[word] = np.transpose(data[word])
 
     def read_csts(self, workdir=None, filename=None):
         """
@@ -692,12 +682,11 @@ class SeisCL:
         if filename is None:
             filename = self.file_csts
         try:
-            mat = h5mat.loadmat(os.path.join(workdir, filename),
-                                variable_names=[param for param in self.csts])
-            for word in mat:
-                if word in csts:
-                    self.__dict__[word] = mat[word]
-        except (h5mat.lowlevel.CantReadError, NotImplementedError):
+            with h5.File(os.path.join(workdir, filename), "r") as f:
+                for word in f:
+                    if word in csts:
+                        self.__dict__[word] = np.transpose(f[word])
+        except OSError:
             raise SeisCLError('could not read parameter file \n')
 
     def write_csts(self, workdir=None, filename=None):
@@ -712,13 +701,15 @@ class SeisCL:
             workdir = self.workdir
         if filename is None:
             filename = self.file_csts
-
-        h5mat.savemat(os.path.join(workdir, filename),
-                      {el: self.__dict__[el] for el in csts},
-                      appendmat=False,
-                      format='7.3',
-                      store_python_metadata=True,
-                      truncate_existing=True)
+        try:
+            with h5.File(os.path.join(workdir, filename), "w") as f:
+                for el in csts:
+                    if isinstance(self.__dict__[el], np.ndarray):
+                        f[el] = np.transpose(self.__dict__[el])
+                    else:
+                        f[el] = self.__dict__[el]
+        except OSError:
+            raise SeisCLError('could not write parameter file \n')
 
     def invert_source(self, src, datao, datam, srcid=None):
         """

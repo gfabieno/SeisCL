@@ -44,11 +44,11 @@ int checkscalar(hid_t file_id, const char * invar){
     dataspace_id = H5Dget_space( dataset_id );
     rank=H5Sget_simple_extent_ndims(dataspace_id);
     H5Sget_simple_extent_dims(dataspace_id, dims2, NULL );
-    if (rank!=2){
+    if (rank!=2 && rank!=0){
         state=1;
-        fprintf(stderr, "Error: Variable %s must be of rank 2\n",invar);
+        fprintf(stderr, "Error: Variable %s must be of rank 0 or 2\n",invar);
     }
-    if (dims2[0]!=1 || dims2[1]!=1){
+    if (rank==2 && (dims2[0]!=1 || dims2[1]!=1)){
         state=1;
         fprintf(stderr, "Error: Variable %s must be of size 1x1 (scalar)\n",
                 &invar[1]);
@@ -523,11 +523,6 @@ int read_csts(hid_t file_id, model * m){
         m->NDIM=2;
     }
     __GUARD checkexists(file_id,"/N");
-    __GUARD getdimmat(file_id, "/N", 2, dims2D);
-    if (m->NDIM!=dims2D[0]*dims2D[1]){
-        fprintf(stderr, "Error: Number of dimensions mismatch\n");
-        return 1;
-    }
     __GUARD readvar(file_id, H5T_NATIVE_INT, "/N", m->N);
 
     m->FDOH=m->FDORDER/2;
@@ -554,31 +549,9 @@ int read_csts(hid_t file_id, model * m){
     /* Read baned GPUs */
     m->n_no_use_GPUs = readvector_int(file_id, "/no_use_GPUs", &m->no_use_GPUs, 1);
 
-//    __GUARD getNDIM(file_id, "/no_use_GPUs", &n);
-//
-//    if (!state){
-//        if (n>1){
-//            __GUARD getdimmat(file_id, "/no_use_GPUs", 2, dims2D);
-//            m->n_no_use_GPUs=(int)dims2D[0]*(int)dims2D[1];
-//            if (m->n_no_use_GPUs>0){
-//                GMALLOC(m->no_use_GPUs,sizeof(int)*m->n_no_use_GPUs);
-//                __GUARD readvar(file_id,
-//                                H5T_NATIVE_INT,
-//                                "/no_use_GPUs",
-//                                m->no_use_GPUs);
-//            }
-//        }
-//        else
-//            m->n_no_use_GPUs=0;
-//    }
-
     if (m->BACK_PROP_TYPE==2 && m->GRADOUT==1){
         __GUARD checkexists(file_id,"/gradfreqs");
-        __GUARD getdimmat(file_id, "/gradfreqs", 2, dims2D);
-        if (dims2D[0]<2 & dims2D[1]>0)
-            m->NFREQS=(int)dims2D[1];
-        else if (dims2D[1]<2 & dims2D[0]>0)
-            m->NFREQS=(int)dims2D[0];
+        m->NFREQS =  getnelement(file_id, "/gradfreqs");
     }
 
     return state;
