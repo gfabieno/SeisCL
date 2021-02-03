@@ -525,7 +525,7 @@ variable * get_var(variable * vars, int nvars, const char * name);
 
 int readhdf5(struct filenames files, model * m);
 int readvar(hid_t file_id, hid_t memtype, const char * invar, void * varptr);
-checkexists(hid_t file_id, const char * invar);
+int checkexists(hid_t file_id, const char * invar);
 
 int assign_modeling_case(model * m);
 

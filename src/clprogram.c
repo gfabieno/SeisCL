@@ -8,7 +8,6 @@
 
 #include "F.h"
 
-
 int split (const char *str, char c, char ***arr)
 {
     int count = 1;
@@ -465,7 +464,7 @@ int get_build_options(device *dev,
 //    sprintf(build_options[*n-1],"--include-path=%s/include",value);
 //    char * value = __CUDA_INCLUDE__;
     *n+=1;
-    sprintf(build_options[*n-1],"--include-path=__CUDA_INCLUDE__");
+    sprintf(build_options[*n-1],"--include-path=%s",__CUDA_INCLUDE__);
     *n+=1;
     sprintf(build_options[*n-1],"--pre-include=cuda_fp16.h");
     *n+=1;
