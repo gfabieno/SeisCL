@@ -14,7 +14,7 @@ Fabien-Ouellet, G., Gloaguen, E., & Giroux, B. (2016). Time-domain seismic model
 viscoelastic media for full waveform inversion on heterogeneous computing platforms with
 OpenCL. Computers & Geosciences. <http://dx.doi.org/10.1016/j.cageo.2016.12.004>
 
-## Installation
+## 1.0 Installation
 
 You should clone this repository
 
@@ -22,7 +22,7 @@ You should clone this repository
 
 Two options are provided to install the software.
 
-#### a) Use Docker (easiest, but limited)
+#### 1.1 Use Docker (easiest, but limited)
 
 This method only works with Nvidia GPUs, and is restricted to a single node execution.
 However, multi-GPU domain decomposition is supported.
@@ -36,7 +36,7 @@ Then, when in SeisCL repository, build the docker image as follows:
 
 You can then directly use the python interface to launch SeisCL.
 
-#### b) Compile from source (all features available)
+#### 1.2 Compile from source (all features available)
 
 To obtain all features (multi-node, CUDA and OpenCL, GPUs and CPUs), you need to compile from source.
 There are several prerequisites:
@@ -52,7 +52,32 @@ https://wiki.tiker.net/OpenCLHowTo).
 *  (Optional) An MPI Library, either [OpenMPI](https://www.open-mpi.org)
 or [MPICH](https://www.mpich.org). If working on a cluster, this should already be installed!
 
-A [Makefile](src/Makefile) is provided, which may need to be modified for your specific system.
+##### 1.2.1 Compiling with Cmake
+
+You can compile SeisCL with cmake. This option is recommanded over make because 
+of the better portability. To compile, first create a build directory.
+
+    mkdir build;
+    cd build
+
+Then configure and build SeisCL:
+
+    cmake ..
+    cmake --build .
+
+Different options are provided to compile with different librairies:
+* USECUDA -- Use this option to use CUDA instead of OpenCL
+* USEMPI  -- If true, compile with MPI support. Default to ON.
+
+Finally, add the SeisCL directory to the PATH:
+
+    echo "export PATH=$(pwd):\$PATH" >> ~/.bashrc
+    source ~/.bashrc
+
+##### 1.2.2 Compiling with make
+
+If you want to ues make instead, a [Makefile](src/Makefile) is provided, which 
+may need to be modified for your specific system.
 To compile, just run:
 
     cd src;
@@ -78,13 +103,14 @@ Several options can be passed to make to compile different flavors of SeisCL:
 For example, to compile with Cuda, without MPI support with gcc:
 
     make all api=cuda nompi=1 H5CC=gcc
-    
-Finally, to install the python wrapper to your python environment, you can use pip in the
-root directory of the repo
 
-    pip install .
+#### 1.3 Install python wrapper
+Once SeisCL is compiled, the python wrapper must be added to your python 
+environment You can use pip in the root directory of the repo
 
-## Testing
+    pip install -e .
+
+## 2.0 Testing
 
 Several tests can be found in ./tests, wihtin two scripts:
 * [test_consistency.py](tests/test_consistency.py), which test that model decomposition,
