@@ -88,10 +88,11 @@ To compile, just run:
 The last line is needed because SeisCL_MPI must be on PATH for the Python interface
 to work properly.
 
-Note also that the variable CUDA_PATH must be defined. If not, find the cuda 
-directory and define CUDA_PATH:
+[comment]: <> (Note also that the variable CUDA_PATH must be defined. If not, find the cuda )
 
-    echo "export CUDA_PATH=/usr/local/cuda" >> ~/.bashrc    
+[comment]: <> (directory and define CUDA_PATH:)
+
+[comment]: <> (    echo "export CUDA_PATH=/usr/local/cuda" >> ~/.bashrc    )
 
 Several options can be passed to make to compile different flavors of SeisCL:
 * api -- Use api=cuda to build SeisCL with Cuda instead of OpenCL
@@ -112,7 +113,7 @@ environment You can use pip in the root directory of the repo
 
 ## 2.0 Testing
 
-Several tests can be found in ./tests, wihtin two scripts:
+Several tests can be found in `./tests`, wihtin two scripts:
 * [test_consistency.py](tests/test_consistency.py), which test that model decomposition,
 floating point precision options and gradient calculation are accurate and working,
 * [test_accuracy.py](tests/test_accuracy.py), which contains comparison with different analytical solutions. For the
