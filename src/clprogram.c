@@ -460,9 +460,12 @@ int get_build_options(device *dev,
     
     *n=0;
     
-    char * value = getenv("CUDA_PATH");
+//    char * value = getenv("CUDA_PATH");
+//    *n+=1;
+//    sprintf(build_options[*n-1],"--include-path=%s/include",value);
+//    char * value = __CUDA_INCLUDE__;
     *n+=1;
-    sprintf(build_options[*n-1],"--include-path=%s/include",value);
+    sprintf(build_options[*n-1],"--include-path=__CUDA_INCLUDE__");
     *n+=1;
     sprintf(build_options[*n-1],"--pre-include=cuda_fp16.h");
     *n+=1;

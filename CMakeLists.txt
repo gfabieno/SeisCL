@@ -3,7 +3,7 @@ project(SeisCL C)
 
 set(CMAKE_C_STANDARD 11)
 
-add_executable(SeisCL
+add_executable(SeisCL_MPI
         src/third_party/KISS_FFT/kiss_fft.c
         src/third_party/KISS_FFT/kiss_fftr.c
         src/third_party/SOFI3D/CPML_COEFF.c
@@ -34,17 +34,18 @@ add_executable(SeisCL
 
 find_package(HDF5 COMPONENTS C HL REQUIRED)
 include_directories(SYSTEM ${HDF5_INCLUDE_DIRS})
-target_link_libraries(SeisCL ${HDF5_LIBRARIES})
-target_link_libraries(SeisCL ${HDF5_HL_LIBRARIES})
+target_link_libraries(SeisCL_MPI ${HDF5_LIBRARIES})
+target_link_libraries(SeisCL_MPI ${HDF5_HL_LIBRARIES})
 
 option(USECUDA "Use CUDA instead of OpenCL" OFF)
 if (USECUDA)
     find_package(CUDA REQUIRED)
+    add_compile_definitions(__CUDA_INCLUDE__=${CUDA_INCLUDE_DIRS})
 else(USECUDA)
     find_package(OpenCL)
     if (OpenCL_FOUND)
         include_directories(${OpenCL_INCLUDE_DIRS})
-        target_link_libraries(SeisCL ${OpenCL_LIBRARIES})
+        target_link_libraries(SeisCL_MPI ${OpenCL_LIBRARIES})
         add_compile_definitions(__SEISCL__)
     else(OpenCL_FOUND)
         message(STATUS "No OpenCL library support")
@@ -55,21 +56,21 @@ option(USEMPI "Compile with MPI support" ON)
 find_package(MPI)
 if (MPI_FOUND AND USEMPI)
     include_directories(${MPI_C_INCLUDE_DIRS})
-    target_link_libraries(SeisCL ${MPI_LIBRARIES})
+    target_link_libraries(SeisCL_MPI ${MPI_LIBRARIES})
     if(MPI_COMPILE_FLAGS)
-        set_target_properties(SeisCL PROPERTIES COMPILE_FLAGS "${MPI_COMPILE_FLAGS}")
+        set_target_properties(SeisCL_MPI PROPERTIES COMPILE_FLAGS "${MPI_COMPILE_FLAGS}")
     endif()
     if(MPI_LINK_FLAGS)
-        set_target_properties(SeisCL PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
+        set_target_properties(SeisCL_MPI PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
     endif()
-else(MPI_FOUND)
+else(MPI_FOUND AND USEMPI)
     if (USEMPI)
         message(ERROR "Compiling without MPI support")
     else(USEMPI)
         message(STATUS "Compiling without MPI support")
         add_compile_definitions(__NOMPI__)
     endif(USEMPI)
-endif (MPI_FOUND)
+endif (MPI_FOUND AND USEMPI)
 
 
 include_directories(src)
@@ -100,7 +101,7 @@ foreach(filecl ${CLKERNELS})
             WORKING_DIRECTORY
             ${filehcl1}
     )
-    add_dependencies(SeisCL ${filehcl2}convert)
+    add_dependencies(SeisCL_MPI ${filehcl2}convert)
 endforeach(filecl)
 
 MESSAGE(STATUS "Build type: " ${CMAKE_BUILD_TYPE})

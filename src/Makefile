@@ -46,8 +46,12 @@ endif
 # Option to choose cuda or OpenCL
 ifeq ($(api),cuda)
     $(info Building SeisCL with CUDA)
+    ifeq ($(CUDA_PATH),)
+    	CUDA_PATH := /usr/local/cuda
+    	$(info Warning: CUDA_PATH is not defined, using default /usr/local/cuda)
+    endif
     LFLAGS+= -L$(CUDA_PATH)/lib64 -lnvrtc -lcuda -Wl,-rpath,$(CUDA_PATH)/lib64
-    CFLAGS+= -I$(CUDA_PATH)/include
+    CFLAGS+= -I$(CUDA_PATH)/include -D__CUDA_INCLUDE__=$(CUDA_PATH)/include
 else
     $(info Building SeisCL with OpenCL)
     CFLAGS+= -D__SEISCL__
