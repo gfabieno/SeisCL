@@ -890,7 +890,7 @@ class SeisCL:
                                  gz,
                                  gz * 0 + idsrc,
                                  gid,
-                                 gx * 0 + 2,
+                                 gx * 0,
                                  gx * 0,
                                  gx * 0], 0)
             self.rec_pos_all = np.append(self.rec_pos_all, toappend, axis=1)
