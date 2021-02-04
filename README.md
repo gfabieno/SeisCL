@@ -54,15 +54,15 @@ or [MPICH](https://www.mpich.org). If working on a cluster, this should already 
 
 ##### 1.2.1 Compiling with Cmake
 
-You can compile SeisCL with cmake. This option is recommanded over make because 
-of the better portability. To compile, first create a build directory.
+You can compile SeisCL with cmake. This option is recommanded over using make 
+because of the better portability. To compile, first create a build directory.
 
     mkdir build;
     cd build
 
 Then configure and build SeisCL:
 
-    cmake ..
+    cmake .. -DUSECUDA=1
     cmake --build .
 
 Different options are provided to compile with different librairies:
@@ -77,16 +77,13 @@ Finally, add the SeisCL directory to the PATH:
 ##### 1.2.2 Compiling with make
 
 If you want to ues make instead, a [Makefile](src/Makefile) is provided, which 
-may need to be modified for your specific system.
+may need to be modified to your specific system.
 To compile, just run:
 
     cd src;
     make all
     echo "export PATH=$(pwd):\$PATH" >> ~/.bashrc
     source ~/.bashrc
-
-The last line is needed because SeisCL_MPI must be on PATH for the Python interface
-to work properly.
 
 [comment]: <> (Note also that the variable CUDA_PATH must be defined. If not, find the cuda )
 
@@ -97,23 +94,24 @@ to work properly.
 Several options can be passed to make to compile different flavors of SeisCL:
 * api -- Use api=cuda to build SeisCL with Cuda instead of OpenCL
 * nompi -- Use nompi=1 to compile without MPI support.
-* H5LIB -- Use option to set the path to hdf5 libraries (hdf5.so).
+* H5LIB -- Use option to set the path to hdf5 libraries (libhdf5.so).
 * H5LIB -- Use this option to set the path to hdf5 headers.
-* H5CC -- Define as the desired compiler, even if the h5cc wrapper is found.
+* H5CC -- Define the desired compiler, even if the h5cc wrapper is found.
 
 For example, to compile with Cuda, without MPI support with gcc:
 
     make all api=cuda nompi=1 H5CC=gcc
 
 #### 1.3 Install python wrapper
-Once SeisCL is compiled, the python wrapper must be added to your python 
-environment You can use pip in the root directory of the repo
+Once SeisCL is compiled and the directory of the binary is found in `PATH`, the 
+python wrapper must be added to your python environment You can use pip in 
+the root directory of the repo
 
     pip install -e .
 
 ## 2.0 Testing
 
-Several tests can be found in `./tests`, wihtin two scripts:
+Several tests can be found in ./tests`, wihtin two scripts:
 * [test_consistency.py](tests/test_consistency.py), which test that model decomposition,
 floating point precision options and gradient calculation are accurate and working,
 * [test_accuracy.py](tests/test_accuracy.py), which contains comparison with different analytical solutions. For the
