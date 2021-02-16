@@ -311,7 +311,7 @@ int readvector_float(hid_t file_id, const char * name,
 int read_srcrec(hid_t file_id, model * m){
 
     hsize_t     dimsND[MAX_DIMS],dims2D[2],dimsfreqs[2];
-    int         state =0, maxrecid, tempstate;
+    int         state =0, tempstate;
     float thisid=0, tmaxf=0, tminf=0;
     int  i=0,  nsg=0, n=0, p=0;
     float *src0=NULL, *src_pos0=NULL, *rec_pos0=NULL ;
@@ -376,9 +376,7 @@ int read_srcrec(hid_t file_id, model * m){
 
         nsg=0;
         thisid=-9999;
-        maxrecid=0;
         for (i=0;i<m->src_recs.allng;i++){
-            maxrecid=  (maxrecid > rec_pos0[4+i*8]) ? maxrecid : rec_pos0[4+i*8];
             if (thisid<rec_pos0[3+i*8]){
                 thisid=rec_pos0[3+i*8];
                 nsg+=1;
@@ -467,7 +465,7 @@ int read_srcrec(hid_t file_id, model * m){
 int read_csts(hid_t file_id, model * m){
 
     hsize_t     dimsND[MAX_DIMS],dims2D[2];
-    int         state =0, maxrecid, tempstate;
+    int         state =0, tempstate;
     float thisid=0, tmaxf=0, tminf=0;
     int  i=0,  nsg=0, n=0, p=0;
     char temp[100]={0};
@@ -561,7 +559,7 @@ int readhdf5(struct filenames files, model * m) {
     
     hid_t       file_id=0;
     hsize_t     dimsND[MAX_DIMS],dims2D[2],dimsfreqs[2];
-    int         state =0, maxrecid;
+    int         state=0;
     int anyout=0;
     float thisid=0, tmaxf=0, tminf=0;
     int  i=0,  nsg=0, n=0, p=0;
