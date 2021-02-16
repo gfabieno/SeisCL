@@ -762,22 +762,22 @@ class SeisCL:
         if np.issubdtype(type(srcids), np.integer):
             srcids = [srcids]
             
-        srcids = [el for el in self.src_pos_all[3, :].astype(int)
+        srcels = [ii for ii, el in enumerate(self.src_pos_all[3, :].astype(int))
                   if el in srcids]
-        recids = [g for g, s in enumerate(self.rec_pos_all[3, :].astype(int))
+        recels = [g for g, s in enumerate(self.rec_pos_all[3, :].astype(int))
                   if s in srcids]
-        if len(srcids) <= 0:
+        if len(srcels) <= 0:
             raise ValueError('No shot found')
 
         # Assign the found sources and reveivers to be computed
-        self.src_pos = self.src_pos_all[:, srcids]
+        self.src_pos = self.src_pos_all[:, srcels]
         # If no shot signature were provided, fill the source with generated
         # wavelets
         if self.src_all is None:
             self.src_all = np.stack([self.wavelet_generator()]
                                     * self.src_pos_all.shape[1], 1)
-        self.src = self.src_all[:, srcids]
-        self.rec_pos = self.rec_pos_all[:, recids]
+        self.src = self.src_all[:, srcels]
+        self.rec_pos = self.rec_pos_all[:, recels]
 
         # Remove receivers not located between maximum and minimum offset
         if self.filter_offset:
@@ -792,9 +792,9 @@ class SeisCL:
                 if self.offmax >= offset >= self.offmin:
                     validrec.append(ii)
             self.rec_pos = self.rec_pos[:, validrec]
-            recids = [recids[el] for el in validrec]
+            recels = [recels[el] for el in validrec]
 
-        self.rec_pos[4, :] = [x+1 for x in recids]
+        self.rec_pos[4, :] = [x+1 for x in recels]
 
     def ricker_wavelet(self, f0=None, NT=None, dt=None, tmin=None):
         """
