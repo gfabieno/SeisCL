@@ -63,7 +63,7 @@ def Lamb_3D(pois=0.25, NoPlot=0, mu=1, rho=1, r=1, tmax=2):
             begin with the arrival of the P wave.
 
      Sign convention:
-     Vertical load and vertical displacements at the surfce point up
+     Vertical load and vertical displacements at the surface point up
      Response given in terms of dimensionless time tau=t*Cs/r
 
      References:

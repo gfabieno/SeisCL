@@ -74,6 +74,9 @@
 #define MAX_FD_ORDER 12
 //#define __DEBUGGING__
 
+#ifdef __llvm__
+#pragma GCC diagnostic ignored "-Wdangling-else"
+#endif
 
 struct device;
 struct model;

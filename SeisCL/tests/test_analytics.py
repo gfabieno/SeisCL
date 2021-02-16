@@ -26,8 +26,8 @@ plt.interactive(False)
 import sys
 sys.path.append('../')
 from SeisCL import SeisCL
-from analytical.viscoelastic import viscoelastic_3D, viscoelastic_2D
-from analytical import garvin2, lamb3D
+from SeisCL.analytical.viscoelastic import viscoelastic_3D, viscoelastic_2D
+from SeisCL.analytical import garvin2, lamb3D
 
 
 def ricker_wavelet(f0, NT, dt ):
@@ -170,7 +170,7 @@ def compare_data(data_fd, analytic, offset, dt, testname, tol=6e-2, plots=1):
         clip = 0.1
         vmax = np.max(data_fd) * clip
         vmin = -vmax
-        extent=[np.min(offset), np.max(offset), (data_fd.shape[0]-1)*dt, 0]
+        extent = [np.min(offset), np.max(offset), (data_fd.shape[0]-1)*dt, 0]
         fig, ax = plt.subplots(1, 3, figsize=[12, 6])
         plt.suptitle("Test: " + testname + " shot gathers")
         ax[0].imshow(data_fd, aspect='auto', vmax=vmax, vmin=vmin,
@@ -214,7 +214,7 @@ def compare_data(data_fd, analytic, offset, dt, testname, tol=6e-2, plots=1):
         ax[0].legend(loc='upper right')
 
         mid = int(data_fd.shape[1]//2)
-        ax[1].plot(t, data_fd[:,mid], "g")
+        ax[1].plot(t, data_fd[:, mid], "g")
         ax[1].plot(t, analytic[:, mid], "k")
         ax[1].plot(t, analytic[:, mid]-data_fd[:,mid], "r")
         ax[1].set_xlabel("time (s)")

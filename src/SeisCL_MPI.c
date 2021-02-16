@@ -99,7 +99,7 @@ int main(int argc, char **argv) {
     MPI_Comm_free(&node_comm);
 
     if (m.GID==0){
-        fprintf(stdout, "\nInitializing MPI\n", m.cache_dir);
+        fprintf(stdout, "\nInitializing MPI\n");
     }
     fprintf(stdout,
             "    Process %d/%d, processor %s, node process %d/%d, pid %d\n",
@@ -184,7 +184,7 @@ int main(int argc, char **argv) {
     time3=wtime();
 
     if (m.GID == 0) {
-        fprintf(stdout, "\nInitializing GPUs\n", m.cache_dir );
+        fprintf(stdout, "\nInitializing GPUs\n");
     }
     if (!state) state = Init_CUDA(&m, &dev);
 
