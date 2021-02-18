@@ -87,11 +87,11 @@ example_gallery_config = {
     'pattern': '.+.ipynb',
     'dont_preprocess': True,
 }
-nbsphinx_prolog = """
-Download this notebook: {{ env.doc2path(env.docname, base=None) }}
-
-----
-"""
+# nbsphinx_prolog = """
+# Download this notebook: {{ env.doc2path(env.docname, base=None) }}
+#
+# ----
+# """
 
 # Always show the source code that generates a plot
 plot_include_source = True
