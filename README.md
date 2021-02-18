@@ -1,3 +1,4 @@
+
 # SeisCL
 
 SeisCL is a program to perform seismic modeling, full waveform inversion and reverse time migration.
@@ -129,11 +130,6 @@ To perform all consistency tests:
     python test_consistency.py
 
 Test scripts are a good start to understand how to use the python interface to SeisCL.
-
-## Usage
-
-
-
 
 
 

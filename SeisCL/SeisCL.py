@@ -72,40 +72,42 @@ class SeisCL:
                  file: str = "SeisCL", workdir: str = "./seiscl",
                  ):
         """
-        You can define parameters controlling forward and adjoint computations
-        in the __init__ method or afterward.
+        Parameters defining the spatial and temporal grid
 
-        Parameters defining the spatial and temporal grid:
-        :param N:                Grid size [NZ, NX] in 2D or [NZ, NY, NX] in 3D
-        :param ND:               Flag for dimension.
-                                 3: 3D, 2: 2D P-SV, 21: 2D SH, 22: 2D acoustic
-        :param dh:               Grid spatial spacing
-        :param dt:               Time step size
-        :param NT:               Number of time steps
+        :param N:   Grid size [NZ, NX] in 2D or [NZ, NY, NX] in 3D
+        :param ND:  Flag for dimension. 3: 3D, 2: 2D P-SV, 21: 2D
+                    SH, 22: 2D acoustic
+        :param dh:  Grid spatial spacing
+        :param dt:  Time step size
+        :param NT:  Number of time steps
+
 
         Parameters for the Generalized Standard linear solid implementing
         seismic attenuation.
-        :param L:                Number of attenuation mechanism (L=0 elastic)
-        :param f0:               Central frequency of the relaxation. Also used
-                                 as the peak frequency of the default ricker
-                                 wavelet source
-        :param FL:               Frequencies of the attenuation mechanism
+
+        :param L:   Number of attenuation mechanism (L=0 elastic)
+        :param f0:  Central frequency of the relaxation. Also used as the peak
+                    frequency of the default rickerwavelet source
+        :param FL:  Frequencies of the attenuation mechanism
+
 
         Parameters of the finite difference stencils
+
         :param FDORDER:          Order of the finite difference stencil
                                  Values: 2, 4, 6, 8, 10, 12
         :param MAXRELERROR:      Select method to compute FD coefficients
                                  0: Taylor-coeff.
                                  Holberg-coeff with maximum phase velocity error
                                  1: 0.1 % 2: 0.5 % 3: 1.0 % 4: 3.0 %
-        :param FP16:             FP16 computation:
-                                 0:FP32
+        :param FP16:             FP16 computation: 0:FP32
                                  1:FP32 vectorized, (faster than 0)
                                  2: FP16 IO (computation are performed in FP32)
                                  3: FP16 IO + COMP (computation in FP16,
-                                                    requires CUDA)
+                                 requires CUDA)
+
 
         Parameters controlling the acquisition
+
         :param src_pos_all:      Position of all shots containted in dataset
                                  Array [sx sy sz srcid src_type] x nb sources
                                  The same srcid are fired simulatneously
@@ -117,7 +119,10 @@ class SeisCL:
                                  recid is the trace number in the record
         :param src_all:          Source signals. NT x number of sources
 
+
+
         Parameters defining the Boundary conditions
+
         :param freesurf:         Include a free surface 0: no, 1: yes
         :param abs_type:         Absorbing boundary type:
                                  1: CPML, 2: Absorbing layer of Cerjan
@@ -129,7 +134,9 @@ class SeisCL:
         :param nab:              Width in grid points of the absorbing layer
         :param abpc:             Exponential decay for absorbing layer of Cerjan
 
+
         Parameters controlling parallelization
+
         :param with_docker:      If True, use a docker implementation of SeisCL
         :param with_mpi:         Use mpi parallelization (True) or not.
         :param NP:               Number of MPI processes to launch
@@ -139,12 +146,10 @@ class SeisCL:
                                  involved in domain decomposition
         :param nmax_dev:         Maximum number of GPUs per process
         :param no_use_GPUs:      Array of device numbers that should not be used
-        Example: 1--On a node with 4 GPUs, to use all 4 GPUs, each gpu computes
-                 a different shot: with_mpi=True, NP=4, nmax_dev=1
-                 2-- On a node with 4 GPUS, all of them used for model
-                 decomposition: with_mpi=True, NP=1, nmax_dev=4
+
 
         Parameters controlling how the gradient is computed.
+
         :param gradout:          Output gradient 1:yes, 0: no
         :param Hout:             Output approximate Hessian 1:yes, 0: no
         :param gradsrcout:       Output source gradient 1:yes, 0: no
@@ -177,7 +182,9 @@ class SeisCL:
                                  If 0, SeisCL computes the cost and adjoint
                                  sources.
 
+
         The rest of these parameters apply if inputres=0
+
         :param restype:          Type of costfunction
                                  0: l2 cost. 1: Cross-correlation of traces
         :param scalerms:         Scale each modeled and recorded traces
@@ -189,7 +196,9 @@ class SeisCL:
         :param scaleshot:        Scale all of the traces in each shot by the
                                  shot total rms value when computing cost
 
+
         Parameters setting the type of outputs
+
         :param seisout:          Output seismograms
                                  1: output velocities,
                                  2: output pressure,
@@ -198,7 +207,9 @@ class SeisCL:
         :param rmsout:           Output rms value of the cost 1:yes, 0: no
         :param movout:           Output movie every n frames
 
+
         Parameters for file creation
+
         :param file:            Base name of the file to create for SeisCL.
                                 Created files will be appended thr right suffix,
                                 i.e. the model file will be file_model.mat
@@ -479,7 +490,7 @@ class SeisCL:
 
         :param workdir: The directory in which to write SeisCL files
 
-        :return The stdout of SeisCL
+        :return: The stdout of SeisCL
         """
 
         if workdir is None:
