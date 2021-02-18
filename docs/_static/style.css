@@ -66,9 +66,9 @@ h1 {
     background-color: #555555;
 }
 
-.wy-side-nav-search > a img.logo {
-    width: 50%;
-}
+/*.wy-side-nav-search > a img.logo {*/
+/*    width: 50%;*/
+/*}*/
 
 .wy-side-nav-search input[type="text"] {
     border-color: #555555;
