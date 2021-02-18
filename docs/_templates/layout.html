@@ -2,19 +2,19 @@
 {# Import the theme's layout. #}
 {% extends "!layout.html" %}
 
-{% block extrahead %}
+<!--{% block extrahead %}
 {# Include require.js so that we can use WorldWind #}
 <script src="{{ pathto('_static/require.js', 1) }}"></script>
-{% endblock %}
+{% endblock %}-->
 
 
-{% block htmltitle %}
-{% if title == '' or title == 'Home' %}
-<title>{{ docstitle|e }}</title>
-{% else %}
-<title>{{ title|striptags|e }}{{ titlesuffix }}</title>
-{% endif %}
-{% endblock %}
+<!--{% block htmltitle %}-->
+<!--{% if title == '' or title == 'Home' %}-->
+<!--<title>{{ docstitle|e }}</title>-->
+<!--{% else %}-->
+<!--<title>{{ title|striptags|e }}{{ titlesuffix }}</title>-->
+<!--{% endif %}-->
+<!--{% endblock %}-->
 
 
 {% block menu %}
