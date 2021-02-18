@@ -9,6 +9,8 @@ Model decomposition and shot parallelization allows using multiple GPUs/nodes.
 Although written is C/CUDA/OpenCL, a [python interface](SeisCL/SeisCL.py) (Python 3)
 is provided for implementing the inversion/imaging workflows.
 
+Full documentation can be found at [readthedocs](https://seiscl.readthedocs.io/en/latest/).
+
 Cite this publication if you use this software:
 
 Fabien-Ouellet, G., Gloaguen, E., & Giroux, B. (2016). Time-domain seismic modeling in

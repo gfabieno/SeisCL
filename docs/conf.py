@@ -158,7 +158,7 @@ html_context = {
     'galleries': example_gallery_config['gallery_dirs'],
     'gallery_dir': dict(zip(example_gallery_config['gallery_dirs'],
                             example_gallery_config['examples_dirs'])),
-    'github_project': 'SeisCL',
+    'github_project': 'gfabieno',
     'github_repo': 'SeisCL',
     'github_version': 'master',
 }
