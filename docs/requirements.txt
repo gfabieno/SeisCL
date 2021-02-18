@@ -1,0 +1,10 @@
+matplotlib
+ipython
+Sphinx
+sphinx-rtd-theme
+sphinx-gallery
+numpydoc
+nbsphinx
+sphinx_nbexamples
+image
+m2r2
