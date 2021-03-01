@@ -40,6 +40,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <limits.h>
+#include <sys/time.h>
 
 #include "third_party/KISS_FFT/kiss_fft.h"
 #include "third_party/KISS_FFT/kiss_fftr.h"

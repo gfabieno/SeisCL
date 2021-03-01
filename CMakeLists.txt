@@ -3,41 +3,72 @@ project(SeisCL C)
 
 set(CMAKE_C_STANDARD 11)
 
-add_executable(SeisCL_MPI
-        src/third_party/KISS_FFT/kiss_fft.c
-        src/third_party/KISS_FFT/kiss_fftr.c
-        src/third_party/SOFI3D/CPML_COEFF.c
-        src/third_party/SOFI3D/holbergcoeff.c
-        src/assign_modeling_case.c
-        src/automatic_kernels.c
-        src/butterworth.c
-        src/calc_grad.c
-        src/clbuf.c
-        src/clerrors.c
-        src/clmodel.c
-        src/clprogram.c
-        src/comm.c
-        src/event_dependency.c
-        src/Free_OpenCL.c
-        src/Init_cst.c
-        src/Init_data.c
-        src/Init_model.c
-        src/Init_MPI.c
-        src/Init_OpenCL.c
-        src/Out_MPI.c
-        src/read_hdf5.c
-        src/residuals.c
-        src/SeisCL_MPI.c
-        src/time_stepping.c
-        src/writehdf5.c)
 
+option(USEMPI "Compile with MPI support" ON)
+option(USECUDA "Use CUDA instead of OpenCL" OFF)
+
+if (USEMPI)
+    add_executable(SeisCL_MPI
+            src/third_party/KISS_FFT/kiss_fft.c
+            src/third_party/KISS_FFT/kiss_fftr.c
+            src/third_party/SOFI3D/CPML_COEFF.c
+            src/third_party/SOFI3D/holbergcoeff.c
+            src/assign_modeling_case.c
+            src/automatic_kernels.c
+            src/butterworth.c
+            src/calc_grad.c
+            src/clbuf.c
+            src/clerrors.c
+            src/clmodel.c
+            src/clprogram.c
+            src/comm.c
+            src/event_dependency.c
+            src/Free_OpenCL.c
+            src/Init_cst.c
+            src/Init_data.c
+            src/Init_model.c
+            src/Init_MPI.c
+            src/Init_OpenCL.c
+            src/Out_MPI.c
+            src/read_hdf5.c
+            src/residuals.c
+            src/SeisCL_MPI.c
+            src/time_stepping.c
+            src/writehdf5.c)
+else (USEMPI)
+    add_executable(SeisCL_MPI
+            src/third_party/KISS_FFT/kiss_fft.c
+            src/third_party/KISS_FFT/kiss_fftr.c
+            src/third_party/SOFI3D/CPML_COEFF.c
+            src/third_party/SOFI3D/holbergcoeff.c
+            src/assign_modeling_case.c
+            src/automatic_kernels.c
+            src/butterworth.c
+            src/calc_grad.c
+            src/clbuf.c
+            src/clerrors.c
+            src/clmodel.c
+            src/clprogram.c
+            src/comm.c
+            src/event_dependency.c
+            src/Free_OpenCL.c
+            src/Init_cst.c
+            src/Init_data.c
+            src/Init_model.c
+            src/Init_OpenCL.c
+            src/read_hdf5.c
+            src/residuals.c
+            src/SeisCL_MPI.c
+            src/time_stepping.c
+            src/writehdf5.c)
+endif(USEMPI)
 
 find_package(HDF5 COMPONENTS C HL REQUIRED)
 include_directories(SYSTEM ${HDF5_INCLUDE_DIRS})
 target_link_libraries(SeisCL_MPI ${HDF5_LIBRARIES})
 target_link_libraries(SeisCL_MPI ${HDF5_HL_LIBRARIES})
 
-option(USECUDA "Use CUDA instead of OpenCL" OFF)
+
 if (USECUDA)
     find_package(CUDAToolkit REQUIRED)
     add_compile_definitions(__CUDA_INCLUDE__="${CUDAToolkit_INCLUDE_DIRS}")
@@ -55,7 +86,7 @@ else(USECUDA)
     endif (OpenCL_FOUND)
 endif (USECUDA)
 
-option(USEMPI "Compile with MPI support" ON)
+
 find_package(MPI)
 if (MPI_FOUND AND USEMPI)
     include_directories(${MPI_C_INCLUDE_DIRS})
