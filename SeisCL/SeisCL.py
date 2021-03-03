@@ -859,7 +859,8 @@ class SeisCL:
         segy = _read_segy(name)
         return np.transpose(np.array([trace.data for trace in segy.traces]))
 
-    def surface_acquisition_2d(self, dg=2, ds=5, dsx=2, dsz=2, dgsz=0):
+    def surface_acquisition_2d(self, dg=2, ds=5, dsx=2, dsz=2, dgsz=0,
+                               src_type=100):
         """
         Fills the sources and receivers position (src_pos_all and rec_pos_all)
         for a regular surface acquisition.
@@ -870,6 +871,7 @@ class SeisCL:
         :param dsz: Depth of the sources relative to the free surface or of the
                     absorbing boundary
         :param dgsz: Depth of the receivers relative to the depth of the sources
+        :param src_type: The type of sources
         """
 
         self.src_pos_all = np.empty((5, 0))
@@ -892,7 +894,7 @@ class SeisCL:
             toappend[1, :] = 0
             toappend[2, :] = dlz * self.dh
             toappend[3, :] = idsrc
-            toappend[4, :] = 100
+            toappend[4, :] = src_type
             self.src_pos_all = np.append(self.src_pos_all, toappend, axis=1)
 
             gid = np.arange(0, len(gx)) + self.rec_pos_all.shape[1] + 1

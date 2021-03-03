@@ -22,7 +22,8 @@ hc = [1.1382, - 0.046414]
     F_s'^* = ( L S L^-1 L F T )^*
     
            = L F T L^-1 S^* L
-           
+    knowing that  (L F T) ^* = L F T and that L^* = L et L^-1* = L^-1
+     
     Performing the back transformation:
     
     L^-1 F_s'^* T = F (T L^-1) S^* (L T)
@@ -320,7 +321,7 @@ if __name__ == "__main__":
 
     print(prod2-prod1)
 
-    print("Dot product for F_s' = LSFT and F_s'^* = L F T L^-1 S^* L")
+    print("Dot product for F_s' = LSFT and F_s'^* = L F T L^-1 S^* L  ")
     (Fvx, Fvz, Fsxx, Fszz, Fsxz) = apply_T(vx, vz, sxx, szz, sxz, rho, M, mu)
     (Fvx, Fvz, Fsxx, Fszz, Fsxz) = update_v(Fvx, Fvz, Fsxx, Fszz, Fsxz, rho, M, mu)
     (Fvx, Fvz, Fsxx, Fszz, Fsxz) = update_s(Fvx, Fvz, Fsxx, Fszz, Fsxz, rho, M, mu)
