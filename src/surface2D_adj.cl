@@ -62,13 +62,13 @@ FUNDEF void surface_adj(GLOBARG __prec *vxr,        GLOBARG __prec *vzr,
     __cprec1 lmu, lM;
 
 
-    //Preadjoint transformations
-    lszz = szzr[indv(gidz,  gidx)];
-    lsxx = sxxr[indv(gidz,  gidx)];
+    //Preadjoint transformations T
+    lszz = -szzr[indv(gidz,  gidx)];
+    lsxx = -sxxr[indv(gidz,  gidx)];
     lmu = mu[indp(gidz,  gidx)];
     lM = M[indp(gidz,  gidx)];
     
-    //Preadjoint transformations
+    //Preadjoint transformations L
     {
         __cprec1 temp1, temp2, a;
         temp1 = lsxx;
@@ -95,9 +95,9 @@ FUNDEF void surface_adj(GLOBARG __prec *vxr,        GLOBARG __prec *vzr,
                                    * (__cprec1)rkp[indp(gidz+m,gidx)]);
     }
 
-    //Perform the post-adjoint transformation
-    szzr[indv(gidz,  gidx)] = ( lM * lszz + ( lM - (__cprec1)2.0 * lmu) * lsxx );
-    sxxr[indv(gidz,  gidx)] = ( lM * lsxx + ( lM - (__cprec1)2.0 * lmu) * lszz );
+    //Perform the post-adjoint transformation T L^-1
+    szzr[indv(gidz,  gidx)] = -( lM * lszz + ( lM - (__cprec1)2.0 * lmu) * lsxx );
+    sxxr[indv(gidz,  gidx)] = -( lM * lsxx + ( lM - (__cprec1)2.0 * lmu) * lszz );
 
 //    // Correct spatial derivatives to implement CPML
 //#if ABS_TYPE==1
