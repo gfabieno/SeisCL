@@ -4,7 +4,7 @@ import copy
 
 FDOH = 2
 hc = [1.1382, - 0.046414]
-
+nab = 2
 
 """
     Adjoint of the surface kernel. With the symmetrization strategy, we need to
@@ -15,27 +15,29 @@ hc = [1.1382, - 0.046414]
     where S is the surface kernel and F the seismic modeling kernel. The
     transformed operator is:
     
-    F_s' = L S F T
+    F_s' = L S F
     
     where L and T are the transform matrices. Taking the adjoint:
     
-    F_s'^* = ( L S L^-1 L F T )^*
+    F_s'^* = ( L S L^-1 L F)^*
     
-           = L F T L^-1 S^* L
-    knowing that  (L F T) ^* = L F T and that L^* = L et L^-1* = L^-1
+           = L F L^-1 S^* L
+    knowing that  (L F) ^* = L F and that L^* = L et L^-1* = L^-1
      
     Performing the back transformation:
     
-    L^-1 F_s'^* T = F (T L^-1) S^* (L T)
+    L^-1 F_s'^* = F L^-1 S^* L
     
     To apply the free surface kernel, we must then apply the transformation
-    L T, then apply the free surface kernel S^* and do the back transformation.
+    L, then apply the free surface kernel S^* and do the back transformation.
     
     For the isotropic elastic wave equation, the transform matrices are:
     
-    T = [1  0     L = [rho   0
-         0 -1]         0 C^-1]
-         
+   L = [rho   0
+        0 -C^-1]
+   L^-1 = [1/rho   0
+           0   -C]
+           
     where C is the rigidity tensor, given by:
     
     C [   M   M-2mu M-2mu 0   0   0
@@ -84,6 +86,34 @@ def Dmz(var):
     return hc[0] * (var[2:-2, 2:-2] - var[1:-3, 2:-2]) + hc[1] * (var[3:-1, 2:-2] - var[0:-4, 2:-2])
 
 
+def cerjan(varin, abpc=4.0, nab=2):
+
+    var = copy.copy(varin)
+    a = -np.log(1.0-abpc/100)/nab**2
+    h = np.expand_dims(np.exp(a * np.arange(nab)**2), axis=0)
+    var[:, FDOH:FDOH+nab] *= h[::-1]
+    var[:, -FDOH-nab:-FDOH] *= h
+    var[-FDOH-nab:-FDOH, :] *= np.transpose(h)
+
+    return var
+
+
+def cv(vxi, vzi, sxxi, szzi, sxzi, rho, M, mu):
+
+    vx = cerjan(vxi)
+    vz = cerjan(vzi)
+
+    return vx, vz, sxxi, szzi, sxzi
+
+
+def cs(vxi, vzi, sxxi, szzi, sxzi, rho, M, mu):
+
+    sxz = cerjan(sxzi)
+    sxx = cerjan(sxxi)
+    szz = cerjan(szzi)
+
+    return vxi, vzi, sxx, szz, sxz
+
 
 def apply_T(vxi, vzi, sxxi, szzi, sxzi, rho, M, mu):
     
@@ -113,7 +143,8 @@ def apply_L(vxi, vzi, sxxi, szzi, sxzi, rho, M, mu):
 
 
 
-    return vx, vz, sxx, szz, sxz
+    return vx, vz, -sxx, -szz, -sxz
+
 
 def apply_Lm(vxi, vzi, sxxi, szzi, sxzi, rho, M, mu):
 
@@ -129,7 +160,8 @@ def apply_Lm(vxi, vzi, sxxi, szzi, sxzi, rho, M, mu):
     szz[FDOH:-FDOH, FDOH:-FDOH] = M * szzi[FDOH:-FDOH, FDOH:-FDOH] + (M-2.0*mu) * sxxi[FDOH:-FDOH, FDOH:-FDOH]
     sxz[FDOH:-FDOH, FDOH:-FDOH] = mu * sxzi[FDOH:-FDOH, FDOH:-FDOH]
 
-    return vx, vz, sxx, szz, sxz
+    return vx, vz, -sxx, -szz, -sxz
+
 
 def update_v(vxi, vzi, sxxi, szzi, sxzi, rho, M, mu):
 
@@ -146,11 +178,12 @@ def update_v(vxi, vzi, sxxi, szzi, sxzi, rho, M, mu):
     
     vx[FDOH:-FDOH, FDOH:-FDOH] += (sxx_x + sxz_z) * rho
     vz[FDOH:-FDOH, FDOH:-FDOH] += (szz_z + sxz_x) * rho
-    
 
     return vx, vz, sxx, szz, sxz
 
+
 def update_s(vxi, vzi, sxxi, szzi, sxzi, rho, M, mu):
+
     vx = copy.copy(vxi)
     vz = copy.copy(vzi)
     sxx = copy.copy(sxxi)
@@ -167,6 +200,7 @@ def update_s(vxi, vzi, sxxi, szzi, sxzi, rho, M, mu):
     szz[FDOH:-FDOH, FDOH:-FDOH] += M * (vx_x + vz_z) - 2.0 * mu * vx_x
 
     return vx, vz, sxx, szz, sxz
+
 
 def surface(vxi, vzi, sxxi, szzi, sxzi, rho, M, mu):
     vx = copy.copy(vxi)
@@ -197,6 +231,7 @@ def surface(vxi, vzi, sxxi, szzi, sxzi, rho, M, mu):
         sxx[FDOH, ii+FDOH] += h
 
     return vx, vz, sxx, szz, sxz
+
 
 def surface_adj(vxi, vzi, sxxi, szzi, sxzi, rho, M, mu):
     vx = copy.copy(vxi)
@@ -234,6 +269,65 @@ def surface_adj(vxi, vzi, sxxi, szzi, sxzi, rho, M, mu):
     return vx, vz, sxx, szz, sxz
 
 
+def dot_test(forwards, adjoints):
+
+    vx = np.zeros([2 * FDOH + 10, 2 * FDOH + 10], np.float64)
+    vx[FDOH:-FDOH, FDOH:-FDOH] = np.random.rand(10, 10)
+    vz = np.zeros([2 * FDOH + 10, 2 * FDOH + 10], np.float64)
+    vz[FDOH:-FDOH, FDOH:-FDOH] = np.random.rand(10, 10)
+    sxx = np.zeros([2 * FDOH + 10, 2 * FDOH + 10], np.float64)
+    sxx[FDOH:-FDOH, FDOH:-FDOH] = np.random.rand(10, 10)
+    szz = np.zeros([2 * FDOH + 10, 2 * FDOH + 10], np.float64)
+    szz[FDOH:-FDOH, FDOH:-FDOH] = np.random.rand(10, 10)
+    sxz = np.zeros([2 * FDOH + 10, 2 * FDOH + 10], np.float64)
+    sxz[FDOH:-FDOH, FDOH:-FDOH] = np.random.rand(10, 10)
+    Fvx = copy.copy(vx)
+    Fvz = copy.copy(vz)
+    Fsxx = copy.copy(sxx)
+    Fszz = copy.copy(szz)
+    Fsxz = copy.copy(sxz)
+
+    vx_a = np.zeros([2 * FDOH + 10, 2 * FDOH + 10], np.float64)
+    vx_a[FDOH:-FDOH, FDOH:-FDOH] = np.random.rand(10, 10)
+    vz_a = np.zeros([2 * FDOH + 10, 2 * FDOH + 10], np.float64)
+    vz_a[FDOH:-FDOH, FDOH:-FDOH] = np.random.rand(10, 10)
+    sxx_a = np.zeros([2 * FDOH + 10, 2 * FDOH + 10], np.float64)
+    sxx_a[FDOH:-FDOH, FDOH:-FDOH] = np.random.rand(10, 10)
+    szz_a = np.zeros([2 * FDOH + 10, 2 * FDOH + 10], np.float64)
+    szz_a[FDOH:-FDOH, FDOH:-FDOH] = np.random.rand(10, 10)
+    sxz_a = np.zeros([2 * FDOH + 10, 2 * FDOH + 10], np.float64)
+    sxz_a[FDOH:-FDOH, FDOH:-FDOH] = np.random.rand(10, 10)
+
+    Fvx_a = copy.copy(vx_a)
+    Fvz_a = copy.copy(vz_a)
+    Fsxx_a = copy.copy(sxx_a)
+    Fszz_a = copy.copy(szz_a)
+    Fsxz_a = copy.copy(sxz_a)
+
+    for fun in forwards:
+        (Fvx, Fvz, Fsxx, Fszz, Fsxz) = fun(Fvx, Fvz, Fsxx, Fszz, Fsxz,
+                                           rho, M, mu)
+
+    for fun in adjoints:
+        (Fvx_a, Fvz_a, Fsxx_a, Fszz_a, Fsxz_a) = fun(Fvx_a, Fvz_a, Fsxx_a,
+                                                     Fszz_a, Fsxz_a, rho, M, mu)
+
+    prod1 = (  np.sum(vx_a*Fvx)
+               + np.sum(vz_a*Fvz)
+               + np.sum(sxx_a*Fsxx)
+               + np.sum(szz_a*Fszz)
+               + np.sum(sxz_a * Fsxz)
+               )
+    prod2 = (  np.sum(vx*Fvx_a)
+               + np.sum(vz*Fvz_a)
+               + np.sum(sxx*Fsxx_a)
+               + np.sum(szz*Fszz_a)
+               + np.sum(sxz * Fsxz_a)
+               )
+
+    return prod2-prod1
+
+
 if __name__ == "__main__":
     
     
@@ -264,98 +358,65 @@ if __name__ == "__main__":
     mu = np.float64(np.random.rand(10, 10))
     rho = np.float64(np.random.rand(10, 10))
     
-    print("Dot product for the surface kernel")
-    (Fvx, Fvz, Fsxx, Fszz, Fsxz) = surface(vx, vz, sxx, szz, sxz, rho, M, mu)
-    (Fvx_a, Fvz_a, Fsxx_a, Fszz_a, Fsxz_a) = surface_adj(vx_a, vz_a, sxx_a, szz_a, sxz_a, rho, M, mu)
+    print("\nDot product for the surface kernel")
+    print(dot_test([surface], [surface_adj]))
 
-    prod1 = (  np.sum(vx_a*Fvx)
-             + np.sum(vz_a*Fvz)
-             + np.sum(sxx_a*Fsxx)
-             + np.sum(szz_a*Fszz)
-             + np.sum(sxz_a * Fsxz)
-    )
-    prod2 = (  np.sum(vx*Fvx_a)
-             + np.sum(vz*Fvz_a)
-             + np.sum(sxx*Fsxx_a)
-             + np.sum(szz*Fszz_a)
-             + np.sum(sxz * Fsxz_a)
-    )
 
-    print(prod2-prod1)
+    print("\nDot product for the cerjan kernel")
+    print(dot_test([cv, cs], [cv, cs]))
 
-    print("Testing L is inverse of L^-1")
+
+    print("\nTesting L is inverse of L^-1")
     (Fvx, Fvz, Fsxx, Fszz, Fsxz) = apply_L(vx, vz, sxx, szz, sxz, rho, M, mu)
     (Fvx, Fvz, Fsxx, Fszz, Fsxz) = apply_Lm(Fvx, Fvz, Fsxx, Fszz, Fsxz, rho, M, mu)
     diff = vx-Fvx + vz-Fvz + sxz-Fsxz + sxx-Fsxx + szz-Fszz
     print(np.max(diff))
 
-    print("Testing T is inverse of T")
+    print("\nTesting T is inverse of T")
     (Fvx, Fvz, Fsxx, Fszz, Fsxz) = apply_T(vx, vz, sxx, szz, sxz, rho, M, mu)
     (Fvx, Fvz, Fsxx, Fszz, Fsxz) = apply_T(Fvx, Fvz, Fsxx, Fszz, Fsxz, rho, M, mu)
     diff = vx-Fvx + vz-Fvz + sxz-Fsxz + sxx-Fsxx + szz-Fszz
     print(np.max(diff))
 
-    print("Dot product for LFT")
-    (Fvx, Fvz, Fsxx, Fszz, Fsxz) = apply_T(vx, vz, sxx, szz, sxz, rho, M, mu)
-    (Fvx, Fvz, Fsxx, Fszz, Fsxz) = update_v(Fvx, Fvz, Fsxx, Fszz, Fsxz, rho, M, mu)
-    (Fvx, Fvz, Fsxx, Fszz, Fsxz) = update_s(Fvx, Fvz, Fsxx, Fszz, Fsxz, rho, M, mu)
-    (Fvx, Fvz, Fsxx, Fszz, Fsxz) = apply_L(Fvx, Fvz, Fsxx, Fszz, Fsxz, rho, M, mu)
+    print("\nDot product for LFT")
+    print(dot_test([update_v, update_s, apply_L],
+                   [update_v, update_s, apply_L]))
+
+    print("\nDot product for L U2 CV U1 T")
+    print(dot_test([update_v, cv, update_s, apply_L],
+                   [update_v, cv, update_s, apply_L]))
+
+    print("\nDot product for F' = L CS US UV T and F'^* =L US UV T L^-1 CS L")
+    print(dot_test([update_v, update_s, cs, apply_L],
+                   [apply_L, cs, apply_Lm, update_v, update_s, apply_L]))
+
+    print("\nDot product for F_s' = LSFT and F_s'^* = L F T L^-1 S^* L  ")
+    print(dot_test([update_v, update_s, surface, apply_L],
+                   [apply_L, surface_adj, apply_Lm, update_v, update_s, apply_L]))
+
+
+"""
+Knowing that
+
+    F = L US UV is self-adjoint
     
-    (Fvx_a, Fvz_a, Fsxx_a, Fszz_a, Fsxz_a) = apply_T(vx_a, vz_a, sxx_a, szz_a, sxz_a, rho, M, mu)
-    (Fvx_a, Fvz_a, Fsxx_a, Fszz_a, Fsxz_a) = update_v(Fvx_a, Fvz_a, Fsxx_a, Fszz_a, Fsxz_a, rho, M, mu)
-    (Fvx_a, Fvz_a, Fsxx_a, Fszz_a, Fsxz_a) = update_s(Fvx_a, Fvz_a, Fsxx_a, Fszz_a, Fsxz_a, rho, M, mu)
-    (Fvx_a, Fvz_a, Fsxx_a, Fszz_a, Fsxz_a) = apply_L(Fvx_a, Fvz_a, Fsxx_a, Fszz_a, Fsxz_a, rho, M, mu)
+What is the adjoint of:
 
-    prod1 = (  np.sum(vx_a*Fvx)
-             + np.sum(vz_a*Fvz)
-             + np.sum(sxx_a*Fsxx)
-             + np.sum(szz_a*Fszz)
-             + np.sum(sxz_a * Fsxz)
-             )
-    prod2 = (  np.sum(vx*Fvx_a)
-             + np.sum(vz*Fvz_a)
-             + np.sum(sxx*Fsxx_a)
-             + np.sum(szz*Fszz_a)
-             + np.sum(sxz * Fsxz_a)
-          )
-
-    print(prod2-prod1)
-
-    print("Dot product for F_s' = LSFT and F_s'^* = L F T L^-1 S^* L  ")
-    (Fvx, Fvz, Fsxx, Fszz, Fsxz) = apply_T(vx, vz, sxx, szz, sxz, rho, M, mu)
-    (Fvx, Fvz, Fsxx, Fszz, Fsxz) = update_v(Fvx, Fvz, Fsxx, Fszz, Fsxz, rho, M, mu)
-    (Fvx, Fvz, Fsxx, Fszz, Fsxz) = update_s(Fvx, Fvz, Fsxx, Fszz, Fsxz, rho, M, mu)
-    (Fvx, Fvz, Fsxx, Fszz, Fsxz) = surface(Fvx, Fvz, Fsxx, Fszz, Fsxz, rho, M, mu)
-    (Fvx, Fvz, Fsxx, Fszz, Fsxz) = apply_L(Fvx, Fvz, Fsxx, Fszz, Fsxz, rho, M, mu)
+    F' = L CS US UV
     
+    F'^* = UV^* US^* CS L
     
-    (Fvx_a, Fvz_a, Fsxx_a, Fszz_a, Fsxz_a) = apply_L(vx_a, vz_a, sxx_a, szz_a, sxz_a, rho, M, mu)
-    (Fvx_a, Fvz_a, Fsxx_a, Fszz_a, Fsxz_a) = surface_adj(Fvx_a, Fvz_a, Fsxx_a, Fszz_a, Fsxz_a, rho, M, mu)
-    (Fvx_a, Fvz_a, Fsxx_a, Fszz_a, Fsxz_a) = apply_Lm(Fvx_a, Fvz_a, Fsxx_a, Fszz_a, Fsxz_a, rho, M, mu)
-    (Fvx_a, Fvz_a, Fsxx_a, Fszz_a, Fsxz_a) = apply_T(Fvx_a, Fvz_a, Fsxx_a, Fszz_a, Fsxz_a, rho, M, mu)
-    (Fvx_a, Fvz_a, Fsxx_a, Fszz_a, Fsxz_a) = update_v(Fvx_a, Fvz_a, Fsxx_a, Fszz_a, Fsxz_a, rho, M, mu)
-    (Fvx_a, Fvz_a, Fsxx_a, Fszz_a, Fsxz_a) = update_s(Fvx_a, Fvz_a, Fsxx_a, Fszz_a, Fsxz_a, rho, M, mu)
-    (Fvx_a, Fvz_a, Fsxx_a, Fszz_a, Fsxz_a) = apply_L(Fvx_a, Fvz_a, Fsxx_a, Fszz_a, Fsxz_a, rho, M, mu)
+         = UV^* US^* L L^-1 CS L
+         
+         = (L US UV)^* L^-1 CS L
+         
+         = L US UV  L^-1 CS L
+         
+Performing the back-transformation
 
-    prod1 = (  np.sum(vx_a*Fvx)
-             + np.sum(vz_a*Fvz)
-             + np.sum(sxx_a*Fsxx)
-             + np.sum(szz_a*Fszz)
-             + np.sum(sxz_a * Fsxz)
-             )
-    prod2 = (  np.sum(vx*Fvx_a)
-             + np.sum(vz*Fvz_a)
-             + np.sum(sxx*Fsxx_a)
-             + np.sum(szz*Fszz_a)
-             + np.sum(sxz * Fsxz_a)
-          )
+    L^-1 F'^* = US UV (T L^-1) CS (L T)
 
-    print(prod2-prod1)
-
-
-
-
-
+"""
 
 
 
