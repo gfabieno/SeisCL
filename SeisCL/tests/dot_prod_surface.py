@@ -388,7 +388,7 @@ if __name__ == "__main__":
 
     print("\nDot product for F' = L CS US UV T and F'^* =L US UV T L^-1 CS L")
     print(dot_test([update_v, update_s, cs, apply_L],
-                   [apply_L, cs, apply_Lm, update_v, update_s, apply_L]))
+                   [cs, update_v, update_s, apply_L]))
 
     print("\nDot product for F_s' = LSFT and F_s'^* = L F T L^-1 S^* L  ")
     print(dot_test([update_v, update_s, surface, apply_L],
@@ -412,9 +412,11 @@ What is the adjoint of:
          
          = L US UV  L^-1 CS L
          
+         = L US UV  L^-1 CS L (L and S commute)
+
 Performing the back-transformation
 
-    L^-1 F'^* = US UV (T L^-1) CS (L T)
+    L^-1 F'^* = US UV CS
 
 """
 
