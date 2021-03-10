@@ -86,11 +86,16 @@ def Dmz(var):
     return hc[0] * (var[2:-2, 2:-2] - var[1:-3, 2:-2]) + hc[1] * (var[3:-1, 2:-2] - var[0:-4, 2:-2])
 
 
+def taper(x, abpc=4.0, nab=2):
+
+    a = -np.log(1.0-abpc/100)/nab**2
+    return np.exp(a * x**2)
+
+
 def cerjan(varin, abpc=4.0, nab=2):
 
     var = copy.copy(varin)
-    a = -np.log(1.0-abpc/100)/nab**2
-    h = np.expand_dims(np.exp(a * np.arange(nab)**2), axis=0)
+    h = np.expand_dims(taper(np.arange(nab)), axis=0)
     var[:, FDOH:FDOH+nab] *= h[::-1]
     var[:, -FDOH-nab:-FDOH] *= h
     var[-FDOH-nab:-FDOH, :] *= np.transpose(h)
@@ -134,7 +139,7 @@ def apply_L(vxi, vzi, sxxi, szzi, sxzi, rho, M, mu):
     szz = copy.copy(szzi)
     sxz = copy.copy(sxzi)
     
-    a = 1.0 / ( 4.0 * M * mu - 4.0 * mu**2 )
+    a = 1.0 / (4.0 * M * mu - 4.0 * mu**2)
     vx[FDOH:-FDOH, FDOH:-FDOH] = vx[FDOH:-FDOH, FDOH:-FDOH] / rho
     vz[FDOH:-FDOH, FDOH:-FDOH] = vz[FDOH:-FDOH, FDOH:-FDOH] / rho
     sxx[FDOH:-FDOH, FDOH:-FDOH] = a *( M * sxxi[FDOH:-FDOH, FDOH:-FDOH] - (M-2.0*mu) * szzi[FDOH:-FDOH, FDOH:-FDOH])
@@ -226,7 +231,10 @@ def surface(vxi, vzi, sxxi, szzi, sxzi, rho, M, mu):
         f = mu[0, ii] * 2.0
         g = M[0, ii]
         h = -((g - f) * (g - f) * (vxx) / g) - ((g - f) * vzz)
-        #h *= taper[FDOH, ii+FDOH]
+        # if ii < nab:
+        #     h *= taper(nab-ii)
+        # elif ii >= vx.shape[1] - 2*FDOH - nab:
+        #     h *= taper(ii, vx.shape[1] - 2*FDOH)
 
         sxx[FDOH, ii+FDOH] += h
 
@@ -247,8 +255,12 @@ def surface_adj(vxi, vzi, sxxi, szzi, sxzi, rho, M, mu):
         g = M[0, ii]
         hx = -((g - f) * (g - f) / g)
         hz = -(g - f)
-        #hx *= taper[FDOH, ii+FDOH]
-        #hz *= taper[FDOH, ii + FDOH]
+        # if ii < nab:
+        #     hx *= taper(nab-ii)
+        #     hz *= taper(nab-ii)
+        # elif ii >= vx.shape[1] - 2*FDOH - nab:
+        #     hx *= taper(ii, vx.shape[1] - 2*FDOH)
+        #     hz *= taper(ii, vx.shape[1] - 2*FDOH)
 
 #        for jj in range(1, FDOH+1):
 #
@@ -267,6 +279,8 @@ def surface_adj(vxi, vzi, sxxi, szzi, sxzi, rho, M, mu):
             vz[FDOH + jj, ii + FDOH] += hc[jj] * hz * sxx[FDOH, ii + FDOH]
 
     return vx, vz, sxx, szz, sxz
+
+
 
 
 def dot_test(forwards, adjoints):
@@ -382,15 +396,15 @@ if __name__ == "__main__":
     print(dot_test([update_v, update_s, apply_L],
                    [update_v, update_s, apply_L]))
 
-    print("\nDot product for L U2 CV U1 T")
+    print("\nDot product for L U2 CV U1 ")
     print(dot_test([update_v, cv, update_s, apply_L],
                    [update_v, cv, update_s, apply_L]))
 
-    print("\nDot product for F' = L CS US UV T and F'^* =L US UV T L^-1 CS L")
+    print("\nDot product for F' = L CS US UV and F'^* =L US UV CS ")
     print(dot_test([update_v, update_s, cs, apply_L],
                    [cs, update_v, update_s, apply_L]))
 
-    print("\nDot product for F_s' = LSFT and F_s'^* = L F T L^-1 S^* L  ")
+    print("\nDot product for F_s' = LSF and F_s'^* = L F L^-1 S^* L  ")
     print(dot_test([update_v, update_s, surface, apply_L],
                    [apply_L, surface_adj, apply_Lm, update_v, update_s, apply_L]))
 
