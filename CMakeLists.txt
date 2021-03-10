@@ -6,6 +6,7 @@ set(CMAKE_C_STANDARD 11)
 
 option(USEMPI "Compile with MPI support" ON)
 option(USECUDA "Use CUDA instead of OpenCL" OFF)
+set(CMAKE_BUILD_TYPE Debug)
 
 if (USEMPI)
     add_executable(SeisCL_MPI
