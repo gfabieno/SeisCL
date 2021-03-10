@@ -62,9 +62,8 @@ FUNDEF void surface_adj(GLOBARG __prec *vxr,        GLOBARG __prec *vzr,
     __cprec1 lmu, lM;
 
 
-    //Preadjoint transformations T
-    lszz = -szzr[indv(gidz,  gidx)];
-    lsxx = -sxxr[indv(gidz,  gidx)];
+    lszz = szzr[indv(gidz,  gidx)];
+    lsxx = sxxr[indv(gidz,  gidx)];
     lmu = mu[indp(gidz,  gidx)];
     lM = M[indp(gidz,  gidx)];
     
@@ -74,8 +73,8 @@ FUNDEF void surface_adj(GLOBARG __prec *vxr,        GLOBARG __prec *vzr,
         temp1 = lsxx;
         temp2 = lszz;
         a = (__cprec1)1.0/( (__cprec1)4.0*lM*lmu - (__cprec1)4.0*lmu*lmu);
-        lsxx = a * ( lM * temp1 + (-lM + (__cprec1)2.0 * lmu) * temp2 );
-        lszz = a * ( lM * temp2 + (-lM + (__cprec1)2.0 * lmu) * temp1 );
+        lsxx = -a * ( lM * temp1 + (-lM + (__cprec1)2.0 * lmu) * temp2 );
+        lszz = -a * ( lM * temp2 + (-lM + (__cprec1)2.0 * lmu) * temp1 );
     }
 
     /*Adjoint of the mirror method*/
@@ -83,6 +82,25 @@ FUNDEF void surface_adj(GLOBARG __prec *vxr,        GLOBARG __prec *vzr,
 
     hx=-((lM-lmu*(__cprec1)2.0)*(lM-lmu*(__cprec1)2.0)/lM);
     hz=-(lM-lmu*(__cprec1)2.0);
+
+//    // Absorbing boundary
+//    #if ABS_TYPE==2
+//    {
+//            #if DEVID==0 & MYLOCALID==0
+//                if (gidx-FDOH<NAB){
+//                    hx*=taper[gidx-FDOH];
+//                    hz*=taper[gidx-FDOH];
+//                }
+//            #endif
+//
+//            #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+//                if (gidx>NX-NAB-FDOH-1){
+//                    hx*=taper[NX-FDOH-gidx-1];
+//                    hz*=taper[NX-FDOH-gidx-1];
+//                }
+//            #endif
+//            }
+//    #endif
 
     for (int m=0; m<FDOH; m++){
         if ( (gidx-FDOH + m) < (NX - 2*FDOH))
@@ -95,7 +113,7 @@ FUNDEF void surface_adj(GLOBARG __prec *vxr,        GLOBARG __prec *vzr,
                                    * (__cprec1)rkp[indp(gidz+m,gidx)]);
     }
 
-    //Perform the post-adjoint transformation T L^-1
+    //Perform the post-adjoint transformation L^-1
     szzr[indv(gidz,  gidx)] = -( lM * lszz + ( lM - (__cprec1)2.0 * lmu) * lsxx );
     sxxr[indv(gidz,  gidx)] = -( lM * lsxx + ( lM - (__cprec1)2.0 * lmu) * lszz );
 

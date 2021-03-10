@@ -94,26 +94,26 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,   GLOBARG __prec2 *vy,
         f=mu[indp]*(__prec)2.0f;
         g=M[indp];
         h=-((g-f)*(g-f)*(vxx+vyy)/g)-((g-f)*vzz);
-        #if ABS_TYPE==2
-            {
-            if (gidy-FDOH<NAB){
-                    h*=taper[gidy-FDOH];
-            }
-            if (gidy>NY-NAB-FDOH-1){
-                    h*=taper[NY-FDOH-gidy-1];
-            }
-            #if DEVID==0 & MYLOCALID==0
-                if (gidx-FDOH<NAB){
-                    h*=taper[gidx-FDOH];
-                }
-            #endif
-            #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-                if (gidx>NX-NAB-FDOH-1){
-                    h*=taper[NX-FDOH-gidx-1];
-                }
-            #endif
-            }
-        #endif
+//        #if ABS_TYPE==2
+//            {
+//            if (gidy-FDOH<NAB){
+//                    h*=taper[gidy-FDOH];
+//            }
+//            if (gidy>NY-NAB-FDOH-1){
+//                    h*=taper[NY-FDOH-gidy-1];
+//            }
+//            #if DEVID==0 & MYLOCALID==0
+//                if (gidx-FDOH<NAB){
+//                    h*=taper[gidx-FDOH];
+//                }
+//            #endif
+//            #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+//                if (gidx>NX-NAB-FDOH-1){
+//                    h*=taper[NX-FDOH-gidx-1];
+//                }
+//            #endif
+//            }
+//        #endif
         sxx[indv(gidz,gidy,gidx)]+=(__prec)pdir*h;
         syy[indv(gidz,gidy,gidx)]+=(__prec)pdir*h;
     #else
@@ -128,34 +128,34 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,   GLOBARG __prec2 *vy,
             sumxx+=rxx[l*NX*NY*NZ*DIV + gidx*NY*NZ*DIV + gidy*NZ*DIV +gidz];
             sumyy+=ryy[l*NX*NY*NZ*DIV + gidx*NY*NZ*DIV + gidy*NZ*DIV +gidz];
         }
-        #if ABS_TYPE==2
-            {
-            if (gidy-FDOH<NAB){
-                    h*=taper[gidy-FDOH];
-                    sumxx*=taper[gidy-FDOH];
-                    sumyy*=taper[gidy-FDOH];
-            }
-            if (gidy>NY-NAB-FDOH-1){
-                    h*=taper[NY-FDOH-gidy-1];
-                    sumxx*=taper[NY-FDOH-gidy-1];
-                    sumyy*=taper[NY-FDOH-gidy-1];
-            }
-            #if DEVID==0 & MYLOCALID==0
-                if (gidx-FDOH<NAB){
-                    h*=taper[gidx-FDOH];
-                    sumxx*=taper[gidx-FDOH];
-                    sumyy*=taper[gidx-FDOH];
-                }
-            #endif
-            #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-                if (gidx>NX-NAB-FDOH-1){
-                    h*=taper[NX-FDOH-gidx-1];
-                    sumxx*=taper[NX-FDOH-gidx-1];
-                    sumyy*=taper[NX-FDOH-gidx-1];
-                }
-            #endif
-            }
-        #endif
+//        #if ABS_TYPE==2
+//            {
+//            if (gidy-FDOH<NAB){
+//                    h*=taper[gidy-FDOH];
+//                    sumxx*=taper[gidy-FDOH];
+//                    sumyy*=taper[gidy-FDOH];
+//            }
+//            if (gidy>NY-NAB-FDOH-1){
+//                    h*=taper[NY-FDOH-gidy-1];
+//                    sumxx*=taper[NY-FDOH-gidy-1];
+//                    sumyy*=taper[NY-FDOH-gidy-1];
+//            }
+//            #if DEVID==0 & MYLOCALID==0
+//                if (gidx-FDOH<NAB){
+//                    h*=taper[gidx-FDOH];
+//                    sumxx*=taper[gidx-FDOH];
+//                    sumyy*=taper[gidx-FDOH];
+//                }
+//            #endif
+//            #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+//                if (gidx>NX-NAB-FDOH-1){
+//                    h*=taper[NX-FDOH-gidx-1];
+//                    sumxx*=taper[NX-FDOH-gidx-1];
+//                    sumyy*=taper[NX-FDOH-gidx-1];
+//                }
+//            #endif
+//            }
+//        #endif
         sxx[indv(gidz,gidy,gidx)]+=(__prec)pdir*(h-((__prec)DT2*sumxx));
         syy[indv(gidz,gidy,gidx)]+=(__prec)pdir*(h-((__prec)DT2*sumyy));
 
@@ -173,30 +173,30 @@ FUNDEF void freesurface(GLOBARG __prec2 *vx,   GLOBARG __prec2 *vy,
             sumxx+=rxx[l*NX*NY*NZ*DIV + gidx*NY*NZ*DIV + gidy*NZ*DIV +gidz];
             sumyy+=ryy[l*NX*NY*NZ*DIV + gidx*NY*NZ*DIV + gidy*NZ*DIV +gidz];
         }
-        #if ABS_TYPE==2
-            {
-            if (gidy-FDOH<NAB){
-                    sumxx*=taper[gidy-FDOH];
-                    sumyy*=taper[gidy-FDOH];
-            }
-            if (gidy>NY-NAB-FDOH-1){
-                    sumxx*=taper[NY-FDOH-gidy-1];
-                    sumyy*=taper[NY-FDOH-gidy-1];
-            }
-            #if DEVID==0 & MYLOCALID==0
-                if (gidx-FDOH<NAB){
-                    sumxx*=taper[gidx-FDOH];
-                    sumyy*=taper[gidx-FDOH];
-                }
-            #endif
-            #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-                if (gidx>NX-NAB-FDOH-1){
-                    sumxx*=taper[NX-FDOH-gidx-1];
-                    sumyy*=taper[NX-FDOH-gidx-1];
-                }
-            #endif
-            }
-        #endif
+//        #if ABS_TYPE==2
+//            {
+//            if (gidy-FDOH<NAB){
+//                    sumxx*=taper[gidy-FDOH];
+//                    sumyy*=taper[gidy-FDOH];
+//            }
+//            if (gidy>NY-NAB-FDOH-1){
+//                    sumxx*=taper[NY-FDOH-gidy-1];
+//                    sumyy*=taper[NY-FDOH-gidy-1];
+//            }
+//            #if DEVID==0 & MYLOCALID==0
+//                if (gidx-FDOH<NAB){
+//                    sumxx*=taper[gidx-FDOH];
+//                    sumyy*=taper[gidx-FDOH];
+//                }
+//            #endif
+//            #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+//                if (gidx>NX-NAB-FDOH-1){
+//                    sumxx*=taper[NX-FDOH-gidx-1];
+//                    sumyy*=taper[NX-FDOH-gidx-1];
+//                }
+//            #endif
+//            }
+//        #endif
         /*completely updating the stresses sxx and syy */
         sxx[indv(gidz,gidy,gidx)]+=(__prec)pdir*((__prec)DT2*sumxx);
         syy[indv(gidz,gidy,gidx)]+=(__prec)pdir*((__prec)DT2*sumyy);

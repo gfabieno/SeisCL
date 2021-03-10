@@ -712,7 +712,12 @@ int readhdf5(struct filenames files, model * m) {
     }
     /* Residuals file__________________________________
      __________________________________________________________________*/
-    
+    if (m->INPUTRES==1 && m->RESOUT==1){
+        fprintf(stderr, "Error: Cannot input and output residuals "
+                        "simultaneously\n");
+        return 1;
+    }
+
     if (m->INPUTRES==1 && m->GRADOUT==1){
         file_id = -1;
         file_id = H5Fopen(files.res, H5F_ACC_RDWR, H5P_DEFAULT);
