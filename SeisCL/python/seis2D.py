@@ -49,64 +49,46 @@ class Grid:
         return state
 
 
-class Parameter:
+class State:
 
-    def __init__(self, grid=Grid(), values=None, **kwargs):
+    def __init__(self, name, grid=Grid(), **kwargs):
+        self.name = name
         self.grid = grid
-        if values is None:
-            values = grid.random()
-        self.values = values
 
 
 class StateKernel:
     """
-    Kernel implementing forward and adjoint modes for a linear operator w.r.t
-    state variables and outputs, and non-linear w.r.t parameters.
-
-    The forward method must respect the following form.
-
-    forward(states, params) = dforward/dstates (params) * states
-
+    Kernel implementing forward, linear and adjoint modes.
     """
 
-    def __init__(self, grid=Grid(), **kwargs):
-        self.grid = grid
+    def __init__(self, state_defs=None, **kwargs):
+        self.state_defs = state_defs
         self._forward_states = []
-        self._nlinear = 0
         self.updated_states = []
-        self.states = []
-        self.params = {}
+        self.required_states = []
 
     def initialize(self):
         self._forward_states = []
-        self._nlinear = 0
 
-    def call_forward(self, states, params, **kwargs):
+    def call_forward(self, states, **kwargs):
         self._forward_states.append({el: copy.deepcopy(states[el])
                                      for el in self.updated_states})
-        return self.forward(states, params, **kwargs)
+        return self.forward(states, **kwargs)
 
-    def call_linear(self, dstates, dparams, states, params, **kwargs):
+    def call_linear(self, dstates, states, **kwargs):
 
-        # torestore = self._forward_states[self._nlinear]
-        # for el in torestore:
-        #     states[el] = torestore[el]
-
-        dstates, doutputs = self.linear(dstates, dparams, states, params,
-                                        **kwargs)
-        states, _ = self.forward(states, params, **kwargs)
-        self._nlinear += 1
+        dstates, doutputs = self.linear(dstates, states, **kwargs)
+        states, _ = self.forward(states, **kwargs)
 
         return dstates, doutputs, states
 
-    def call_adjoint(self, adj_states, adj_outputs, states, params, **kwargs):
+    def call_adjoint(self, adj_states, adj_outputs, states, **kwargs):
 
-        states = self.backward(states, params, **kwargs)
-        adj_states, adj_params = self.adjoint(adj_states, adj_outputs, states,
-                                              params, **kwargs)
-        return adj_states, adj_params, states
+        states = self.backward(states, **kwargs)
+        adj_states = self.adjoint(adj_states, adj_outputs, states, **kwargs)
+        return adj_states, states
 
-    def forward(self, states, params, **kwargs):
+    def forward(self, states, **kwargs):
         """
         Applies the forward kernel.
 
@@ -114,21 +96,18 @@ class StateKernel:
         :param states: A dict containing the variables describing the state of a
                        dynamical system. The state variables are updated by
                        the forward, but they keep the same dimensions.
-        :param params: A dict containing the parameters on which the forward
-                       depends. The parameters are not changed by the forward.
-
         :return:
             states:     A dict containing the updated states.
             outputs:    A dict containing the output of the forward, usually
                         some measurements of the states.
         """
-        raise NotImplementedError
+        return states, {}
 
-    def linear(self, dstates, dparams, states, params, **kwargs):
-        dstates, douputs = self.forward(dstates, dparams, **kwargs)
+    def linear(self, dstates, states, **kwargs):
+        dstates, douputs = self.forward(dstates, **kwargs)
         return dstates, douputs
 
-    def adjoint(self, adj_states, adj_outputs, states, params, **kwargs):
+    def adjoint(self, adj_states, adj_outputs, states, **kwargs):
         """
         Applies the adjoint of the forward
 
@@ -140,16 +119,13 @@ class StateKernel:
         :param adj_outputs: A dict containing the adjoint of the output variables
 
         :param states: The states of the system, before calling forward.
-        :param params: A dict containing the parameters on which the forward
-                       depends. The parameters are not changed by the forward.
 
         :return:
             adj_states A dict containing the updated adjoint states.
-            adj_params A dict containing the updated gradients of the parameters
         """
-        raise NotImplementedError
+        raise adj_states
 
-    def backward(self, states, params, **kwargs):
+    def backward(self, states, **kwargs):
         """
         Reconstruct the input states from the output of forward
 
@@ -157,9 +133,6 @@ class StateKernel:
         :param states: A dict containing the variables describing the state of a
                       dynamical system. The state variables are updated by
                       the forward, but they keep the same dimensions.
-        :param params: A dict containing the parameters on which the forward
-                      depends. The parameters are not changed by the forward.
-
         :return:
            states:     A dict containing the input states.
         """
@@ -170,15 +143,12 @@ class StateKernel:
         return states
 
     def backward_test(self, **kwargs):
-        states = {el: self.grid.random() for el in self.states}
-        params = {el: np.random.rand(*self.params[el]) for el in self.params}
 
         self.initialize()
-        fstates, outputs = self.call_forward(copy.deepcopy(states),
-                                             copy.deepcopy(params),
-                                             **kwargs)
-
-        bstates = self.backward(fstates, params, **kwargs)
+        states = {self.state_defs[el].name: self.state_defs[el].grid.random()
+                  for el in self.required_states}
+        fstates, outputs = self.call_forward(copy.deepcopy(states), **kwargs)
+        bstates = self.backward(fstates, **kwargs)
 
         err = np.sum([states[el] - bstates[el] for el in bstates])
 
@@ -189,30 +159,25 @@ class StateKernel:
 
     def linear_test(self, **kwargs):
 
-        states = {el: self.grid.random() for el in self.states}
-        params = {el: np.random.rand(*self.params[el]) for el in self.params}
-        dstates = {el: self.grid.random() for el in self.states}
-        dparams = {el: np.random.rand(*self.params[el]) for el in self.params}
+        states = {self.state_defs[el].name: self.state_defs[el].grid.random()
+                  for el in self.required_states}
+        dstates = {self.state_defs[el].name: self.state_defs[el].grid.random()
+                   for el in self.required_states}
 
         errs = []
         for ii in range(0, 10):
             dstates = {el: dstates[el]/10 for el in dstates}
-            dparams = {el: dparams[el]/10 for el in dparams}
             pstates = {el: states[el] + dstates[el] for el in states}
-            pparams = {el: params[el] + dparams[el] for el in params}
 
             self.initialize()
             fpstates, poutputs = self.call_forward(copy.deepcopy(pstates),
-                                                   copy.deepcopy(pparams),
                                                    **kwargs)
             self.initialize()
             fstates, outputs = self.call_forward(copy.deepcopy(states),
-                                                 copy.deepcopy(params),
                                                  **kwargs)
+
             lstates, loutputs, _ = self.call_linear(copy.deepcopy(dstates),
-                                                    copy.deepcopy(dparams),
                                                     copy.deepcopy(states),
-                                                    copy.deepcopy(params),
                                                     **kwargs)
 
             err = 0
@@ -230,159 +195,133 @@ class StateKernel:
 
     def dot_test(self, **kwargs):
         """
-        Dot product test for fstates, outputs = F(states, params)
+        Dot product test for fstates, outputs = F(states)
 
-        dF = [dfstates/dstates dfstates/dparams    [dstates
-              doutputs/dstates doutpouts/dparams]   dparams ]
+        dF = [dfstates/dstates     [dstates
+              doutputs/dstates]     dparams ]
 
-        dot = [adj_states  ^T [dfstates/dstates dfstates/dparams    [states
-               adj_outputs]    doutputs/dstates doutpouts/dparams]   params]
+        dot = [adj_states  ^T [dfstates/dstates     [states
+               adj_outputs]    doutputs/dstates]   params]
 
         """
-        states = {el: self.grid.random() for el in self.states}
-        params = {el: np.random.rand(*self.params[el]) for el in self.params}
 
         self.initialize()
-        fstates, outputs = self.call_forward(copy.deepcopy(states),
-                                             copy.deepcopy(params),
-                                             **kwargs)
+        states = {el: self.state_defs[el].grid.random()
+                  for el in self.required_states}
+        fstates, outputs = self.call_forward(copy.deepcopy(states), **kwargs)
 
-        dstates = {el: self.grid.random() for el in self.states}
-        dparams = {el: np.random.rand(*self.params[el]) for el in self.params}
-
+        dstates = {el: self.state_defs[el].grid.random()
+                   for el in self.required_states}
         dfstates, doutputs, _ = self.call_linear(copy.deepcopy(dstates),
-                                                 copy.deepcopy(dparams),
                                                  copy.deepcopy(states),
-                                                 copy.deepcopy(params),
                                                  **kwargs)
 
-        adj_states = {el: self.grid.random() for el in fstates}
+        adj_states = {el: self.state_defs[el].grid.random()
+                      for el in self.required_states}
         adj_outputs = {el: np.random.rand(*outputs[el].shape) for el in outputs}
 
-        fadj_states, fadj_params, _ = self.call_adjoint(
-            copy.deepcopy(adj_states), copy.deepcopy(adj_outputs), copy.deepcopy(fstates),
-            params, **kwargs)
+        fadj_states, _ = self.call_adjoint(copy.deepcopy(adj_states),
+                                           copy.deepcopy(adj_outputs),
+                                           copy.deepcopy(fstates),
+                                           **kwargs)
 
 
-        prod1 = np.sum([dfstates[el]*adj_states[el] for el in dstates])
+        prod1 = np.sum([dfstates[el]*adj_states[el] for el in dfstates])
         prod1 += np.sum([doutputs[el]*adj_outputs[el] for el in doutputs])
         prod2 = np.sum([dstates[el]*fadj_states[el] for el in dstates])
-        prod2 += np.sum([dparams[el]*fadj_params[el] for el in dparams])
 
         print("Dot product test for Kernel %s: %.15e"
               % (self.__class__.__name__, prod1-prod2))
 
         return prod1 - prod2
 
-    def grad_test(self):
-        raise NotImplementedError
-
-## TODO test ScaleParameter
-class ScaleParameter(StateKernel):
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.scalers = {}
-
-    def forward(self, states, params, **kwargs):
-        self.scalers = {el: np.max(params[el]) for el in params}
-        return states, {el: params[el]/self.scalers[el] for el in params}
-
-    def adjoint(self, adj_states, adj_outputs, states, params, **kwargs):
-        return {el: adj_outputs[el]/self.scalers[el] for el in adj_outputs}
-
 
 class RandKernel(StateKernel):
 
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.states = ["x"]
-        self.params = {"b": (10,)}
+        state_defs = {"x": State("x", Grid((10,))),
+                      "b": State("b", Grid((10,)))}
+        super().__init__(state_defs, **kwargs)
+        self.required_states = ["x", "b"]
         self.updated_states = ["x"]
-        self.A1 = np.random.rand(self.grid.shape[0],
-                                 self.grid.shape[0])
+        self.A1 = np.random.rand(10, 10)
         self.A2 = np.random.rand(10, 10)
 
-    def forward(self, states, params, **kwargs):
+    def forward(self, states, **kwargs):
         x = states["x"]
-        b = params["b"]
+        b = states["b"]
         outputs = {"y": np.matmul(self.A2, x) * b}
         states["x"] = np.matmul(self.A1, x)
         return states, outputs
 
-    def linear(self, dstates, dparams, states, params, **kwargs):
+    def linear(self, dstates, states, **kwargs):
         x = states["x"]
-        b = params["b"]
+        b = states["b"]
         dx = dstates["x"]
-        db = dparams["b"]
+        db = dstates["b"]
         dstates["x"] = np.matmul(self.A1, dx)
         dy = np.matmul(self.A2, x) * db + np.matmul(self.A2, dx) * b
         doutputs = {"y": dy}
 
         return dstates, doutputs
 
-    def adjoint(self, adj_states, adj_outputs, states, params, **kwargs):
+    def adjoint(self, adj_states, adj_outputs, states, **kwargs):
 
         x_adj = adj_states["x"]
+        b_adj = adj_states["b"]
         y_adj = adj_outputs["y"]
         x = states["x"]
-        b = params["b"]
+        b = states["b"]
         A1t = np.transpose(self.A1)
         A2t = np.transpose(self.A2)
 
-        return ({"x": np.matmul(A1t, x_adj) + np.matmul(A2t, b * y_adj)},
-                {"b": np.matmul(self.A2, x) * y_adj})
+        return {"x": np.matmul(A1t, x_adj) + np.matmul(A2t, b * y_adj),
+                "b": np.matmul(self.A2, x) * y_adj + b_adj}
 
 
 class Sequence(StateKernel):
 
-    def __init__(self, kernels, **kwargs):
+    def __init__(self, kernels, state_defs=None, **kwargs):
 
-        grid = kernels[0].grid
-        for kernel in kernels:
-            if grid is not kernel.grid:
-                raise ValueError("All kernels in a Sequence must share the "
-                                 "same Grid object")
-        super().__init__(grid=grid, **kwargs)
+        super().__init__(state_defs, **kwargs)
         self.kernels = kernels
-        self.states = []
-        self.params = {}
+        self.required_states = []
         self.updated_states = []
         for kernel in kernels:
-            self.states += [el for el in kernel.states if el not in self.states]
+            self.required_states += [el for el in kernel.required_states
+                                     if el not in self.required_states]
             self.updated_states += [el for el in kernel.updated_states
                                     if el not in self.updated_states]
-            self.params.update(kernel.params)
-    
+            if state_defs is not None:
+                kernel.state_defs = state_defs
+
     def initialize(self):
         super(Sequence, self).initialize()
         for kernel in self.kernels:
             kernel.initialize()
             
-    def call_forward(self, states, params, **kwargs):
+    def call_forward(self, states, **kwargs):
         outputs = {}
         for ii, kernel in enumerate(self.kernels):
-            states, outputsk = kernel.call_forward(states, params, **kwargs)
+            states, outputsk = kernel.call_forward(states, **kwargs)
             for o in outputsk:
                 outputs[str(ii) + ":" + o] = outputsk[o]
 
         return states, outputs
 
-    def call_linear(self, dstates, dparams, states, params, **kwargs):
+    def call_linear(self, dstates, states, **kwargs):
 
         doutputs = {}
         for ii, kernel in enumerate(self.kernels):
-            dstates, doutputsk, states = kernel.call_linear(dstates, dparams,
-                                                            states, params,
+            dstates, doutputsk, states = kernel.call_linear(dstates, states,
                                                             **kwargs)
             for o in doutputsk:
                 doutputs[str(ii) + ":" + o] = doutputsk[o]
 
         return dstates, doutputs, states
 
-    def call_adjoint(self, adj_states, adj_outputs, states, params, **kwargs):
+    def call_adjoint(self, adj_states, adj_outputs, states, **kwargs):
 
-        adj_params = {el: np.zeros_like(params[el]) for el in params}
         n = len(self.kernels)
         for ii, kernel in enumerate(self.kernels[::-1]):
             adj_outputks = {}
@@ -390,19 +329,15 @@ class Sequence(StateKernel):
                 kname, oname = o.split(":")
                 if int(kname) == n - ii - 1:
                     adj_outputks[oname] = adj_outputs[o]
-            adj_states, adj_paramks, states = kernel.call_adjoint(adj_states,
-                                                                  adj_outputks,
-                                                                  states,
-                                                                  params,
-                                                                  **kwargs)
-            for el in adj_paramks:
-                adj_params[el] += adj_paramks[el]
+            adj_states,  states = kernel.call_adjoint(adj_states,
+                                                      adj_outputks,
+                                                      states,
+                                                      **kwargs)
+        return adj_states, states
 
-        return adj_states, adj_params, states
-
-    def backward(self, states, params, **kwargs):
+    def backward(self, states, **kwargs):
         for ii, kernel in enumerate(self.kernels[::-1]):
-            states = kernel.backward(states, params, **kwargs)
+            states = kernel.backward(states, **kwargs)
         return states
 
     def backward_test(self, **kwargs):
@@ -434,39 +369,33 @@ class Propagator(StateKernel):
 
     def __init__(self, kernel, nt, **kwargs):
 
-        super().__init__(grid=kernel.grid, **kwargs)
+        super().__init__(kernel.state_defs, **kwargs)
         self.kernel = kernel
         self.nt = nt
-        self.states = kernel.states
-        self.params = kernel.params
+        self.required_states = kernel.required_states
         self.updated_states = kernel.updated_states
 
     def initialize(self):
         super(Propagator, self).initialize()
         self.kernel.initialize()
 
-    def call_forward(self, states, params, **kwargs):
+    def call_forward(self, states, **kwargs):
         outputs = [None for _ in range(self.nt)]
 
         for t in range(self.nt):
-            states, output = self.kernel.call_forward(states, params, t=t,
-                                                      **kwargs)
+            states, output = self.kernel.call_forward(states, t=t, **kwargs)
             outputs[t] = output
 
         outputs = {el: np.stack([outputs[t][el] for t in range(self.nt)])
                    for el in outputs[0]}
         return states, outputs
 
-    def call_linear(self, dstates, dparams, states, params, **kwargs):
+    def call_linear(self, dstates, states, **kwargs):
         doutputs = [None for _ in range(self.nt)]
 
         for t in range(self.nt):
-            dstates, doutput, states = self.kernel.call_linear(dstates,
-                                                               dparams,
-                                                               states,
-                                                               params,
-                                                               t=t,
-                                                               **kwargs)
+            dstates, doutput, states = self.kernel.call_linear(dstates, states,
+                                                               t=t, **kwargs)
             doutputs[t] = doutput
 
         doutputs = {el: np.stack([doutputs[t][el] for t in range(self.nt)])
@@ -474,22 +403,21 @@ class Propagator(StateKernel):
 
         return dstates, doutputs, states
 
-    def call_adjoint(self, adj_states, adj_outputs, states, params, **kwargs):
-        adj_params = {el: np.zeros_like(params[el]) for el in params}
+    def call_adjoint(self, adj_states, adj_outputs, states, **kwargs):
 
         for t in range(self.nt-1, -1, -1):
             adj_output = {el: adj_outputs[el][t, ...] for el in adj_outputs}
-            (adj_states,
-             adj_paramst,
-             states) = self.kernel.call_adjoint(adj_states, adj_output, states,
-                                                params, t=t, **kwargs)
-            adj_params = {el: adj_params[el] + adj_paramst[el]
-                          for el in adj_params}
-        return adj_states, adj_params, states
+            (adj_states, states) = self.kernel.call_adjoint(adj_states,
+                                                            adj_output,
+                                                            states,
+                                                            t=t,
+                                                            **kwargs)
 
-    def backward(self, states, params, **kwargs):
+        return adj_states, states
+
+    def backward(self, states, **kwargs):
         for t in range(self.nt-1, -1, -1):
-            states = self.kernel.backward(states, params, t=t, **kwargs)
+            states = self.kernel.backward(states, t=t, **kwargs)
         return states
 
     def backward_test(self, **kwargs):
@@ -509,40 +437,40 @@ class Propagator(StateKernel):
 
 class Derivative(StateKernel):
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.states = ["vx"]
-        self.params = {}
+    def __init__(self, state_defs=None, **kwargs):
+        super().__init__(state_defs, **kwargs)
+        self.required_states = ["vx"]
         self.updated_states = ["vx"]
 
-    def forward(self, states, params, **kwargs):
-        states["vx"][self.grid.valid] = Dpx(states["vx"])
+    def forward(self, states, **kwargs):
+        valid = self.state_defs["vx"].grid.valid
+        states["vx"][valid] = Dpx(states["vx"])
         return states, {}
 
-    def adjoint(self, adj_states, adj_outputs, states, params, **kwargs):
-        adj_states["vx"][self.grid.valid] = -Dmx(adj_states["vx"])
-        return adj_states, {}
+    def adjoint(self, adj_states, adj_outputs, states, **kwargs):
+        valid = self.state_defs["vx"].grid.valid
+        adj_states["vx"][valid] = -Dmx(adj_states["vx"])
+        return adj_states
 
 
 class ReversibleKernel(StateKernel):
 
-    def call_forward(self, states, params, **kwargs):
-        return self.forward(states, params, **kwargs)
+    def call_forward(self, states, **kwargs):
+        return self.forward(states, **kwargs)
 
-    def backward(self, states, params, **kwargs):
-        states, _ = self.forward(states, params, backpropagate=True, **kwargs)
+    def backward(self, states, **kwargs):
+        states, _ = self.forward(states, backpropagate=True, **kwargs)
         return states
 
 
 class UpdateVelocity(ReversibleKernel):
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.states = ["vx", "vz", "sxx", "szz", "sxz"]
-        self.params = {"cv": (10, 10)}
+    def __init__(self, state_defs=None, **kwargs):
+        super().__init__(state_defs, **kwargs)
+        self.required_states = ["vx", "vz", "sxx", "szz", "sxz", "cv"]
         self.updated_states = ["vx", "vz"]
 
-    def forward(self, states, params, backpropagate=False,  **kwargs):
+    def forward(self, states, backpropagate=False, **kwargs):
         """
         Update the velocity for 2D P-SV isotropic elastic wave propagation.
 
@@ -560,42 +488,49 @@ class UpdateVelocity(ReversibleKernel):
         vx = states["vx"]
         vz = states["vz"]
 
-        cv = params["cv"]
+        cv = states["cv"]
 
         sxx_x = Dpx(sxx)
         szz_z = Dpz(szz)
         sxz_x = Dmx(sxz)
         sxz_z = Dmz(sxz)
 
+        valid = self.state_defs["vx"].grid.valid
         if not backpropagate:
-            vx[self.grid.valid] += (sxx_x + sxz_z) * cv[self.grid.valid]
-            vz[self.grid.valid] += (szz_z + sxz_x) * cv[self.grid.valid]
+            vx[valid] += (sxx_x + sxz_z) * cv[valid]
+            vz[valid] += (szz_z + sxz_x) * cv[valid]
         else:
-            vx[self.grid.valid] -= (sxx_x + sxz_z) * cv[self.grid.valid]
-            vz[self.grid.valid] -= (szz_z + sxz_x) * cv[self.grid.valid]
+            vx[valid] -= (sxx_x + sxz_z) * cv[valid]
+            vz[valid] -= (szz_z + sxz_x) * cv[valid]
 
         return states, {}
 
-    def linear(self, dstates, dparams, states, params, **kwargs):
+    def linear(self, dstates, states, **kwargs):
 
-        dstates, douputs = self.forward(dstates, params)
+        self.forward({"vx": dstates["vx"],
+                      "vz": dstates["vz"],
+                      "sxx": dstates["sxx"],
+                      "szz": dstates["szz"],
+                      "sxz": dstates["sxz"],
+                      "cv": states["cv"]})
         sxx = states["sxx"]
         szz = states["szz"]
         sxz = states["sxz"]
 
-        dcv = dparams["cv"]
+        dcv = dstates["cv"]
 
         sxx_x = Dpx(sxx)
         szz_z = Dpz(szz)
         sxz_x = Dmx(sxz)
         sxz_z = Dmz(sxz)
 
-        dstates["vx"][self.grid.valid] += (sxx_x + sxz_z) * dcv[self.grid.valid]
-        dstates["vz"][self.grid.valid] += (szz_z + sxz_x) * dcv[self.grid.valid]
+        valid = self.state_defs["vx"].grid.valid
+        dstates["vx"][valid] += (sxx_x + sxz_z) * dcv[valid]
+        dstates["vz"][valid] += (szz_z + sxz_x) * dcv[valid]
 
         return dstates, {}
 
-    def adjoint(self, adj_states, adj_outputs, states, params, **kwargs):
+    def adjoint(self, adj_states, adj_outputs, states, **kwargs):
         """
         Adjoint update the velocity for 2D P-SV isotropic elastic wave
         propagation.
@@ -606,7 +541,6 @@ class UpdateVelocity(ReversibleKernel):
              sxx'  =   -Dmx * cv     0        1     0    0  =   sxx'
              szz'           0    -Dmz * cv     0     1    0     szz'
              sxz']     -Dpz * cv -Dpx * cv     0     0    1]    sxz']
-             :param **kwargs:
         """
         adj_sxx = adj_states["sxx"]
         adj_szz = adj_states["szz"]
@@ -617,10 +551,8 @@ class UpdateVelocity(ReversibleKernel):
         sxx = states["sxx"]
         szz = states["szz"]
         sxz = states["sxz"]
-        vx = states["vx"]
-        vz = states["vz"]
 
-        cv = params["cv"]
+        cv = states["cv"]
 
         adj_vx_x = Dmx(cv * adj_vx)
         adj_vx_z = Dpz(cv * adj_vx)
@@ -632,28 +564,25 @@ class UpdateVelocity(ReversibleKernel):
         sxz_x = Dmx(sxz)
         sxz_z = Dmz(sxz)
 
-        adj_sxx[self.grid.valid] -= adj_vx_x
-        adj_szz[self.grid.valid] -= adj_vz_z
-        adj_sxz[self.grid.valid] -= adj_vx_z + adj_vz_x
+        valid = self.state_defs["vx"].grid.valid
+        adj_sxx[valid] -= adj_vx_x
+        adj_szz[valid] -= adj_vz_z
+        adj_sxz[valid] -= adj_vx_z + adj_vz_x
 
-        adj_params = {}
-        adj_params["cv"] = np.zeros_like(cv)
-        adj_params["cv"][self.grid.valid] += (sxx_x + sxz_z) * adj_vx[self.grid.valid]
-        adj_params["cv"][self.grid.valid] += (szz_z + sxz_x) * adj_vz[self.grid.valid]
+        adj_states["cv"][valid] += (sxx_x + sxz_z) * adj_vx[valid]
+        adj_states["cv"][valid] += (szz_z + sxz_x) * adj_vz[valid]
 
-        return adj_states, adj_params
+        return adj_states
 
 
 class UpdateStress(ReversibleKernel):
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.states = ["vx", "vz", "sxx", "szz", "sxz"]
-        self.params = {"csu": (10, 10),
-                       "csM": (10, 10)}
+    def __init__(self, state_defs=None, **kwargs):
+        super().__init__(state_defs, **kwargs)
+        self.required_states = ["vx", "vz", "sxx", "szz", "sxz", "csu", "csM"]
         self.updated_states = ["sxx", "szz", "sxz"]
 
-    def forward(self, states, params, backpropagate=False, **kwargs):
+    def forward(self, states, backpropagate=False, **kwargs):
         """
         Update the velocity for 2D P-SV isotropic elastic wave propagation.
 
@@ -670,28 +599,35 @@ class UpdateStress(ReversibleKernel):
         vx = states["vx"]
         vz = states["vz"]
 
-        csu = params["csu"]
-        csM = params["csM"]
+        csu = states["csu"]
+        csM = states["csM"]
 
         vx_x = Dmx(vx)
         vx_z = Dpz(vx)
         vz_x = Dpx(vz)
         vz_z = Dmz(vz)
 
+        valid = self.state_defs["vx"].grid.valid
         if not backpropagate:
-            sxx[self.grid.valid] += csM[self.grid.valid] * (vx_x + vz_z) - 2.0 * csu[self.grid.valid] * vz_z
-            szz[self.grid.valid] += csM[self.grid.valid] * (vx_x + vz_z) - 2.0 * csu[self.grid.valid] * vx_x
-            sxz[self.grid.valid] += csu[self.grid.valid] * (vx_z + vz_x)
+            sxx[valid] += csM[valid] * (vx_x + vz_z) - 2.0 * csu[valid] * vz_z
+            szz[valid] += csM[valid] * (vx_x + vz_z) - 2.0 * csu[valid] * vx_x
+            sxz[valid] += csu[valid] * (vx_z + vz_x)
         else:
-            sxx[self.grid.valid] -= csM[self.grid.valid] * (vx_x + vz_z) - 2.0 * csu[self.grid.valid] * vz_z
-            szz[self.grid.valid] -= csM[self.grid.valid] * (vx_x + vz_z) - 2.0 * csu[self.grid.valid] * vx_x
-            sxz[self.grid.valid] -= csu[self.grid.valid] * (vx_z + vz_x)
+            sxx[valid] -= csM[valid] * (vx_x + vz_z) - 2.0 * csu[valid] * vz_z
+            szz[valid] -= csM[valid] * (vx_x + vz_z) - 2.0 * csu[valid] * vx_x
+            sxz[valid] -= csu[valid] * (vx_z + vz_x)
 
         return states, {}
 
-    def linear(self, dstates, dparams, states, params, **kwargs):
+    def linear(self, dstates, states, **kwargs):
 
-        dstates, _ = self.forward(dstates, params)
+        self.forward({"vx": dstates["vx"],
+                      "vz": dstates["vz"],
+                      "sxx": dstates["sxx"],
+                      "szz": dstates["szz"],
+                      "sxz": dstates["sxz"],
+                      "csu": states["csu"],
+                      "csM": states["csM"]})
         vx = states["vx"]
         vz = states["vz"]
 
@@ -703,16 +639,17 @@ class UpdateStress(ReversibleKernel):
         dsxx = dstates["sxx"]
         dszz = dstates["szz"]
         dsxz = dstates["sxz"]
-        dcsu = dparams["csu"]
-        dcsM = dparams["csM"]
+        dcsu = dstates["csu"]
+        dcsM = dstates["csM"]
 
-        dsxx[self.grid.valid] += dcsM[self.grid.valid] * (vx_x + vz_z) - 2.0 * dcsu[self.grid.valid] * vz_z
-        dszz[self.grid.valid] += dcsM[self.grid.valid] * (vx_x + vz_z) - 2.0 * dcsu[self.grid.valid] * vx_x
-        dsxz[self.grid.valid] += dcsu[self.grid.valid] * (vx_z + vz_x)
+        valid = self.state_defs["vx"].grid.valid
+        dsxx[valid] += dcsM[valid] * (vx_x + vz_z) - 2.0 * dcsu[valid] * vz_z
+        dszz[valid] += dcsM[valid] * (vx_x + vz_z) - 2.0 * dcsu[valid] * vx_x
+        dsxz[valid] += dcsu[valid] * (vx_z + vz_x)
 
         return dstates, {}
 
-    def adjoint(self, adj_states, adj_outputs, states, params, **kwargs):
+    def adjoint(self, adj_states, adj_outputs, states, **kwargs):
         """
         Adjoint update the velocity for 2D P-SV isotropic elastic wave
         propagation.
@@ -737,8 +674,8 @@ class UpdateStress(ReversibleKernel):
         vx = states["vx"]
         vz = states["vz"]
 
-        csu = params["csu"]
-        csM = params["csM"]
+        csu = states["csu"]
+        csM = states["csM"]
 
         adj_sxx_x = Dpx(csM * adj_sxx)
         adj_sxx_z = Dpz((csM - 2.0 * csu) * adj_sxx)
@@ -752,111 +689,110 @@ class UpdateStress(ReversibleKernel):
         vz_x = Dpx(vz)
         vz_z = Dmz(vz)
 
-        adj_vx[self.grid.valid] -= adj_sxx_x + adj_szz_x + adj_sxz_z
-        adj_vz[self.grid.valid] -= adj_sxx_z + adj_szz_z + adj_sxz_x
+        valid = self.state_defs["vx"].grid.valid
+        adj_vx[valid] -= adj_sxx_x + adj_szz_x + adj_sxz_z
+        adj_vz[valid] -= adj_sxx_z + adj_szz_z + adj_sxz_x
 
-        adj_params = {}
-        adj_params["csM"] = np.zeros_like(csM)
-        adj_params["csM"][self.grid.valid] += (vx_x + vz_z) * adj_sxx[self.grid.valid]
-        adj_params["csM"][self.grid.valid] += (vx_x + vz_z) * adj_szz[self.grid.valid]
-        adj_params["csu"] = np.zeros_like(csM)
-        adj_params["csu"][self.grid.valid] += - 2.0 * vz_z * adj_sxx[self.grid.valid]
-        adj_params["csu"][self.grid.valid] += - 2.0 * vx_x * adj_szz[self.grid.valid]
-        adj_params["csu"][self.grid.valid] += (vx_z + vz_x) * adj_sxz[self.grid.valid]
+        adj_states["csM"][valid] += (vx_x + vz_z) * adj_sxx[valid]
+        adj_states["csM"][valid] += (vx_x + vz_z) * adj_szz[valid]
+        adj_states["csu"][valid] += - 2.0 * vz_z * adj_sxx[valid]
+        adj_states["csu"][valid] += - 2.0 * vx_x * adj_szz[valid]
+        adj_states["csu"][valid] += (vx_z + vz_x) * adj_sxz[valid]
 
-        return adj_states, adj_params
+        return adj_states
 
 
 class Cerjan(StateKernel):
 
-    def __init__(self, freesurf=False, abpc=4.0, nab=2, abs_states=(), **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, state_defs=None, freesurf=False, abpc=4.0, nab=2,
+                 required_states=(), **kwargs):
+        super().__init__(state_defs, **kwargs)
         self.abpc = abpc
         self.nab = nab
-        self.states = abs_states
-        self.updated_states = abs_states
+        self.required_states = required_states
+        self.updated_states = required_states
         self.taper = np.exp(-np.log(1.0-abpc/100)/nab**2 * np.arange(nab) **2)
         self.taper = np.expand_dims(self.taper, -1)
         self.freesurf = freesurf
 
-    def call_forward(self, states, params, **kwargs):
+    def call_forward(self, states, **kwargs):
 
         saved = {}
         for el in self.updated_states:
             saved[el] = []
-            inds = self.grid.valid
+            valid = self.state_defs[el].grid.valid
             if not self.freesurf:
-                saved[el].append(copy.deepcopy(states[el][inds][:self.nab, :]))
-            saved[el].append(copy.deepcopy(states[el][inds][-self.nab:, :]))
-            saved[el].append(copy.deepcopy(states[el][inds][:, :self.nab]))
-            saved[el].append(copy.deepcopy(states[el][inds][:, -self.nab:]))
+                saved[el].append(copy.deepcopy(states[el][valid][:self.nab, :]))
+            saved[el].append(copy.deepcopy(states[el][valid][-self.nab:, :]))
+            saved[el].append(copy.deepcopy(states[el][valid][:, :self.nab]))
+            saved[el].append(copy.deepcopy(states[el][valid][:, -self.nab:]))
 
         self._forward_states.append(saved)
 
-        return self.forward(states, params, **kwargs)
+        return self.forward(states, **kwargs)
 
-    def forward(self, states, params, **kwargs):
+    def forward(self, states, **kwargs):
 
-        for el in self.states:
+        for el in self.required_states:
+            valid = self.state_defs[el].grid.valid
             if not self.freesurf:
-                states[el][self.grid.valid][:self.nab, :] *= self.taper[::-1]
-            states[el][self.grid.valid][-self.nab:, :] *= self.taper
+                states[el][valid][:self.nab, :] *= self.taper[::-1]
+            states[el][valid][-self.nab:, :] *= self.taper
 
             tapert = np.transpose(self.taper)
-            states[el][self.grid.valid][:, :self.nab] *= tapert[::-1]
-            states[el][self.grid.valid][:, -self.nab:] *= tapert
+            states[el][valid][:, :self.nab] *= tapert[::-1]
+            states[el][valid][:, -self.nab:] *= tapert
 
         return states, {}
 
-    def adjoint(self, adj_states, adj_outputs, states, params, **kwargs):
+    def adjoint(self, adj_states, adj_outputs, states, **kwargs):
 
-        return self.forward(adj_states, params, **kwargs)
+        return self.forward(adj_states, **kwargs)[0]
 
-    def backward(self, states, params, **kwargs):
+    def backward(self, states, **kwargs):
 
         torestore = self._forward_states.pop()
         for el in torestore:
+            valid = self.state_defs[el].grid.valid
             if not self.freesurf:
-                states[el][self.grid.valid][:self.nab, :] = torestore[el][0]
-            states[el][self.grid.valid][-self.nab:, :] = torestore[el][-3]
-            states[el][self.grid.valid][:, :self.nab] = torestore[el][-2]
-            states[el][self.grid.valid][:, -self.nab:] = torestore[el][-1]
+                states[el][valid][:self.nab, :] = torestore[el][0]
+            states[el][valid][-self.nab:, :] = torestore[el][-3]
+            states[el][valid][:, :self.nab] = torestore[el][-2]
+            states[el][valid][:, -self.nab:] = torestore[el][-1]
 
         return states
 
 
 class Receiver(StateKernel):
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.states = ["vx", "vz", "sxx", "szz", "sxz"]
+    def __init__(self, required_states, state_defs=None, **kwargs):
+        super().__init__(state_defs, **kwargs)
+        self.required_states = required_states
 
-    def forward(self, states, params, rec_pos=(), **kwargs):
+    def forward(self, states, rec_pos=(), **kwargs):
         outputs = {}
         for r in rec_pos:
             outputs[r["type"]] = states[r["type"]][r["z"], r["x"]]
         return states, outputs
 
-    def adjoint(self, adj_states, adj_outputs, states, params, rec_pos=(),
-                **kwargs):
+    def adjoint(self, adj_states, adj_outputs, states, rec_pos=(), **kwargs):
 
         for r in rec_pos:
             adj_states[r["type"]][r["z"], r["x"]] += adj_outputs[r["type"]]
 
-        return adj_states, {}
+        return adj_states
 
-    def backward(self, states, params, **kwargs):
+    def backward(self, states, **kwargs):
         return states
 
 
 class Source(ReversibleKernel):
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.states = ["vx", "vz", "sxx", "szz", "sxz"]
+    def __init__(self, required_states, state_defs=None, **kwargs):
+        super().__init__(state_defs, **kwargs)
+        self.required_states = required_states
 
-    def forward(self, states, params, t=0, src_pos=(), backpropagate=False,
-                **kwargs):
+    def forward(self, states, src_pos=(), backpropagate=False, t=0, **kwargs):
 
         if backpropagate:
             sign = -1.0
@@ -867,65 +803,11 @@ class Source(ReversibleKernel):
 
         return states, {}
 
-    def linear(self, dstates, dparams, states, params, **kwargs):
+    def linear(self, dstates, states, **kwargs):
         return dstates, {}
 
-    def adjoint(self, adj_states, adj_outputs, states, params, src_pos=(),
-                **kwargs):
-        return adj_states, {}
-
-
-class Modeler:
-
-    def __init__(self, kernel):
-        self.kernel = kernel
-        self.outputs = {}
-        self.measurements = {}
-        self.states = {}
-        self.norm = 1.0
-
-    def compute(self, params, **kwargs):
-        states = {el: self.kernel.grid.empty() for el in self.kernel.states}
-        states, outputs = self.kernel.call_forward(states, params, **kwargs)
-        self.outputs = outputs
-        self.states = states
-        return outputs
-
-    def adjoint(self, params, adj_outputs, **kwargs):
-
-        adj_states = {el: self.kernel.grid.empty() for el in self.states}
-        adj_states, adj_params, states = self.kernel.call_adjoint(adj_states,
-                                                                  adj_outputs,
-                                                                  self.states,
-                                                                  params,
-                                                                  **kwargs)
-
-        return adj_params
-
-
-class Cost:
-
-    def __init__(self, modeler):
-        self.modeler = modeler
-        self.outputs = {}
-        self.measurements = {}
-        self.states = {}
-        self.norm = 1.0
-
-    def compute(self, params, measurements, **kwargs):
-        outputs = self.modeler.compute(params, **kwargs)
-        self.outputs = outputs
-        self.measurements = measurements
-        self.norm = np.sum([(measurements[el])**2 for el in outputs])
-        cost = np.sum([(outputs[el]-measurements[el])**2 for el in outputs])
-        cost = cost / self.norm
-        return cost
-
-    def gradient(self, params, **kwargs):
-
-        adj_outputs = {el: 2*(self.outputs[el]-self.measurements[el])/self.norm
-                       for el in self.outputs}
-        return self.modeler.adjoint(params, adj_outputs, **kwargs)
+    def adjoint(self, adj_states, adj_outputs, states, **kwargs):
+        return adj_states
 
 
 class Seis2D:
@@ -1019,8 +901,8 @@ class Seis2D:
         sxz_x = Dmx(self.sxz)
         sxz_z = Dmz(self.sxz)
 
-        self.vx[self.grid.valid] += (sxx_x + sxz_z) * self.cv
-        self.vz[self.grid.valid] += (szz_z + sxz_x) * self.cv
+        self.vx[valid] += (sxx_x + sxz_z) * self.cv
+        self.vz[valid] += (szz_z + sxz_x) * self.cv
 
         self.vz[2 + self.src_pos[0], 2 + self.src_pos[1]] += self.src[self.t]
 
@@ -1091,43 +973,42 @@ def ricker(f0, dt, NT):
 
 if __name__ == '__main__':
 
-    grid1D = Grid(shape=(10,))
-    matmul = RandKernel(grid=grid1D)
-    matmul.linear_test()
-    matmul.dot_test()
-    matmul2 = RandKernel(grid=grid1D)
-    seq = Sequence([matmul, matmul2])
-    seq.dot_test()
+    # grid1D = Grid(shape=(10,))
+    # matmul = RandKernel(grid=grid1D)
+    # matmul.linear_test()
+    # matmul.dot_test()
+    # matmul2 = RandKernel(grid=grid1D)
+    # seq = Sequence([matmul, matmul2], state_defs=matmul.state_defs)
+    # seq.dot_test()
     # prop = Propagator(seq, 5)
     # prop.dot_test()
     # der = Derivative()
     # der.dot_test()
-    # updatev = UpdateVelocity()
-    # updatev.dot_test()
-    # updatev.linear_test()
-    #
-    # updates = UpdateStress()
-    # updates.dot_test()
-    # updates.linear_test()
-    # receiver = Receiver()
-    # receiver.dot_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}])
-    # source = Source()
-    # source.dot_test(src_pos=[{"type": "vx", "pos":(5,5), "signal": [10]}])
-    # cerjan = Cerjan(abs_states=["vx"])
-    # cerjan.dot_test()
 
-    stepper = Sequence(kernels=[Source(),
-                                UpdateVelocity(),
-                                Cerjan(abs_states=["vx", "vz"]),
-                                 Receiver(),
-                                UpdateStress(),
-                                Cerjan(abs_states=["sxx", "szz", "sxz"]),
-                                ])
+
+    grid2D = Grid(shape=(10, 10))
+    defs = {"vx": State("vx", grid=grid2D),
+            "vz": State("vz", grid=grid2D),
+            "sxx": State("sxx", grid=grid2D),
+            "szz": State("szz", grid=grid2D),
+            "sxz": State("sxz", grid=grid2D),
+            "cv": State("cv", grid=grid2D),
+            "csu": State("csu", grid=grid2D),
+            "csM": State("csM", grid=grid2D),
+           }
+    stepper = Sequence([Source(required_states=["vx"]),
+                        UpdateVelocity(),
+                        Cerjan(abs_states=["vx", "vz"]),
+                        Receiver(required_states=["vx"]),
+                        UpdateStress(),
+                        Cerjan(abs_states=["sxx", "szz", "sxz"]),
+                        ],
+                       state_defs=defs)
     prop = Propagator(stepper, 5)
     prop.backward_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
-                       src_pos=[{"type": "vx", "pos":(5,5), "signal": [10]*5}])
+                       src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*5}])
     prop.dot_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
-                  src_pos=[{"type": "vx", "pos":(5,5), "signal": [10]*5}])
+                  src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*5}])
 
 
 
