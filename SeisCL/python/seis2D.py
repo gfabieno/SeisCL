@@ -133,15 +133,15 @@ class StateKernel:
 
     def call_linear(self, dstates, states, **kwargs):
 
-        dstates, doutputs = self.linear(dstates, states, **kwargs)
-        states, _ = self.forward(states, **kwargs)
+        dstates = self.linear(dstates, states, **kwargs)
+        states = self.forward(states, **kwargs)
 
-        return dstates, doutputs, states
+        return dstates, states
 
-    def gradient(self, adj_states, adj_outputs, states, **kwargs):
+    def gradient(self, adj_states, states, **kwargs):
 
         states = self.backward(states, **kwargs)
-        adj_states = self.adjoint(adj_states, adj_outputs, states, **kwargs)
+        adj_states = self.adjoint(adj_states, states, **kwargs)
         return adj_states, states
 
     def forward(self, states, **kwargs):
@@ -154,16 +154,14 @@ class StateKernel:
                        the forward, but they keep the same dimensions.
         :return:
             states:     A dict containing the updated states.
-            outputs:    A dict containing the output of the forward, usually
-                        some measurements of the states.
         """
-        return states, {}
+        return states
 
     def linear(self, dstates, states, **kwargs):
-        dstates, douputs = self.forward(dstates, **kwargs)
-        return dstates, douputs
+        dstates = self.forward(dstates, **kwargs)
+        return dstates
 
-    def adjoint(self, adj_states, adj_outputs, states, **kwargs):
+    def adjoint(self, adj_states, states, **kwargs):
         """
         Applies the adjoint of the forward
 
@@ -172,8 +170,6 @@ class StateKernel:
                            Each elements has the same dimension as the forward
                            state, as the forward kernel do not change the
                            dimension of the state.
-        :param adj_outputs: A dict containing the adjoint of the output variables
-
         :param states: The states of the system, before calling forward.
 
         :return:
@@ -200,13 +196,12 @@ class StateKernel:
 
     def backward_test(self, **kwargs):
 
-        # self.initialize()
         states = {self.state_defs[el].name: self.state_defs[el].grid.random()
                   for el in self.required_states}
-        fstates, outputs = self(copy.deepcopy(states), **kwargs)
+        fstates = self(copy.deepcopy(states), **kwargs)
         bstates = self.backward(fstates, **kwargs)
 
-        err = np.sum([states[el] - bstates[el] for el in bstates])
+        err = np.sum([np.sum(states[el] - bstates[el]) for el in bstates])
 
         print("Backpropagation test for Kernel %s: %.15e"
               % (self.__class__.__name__, err))
@@ -225,20 +220,16 @@ class StateKernel:
             dstates = {el: dstates[el]/10 for el in dstates}
             pstates = {el: states[el] + dstates[el] for el in states}
 
-            # self.initialize()
-            fpstates, poutputs = self(copy.deepcopy(pstates), **kwargs)
-            # self.initialize()
-            fstates, outputs = self(copy.deepcopy(states), **kwargs)
+            fpstates = self(copy.deepcopy(pstates), **kwargs)
+            fstates = self(copy.deepcopy(states), **kwargs)
 
-            lstates, loutputs, _ = self.call_linear(copy.deepcopy(dstates),
-                                                    copy.deepcopy(states),
-                                                    **kwargs)
+            lstates, _ = self.call_linear(copy.deepcopy(dstates),
+                                          copy.deepcopy(states),
+                                          **kwargs)
 
             err = 0
             for el in states:
                 err = np.max([err, np.max(np.abs(fpstates[el] - fstates[el] - lstates[el]))])
-            for el in outputs:
-                err = np.max([err, np.max(np.abs(poutputs[el] - outputs[el] - loutputs[el]))])
             errs.append([err])
 
         errmin = np.min(errs)
@@ -259,30 +250,24 @@ class StateKernel:
 
         """
 
-        # self.initialize()
         states = {el: self.state_defs[el].grid.random()
                   for el in self.required_states}
-        fstates, outputs = self(copy.deepcopy(states), **kwargs)
+        fstates = self(copy.deepcopy(states), **kwargs)
 
         dstates = {el: self.state_defs[el].grid.random()
                    for el in self.required_states}
-        dfstates, doutputs, _ = self.call_linear(copy.deepcopy(dstates),
-                                                 copy.deepcopy(states),
-                                                 **kwargs)
-
-        adj_states = {el: self.state_defs[el].grid.random()
-                      for el in self.required_states}
-        adj_outputs = {el: np.random.rand(*outputs[el].shape) for el in outputs}
-
-        fadj_states, _ = self.gradient(copy.deepcopy(adj_states),
-                                       copy.deepcopy(adj_outputs),
-                                       copy.deepcopy(fstates),
+        dfstates, _ = self.call_linear(copy.deepcopy(dstates),
+                                       copy.deepcopy(states),
                                        **kwargs)
 
+        adj_states = {el: np.random.random(fstates[el].shape)
+                      for el in fstates}
 
-        prod1 = np.sum([dfstates[el]*adj_states[el] for el in dfstates])
-        prod1 += np.sum([doutputs[el]*adj_outputs[el] for el in adj_outputs])
-        prod2 = np.sum([dstates[el]*fadj_states[el] for el in fadj_states])
+        fadj_states, _ = self.gradient(copy.deepcopy(adj_states),
+                                       copy.deepcopy(fstates), **kwargs)
+
+        prod1 = np.sum([np.sum(dfstates[el] * adj_states[el]) for el in dfstates])
+        prod2 = np.sum([np.sum(dstates[el] * fadj_states[el]) for el in fadj_states])
 
         print("Dot product test for Kernel %s: %.15e"
               % (self.__class__.__name__, prod1-prod2))
@@ -304,9 +289,9 @@ class RandKernel(StateKernel):
     def forward(self, states, **kwargs):
         x = states["x"]
         b = states["b"]
-        outputs = {"y": np.matmul(self.A2, x) * b}
         states["x"] = np.matmul(self.A1, x)
-        return states, outputs
+        states["y"] = np.matmul(self.A2, x) * b
+        return states
 
     def linear(self, dstates, states, **kwargs):
         x = states["x"]
@@ -314,16 +299,15 @@ class RandKernel(StateKernel):
         dx = dstates["x"]
         db = dstates["b"]
         dstates["x"] = np.matmul(self.A1, dx)
-        dy = np.matmul(self.A2, x) * db + np.matmul(self.A2, dx) * b
-        doutputs = {"y": dy}
+        dstates["y"] = np.matmul(self.A2, x) * db + np.matmul(self.A2, dx) * b
 
-        return dstates, doutputs
+        return dstates
 
-    def adjoint(self, adj_states, adj_outputs, states, **kwargs):
+    def adjoint(self, adj_states, states, **kwargs):
 
         x_adj = adj_states["x"]
         b_adj = adj_states["b"]
-        y_adj = adj_outputs["y"]
+        y_adj = adj_states["y"]
         x = states["x"]
         b = states["b"]
         A1t = np.transpose(self.A1)
@@ -359,38 +343,21 @@ class Sequence(StateKernel):
 
         if initialize:
             states = self.initialize(states)
-        outputs = {}
         for ii, kernel in enumerate(self.kernels):
-            states, outputsk = kernel(states, initialize=False, **kwargs)
-            for o in outputsk:
-                outputs[str(ii) + ":" + o] = outputsk[o]
-
-        return states, outputs
+            states = kernel(states, initialize=False, **kwargs)
+        return states
 
     def call_linear(self, dstates, states, **kwargs):
 
-        doutputs = {}
         for ii, kernel in enumerate(self.kernels):
-            dstates, doutputsk, states = kernel.call_linear(dstates, states,
-                                                            **kwargs)
-            for o in doutputsk:
-                doutputs[str(ii) + ":" + o] = doutputsk[o]
+            dstates, states = kernel.call_linear(dstates, states, **kwargs)
+        return dstates, states
 
-        return dstates, doutputs, states
-
-    def gradient(self, adj_states, adj_outputs, states, **kwargs):
+    def gradient(self, adj_states, states, **kwargs):
 
         n = len(self.kernels)
         for ii, kernel in enumerate(self.kernels[::-1]):
-            adj_outputks = {}
-            for o in adj_outputs:
-                kname, oname = o.split(":")
-                if int(kname) == n - ii - 1:
-                    adj_outputks[oname] = adj_outputs[o]
-            adj_states,  states = kernel.gradient(adj_states,
-                                                  adj_outputks,
-                                                  states,
-                                                  **kwargs)
+            adj_states, states = kernel.gradient(adj_states, states, **kwargs)
         return adj_states, states
 
     def backward(self, states, **kwargs):
@@ -453,38 +420,24 @@ class Propagator(StateKernel):
 
         if initialize:
             states = self.initialize(states)
-        outputs = [None for _ in range(self.nt)]
         for t in range(self.nt):
-            states, output = self.kernel(states, t=t,
-                                         initialize=False, **kwargs)
-            outputs[t] = output
+            states = self.kernel(states, t=t, initialize=False, **kwargs)
 
-        outputs = {el: np.stack([outputs[t][el] for t in range(self.nt)])
-                   for el in outputs[0]}
-        return states, outputs
+        return states
 
     def call_linear(self, dstates, states, **kwargs):
-        doutputs = [None for _ in range(self.nt)]
 
         for t in range(self.nt):
-            dstates, doutput, states = self.kernel.call_linear(dstates, states,
-                                                               t=t, **kwargs)
-            doutputs[t] = doutput
+            dstates, states = self.kernel.call_linear(dstates, states,
+                                                      t=t, **kwargs)
 
-        doutputs = {el: np.stack([doutputs[t][el] for t in range(self.nt)])
-                    for el in doutputs[0]}
+        return dstates, states
 
-        return dstates, doutputs, states
-
-    def gradient(self, adj_states, adj_outputs, states, **kwargs):
+    def gradient(self, adj_states, states, **kwargs):
 
         for t in range(self.nt-1, -1, -1):
-            adj_output = {el: adj_outputs[el][t, ...] for el in adj_outputs}
-            (adj_states, states) = self.kernel.gradient(adj_states,
-                                                        adj_output,
-                                                        states,
-                                                        t=t,
-                                                        **kwargs)
+            adj_states, states = self.kernel.gradient(adj_states, states, t=t,
+                                                      **kwargs)
 
         return adj_states, states
 
@@ -525,9 +478,9 @@ class Derivative(StateKernel):
     def forward(self, states, **kwargs):
         valid = self.state_defs["vx"].grid.valid
         states["vx"][valid] = Dmz(states["vx"])
-        return states, {}
+        return states
 
-    def adjoint(self, adj_states, adj_outputs, states, **kwargs):
+    def adjoint(self, adj_states, states, **kwargs):
         valid = self.state_defs["vx"].grid.valid
         adj_states["vx"] = Dmz_adj(adj_states["vx"])
         return adj_states
@@ -544,7 +497,7 @@ class Division(StateKernel):
     def forward(self, states, **kwargs):
 
         states["vx"] = states["vx"] / (states["vz"]+self.eps)
-        return states, {}
+        return states
 
     def linear(self, dstates, states, **kwargs):
         """
@@ -558,9 +511,9 @@ class Division(StateKernel):
         dstates["vx"] = dstates["vx"] / (states["vz"] + self.eps)
         dstates["vx"] += -states["vx"] / (states["vz"] + self.eps)**2 * dstates["vz"]
 
-        return dstates, {}
+        return dstates
 
-    def adjoint(self, adj_states, adj_outputs, states, **kwargs):
+    def adjoint(self, adj_states, states, **kwargs):
         adj_states["vz"] += -states["vx"] / (states["vz"] + self.eps)**2 * adj_states["vx"]
         adj_states["vx"] = adj_states["vx"] / (states["vz"] + self.eps)
         return adj_states
@@ -577,7 +530,7 @@ class Multiplication(StateKernel):
     def forward(self, states, **kwargs):
 
         states["vx"] = states["vx"] * states["vz"]
-        return states, {}
+        return states
 
     def linear(self, dstates, states, **kwargs):
         """
@@ -590,9 +543,9 @@ class Multiplication(StateKernel):
         dstates["vx"] = dstates["vx"] * states["vz"]
         dstates["vx"] += states["vx"] * dstates["vz"]
 
-        return dstates, {}
+        return dstates
 
-    def adjoint(self, adj_states, adj_outputs, states, **kwargs):
+    def adjoint(self, adj_states, states, **kwargs):
         adj_states["vz"] += states["vx"] * adj_states["vx"]
         adj_states["vx"] = adj_states["vx"] * states["vz"]
         return adj_states
@@ -606,7 +559,7 @@ class ReversibleKernel(StateKernel):
         return self.forward(states, **kwargs)
 
     def backward(self, states, **kwargs):
-        states, _ = self.forward(states, backpropagate=True, **kwargs)
+        states = self.forward(states, backpropagate=True, **kwargs)
         return states
 
 
@@ -650,7 +603,7 @@ class UpdateVelocity(ReversibleKernel):
             vx[valid] -= (sxx_x + sxz_z) * cv[valid]
             vz[valid] -= (szz_z + sxz_x) * cv[valid]
 
-        return states, {}
+        return states
 
     def linear(self, dstates, states, **kwargs):
 
@@ -675,9 +628,9 @@ class UpdateVelocity(ReversibleKernel):
         dstates["vx"][valid] += (sxx_x + sxz_z) * dcv[valid]
         dstates["vz"][valid] += (szz_z + sxz_x) * dcv[valid]
 
-        return dstates, {}
+        return dstates
 
-    def adjoint(self, adj_states, adj_outputs, states, **kwargs):
+    def adjoint(self, adj_states, states, **kwargs):
         """
         Adjoint update the velocity for 2D P-SV isotropic elastic wave
         propagation.
@@ -767,7 +720,7 @@ class UpdateStress(ReversibleKernel):
             szz[valid] -= csM[valid] * (vx_x + vz_z) - 2.0 * csu[valid] * vx_x
             sxz[valid] -= csu[valid] * (vx_z + vz_x)
 
-        return states, {}
+        return states
 
     def linear(self, dstates, states, **kwargs):
 
@@ -797,9 +750,9 @@ class UpdateStress(ReversibleKernel):
         dszz[valid] += dcsM[valid] * (vx_x + vz_z) - 2.0 * dcsu[valid] * vx_x
         dsxz[valid] += dcsu[valid] * (vx_z + vz_x)
 
-        return dstates, {}
+        return dstates
 
-    def adjoint(self, adj_states, adj_outputs, states, **kwargs):
+    def adjoint(self, adj_states, states, **kwargs):
         """
         Adjoint update the velocity for 2D P-SV isotropic elastic wave
         propagation.
@@ -901,11 +854,11 @@ class Cerjan(StateKernel):
             states[el][valid][:, :self.nab] *= tapert[::-1]
             states[el][valid][:, -self.nab:] *= tapert
 
-        return states, {}
+        return states
 
-    def adjoint(self, adj_states, adj_outputs, states, **kwargs):
+    def adjoint(self, adj_states, states, **kwargs):
 
-        return self.forward(adj_states, **kwargs)[0]
+        return self.forward(adj_states, **kwargs)
 
     def backward(self, states, **kwargs):
 
@@ -921,26 +874,27 @@ class Cerjan(StateKernel):
         return states
 
 
-class Receiver(StateKernel):
+class Receiver(ReversibleKernel):
 
     def __init__(self, required_states, state_defs=None, **kwargs):
         super().__init__(state_defs, **kwargs)
         self.required_states = required_states
 
-    def forward(self, states, rec_pos=(), **kwargs):
-        outputs = {}
-        for r in rec_pos:
-            outputs[r["type"]] = states[r["type"]][r["z"], r["x"]]
-        return states, outputs
+    def forward(self, states, rec_pos=(), t=0, **kwargs):
 
-    def adjoint(self, adj_states, adj_outputs, states, rec_pos=(), **kwargs):
+        for ii, r in enumerate(rec_pos):
+            states[r["type"]+"out"][t, ii] += states[r["type"]][r["z"], r["x"]]
+        return states
 
-        for r in rec_pos:
-            adj_states[r["type"]][r["z"], r["x"]] += adj_outputs[r["type"]]
+    def adjoint(self, adj_states, states, rec_pos=(), t=0, **kwargs):
 
+        for ii, r in enumerate(rec_pos):
+            adj_states[r["type"]][r["z"], r["x"]] += adj_states[r["type"]+"out"][t, ii]
         return adj_states
 
-    def backward(self, states, **kwargs):
+    def backward(self, states, rec_pos=(), t=0, **kwargs):
+        for ii, r in enumerate(rec_pos):
+            states[r["type"]+"out"][t, ii] -= states[r["type"]][r["z"], r["x"]]
         return states
 
 
@@ -959,12 +913,12 @@ class Source(ReversibleKernel):
         for ii, s in enumerate(src_pos):
             states[s["type"]][s["pos"]] += sign * s["signal"][t]
 
-        return states, {}
+        return states
 
     def linear(self, dstates, states, **kwargs):
-        return dstates, {}
+        return dstates
 
-    def adjoint(self, adj_states, adj_outputs, states, **kwargs):
+    def adjoint(self, adj_states, states, **kwargs):
         return adj_states
 
 
@@ -1010,7 +964,7 @@ class FreeSurface(StateKernel):
         h = -((g - f) * (g - f) * vxx / g) - ((g - f) * vzz)
         sxx[pad:pad+1, pad:-pad] += h
 
-        return states, {}
+        return states
 
     def linear(self, dstates, states, **kwargs):
 
@@ -1041,9 +995,9 @@ class FreeSurface(StateKernel):
         # dh = vzz * df - vzz * dg
         dstates["sxx"][pad:pad+1, pad:-pad] += dh
 
-        return dstates, {}
+        return dstates
 
-    def adjoint(self, adj_states, adj_outputs, states, **kwargs):
+    def adjoint(self, adj_states, states, **kwargs):
 
         adj_sxx = adj_states["sxx"]
         adj_sxz = adj_states["sxz"]
@@ -1103,7 +1057,7 @@ class ScaledParameters(ReversibleKernel):
         self.updated_states = ["cv", "csu", "csM"]
         self.sc = 1.0
 
-    def forward(self, states, dt=0.3, dx=2.0, **kwargs):
+    def forward(self, states, dt=0.1, dx=2.0, **kwargs):
 
         vs = states["csu"]
         vp = states["csM"]
@@ -1120,9 +1074,9 @@ class ScaledParameters(ReversibleKernel):
         states["csM"] = csM
         states["csu"] = csu
 
-        return states, {}
+        return states
 
-    def linear(self, dstates, states, dt=0.3, dx=2.0, **kwargs):
+    def linear(self, dstates, states, dt=0.1, dx=2.0, **kwargs):
 
         vs = states["csu"]
         vp = states["csM"]
@@ -1143,9 +1097,9 @@ class ScaledParameters(ReversibleKernel):
         dstates["csM"] = dcsM
         dstates["csu"] = dcsu
 
-        return dstates, {}
+        return dstates
 
-    def adjoint(self, adj_states, adj_outputs, states, dt=0.3, dx=2.0, **kwargs):
+    def adjoint(self, adj_states, states, dt=0.1, dx=2.0, **kwargs):
 
         vs = states["csu"]
         vp = states["csM"]
@@ -1170,7 +1124,7 @@ class ScaledParameters(ReversibleKernel):
         return adj_states
 
 
-    def backward(self, states, dt=0.3, dx=2.0, **kwargs):
+    def backward(self, states, dt=0.1, dx=2.0, **kwargs):
 
         cv = states["cv"]
         csM = states["csM"]
@@ -1190,7 +1144,7 @@ class ScaledParameters(ReversibleKernel):
 
 
 
-        return states, {}
+        return states
 
 
 class Initializer(StateKernel):
@@ -1211,15 +1165,11 @@ class Initializer(StateKernel):
                 states[el] = np.zeros(self.state_defs[el].grid.shape)
                 self.updated_states.append(el)
 
-        return states, {}
+        return states
 
-    def adjoint(self, adj_states, adj_outputs, states, **kwargs):
+    def adjoint(self, adj_states, states, **kwargs):
         adj_states = {el: adj_states[el] for el in self.to_diff}
         return adj_states
-
-
-# class L2Norm(StateKernel):
-
 
 
 
@@ -1399,8 +1349,10 @@ if __name__ == '__main__':
     der = Derivative({"vx": State("vx", grid=Grid(shape=(10, 10), pad=2))})
     der.dot_test()
 
-
+    nrec = 1
+    nt = 3
     grid2D = Grid(shape=(10, 10))
+    gridout = Grid(shape=(nt, nrec))
     defs = {"vx": State("vx", grid=grid2D),
             "vz": State("vz", grid=grid2D),
             "sxx": State("sxx", grid=grid2D),
@@ -1409,6 +1361,7 @@ if __name__ == '__main__':
             "cv": State("cv", grid=grid2D),
             "csu": State("csu", grid=grid2D),
             "csM": State("csM", grid=grid2D),
+            "vxout": State("vxout", grid=gridout)
            }
 
     # scale = ScaledParameters(state_defs=defs)
@@ -1424,29 +1377,30 @@ if __name__ == '__main__':
     stepper = Sequence([Source(required_states=["vx"]),
                         UpdateVelocity(),
                         Cerjan(abs_states=["vx", "vz"], freesurf=1),
-                        Receiver(required_states=["vx"]),
+                        Receiver(required_states=["vx", "vxout"]),
                         UpdateStress(),
                         FreeSurface(),
                         Cerjan(abs_states=["sxx", "szz", "sxz"], freesurf=1),
                         ],
                        state_defs=defs)
-    prop = Propagator(stepper, 2)
-    prop.backward_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
-                       src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*5}])
-    prop.linear_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
-                     src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*5}])
-    prop.dot_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
-                  src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*5}])
+    prop = Propagator(stepper, nt)
+    # prop.backward_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
+    #                    src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*nt}])
+    # prop.linear_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
+    #                  src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*nt}])
+    # prop.dot_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
+    #               src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*nt}])
 
-    # psv2D = Sequence([ScaledParameters(),
-    #                   prop],
-    #                  state_defs=defs)
+
+    psv2D = Sequence([ScaledParameters(),
+                      prop],
+                     state_defs=defs)
     # psv2D.backward_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
-    #                     src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*5}])
+    #                     src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*nt}])
     # psv2D.linear_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
-    #                   src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*5}])
-    # psv2D.dot_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
-    #                src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*5}])
+    #                   src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*nt}])
+    psv2D.dot_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
+                   src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*nt}])
 
 
 
