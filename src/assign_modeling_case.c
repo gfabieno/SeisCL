@@ -1042,8 +1042,8 @@ int assign_modeling_case(model * m){
     
     /*___________________Assign seismic variables__________________________ */
     m->nvars=15;
-    if (m->ABS_TYPE==1)
-    m->nvars+=18;
+    if (m->NAB<1) {m->ABS_TYPE=0;}
+    if (m->ABS_TYPE==1) {m->nvars+=18;}
     GMALLOC(m->vars, sizeof(variable)*m->nvars);
     
     ind=0;

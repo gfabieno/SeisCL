@@ -1222,7 +1222,7 @@ int kernel_fcom_out(device * dev,
         }
     }
     
-    char prec[6];
+    char prec[7];
     
     if (dev->FP16==0){
         sprintf(prec, "float");
@@ -1448,7 +1448,7 @@ int kernel_fcom_in(device * dev,
         }
     }
     
-    char prec[6];
+    char prec[7];
     int div;
     if (dev->FP16==0){
         sprintf(prec, "float");
