@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from matplotlib import animation
 import math
 import copy
+from bigfloat import half_precision, BigFloat
 #import copy
 #import os.path
 
@@ -80,7 +81,7 @@ def Dmz_adj(var):
 
 class Grid:
 
-    def __init__(self, shape=(10, 10), pad=2, dtype=np.float64, **kwargs):
+    def __init__(self, shape=(10, 10), pad=2, dtype=np.float32, **kwargs):
         self.shape = shape
         self.pad = pad
         self.valid = tuple([slice(self.pad, -self.pad)] * len(shape))
@@ -88,7 +89,7 @@ class Grid:
         self.eps = np.finfo(dtype).eps
 
     def empty(self):
-        return np.zeros(*self.shape)
+        return np.zeros(self.shape, dtype=self.dtype)
 
     def random(self):
         state = np.zeros(self.shape, dtype=self.dtype)
@@ -124,11 +125,12 @@ class StateKernel:
                                      for el in self.updated_states})
         return self.forward(states, **kwargs)
 
-    def initialize(self, states):
+    def initialize(self, states, empty_cache=True):
         for el in self.required_states:
             if el not in states:
                 states[el] = self.state_defs[el].grid.empty()
-        self._forward_states = []
+        if empty_cache:
+            self._forward_states = []
         return states
 
     def call_linear(self, dstates, states, **kwargs):
@@ -138,8 +140,10 @@ class StateKernel:
 
         return dstates, states
 
-    def gradient(self, adj_states, states, **kwargs):
+    def gradient(self, adj_states, states, initialize=True, **kwargs):
 
+        if initialize:
+            adj_states = self.initialize(adj_states, empty_cache=False)
         states = self.backward(states, **kwargs)
         adj_states = self.adjoint(adj_states, states, **kwargs)
         return adj_states, states
@@ -264,7 +268,9 @@ class StateKernel:
                       for el in fstates}
 
         fadj_states, _ = self.gradient(copy.deepcopy(adj_states),
-                                       copy.deepcopy(fstates), **kwargs)
+                                       copy.deepcopy(fstates),
+                                       initialize=False,
+                                       **kwargs)
 
         prod1 = np.sum([np.sum(dfstates[el] * adj_states[el]) for el in dfstates])
         prod2 = np.sum([np.sum(dstates[el] * fadj_states[el]) for el in fadj_states])
@@ -333,10 +339,11 @@ class Sequence(StateKernel):
             if state_defs is not None:
                 kernel.state_defs = state_defs
 
-    def initialize(self, states):
-        states = super(Sequence, self).initialize(states)
+    def initialize(self, states, empty_cache=False,):
+        states = super(Sequence, self).initialize(states,
+                                                  empty_cache=empty_cache)
         for kernel in self.kernels:
-            states = kernel.initialize(states)
+            states = kernel.initialize(states, empty_cache=empty_cache)
         return states
             
     def __call__(self, states, initialize=True, **kwargs):
@@ -353,11 +360,14 @@ class Sequence(StateKernel):
             dstates, states = kernel.call_linear(dstates, states, **kwargs)
         return dstates, states
 
-    def gradient(self, adj_states, states, **kwargs):
+    def gradient(self, adj_states, states, initialize=True, **kwargs):
 
+        if initialize:
+            adj_states = self.initialize(adj_states, empty_cache=False)
         n = len(self.kernels)
         for ii, kernel in enumerate(self.kernels[::-1]):
-            adj_states, states = kernel.gradient(adj_states, states, **kwargs)
+            adj_states, states = kernel.gradient(adj_states, states,
+                                                 initialize=False, **kwargs)
         return adj_states, states
 
     def backward(self, states, **kwargs):
@@ -411,9 +421,10 @@ class Propagator(StateKernel):
         self.required_states = kernel.required_states
         self.updated_states = kernel.updated_states
 
-    def initialize(self, states):
-        states = super(Propagator, self).initialize(states)
-        states = self.kernel.initialize(states)
+    def initialize(self, states, empty_cache=True):
+        states = super(Propagator, self).initialize(states,
+                                                    empty_cache=empty_cache)
+        states = self.kernel.initialize(states, empty_cache=empty_cache)
         return states
 
     def __call__(self, states, initialize=True, **kwargs):
@@ -433,10 +444,13 @@ class Propagator(StateKernel):
 
         return dstates, states
 
-    def gradient(self, adj_states, states, **kwargs):
+    def gradient(self, adj_states, states, initialize=True, **kwargs):
 
+        if initialize:
+            adj_states = self.initialize(adj_states, empty_cache=False)
         for t in range(self.nt-1, -1, -1):
             adj_states, states = self.kernel.gradient(adj_states, states, t=t,
+                                                      initialize=False,
                                                       **kwargs)
 
         return adj_states, states
@@ -813,14 +827,16 @@ class UpdateStress(ReversibleKernel):
 
 class Cerjan(StateKernel):
 
-    def __init__(self, state_defs=None, freesurf=False, abpc=4.0, nab=2,
+    def __init__(self, state_defs=None, freesurf=False, abpc=4.0, nab=2, pad=2,
                  required_states=(), **kwargs):
         super().__init__(state_defs, **kwargs)
         self.abpc = abpc
         self.nab = nab
+        self.pad = pad
         self.required_states = required_states
         self.updated_states = required_states
-        self.taper = np.exp(-np.log(1.0-abpc/100)/nab**2 * np.arange(nab) **2)
+        self.taper = np.exp(np.log(1.0-abpc/100)/nab**2 * np.arange(nab) **2)
+        self.taper = np.concatenate([self.taper,  self.taper[-pad:][::-1]])
         self.taper = np.expand_dims(self.taper, -1)
         self.freesurf = freesurf
 
@@ -831,12 +847,12 @@ class Cerjan(StateKernel):
         saved = {}
         for el in self.updated_states:
             saved[el] = []
-            valid = self.state_defs[el].grid.valid
+            b = self.nab + self.pad
             if not self.freesurf:
-                saved[el].append(copy.deepcopy(states[el][valid][:self.nab, :]))
-            saved[el].append(copy.deepcopy(states[el][valid][-self.nab:, :]))
-            saved[el].append(copy.deepcopy(states[el][valid][:, :self.nab]))
-            saved[el].append(copy.deepcopy(states[el][valid][:, -self.nab:]))
+                saved[el].append(copy.deepcopy(states[el][:b, :]))
+            saved[el].append(copy.deepcopy(states[el][-b:, :]))
+            saved[el].append(copy.deepcopy(states[el][:, :b]))
+            saved[el].append(copy.deepcopy(states[el][:, -b:]))
 
         self._forward_states.append(saved)
 
@@ -845,14 +861,13 @@ class Cerjan(StateKernel):
     def forward(self, states, **kwargs):
 
         for el in self.required_states:
-            valid = self.state_defs[el].grid.valid
             if not self.freesurf:
-                states[el][valid][:self.nab, :] *= self.taper[::-1]
-            states[el][valid][-self.nab:, :] *= self.taper
+                states[el][:self.nab+2, :] *= self.taper[::-1]
+            states[el][-self.nab-2:, :] *= self.taper
 
             tapert = np.transpose(self.taper)
-            states[el][valid][:, :self.nab] *= tapert[::-1]
-            states[el][valid][:, -self.nab:] *= tapert
+            states[el][:, :self.nab+2] *= tapert[:, ::-1]
+            states[el][:, -self.nab-2:] *= tapert
 
         return states
 
@@ -864,12 +879,12 @@ class Cerjan(StateKernel):
 
         torestore = self._forward_states.pop()
         for el in torestore:
-            valid = self.state_defs[el].grid.valid
+            b = self.nab + self.pad
             if not self.freesurf:
-                states[el][valid][:self.nab, :] = torestore[el][0]
-            states[el][valid][-self.nab:, :] = torestore[el][-3]
-            states[el][valid][:, :self.nab] = torestore[el][-2]
-            states[el][valid][:, -self.nab:] = torestore[el][-1]
+                states[el][:b, :] = torestore[el][0]
+            states[el][-b:, :] = torestore[el][-3]
+            states[el][:, :b] = torestore[el][-2]
+            states[el][:, -b:] = torestore[el][-1]
 
         return states
 
@@ -882,19 +897,34 @@ class Receiver(ReversibleKernel):
 
     def forward(self, states, rec_pos=(), t=0, **kwargs):
 
-        for ii, r in enumerate(rec_pos):
-            states[r["type"]+"out"][t, ii] += states[r["type"]][r["z"], r["x"]]
+        inds = {}
+        for r in rec_pos:
+            if r["type"] in inds:
+                inds[r["type"]] += 1
+            else:
+                inds[r["type"]] = 0
+            states[r["type"]+"out"][t, inds[r["type"]]] += states[r["type"]][r["z"], r["x"]]
         return states
 
     def adjoint(self, adj_states, states, rec_pos=(), t=0, **kwargs):
 
-        for ii, r in enumerate(rec_pos):
-            adj_states[r["type"]][r["z"], r["x"]] += adj_states[r["type"]+"out"][t, ii]
+        inds = {}
+        for r in rec_pos:
+            if r["type"] in inds:
+                inds[r["type"]] += 1
+            else:
+                inds[r["type"]] = 0
+            adj_states[r["type"]][r["z"], r["x"]] += adj_states[r["type"]+"out"][t, inds[r["type"]]]
         return adj_states
 
     def backward(self, states, rec_pos=(), t=0, **kwargs):
-        for ii, r in enumerate(rec_pos):
-            states[r["type"]+"out"][t, ii] -= states[r["type"]][r["z"], r["x"]]
+        inds = {}
+        for r in rec_pos:
+            if r["type"] in inds:
+                inds[r["type"]] += 1
+            else:
+                inds[r["type"]] = 0
+            states[r["type"]+"out"][t, inds[r["type"]]] -= states[r["type"]][r["z"], r["x"]]
         return states
 
 
@@ -1172,7 +1202,21 @@ class Initializer(StateKernel):
         return adj_states
 
 
+class PrecisionTester(StateKernel):
 
+    def __init__(self, state_defs=None, **kwargs):
+        super().__init__(state_defs, **kwargs)
+        self.required_states = ["vx", "vz", "sxx", "szz", "sxz"]
+        self.updated_states = []
+
+    def forward(self, states, **kwargs):
+        with half_precision:
+            for el in self.required_states:
+                for ii in range(states[el].shape[0]):
+                    for jj in range(states[el].shape[1]):
+                        states[el][ii, jj] = BigFloat(float(states[el][ii, jj]))
+
+        return states
 
 class Seis2D:
     """
@@ -1350,7 +1394,8 @@ if __name__ == '__main__':
     der.dot_test()
 
     nrec = 1
-    nt = 3
+    nt = 100
+    nab = 48
     grid2D = Grid(shape=(10, 10))
     gridout = Grid(shape=(nt, nrec))
     defs = {"vx": State("vx", grid=grid2D),
@@ -1361,37 +1406,20 @@ if __name__ == '__main__':
             "cv": State("cv", grid=grid2D),
             "csu": State("csu", grid=grid2D),
             "csM": State("csM", grid=grid2D),
-            "vxout": State("vxout", grid=gridout)
+            "vxout": State("vxout", grid=gridout),
+            "vzout": State("vzout", grid=gridout)
            }
-
-    # scale = ScaledParameters(state_defs=defs)
-    # scale.linear_test()
-    # scale.backward_test()
-    # scale.dot_test()
-
-    # init = Initializer(state_defs=defs)
-    # init.linear_test(cv=np.random.random((10, 10)))
-    # init.backward_test(cv=np.random.random((10, 10)))
-    # init.dot_test(cv=np.random.random((10, 10)))
 
     stepper = Sequence([Source(required_states=["vx"]),
                         UpdateVelocity(),
-                        Cerjan(abs_states=["vx", "vz"], freesurf=1),
-                        Receiver(required_states=["vx", "vxout"]),
+                        Cerjan(required_states=["vx", "vz"], freesurf=1, nab=nab),
+                        Receiver(required_states=["vx", "vxout", "vz", "vzout"]),
                         UpdateStress(),
                         FreeSurface(),
-                        Cerjan(abs_states=["sxx", "szz", "sxz"], freesurf=1),
+                        Cerjan(required_states=["sxx", "szz", "sxz"], freesurf=1, nab=nab),
                         ],
                        state_defs=defs)
     prop = Propagator(stepper, nt)
-    # prop.backward_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
-    #                    src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*nt}])
-    # prop.linear_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
-    #                  src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*nt}])
-    # prop.dot_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
-    #               src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*nt}])
-
-
     psv2D = Sequence([ScaledParameters(),
                       prop],
                      state_defs=defs)
@@ -1399,93 +1427,67 @@ if __name__ == '__main__':
     #                     src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*nt}])
     # psv2D.linear_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
     #                   src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*nt}])
-    psv2D.dot_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
-                   src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*nt}])
+    # psv2D.dot_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
+    #                src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*nt}])
 
 
+    nt = 7500
+    prop.nt = nt
+    rec_pos = [{"type": "vx", "z": 3, "x": x} for x in range(50, 250)]
+    rec_pos += [{"type": "vz", "z": 3, "x": x} for x in range(50, 250)]
+    grid2D.shape = (160, 300)
+    gridout.shape = (nt, len(rec_pos)//2)
+    dx = 1.0
+    dt = 0.0001
 
+    csu = np.full(grid2D.shape, 300.0)
+    cv = np.full(grid2D.shape, 1800.0)
+    csM = np.full(grid2D.shape, 1500.0)
+    csu[80:, :] = 600
+    csM[80:, :] = 2000
+    cv[80:, :] = 2000
+    csu0 = copy.deepcopy(csu)
+    csu[5:10, 145:155] *= 1.05
 
-    # grid2D = Grid(shape=(10, 10))
-    # rho = Parameter(grid=grid2D)
-    # vp = Parameter(grid=grid2D)
-    # vs = Parameter(grid=grid2D)
-    # rho, M, mu = ToModulus()
-    # cv, csM, csu = ScaledInput(vp, vs, rho)
+    states = psv2D({"cv": cv,
+                    "csu": csu,
+                    "csM": csM},
+                   dx=dx,
+                   dt=dt,
+                   rec_pos=rec_pos,
+                   src_pos=[{"type": "vz", "pos": (2, 50), "signal": ricker(10, dt, nt)}])
+    # plt.imshow(states["vx"])
+    # plt.show()
+    #
+    vxobs = states["vxout"]
+    vzobs = states["vzout"]
+    clip = 0.01
+    vmin = np.min(states["vxout"]) * 0.1
+    vmax=-vmin
+    plt.imshow(states["vxout"], aspect="auto", vmin=vmin, vmax=vmax)
+    plt.show()
 
+    states = psv2D({"cv": cv,
+                    "csu": csu0,
+                    "csM": csM},
+                   dx=dx,
+                   dt=dt,
+                   rec_pos=rec_pos,
+                   src_pos=[{"type": "vz", "pos": (3, 50), "signal": ricker(10, dt, nt)}])
 
-    # vp = np.zeros([500, 500]) + 3500
-    # vs = np.zeros([500, 500]) + 2000
-    # rho = np.zeros([500, 500]) + 2000
-    # vp[0:220,:]=4000
-    # vs[0:220,:]=1600
-    # dt = 0.0003
-    # dx = 3
-    # src_pos = np.array([250, 250])
-    # rec_pos = np.array([])
-    # src = ricker(10, 0.001, 1700)
-    # src = src
-    
-    
-    
-    # file = open('../marmousi/madagascar/vel.asc','r')
-    # vel= [float(el) for el in file]
-    # vp = np.transpose(np.reshape( np.array(vel), [2301, 751]))
-    # vp=vp[::5,::5]
-    # rho = vp*0+2000
-    # vs = vp*0
-    # dt = 0.002
-    # dx = 20
-    # src_pos = np.array([5, 250])
-    # rec_pos = np.array([])
-    # src = ricker(7.5, dt, 1400)
-    # src = src
+    vxmod = states["vxout"]
+    vzmod = states["vzout"]
+    clip = 0.01
+    vmin = np.min(vxmod) * 0.1
+    vmax=-vmin
+    plt.imshow(vxmod, aspect="auto", vmin=vmin, vmax=vmax)
+    plt.show()
+    grads, states = psv2D.gradient({"vxout": vxmod-vxobs, "vzout": vzmod-vzobs}, states,
+                                   dx=dx,
+                                   dt=dt,
+                                   rec_pos=rec_pos,
+                                   src_pos=[{"type": "vz", "pos": (3, 50), "signal": ricker(10, dt, nt)}])
 
-#
-#     model32 = Seis2D(vp, vs, rho, dt, dx, src_pos, rec_pos, src, dtype=np.float32, dtypepar=np.float32)
-#     model16 = Seis2D(vp, vs, rho, dt, dx, src_pos, rec_pos, src, dtype=np.float16, dtypepar=np.float16)
-#
-# #     model.propagate()
-#     model16.movie()
+    plt.imshow(grads["csu"])
+    plt.show()
 
-#    model32.init_seis()
-#    model16.init_seis()
-#
-#    for t in range(0, int(4.0/20/dt) - 1):
-#        model32.t = t
-#        model32.update_v()
-#        model32.update_s()
-#
-#
-#    model16.vx= (model32.vx).astype(model16.vx.dtype)
-#    model16.vz = (model32.vz).astype(model16.vx.dtype)
-#    model16.sxx = (model32.sxx).astype(model16.vx.dtype)
-#    model16.szz = (model32.szz).astype(model16.vx.dtype)
-#    model16.sxz = (model32.sxz).astype(model16.vx.dtype)
-#    model16.src=model16.src*0
-#    model32.src = model32.src * 0
-#
-#    fig = plt.figure(figsize=(12, 12))
-#    im = plt.imshow(model16.vx, animated=True, vmin=np.min(src) / 5000, vmax=np.max(src) / 5000)
-#    model16.t = 0
-#    model32.t = 0
-#
-#    def init():
-#        im.set_array(model32.vz - model16.vz)
-#        return im,
-#
-#
-#    def animate(t):
-#        model16.t = t
-#        model32.t = t
-#        model16.update_v()
-#        model16.update_s()
-#        model32.update_v()
-#        model32.update_s()
-#        im.set_array(model16.vz -model32.vz)
-#        print(np.max(model32.vx - model16.vx) / np.max(model32.vx))
-#        return [im]
-#
-#
-#    anim = animation.FuncAnimation(fig, animate, init_func=init,
-#                                   frames=model16.NT - 1, interval=20, blit=False, repeat=False)
-#    plt.show()
