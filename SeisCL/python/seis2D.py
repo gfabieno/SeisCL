@@ -108,7 +108,7 @@ class State:
         self.name = name
         self.grid = grid
 
-    def initialize(self, data = None, method="zero"):
+    def initialize(self, data=None, method="zero"):
 
         if data is not None:
             data = self.grid.assign_data(data)
