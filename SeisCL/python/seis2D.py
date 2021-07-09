@@ -112,7 +112,7 @@ class State:
 
         if data is not None:
             data = self.grid.assign_data(data)
-        if method == "zero":
+        elif method == "zero":
             data = self.grid.zero()
         elif method == "random":
             data = self.grid.random()
@@ -126,11 +126,10 @@ class StateKernel:
     """
 
     def __init__(self, state_defs=None, **kwargs):
-        self.state_defs = state_defs
+        self._state_defs = state_defs
         self._forward_states = []
         self.updated_states = []
         self.required_states = []
-        self.state_defs = state_defs
 
     def __call__(self, states, initialize=True, **kwargs):
 
@@ -154,7 +153,7 @@ class StateKernel:
             if el not in states:
                 states[el] = self.state_defs[el].initialize(method=method)
             elif type(states[el]) is not self.state_defs[el].grid.backend:
-                states[el] = self.state_defs[el].initialize(states[el])
+                states[el] = self.state_defs[el].initialize(data=states[el])
         if empty_cache:
             self._forward_states = []
         return states
