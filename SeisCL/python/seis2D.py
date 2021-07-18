@@ -101,6 +101,10 @@ class Grid:
     def assign_data(self, data):
         return data.astype(self.dtype)
 
+    @staticmethod
+    def np(array):
+        return array
+
 
 class State:
 
@@ -128,8 +132,10 @@ class StateKernel:
     def __init__(self, state_defs=None, **kwargs):
         self._state_defs = state_defs
         self._forward_states = []
-        self.updated_states = []
-        self.required_states = []
+        if not hasattr(self, 'updated_states'):
+            self.updated_states = []
+        if not hasattr(self, 'required_states'):
+            self.required_states = []
 
     def __call__(self, states, initialize=True, **kwargs):
 
@@ -231,7 +237,9 @@ class StateKernel:
                        initialize=False, **kwargs)
         bstates = self.backward(fstates, **kwargs)
 
-        err = np.sum([np.sum(states[el] - bstates[el]) for el in bstates])
+
+        err = np.sum([self.state_defs[el].grid.np(states[el] - bstates[el])
+                      for el in bstates])
 
         print("Backpropagation test for Kernel %s: %.15e"
               % (self.__class__.__name__, err))
@@ -261,9 +269,9 @@ class StateKernel:
 
             err = 0
             for el in states:
-                err = np.max([err, np.max(np.abs(fpstates[el]
-                                          - fstates[el]
-                                          - lstates[el]))])
+                errii = fpstates[el] - fstates[el] - lstates[el]
+                errii = self.state_defs[el].grid.np(errii)
+                err = np.max([err, np.max(errii)])
             errs.append([err])
 
         errmin = np.min(errs)
@@ -304,9 +312,9 @@ class StateKernel:
                                        initialize=False,
                                        **kwargs)
 
-        prod1 = np.sum([np.sum(dfstates[el] * adj_states[el])
+        prod1 = np.sum([np.sum(self.state_defs[el].grid.np(dfstates[el] * adj_states[el]))
                         for el in dfstates])
-        prod2 = np.sum([np.sum(dstates[el] * fadj_states[el])
+        prod2 = np.sum([np.sum(self.state_defs[el].grid.np(dstates[el] * fadj_states[el]))
                         for el in dstates])
 
         print("Dot product test for Kernel %s: %.15e"
