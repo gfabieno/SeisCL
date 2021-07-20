@@ -131,6 +131,7 @@ class StateKernel:
 
     def __init__(self, state_defs=None, **kwargs):
         self._state_defs = state_defs
+        self.state_defs = state_defs
         self._forward_states = []
         if not hasattr(self, 'updated_states'):
             self.updated_states = []
@@ -171,12 +172,17 @@ class StateKernel:
 
         return dstates, states
 
-    def gradient(self, adj_states, states, initialize=True, **kwargs):
+    def gradient(self, adj_states, states, initialize=True, adj_trans=True,
+                 **kwargs):
 
         if initialize:
             adj_states = self.initialize(adj_states, empty_cache=False)
         states = self.backward(states, **kwargs)
+        if adj_trans:
+            adj_states = self.adjoint_trans_pre(adj_states, states, **kwargs)
         adj_states = self.adjoint(adj_states, states, **kwargs)
+        if adj_trans:
+            adj_states = self.adjoint_trans_post(adj_states, states, **kwargs)
         return adj_states, states
 
     def forward(self, states, **kwargs):
@@ -212,6 +218,12 @@ class StateKernel:
         """
         return adj_states
 
+    def adjoint_trans_pre(self, adj_states, states, **kwargs):
+        return adj_states
+
+    def adjoint_trans_post(self, adj_states, states, **kwargs):
+        return adj_states
+
     def backward(self, states, **kwargs):
         """
         Reconstruct the input states from the output of forward
@@ -238,7 +250,7 @@ class StateKernel:
         bstates = self.backward(fstates, **kwargs)
 
 
-        err = np.sum([self.state_defs[el].grid.np(states[el] - bstates[el])
+        err = np.sum([np.sum(self.state_defs[el].grid.np(states[el] - bstates[el]))
                       for el in bstates])
 
         print("Backpropagation test for Kernel %s: %.15e"
@@ -323,8 +335,6 @@ class StateKernel:
         return prod1 - prod2
 
 
-
-
 class RandKernel(StateKernel):
 
     def __init__(self, **kwargs):
@@ -393,7 +403,6 @@ class Sequence(StateKernel):
         for kernel in self.kernels:
             kernel.state_defs = val
 
-
     def initialize(self, states, empty_cache=False, method="zero", **kwargs):
         states = super(Sequence, self).initialize(states,
                                                   empty_cache=empty_cache,
@@ -405,7 +414,7 @@ class Sequence(StateKernel):
                                        method=method,
                                        **kwargs)
         return states
-            
+
     def __call__(self, states, initialize=True, **kwargs):
 
         if initialize:
@@ -420,14 +429,16 @@ class Sequence(StateKernel):
             dstates, states = kernel.call_linear(dstates, states, **kwargs)
         return dstates, states
 
-    def gradient(self, adj_states, states, initialize=True, **kwargs):
+    def gradient(self, adj_states, states, initialize=True,
+                 adj_trans=True, **kwargs):
 
         if initialize:
             adj_states = self.initialize(adj_states, empty_cache=False)
-        n = len(self.kernels)
         for ii, kernel in enumerate(self.kernels[::-1]):
             adj_states, states = kernel.gradient(adj_states, states,
-                                                 initialize=False, **kwargs)
+                                                 initialize=False,
+                                                 adj_trans=False,
+                                                 **kwargs)
         return adj_states, states
 
     def backward(self, states, **kwargs):
@@ -1321,10 +1332,10 @@ if __name__ == '__main__':
 
 
     nrec = 1
-    nt = 7500
-    nab = 50
-    grid2D = Grid(shape=(10, 10))
-    gridout = Grid(shape=(nt, nrec))
+    nt = 10000
+    nab = 16
+    grid2D = Grid(shape=(10, 10), type=np.float64)
+    gridout = Grid(shape=(nt, nrec), type=np.float64)
     psv2D = define_psv(grid2D, gridout, nab, nt)
 
     # psv2D.backward_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],

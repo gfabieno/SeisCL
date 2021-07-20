@@ -3,7 +3,7 @@ import numpy as np
 import pyopencl as cl
 import pyopencl.array
 import pyopencl.clrandom
-from SeisCL.python.seis2D import Grid, StateKernel, State
+from SeisCL.python.seis2D import Grid, StateKernel, State, Propagator, Sequence, ReversibleKernel
 import re
 
 
@@ -12,11 +12,7 @@ class GridCL(Grid):
     backend = cl.array.Array
 
     def __init__(self, queue, shape=(10, 10), pad=2, dtype=np.float32, **kwargs):
-        self.shape = shape
-        self.pad = pad
-        self.valid = tuple([slice(self.pad, -self.pad)] * len(shape))
-        self.dtype = dtype
-        self.eps = np.finfo(dtype).eps
+        super().__init__(shape=shape, pad=pad, dtype=dtype)
         self.queue = queue
         self.local_size = None
 
@@ -40,6 +36,7 @@ class GridCL(Grid):
     @staticmethod
     def np(array):
         return array.get()
+
 
 class ComputeRessource:
 
@@ -151,19 +148,32 @@ class StateKernelGPU(StateKernel):
     def __init__(self, state_defs=None, grid=None, **kwargs):
         super().__init__(state_defs, **kwargs)
 
-        if grid is None:
-            grid = self.state_defs[self.updated_states[0]].grid
         self.grid = grid
+        if grid is None:
+            self.grid = self.state_defs[self.updated_states[0]].grid
+
 
         name = self.__class__.__name__
-        self.forward = Kernel(grid, self.forward_src, name)
+        self.forward = Kernel(self.grid, self.forward_src, name)
         if self.linear_src:
-            self.linear = Kernel(grid, self.linear_src, name + "_lin")
+            self.linear = Kernel(self.grid, self.linear_src, name + "_lin")
         else:
-            self.linear = Kernel(grid, self.forward_src, name)
+            self.linear = Kernel(self.grid, self.forward_src, name)
             for ii in range(len(self.linear.args)):
                 self.linear.args[ii]["bp"] = "linear"
-        self.adjoint = Kernel(grid, self.adjoint_src, name + "_adj")
+        self.adjoint = Kernel(self.grid, self.adjoint_src, name + "_adj")
+
+
+class PropagatorCL(Propagator, StateKernelGPU):
+    pass
+
+
+class SequencCL(Sequence, StateKernelGPU):
+    pass
+
+
+class ReversibleKernelCL(ReversibleKernel, StateKernelGPU):
+    pass
 
 
 class Sum(StateKernelGPU):
