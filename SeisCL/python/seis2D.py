@@ -91,6 +91,7 @@ class Grid:
         self.valid = tuple([slice(self.pad, -self.pad)] * len(shape))
         self.dtype = dtype
         self.eps = np.finfo(dtype).eps
+        self.smallest = np.nextafter(dtype(0), dtype(1))
         self.zero_boundary = zero_boundary
 
     def zero(self):
@@ -99,7 +100,7 @@ class Grid:
     def random(self):
         if self.zero_boundary:
             state = np.zeros(self.shape, dtype=self.dtype)
-            state[self.valid] = np.random.rand(*state[self.valid].shape)*10e12
+            state[self.valid] = np.random.rand(*state[self.valid].shape)*10e6
         else:
             state = np.random.rand(*self.shape).astype(self.dtype)
         return state
@@ -245,24 +246,40 @@ class StateKernel:
         bstates = self.backward(fstates, **kwargs)
 
         err = 0
+        scale = 0
         for el in states:
-            eps = self.state_defs[el].grid.eps
-            errii = self.state_defs[el].grid.np(bstates[el] - states[el])
-            scale = np.max(np.abs(self.state_defs[el].grid.np(states[el]))) + eps
-            err = np.max([err, np.max(np.abs(errii))/scale])
+            smallest = self.state_defs[el].grid.smallest
+            snp = self.state_defs[el].grid.np(states[el])
+            bsnp = self.state_defs[el].grid.np(bstates[el])
+            errii = snp - bsnp
+            err += np.sum(errii**2)
+            scale += np.sum((snp - np.mean(snp))**2) + smallest
+        err = err / scale
         print("Backpropagation test for Kernel %s: %.15e"
               % (self.__class__.__name__, err))
 
         return err
 
+    #TODO the norm for linear test is wrong, correct
     def linear_test(self, **kwargs):
 
         states = self.initialize({}, method="random")
         dstates = self.initialize({}, method="random")
 
         errs = []
-        for ii in range(0, 40):
+        cond = True if states else False
+        while cond:
             dstates = {el: dstates[el]/10 for el in dstates}
+            for el in states:
+                dnp = self.state_defs[el].grid.np(dstates[el])
+                snp = self.state_defs[el].grid.np(states[el])
+                smallest = self.state_defs[el].grid.smallest
+                eps = self.state_defs[el].grid.eps
+                if np.max(dnp / (snp+smallest)) < eps:
+                    cond = False
+                    break
+            if not cond:
+                break
             pstates = {el: states[el] + dstates[el] for el in states}
 
             fpstates = self({el: pstates[el].copy() for el in pstates},
@@ -277,13 +294,16 @@ class StateKernel:
                                           **kwargs)
 
             err = 0
+            scale = 0
             for el in states:
+                smallest = self.state_defs[el].grid.smallest
                 eps = self.state_defs[el].grid.eps
-                errii = (fpstates[el] - fstates[el]) - lstates[el]
-                errii = self.state_defs[el].grid.np(errii)
-                scale = np.max(np.abs(self.state_defs[el].grid.np(lstates[el]))) + eps
-                err = np.max([err, np.max(np.abs(errii)) / scale])
-            errs.append([err])
+                ls = self.state_defs[el].grid.np(lstates[el])
+                fdls = self.state_defs[el].grid.np(fpstates[el] - fstates[el])
+                errii = fdls - ls
+                err += np.sum(errii**2)
+                scale += np.sum((ls - np.mean(ls))**2)
+            errs.append([err/(scale+smallest)])
 
         errmin = np.min(errs)
         print("Linear test for Kernel %s: %.15e"
@@ -588,11 +608,11 @@ class Division(StateKernel):
         super().__init__(state_defs, **kwargs)
         self.required_states = ["vx", "vz"]
         self.updated_states = ["vx"]
-        self.eps = self.state_defs["vx"].grid.eps
+        self.smallest = self.state_defs["vx"].grid.smallest
 
     def forward(self, states, **kwargs):
 
-        states["vx"] = states["vx"] / (states["vz"]+self.eps)
+        states["vx"] = states["vx"] / (states["vz"]+self.smallest)
         return states
 
     def linear(self, dstates, states, **kwargs):
@@ -604,14 +624,14 @@ class Division(StateKernel):
          vz']       -vx/vz**2  1]  vz']
         """
 
-        dstates["vx"] = dstates["vx"] / (states["vz"] + self.eps)
-        dstates["vx"] += -states["vx"] / (states["vz"] + self.eps)**2 * dstates["vz"]
+        dstates["vx"] = dstates["vx"] / (states["vz"] + self.smallest)
+        dstates["vx"] += -states["vx"] / (states["vz"] + self.smallest)**2 * dstates["vz"]
 
         return dstates
 
     def adjoint(self, adj_states, states, **kwargs):
-        adj_states["vz"] += -states["vx"] / (states["vz"] + self.eps)**2 * adj_states["vx"]
-        adj_states["vx"] = adj_states["vx"] / (states["vz"] + self.eps)
+        adj_states["vz"] += -states["vx"] / (states["vz"] + self.smallest)**2 * adj_states["vx"]
+        adj_states["vx"] = adj_states["vx"] / (states["vz"] + self.smallest)
         return adj_states
 
 
@@ -621,7 +641,7 @@ class Multiplication(StateKernel):
         super().__init__(state_defs, **kwargs)
         self.required_states = ["vx", "vz"]
         self.updated_states = ["vx"]
-        self.eps = self.state_defs["vx"].grid.eps
+        self.smallest = self.state_defs["vx"].grid.smallest
 
     def forward(self, states, **kwargs):
 
@@ -1346,6 +1366,50 @@ class FreeSurface2(FreeSurface):
 
         return states
 
+    def linear(self, dstates, states, **kwargs):
+
+        self.forward({"vx": dstates["vx"],
+                      "vz": dstates["vz"],
+                      "sxx": dstates["sxx"],
+                      "szz": dstates["szz"],
+                      "sxz": dstates["sxz"],
+                      "csu": states["csu"],
+                      "csM": states["csM"],
+                      "cv": states["cv"]})
+
+        vx = states["vx"]
+        vz = states["vz"]
+        szz = states["szz"]
+        sxz = states["sxz"]
+        dcsu = dstates["csu"]
+        dcsM = dstates["csM"]
+        dcv = dstates["cv"]
+        csu = states["csu"]
+        csM = states["csM"]
+        pad = self.state_defs["vx"].grid.pad
+        shape = self.state_defs["vx"].grid.shape
+
+        vxx = Dmx(vx)[:1, :]
+        vzz = Dmz(vz)[:1, :]
+        df = dcsu[pad:pad+1, pad:-pad] * 2.0
+        dg = dcsM[pad:pad+1, pad:-pad]
+        f = csu[pad:pad+1, pad:-pad] * 2.0
+        g = csM[pad:pad+1, pad:-pad]
+        dh = (2.0 * (g - f) * vxx / g + vzz) * df
+        dh += (-2.0 * (g - f) * vxx / g + (g - f)**2 / g**2 * vxx - vzz) * dg
+        dstates["sxx"][pad:pad+1, pad:-pad] += dh
+
+        szz_z = np.zeros((3*pad, shape[1]))
+        szz_z[:pad, :] = -szz[pad+1:2*pad+1, :][::-1, :]
+        szz_z = Dpz(szz_z)
+        sxz_z = np.zeros((3*pad, shape[1]))
+        sxz_z[:pad, :] = -sxz[pad+1:2*pad+1, :][::-1, :]
+        sxz_z = Dmz(sxz_z)
+        dstates["vx"][pad:2*pad, pad:-pad] += sxz_z * dcv[pad:2*pad, pad:-pad]
+        dstates["vz"][pad:2*pad, pad:-pad] += szz_z * dcv[pad:2*pad, pad:-pad]
+
+        return dstates
+
     def adjoint(self, adj_states, states, **kwargs):
 
         adj_sxx = adj_states["sxx"]
@@ -1353,13 +1417,25 @@ class FreeSurface2(FreeSurface):
         adj_szz = adj_states["szz"]
         adj_vx = adj_states["vx"]
         adj_vz = adj_states["vz"]
+        vx = states["vx"]
+        vz = states["vz"]
+        szz = states["szz"]
+        sxz = states["sxz"]
         csu = states["csu"]
         csM = states["csM"]
         cv = states["cv"]
 
         pad = self.state_defs["vx"].grid.pad
-        valid = self.state_defs["vx"].grid.valid
         shape = self.state_defs["vx"].grid.shape
+
+        szz_z = np.zeros((3*pad, shape[1]))
+        szz_z[:pad, :] = -szz[pad+1:2*pad+1, :][::-1, :]
+        szz_z = Dpz(szz_z)
+        sxz_z = np.zeros((3*pad, shape[1]))
+        sxz_z[:pad, :] = -sxz[pad+1:2*pad+1, :][::-1, :]
+        sxz_z = Dmz(sxz_z)
+        adj_states["cv"][pad:2*pad, pad:-pad] += sxz_z * adj_vx[pad:2*pad, pad:-pad]
+        adj_states["cv"][pad:2*pad, pad:-pad] += szz_z * adj_vz[pad:2*pad, pad:-pad]
 
         adj_vx_z = np.zeros((3*pad, shape[1]))
         #adj_vx_z[pad:2*pad, pad:-pad] = adj_vx[pad:2*pad, pad:-pad] * cv[pad:2*pad, pad:-pad]
@@ -1381,7 +1457,6 @@ class FreeSurface2(FreeSurface):
 
         adj_szz[pad:pad+1, :] = 0.0
 
-
         f = csu * 2.0
         g = csM
         hx = -((g - f) * (g - f) / g)
@@ -1390,19 +1465,20 @@ class FreeSurface2(FreeSurface):
         hx0[pad:pad+1, pad:-pad] = hx[pad:pad+1, pad:-pad]
         hz0 = np.zeros_like(csM)
         hz0[pad:pad+1, pad:-pad] = hz[pad:pad+1, pad:-pad]
-        adj_sxx_x = Dmx_adj(hx0 * adj_sxx)
-        adj_sxx_z = Dmz_adj(hz0 * adj_sxx)
-        adj_vx[:2*pad, :] += adj_sxx_x[:2*pad, :]
-        adj_vz[:2*pad, :] += adj_sxx_z[:2*pad, :]
+        adj_sxx_x = -Dpx(hx0 * adj_sxx)
+        adj_sxx_z = -Dpz(hz0 * adj_sxx)
+        adj_vx[pad:2*pad, pad:-pad] += adj_sxx_x[:pad, :]
+        adj_vz[pad:2*pad, pad:-pad] += adj_sxx_z[:pad, :]
 
-        vx = states["vx"]
-        vz = states["vz"]
         vxx = Dmx(vx)[:1, :]
         vzz = Dmz(vz)[:1, :]
         f = f[pad:pad+1, pad:-pad]
         g = g[pad:pad+1, pad:-pad]
         adj_states["csM"][pad:pad+1, pad:-pad] += (-2.0 * (g - f) * vxx / g + (g - f)**2 / g**2 * vxx - vzz) * adj_sxx[pad:pad+1, pad:-pad]
         adj_states["csu"][pad:pad+1, pad:-pad] += 2.0 * (2.0 * (g - f) * vxx / g + vzz) * adj_sxx[pad:pad+1, pad:-pad]
+
+
+
         return adj_states
 
     def backward(self, states, **kwargs):
@@ -1569,7 +1645,9 @@ def define_psv(grid2D, gridout, nab, nt):
 if __name__ == '__main__':
 
     grid1D = Grid(shape=(10,))
-    matmul = RandKernel(grid=grid1D)
+    defs = {"vx": State("vx", grid=grid1D),
+            "vz": State("vz", grid=grid1D),}
+    #matmul = RandKernel(grid=grid1D)
     # matmul.linear_test()
     # matmul.dot_test()
     # matmul2 = RandKernel(grid=grid1D)
@@ -1579,7 +1657,9 @@ if __name__ == '__main__':
     # prop.dot_test()
     # der = Derivative({"vx": State("vx", grid=Grid(shape=(10, 10), pad=2))})
     # der.dot_test()
-
+    # div = Division(state_defs=defs)
+    # div.linear_test()
+    # div.backward_test()
 
     nrec = 1
     nt = 3
@@ -1595,65 +1675,65 @@ if __name__ == '__main__':
     psv2D.dot_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
                    src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*nt}])
 
-    nrec = 1
-    nt = 7500
-    nab = 16
-    rec_pos = [{"type": "vx", "z": 3, "x": x} for x in range(50, 250)]
-    rec_pos += [{"type": "vz", "z": 3, "x": x} for x in range(50, 250)]
-    grid2D = Grid(shape=(160, 300), type=np.float64)
-    gridout = Grid(shape=(nt, len(rec_pos)//2), type=np.float64)
-    psv2D = define_psv(grid2D, gridout, nab, nt)
-    dx = 1.0
-    dt = 0.0001
-
-    csu = np.full(grid2D.shape, 300.0)
-    cv = np.full(grid2D.shape, 1800.0)
-    csM = np.full(grid2D.shape, 1500.0)
-    csu[80:, :] = 600
-    csM[80:, :] = 2000
-    cv[80:, :] = 2000
-    csu0 = csu.copy()
-    csu[5:10, 145:155] *= 1.05
-
-    states = psv2D({"cv": cv,
-                    "csu": csu,
-                    "csM": csM},
-                   dx=dx,
-                   dt=dt,
-                   rec_pos=rec_pos,
-                   src_pos=[{"type": "vz", "pos": (2, 50), "signal": ricker(10, dt, nt)}])
-    # plt.imshow(states["vx"])
+    # nrec = 1
+    # nt = 7500
+    # nab = 16
+    # rec_pos = [{"type": "vx", "z": 3, "x": x} for x in range(50, 250)]
+    # rec_pos += [{"type": "vz", "z": 3, "x": x} for x in range(50, 250)]
+    # grid2D = Grid(shape=(160, 300), type=np.float64)
+    # gridout = Grid(shape=(nt, len(rec_pos)//2), type=np.float64)
+    # psv2D = define_psv(grid2D, gridout, nab, nt)
+    # dx = 1.0
+    # dt = 0.0001
+    #
+    # csu = np.full(grid2D.shape, 300.0)
+    # cv = np.full(grid2D.shape, 1800.0)
+    # csM = np.full(grid2D.shape, 1500.0)
+    # csu[80:, :] = 600
+    # csM[80:, :] = 2000
+    # cv[80:, :] = 2000
+    # csu0 = csu.copy()
+    # csu[5:10, 145:155] *= 1.05
+    #
+    # states = psv2D({"cv": cv,
+    #                 "csu": csu,
+    #                 "csM": csM},
+    #                dx=dx,
+    #                dt=dt,
+    #                rec_pos=rec_pos,
+    #                src_pos=[{"type": "vz", "pos": (2, 50), "signal": ricker(10, dt, nt)}])
+    # # plt.imshow(states["vx"])
+    # # plt.show()
+    # #
+    # vxobs = states["vxout"]
+    # vzobs = states["vzout"]
+    # clip = 0.01
+    # vmin = np.min(states["vxout"]) * 0.1
+    # vmax=-vmin
+    # plt.imshow(states["vxout"], aspect="auto", vmin=vmin, vmax=vmax)
     # plt.show()
     #
-    vxobs = states["vxout"]
-    vzobs = states["vzout"]
-    clip = 0.01
-    vmin = np.min(states["vxout"]) * 0.1
-    vmax=-vmin
-    plt.imshow(states["vxout"], aspect="auto", vmin=vmin, vmax=vmax)
-    plt.show()
-
-    states = psv2D({"cv": cv,
-                    "csu": csu0,
-                    "csM": csM},
-                   dx=dx,
-                   dt=dt,
-                   rec_pos=rec_pos,
-                   src_pos=[{"type": "vz", "pos": (3, 50), "signal": ricker(10, dt, nt)}])
-
-    vxmod = states["vxout"]
-    vzmod = states["vzout"]
-    clip = 0.01
-    vmin = np.min(vxmod) * 0.1
-    vmax=-vmin
-    plt.imshow(vxmod, aspect="auto", vmin=vmin, vmax=vmax)
-    plt.show()
-    grads, states = psv2D.gradient({"vxout": vxmod-vxobs, "vzout": vzmod-vzobs}, states,
-                                   dx=dx,
-                                   dt=dt,
-                                   rec_pos=rec_pos,
-                                   src_pos=[{"type": "vz", "pos": (3, 50), "signal": ricker(10, dt, nt)}])
-
-    plt.imshow(grads["csu"])
-    plt.show()
+    # states = psv2D({"cv": cv,
+    #                 "csu": csu0,
+    #                 "csM": csM},
+    #                dx=dx,
+    #                dt=dt,
+    #                rec_pos=rec_pos,
+    #                src_pos=[{"type": "vz", "pos": (3, 50), "signal": ricker(10, dt, nt)}])
+    #
+    # vxmod = states["vxout"]
+    # vzmod = states["vzout"]
+    # clip = 0.01
+    # vmin = np.min(vxmod) * 0.1
+    # vmax=-vmin
+    # plt.imshow(vxmod, aspect="auto", vmin=vmin, vmax=vmax)
+    # plt.show()
+    # grads, states = psv2D.gradient({"vxout": vxmod-vxobs, "vzout": vzmod-vzobs}, states,
+    #                                dx=dx,
+    #                                dt=dt,
+    #                                rec_pos=rec_pos,
+    #                                src_pos=[{"type": "vz", "pos": (3, 50), "signal": ricker(10, dt, nt)}])
+    #
+    # plt.imshow(grads["csu"])
+    # plt.show()
 
