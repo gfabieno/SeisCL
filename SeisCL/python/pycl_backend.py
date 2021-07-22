@@ -152,7 +152,6 @@ class StateKernelGPU(StateKernel):
         if grid is None:
             self.grid = self.state_defs[self.updated_states[0]].grid
 
-
         name = self.__class__.__name__
         self.forward = Kernel(self.grid, self.forward_src, name)
         if self.linear_src:

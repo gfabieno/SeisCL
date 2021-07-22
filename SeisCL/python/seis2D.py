@@ -260,7 +260,6 @@ class StateKernel:
 
         return err
 
-    #TODO the norm for linear test is wrong, correct
     def linear_test(self, **kwargs):
 
         states = self.initialize({}, method="random")
@@ -269,7 +268,9 @@ class StateKernel:
         errs = []
         cond = True if states else False
         while cond:
-            dstates = {el: dstates[el]/10 for el in dstates}
+            dstates = {el: self.state_defs[el].grid.np(dstates[el])/10.0
+                       for el in dstates}
+            dstates = self.initialize(dstates)
             for el in states:
                 dnp = self.state_defs[el].grid.np(dstates[el])
                 snp = self.state_defs[el].grid.np(states[el])
@@ -1476,8 +1477,6 @@ class FreeSurface2(FreeSurface):
         g = g[pad:pad+1, pad:-pad]
         adj_states["csM"][pad:pad+1, pad:-pad] += (-2.0 * (g - f) * vxx / g + (g - f)**2 / g**2 * vxx - vzz) * adj_sxx[pad:pad+1, pad:-pad]
         adj_states["csu"][pad:pad+1, pad:-pad] += 2.0 * (2.0 * (g - f) * vxx / g + vzz) * adj_sxx[pad:pad+1, pad:-pad]
-
-
 
         return adj_states
 
