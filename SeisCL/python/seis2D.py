@@ -145,8 +145,10 @@ class StateKernel:
         if not hasattr(self, 'required_states'):
             self.required_states = []
 
-    def __call__(self, states, initialize=True, **kwargs):
+    def __call__(self, states=None, initialize=True, **kwargs):
 
+        if not states:
+            states = {}
         if initialize:
             self.initialize(states)
 
