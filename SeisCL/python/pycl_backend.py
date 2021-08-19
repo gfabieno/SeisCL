@@ -226,9 +226,9 @@ class StateKernelGPU(StateKernel):
     linear_src = ""
     adjoint_src = ""
 
-    def __init__(self, state_defs=None, grid=None, local_size=None,
+    def __init__(self, grids=None, grid=None, local_size=None,
                  options=None, default_args=None, **kwargs):
-        super().__init__(state_defs, **kwargs)
+        super().__init__(grids, **kwargs)
 
         if not hasattr(self, "headers"):
             self.headers = ""
@@ -236,9 +236,9 @@ class StateKernelGPU(StateKernel):
         self.local_size = local_size
         if grid is None:
             if self.updated_states:
-                self.grid = self.state_defs[self.updated_states[0]].grid
+                self.grid = self.grids[self.updated_states[0]]
             else:
-                self.grid = self.state_defs[self.required_states[0]].grid
+                self.grid = self.grids[self.required_states[0]]
         if options is None:
             options = []
 
@@ -330,10 +330,10 @@ FUNDEF void Sum_adj(__global float *a_adj,
 }
 """
 
-    def __init__(self, state_defs=None, grid=None, **kwargs):
+    def __init__(self, grids=None, grid=None, **kwargs):
         self.required_states = ["a", "b", "res"]
         self.updated_states = ["res"]
-        super().__init__(state_defs=state_defs, grid=grid, **kwargs)
+        super().__init__(grids=grids, grid=grid, **kwargs)
 
 
 class Gridtester(StateKernelGPU):
@@ -345,10 +345,10 @@ FUNDEF void Gridtester(__global float *a, grid g)
 }
 """
 
-    def __init__(self, state_defs=None, grid=None, **kwargs):
+    def __init__(self, grids=None, grid=None, **kwargs):
         self.required_states = ["a"]
         self.updated_states = ["a"]
-        super().__init__(state_defs=state_defs, grid=grid, **kwargs)
+        super().__init__(grids=grids, grid=grid, **kwargs)
 
 
 class DerivativeTester(StateKernelGPU):
@@ -370,12 +370,12 @@ FUNDEF void DerivativeTester(__global float *a, grid g)
 }
 """
 
-    def __init__(self, state_defs=None, grid=None, fdcoefs=FDCoefficients(),
+    def __init__(self, grids=None, grid=None, fdcoefs=FDCoefficients(),
                  local_size=(16, 16), **kwargs):
         self.required_states = ["a"]
         self.updated_states = ["a"]
         self.headers = fdcoefs.header()
-        super().__init__(state_defs=state_defs, grid=grid,
+        super().__init__(grids=grids, grid=grid,
                          local_size=local_size, **kwargs)
 
 
@@ -388,10 +388,10 @@ if __name__ == '__main__':
     # res_np = np.zeros_like(a_np)
     #
     # grid = GridCL(resc.queues[0], shape=(nel,), pad=0, dtype=np.float32)
-    # state_defs = {"a": State("a", grid=grid),
-    #               "b": State("b", grid=grid),
-    #               "res": State("res", grid=grid)}
-    # sumknl = Sum(state_defs=state_defs)
+    # grids = {"a": grid,
+    #               "b": grid,
+    #               "res": grid}
+    # sumknl = Sum(grids=grids)
     #
     # sumknl.linear_test()
     # sumknl.backward_test()
@@ -409,8 +409,8 @@ if __name__ == '__main__':
     nz = 8
 
     grid = GridCL(resc.queues[0], shape=(nz, nx), pad=0, dtype=np.float32)
-    state_defs = {"a": State("a", grid=grid)}
-    gridtest = Gridtester(state_defs=state_defs)
+    grids = {"a": grid}
+    gridtest = Gridtester(grids=grids)
     states = gridtest()
     print(states["a"].get())
     print(states["a"].flags)
@@ -421,8 +421,8 @@ if __name__ == '__main__':
 
     grid = GridCL(resc.queues[0], shape=(nz, nx), pad=4, dtype=np.float32, zero_boundary=True)
     a = np.tile(np.arange(nx), [12, 1])
-    state_defs = {"a": State("a", grid=grid)}
-    dertest = DerivativeTester(state_defs=state_defs)
+    grids = {"a": grid}
+    dertest = DerivativeTester(grids=grids)
     states = dertest({"a": a})
     print(states["a"].get())
     print(states["a"].flags)
