@@ -85,7 +85,7 @@ class Grid:
     backend = np.ndarray
 
     def __init__(self, shape=(10, 10), pad=2, dtype=np.float32,
-                 zero_boundary=False,**kwargs):
+                 zero_boundary=False, **kwargs):
         self.shape = shape
         self.pad = pad
         self.valid = tuple([slice(self.pad, -self.pad)] * len(shape))
@@ -164,8 +164,14 @@ class StateKernel:
     def state_defs(self, val):
         self._state_defs = val
 
-    def initialize(self, states, empty_cache=True, method="zero", **kwargs):
-        for el in self.required_states:
+    def initialize(self, states, empty_cache=True, method="zero", adjoint=False,
+                   **kwargs):
+        # TODO if using updated_states that does not contain state_defs, fails
+        if adjoint:
+            toinit = self.updated_states
+        else:
+            toinit = self.required_states
+        for el in toinit:
             if el not in states:
                 states[el] = self.state_defs[el].initialize(method=method)
             elif type(states[el]) is not self.state_defs[el].grid.backend:
@@ -337,7 +343,8 @@ class StateKernel:
                                         for el in states},
                                        **kwargs)
 
-        adj_states = self.initialize({}, empty_cache=False, method="random")
+        adj_states = self.initialize({}, empty_cache=False, method="random",
+                                     adjoint=True)
 
         fadj_states, _ = self.gradient({el: adj_states[el].copy()
                                         for el in adj_states},
@@ -410,11 +417,11 @@ class Sequence(StateKernel):
         self.updated_states = []
         for kernel in kernels:
             self.required_states += [el for el in kernel.required_states
-                                     if el not in self.required_states]
+                                     if (el not in self.required_states and
+                                         el not in self.updated_states)]
             self.updated_states += [el for el in kernel.updated_states
                                     if el not in self.updated_states]
-            # if state_defs is not None:
-            #     kernel.state_defs = state_defs
+
     @property
     def state_defs(self):
         return self._state_defs
@@ -1037,6 +1044,7 @@ class UpdateStress2(UpdateStress):
 
         return adj_states
 
+
 class ZeroBoundary(StateKernel):
     def __init__(self, required_states, state_defs=None, **kwargs):
         super().__init__(state_defs, **kwargs)
@@ -1500,6 +1508,10 @@ class ScaledParameters(ReversibleKernel):
         self.updated_states = ["cv", "csu", "csM"]
         self.sc = 1.0
 
+    @staticmethod
+    def scale(M, dt, dx):
+        return int(np.log2(np.max(M) * dt / dx))
+
     def forward(self, states, dt=0.1, dx=2.0, **kwargs):
 
         vs = states["csu"]
@@ -1508,7 +1520,7 @@ class ScaledParameters(ReversibleKernel):
 
         M = (vp**2 * rho)
         mu = (vs**2 * rho)
-        self.sc = sc = int(np.log2(np.max(M) * dt / dx))
+        self.sc = sc = self.scale(M, dt, dx)
         cv = 2 ** sc * dt / dx / rho
         csM = dt / dx * M * 2 ** -sc
         csu = dt / dx * mu * 2 ** -sc
@@ -1529,7 +1541,7 @@ class ScaledParameters(ReversibleKernel):
         dvp = dstates["csM"]
         drho = dstates["cv"]
 
-        dM = 2.0 *(vp * rho) * dvp + vp**2 * drho
+        dM = 2.0 * (vp * rho) * dvp + vp**2 * drho
         dmu = 2.0 * (vs * rho) * dvs + vs**2 * drho
         sc = self.sc
         dcv = - 2 ** sc * dt / dx / rho**2 * drho
@@ -1565,7 +1577,6 @@ class ScaledParameters(ReversibleKernel):
         adj_states["cv"] = adj_rho
 
         return adj_states
-
 
     def backward(self, states, dt=0.1, dx=2.0, **kwargs):
 
