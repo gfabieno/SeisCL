@@ -323,22 +323,17 @@ CUDACL_header = """
     #define FUNDEF __kernel
     #define LFUNDEF
     #define GLOBARG __global
-    #define LOCARG __local float *lvar
-    #define LOCARG2 __local __prec2 *lvar2
     #define LOCID __local
-    #define LOCDEF
     #define BARRIER barrier(CLK_LOCAL_MEM_FENCE);
 #else
     #define FUNDEF extern "C" __global__
     #define LFUNDEF __device__ __inline__
     #define GLOBARG
-    #define LOCARG float *nullarg
-    #define LOCARG2 __prec2 *nullarg
-    #define LOCDEF extern __shared__ float lvar[];
-    #define LOCID
+    #define LOCID __shared__
     #define BARRIER __syncthreads();
 #endif
 """
+
 get_pos_header = """
 
 #if __ND__==3
@@ -404,5 +399,24 @@ void get_pos(grid * g){
 
 """
 
+grid_stop_header="""
+#if LOCAL_OFF==0
+    #if COMM12==0
+    #define gridstop(p)\
+    do{\
+            if ((p).gidz>((p).NZ-__FDOH__-1) || ((p).gidx-(p).offset)>((p).NX-__FDOH__-1-LCOMM) ){\
+        return;}\
+        } while(0)
+    #else
+    #define gridstop(p)\
+    do{\
+        if ((p).gidz>((p).NZ-__FDOH__-1) ){\
+            return;}\
+        } while(0)
+    #endif
+#else
+    #define gridstop(p) 
+#endif
+"""
 
 
