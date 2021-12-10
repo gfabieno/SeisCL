@@ -67,12 +67,14 @@ class FDCoefficients:
         self.coefs = coefs[1:]
         self.order = order
         self.local_off = local_off
+        self.options = ["-D __LOCAL_OFF__=%d" % local_off]
 
     def header(self):
         header = "".join(["#define HC%d %f \n" % (ii+1, hc)
                           for ii, hc in enumerate(self.coefs)])
-        header += "#define __FDOH__ %d\n" % (self.order//2)
-        header += "#define __LOCAL_OFF__ %d\n" % self.local_off
+        header += "__constant float hc[%d] = {" % len(self.coefs)
+        header += "".join(["%f," % hc for hc in self.coefs])[:-1]
+        header += "};\n"
         header += FDstencils
         return header
 
@@ -100,6 +102,7 @@ FDstencils = """
 
 //Load in local memory with the halo for FD in different directions
 #define load_local_in(p, v, lv) lv[ind((p), 0, 0, 0)]=v[indg((p), 0, 0, 0)]
+#define mul_local_in(p, v, lv) lv[ind((p), 0, 0, 0)]*=v[indg((p), 0, 0, 0)]
 
 #define load_local_halox(p, v, lv) \
     do{\
@@ -113,6 +116,18 @@ FDstencils = """
             lv[ind((p), 0, 0, -(p).lsizex+3*__FDOH__)]=v[indg((p), 0, 0, -(p).lsizex+3*__FDOH__)];\
         } while(0)
 
+#define mul_local_halox(p, v, lv) \
+    do{\
+        if ((p).lidx<2*__FDOH__)\
+            lv[ind((p), 0, 0, -__FDOH__)]*=v[indg((p), 0, 0, -__FDOH__)];\
+        if ((p).lidx+(p).lsizex-3*__FDOH__<__FDOH__)\
+            lv[ind((p), 0, 0, (p).lsizex-3*__FDOH__)]*=v[indg((p), 0, 0, (p).lsizex-3*__FDOH__)];\
+        if ((p).lidx>((p).lsizex-2*__FDOH__-1))\
+            lv[ind((p), 0, 0, __FDOH__)]*=v[indg((p), 0, 0, __FDOH__)];\
+        if ((p).lidx-(p).lsizex+3*__FDOH__>((p).lsizex-__FDOH__-1))\
+            lv[ind((p), 0, 0, -(p).lsizex+3*__FDOH__)]*=v[indg((p), 0, 0, -(p).lsizex+3*__FDOH__)];\
+        } while(0)
+        
 #define load_local_haloy(p, v, lv) \
     do{\
         if ((p).lidy<2*__FDOH__)\
@@ -125,12 +140,32 @@ FDstencils = """
             lv[ind((p), 0, -(p).lsizey+3*__FDOH__, 0)]=v[indg((p), 0, -(p).lsizey+3*__FDOH__, 0)];\
      } while(0)
 
+#define mul_local_haloy(p, v, lv) \
+    do{\
+        if ((p).lidy<2*__FDOH__)\
+            lv[ind((p), 0, -__FDOH__, 0)]*=v[indg((p), 0, -__FDOH__, 0)];\
+        if ((p).lidy+(p).lsizey-3*__FDOH__<__FDOH__)\
+            lv[ind((p), 0 , (p).lsizey-3*__FDOH__, 0)]*=v[indg((p), 0, (p).lsizey-3*__FDOH__, 0)];\
+        if ((p).lidy>((p).lsizey-2*__FDOH__-1))\
+            lv[ind((p), 0, __FDOH__, 0)]*=v[indg((p), 0, __FDOH__, 0)];\
+        if ((p).lidy-(p).lsizey+3*__FDOH__>((p).lsizey-__FDOH__-1))\
+            lv[ind((p), 0, -(p).lsizey+3*__FDOH__, 0)]*=v[indg((p), 0, -(p).lsizey+3*__FDOH__, 0)];\
+     } while(0)
+     
 #define load_local_haloz(p, v, lv) \
     do{\
         if ((p).lidz<2*__FDOH__)\
             lv[ind((p), -__FDOH__, 0, 0)]=v[indg((p), -__FDOH__, 0, 0)];\
         if ((p).lidz>((p).lsizez-2*__FDOH__-1))\
             lv[ind((p), __FDOH__, 0, 0)]=v[indg((p), __FDOH__, 0, 0)];\
+    } while(0)
+    
+#define mul_local_haloz(p, v, lv) \
+    do{\
+        if ((p).lidz<2*__FDOH__)\
+            lv[ind((p), -__FDOH__, 0, 0)]*=v[indg((p), -__FDOH__, 0, 0)];\
+        if ((p).lidz>((p).lsizez-2*__FDOH__-1))\
+            lv[ind((p), __FDOH__, 0, 0)]*=v[indg((p), __FDOH__, 0, 0)];\
     } while(0)
 
 
@@ -350,7 +385,7 @@ get_pos_header = """
                                  +(p).gidz+(dz)
     #endif
 #else
-    #define indg(p,dz,dy,dx)  ((p).gidx+(dx))*((p).NZ)+(p).gidz+(dz)
+    #define indg(p,dz,dy,dx) ((p).gidx+(dx))*((p).NZ)+(p).gidz+(dz)
     #if __LOCAL_OFF__==0
         #define ind(p,dz,dy,dx)   ((p).lidx+(dx))*(p).lsizez+(p).lidz+(dz)
     #else
@@ -361,7 +396,6 @@ get_pos_header = """
 void get_pos(grid * g);
 void get_pos(grid * g){
 
-#if __LOCAL_OFF__==0
 #ifdef __OPENCL_VERSION__
     g->lsizez = get_local_size(0)+2*__FDOH__;
     g->lsizex = get_local_size(1)+2*__FDOH__;
@@ -378,23 +412,6 @@ void get_pos(grid * g){
     g->gidx = blockIdx.y*blockDim.y + threadIdx.y+__FDOH__+g->offset;
 #endif
     
-// If local memory is turned off
-#elif __LOCAL_OFF__==1
-    
-#ifdef __OPENCL_VERSION__
-    g->gid = get_global_id(0);
-    g->glsizez = (g.NZ-2*__FDOH__);
-    g->gidz = g->gid%g->lsizez+__FDOH__;
-    g->gidx = (g->gid/g->lsizez)+__FDOH__+g->offset;
-#else
-    g->lsizez = blockDim.x+2*__FDOH__;
-    g->lsizex = blockDim.y+2*__FDOH__;
-    g->lidz = threadIdx.x+__FDOH__;
-    g->lidx = threadIdx.y+__FDOH__;
-    g->gidz = blockIdx.x*blockDim.x + threadIdx.x+__FDOH__;
-    g->gidx = blockIdx.y*blockDim.y + threadIdx.y+__FDOH__+offset;
-#endif
-#endif
 } 
 
 """

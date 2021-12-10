@@ -28,7 +28,7 @@ __kernel void Sum_adj(__global float *a_adj,
 }
 """
 
-    def __init__(self, state_defs=None, **kwargs):
-        super().__init__(state_defs, **kwargs)
+    def __init__(self, grids=None, **kwargs):
+        super().__init__(grids, **kwargs)
         self.required_states = ["vx", "vz", "sxx", "szz", "sxz", "cv"]
         self.updated_states = ["vx", "vz"]

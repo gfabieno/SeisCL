@@ -18,14 +18,16 @@ options_def = ["-D LCOMM=0",
                "-D NLOCALP=0"]
 
 
+# TODO review how dimensions names are assigned
 class GridCL(Grid):
 
     backend = cl.array.Array
 
-    def __init__(self, queue, shape=(10, 10), pad=2, dtype=np.float32,
-                 zero_boundary=False, **kwargs):
-        super().__init__(shape=shape, pad=pad, zero_boundary=zero_boundary,
-                         dtype=dtype)
+    def __init__(self, queue, shape=(10, 10), nfddim=None,
+                 pad=2, dh=1, dt=1, nt=1, dtype=np.float32, zero_boundary=False,
+                 **kwargs):
+        super().__init__(shape=shape, pad=pad, dh=dh, dt=dt, nt=nt,
+                         nfddim=nfddim, zero_boundary=zero_boundary, dtype=dtype)
         self.queue = queue
         self._struct_np, self.struct_c = self.define_struct()
 
@@ -35,21 +37,26 @@ class GridCL(Grid):
     def random(self):
         if self.zero_boundary:
             state = np.zeros(self.shape, dtype=self.dtype)
-            state[self.valid] = np.random.rand(*state[self.valid].shape)*10e6
-            state = cl.array.to_device(self.queue, np.require(state, requirements='F'))
+            state[self.valid] = np.random.rand(*state[self.valid].shape)
         else:
-            state = cl.clrandom.rand(self.queue, self.shape, self.dtype)
+            state = np.random.rand(*self.shape).astype(dtype=self.dtype)
+        state = cl.array.to_device(self.queue,
+                                   np.require(state, requirements='F'))
         return state
 
     def assign_data(self, data):
         return cl.array.to_device(self.queue,
-                                  np.require(data, requirements='F'))
+                                  np.require(data.astype(dtype=self.dtype),
+                                             requirements='F'))
 
     def define_struct(self):
         dtype = np.dtype([
             ("NX", np.int32),
             ("NY", np.int32),
             ("NZ", np.int32),
+            ("nt", np.int32),
+            ("dh", np.float32),
+            ("dt", np.float32),
             ("offset", np.int32),
             ("lsizez", np.int32),
             ("lsizex", np.int32),
@@ -58,7 +65,6 @@ class GridCL(Grid):
             ("gidx", np.int32),
             ("gidz", np.int32),
         ])
-
         name = "grid"
 
         dtype, c_decl = match_dtype_to_c_struct(self.queue.device, name, dtype)
@@ -73,16 +79,23 @@ class GridCL(Grid):
     @property
     def options(self):
         return ["-D __FDOH__=%d" % self.pad,
-                "-D __ND__=%d" % len(self.shape),
-                "-D __LOCAL_OFF__=%d" % 0]
+                "-D __ND__=%d" % self.nfddim]
 
     @property
     def struct_np(self):
         struct = np.zeros(1, self._struct_np)
-        struct[0]["NX"] = self.shape[-1]
-        struct[0]["NZ"] = self.shape[0]
-        if len(self.shape) == 3:
+        if self.nfddim == 1:
+            struct[0]["NZ"] = self.shape[0]
+        elif self.nfddim == 2:
+            struct[0]["NZ"] = self.shape[0]
+            struct[0]["NX"] = self.shape[1]
+        elif self.nfddim == 3:
+            struct[0]["NZ"] = self.shape[0]
             struct[0]["NY"] = self.shape[1]
+            struct[0]["NX"] = self.shape[2]
+        struct[0]["nt"] = self.nt
+        struct[0]["dh"] = self.dh
+        struct[0]["dt"] = self.dt
         return struct
 
     @staticmethod
@@ -117,8 +130,8 @@ class ComputeRessource:
 
 class Kernel:
 
-    def __init__(self, queue, grid, global_size, local_size,  src, name, options,
-                 default_args):
+    def __init__(self, queue, grid, global_size, local_size, src, name,
+                 options, default_args, args_renaming):
 
         self.queue = queue
         self.grid = grid
@@ -128,10 +141,13 @@ class Kernel:
         self.name = name
         self.options = options
         self.args = self.extract_args(self.src)
+        self.names = [m.group(1)
+                      for m in re.finditer("FUNDEF void (\w*)\s*\(", src)]
         self._prog = None
         self._kernel = None
         self.event = None
         self.default_args = default_args
+        self.args_renaming = args_renaming
 
     def __call__(self, *args, **kwargs):
         if self.default_args:
@@ -139,10 +155,16 @@ class Kernel:
                 if key not in kwargs:
                     kwargs[key] = self.default_args[key]
         arg_list = self.assign_args(*args, **kwargs)
-        self.event = self.kernel(self.queue,
-                                 self.global_size(),
-                                 self.local_size,
-                                 *arg_list)
+        if "backpropagate" in kwargs:
+            if kwargs["backpropagate"] ==1:
+                kernels = self.kernel[::-1]
+        else:
+            kernels = self.kernel
+        for kernel in kernels:
+            self.event = kernel(self.queue,
+                                self.global_size(),
+                                self.local_size,
+                                *arg_list)
 
         return args[0]
 
@@ -151,11 +173,14 @@ class Kernel:
         if not self._kernel:
             if not self._prog:
                 options = options_def + self.options + self.grid.options
+                options += ["-D __EPS__=%d" % self.grid.smallest]
                 if self.local_size is not None:
-                    options += ["-D __LSIZE__=%d" % np.prod(self.local_size)]
+                    total = np.prod([el+self.grid.pad*2
+                                     for el in self.local_size])
+                    options += ["-D __LSIZE__=%d" % total]
                 self._prog = cl.Program(self.queue.context,
                                         self.src).build(options)
-            self._kernel = getattr(self._prog, self.name)
+            self._kernel = [getattr(self._prog, name) for name in self.names]
         return self._kernel
 
     @staticmethod
@@ -196,6 +221,9 @@ class Kernel:
             indict = {**args[1], **kwargs}
         arg_list = [None for _ in self.args]
         for ii, a in enumerate(self.args):
+            name = a["name"]
+            if a["name"] in self.args_renaming:
+                name = self.args_renaming[name]
             if a["type"] == "grid":
                 arg_list[ii] = self.grid.struct_np
             elif a["scope"] == "local":
@@ -206,9 +234,9 @@ class Kernel:
                     size = np.prod(self.local_size) * self.grid.dtype(1).itemsize
                 arg_list[ii] = cl.LocalMemory(size)
             elif a["bp"] == "linear" or a["bp"] == "adjoint":
-                arg_list[ii] = args[0][a["name"]]
-            elif a["name"] in indict:
-                arg_list[ii] = indict[a["name"]]
+                arg_list[ii] = args[0][name]
+            elif name in indict:
+                arg_list[ii] = indict[name]
             else:
                 arg_list[ii] = None
             if type(arg_list[ii]) == cl.array.Array:
@@ -217,6 +245,12 @@ class Kernel:
                 arg_list[ii] = np.int32(arg_list[ii])
             elif type(arg_list[ii]) == float:
                 arg_list[ii] = np.float32(arg_list[ii])
+            elif type(arg_list[ii]) == bool:
+                arg_list[ii] = np.int32(arg_list[ii])
+            elif type(arg_list[ii]) in (list, tuple, dict):
+                raise TypeError("GPU kernels arguments must be a buffer or "
+                                "a scalar, got %s for arg %s"
+                                % (type(arg_list[ii]), a["name"]))
         return arg_list
 
 
@@ -226,84 +260,151 @@ class StateKernelGPU(StateKernel):
     linear_src = ""
     adjoint_src = ""
 
-    def __init__(self, grids=None, grid=None, local_size=None,
-                 options=None, default_args=None, **kwargs):
+    def __init__(self, grids=None, computegrid=None, local_size=None,
+                 options=None, default_args=None, default_identity=False,
+                 **kwargs):
         super().__init__(grids, **kwargs)
 
+        self.default_identity = default_identity
         if not hasattr(self, "headers"):
             self.headers = ""
-        self.grid = grid
+        if not hasattr(self, "args_renaming"):
+            self.args_renaming = {}
+
+        self.computegrid = computegrid
         self.local_size = local_size
-        if grid is None:
+        if computegrid is None:
             if self.updated_states:
-                self.grid = self.grids[self.updated_states[0]]
+                gridname = self.default_grids[self.updated_states[0]]
             else:
-                self.grid = self.grids[self.required_states[0]]
+                gridname = self.default_grids[self.required_states[0]]
+            self.computegrid = self.grids[gridname]
         if options is None:
             options = []
-
+        if default_args is not None:
+            default_args = self.make_kwargs_compatible(**default_args)
         name = self.__class__.__name__
-        headers = CUDACL_header + self.grid.headers + self.headers
-        self.forward = Kernel(self.grid.queue,
-                              self.grid,
+        headers = CUDACL_header + self.computegrid.headers + self.headers
+
+        self.forward = Kernel(self.computegrid.queue,
+                              self.computegrid,
                               self.global_size_fw,
                               self.local_size,
                               headers + self.forward_src,
                               name,
                               options,
-                              default_args)
+                              default_args,
+                              self.args_renaming)
         if self.linear_src:
-            self.linear = Kernel(self.grid.queue,
-                                 self.grid,
+            self.linear = Kernel(self.computegrid.queue,
+                                 self.computegrid,
                                  self.global_size_fw,
                                  self.local_size,
                                  headers + self.linear_src,
                                  name + "_lin",
                                  options,
-                                 default_args)
+                                 default_args,
+                                 self.args_renaming)
         else:
-            self.linear = Kernel(self.grid.queue,
-                                 self.grid,
-                                 self.global_size_fw,
-                                 self.local_size,
-                                 headers + self.forward_src,
-                                 name,
-                                 options,
-                                 default_args)
-            for ii in range(len(self.linear.args)):
-                if self.linear.args[ii]["scope"] == "global":
-                    self.linear.args[ii]["bp"] = "linear"
+            if not self.default_identity:
+                self.linear = Kernel(self.computegrid.queue,
+                                     self.computegrid,
+                                     self.global_size_fw,
+                                     self.local_size,
+                                     headers + self.forward_src,
+                                     name,
+                                     options,
+                                     default_args,
+                                     self.args_renaming)
+                for ii in range(len(self.linear.args)):
+                    aname = self.linear.args[ii]["name"]
+                    if (aname in self.required_states
+                        or aname in self.updated_states
+                        or aname in self.args_renaming):
+                        self.linear.args[ii]["bp"] = "linear"
+            else:
+                self.linear = lambda x: x
+
         if self.adjoint_src:
-            self.adjoint = Kernel(self.grid.queue,
-                                  self.grid,
+            self.adjoint = Kernel(self.computegrid.queue,
+                                  self.computegrid,
                                   self.global_size_adj,
                                   self.local_size,
                                   headers + self.adjoint_src,
                                   name + "_adj",
                                   options,
-                                  default_args)
+                                  default_args,
+                                  self.args_renaming)
+        elif default_identity:
+            self.adjoint = lambda x: x
+
+    # def __call__(self, states, *args, initialize=True, **kwargs):
+    #
+    #     # for el in kwargs:
+    #     #     if type(kwargs[el]) in [np.ndarray]:
+    #     #         kwargs[el] = cl.array.to_device(self.computegrid.queue,
+    #     #                                         kwargs[el])
+    #     return super().__call__(states, *args,
+    #                             initialize=initialize, **kwargs)
+
+    def make_kwargs_compatible(self, **kwargs):
+        for el in kwargs:
+            if type(kwargs[el]) in [np.ndarray]:
+                kwargs[el] = self.computegrid.assign_data(kwargs[el])
+        return kwargs
 
     def global_size_fw(self):
         if self.local_size is None:
-            return [np.int32(s-2*self.grid.pad) for s in self.grid.shape]
+            return [np.int32(s - 2 * self.computegrid.pad)
+                    for s in self.computegrid.shape]
         else:
-            return [np.int32(np.ceil((s-2*self.grid.pad)/float(l))*l)
-                    for s, l in zip(self.grid.shape, self.local_size)]
+            return [np.int32(np.ceil((s - 2 * self.computegrid.pad) / float(l)) * l)
+                    for s, l in zip(self.computegrid.shape, self.local_size)]
 
     def global_size_adj(self):
         return self.global_size_fw()
 
 
-class PropagatorCL(Propagator, StateKernelGPU):
-    pass
+class PropagatorCL(Propagator):
+    def __init__(self, kernel, nt, **kwargs):
 
+        self.computegrid = kernel.computegrid
+        super().__init__(kernel, nt, **kwargs)
 
-class SequenceCL(Sequence, StateKernelGPU):
-    pass
+    def make_kwargs_compatible(self, **kwargs):
+        for el in kwargs:
+            if type(kwargs[el]) in [np.ndarray]:
+                kwargs[el] = cl.array.to_device(self.computegrid.queue,
+                                                kwargs[el])
+        return kwargs
+
+class SequenceCL(Sequence):
+
+    def __init__(self, kernels, grids=None, **kwargs):
+
+        for kernel in kernels:
+            try:
+                self.computegrid = kernel.computegrid
+                break
+            except AttributeError:
+                pass
+        super().__init__(kernels, grids=grids, **kwargs)
+
+    def make_kwargs_compatible(self, **kwargs):
+        for el in kwargs:
+            if type(kwargs[el]) in [np.ndarray]:
+                kwargs[el] = cl.array.to_device(self.computegrid.queue,
+                                                kwargs[el])
+        return kwargs
 
 
 class ReversibleKernelCL(ReversibleKernel, StateKernelGPU):
-    pass
+    def make_kwargs_compatible(self, **kwargs):
+        for el in kwargs:
+            if type(kwargs[el]) in [np.ndarray]:
+                kwargs[el] = cl.array.to_device(self.computegrid.queue,
+                                                kwargs[el])
+        return kwargs
 
 
 class Sum(StateKernelGPU):
@@ -330,10 +431,10 @@ FUNDEF void Sum_adj(__global float *a_adj,
 }
 """
 
-    def __init__(self, grids=None, grid=None, **kwargs):
+    def __init__(self, grids=None, computegrid=None, **kwargs):
         self.required_states = ["a", "b", "res"]
         self.updated_states = ["res"]
-        super().__init__(grids=grids, grid=grid, **kwargs)
+        super().__init__(grids=grids, computegrid=computegrid, **kwargs)
 
 
 class Gridtester(StateKernelGPU):
@@ -345,10 +446,11 @@ FUNDEF void Gridtester(__global float *a, grid g)
 }
 """
 
-    def __init__(self, grids=None, grid=None, **kwargs):
+    def __init__(self, grids=None, computegrid=None, **kwargs):
         self.required_states = ["a"]
         self.updated_states = ["a"]
-        super().__init__(grids=grids, grid=grid, **kwargs)
+        self.default_grids = {"a": "a"}
+        super().__init__(grids=grids, computegrid=computegrid, **kwargs)
 
 
 class DerivativeTester(StateKernelGPU):
@@ -364,18 +466,19 @@ FUNDEF void DerivativeTester(__global float *a, grid g)
         BARRIER
     #endif
     float ax = Dxm(g, la);
-    a[indg(g, 0, 0, 0)] = ax;
-    a[indg(g, 0, 0, 0)] = Dxm(g,la);
     gridstop(g);
+    a[indg(g, 0, 0, 0)] = ax;
+
 }
 """
 
-    def __init__(self, grids=None, grid=None, fdcoefs=FDCoefficients(),
+    def __init__(self, grids=None, computegrid=None, fdcoefs=FDCoefficients(),
                  local_size=(16, 16), **kwargs):
         self.required_states = ["a"]
         self.updated_states = ["a"]
+        self.default_grids = {"a": "a"}
         self.headers = fdcoefs.header()
-        super().__init__(grids=grids, grid=grid,
+        super().__init__(grids=grids, computegrid=computegrid,
                          local_size=local_size, **kwargs)
 
 
@@ -417,10 +520,10 @@ if __name__ == '__main__':
 
     resc = ComputeRessource()
     nx = 24
-    nz = 24
+    nz = 12
 
-    grid = GridCL(resc.queues[0], shape=(nz, nx), pad=4, dtype=np.float32, zero_boundary=True)
-    a = np.tile(np.arange(nx), [12, 1])
+    grid = GridCL(resc.queues[0], shape=(nz, nx), pad=2, dtype=np.float32, zero_boundary=True)
+    a = np.tile(np.arange(nx), [nz, 1])
     grids = {"a": grid}
     dertest = DerivativeTester(grids=grids)
     states = dertest({"a": a})
