@@ -232,7 +232,7 @@ def compare_data(data_fd, analytic, offset, dt, testname, tol=6e-2, plots=1):
         plt.show()
 
 def lamb3D_test(testtype = "inline", vp=3500, vs=2000, rho=2000, taup=0, taus=0,
-                N=300, plots=True):
+                N=300, f0=20, FDORDER=4, plots=True):
     """
     Testing for a 3D homogeneous elastic half space (Lamb's problem). Source
     and receivers must be on the free surface (see Lamb3D.py)
@@ -253,7 +253,7 @@ def lamb3D_test(testtype = "inline", vp=3500, vs=2000, rho=2000, taup=0, taus=0,
     Returns:
 
     """
-    seis = define_SeisCL(N=N)
+    seis = define_SeisCL(N=N, f0=f0, FDORDER=FDORDER)
     seis.freesurf = 1
     nbuf = seis.FDORDER * 2
     nab = seis.nab
