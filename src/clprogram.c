@@ -418,6 +418,22 @@ int compile(const char *program_source,
             
         }
         state = clBuildProgram(*program, 1, &device, build_options, NULL, NULL);
+        if (state==CL_BUILD_PROGRAM_FAILURE) {
+            // Determine the size of the log
+            size_t log_size;
+            clGetProgramBuildInfo(*program, device, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
+
+            // Allocate memory for the log
+            char* log = (char*)malloc(log_size);
+
+            // Get the log
+            clGetProgramBuildInfo(*program, device, CL_PROGRAM_BUILD_LOG, log_size, log, NULL);
+
+            // Print the log
+            fprintf(stderr, "%s\n", log);
+            free(log);
+        }
+
         if (state !=CL_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
         
         if (same!=1){
