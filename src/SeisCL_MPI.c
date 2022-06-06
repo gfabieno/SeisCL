@@ -16,8 +16,95 @@
  * along with SeisCL. See file COPYING and/or
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  --------------------------------------------------------------------------*/
+#ifdef _WIN32
+// Needed for gettimeofday impl.
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+#include <stdint.h> // portable: uint64_t   MSVC: __int64 
+#endif //_WIN32
 #include "F.h"
 
+
+/*
+* Naive, partial implementation of getopt based on https://www.man7.org/linux/man-pages/man3/getopt.3.html
+* Supports only single char options
+* Doesn't support options taking arguments
+*/
+int optind = 1, optopt=0, opterr=0;
+int getopt(int argc, char* const argv[], const char* optstring)
+{
+    static int nextchar = 1;
+    if (strchr(optstring, ':')!=NULL) {
+        fprintf(stderr, "Error! Option taking arguments isn't supported!");
+        return -1;
+    }
+    char c;
+    for (;;) {
+        // Initial checks
+        if (optind>=argc)
+            return -1;
+        if (argv[optind]==NULL)
+            return -1;
+        if (*argv[optind]!='-')
+            return -1;
+        if (argv[optind][1]==0)
+            return -1;
+        if (argv[optind][1]=='-') {
+            optind++;
+            return -1;
+        }
+
+        // get option character and check if in optstring
+        c = argv[optind][nextchar];
+        if (c=='\0') {
+            nextchar = 1;
+            optind++;
+            continue;
+        }
+        char* p = strchr(optstring, c);
+        // Unknown option
+        if (p==NULL) {
+            optopt = c;
+            return '?';
+        }
+        nextchar++;
+        break;
+    }
+
+    return c;
+}
+
+
+/* Windows implementation of gettimeofday
+Reference: https://stackoverflow.com/a/26085827
+*/
+typedef struct timeval {
+    long tv_sec;
+    long tv_usec;
+} timeval;
+
+
+int gettimeofday(struct timeval* tp, struct timezone* tzp)
+{
+    // Note: some broken versions only have 8 trailing zero's, the correct epoch has 9 trailing zero's
+    // This magic number is the number of 100 nanosecond intervals since January 1, 1601 (UTC)
+    // until 00:00:00 January 1, 1970 
+    static const uint64_t EPOCH = ((uint64_t)116444736000000000ULL);
+
+    SYSTEMTIME  system_time;
+    FILETIME    file_time;
+    uint64_t    time;
+
+    GetSystemTime(&system_time);
+    SystemTimeToFileTime(&system_time, &file_time);
+    time = ((uint64_t)file_time.dwLowDateTime);
+    time += ((uint64_t)file_time.dwHighDateTime)<<32;
+
+    tp->tv_sec = (long)((time-EPOCH)/10000000L);
+    tp->tv_usec = (long)(system_time.wMilliseconds*1000);
+    return 0;
+}
+/************************************************************************************************/
 
 double wtime(){
 #ifndef __NOMPI__
@@ -38,7 +125,7 @@ int main(int argc, char **argv) {
     device *dev = NULL;
     int i;
     double time1 = 0.0, time2 = 0.0, time3 = 0.0, time4 = 0.0, time5 = 0.0, time6 = 0.0;
-    struct filenames file = {};
+    struct filenames file;
     const char *filein;
     const char *filedata = NULL;
     int index;
@@ -136,10 +223,17 @@ int main(int argc, char **argv) {
         fprintf(stdout, "    checkpoint: %s \n\n", file.checkpoint);
     }
     /* Check if cache directory exists and create dir if not */
+    
     struct stat info;
     const char *homedir;
-    if ((homedir = getenv("HOME")) == NULL) {
-        homedir = getpwuid(getuid())->pw_dir;
+    if ((homedir = getenv("HOME"))==NULL) {
+      #ifdef _WIN32
+        homedir = (char*)malloc(PATH_MAX+1);
+        GetCurrentDirectory(PATH_MAX, homedir);
+      #else
+        homedir = (getuid())->pw_dir;
+      #endif // _WIN32
+        
     }
     snprintf(m.cache_dir, PATH_MAX, "%s%s", filein, "_cache");
 
@@ -258,6 +352,10 @@ int main(int argc, char **argv) {
 
     // Free the memory
     Free_OpenCL(&m, dev);
+#ifdef _WIN32
+    free(homedir);
+#endif // _WIN32
+
 
 //    if (state){
 ////        sleep(300000);
