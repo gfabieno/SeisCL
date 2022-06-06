@@ -232,7 +232,7 @@ int main(int argc, char **argv) {
         homedir = (char*)malloc(PATH_MAX+1);
         GetCurrentDirectory(PATH_MAX, homedir);
       #else
-        homedir = (getuid())->pw_dir;
+        homedir = getpwuid(getuid())->pw_dir;
       #endif // _WIN32
         
     }
