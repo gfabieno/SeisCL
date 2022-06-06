@@ -37,11 +37,13 @@
 #include <sys/stat.h>
 #ifndef _WIN32
     #include <unistd.h>
-    #include <io.h>
     #include <pwd.h>
     #include <sys/sysctl.h>
     #include <sys/time.h>
+#else
+    #include <io.h>
 #endif // _WIN32
+
 
 #include "third_party/KISS_FFT/kiss_fft.h"
 #include "third_party/KISS_FFT/kiss_fftr.h"
