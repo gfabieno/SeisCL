@@ -24,7 +24,7 @@
 #endif //_WIN32
 #include "F.h"
 
-
+#ifdef _WIN32
 /*
 * Naive, partial implementation of getopt based on https://www.man7.org/linux/man-pages/man3/getopt.3.html
 * Supports only single char options
@@ -105,6 +105,7 @@ int gettimeofday(struct timeval* tp, struct timezone* tzp)
     return 0;
 }
 /************************************************************************************************/
+#endif // _WIN32
 
 double wtime(){
 #ifndef __NOMPI__
