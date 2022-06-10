@@ -784,7 +784,7 @@ class SeisCL():
                                          linewidth=2, edgecolor='k',
                                          facecolor='none', hatch='/')
         else:
-            ax.spines['top'].set_linewidth(6)
+            ax.spines['top'].set_linewidth(3)
             # Not the best way to do it
             ax.set_title('free surface', fontsize=12)
 
