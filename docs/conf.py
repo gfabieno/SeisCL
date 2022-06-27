@@ -46,7 +46,7 @@ extensions = ['sphinx.ext.autodoc',
               'm2r2',
               'numpydoc',
               'nbsphinx',
-              'sphinx_nbexamples'
+              'sphinx_nbexamples',
 ]
 
 autoapi_dirs = ['../SeisCL']

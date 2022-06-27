@@ -8,3 +8,4 @@ nbsphinx
 sphinx_nbexamples
 image
 m2r2
+pandoc
