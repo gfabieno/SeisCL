@@ -886,7 +886,6 @@ FUNDEF void FreeSurface2_lin(grid pos,
 
 class ViscoChangePar(ReversibleKernelCL):
 
-
     forward_src = """
     FUNDEF void ViscoChangePar(grid pos,
                                 GLOBARG float *M,
@@ -1103,53 +1102,57 @@ if __name__ == '__main__':
     gridout = GridCL(resc.queues[0], shape=(nt, nrec), type=np.float32)
     psv2D = viscoelastic(grid2D, gridout, gridsrc, nab)
 
-    # psv2D.backward_test(reclinpos=rec_linpos,
-    #                     srclinpos=src_linpos)
-    # psv2D.linear_test(reclinpos=rec_linpos,
-    #                   srclinpos=src_linpos)
+    psv2D.backward_test(reclinpos=rec_linpos,
+                        srclinpos=src_linpos)
+    psv2D.linear_test(reclinpos=rec_linpos,
+                      srclinpos=src_linpos)
     psv2D.dot_test(reclinpos=rec_linpos,
                    srclinpos=src_linpos)
 
-    # nrec = 1
-    # nt = 7500
-    # nab = 16
-    # dh = 1.0
-    # dt = 0.0001
+    nrec = 1
+    nt = 7500
+    nab = 16
+    dh = 1.0
+    dt = 0.0001
+
+    grid2D = GridCL(resc.queues[0], shape=(160, 300), type=np.float32,
+                    zero_boundary=True, dh=dh, pad=2, dt=dt)
+
+    src_linpos = grid2D.xyz2lin([0], [50]).astype(np.int32)
+    xrec = np.arange(50, 250)
+    zrec = xrec*0
+    rec_linpos = grid2D.xyz2lin(zrec, xrec).astype(np.int32)
+    gridout = GridCL(resc.queues[0], shape=(nt, xrec.shape[0]), pad=0,
+                     type=np.float32, dt=dt, nt=nt, nfddim=1)
+    gridsrc = GridCL(resc.queues[0], shape=(nt, 1), pad=0, type=np.float32,
+                     dt=dt, nt=nt, nfddim=1)
+    psv2D = viscoelastic(grid2D, gridout, gridsrc, nab)
+
+    vs = np.full(grid2D.shape, 300.0)
+    rho = np.full(grid2D.shape, 1800.0)
+    vp = np.full(grid2D.shape, 1500.0)
+    taup = np.full(grid2D.shape, 0.02)
+    taus = np.full(grid2D.shape, 0.02)
+    vs[80:, :] = 600
+    rho[80:, :] = 2000
+    vp[80:, :] = 2000
+    vs0 = vs.copy()
+    vs[5:10, 145:155] *= 1.05
+
+    states = psv2D({"vs": vs,
+                    "vp": vp,
+                    "rho": rho,
+                    "taup": taup,
+                    "taus": taus,
+                    "signal": ricker(10, dt, nt)},
+                   reclinpos=rec_linpos,
+                   srclinpos=src_linpos)
+    plt.imshow(states["vx"].get())
+    plt.show()
     #
-    # grid2D = GridCL(resc.queues[0], shape=(160, 300), type=np.float32,
-    #                 zero_boundary=True, dh=dh, pad=2, dt=dt)
-    #
-    # src_linpos = grid2D.xyz2lin([0], [50]).astype(np.int32)
-    # xrec = np.arange(50, 250)
-    # zrec = xrec*0
-    # rec_linpos = grid2D.xyz2lin(zrec, xrec).astype(np.int32)
-    # gridout = GridCL(resc.queues[0], shape=(nt, xrec.shape[0]), pad=0,
-    #                  type=np.float32, dt=dt, nt=nt, nfddim=1)
-    # gridsrc = GridCL(resc.queues[0], shape=(nt, 1), pad=0, type=np.float32,
-    #                  dt=dt, nt=nt, nfddim=1)
-    # psv2D = viscoelastic(grid2D, gridout, gridsrc, nab)
-    #
-    # vs = np.full(grid2D.shape, 300.0)
-    # rho = np.full(grid2D.shape, 1800.0)
-    # vp = np.full(grid2D.shape, 1500.0)
-    # vs[80:, :] = 600
-    # rho[80:, :] = 2000
-    # vp[80:, :] = 2000
-    # vs0 = vs.copy()
-    # vs[5:10, 145:155] *= 1.05
-    #
-    # states = psv2D({"vs": vs,
-    #                 "vp": vp,
-    #                 "rho": rho,
-    #                 "signal": ricker(10, dt, nt)},
-    #                reclinpos=rec_linpos,
-    #                srclinpos=src_linpos)
-    # plt.imshow(states["vx"].get())
-    # plt.show()
-    # #
-    # vzobs = states["vzout"].get()
-    # clip = 0.01
-    # vmin = np.min(vzobs) * 0.1
-    # vmax=-vmin
-    # plt.imshow(vzobs, aspect="auto", vmin=vmin, vmax=vmax)
-    # plt.show()
+    vzobs = states["vzout"].get()
+    clip = 0.01
+    vmin = np.min(vzobs) * 0.1
+    vmax=-vmin
+    plt.imshow(vzobs, aspect="auto", vmin=vmin, vmax=vmax)
+    plt.show()
