@@ -110,22 +110,22 @@ FUNDEF void freesurface(GLOBARG float *vx,  GLOBARG float *vz,
     h=-((g-f)*(g-f)*(vxx)/g)-((g-f)*vzz);
 
     // Absorbing boundary
-    #if ABS_TYPE==2
-        {
-
-        #if DEVID==0 & MYLOCALID==0
-            if (gidx-FDOH<NAB){
-                h*=taper[gidx-FDOH];
-            }
-        #endif
-
-        #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-            if (gidx>NX-NAB-FDOH-1){
-                h*=taper[NX-FDOH-gidx-1];
-            }
-        #endif
-        }
-    #endif
+//    #if ABS_TYPE==2
+//        {
+//
+//        #if DEVID==0 & MYLOCALID==0
+//            if (gidx-FDOH<NAB){
+//                h*=taper[gidx-FDOH];
+//            }
+//        #endif
+//
+//        #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+//            if (gidx>NX-NAB-FDOH-1){
+//                h*=taper[NX-FDOH-gidx-1];
+//            }
+//        #endif
+//        }
+//    #endif
     sxx[indv(gidz,gidx)]+=pdir*h;
 
     #else
@@ -140,22 +140,22 @@ FUNDEF void freesurface(GLOBARG float *vx,  GLOBARG float *vz,
         sump+=rxx[(l)*NX*NZ+(gidx)*NZ+(gidz)];
     }
     h+=-DT2*sump;
-    #if ABS_TYPE==2
-        {
-
-        #if DEVID==0 & MYLOCALID==0
-            if (gidx-FDOH<NAB){
-                h*=taper[gidx-FDOH];
-            }
-        #endif
-
-        #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-            if (gidx>NX-NAB-FDOH-1){
-                h*=taper[NX-FDOH-gidx-1];
-            }
-        #endif
-        }
-    #endif
+//    #if ABS_TYPE==2
+//        {
+//
+//        #if DEVID==0 & MYLOCALID==0
+//            if (gidx-FDOH<NAB){
+//                h*=taper[gidx-FDOH];
+//            }
+//        #endif
+//
+//        #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+//            if (gidx>NX-NAB-FDOH-1){
+//                h*=taper[NX-FDOH-gidx-1];
+//            }
+//        #endif
+//        }
+//    #endif
     sxx[indv(gidz,gidx)]+=pdir* h;
 
     /* updating the memory-variable rxx at the free surface */
@@ -170,22 +170,22 @@ FUNDEF void freesurface(GLOBARG float *vx,  GLOBARG float *vz,
         sump+=rxx[(l)*NX*NZ+(gidx)*NZ+(gidz)];
         /*completely updating the stresses sxx  */
     }
-    #if ABS_TYPE==2
-        {
-
-        #if DEVID==0 & MYLOCALID==0
-            if (gidx-FDOH<NAB){
-                sump*=taper[gidx-FDOH];
-            }
-        #endif
-
-        #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-            if (gidx>NX-NAB-FDOH-1){
-                sump*=taper[NX-FDOH-gidx-1];
-            }
-        #endif
-        }
-    #endif
+//    #if ABS_TYPE==2
+//        {
+//
+//        #if DEVID==0 & MYLOCALID==0
+//            if (gidx-FDOH<NAB){
+//                sump*=taper[gidx-FDOH];
+//            }
+//        #endif
+//
+//        #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+//            if (gidx>NX-NAB-FDOH-1){
+//                sump*=taper[NX-FDOH-gidx-1];
+//            }
+//        #endif
+//        }
+//    #endif
     sxx[indv(gidz,gidx)]+=pdir*(DT2*sump);
     
 #endif

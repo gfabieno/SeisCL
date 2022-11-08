@@ -98,7 +98,7 @@ FUNDEF void freesurface(GLOBARG float *vx,  GLOBARG float *vy,
     vzz = Dzm(vz);
 
 
-// Correct spatial derivatives to implement CPML
+//// Correct spatial derivatives to implement CPML
 #if ABS_TYPE==1
     {
         int i,j,k,ind;
@@ -148,26 +148,26 @@ FUNDEF void freesurface(GLOBARG float *vx,  GLOBARG float *vy,
     g=M[indp];
     h=-((g-f)*(g-f)*(vxx+vyy)/g)-((g-f)*vzz);
 
-    #if ABS_TYPE==2
-        {
-        if (gidy-FDOH<NAB){
-                h*=taper[gidy-FDOH];
-        }
-        if (gidy>NY-NAB-FDOH-1){
-                h*=taper[NY-FDOH-gidy-1];
-        }
-        #if DEVID==0 & MYLOCALID==0
-            if (gidx-FDOH<NAB){
-                h*=taper[gidx-FDOH];
-            }
-        #endif
-        #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-            if (gidx>NX-NAB-FDOH-1){
-                h*=taper[NX-FDOH-gidx-1];
-            }
-        #endif
-        }
-    #endif
+//    #if ABS_TYPE==2
+//        {
+//        if (gidy-FDOH<NAB){
+//                h*=taper[gidy-FDOH];
+//        }
+//        if (gidy>NY-NAB-FDOH-1){
+//                h*=taper[NY-FDOH-gidy-1];
+//        }
+//        #if DEVID==0 & MYLOCALID==0
+//            if (gidx-FDOH<NAB){
+//                h*=taper[gidx-FDOH];
+//            }
+//        #endif
+//        #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+//            if (gidx>NX-NAB-FDOH-1){
+//                h*=taper[NX-FDOH-gidx-1];
+//            }
+//        #endif
+//        }
+//    #endif
 
     sxx[indv(gidz, gidy, gidx)]+=h;
     syy[indv(gidz, gidy, gidx)]+=h;
@@ -188,34 +188,34 @@ FUNDEF void freesurface(GLOBARG float *vx,  GLOBARG float *vy,
         sumy+=ryy[indr];
     }
 
-    #if ABS_TYPE==2
-        {
-        if (gidy-FDOH<NAB){
-                h*=taper[gidy-FDOH];
-                sumx*=taper[gidy-FDOH];
-                sumy*=taper[gidy-FDOH];
-        }
-        if (gidy>NY-NAB-FDOH-1){
-                h*=taper[NY-FDOH-gidy-1];
-                sumx*=taper[NY-FDOH-gidy-1];
-                sumy*=taper[NY-FDOH-gidy-1];
-        }
-        #if DEVID==0 & MYLOCALID==0
-            if (gidx-FDOH<NAB){
-                h*=taper[gidx-FDOH];
-                sumx*=taper[gidx-FDOH];
-                sumy*=taper[gidx-FDOH];
-            }
-        #endif
-        #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-            if (gidx>NX-NAB-FDOH-1){
-                h*=taper[NX-FDOH-gidx-1];
-                sumx*=taper[NX-FDOH-gidx-1];
-                sumy*=taper[NX-FDOH-gidx-1];
-            }
-        #endif
-        }
-    #endif
+//    #if ABS_TYPE==2
+//        {
+//        if (gidy-FDOH<NAB){
+//                h*=taper[gidy-FDOH];
+//                sumx*=taper[gidy-FDOH];
+//                sumy*=taper[gidy-FDOH];
+//        }
+//        if (gidy>NY-NAB-FDOH-1){
+//                h*=taper[NY-FDOH-gidy-1];
+//                sumx*=taper[NY-FDOH-gidy-1];
+//                sumy*=taper[NY-FDOH-gidy-1];
+//        }
+//        #if DEVID==0 & MYLOCALID==0
+//            if (gidx-FDOH<NAB){
+//                h*=taper[gidx-FDOH];
+//                sumx*=taper[gidx-FDOH];
+//                sumy*=taper[gidx-FDOH];
+//            }
+//        #endif
+//        #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+//            if (gidx>NX-NAB-FDOH-1){
+//                h*=taper[NX-FDOH-gidx-1];
+//                sumx*=taper[NX-FDOH-gidx-1];
+//                sumy*=taper[NX-FDOH-gidx-1];
+//            }
+//        #endif
+//        }
+//    #endif
 
     sxx[indv(gidz, gidy, gidx)]+=pdir*(h-DT2*sumx);
     syy[indv(gidz, gidy, gidx)]+=pdir*(h-DT2*sumy);
@@ -236,30 +236,30 @@ FUNDEF void freesurface(GLOBARG float *vx,  GLOBARG float *vy,
         sumy+=ryy[indr];
     }
 
-    #if ABS_TYPE==2
-        {
-        if (gidy-FDOH<NAB){
-                sumx*=taper[gidy-FDOH];
-                sumy*=taper[gidy-FDOH];
-        }
-        if (gidy>NY-NAB-FDOH-1){
-                sumx*=taper[NY-FDOH-gidy-1];
-                sumy*=taper[NY-FDOH-gidy-1];
-        }
-        #if DEVID==0 & MYLOCALID==0
-            if (gidx-FDOH<NAB){
-                sumx*=taper[gidx-FDOH];
-                sumy*=taper[gidx-FDOH];
-            }
-        #endif
-        #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-            if (gidx>NX-NAB-FDOH-1){
-                sumx*=taper[NX-FDOH-gidx-1];
-                sumy*=taper[NX-FDOH-gidx-1];
-            }
-        #endif
-        }
-    #endif
+//    #if ABS_TYPE==2
+//        {
+//        if (gidy-FDOH<NAB){
+//                sumx*=taper[gidy-FDOH];
+//                sumy*=taper[gidy-FDOH];
+//        }
+//        if (gidy>NY-NAB-FDOH-1){
+//                sumx*=taper[NY-FDOH-gidy-1];
+//                sumy*=taper[NY-FDOH-gidy-1];
+//        }
+//        #if DEVID==0 & MYLOCALID==0
+//            if (gidx-FDOH<NAB){
+//                sumx*=taper[gidx-FDOH];
+//                sumy*=taper[gidx-FDOH];
+//            }
+//        #endif
+//        #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+//            if (gidx>NX-NAB-FDOH-1){
+//                sumx*=taper[NX-FDOH-gidx-1];
+//                sumy*=taper[NX-FDOH-gidx-1];
+//            }
+//        #endif
+//        }
+//    #endif
 
     /*completely updating the stresses sxx and syy */
     sxx[indv(gidz, gidy, gidx)]+=(DT2*sumx);

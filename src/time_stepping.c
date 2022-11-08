@@ -843,7 +843,7 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
             if ((m->GRADOUT || m->RMSOUT || m->RESOUT) && m->INPUTRES==0){
                 __GUARD m->res_calc(m,s);
             }
-            if (!m->INPUTRES && (m->GRADOUT || m->RMSOUT || m->RESOUT)){
+            if ((!m->INPUTRES && (m->GRADOUT || m->RMSOUT || m->RESOUT))){
                 __GUARD m->res_scale(m,s);
             }
 
@@ -855,6 +855,7 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
         }
         else {
             checkpoint_h2d(m, dev, file_id, s);
+            __GUARD m->res_scale(m,s);
         }
 
         // Calculation of the gradient for this shot, if required

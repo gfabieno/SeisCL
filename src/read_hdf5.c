@@ -39,21 +39,17 @@ int checkscalar(hid_t file_id, const char * invar){
     hid_t dataset_id=0, dataspace_id=0;
     int rank;
     hsize_t dims2[2];
+    hsize_t npoints;
     
     dataset_id = H5Dopen2(file_id, invar, H5P_DEFAULT);
     dataspace_id = H5Dget_space( dataset_id );
-    rank=H5Sget_simple_extent_ndims(dataspace_id);
-    H5Sget_simple_extent_dims(dataspace_id, dims2, NULL );
-    if (rank!=2 && rank!=0){
+    npoints = H5Sget_simple_extent_npoints(dataspace_id);
+    if (npoints != 1){
         state=1;
-        fprintf(stderr, "Error: Variable %s must be of rank 0 or 2\n",invar);
-    }
-    if (rank==2 && (dims2[0]!=1 || dims2[1]!=1)){
-        state=1;
-        fprintf(stderr, "Error: Variable %s must be of size 1x1 (scalar)\n",
+        fprintf(stderr, "Error: Variable %s must be a scalar\n",
                 &invar[1]);
-        }
-    
+    }
+
     if (dataset_id) H5Dclose(dataset_id);
     
     return state;
@@ -712,7 +708,12 @@ int readhdf5(struct filenames files, model * m) {
     }
     /* Residuals file__________________________________
      __________________________________________________________________*/
-    
+    if (m->INPUTRES==1 && m->RESOUT==1){
+        fprintf(stderr, "Error: Cannot input and output residuals "
+                        "simultaneously\n");
+        return 1;
+    }
+
     if (m->INPUTRES==1 && m->GRADOUT==1){
         file_id = -1;
         file_id = H5Fopen(files.res, H5F_ACC_RDWR, H5P_DEFAULT);

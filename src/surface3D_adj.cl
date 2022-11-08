@@ -60,9 +60,9 @@ FUNDEF void surface_adj(GLOBARG __prec *vxr,   GLOBARG __prec *vyr,
     
     
     //Read variables in register
-    lszz = szzr[indv(gidz,gidy,gidx)];
-    lsxx = sxxr[indv(gidz,gidy,gidx)];
-    lsyy = sxxr[indv(gidz,gidy,gidx)];
+    lszz = -szzr[indv(gidz,gidy,gidx)];
+    lsxx = -sxxr[indv(gidz,gidy,gidx)];
+    lsyy = -sxxr[indv(gidz,gidy,gidx)];
     lmu = mu[indp(gidz,gidy,gidx)];
     lM = M[indp(gidz,gidy,gidx)];
     
@@ -105,9 +105,9 @@ FUNDEF void surface_adj(GLOBARG __prec *vxr,   GLOBARG __prec *vyr,
     }
     
     //Perform the post-adjoint transformation
-    sxxr[indv(gidz,gidy,gidx)] = (lM * lsxx + (lM-(__cprec1)2.0*lmu) * (lsyy+lszz));
-    syyr[indv(gidz,gidy,gidx)] = (lM * lsyy + (lM-(__cprec1)2.0*lmu) * (lsxx+lszz));
-    szzr[indv(gidz,gidy,gidx)] = (lM * lszz + (lM-(__cprec1)2.0*lmu) * (lsxx+lsyy));
+    sxxr[indv(gidz,gidy,gidx)] = -(lM * lsxx + (lM-(__cprec1)2.0*lmu) * (lsyy+lszz));
+    syyr[indv(gidz,gidy,gidx)] = -(lM * lsyy + (lM-(__cprec1)2.0*lmu) * (lsxx+lszz));
+    szzr[indv(gidz,gidy,gidx)] = -(lM * lszz + (lM-(__cprec1)2.0*lmu) * (lsxx+lsyy));
     
 
 }
