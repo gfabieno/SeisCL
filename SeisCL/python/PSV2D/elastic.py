@@ -19,6 +19,10 @@ from SeisCL.python.common.scaling import ScaledParameters
 from SeisCL.python.common.averaging import ArithmeticAveraging, HarmonicAveraging
 import matplotlib.pyplot as plt
 
+#TODO interface with backward compatibility with SeisCL
+#TODO abs cerjan
+#TODO PML
+
 
 
 class UpdateStress(ReversibleKernelCL):
@@ -856,7 +860,7 @@ class ScaledParameters(ReversibleKernel):
         return states
 
 
-def define_psv(grid2D, gridout, gridsrc, nab):
+def elastic2d(grid2D, gridout, gridsrc, nab):
 
     gridpar = copy(grid2D)
     gridpar.zero_boundary = False
@@ -912,7 +916,7 @@ if __name__ == '__main__':
     gridsrc = GridCL(resc.queues[0], shape=(1,), pad=0, type=np.float32,
                      dt=dt, nt=nt)
     gridout = GridCL(resc.queues[0], shape=(nt, nrec), type=np.float32)
-    psv2D = psv2D = define_psv(grid2D, gridout, gridsrc, nab)
+    psv2D = psv2D = elastic2d(grid2D, gridout, gridsrc, nab)
 
     psv2D.backward_test(reclinpos=rec_linpos,
                         srclinpos=src_linpos)
@@ -938,7 +942,7 @@ if __name__ == '__main__':
                      type=np.float32, dt=dt, nt=nt, nfddim=1)
     gridsrc = GridCL(resc.queues[0], shape=(nt, 1), pad=0, type=np.float32,
                      dt=dt, nt=nt, nfddim=1)
-    psv2D = define_psv(grid2D, gridout, gridsrc, nab)
+    psv2D = elastic2d(grid2D, gridout, gridsrc, nab)
 
     vs = np.full(grid2D.shape, 300.0)
     rho = np.full(grid2D.shape, 1800.0)

@@ -453,6 +453,7 @@ int res_scale(model * m, int s)
 {
     // Scale by the material parameters
     int scaler=0;
+    int state=0;
     int i, g, x, y, z, pos, t;
     float * par=NULL;
     float * par2 = NULL;
@@ -521,6 +522,17 @@ int res_scale(model * m, int s)
                     x = m->src_recs.rec_pos[s][0+8*g]/m->dh;
                     y = m->src_recs.rec_pos[s][1+8*g]/m->dh;
                     z = m->src_recs.rec_pos[s][2+8*g]/m->dh;
+                    if (m->NDIM==2 && (z > m->N[0] || y > m->N[1] || x > m->N[0])){
+                        fprintf(stdout, "Warning: Record position outside of grid\n");
+                        fprintf(stdout, "Position gz=%f, gy=%f, gx=%f\n",
+                                m->src_recs.rec_pos[s][2+8*g],
+                                m->src_recs.rec_pos[s][1+8*g],
+                                m->src_recs.rec_pos[s][0+8*g]);
+                        fprintf(stdout, "Grid size NZ=%f, NY=%f, NX=%f\n",
+                                m->N[0] * m->dh,
+                                m->N[1] * m->dh,
+                                m->N[2] * m->dh);
+                    }
                     if (m->NDIM==2){
                         pos = x*m->N[0]+z;
                     }
@@ -564,7 +576,7 @@ int res_scale(model * m, int s)
         #endif
     }
     
-    return 0;
+    return state;
 }
 
 

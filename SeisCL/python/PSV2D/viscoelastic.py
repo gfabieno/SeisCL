@@ -11,18 +11,18 @@ from SeisCL.python.pycl_backend import (GridCL,
 from SeisCL.python.seis2D import ReversibleKernel, ricker
 from SeisCL.python.FDstencils import FDCoefficients
 from SeisCL.python.common.vel2lame import Velocity2LameCL
-from SeisCL.python.PSV2D.PSV2D import ScaledParameters
+from SeisCL.python.PSV2D.elastic import ScaledParameters
 from SeisCL.python.common.averaging import (ArithmeticAveraging,
                                             HarmonicAveraging,
                                             ArithmeticAveraging2)
 from SeisCL.python.common.sources import Source
 from SeisCL.python.common.receivers import Receiver
-from SeisCL.python.PSV2D.PSV2D import UpdateVelocity
+from SeisCL.python.PSV2D.elastic import UpdateVelocity
 import numpy as np
 from copy import copy
 import matplotlib.pyplot as plt
-from SeisCL.python.PSV2D.PSV2D import UpdateStress as UpdateStresselas
-from SeisCL.python.PSV2D.PSV2D import define_psv
+from SeisCL.python.PSV2D.elastic import UpdateStress as UpdateStresselas
+from SeisCL.python.PSV2D.elastic import elastic2d
 
 
 class UpdateStress(StateKernelGPU):

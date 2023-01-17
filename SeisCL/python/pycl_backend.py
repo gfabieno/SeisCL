@@ -378,6 +378,7 @@ class PropagatorCL(Propagator):
                                                 kwargs[el])
         return kwargs
 
+
 class SequenceCL(Sequence):
 
     def __init__(self, kernels, grids=None, **kwargs):

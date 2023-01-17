@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(SeisCL C)
 
+
 set(CMAKE_C_STANDARD 11)
 
 
@@ -68,7 +69,6 @@ find_package(HDF5 COMPONENTS C HL REQUIRED)
 include_directories(SYSTEM ${HDF5_INCLUDE_DIRS})
 target_link_libraries(SeisCL_MPI ${HDF5_LIBRARIES})
 target_link_libraries(SeisCL_MPI ${HDF5_HL_LIBRARIES})
-
 
 if (USECUDA)
     find_package(CUDAToolkit REQUIRED)
@@ -146,3 +146,4 @@ MESSAGE(STATUS "Compiler cxx debug flags:" ${CMAKE_CXX_FLAGS_DEBUG})
 MESSAGE(STATUS "Compiler cxx release flags:" ${CMAKE_CXX_FLAGS_RELEASE})
 MESSAGE(STATUS "Compiler cxx min size flags:" ${CMAKE_CXX_FLAGS_MINSIZEREL})
 MESSAGE(STATUS "Compiler cxx flags:" ${CMAKE_CXX_FLAGS})
+

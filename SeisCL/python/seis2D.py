@@ -174,12 +174,12 @@ class StateKernel:
         if not hasattr(self, 'zeroinit_states'):
             self.zeroinit_states = []
 
-
     def __call__(self, states, initialize=True, **kwargs):
 
         if initialize:
             self.initialize(states)
         kwargs = self.make_kwargs_compatible(**kwargs)
+        #TODO This is inefficient, preassign memory
         self._forward_states.append({el: states[el].copy()
                                      for el in self.updated_states})
         return self.forward(states, **kwargs)
@@ -262,6 +262,17 @@ class StateKernel:
         return states
 
     def linear(self, dstates, states, **kwargs):
+        """
+        Applies the linearized forward J = d forward / d states
+        to a state perturbation out = J * dstates
+        By default, forward is treated as a linear function
+        (self.linear = self.forward).
+
+        :param dstates: State perturbation
+        :param states:  State at which the forward is linearized
+        :param kwargs:
+        :return: J * dstates
+        """
         dstates = self.forward(dstates, **kwargs)
         return dstates
 
@@ -270,7 +281,7 @@ class StateKernel:
         Applies the adjoint of the forward
 
         :param **kwargs:
-        :param adj_states: A dict containing the adjoint of the forward variables.
+        :param adj_states: A dict containing the adjoint of the forward states.
                            Each elements has the same dimension as the forward
                            state, as the forward kernel do not change the
                            dimension of the state.
