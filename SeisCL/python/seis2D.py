@@ -117,9 +117,23 @@ class Grid:
     def assign_data(self, data):
         return np.require(data.astype(self.dtype), requirements='F')
 
-    def create_cache(self):
-        return np.empty(list(self.shape) + [self.nt],
-                        dtype=self.dtype, order="F")
+    def create_cache(self, cache_size=1, regions=None):
+        if regions:
+            cache = []
+            for region in regions:
+                shape = [0 for _ in range(len(self.shape))]
+                for ii in range(len(self.shape)):
+                    if region[ii] is Ellipsis:
+                        shape[ii] = self.shape[ii]
+                    else:
+                        indices = region[ii].indices(self.shape[ii])
+                        shape[ii] = int((indices[1]-indices[0])/indices[2])
+                cache.append(np.empty(shape + [cache_size], dtype=self.dtype,
+                                      order="F"))
+            return cache
+        else:
+            return np.empty(list(self.shape) + [cache_size],
+                            dtype=self.dtype, order="F")
 
     def initialize(self, data=None, method="zero"):
 
@@ -152,6 +166,8 @@ class StateKernel:
         self.ncall = 0
         if not hasattr(self, 'updated_states'):
             self.updated_states = []
+        # if not hasattr(self, 'updated_regions'):
+        #     self.updated_regions = {}
         if not hasattr(self, 'required_states'):
             self.required_states = []
         if not hasattr(self, 'default_grids'):
@@ -161,15 +177,26 @@ class StateKernel:
         if not hasattr(self, 'zeroinit_states'):
             self.zeroinit_states = []
 
-    def __call__(self, states, initialize=True, **kwargs):
-
+    def __call__(self, states, initialize=True, cache_states=True, **kwargs):
         if initialize:
-            self.initialize(states)
+            self.initialize(states, empty_cache=cache_states)
         kwargs = self.make_kwargs_compatible(**kwargs)
-        for el in self.updated_states:
-            self._forward_states[el][..., self.ncall] = states[el]
-        self.ncall += 1
+        if cache_states:
+            self.cache_states(states)
         return self.forward(states, **kwargs)
+
+    def cache_states(self, states):
+        for el in self.updated_states:
+            if el in self.updated_regions:
+                for ii, region in enumerate(self.updated_regions[el]):
+                    self._forward_states[el][ii][..., self.ncall] = states[el][region]
+            else:
+                self._forward_states[el][..., self.ncall] = states[el]
+        self.ncall += 1
+
+    @property
+    def updated_regions(self):
+        return {}
 
     @property
     def grids(self):
@@ -197,6 +224,7 @@ class StateKernel:
             toinit = list(set(self.updated_states+self.required_states))
         else:
             toinit = self.required_states
+            self.ncall = 0
         for el in toinit:
             if el not in self.grids:
                 self.grids[el] = self.grids[self.default_grids[el]]
@@ -211,16 +239,27 @@ class StateKernel:
             for el in self.copy_states:
                 states[el] = states[self.copy_states[el]]
         if empty_cache:
-            self._forward_states = {el: self.grids[el].create_cache()
-                                    for el in self.updated_states}
+            self._forward_states = {}
+            for el in self.updated_states:
+                if el in self.updated_regions:
+                    regions = self.updated_regions[el]
+                else:
+                    regions = None
+                self._forward_states[el] = self.grids[el].create_cache(regions=regions,
+                                                                       cache_size=cache_size)
         return states
 
     def make_kwargs_compatible(self, **kwargs):
         return kwargs
 
-    def call_linear(self, dstates, states, **kwargs):
+    def call_linear(self, dstates, states, initialize=True, cache_states=True,
+                    **kwargs):
 
-        kwargs = self.make_kwargs_compatible(**kwargs)
+        if initialize:
+            self.initialize(states, empty_cache=cache_states)
+            kwargs = self.make_kwargs_compatible(**kwargs)
+        if cache_states:
+            self.cache_states(states)
         dstates = self.linear(dstates, states, **kwargs)
         states = self.forward(states, **kwargs)
 
@@ -293,7 +332,12 @@ class StateKernel:
         """
         self.ncall -= 1
         for el in self._forward_states:
-            states[el] = self._forward_states[el][..., self.ncall]
+            if el in self.updated_regions:
+                for ii, reg in enumerate(self.updated_regions[el]):
+                    states[el][reg] = self._forward_states[el][ii][...,
+                                                                   self.ncall]
+            else:
+                states[el] = self._forward_states[el][..., self.ncall]
 
         return states
 
@@ -346,10 +390,8 @@ class StateKernel:
                 break
             pstates = {el: states[el] + dstates[el] for el in states}
 
-            fpstates = self({el: pstates[el].copy() for el in pstates},
-                            initialize=False, **kwargs)
-            fstates = self({el: states[el].copy() for el in states},
-                           initialize=False, **kwargs)
+            fpstates = self({el: pstates[el].copy() for el in pstates}, **kwargs)
+            fstates = self({el: states[el].copy() for el in states}, **kwargs)
 
             lstates, _ = self.call_linear({el: dstates[el].copy()
                                            for el in dstates},
@@ -393,20 +435,17 @@ class StateKernel:
         """
 
         states = self.initialize({}, method="random", copy_state=False)
-        fstates = self({el: states[el].copy() for el in states},
-                       initialize=False, **kwargs)
-
         dstates = self.initialize({}, empty_cache=False,
                                   method="random", copy_state=False)
-        dfstates, _ = self.call_linear({el: dstates[el].copy()
-                                        for el in dstates},
-                                       {el: states[el].copy()
-                                        for el in states},
-                                       **kwargs)
+        dfstates, fstates = self.call_linear({el: dstates[el].copy()
+                                              for el in dstates},
+                                             {el: states[el].copy()
+                                              for el in states},
+                                             initialize=False,
+                                             **kwargs)
 
         adj_states = self.initialize({}, empty_cache=False, method="random",
                                      adjoint=True, copy_state=False)
-
         fadj_states, _ = self.gradient({el: adj_states[el].copy()
                                         for el in adj_states},
                                        {el: fstates[el].copy()
@@ -510,13 +549,15 @@ class Sequence(StateKernel):
         for kernel in self.kernels:
             kernel.grids = val
 
-    def initialize(self, states, empty_cache=False, method="zero",
-                   adjoint=False, **kwargs):
+    def initialize(self, states, empty_cache=True, method="zero",
+                   adjoint=False, cache_size=1, copy_state=True, **kwargs):
         for kernel in self.kernels:
             states = kernel.initialize(states,
                                        empty_cache=empty_cache,
                                        method=method,
                                        adjoint=adjoint,
+                                       cache_size=cache_size,
+                                       copy_state=copy_state,
                                        **kwargs)
         return states
 
@@ -618,12 +659,13 @@ class Propagator(StateKernel):
         self._grids = val
         self.kernel.grids = val
 
-    def initialize(self, states, empty_cache=False, method="zero",
-                   adjoint=False, **kwargs):
+    def initialize(self, states, empty_cache=True, method="zero",
+                   adjoint=False, cache_size=1, **kwargs):
         states = self.kernel.initialize(states,
                                         empty_cache=empty_cache,
                                         method=method,
                                         adjoint=adjoint,
+                                        cache_size=self.nt,
                                         **kwargs)
         return states
 
@@ -1177,67 +1219,50 @@ class ZeroBoundary(StateKernel):
 
 class Cerjan(StateKernel):
 
-    def __init__(self, grids=None, freesurf=False, abpc=4.0, nab=2, pad=2,
+    def __init__(self, grids=None, freesurf=False, abpc=4.0, nab=2,
                  required_states=(), **kwargs):
         super().__init__(grids, **kwargs)
         self.abpc = abpc
         self.nab = nab
-        self.pad = pad
         self.required_states = required_states
         self.updated_states = required_states
         self.taper = np.exp(np.log(1.0-abpc/100)/nab**2 * np.arange(nab) **2)
-        self.taper = np.concatenate([self.taper,  self.taper[-pad:][::-1]])
+        #self.taper = np.concatenate([self.taper,  self.taper[-pad:][::-1]])
         self.taper = np.expand_dims(self.taper, -1)
         self.freesurf = freesurf
 
-    def __call__(self, states, initialize=True, **kwargs):
-
-        if initialize:
-            states = self.initialize(states)
-        kwargs = self.make_kwargs_compatible(**kwargs)
-        saved = {}
-        for el in self.updated_states:
-            saved[el] = []
-            b = self.nab + self.pad
-            if not self.freesurf:
-                saved[el].append(states[el][:b, :].copy())
-            saved[el].append(states[el][-b:, :].copy())
-            saved[el].append(states[el][:, :b].copy())
-            saved[el].append(states[el][:, -b:].copy())
-
-        self._forward_states.append(saved)
-
-        return self.forward(states, **kwargs)
+    @property
+    def updated_regions(self):
+        regions = []
+        pad = self.grids[self.updated_states[0]].pad
+        ndim = len(self.grids[self.updated_states[0]].shape)
+        b = self.nab + pad
+        for dim in range(ndim):
+            region = [Ellipsis for _ in range(ndim)]
+            region[dim] = slice(pad, b)
+            if dim != 0 or not self.freesurf:
+                regions.append(region)
+            region = [Ellipsis for _ in range(ndim)]
+            region[dim] = slice(-b, -pad)
+            regions.append(tuple(region))
+        return {el: regions for el in self.updated_states}
 
     def forward(self, states, **kwargs):
-
+        pad = self.grids[self.updated_states[0]].pad
         for el in self.required_states:
             if not self.freesurf:
-                states[el][:self.nab+2, :] *= self.taper[::-1]
-            states[el][-self.nab-2:, :] *= self.taper
+                states[el][pad:self.nab+pad, :] *= self.taper[::-1]
+            states[el][-self.nab-pad:-pad, :] *= self.taper
 
             tapert = np.transpose(self.taper)
-            states[el][:, :self.nab+2] *= tapert[:, ::-1]
-            states[el][:, -self.nab-2:] *= tapert
+            states[el][:, pad:self.nab+pad] *= tapert[:, ::-1]
+            states[el][:, -self.nab-pad:-pad] *= tapert
 
         return states
 
     def adjoint(self, adj_states, states, **kwargs):
 
         return self.forward(adj_states, **kwargs)
-
-    def backward(self, states, **kwargs):
-
-        torestore = self._forward_states.pop()
-        for el in torestore:
-            b = self.nab + self.pad
-            if not self.freesurf:
-                states[el][:b, :] = torestore[el][0]
-            states[el][-b:, :] = torestore[el][-3]
-            states[el][:, :b] = torestore[el][-2]
-            states[el][:, -b:] = torestore[el][-1]
-
-        return states
 
 
 class Receiver(ReversibleKernel):
@@ -1442,8 +1467,8 @@ class FreeSurface(StateKernel):
         return states
 
 
-class FreeSurface2(FreeSurface):
-
+class FreeSurface2(ReversibleKernel):
+    #TODO Does not pass linear and dot product tests
     def __init__(self, grids=None, **kwargs):
         super().__init__(grids, **kwargs)
         self.required_states = ["vx", "vz", "sxx", "szz", "sxz", "csu", "csM", "cv"]
@@ -1457,20 +1482,7 @@ class FreeSurface2(FreeSurface):
                               "csu": "gridpar",
                               "csM": "gridpar"}
 
-    def __call__(self, states, initialize=True, **kwargs):
-
-        if initialize:
-            states = self.initialize(states)
-        kwargs = self.make_kwargs_compatible(**kwargs)
-        saved = {}
-        for el in self.updated_states:
-            pad = self.grids[el].pad
-            saved[el] = states[el][pad:2*pad, pad:-pad].copy()
-        self._forward_states.append(saved)
-
-        return self.forward(states, **kwargs)
-
-    def forward(self, states, **kwargs):
+    def forward(self, states, backpropagate=False, **kwargs):
 
         sxx = states["sxx"]
         szz = states["szz"]
@@ -1484,33 +1496,41 @@ class FreeSurface2(FreeSurface):
 
         pad = self.grids["vx"].pad
         shape = self.grids["vx"].shape
+        if backpropagate:
+            sign = -1
+        else:
+            sign = 1
 
-        vxx = Dmx(vx)[:1, :]
-        vzz = Dmz(vz)[:1, :]
-        f = csu[pad:pad+1, pad:-pad] * 2.0
-        g = csM[pad:pad+1, pad:-pad]
-        h = -((g - f) * (g - f) * vxx / g) - ((g - f) * vzz)
-        sxx[pad:pad+1, pad:-pad] += h
+        def fun1():
+            vxx = Dmx(vx)[:1, :]
+            vzz = Dmz(vz)[:1, :]
+            f = csu[pad:pad+1, pad:-pad] * 2.0
+            g = csM[pad:pad+1, pad:-pad]
+            h = -((g - f) * (g - f) * vxx / g) - ((g - f) * vzz)
+            sxx[pad:pad+1, pad:-pad] += sign * h
 
-        szz[pad:pad+1, :] = 0.0
-        # szz_z = np.zeros((3*pad, shape[1]))
-        # szz_z[:pad, :] = -szz[pad+1:2*pad+1, :][::-1, :]
-        # szz_z = Dpz(szz_z)
-        szz_z = np.zeros((pad, shape[1]-2*pad))
-        hc = [1.1382, -0.046414]
-        for i in range(pad):
-            for j in range(i+1, pad):
-                szz_z[i, :] += hc[j] * szz[pad+j-i, pad:-pad]
+            szz[pad:pad+1, pad:-pad] += sign * -((g*(vxx+vzz))-(f*vxx))
 
-        # sxz_z = np.zeros((3*pad, shape[1]))
-        # sxz_z[:pad, :] = -sxz[pad+1:2*pad+1, :][::-1, :]
-        # sxz_z = Dmz(sxz_z)
-        sxz_z = np.zeros((pad, shape[1]-2*pad))
-        for i in range(pad):
-            for j in range(i, pad):
-                sxz_z[i, :] += hc[j] * sxz[pad+j-i+1, pad:-pad]
-        vx[pad:2*pad, pad:-pad] += sxz_z * cv[pad:2*pad, pad:-pad]
-        vz[pad:2*pad, pad:-pad] += szz_z * cv[pad:2*pad, pad:-pad]
+        def fun2():
+            szz_z = np.zeros((pad, shape[1]-2*pad))
+            hc = [1.1382, -0.046414]
+            for i in range(pad):
+                for j in range(i+1, pad):
+                    szz_z[i, :] += hc[j] * szz[pad+j-i, pad:-pad]
+
+            sxz_z = np.zeros((pad, shape[1]-2*pad))
+            for i in range(pad):
+                for j in range(i, pad):
+                    sxz_z[i, :] += hc[j] * sxz[pad+j-i+1, pad:-pad]
+            vx[pad:2*pad, pad:-pad] += sign * sxz_z * cv[pad:2*pad, pad:-pad]
+            vz[pad:2*pad, pad:-pad] += sign * szz_z * cv[pad:2*pad, pad:-pad]
+
+        if backpropagate:
+            fun2()
+            fun1()
+        else:
+            fun1()
+            fun2()
 
         return states
 
@@ -1631,15 +1651,6 @@ class FreeSurface2(FreeSurface):
         adj_states["csu"][pad:pad+1, pad:-pad] += 2.0 * (2.0 * (g - f) * vxx / g + vzz) * adj_sxx[pad:pad+1, pad:-pad]
 
         return adj_states
-
-    def backward(self, states, **kwargs):
-
-        torestore = self._forward_states.pop()
-        for el in torestore:
-            pad = self.grids[el].pad
-            states[el][pad:2*pad, pad:-pad] = torestore[el]
-
-        return states
 
 
 class ScaledParameters(ReversibleKernel):
@@ -1776,11 +1787,11 @@ def define_psv(grid2D, gridout, nab, nt):
 
     stepper = Sequence([Source(required_states=["vx"]),
                         UpdateVelocity2(),
-                        #Cerjan(required_states=["vx", "vz"], freesurf=1, nab=nab),
+                        Cerjan(required_states=["vx", "vz"], freesurf=1, nab=nab),
                         Receiver(required_states=["vx", "vz"]),
                         UpdateStress2(),
-                        #FreeSurface2(),
-                        #Cerjan(required_states=["sxx", "szz", "sxz"], freesurf=1, nab=nab),
+                        FreeSurface2(),
+                        Cerjan(required_states=["sxx", "szz", "sxz"], freesurf=1, nab=nab),
                         ])
     prop = Propagator(stepper, nt)
     psv2D = Sequence([ScaledParameters(),
