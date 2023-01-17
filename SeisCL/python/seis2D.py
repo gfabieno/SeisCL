@@ -117,6 +117,10 @@ class Grid:
     def assign_data(self, data):
         return np.require(data.astype(self.dtype), requirements='F')
 
+    def create_cache(self):
+        return np.empty(list(self.shape) + [self.nt],
+                        dtype=self.dtype, order="F")
+
     def initialize(self, data=None, method="zero"):
 
         if data is not None:
@@ -136,24 +140,6 @@ class Grid:
         return array
 
 
-class State:
-
-    def __init__(self, name, grid=Grid(), data=None, **kwargs):
-        self.name = name
-        self.grid = grid
-
-    def initialize(self, data=None, method="zero"):
-
-        if data is not None:
-            data = self.grid.assign_data(data)
-        elif method == "zero":
-            data = self.grid.zero()
-        elif method == "random":
-            data = self.grid.random()
-
-        return data
-
-
 class StateKernel:
     """
     Kernel implementing forward, linear and adjoint modes.
@@ -162,7 +148,8 @@ class StateKernel:
     def __init__(self, grids=None, **kwargs):
         self._grids = grids
         self.grids = grids
-        self._forward_states = []
+        self._forward_states = None
+        self.ncall = 0
         if not hasattr(self, 'updated_states'):
             self.updated_states = []
         if not hasattr(self, 'required_states'):
@@ -179,9 +166,9 @@ class StateKernel:
         if initialize:
             self.initialize(states)
         kwargs = self.make_kwargs_compatible(**kwargs)
-        #TODO This is inefficient, preassign memory
-        self._forward_states.append({el: states[el].copy()
-                                     for el in self.updated_states})
+        for el in self.updated_states:
+            self._forward_states[el][..., self.ncall] = states[el]
+        self.ncall += 1
         return self.forward(states, **kwargs)
 
     @property
@@ -205,7 +192,7 @@ class StateKernel:
         return list(set([val for val in self.default_grids.values()]))
 
     def initialize(self, states, empty_cache=True, method="zero", adjoint=False,
-                   copy_state=True, **kwargs):
+                   copy_state=True, cache_size=1, **kwargs):
         if adjoint:
             toinit = list(set(self.updated_states+self.required_states))
         else:
@@ -224,7 +211,8 @@ class StateKernel:
             for el in self.copy_states:
                 states[el] = states[self.copy_states[el]]
         if empty_cache:
-            self._forward_states = []
+            self._forward_states = {el: self.grids[el].create_cache()
+                                    for el in self.updated_states}
         return states
 
     def make_kwargs_compatible(self, **kwargs):
@@ -303,9 +291,9 @@ class StateKernel:
         :return:
            states:     A dict containing the input states.
         """
-        torestore = self._forward_states.pop()
-        for el in torestore:
-            states[el] = torestore[el]
+        self.ncall -= 1
+        for el in self._forward_states:
+            states[el] = self._forward_states[el][..., self.ncall]
 
         return states
 
@@ -498,7 +486,6 @@ class Sequence(StateKernel):
                     self.zeroinit_states.append(el)
         self.default_grids = default_grids
 
-
     @property
     def default_grids(self):
         return self._default_grids
@@ -632,7 +619,7 @@ class Propagator(StateKernel):
         self.kernel.grids = val
 
     def initialize(self, states, empty_cache=False, method="zero",
-                   adjoint=False,**kwargs):
+                   adjoint=False, **kwargs):
         states = self.kernel.initialize(states,
                                         empty_cache=empty_cache,
                                         method=method,
@@ -1792,7 +1779,7 @@ def define_psv(grid2D, gridout, nab, nt):
                         #Cerjan(required_states=["vx", "vz"], freesurf=1, nab=nab),
                         Receiver(required_states=["vx", "vz"]),
                         UpdateStress2(),
-                        FreeSurface2(),
+                        #FreeSurface2(),
                         #Cerjan(required_states=["sxx", "szz", "sxz"], freesurf=1, nab=nab),
                         ])
     prop = Propagator(stepper, nt)
