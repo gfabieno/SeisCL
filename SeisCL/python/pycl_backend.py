@@ -4,7 +4,7 @@ import pyopencl as cl
 import pyopencl.array
 import pyopencl.clrandom
 from pyopencl.tools import get_or_register_dtype, match_dtype_to_c_struct
-from SeisCL.python.seis2D import Grid, StateKernel, State, Propagator, Sequence, ReversibleKernel
+from SeisCL.python.seis2D import Grid, StateKernel,  Propagator, Sequence, ReversibleKernel
 import re
 from SeisCL.python.FDstencils import get_pos_header, FDCoefficients, CUDACL_header, grid_stop_header
 

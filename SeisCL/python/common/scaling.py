@@ -1,5 +1,5 @@
 from SeisCL.python.seis2D import (ReversibleKernel)
-from SeisCL.python.pycl_backend import ComputeRessource, GridCL, State, ReversibleKernelCL
+from SeisCL.python.pycl_backend import ComputeRessource, GridCL, ReversibleKernelCL
 import numpy as np
 from pyopencl.array import max
 

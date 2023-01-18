@@ -2,7 +2,6 @@ from SeisCL.python.pycl_backend import (GridCL,
                                         StateKernelGPU,
                                         ReversibleKernelCL,
                                         ComputeRessource,
-                                        State,
                                         SequenceCL,
                                         PropagatorCL,
                                         )

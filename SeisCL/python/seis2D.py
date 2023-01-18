@@ -1545,36 +1545,56 @@ class FreeSurface2(ReversibleKernel):
                       "csM": states["csM"],
                       "cv": states["cv"]})
 
+
+        dvx = dstates["vx"]
+        dvz = dstates["vz"]
+        dszz = dstates["szz"]
+        dsxx = dstates["sxx"]
+        dsxz = dstates["sxz"]
+        dcsu = dstates["csu"]
+        dcsM = dstates["csM"]
+        dcv = dstates["cv"]
         vx = states["vx"]
         vz = states["vz"]
         szz = states["szz"]
         sxz = states["sxz"]
-        dcsu = dstates["csu"]
-        dcsM = dstates["csM"]
-        dcv = dstates["cv"]
         csu = states["csu"]
         csM = states["csM"]
+        cv = states["cv"]
         pad = self.grids["vx"].pad
         shape = self.grids["vx"].shape
 
         vxx = Dmx(vx)[:1, :]
         vzz = Dmz(vz)[:1, :]
+        dvxx = Dmx(dvx)[:1, :]
+        dvzz = Dmz(dvz)[:1, :]
         df = dcsu[pad:pad+1, pad:-pad] * 2.0
         dg = dcsM[pad:pad+1, pad:-pad]
         f = csu[pad:pad+1, pad:-pad] * 2.0
         g = csM[pad:pad+1, pad:-pad]
-        dh = (2.0 * (g - f) * vxx / g + vzz) * df
-        dh += (-2.0 * (g - f) * vxx / g + (g - f)**2 / g**2 * vxx - vzz) * dg
-        dstates["sxx"][pad:pad+1, pad:-pad] += dh
 
-        # szz_z = np.zeros((3*pad, shape[1]))
-        # szz_z[:pad, :] = -szz[pad+1:2*pad+1, :][::-1, :]
-        # szz_z = Dpz(szz_z)
-        # sxz_z = np.zeros((3*pad, shape[1]))
-        # sxz_z[:pad, :] = -sxz[pad+1:2*pad+1, :][::-1, :]
-        # sxz_z = Dmz(sxz_z)
-        szz_z = np.zeros((pad, shape[1]-2*pad))
+        dsxx[pad:pad+1, pad:-pad] += -((g - f) * (g - f) * dvxx / g) - ((g - f) * dvzz)
+        dszz[pad:pad+1, pad:-pad] += -((g*(dvxx+dvzz))-(f*dvxx))
+        dsxx[pad:pad+1, pad:-pad] += \
+                                       (2.0 * (g - f) * vxx / g + vzz) * df \
+                                     + (-2.0 * (g - f) * vxx / g
+                                     + (g - f)*(g - f) / g / g * vxx - vzz) * dg
+        dszz[pad:pad+1, pad:-pad] += -((dg*(vxx+vzz))-(df*vxx))
+
+
+        dszz_z = np.zeros((pad, shape[1]-2*pad))
         hc = [1.1382, -0.046414]
+        for i in range(pad):
+            for j in range(i+1, pad):
+                dszz_z[i, :] += hc[j] * dszz[pad+j-i, pad:-pad]
+        dsxz_z = np.zeros((pad, shape[1]-2*pad))
+        for i in range(pad):
+            for j in range(i, pad):
+                dsxz_z[i, :] += hc[j] * dsxz[pad+j-i+1, pad:-pad]
+        dvx[pad:2*pad, pad:-pad] += dsxz_z * cv[pad:2*pad, pad:-pad]
+        dvz[pad:2*pad, pad:-pad] += dszz_z * cv[pad:2*pad, pad:-pad]
+
+        szz_z = np.zeros((pad, shape[1]-2*pad))
         for i in range(pad):
             for j in range(i+1, pad):
                 szz_z[i, :] += hc[j] * szz[pad+j-i, pad:-pad]
@@ -1582,8 +1602,8 @@ class FreeSurface2(ReversibleKernel):
         for i in range(pad):
             for j in range(i, pad):
                 sxz_z[i, :] += hc[j] * sxz[pad+j-i+1, pad:-pad]
-        dstates["vx"][pad:2*pad, pad:-pad] += sxz_z * dcv[pad:2*pad, pad:-pad]
-        dstates["vz"][pad:2*pad, pad:-pad] += szz_z * dcv[pad:2*pad, pad:-pad]
+        dvx[pad:2*pad, pad:-pad] += sxz_z * dcv[pad:2*pad, pad:-pad]
+        dvz[pad:2*pad, pad:-pad] += szz_z * dcv[pad:2*pad, pad:-pad]
 
         return dstates
 
@@ -1791,7 +1811,8 @@ def define_psv(grid2D, gridout, nab, nt):
                         Receiver(required_states=["vx", "vz"]),
                         UpdateStress2(),
                         FreeSurface2(),
-                        Cerjan(required_states=["sxx", "szz", "sxz"], freesurf=1, nab=nab),
+                        Cerjan(required_states=["sxx", "szz", "sxz"],
+                               freesurf=1, nab=nab),
                         ])
     prop = Propagator(stepper, nt)
     psv2D = Sequence([ScaledParameters(),
