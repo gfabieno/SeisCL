@@ -6,7 +6,7 @@ import numpy as np
 import pyopencl as cl
 import pyopencl.array
 
-
+#TODO cannot perform dot product
 class Receiver(ReversibleKernelCL):
 
     forward_src = """

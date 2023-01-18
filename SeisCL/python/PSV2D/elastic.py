@@ -867,11 +867,11 @@ def elastic2d(grid2D, gridout, gridsrc, nab):
     defs = {"gridfd": grid2D, "gridpar": gridpar, "gridout": gridout,
             "gridsrc": gridsrc}
 
-    stepper = SequenceCL([#Source(required_states=["vz"], grids=defs),
+    stepper = SequenceCL([Source(required_states=["vz"], grids=defs),
                           UpdateVelocity(grids=defs),
                           Receiver(required_states=["vz"],
-                                  updated_states=["vzout"],
-                                  grids=defs),
+                                   updated_states=["vzout"],
+                                   grids=defs),
                           UpdateStress(grids=defs),
                           FreeSurface(grids=defs),
                           ])

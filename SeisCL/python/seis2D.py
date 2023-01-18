@@ -255,7 +255,7 @@ class StateKernel:
 
         if initialize:
             self.initialize(states, empty_cache=cache_states)
-            kwargs = self.make_kwargs_compatible(**kwargs)
+        kwargs = self.make_kwargs_compatible(**kwargs)
         if cache_states:
             self.cache_states(states)
         dstates = self.linear(dstates, states, **kwargs)
