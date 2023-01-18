@@ -166,8 +166,6 @@ class StateKernel:
         self.ncall = 0
         if not hasattr(self, 'updated_states'):
             self.updated_states = []
-        # if not hasattr(self, 'updated_regions'):
-        #     self.updated_regions = {}
         if not hasattr(self, 'required_states'):
             self.required_states = []
         if not hasattr(self, 'default_grids'):

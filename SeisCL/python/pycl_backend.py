@@ -49,6 +49,26 @@ class GridCL(Grid):
                                   np.require(data.astype(dtype=self.dtype),
                                              requirements='F'))
 
+    def create_cache(self, cache_size=1, regions=None):
+        if regions:
+            cache = []
+            for region in regions:
+                shape = [0 for _ in range(len(self.shape))]
+                for ii in range(len(self.shape)):
+                    if region[ii] is Ellipsis:
+                        shape[ii] = self.shape[ii]
+                    else:
+                        indices = region[ii].indices(self.shape[ii])
+                        shape[ii] = int((indices[1]-indices[0])/indices[2])
+                cache.append(cl.array.empty(self.queue,
+                                            tuple(shape + [cache_size]),
+                                            self.dtype, order="F"))
+            return cache
+        else:
+            return cl.array.empty(self.queue,
+                                  tuple(list(self.shape) + [cache_size]),
+                                  self.dtype, order="F")
+
     def define_struct(self):
         dtype = np.dtype([
             ("NX", np.int32),
