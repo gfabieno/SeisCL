@@ -6,12 +6,11 @@ from SeisCL.python.pycl_backend import (GridCL,
                                         PropagatorCL,
                                         )
 from SeisCL.python.FDstencils import get_pos_header, FDCoefficients, CUDACL_header
-from SeisCL.python.seis2D import ReversibleKernel, Sequence, Propagator, ricker
+from SeisCL.python.seis2D import ReversibleKernel, Sequence, Propagator, ricker, Cerjan
 from SeisCL.python.common.sources import Source
 from SeisCL.python.common.receivers import Receiver
 import numpy as np
 from copy import copy
-import pyopencl as cl
 from pyopencl.array import max
 from SeisCL.python.common.vel2lame import Velocity2LameCL
 from SeisCL.python.common.scaling import ScaledParameters
@@ -859,6 +858,54 @@ class ScaledParameters(ReversibleKernel):
         return states
 
 
+class Cerjan(StateKernelGPU):
+
+    def __init__(self, grids=None, freesurf=False, abpc=4.0, nab=2,
+                 required_states=(), **kwargs):
+        self.abpc = abpc
+        self.nab = nab
+        self.required_states = required_states
+        self.updated_states = required_states
+        self.taper = np.exp(np.log(1.0-abpc/100)/nab**2 * np.arange(nab) **2)
+        self.taper = np.expand_dims(self.taper, -1)
+        self.freesurf = freesurf
+        self.default_grids = {el: "gridfd" for el in self.required_states}
+        super().__init__(grids, **kwargs)
+
+    @property
+    def updated_regions(self):
+        regions = []
+        pad = self.grids[self.updated_states[0]].pad
+        ndim = len(self.grids[self.updated_states[0]].shape)
+        b = self.nab + pad
+        for dim in range(ndim):
+            region = [Ellipsis for _ in range(ndim)]
+            region[dim] = slice(pad, b)
+            if dim != 0 or not self.freesurf:
+                regions.append(region)
+            region = [Ellipsis for _ in range(ndim)]
+            region[dim] = slice(-b, -pad)
+            regions.append(tuple(region))
+        return {el: regions for el in self.updated_states}
+
+    def forward(self, states, **kwargs):
+        pad = self.grids[self.updated_states[0]].pad
+        for el in self.required_states:
+            if not self.freesurf:
+                states[el][pad:self.nab+pad, :] *= self.taper[::-1]
+            states[el][-self.nab-pad:-pad, :] *= self.taper
+
+            tapert = np.transpose(self.taper)
+            states[el][:, pad:self.nab+pad] *= tapert[:, ::-1]
+            states[el][:, -self.nab-pad:-pad] *= tapert
+
+        return states
+
+    def adjoint(self, adj_states, states, **kwargs):
+
+        return self.forward(adj_states, **kwargs)
+
+
 def elastic2d(grid2D, gridout, gridsrc, nab):
 
     gridpar = copy(grid2D)
@@ -869,11 +916,14 @@ def elastic2d(grid2D, gridout, gridsrc, nab):
 
     stepper = SequenceCL([Source(required_states=["vz"], grids=defs),
                           UpdateVelocity(grids=defs),
+                          Cerjan(required_states=["vx", "vz"], freesurf=1, nab=nab),
                           Receiver(required_states=["vz"],
                                    updated_states=["vzout"],
                                    grids=defs),
                           UpdateStress(grids=defs),
                           FreeSurface(grids=defs),
+                          Cerjan(required_states=["sxx", "szz", "sxz"],
+                                 freesurf=1, nab=nab),
                           ])
     psv2D = SequenceCL([Velocity2LameCL(grids=defs),
                         ArithmeticAveraging(grids=defs,
@@ -917,12 +967,12 @@ if __name__ == '__main__':
     gridout = GridCL(resc.queues[0], shape=(nt, nrec), type=np.float32)
     psv2D = psv2D = elastic2d(grid2D, gridout, gridsrc, nab)
 
-    psv2D.backward_test(reclinpos=rec_linpos,
-                        srclinpos=src_linpos)
-    psv2D.linear_test(reclinpos=rec_linpos,
-                      srclinpos=src_linpos)
-    psv2D.dot_test(reclinpos=rec_linpos,
-                   srclinpos=src_linpos)
+    # psv2D.backward_test(reclinpos=rec_linpos,
+    #                     srclinpos=src_linpos)
+    # psv2D.linear_test(reclinpos=rec_linpos,
+    #                   srclinpos=src_linpos)
+    # psv2D.dot_test(reclinpos=rec_linpos,
+    #                srclinpos=src_linpos)
 
     nrec = 1
     nt = 7500

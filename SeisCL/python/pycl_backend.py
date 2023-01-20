@@ -19,6 +19,7 @@ options_def = ["-D LCOMM=0",
 
 
 # TODO review how dimensions names are assigned
+# TODO migration to pycuda, there is no match_dtype_to_c_struct
 class GridCL(Grid):
 
     backend = cl.array.Array
@@ -30,6 +31,8 @@ class GridCL(Grid):
                          nfddim=nfddim, zero_boundary=zero_boundary, dtype=dtype)
         self.queue = queue
         self._struct_np, self.struct_c = self.define_struct()
+        self.copy_array = CopyArrayCL(queue.context)
+
 
     def zero(self):
         return cl.array.zeros(self.queue, self.shape, self.dtype, order="F")
@@ -69,6 +72,8 @@ class GridCL(Grid):
                                   tuple(list(self.shape) + [cache_size]),
                                   self.dtype, order="F")
 
+    #TODO create such a structure is not available in pycuda
+    #Workwaround: define as macro or as seperate kenerl inputs
     def define_struct(self):
         dtype = np.dtype([
             ("NX", np.int32),
@@ -86,7 +91,6 @@ class GridCL(Grid):
             ("gidz", np.int32),
         ])
         name = "grid"
-
         dtype, c_decl = match_dtype_to_c_struct(self.queue.device, name, dtype)
         dtype = get_or_register_dtype(name, dtype)
 
@@ -274,6 +278,63 @@ class Kernel:
         return arg_list
 
 
+class CopyArrayCL:
+
+    def __init__(self, ctx):
+        self.ctx = ctx
+        self._kernel = None
+
+    @property
+    def kernel(self):
+        if self._kernel is None:
+            self._kernel = cl.Program(self.ctx, """__kernel void copy(
+                __global char *dest,      
+                const int offsetd, 
+                const int stridexd, 
+                const int strideyd,
+                __global const char *src, 
+                const int offsets, 
+                const int stridexs, 
+                const int strideys,
+                const int word_size) {
+    
+                int write_idx = offsetd 
+                                + get_global_id(0) 
+                                + get_global_id(1) * stridexd 
+                                + get_global_id(2) * strideyd ;
+                int read_idx  = offsets 
+                                + get_global_id(0) 
+                                + get_global_id(1) * stridexs 
+                                + get_global_id(2) * strideys;
+                dest[write_idx] =  src[read_idx];
+    
+                }""").build()
+        return self._kernel
+
+    def __call__(self, dest, src):
+        assert dest.dtype == src.dtype
+        assert dest.shape == src.shape
+        assert len(dest.shape) <= 2
+        if len(dest.shape) == 1:
+            dest.shape = (dest.shape[0], 1)
+            src.shape = (src.shape[0], 1)
+            dest.strides = (dest.strides[0], 0)
+            src.strides = (src.strides[0], 0)
+
+        self.kernel.copy(dest.queue,
+                    (src.dtype.itemsize, src.shape[0], src.shape[1]),
+                    None,
+                    dest.base_data,
+                    np.uint32(dest.offset),
+                    np.uint32(dest.strides[0]),
+                    np.uint32(dest.strides[1]),
+                    src.base_data,
+                    np.uint32(src.offset),
+                    np.uint32(src.strides[0]),
+                    np.uint32(src.strides[1]),
+                    np.uint32(src.dtype.itemsize))
+
+
 class StateKernelGPU(StateKernel):
 
     forward_src = ""
@@ -358,14 +419,15 @@ class StateKernelGPU(StateKernel):
         elif default_identity:
             self.adjoint = lambda x: x
 
-    # def __call__(self, states, *args, initialize=True, **kwargs):
-    #
-    #     # for el in kwargs:
-    #     #     if type(kwargs[el]) in [np.ndarray]:
-    #     #         kwargs[el] = cl.array.to_device(self.computegrid.queue,
-    #     #                                         kwargs[el])
-    #     return super().__call__(states, *args,
-    #                             initialize=initialize, **kwargs)
+    def cache_states(self, states):
+        for el in self.updated_states:
+            if el in self.updated_regions:
+                for ii, region in enumerate(self.updated_regions[el]):
+                    self.grids[el].copy_array(self._forward_states[el][ii][..., self.ncall],
+                                              states[el][region])
+            else:
+                self._forward_states[el][..., self.ncall] = states[el]
+        self.ncall += 1
 
     def make_kwargs_compatible(self, **kwargs):
         for el in kwargs:
