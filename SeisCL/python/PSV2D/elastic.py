@@ -1,12 +1,12 @@
 from SeisCL.python.pycl_backend import (GridCL,
-                                        StateKernelGPU,
-                                        ReversibleKernelCL,
+                                        FunctionGPU,
+                                        ReversibleFunctionCL,
                                         ComputeRessource,
                                         SequenceCL,
                                         PropagatorCL,
                                         )
 from SeisCL.python.FDstencils import get_pos_header, FDCoefficients, CUDACL_header
-from SeisCL.python.seis2D import ReversibleKernel, Sequence, Propagator, ricker, Cerjan
+from SeisCL.python.seis2D import ReversibleFunction, Sequence, Propagator, ricker, Cerjan
 from SeisCL.python.common.sources import Source
 from SeisCL.python.common.receivers import Receiver
 import numpy as np
@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 
 
 
-class UpdateStress(ReversibleKernelCL):
+class UpdateStress(ReversibleFunctionCL):
     forward_src = """
 FUNDEF void UpdateStress(grid pos,
                          GLOBARG float *vx,         GLOBARG float *vz,
@@ -271,7 +271,7 @@ FUNDEF void UpdateStress_adj(grid pos,
                          local_size=local_size, options=options, **kwargs)
 
 
-class UpdateVelocity(ReversibleKernelCL):
+class UpdateVelocity(ReversibleFunctionCL):
     forward_src = """
 
 FUNDEF void UpdateVelocity(grid pos,
@@ -511,7 +511,7 @@ FUNDEF void UpdateVelocity_adj(grid pos,
                          local_size=local_size, **kwargs)
 
 
-class FreeSurface(ReversibleKernelCL):
+class FreeSurface(ReversibleFunctionCL):
 
     forward_src = """
 FUNDEF void FreeSurface1(grid pos,
@@ -786,7 +786,7 @@ FUNDEF void FreeSurface_adj2(grid pos,
         return gsize
 
 
-class ScaledParameters(ReversibleKernel):
+class ScaledParameters(ReversibleFunction):
 
     def __init__(self, grids=None, dt=1, dh=1, **kwargs):
         super().__init__(grids, **kwargs)
@@ -858,7 +858,7 @@ class ScaledParameters(ReversibleKernel):
         return states
 
 
-class Cerjan(StateKernelGPU):
+class Cerjan(FunctionGPU):
 
     def __init__(self, grids=None, freesurf=False, abpc=4.0, nab=2,
                  required_states=(), **kwargs):

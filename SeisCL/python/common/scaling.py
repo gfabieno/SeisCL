@@ -1,10 +1,10 @@
-from SeisCL.python.seis2D import (ReversibleKernel)
-from SeisCL.python.pycl_backend import ComputeRessource, GridCL, ReversibleKernelCL
+from SeisCL.python.seis2D import (ReversibleFunction)
+from SeisCL.python.pycl_backend import ComputeRessource, GridCL, ReversibleFunctionCL
 import numpy as np
 from pyopencl.array import max
 
 
-class ScaledParameters(ReversibleKernel):
+class ScaledParameters(ReversibleFunction):
 
     def __init__(self, grids=None, dt=1, dh=1, **kwargs):
         super().__init__(grids, **kwargs)

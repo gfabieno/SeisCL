@@ -1,12 +1,12 @@
 
 from SeisCL.python.pycl_backend import (GridCL,
-                                        StateKernelGPU,
+                                        FunctionGPU,
                                         ComputeRessource,
                                         )
 import numpy as np
 
 
-class ArithmeticAveraging(StateKernelGPU):
+class ArithmeticAveraging(FunctionGPU):
 
     forward_src = """
 FUNDEF void ArithmeticAveraging(grid pos, 
@@ -55,7 +55,7 @@ FUNDEF void ArithmeticAveraging_adj(grid pos,
                          **kwargs)
 
 
-class ArithmeticAveraging2(StateKernelGPU):
+class ArithmeticAveraging2(FunctionGPU):
 
     forward_src = """
 FUNDEF void ArithmeticAveraging2(grid pos, 
@@ -118,7 +118,7 @@ FUNDEF void ArithmeticAveraging2_adj(grid pos,
                          **kwargs)
 
 
-class HarmonicAveraging(StateKernelGPU):
+class HarmonicAveraging(FunctionGPU):
 
     forward_src = """        
     FUNDEF void HarmonicAveraging(grid pos,

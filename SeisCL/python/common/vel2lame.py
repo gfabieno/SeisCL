@@ -1,10 +1,10 @@
-from SeisCL.python.seis2D import (ReversibleKernel)
-from SeisCL.python.pycl_backend import ComputeRessource, GridCL, ReversibleKernelCL
+from SeisCL.python.seis2D import (ReversibleFunction)
+from SeisCL.python.pycl_backend import ComputeRessource, GridCL, ReversibleFunctionCL
 import numpy as np
 import pyopencl.clmath as math
 
 
-class Velocity2Lame(ReversibleKernel):
+class Velocity2Lame(ReversibleFunction):
 
     def __init__(self, grids=None, **kwargs):
         super().__init__(grids, **kwargs)
@@ -71,7 +71,7 @@ class Velocity2Lame(ReversibleKernel):
         return states
 
 
-class Velocity2LameCL(ReversibleKernelCL):
+class Velocity2LameCL(ReversibleFunctionCL):
 
     forward_src = """
     FUNDEF void Velocity2LameCL(grid pos,

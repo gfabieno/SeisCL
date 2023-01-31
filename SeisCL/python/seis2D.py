@@ -11,6 +11,7 @@ from matplotlib import animation
 import math
 from bigfloat import half_precision, BigFloat
 from copy import copy
+from inspect import signature, Parameter
 #import os.path
 
 
@@ -154,7 +155,35 @@ class Grid:
         return array
 
 
-class StateKernel:
+class Tape:
+    """
+    Keeps track of function calls as well as variables.
+    """
+    def __init__(self):
+        self.vars = {} #keep track of all encountered variables.
+        self.graph = []
+
+    def append(self, kernel):
+        self.graph.append(kernel)
+
+    def pop(self):
+        return self.graph.pop()
+
+    def add_variable(self, var):
+        if var.name in self.vars:
+            raise NameError("Variable name already exists in tape")
+        self.vars[var.name] = var
+
+    def empty(self):
+        self.vars = {} #keep track of all encountered variables.
+        self.graph = []
+
+
+class TapeHolder:
+    _tape = Tape()
+
+
+class Function(TapeHolder):
     """
     Kernel implementing forward, linear and adjoint modes.
     """
@@ -165,9 +194,11 @@ class StateKernel:
         self._forward_states = None
         self.ncall = 0
         if not hasattr(self, 'updated_states'):
-            self.updated_states = []
-        if not hasattr(self, 'required_states'):
-            self.required_states = []
+            self.updated_states = {}
+        self.signature = signature(self.forward)
+        self.required_states = [name for name, par
+                                in signature(self.forward).parameters.items()
+                                if par.kind == Parameter.POSITIONAL_OR_KEYWORD]
         if not hasattr(self, 'default_grids'):
             self._default_grids = {}
         if not hasattr(self, 'copy_states'):
@@ -175,21 +206,43 @@ class StateKernel:
         if not hasattr(self, 'zeroinit_states'):
             self.zeroinit_states = []
 
-    def __call__(self, states, initialize=True, cache_states=True, **kwargs):
-        if initialize:
-            self.initialize(states, empty_cache=cache_states)
-        kwargs = self.make_kwargs_compatible(**kwargs)
-        if cache_states:
-            self.cache_states(states)
-        return self.forward(states, **kwargs)
+    def __call__(self, *args, initialize=True, cache_states=True, **kwargs):
 
-    def cache_states(self, states):
+        kwargs = self.make_kwargs_compatible(**kwargs)
+        if initialize:
+            self.initialize(*args, empty_cache=cache_states, **kwargs)
+        if cache_states:
+            self._tape.append(self)
+            self.cache_states(*args, **kwargs)
+        #TODO How can I prevent users from defining which state they modified ?
+        return self.forward(*args, **kwargs)
+
+    def call_linear(self, *args, initialize=True, cache_states=True, **kwargs):
+
+        kwargs = self.make_kwargs_compatible(**kwargs)
+        if initialize:
+            self.initialize(*args, empty_cache=cache_states, **kwargs)
+        if cache_states:
+            self.cache_states(*args, **kwargs)
+        self.linear(*args, **kwargs)
+        return self.forward(*args, **kwargs)
+
+    def gradient(self, *args, initialize=True, **kwargs):
+
+        kwargs = self.make_kwargs_compatible(**kwargs)
+        if initialize:
+            self.initialize(*args,  adjoint=True, **kwargs)
+        self.backward(*args, **kwargs)
+        return self.adjoint(*args, **kwargs)
+
+    def cache_states(self, *args, **kwargs):
+        vars = self.arguments(*args, **kwargs)
         for el in self.updated_states:
             if el in self.updated_regions:
                 for ii, region in enumerate(self.updated_regions[el]):
-                    self._forward_states[el][ii][..., self.ncall] = states[el][region]
+                    self._forward_states[el][ii][..., self.ncall] = vars[el].data[region]
             else:
-                self._forward_states[el][..., self.ncall] = states[el]
+                self._forward_states[el][..., self.ncall] = vars[el].data
         self.ncall += 1
 
     @property
@@ -216,26 +269,47 @@ class StateKernel:
     def required_grids(self):
         return list(set([val for val in self.default_grids.values()]))
 
-    def initialize(self, states, empty_cache=True, method="zero", adjoint=False,
+    def initialize(self, *args, empty_cache=True, method="zero", adjoint=False,
                    copy_state=True, cache_size=1, **kwargs):
-        if adjoint:
-            toinit = list(set(self.updated_states+self.required_states))
-        else:
-            toinit = self.required_states
-            self.ncall = 0
-        for el in toinit:
-            if el not in self.grids:
-                self.grids[el] = self.grids[self.default_grids[el]]
-            if el not in states:
-                if el not in self.zeroinit_states:
-                    states[el] = self.grids[el].initialize(method=method)
-                else:
-                    states[el] = self.grids[el].initialize()
-            elif type(states[el]) is not self.grids[el].backend:
-                states[el] = self.grids[el].initialize(data=states[el])
-        if copy_state:
-            for el in self.copy_states:
-                states[el] = states[self.copy_states[el]]
+
+        # if adjoint:
+        #     toinit = list(set(self.updated_states + self.required_states))
+        # else:
+        #     toinit = self.required_states
+        #     self.ncall = 0
+        #
+        # for el in toinit:
+        #     if el not in self.grids:
+        #         self.grids[el] = self.grids[self.default_grids[el]]
+        #
+        #     if el not in argins and el not in self._tape.vars:
+        #         if el not in self.zeroinit_states:
+        #             var = Variable(el,
+        #                            data=self.grids[el].initialize(method=method)
+        #                            )
+        #         else:
+        #             var = Variable(el,
+        #                            data=self.grids[el].initialize()
+        #                            )
+        #     elif el not in self._tape.vars:
+        #         if type(argins[el]) is Variable:
+        #             self._tape.vars[el] = argins[el]
+        #         else:
+        #             if type(argins[el]) is not self.grids[el].backend:
+        #                 data = self.grids[el].initialize(data=argins[el])
+        #             else:
+        #                 data = argins[el]
+        #             self._tape.vars[el] = Variable(el, data=data)
+        #     else:
+        #         raise NotImplemented("Variable already in tape:"
+        #                              " cannot overwrite")
+
+        # if copy_state:
+        #     for el in self.copy_states:
+        #         if el not in self._tape.vars:
+        #             self._tape.vars[el] = self._tape.vars[self.copy_states[el]]
+
+        vars = self.arguments(*args, **kwargs)
         if empty_cache:
             self._forward_states = {}
             for el in self.updated_states:
@@ -243,37 +317,14 @@ class StateKernel:
                     regions = self.updated_regions[el]
                 else:
                     regions = None
-                self._forward_states[el] = self.grids[el].create_cache(regions=regions,
-                                                                       cache_size=cache_size)
-        return states
+                self._forward_states[el] = vars[el].create_cache(regions=regions,
+                                                                 cache_size=cache_size)
+            self.ncall = 0
 
     def make_kwargs_compatible(self, **kwargs):
         return kwargs
 
-    def call_linear(self, dstates, states, initialize=True, cache_states=True,
-                    **kwargs):
-
-        if initialize:
-            self.initialize(states, empty_cache=cache_states)
-        kwargs = self.make_kwargs_compatible(**kwargs)
-        if cache_states:
-            self.cache_states(states)
-        dstates = self.linear(dstates, states, **kwargs)
-        states = self.forward(states, **kwargs)
-
-        return dstates, states
-
-    def gradient(self, adj_states, states, initialize=True, **kwargs):
-
-        if initialize:
-            adj_states = self.initialize(adj_states, empty_cache=False,
-                                         adjoint=True)
-        kwargs = self.make_kwargs_compatible(**kwargs)
-        states = self.backward(states, **kwargs)
-        adj_states = self.adjoint(adj_states, states, **kwargs)
-        return adj_states, states
-
-    def forward(self, states, **kwargs):
+    def forward(self, *args, **kwargs):
         """
         Applies the forward kernel.
 
@@ -284,9 +335,9 @@ class StateKernel:
         :return:
             states:     A dict containing the updated states.
         """
-        return states
+        raise NotImplemented
 
-    def linear(self, dstates, states, **kwargs):
+    def linear(self, *args, **kwargs):
         """
         Applies the linearized forward J = d forward / d states
         to a state perturbation out = J * dstates
@@ -298,10 +349,9 @@ class StateKernel:
         :param kwargs:
         :return: J * dstates
         """
-        dstates = self.forward(dstates, **kwargs)
-        return dstates
+        raise NotImplemented
 
-    def adjoint(self, adj_states, states, **kwargs):
+    def adjoint(self, *args, **kwargs):
         """
         Applies the adjoint of the forward
 
@@ -313,11 +363,11 @@ class StateKernel:
         :param states: The states of the system, before calling forward.
 
         :return:
-            adj_states A dict containing the updated adjoint states.
+            adj_states All Variables modified by adjoint.
         """
-        return adj_states
+        raise NotImplemented
 
-    def backward(self, states, **kwargs):
+    def backward(self, *args, **kwargs):
         """
         Reconstruct the input states from the output of forward
 
@@ -325,34 +375,35 @@ class StateKernel:
         :param states: A dict containing the variables describing the state of a
                       dynamical system. The state variables are updated by
                       the forward, but they keep the same dimensions.
-        :return:
-           states:     A dict containing the input states.
         """
+
+        vars = self.arguments(*args, **kwargs)
         self.ncall -= 1
         for el in self._forward_states:
             if el in self.updated_regions:
                 for ii, reg in enumerate(self.updated_regions[el]):
-                    states[el][reg] = self._forward_states[el][ii][...,
-                                                                   self.ncall]
+                    vars[el].data[reg] = self._forward_states[el][ii][...,
+                                                                 self.ncall]
             else:
-                states[el] = self._forward_states[el][..., self.ncall]
+                vars[el].data = self._forward_states[el][..., self.ncall]
 
-        return states
+    def backward_test(self, *args, **kwargs):
 
-    def backward_test(self, **kwargs):
+        vars = self.arguments(*args, **kwargs)
+        vars0 = {name: copy(var) for name, var in vars.items()}
+        for name, var in vars.items():
+            var.data = var.initialize(method="random")
+            vars0[name].data = var.data.copy()
 
-
-        states = self.initialize({}, method="random", copy_state=False)
-        fstates = self({el: states[el].copy() for el in states},
-                       initialize=False, **kwargs)
-        bstates = self.backward(fstates, **kwargs)
+        self(*args, **kwargs)
+        self.backward(*args, **kwargs)
 
         err = 0
         scale = 0
-        for el in states:
-            smallest = self.grids[el].smallest
-            snp = self.grids[el].np(states[el])
-            bsnp = self.grids[el].np(bstates[el])
+        for name, var in vars.items():
+            smallest = var.smallest
+            snp = vars0[name].data
+            bsnp = var.data
             errii = snp - bsnp
             err += np.sum(errii**2)
             scale += np.sum((snp - np.mean(snp))**2) + smallest
@@ -362,14 +413,19 @@ class StateKernel:
 
         return err
 
-    def linear_test(self, **kwargs):
-
-        states = self.initialize({}, method="random", copy_state=False)
-        dstates = self.initialize({}, method="random", copy_state=False)
+    def linear_test(self, *args, **kwargs):
+        #TODO correct linear test
+        vars = self.arguments(*args, **kwargs)
+        vars0 = {name: copy(var) for name, var in vars.items()}
+        for name, var in vars.items():
+            var.data = var.initialize(method="random")
+            var.lin = var.initialize(method="random")
+            vars0[name].data = var.data.copy()
+            vars0[name].lin = var.lin.copy()
 
         errs = []
-        cond = True if states else False
-        if not any([el not in self.zeroinit_states for el in states]):
+        cond = True if vars else False
+        if not any([el not in self.zeroinit_states for el in vars]):
             cond = False
         while cond:
             dstates = {el: self.grids[el].np(dstates[el]) / 10.0
@@ -461,270 +517,142 @@ class StateKernel:
 
         return (prod1-prod2)/(prod1+prod2)
 
+    def arguments(self, *args, **kwargs):
+        a = self.signature.bind(*args, **kwargs)
+        a.apply_defaults()
+        return a.arguments
 
-class RandKernel(StateKernel):
+
+class Variable(TapeHolder):
+    """
+
+    """
+    def __init__(self, name, data=None, shape=None, lin=None,
+                 initialize_method="zero", dtype=np.float, zero_boundary=False):
+        self.name = name
+        self._tape.add_variable(self)
+        self.data = data
+        if data is None:
+            if shape is None:
+                raise ValueError("Either data or shape must be provided")
+            else:
+                self.shape = shape
+        else:
+            self.shape = data.shape
+        self._lin = lin # contains the small data perturbation
+        self.grad = None # contains the gradient
+        self.last_update = None # The last kernel that updated the state
+        self.initialize_method = initialize_method
+        self.dtype = dtype
+        self.zero_boundary = zero_boundary
+        self.smallest = np.nextafter(dtype(0), dtype(1))
+
+    @property
+    def data(self):
+        if self._data is None:
+            self._data = self.initialize()
+        return self._data
+
+    @data.setter
+    def data(self, data):
+        self._data = data
+
+    @property
+    def lin(self):
+        if self._lin is None:
+            self._lin = self.initialize()
+        return self._lin
+
+    @lin.setter
+    def lin(self, lin):
+        self._lin = lin
+
+    @property
+    def grad(self):
+        if self._grad is None:
+            self._grad = self.initialize(method="ones")
+        return self._grad
+
+    @grad.setter
+    def grad(self, grad):
+        self._grad = grad
+
+    def initialize(self, method=None):
+        if method is None:
+            method = self.initialize_method
+        if method == "zero":
+            return self.zero()
+        elif method == "random":
+            return self.random()
+        elif method == "ones":
+            return self.ones()
+
+    def ones(self):
+        return np.ones(self.shape, dtype=self.dtype, order="F")
+
+    def zero(self):
+        return np.zeros(self.shape, dtype=self.dtype, order="F")
+
+    def random(self):
+        if self.zero_boundary:
+            state = np.zeros(self.shape, dtype=self.dtype, order="F")
+            state[self.valid] = np.random.rand(*state[self.valid].shape)*10e6
+        else:
+            state = np.random.rand(*self.shape).astype(self.dtype)
+        return np.require(state, requirements='F')
+
+    def create_cache(self, cache_size=1, regions=None):
+        if regions:
+            cache = []
+            for region in regions:
+                shape = [0 for _ in range(len(self.shape))]
+                for ii in range(len(self.shape)):
+                    if region[ii] is Ellipsis:
+                        shape[ii] = self.shape[ii]
+                    else:
+                        indices = region[ii].indices(self.shape[ii])
+                        shape[ii] = int((indices[1]-indices[0])/indices[2])
+                cache.append(np.empty(shape + [cache_size], dtype=self.dtype,
+                                      order="F"))
+            return cache
+        else:
+            return np.empty(list(self.shape) + [cache_size],
+                            dtype=self.dtype, order="F")
+
+
+class RandKernel(Function):
 
     def __init__(self, **kwargs):
-        grids = {"x": Grid((10,)),
-                      "b": Grid((10,))}
-        super().__init__(grids, **kwargs)
-        self.required_states = ["x", "b"]
-        self.updated_states = ["x"]
+
+        super().__init__(**kwargs)
+        self.updated_states = ["x", "y"]
         self.A1 = np.random.rand(10, 10)
         self.A2 = np.random.rand(10, 10)
 
-    def forward(self, states, **kwargs):
-        x = states["x"]
-        b = states["b"]
-        states["x"] = np.matmul(self.A1, x)
-        states["y"] = np.matmul(self.A2, x) * b
-        return states
+    def forward(self, x, b, y):
 
-    def linear(self, dstates, states, **kwargs):
-        x = states["x"]
-        b = states["b"]
-        dx = dstates["x"]
-        db = dstates["b"]
-        dstates["x"] = np.matmul(self.A1, dx)
-        dstates["y"] = np.matmul(self.A2, x) * db + np.matmul(self.A2, dx) * b
+        x.data = np.matmul(self.A1, x.data)
+        y.data = np.matmul(self.A2, x.data) * b.data
+        return x, y
 
-        return dstates
+    def linear(self, x, b, y):
+        x.lin = np.matmul(self.A1, x.lin)
+        y.lin = np.matmul(self.A2, x.data) * b.lin \
+                   + np.matmul(self.A2, x.lin) * b.data
 
-    def adjoint(self, adj_states, states, **kwargs):
+        return x, y
 
-        x_adj = adj_states["x"]
-        b_adj = adj_states["b"]
-        y_adj = adj_states["y"]
-        x = states["x"]
-        b = states["b"]
+    def adjoint(self, x, b, y):
+
         A1t = np.transpose(self.A1)
         A2t = np.transpose(self.A2)
 
-        adj_states["x"] = np.matmul(A1t, x_adj) + np.matmul(A2t, b * y_adj)
-        adj_states["b"] = np.matmul(self.A2, x) * y_adj + b_adj
-        return adj_states
+        x.grad = np.matmul(A1t, x.grad) + np.matmul(A2t, b.data * y.grad)
+        b.grad = np.matmul(self.A2, x.data) * y.grad + b.grad
+        return x, b
 
 
-class Sequence(StateKernel):
-
-    def __init__(self, kernels, grids=None, **kwargs):
-
-        self.kernels = kernels
-        super().__init__(grids, **kwargs)
-        default_grids = {}
-        for kernel in kernels:
-            for el in kernel.default_grids:
-                if el not in default_grids:
-                    default_grids[el] = kernel.default_grids[el]
-                elif default_grids[el] != kernel.default_grids[el]:
-                    raise ValueError("Multiple default_grids for state %s" % el)
-            for el in kernel.zeroinit_states:
-                if el not in self.zeroinit_states:
-                    self.zeroinit_states.append(el)
-        self.default_grids = default_grids
-
-    @property
-    def default_grids(self):
-        return self._default_grids
-
-    @default_grids.setter
-    def default_grids(self, val):
-        for el in val:
-            if el not in self.default_grids:
-                self._default_grids[el] = val[el]
-            elif self._default_grids[el] != val[el]:
-                raise ValueError("Multiple default_grids for state %s" % el)
-        for kernel in self.kernels:
-            kernel.default_grids = self._default_grids
-
-    @property
-    def grids(self):
-        return self._grids
-
-    @grids.setter
-    def grids(self, val):
-        self._grids = val
-        for kernel in self.kernels:
-            kernel.grids = val
-
-    def initialize(self, states, empty_cache=True, method="zero",
-                   adjoint=False, cache_size=1, copy_state=True, **kwargs):
-        for kernel in self.kernels:
-            states = kernel.initialize(states,
-                                       empty_cache=empty_cache,
-                                       method=method,
-                                       adjoint=adjoint,
-                                       cache_size=cache_size,
-                                       copy_state=copy_state,
-                                       **kwargs)
-        return states
-
-    def __call__(self, states, initialize=True, **kwargs):
-
-        if initialize:
-            states = self.initialize(states)
-        kwargs = self.make_kwargs_compatible(**kwargs)
-        for ii, kernel in enumerate(self.kernels):
-            states = kernel(states, initialize=False, **kwargs)
-        return states
-
-    def call_linear(self, dstates, states, **kwargs):
-
-        for ii, kernel in enumerate(self.kernels):
-            dstates, states = kernel.call_linear(dstates, states, **kwargs)
-        return dstates, states
-
-    def gradient(self, adj_states, states, initialize=True, **kwargs):
-
-        if initialize:
-            adj_states = self.initialize(adj_states, empty_cache=False)
-        for ii, kernel in enumerate(self.kernels[::-1]):
-            adj_states, states = kernel.gradient(adj_states, states,
-                                                 initialize=False,
-                                                 **kwargs)
-        return adj_states, states
-
-    def backward(self, states, **kwargs):
-        for ii, kernel in enumerate(self.kernels[::-1]):
-            states = kernel.backward(states, **kwargs)
-        return states
-
-    def backward_test(self, **kwargs):
-        print("Back propagation test for all kernels contained in "
-              + self.__class__.__name__ + ":")
-        print("    ", end='')
-        err = super().backward_test(**kwargs)
-        for kernel in self.kernels:
-            print("    ", end='')
-            kernel.backward_test(**kwargs)
-
-        return err
-
-    def linear_test(self, **kwargs):
-        print("Linear test for all kernels contained in "
-              + self.__class__.__name__ + ":")
-        print("    ", end='')
-        err = super().linear_test(**kwargs)
-        for kernel in self.kernels:
-            print("    ", end='')
-            kernel.linear_test(**kwargs)
-
-        return err
-
-    def dot_test(self, **kwargs):
-        print("Dot product test for all kernels contained in "
-              + self.__class__.__name__ + ":")
-        print("    ", end='')
-        dot = super().dot_test(**kwargs)
-        for kernel in self.kernels:
-            print("    ", end='')
-            kernel.dot_test(**kwargs)
-        return dot
-
-
-class Propagator(StateKernel):
-    """
-    Applies a series of kernels in forward and adjoint modes.
-    """
-
-    def __init__(self, kernel, nt, **kwargs):
-
-        self.kernel = kernel
-        super().__init__(kernel.grids, **kwargs)
-        self.nt = nt
-        self.default_grids = kernel.default_grids
-        self.zeroinit_states = kernel.zeroinit_states
-
-    @property
-    def default_grids(self):
-        return self._default_grids
-
-    @default_grids.setter
-    def default_grids(self, val):
-        for el in val:
-            if el not in self.default_grids:
-                self._default_grids[el] = val[el]
-            elif self._default_grids[el] != val[el]:
-                raise ValueError("Multiple default_grids for state %s" % el)
-        self.kernel.default_grids = self._default_grids
-
-    @property
-    def grids(self):
-        return self._grids
-
-    @grids.setter
-    def grids(self, val):
-        self._grids = val
-        self.kernel.grids = val
-
-    def initialize(self, states, empty_cache=True, method="zero",
-                   adjoint=False, cache_size=1, **kwargs):
-        states = self.kernel.initialize(states,
-                                        empty_cache=empty_cache,
-                                        method=method,
-                                        adjoint=adjoint,
-                                        cache_size=self.nt,
-                                        **kwargs)
-        return states
-
-    def __call__(self, states, initialize=True, **kwargs):
-
-        if initialize:
-            states = self.initialize(states)
-        kwargs = self.make_kwargs_compatible(**kwargs)
-        for t in range(self.nt):
-            states = self.kernel(states, t=t,
-                                 initialize=False, **kwargs)
-
-        return states
-
-    def call_linear(self, dstates, states, **kwargs):
-
-        for t in range(self.nt):
-            dstates, states = self.kernel.call_linear(dstates, states,
-                                                      t=t,  **kwargs)
-
-        return dstates, states
-
-    def gradient(self, adj_states, states, initialize=True, **kwargs):
-
-        if initialize:
-            adj_states = self.initialize(adj_states, empty_cache=False)
-        for t in range(self.nt-1, -1, -1):
-            adj_states, states = self.kernel.gradient(adj_states, states, t=t,
-                                                      initialize=False,
-                                                      **kwargs)
-
-        return adj_states, states
-
-    def backward(self, states, **kwargs):
-        for t in range(self.nt-1, -1, -1):
-            states = self.kernel.backward(states, t=t, nt=self.nt, **kwargs)
-        return states
-
-    def backward_test(self, **kwargs):
-        print("*************************************")
-        err = super().backward_test(**kwargs)
-        self.kernel.backward_test(**kwargs)
-        print("*************************************")
-        return err
-
-    def linear_test(self, **kwargs):
-        print("*************************************")
-        err = super().linear_test(**kwargs)
-        self.kernel.linear_test(**kwargs)
-        print("*************************************")
-        return err
-
-    def dot_test(self, **kwargs):
-        print("*************************************")
-        err = super().dot_test(**kwargs)
-        self.kernel.dot_test(**kwargs)
-        print("*************************************")
-        return err
-
-
-class Derivative(StateKernel):
+class Derivative(Function):
 
     def __init__(self, grids=None, **kwargs):
         super().__init__(grids, **kwargs)
@@ -742,7 +670,7 @@ class Derivative(StateKernel):
         return adj_states
 
 
-class Division(StateKernel):
+class Division(Function):
 
     def __init__(self, grids=None, **kwargs):
         super().__init__(grids, **kwargs)
@@ -775,7 +703,7 @@ class Division(StateKernel):
         return adj_states
 
 
-class Multiplication(StateKernel):
+class Multiplication(Function):
 
     def __init__(self, grids=None, **kwargs):
         super().__init__(grids, **kwargs)
@@ -807,7 +735,7 @@ class Multiplication(StateKernel):
         return adj_states
 
 
-class ReversibleKernel(StateKernel):
+class ReversibleFunction(Function):
 
     def __call__(self, states, initialize=True, **kwargs):
         if initialize:
@@ -821,7 +749,7 @@ class ReversibleKernel(StateKernel):
         return states
 
 
-class UpdateVelocity(ReversibleKernel):
+class UpdateVelocity(ReversibleFunction):
 
     def __init__(self, grids=None, **kwargs):
         super().__init__(grids, **kwargs)
@@ -992,7 +920,7 @@ class UpdateVelocity2(UpdateVelocity):
         return adj_states
 
 
-class UpdateStress(ReversibleKernel):
+class UpdateStress(ReversibleFunction):
 
     def __init__(self, grids=None, **kwargs):
         super().__init__(grids, **kwargs)
@@ -1191,7 +1119,7 @@ class UpdateStress2(UpdateStress):
         return adj_states
 
 
-class ZeroBoundary(StateKernel):
+class ZeroBoundary(Function):
     def __init__(self, required_states, grids=None, **kwargs):
         super().__init__(grids, **kwargs)
         self.required_states = required_states
@@ -1215,7 +1143,7 @@ class ZeroBoundary(StateKernel):
         return adj_states
 
 
-class Cerjan(StateKernel):
+class Cerjan(Function):
 
     def __init__(self, grids=None, freesurf=False, abpc=4.0, nab=2,
                  required_states=(), **kwargs):
@@ -1263,7 +1191,7 @@ class Cerjan(StateKernel):
         return self.forward(adj_states, **kwargs)
 
 
-class Receiver(ReversibleKernel):
+class Receiver(ReversibleFunction):
 
     def __init__(self, required_states, grids=None, **kwargs):
         super().__init__(grids, **kwargs)
@@ -1305,7 +1233,7 @@ class Receiver(ReversibleKernel):
         return states
 
 
-class Source(ReversibleKernel):
+class Source(ReversibleFunction):
 
     def __init__(self, required_states, grids=None, **kwargs):
         super().__init__(grids, **kwargs)
@@ -1329,7 +1257,7 @@ class Source(ReversibleKernel):
         return adj_states
 
 
-class FreeSurface(StateKernel):
+class FreeSurface(Function):
 
     def __init__(self, grids=None, **kwargs):
         super().__init__(grids, **kwargs)
@@ -1465,7 +1393,7 @@ class FreeSurface(StateKernel):
         return states
 
 
-class FreeSurface2(ReversibleKernel):
+class FreeSurface2(ReversibleFunction):
     #TODO Does not pass linear and dot product tests
     def __init__(self, grids=None, **kwargs):
         super().__init__(grids, **kwargs)
@@ -1671,7 +1599,7 @@ class FreeSurface2(ReversibleKernel):
         return adj_states
 
 
-class ScaledParameters(ReversibleKernel):
+class ScaledParameters(ReversibleFunction):
 
     def __init__(self, grids=None, **kwargs):
         super().__init__(grids, **kwargs)
@@ -1770,7 +1698,7 @@ class ScaledParameters(ReversibleKernel):
         return states
 
 
-class PrecisionTester(StateKernel):
+class PrecisionTester(Function):
 
     def __init__(self, grids=None, **kwargs):
         super().__init__(grids, **kwargs)
@@ -1823,7 +1751,17 @@ if __name__ == '__main__':
     grid1D = Grid(shape=(10,))
     defs = {"vx": grid1D,
             "vz": grid1D,}
-    #matmul = RandKernel(grid=grid1D)
+    x = Variable("x", shape=(10, 1), initialize_method="random")
+    b = Variable("b", shape=(10, 1), initialize_method="random")
+    y = Variable("y", shape=(10, 1), initialize_method="random")
+    matmul = RandKernel()
+    # matmul(x, b, y)
+    # matmul.call_linear(x, b, y)
+    # matmul.gradient(x, b, y)
+    # print(x.data)
+    # print(x.lin)
+    # print(x.grad)
+    matmul.backward_test(x, b, y)
     # matmul.linear_test()
     # matmul.dot_test()
     # matmul2 = RandKernel(grid=grid1D)
@@ -1837,57 +1775,57 @@ if __name__ == '__main__':
     # div.linear_test()
     # div.backward_test()
 
-    nrec = 1
-    nt = 3
-    nab = 2
-    grid2D = Grid(shape=(10, 10), type=np.float64, zero_boundary=True)
-    gridout = Grid(shape=(nt, nrec), type=np.float64)
-    psv2D = define_psv(grid2D, gridout, nab, nt)
-
-    psv2D.backward_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
-                        src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*nt}])
-    psv2D.linear_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
-                      src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*nt}])
-    psv2D.dot_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
-                   src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*nt}])
-
-    nrec = 1
-    nt = 7500
-    nab = 16
-    rec_pos = [{"type": "vx", "z": 3, "x": x} for x in range(50, 250)]
-    rec_pos += [{"type": "vz", "z": 3, "x": x} for x in range(50, 250)]
-    grid2D = Grid(shape=(160, 300), type=np.float64)
-    gridout = Grid(shape=(nt, len(rec_pos)//2), type=np.float64)
-    psv2D = define_psv(grid2D, gridout, nab, nt)
-    dx = 1.0
-    dt = 0.0001
-
-    csu = np.full(grid2D.shape, 300.0)
-    cv = np.full(grid2D.shape, 1800.0)
-    csM = np.full(grid2D.shape, 1500.0)
-    csu[80:, :] = 600
-    csM[80:, :] = 2000
-    cv[80:, :] = 2000
-    csu0 = csu.copy()
-    csu[5:10, 145:155] *= 1.05
-
-    states = psv2D({"cv": cv,
-                    "csu": csu,
-                    "csM": csM},
-                   dx=dx,
-                   dt=dt,
-                   rec_pos=rec_pos,
-                   src_pos=[{"type": "vz", "pos": (2, 50), "signal": ricker(10, dt, nt)}])
-    plt.imshow(states["vx"])
-    plt.show()
+    # nrec = 1
+    # nt = 3
+    # nab = 2
+    # grid2D = Grid(shape=(10, 10), type=np.float64, zero_boundary=True)
+    # gridout = Grid(shape=(nt, nrec), type=np.float64)
+    # psv2D = define_psv(grid2D, gridout, nab, nt)
     #
-    vxobs = states["vxout"]
-    vzobs = states["vzout"]
-    clip = 0.01
-    vmin = np.min(states["vzout"]) * 0.1
-    vmax=-vmin
-    plt.imshow(states["vzout"], aspect="auto", vmin=vmin, vmax=vmax)
-    plt.show()
+    # psv2D.backward_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
+    #                     src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*nt}])
+    # psv2D.linear_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
+    #                   src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*nt}])
+    # psv2D.dot_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
+    #                src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*nt}])
+    #
+    # nrec = 1
+    # nt = 7500
+    # nab = 16
+    # rec_pos = [{"type": "vx", "z": 3, "x": x} for x in range(50, 250)]
+    # rec_pos += [{"type": "vz", "z": 3, "x": x} for x in range(50, 250)]
+    # grid2D = Grid(shape=(160, 300), type=np.float64)
+    # gridout = Grid(shape=(nt, len(rec_pos)//2), type=np.float64)
+    # psv2D = define_psv(grid2D, gridout, nab, nt)
+    # dx = 1.0
+    # dt = 0.0001
+    #
+    # csu = np.full(grid2D.shape, 300.0)
+    # cv = np.full(grid2D.shape, 1800.0)
+    # csM = np.full(grid2D.shape, 1500.0)
+    # csu[80:, :] = 600
+    # csM[80:, :] = 2000
+    # cv[80:, :] = 2000
+    # csu0 = csu.copy()
+    # csu[5:10, 145:155] *= 1.05
+    #
+    # states = psv2D({"cv": cv,
+    #                 "csu": csu,
+    #                 "csM": csM},
+    #                dx=dx,
+    #                dt=dt,
+    #                rec_pos=rec_pos,
+    #                src_pos=[{"type": "vz", "pos": (2, 50), "signal": ricker(10, dt, nt)}])
+    # plt.imshow(states["vx"])
+    # plt.show()
+    # #
+    # vxobs = states["vxout"]
+    # vzobs = states["vzout"]
+    # clip = 0.01
+    # vmin = np.min(states["vzout"]) * 0.1
+    # vmax=-vmin
+    # plt.imshow(states["vzout"], aspect="auto", vmin=vmin, vmax=vmax)
+    # plt.show()
     #
     # states = psv2D({"cv": cv,
     #                 "csu": csu0,

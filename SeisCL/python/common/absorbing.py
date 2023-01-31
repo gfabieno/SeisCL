@@ -1,11 +1,11 @@
 from SeisCL.python.pycl_backend import (GridCL,
-                                        StateKernelGPU,
+                                        FunctionGPU,
                                         ComputeRessource,
                                         State,
                                         )
 import numpy as np
 
-class Cerjan(StateKernelGPU):
+class Cerjan(FunctionGPU):
 
     def __init__(self, grids=None, freesurf=False, abpc=4.0, nab=2, pad=2,
                  required_states=(), **kwargs):

@@ -1,8 +1,8 @@
-from SeisCL.python.pycl_backend import ReversibleKernelCL
+from SeisCL.python.pycl_backend import ReversibleFunctionCL
 import numpy as np
 
 
-class Source(ReversibleKernelCL):
+class Source(ReversibleFunctionCL):
 
     forward_src = """
     FUNDEF void Source(grid pos,
@@ -36,7 +36,7 @@ class Source(ReversibleKernelCL):
         return gsize
 
 
-class PressureSource2D(ReversibleKernelCL):
+class PressureSource2D(ReversibleFunctionCL):
 
     forward_src = """
     FUNDEF void Source(GLOBARG float *sxx,

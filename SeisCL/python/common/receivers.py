@@ -1,4 +1,4 @@
-from SeisCL.python.pycl_backend import (ReversibleKernelCL,
+from SeisCL.python.pycl_backend import (ReversibleFunctionCL,
                                         GridCL,
                                         ComputeRessource,
                                         )
@@ -7,7 +7,7 @@ import pyopencl as cl
 import pyopencl.array
 
 #TODO cannot perform dot product
-class Receiver(ReversibleKernelCL):
+class Receiver(ReversibleFunctionCL):
 
     forward_src = """
     FUNDEF void Receiver(grid pos,

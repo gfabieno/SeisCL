@@ -4,7 +4,7 @@ import pyopencl as cl
 import pyopencl.array
 import pyopencl.clrandom
 from pyopencl.tools import get_or_register_dtype, match_dtype_to_c_struct
-from SeisCL.python.seis2D import Grid, StateKernel,  Propagator, Sequence, ReversibleKernel
+from SeisCL.python.seis2D import Grid, Function,  Propagator, Sequence, ReversibleFunction
 import re
 from SeisCL.python.FDstencils import get_pos_header, FDCoefficients, CUDACL_header, grid_stop_header
 
@@ -335,7 +335,7 @@ class CopyArrayCL:
                     np.uint32(src.dtype.itemsize))
 
 
-class StateKernelGPU(StateKernel):
+class FunctionGPU(Function):
 
     forward_src = ""
     linear_src = ""
@@ -481,7 +481,7 @@ class SequenceCL(Sequence):
         return kwargs
 
 
-class ReversibleKernelCL(ReversibleKernel, StateKernelGPU):
+class ReversibleFunctionCL(ReversibleFunction, FunctionGPU):
     def make_kwargs_compatible(self, **kwargs):
         for el in kwargs:
             if type(kwargs[el]) in [np.ndarray]:
@@ -490,7 +490,7 @@ class ReversibleKernelCL(ReversibleKernel, StateKernelGPU):
         return kwargs
 
 
-class Sum(StateKernelGPU):
+class Sum(FunctionGPU):
 
     forward_src = """
 FUNDEF void Sum
@@ -520,7 +520,7 @@ FUNDEF void Sum_adj(__global float *a_adj,
         super().__init__(grids=grids, computegrid=computegrid, **kwargs)
 
 
-class Gridtester(StateKernelGPU):
+class Gridtester(FunctionGPU):
     forward_src = """
 FUNDEF void Gridtester(__global float *a, grid g)
 {
@@ -536,7 +536,7 @@ FUNDEF void Gridtester(__global float *a, grid g)
         super().__init__(grids=grids, computegrid=computegrid, **kwargs)
 
 
-class DerivativeTester(StateKernelGPU):
+class DerivativeTester(FunctionGPU):
     forward_src = """
 FUNDEF void DerivativeTester(__global float *a, grid g)
 {
