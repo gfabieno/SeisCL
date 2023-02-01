@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from matplotlib import animation
 import math
 from bigfloat import half_precision, BigFloat
-from copy import copy
+from copy import copy, deepcopy
 from inspect import signature, Parameter
 #import os.path
 
@@ -231,7 +231,7 @@ class Function(TapeHolder):
 
         kwargs = self.make_kwargs_compatible(**kwargs)
         if initialize:
-            self.initialize(*args,  adjoint=True, **kwargs)
+            self.initialize(*args,  adjoint=True, empty_cache=False, **kwargs)
         self.backward(*args, **kwargs)
         return self.adjoint(*args, **kwargs)
 
@@ -414,57 +414,44 @@ class Function(TapeHolder):
         return err
 
     def linear_test(self, *args, **kwargs):
-        #TODO correct linear test
+
         vars = self.arguments(*args, **kwargs)
-        vars0 = {name: copy(var) for name, var in vars.items()}
+        pargs = deepcopy(args)
+        pkwargs = deepcopy(kwargs)
+        pvars = self.arguments(*pargs, **pkwargs)
+        fargs = deepcopy(args)
+        fkwargs = deepcopy(kwargs)
+        fvars = self.arguments(*fargs, **fkwargs)
         for name, var in vars.items():
             var.data = var.initialize(method="random")
             var.lin = var.initialize(method="random")
-            vars0[name].data = var.data.copy()
-            vars0[name].lin = var.lin.copy()
+            fvars[name].data = var.data.copy()
+            fvars[name].lin = var.lin.copy()
+        outs = self.call_linear(*fargs, **fkwargs)
 
         errs = []
         cond = True if vars else False
         if not any([el not in self.zeroinit_states for el in vars]):
             cond = False
+        eps = 1.0
         while cond:
-            dstates = {el: self.grids[el].np(dstates[el]) / 10.0
-                       for el in dstates}
-            dstates = self.initialize(dstates, copy_state=False)
-            for el in states:
-                if el not in self.zeroinit_states:
-                    dnp = self.grids[el].np(dstates[el])
-                    snp = self.grids[el].np(states[el])
-                    smallest = self.grids[el].smallest
-                    eps = self.grids[el].eps
-                    if np.max(dnp / (snp+smallest)) < eps:
-                        cond = False
-                        break
-            if not cond:
-                break
-            pstates = {el: states[el] + dstates[el] for el in states}
-
-            fpstates = self({el: pstates[el].copy() for el in pstates}, **kwargs)
-            fstates = self({el: states[el].copy() for el in states}, **kwargs)
-
-            lstates, _ = self.call_linear({el: dstates[el].copy()
-                                           for el in dstates},
-                                          {el: states[el].copy()
-                                           for el in states},
-                                          **kwargs)
+            for name, var in vars.items():
+                pvars[name].data = var.data + eps * var.lin
+            pouts = self(*pargs, **pkwargs)
 
             err = 0
             scale = 0
-            for el in states:
-                smallest = self.grids[el].smallest
-                eps = self.grids[el].eps
-                ls = self.grids[el].np(lstates[el])
-                fdls = self.grids[el].np(fpstates[el] - fstates[el])
-                errii = fdls - ls
-                err += np.sum(errii**2)
-                scale += np.sum((ls - np.mean(ls))**2)
-            errs.append([err/(scale+smallest)])
+            for out, pout in zip(outs, pouts):
+                err += np.sum((pout.data - out.data - eps * out.lin)**2)
+                scale += np.sum((eps*(out.lin - np.mean(out.lin)))**2)
+            errs.append([err/(scale+out.smallest)])
 
+            eps /= 10.0
+            for el, var in vars.items():
+                if el not in self.zeroinit_states:
+                    if np.max(eps*var.lin / (var.data+var.smallest)) < var.eps:
+                        cond = False
+                        break
         try:
             errmin = np.min(errs)
             print("Linear test for Kernel %s: %.15e"
@@ -476,7 +463,7 @@ class Function(TapeHolder):
 
         return errmin
 
-    def dot_test(self, **kwargs):
+    def dot_test(self, *args, **kwargs):
         """
         Dot product test for fstates, outputs = F(states)
 
@@ -488,29 +475,24 @@ class Function(TapeHolder):
 
         """
 
-        states = self.initialize({}, method="random", copy_state=False)
-        dstates = self.initialize({}, empty_cache=False,
-                                  method="random", copy_state=False)
-        dfstates, fstates = self.call_linear({el: dstates[el].copy()
-                                              for el in dstates},
-                                             {el: states[el].copy()
-                                              for el in states},
-                                             initialize=False,
-                                             **kwargs)
+        vars = self.arguments(*args, **kwargs)
+        fargs = deepcopy(args)
+        fkwargs = deepcopy(kwargs)
+        fvars = self.arguments(*fargs, **fkwargs)
+        for name, var in vars.items():
+            var.data = var.initialize(method="random")
+            var.lin = var.initialize(method="random")
+            var.grad = var.initialize(method="random")
+            fvars[name].data = var.data.copy()
+            fvars[name].lin = var.lin.copy()
+            fvars[name].grad = var.grad.copy()
+        self.call_linear(*fargs, **fkwargs)
+        self.gradient(*fargs, **fkwargs)
 
-        adj_states = self.initialize({}, empty_cache=False, method="random",
-                                     adjoint=True, copy_state=False)
-        fadj_states, _ = self.gradient({el: adj_states[el].copy()
-                                        for el in adj_states},
-                                       {el: fstates[el].copy()
-                                        for el in fstates},
-                                       initialize=False,
-                                       **kwargs)
-
-        prod1 = np.sum([np.sum(self.grids[el].np(dfstates[el] * adj_states[el]))
-                        for el in dfstates])
-        prod2 = np.sum([np.sum(self.grids[el].np(dstates[el] * fadj_states[el]))
-                        for el in dstates])
+        prod1 = np.sum([np.sum(fvars[el].lin * vars[el].grad)
+                        for el in vars])
+        prod2 = np.sum([np.sum(fvars[el].grad * vars[el].lin)
+                        for el in vars])
 
         print("Dot product test for Kernel %s: %.15e"
               % (self.__class__.__name__, (prod1-prod2)/(prod1+prod2)))
@@ -527,7 +509,7 @@ class Variable(TapeHolder):
     """
 
     """
-    def __init__(self, name, data=None, shape=None, lin=None,
+    def __init__(self, name, data=None, shape=None, lin=None, grad=None,
                  initialize_method="zero", dtype=np.float, zero_boundary=False):
         self.name = name
         self._tape.add_variable(self)
@@ -539,13 +521,14 @@ class Variable(TapeHolder):
                 self.shape = shape
         else:
             self.shape = data.shape
-        self._lin = lin # contains the small data perturbation
-        self.grad = None # contains the gradient
+        self.lin = lin # contains the small data perturbation
+        self.grad = grad # contains the gradient
         self.last_update = None # The last kernel that updated the state
         self.initialize_method = initialize_method
         self.dtype = dtype
         self.zero_boundary = zero_boundary
         self.smallest = np.nextafter(dtype(0), dtype(1))
+        self.eps = np.finfo(dtype).eps
 
     @property
     def data(self):
@@ -632,23 +615,20 @@ class RandKernel(Function):
     def forward(self, x, b, y):
 
         x.data = np.matmul(self.A1, x.data)
-        y.data = np.matmul(self.A2, x.data) * b.data
+        y.data = np.matmul(self.A2, x.data) + b.data
         return x, y
 
     def linear(self, x, b, y):
         x.lin = np.matmul(self.A1, x.lin)
-        y.lin = np.matmul(self.A2, x.data) * b.lin \
-                   + np.matmul(self.A2, x.lin) * b.data
-
+        y.lin = np.matmul(self.A2, x.lin) + b.lin
         return x, y
 
     def adjoint(self, x, b, y):
 
-        A1t = np.transpose(self.A1)
-        A2t = np.transpose(self.A2)
-
-        x.grad = np.matmul(A1t, x.grad) + np.matmul(A2t, b.data * y.grad)
-        b.grad = np.matmul(self.A2, x.data) * y.grad + b.grad
+        x.grad += np.matmul(self.A2.T, y.grad)
+        b.grad += y.grad
+        y.grad = y.grad * 0
+        x.grad = np.matmul(self.A1.T, x.grad)
         return x, b
 
 
@@ -1762,8 +1742,9 @@ if __name__ == '__main__':
     # print(x.lin)
     # print(x.grad)
     matmul.backward_test(x, b, y)
-    # matmul.linear_test()
-    # matmul.dot_test()
+    matmul.linear_test(x, b, y)
+    matmul.dot_test(x, b, y)
+
     # matmul2 = RandKernel(grid=grid1D)
     # seq = Sequence([matmul, matmul2], grids=matmul.grids)
     # seq.dot_test()
