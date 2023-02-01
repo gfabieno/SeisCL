@@ -13,7 +13,7 @@ from bigfloat import half_precision, BigFloat
 from copy import copy, deepcopy
 from inspect import signature, Parameter
 #import os.path
-
+from collections import OrderedDict
 
 def Dpx(var):
     return 1.1382 * (var[2:-2, 3:-1] - var[2:-2, 2:-2]) - 0.046414 * (var[2:-2, 4:] - var[2:-2, 1:-3])
@@ -160,6 +160,7 @@ class Tape:
     Keeps track of function calls as well as variables.
     """
     def __init__(self):
+        #TODO do we need to track variables ?
         self.vars = {} #keep track of all encountered variables.
         self.graph = []
 
@@ -392,8 +393,9 @@ class Function(TapeHolder):
         vars = self.arguments(*args, **kwargs)
         vars0 = {name: copy(var) for name, var in vars.items()}
         for name, var in vars.items():
-            var.data = var.initialize(method="random")
-            vars0[name].data = var.data.copy()
+            if type(var) is Variable:
+                var.data = var.initialize(method="random")
+                vars0[name].data = var.data.copy()
 
         self(*args, **kwargs)
         self.backward(*args, **kwargs)
@@ -502,6 +504,10 @@ class Function(TapeHolder):
     def arguments(self, *args, **kwargs):
         a = self.signature.bind(*args, **kwargs)
         a.apply_defaults()
+
+        for el in a.arguments:
+            if not type(a.arguments[el]) is Variable:
+                a.arguments.pop(el)
         return a.arguments
 
 
@@ -509,10 +515,12 @@ class Variable(TapeHolder):
     """
 
     """
-    def __init__(self, name, data=None, shape=None, lin=None, grad=None,
+    def __init__(self, name=None, data=None, shape=None, lin=None, grad=None,
                  initialize_method="zero", dtype=np.float, zero_boundary=False):
+
         self.name = name
-        self._tape.add_variable(self)
+        # TODO do we need to track all variables ?
+        #self._tape.add_variable(self)
         self.data = data
         if data is None:
             if shape is None:
@@ -717,16 +725,19 @@ class Multiplication(Function):
 
 class ReversibleFunction(Function):
 
-    def __call__(self, states, initialize=True, **kwargs):
-        if initialize:
-            states = self.initialize(states)
-        kwargs = self.make_kwargs_compatible(**kwargs)
-        return self.forward(states, **kwargs)
+    def __call__(self, *args, initialize=True, **kwargs):
+        kwargs.pop("cache_states", None)
+        return super().__call__(*args, initialize=initialize,
+                                cache_states=False, **kwargs)
 
-    def backward(self, states, **kwargs):
+    def call_linear(self, *args, initialize=True, cache_states=True, **kwargs):
+        kwargs.pop("cache_states", None)
+        return super().call_linear(*args, initialize=initialize,
+                                   cache_states=False, **kwargs)
+
+    def backward(self, *args, **kwargs):
         kwargs = self.make_kwargs_compatible(**kwargs)
-        states = self.forward(states, backpropagate=True, **kwargs)
-        return states
+        return self.forward(*args, backpropagate=True, **kwargs)
 
 
 class UpdateVelocity(ReversibleFunction):
@@ -1581,101 +1592,62 @@ class FreeSurface2(ReversibleFunction):
 
 class ScaledParameters(ReversibleFunction):
 
-    def __init__(self, grids=None, **kwargs):
+    def __init__(self, dt, dx, grids=None, **kwargs):
         super().__init__(grids, **kwargs)
         self.required_states = ["cv", "csu", "csM"]
         self.updated_states = ["cv", "csu", "csM"]
-        self.sc = 1.0
-        self.default_grids = {"cv": "gridpar",
-                              "csu": "gridpar",
-                              "csM": "gridpar"}
+        self.sc = None
+        self.dtdx = dt / dx
 
-    @staticmethod
-    def scale(M, dt, dx):
-        return int(np.log2(np.max(M) * dt / dx))
+    def scale(self, M):
+        return int(np.log2(np.max(M) * self.dtdx))
 
-    def forward(self, states, dt=0.1, dx=2.0, **kwargs):
+    def forward(self, vp, vs, rho, **kwargs):
 
-        vs = states["csu"]
-        vp = states["csM"]
-        rho = states["cv"]
+        vp.data = (vp.data**2 * rho.data)
+        vs.data = (vs.data**2 * rho.data)
+        self.sc = sc = self.scale(vp.data)
+        rho.data = 2 ** sc * self.dtdx / rho.data
+        vp.data = self.dtdx * vp.data * 2 ** -sc
+        vs.data = self.dtdx * vs.data * 2 ** -sc
 
-        M = (vp**2 * rho)
-        mu = (vs**2 * rho)
-        self.sc = sc = self.scale(M, dt, dx)
-        cv = 2 ** sc * dt / dx / rho
-        csM = dt / dx * M * 2 ** -sc
-        csu = dt / dx * mu * 2 ** -sc
+        return vp, vs, rho
 
-        states["cv"] = cv
-        states["csM"] = csM
-        states["csu"] = csu
+    def linear(self, vp, vs, rho, **kwargs):
 
-        return states
+        vp.lin = 2.0 * (vp.data * rho.data) * vp.lin + vp.data**2 * rho.lin
+        vs.lin = 2.0 * (vs.data * rho.data) * vs.lin + vs.data**2 * rho.lin
+        self.sc = sc = self.scale(vp.data**2 * rho.data)
+        rho.lin = - 2 ** sc * self.dtdx / rho.data**2 * rho.lin
+        vp.lin = self.dtdx * vp.lin * 2 ** -sc
+        vs.lin = self.dtdx * vs.lin * 2 ** -sc
 
-    def linear(self, dstates, states, dt=0.1, dx=2.0, **kwargs):
+        return vp, vs, rho
 
-        vs = states["csu"]
-        vp = states["csM"]
-        rho = states["cv"]
-
-        dvs = dstates["csu"]
-        dvp = dstates["csM"]
-        drho = dstates["cv"]
-
-        dM = 2.0 * (vp * rho) * dvp + vp**2 * drho
-        dmu = 2.0 * (vs * rho) * dvs + vs**2 * drho
-        sc = self.sc
-        dcv = - 2 ** sc * dt / dx / rho**2 * drho
-        dcsM = dt / dx * dM * 2 ** -sc
-        dcsu = dt / dx * dmu * 2 ** -sc
-
-        dstates["cv"] = dcv
-        dstates["csM"] = dcsM
-        dstates["csu"] = dcsu
-
-        return dstates
-
-    def adjoint(self, adj_states, states, dt=0.1, dx=2.0, **kwargs):
-
-        vs = states["csu"]
-        vp = states["csM"]
-        rho = states["cv"]
-
-        adj_csu = adj_states["csu"]
-        adj_csM = adj_states["csM"]
-        adj_cv = adj_states["cv"]
-        sc = self.sc
-        adj_csM = dt / dx * adj_csM * 2 ** -sc
-        adj_csu = dt / dx * adj_csu * 2 ** -sc
-
-        adj_vp = 2.0 *(vp * rho) * adj_csM
-        adj_vs = 2.0 *(vs * rho) * adj_csu
-        adj_rho = - 2 ** sc * dt / dx / rho**2 * adj_cv
-        adj_rho += vp**2 * adj_csM + vs**2 * adj_csu
-
-        adj_states["csu"] = adj_vs
-        adj_states["csM"] = adj_vp
-        adj_states["cv"] = adj_rho
-
-        return adj_states
-
-    def backward(self, states, dt=0.1, dx=2.0, **kwargs):
-
-        cv = states["cv"]
-        csM = states["csM"]
-        csu = states["csu"]
+    def adjoint(self, vp, vs, rho, **kwargs):
 
         sc = self.sc
-        rho = 2 ** sc * dt / dx / cv
-        M = dx / dt * csM * 2 ** sc
-        mu = dx / dt * csu * 2 ** sc
+        vp.grad = self.dtdx * vp.grad * 2 ** -sc
+        vs.grad = self.dtdx * vs.grad * 2 ** -sc
+        rho.grad = - 2 ** sc * self.dtdx / rho.data**2 * rho.grad
 
-        states["csu"] = np.sqrt(mu / rho)
-        states["csM"] = np.sqrt(M / rho)
-        states["cv"] = rho
+        rho.grad += vp.data**2 * vp.grad + vs.data**2 * vs.grad
+        vp.grad = 2.0 *(vp.data * rho.data) * vp.grad
+        vs.grad = 2.0 *(vs.data * rho.data) * vs.grad
 
-        return states
+        return vp, vs, rho
+
+    def backward(self, vp, vs, rho, **kwargs):
+
+        sc = self.sc
+        rho.data = 2 ** sc * self.dtdx / rho.data
+        vp.data = 1.0 / self.dtdx  * vp.data * 2 ** sc
+        vs.data = 1.0 / self.dtdx * vs.data * 2 ** sc
+
+        vs.data = np.sqrt(vs.data / rho.data)
+        vp.data = np.sqrt(vp.data / rho.data)
+
+        return vp, vs, rho
 
 
 class PrecisionTester(Function):
@@ -1705,26 +1677,32 @@ def ricker(f0, dt, NT):
     return ricker
 
 
-def define_psv(grid2D, gridout, nab, nt):
+def define_psv(vp, vs, rho, gridout, nab, nt):
 
-    gridpar = copy(grid2D)
-    gridpar.zero_boundary = False
-    defs = {"gridfd": grid2D, "gridpar": gridpar, "gridout": gridout}
+    vx = Variable(shape=vp.shape)
+    vy = Variable(shape=vp.shape)
+    sxx = Variable(shape=vp.shape)
+    szz = Variable(shape=vp.shape)
+    sxz = Variable(shape=vp.shape)
 
-    stepper = Sequence([Source(required_states=["vx"]),
-                        UpdateVelocity2(),
-                        Cerjan(required_states=["vx", "vz"], freesurf=1, nab=nab),
-                        Receiver(required_states=["vx", "vz"]),
-                        UpdateStress2(),
-                        FreeSurface2(),
-                        Cerjan(required_states=["sxx", "szz", "sxz"],
-                               freesurf=1, nab=nab),
-                        ])
-    prop = Propagator(stepper, nt)
-    psv2D = Sequence([ScaledParameters(),
-                      prop],
-                     grids=defs)
-    return psv2D
+    vp, vs, rho = ScaledParameters()(vp, vs, rho)
+    # for t in range(nt):
+    #
+    #
+    # stepper = Sequence([Source(required_states=["vx"]),
+    #                     UpdateVelocity2(),
+    #                     Cerjan(required_states=["vx", "vz"], freesurf=1, nab=nab),
+    #                     Receiver(required_states=["vx", "vz"]),
+    #                     UpdateStress2(),
+    #                     FreeSurface2(),
+    #                     Cerjan(required_states=["sxx", "szz", "sxz"],
+    #                            freesurf=1, nab=nab),
+    #                     ])
+    # prop = Propagator(stepper, nt)
+    # psv2D = Sequence([ScaledParameters(),
+    #                   prop],
+    #                  grids=defs)
+    # return psv2D
 
 if __name__ == '__main__':
 
@@ -1735,15 +1713,10 @@ if __name__ == '__main__':
     b = Variable("b", shape=(10, 1), initialize_method="random")
     y = Variable("y", shape=(10, 1), initialize_method="random")
     matmul = RandKernel()
-    # matmul(x, b, y)
-    # matmul.call_linear(x, b, y)
-    # matmul.gradient(x, b, y)
-    # print(x.data)
-    # print(x.lin)
-    # print(x.grad)
     matmul.backward_test(x, b, y)
     matmul.linear_test(x, b, y)
     matmul.dot_test(x, b, y)
+
 
     # matmul2 = RandKernel(grid=grid1D)
     # seq = Sequence([matmul, matmul2], grids=matmul.grids)
@@ -1756,9 +1729,19 @@ if __name__ == '__main__':
     # div.linear_test()
     # div.backward_test()
 
-    # nrec = 1
-    # nt = 3
-    # nab = 2
+    nrec = 1
+    nt = 3
+    nab = 2
+    dt = 0.0001
+    dx = 1
+    shape = (10, 10)
+    vp = Variable(data=np.full(shape, 3500))
+    vs = Variable(data=np.full(shape, 2000))
+    rho = Variable(data=np.full(shape, 2000))
+    ScaledParameters(dt, dx).backward_test(vp, vs, rho)
+    ScaledParameters(dt, dx).linear_test(vp, vs, rho)
+    ScaledParameters(dt, dx).dot_test(vp, vs, rho)
+
     # grid2D = Grid(shape=(10, 10), type=np.float64, zero_boundary=True)
     # gridout = Grid(shape=(nt, nrec), type=np.float64)
     # psv2D = define_psv(grid2D, gridout, nab, nt)
