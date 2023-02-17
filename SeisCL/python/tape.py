@@ -50,6 +50,8 @@ class Function(TapeHolder):
     Transforms States and its operation to the tape, if required.
     """
 
+    mode = "forward"
+
     def __init__(self,  **kwargs):
         self.updated_states = ["vx"]
         self.signature = signature(self.forward)
@@ -90,6 +92,8 @@ class Function(TapeHolder):
 class Function2(Function):
     def __init__(self,  **kwargs):
         self.updated_states = ["arg2"]
+
+
 
 
 fun1 = Function()

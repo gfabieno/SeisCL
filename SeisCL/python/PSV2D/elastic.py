@@ -988,9 +988,9 @@ if __name__ == '__main__':
     zrec = xrec*0
     rec_linpos = grid2D.xyz2lin(zrec, xrec).astype(np.int32)
     gridout = GridCL(resc.queues[0], shape=(nt, xrec.shape[0]), pad=0,
-                     type=np.float32, dt=dt, nt=nt, nfddim=1)
+                     type=np.float32, dt=dt, nt=nt)
     gridsrc = GridCL(resc.queues[0], shape=(nt, 1), pad=0, type=np.float32,
-                     dt=dt, nt=nt, nfddim=1)
+                     dt=dt, nt=nt)
     psv2D = elastic2d(grid2D, gridout, gridsrc, nab)
 
     vs = np.full(grid2D.shape, 300.0)

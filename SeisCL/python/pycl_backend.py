@@ -24,11 +24,11 @@ class GridCL(Grid):
 
     backend = cl.array.Array
 
-    def __init__(self, queue, shape=(10, 10), nfddim=None,
+    def __init__(self, queue, shape=(10, 10),
                  pad=2, dh=1, dt=1, nt=1, dtype=np.float32, zero_boundary=False,
                  **kwargs):
         super().__init__(shape=shape, pad=pad, dh=dh, dt=dt, nt=nt,
-                         nfddim=nfddim, zero_boundary=zero_boundary, dtype=dtype)
+                         zero_boundary=zero_boundary, dtype=dtype)
         self.queue = queue
         self._struct_np, self.struct_c = self.define_struct()
         self.copy_array = CopyArrayCL(queue.context)
@@ -103,17 +103,17 @@ class GridCL(Grid):
     @property
     def options(self):
         return ["-D __FDOH__=%d" % self.pad,
-                "-D __ND__=%d" % self.nfddim]
+                "-D __ND__=%d" % len(self.shape)]
 
     @property
     def struct_np(self):
         struct = np.zeros(1, self._struct_np)
-        if self.nfddim == 1:
+        if len(self.shape) == 1:
             struct[0]["NZ"] = self.shape[0]
-        elif self.nfddim == 2:
+        elif len(self.shape) == 2:
             struct[0]["NZ"] = self.shape[0]
             struct[0]["NX"] = self.shape[1]
-        elif self.nfddim == 3:
+        elif len(self.shape) == 3:
             struct[0]["NZ"] = self.shape[0]
             struct[0]["NY"] = self.shape[1]
             struct[0]["NX"] = self.shape[2]

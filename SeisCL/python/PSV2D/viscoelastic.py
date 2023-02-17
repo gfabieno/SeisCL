@@ -1036,10 +1036,8 @@ def viscoelastic(grid2D, gridout, gridsrc, nab, nl=1):
     gridpar.pad = 0
     gridmemvar = copy(grid2D)
     gridmemvar.shape = tuple(list(gridmemvar.shape) + [nl])
-    gridmemvar.nfddim = 2
     grideta = copy(grid2D)
     grideta.shape = (nl,)
-    grideta.nfddim = 1
 
     defs = {"gridfd": grid2D, "gridmemvar": gridmemvar, "gridpar": gridpar,
             "gridout": gridout, "gridsrc": gridsrc, "grideta": grideta}
@@ -1123,9 +1121,9 @@ if __name__ == '__main__':
     zrec = xrec*0
     rec_linpos = grid2D.xyz2lin(zrec, xrec).astype(np.int32)
     gridout = GridCL(resc.queues[0], shape=(nt, xrec.shape[0]), pad=0,
-                     type=np.float32, dt=dt, nt=nt, nfddim=1)
+                     type=np.float32, dt=dt, nt=nt)
     gridsrc = GridCL(resc.queues[0], shape=(nt, 1), pad=0, type=np.float32,
-                     dt=dt, nt=nt, nfddim=1)
+                     dt=dt, nt=nt)
     psv2D = viscoelastic(grid2D, gridout, gridsrc, nab)
 
     vs = np.full(grid2D.shape, 300.0)
