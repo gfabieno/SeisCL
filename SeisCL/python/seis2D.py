@@ -9,12 +9,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import animation
 import math
-from bigfloat import half_precision, BigFloat
-from copy import copy, deepcopy
-from inspect import signature, Parameter
 from tape import Variable, Function, TapedFunction, ReversibleFunction
-#import os.path
-from collections import OrderedDict
+import unittest
 
 def Dpx(var):
     return 1.1382 * (var[2:-2, 3:-1] - var[2:-2, 2:-2]) - 0.046414 * (var[2:-2, 4:] - var[2:-2, 1:-3])
@@ -81,503 +77,6 @@ def Dmz_adj(var):
     return dvar
 
 
-class Grid:
-
-    backend = np.ndarray
-
-    def __init__(self, shape=(10, 10), pad=2, dh=1, dt=1, nt=1,
-                 dtype=np.float32, zero_boundary=False, **kwargs):
-        self.shape = shape
-        self.pad = pad
-        self.dh = dh
-        self.dt = dt
-        self.nt = nt
-        self.dtype = dtype
-        self.eps = np.finfo(dtype).eps
-        self.smallest = np.nextafter(dtype(0), dtype(1))
-        self.zero_boundary = zero_boundary
-
-    @property
-    def valid(self):
-        return tuple([slice(self.pad, -self.pad)] * len(self.shape))
-
-    def zero(self):
-        return np.zeros(self.shape, dtype=self.dtype, order="F")
-
-    def random(self):
-        if self.zero_boundary:
-            state = np.zeros(self.shape, dtype=self.dtype, order="F")
-            state[self.valid] = np.random.rand(*state[self.valid].shape)*10e6
-        else:
-            state = np.random.rand(*self.shape).astype(self.dtype)
-        return np.require(state, requirements='F')
-
-    def assign_data(self, data):
-        return np.require(data.astype(self.dtype), requirements='F')
-
-    def create_cache(self, cache_size=1, regions=None):
-        if regions:
-            cache = []
-            for region in regions:
-                shape = [0 for _ in range(len(self.shape))]
-                for ii in range(len(self.shape)):
-                    if region[ii] is Ellipsis:
-                        shape[ii] = self.shape[ii]
-                    else:
-                        indices = region[ii].indices(self.shape[ii])
-                        shape[ii] = int((indices[1]-indices[0])/indices[2])
-                cache.append(np.empty(shape + [cache_size], dtype=self.dtype,
-                                      order="F"))
-            return cache
-        else:
-            return np.empty(list(self.shape) + [cache_size],
-                            dtype=self.dtype, order="F")
-
-    def initialize(self, data=None, method="zero"):
-
-        if data is not None:
-            data = self.assign_data(data)
-        elif method == "zero":
-            data = self.zero()
-        elif method == "random":
-            data = self.random()
-        return data
-
-    def xyz2lin(self, *args):
-        return np.ravel_multi_index([np.array(el)+self.pad for el in args],
-                                    self.shape, order="F")
-
-    @staticmethod
-    def np(array):
-        return array
-
-#
-# class Function(TapeHolder):
-#     """
-#     Kernel implementing forward, linear and adjoint modes.
-#     """
-#
-#     def __init__(self):
-#
-#         self._forward_states = None
-#         self.ncall = 0
-#         self.signature = signature(self.forward)
-#         self.required_states = [name for name, par
-#                                 in signature(self.forward).parameters.items()
-#                                 if par.kind == Parameter.POSITIONAL_OR_KEYWORD]
-#         self.updated_states = []
-#         if not hasattr(self, 'copy_states'):
-#             self.copy_states = {}
-#         if not hasattr(self, 'zeroinit_states'):
-#             self.zeroinit_states = []
-#
-#     def __call__(self, *args, initialize=True, cache_states=True, **kwargs):
-#
-#         kwargs = self.make_kwargs_compatible(**kwargs)
-#         if initialize:
-#             self.initialize(*args, empty_cache=cache_states, **kwargs)
-#         if cache_states:
-#             self.tape.append(self)
-#             self.cache_states(*args, **kwargs)
-#
-#         return self.forward(*args, **kwargs)
-#
-#     def call_linear(self, *args, initialize=True, cache_states=True, **kwargs):
-#
-#         kwargs = self.make_kwargs_compatible(**kwargs)
-#         if initialize:
-#             self.initialize(*args, empty_cache=cache_states, **kwargs)
-#         if cache_states:
-#             self.cache_states(*args, **kwargs)
-#         self.linear(*args, **kwargs)
-#         return self.forward(*args, **kwargs)
-#
-#     def gradient(self, *args, initialize=True, **kwargs):
-#
-#         kwargs = self.make_kwargs_compatible(**kwargs)
-#         if initialize:
-#             self.initialize(*args,  adjoint=True, empty_cache=False, **kwargs)
-#         self.backward(*args, **kwargs)
-#         return self.adjoint(*args, **kwargs)
-#
-#     def cache_states(self, *args, **kwargs):
-#         vars = self.arguments(*args, **kwargs)
-#         for el in self.updated_states:
-#             regions = self.updated_regions(vars[el])
-#             if regions is None:
-#                 self._forward_states[el][..., self.ncall] = vars[el].data
-#             else:
-#                 for ii, region in enumerate(regions):
-#                     self._forward_states[el][ii][..., self.ncall] = vars[el].data[region]
-#         self.ncall += 1
-#
-#     def updated_regions(self, var):
-#         return {}
-#
-#     def initialize(self, *args, empty_cache=True, method="zero", adjoint=False,
-#                    copy_state=True, cache_size=1, **kwargs):
-#
-#         # if adjoint:
-#         #     toinit = list(set(self.updated_states + self.required_states))
-#         # else:
-#         #     toinit = self.required_states
-#         #     self.ncall = 0
-#         #
-#         # for el in toinit:
-#         #     if el not in self.grids:
-#         #         self.grids[el] = self.grids[self.default_grids[el]]
-#         #
-#         #     if el not in argins and el not in self.tape.vars:
-#         #         if el not in self.zeroinit_states:
-#         #             var = Variable(el,
-#         #                            data=self.grids[el].initialize(method=method)
-#         #                            )
-#         #         else:
-#         #             var = Variable(el,
-#         #                            data=self.grids[el].initialize()
-#         #                            )
-#         #     elif el not in self.tape.vars:
-#         #         if type(argins[el]) is Variable:
-#         #             self.tape.vars[el] = argins[el]
-#         #         else:
-#         #             if type(argins[el]) is not self.grids[el].backend:
-#         #                 data = self.grids[el].initialize(data=argins[el])
-#         #             else:
-#         #                 data = argins[el]
-#         #             self.tape.vars[el] = Variable(el, data=data)
-#         #     else:
-#         #         raise NotImplemented("Variable already in tape:"
-#         #                              " cannot overwrite")
-#
-#         # if copy_state:
-#         #     for el in self.copy_states:
-#         #         if el not in self.tape.vars:
-#         #             self.tape.vars[el] = self.tape.vars[self.copy_states[el]]
-#
-#         vars = self.arguments(*args, **kwargs)
-#         if not self.updated_states:
-#             self.updated_states = vars.keys()
-#         if empty_cache:
-#             self._forward_states = {}
-#             for el in self.updated_states:
-#                 regions = self.updated_regions(vars[el])
-#                 self._forward_states[el] = vars[el].create_cache(regions=regions,
-#                                                                  cache_size=cache_size)
-#             self.ncall = 0
-#
-#     def make_kwargs_compatible(self, **kwargs):
-#         return kwargs
-#
-#     def forward(self, *args, **kwargs):
-#         """
-#         Applies the forward kernel.
-#
-#         :param **kwargs:
-#         :param states: A dict containing the variables describing the state of a
-#                        dynamical system. The state variables are updated by
-#                        the forward, but they keep the same dimensions.
-#         :return:
-#             states:     A dict containing the updated states.
-#         """
-#         raise NotImplemented
-#
-#     def linear(self, *args, **kwargs):
-#         """
-#         Applies the linearized forward J = d forward / d states
-#         to a state perturbation out = J * dstates
-#         By default, forward is treated as a linear function
-#         (self.linear = self.forward).
-#
-#         :param dstates: State perturbation
-#         :param states:  State at which the forward is linearized
-#         :param kwargs:
-#         :return: J * dstates
-#         """
-#         raise NotImplemented
-#
-#     def adjoint(self, *args, **kwargs):
-#         """
-#         Applies the adjoint of the forward
-#
-#         :param **kwargs:
-#         :param adj_states: A dict containing the adjoint of the forward states.
-#                            Each elements has the same dimension as the forward
-#                            state, as the forward kernel do not change the
-#                            dimension of the state.
-#         :param states: The states of the system, before calling forward.
-#
-#         :return:
-#             adj_states All Variables modified by adjoint.
-#         """
-#         raise NotImplemented
-#
-#     def backward(self, *args, **kwargs):
-#         """
-#         Reconstruct the input states from the output of forward
-#
-#         :param **kwargs:
-#         :param states: A dict containing the variables describing the state of a
-#                       dynamical system. The state variables are updated by
-#                       the forward, but they keep the same dimensions.
-#         """
-#
-#         vars = self.arguments(*args, **kwargs)
-#         self.ncall -= 1
-#         for el in self._forward_states:
-#             regions = self.updated_regions(vars[el])
-#             if regions is None:
-#                 vars[el].data = self._forward_states[el][..., self.ncall]
-#             else:
-#                 for ii, reg in enumerate(regions):
-#                     vars[el].data[reg] = self._forward_states[el][ii][...,
-#                                                                       self.ncall]
-#
-#     def backward_test(self, *args, **kwargs):
-#
-#         vars = self.arguments(*args, **kwargs)
-#         vars0 = {name: copy(var) for name, var in vars.items()}
-#         for name, var in vars.items():
-#             if type(var) is Variable:
-#                 var.data = var.initialize(method="random")
-#                 vars0[name].data = var.data.copy()
-#
-#         self(*args, **kwargs)
-#         self.backward(*args, **kwargs)
-#
-#         err = 0
-#         scale = 0
-#         for name, var in vars.items():
-#             smallest = var.smallest
-#             snp = vars0[name].data
-#             bsnp = var.data
-#             errii = snp - bsnp
-#             err += np.sum(errii**2)
-#             scale += np.sum((snp - np.mean(snp))**2) + smallest
-#         err = err / scale
-#         print("Backpropagation test for Kernel %s: %.15e"
-#               % (self.__class__.__name__, err))
-#
-#         return err
-#
-#     def linear_test(self, *args, **kwargs):
-#
-#         vars = self.arguments(*args, **kwargs)
-#         pargs = deepcopy(args)
-#         pkwargs = deepcopy(kwargs)
-#         pvars = self.arguments(*pargs, **pkwargs)
-#         fargs = deepcopy(args)
-#         fkwargs = deepcopy(kwargs)
-#         fvars = self.arguments(*fargs, **fkwargs)
-#         for name, var in vars.items():
-#             var.data = var.initialize(method="random")
-#             var.lin = var.initialize(method="random")
-#             fvars[name].data = var.data.copy()
-#             fvars[name].lin = var.lin.copy()
-#         outs = self.call_linear(*fargs, **fkwargs)
-#         try:
-#             iter(outs)
-#         except TypeError:
-#             outs = (outs,)
-#
-#         errs = []
-#         cond = True if vars else False
-#         if not any([el not in self.zeroinit_states for el in vars]):
-#             cond = False
-#         eps = 1.0
-#         while cond:
-#             for name, var in vars.items():
-#                 pvars[name].data = var.data + eps * var.lin
-#             pouts = self(*pargs, **pkwargs)
-#             try:
-#                 iter(pouts)
-#             except TypeError:
-#                 pouts = (pouts,)
-#
-#             err = 0
-#             scale = 0
-#             for out, pout in zip(outs, pouts):
-#                 err += np.sum((pout.data - out.data - eps * out.lin)**2)
-#                 scale += np.sum((eps*(out.lin - np.mean(out.lin)))**2)
-#             errs.append([err/(scale+out.smallest)])
-#
-#             eps /= 10.0
-#             for el, var in vars.items():
-#                 if el not in self.zeroinit_states:
-#                     if np.max(eps*var.lin / (var.data+var.smallest)) < var.eps:
-#                         cond = False
-#                         break
-#         try:
-#             errmin = np.min(errs)
-#             print("Linear test for Kernel %s: %.15e"
-#                   % (self.__class__.__name__, errmin))
-#         except ValueError:
-#             errmin = 0
-#             print("Linear test for Kernel %s: unable to perform"
-#                   % (self.__class__.__name__))
-#
-#         return errmin
-#
-#     def dot_test(self, *args, **kwargs):
-#         """
-#         Dot product test for fstates, outputs = F(states)
-#
-#         dF = [dfstates/dstates     [dstates
-#               doutputs/dstates]     dparams ]
-#
-#         dot = [adj_states  ^T [dfstates/dstates     [states
-#                adj_outputs]    doutputs/dstates]   params]
-#
-#         """
-#
-#         vars = self.arguments(*args, **kwargs)
-#         fargs = deepcopy(args)
-#         fkwargs = deepcopy(kwargs)
-#         fvars = self.arguments(*fargs, **fkwargs)
-#         for name, var in vars.items():
-#             var.data = var.initialize(method="random")
-#             var.lin = var.initialize(method="random")
-#             var.grad = var.initialize(method="random")
-#             fvars[name].data = var.data.copy()
-#             fvars[name].lin = var.lin.copy()
-#             fvars[name].grad = var.grad.copy()
-#         self.call_linear(*fargs, **fkwargs)
-#         self.gradient(*fargs, **fkwargs)
-#
-#         prod1 = np.sum([np.sum(fvars[el].lin * vars[el].grad)
-#                         for el in vars])
-#         prod2 = np.sum([np.sum(fvars[el].grad * vars[el].lin)
-#                         for el in vars])
-#
-#         print("Dot product test for Kernel %s: %.15e"
-#               % (self.__class__.__name__, (prod1-prod2)/(prod1+prod2)))
-#
-#         return (prod1-prod2)/(prod1+prod2)
-#
-#     def arguments(self, *args, **kwargs):
-#         a = self.signature.bind(*args, **kwargs)
-#         a.apply_defaults()
-#
-#         out = {el: var for el, var in a.arguments.items()
-#                if type(var) is Variable}
-#         if "args" in a.arguments:
-#             for ii, var in enumerate(a.arguments["args"]):
-#                 if type(var) is Variable:
-#                     out["arg"+str(ii)] = var
-#         return out
-
-
-class RandKernel(Function):
-
-    def __init__(self, **kwargs):
-
-        super().__init__(**kwargs)
-        self.updated_states = ["x", "y"]
-        self.A1 = np.random.rand(10, 10)
-        self.A2 = np.random.rand(10, 10)
-
-    def forward(self, x, b, y):
-
-        x.data = np.matmul(self.A1, x.data)
-        y.data = np.matmul(self.A2, x.data) + b.data
-        return x, y
-
-    def linear(self, x, b, y):
-        x.lin = np.matmul(self.A1, x.lin)
-        y.lin = np.matmul(self.A2, x.lin) + b.lin
-        return x, y
-
-    def adjoint(self, x, b, y):
-
-        x.grad += np.matmul(self.A2.T, y.grad)
-        b.grad += y.grad
-        y.grad = y.grad * 0
-        x.grad = np.matmul(self.A1.T, x.grad)
-        return x, b
-
-
-class Derivative(Function):
-
-    def __init__(self, grids=None, **kwargs):
-        super().__init__(grids, **kwargs)
-        self.required_states = ["vx"]
-        self.updated_states = ["vx"]
-
-    def forward(self, states, **kwargs):
-        valid = self.grids["vx"].valid
-        states["vx"][valid] = Dmz(states["vx"])
-        return states
-
-    def adjoint(self, adj_states, states, **kwargs):
-        valid = self.grids["vx"].valid
-        adj_states["vx"] = Dmz_adj(adj_states["vx"])
-        return adj_states
-
-
-class Division(Function):
-
-    def __init__(self, grids=None, **kwargs):
-        super().__init__(grids, **kwargs)
-        self.required_states = ["vx", "vz"]
-        self.updated_states = ["vx"]
-        self.smallest = self.grids["vx"].smallest
-
-    def forward(self, states, **kwargs):
-
-        states["vx"] = states["vx"] / (states["vz"]+self.smallest)
-        return states
-
-    def linear(self, dstates, states, **kwargs):
-        """
-        [dvx   =   [1/vz -vx/vz**2] [dvx
-         dvz]       0        1    ]  dvz]
-
-        [vx'   =   [1/vz       0] [vx'
-         vz']       -vx/vz**2  1]  vz']
-        """
-
-        dstates["vx"] = dstates["vx"] / (states["vz"] + self.smallest)
-        dstates["vx"] += -states["vx"] / (states["vz"] + self.smallest)**2 * dstates["vz"]
-
-        return dstates
-
-    def adjoint(self, adj_states, states, **kwargs):
-        adj_states["vz"] += -states["vx"] / (states["vz"] + self.smallest)**2 * adj_states["vx"]
-        adj_states["vx"] = adj_states["vx"] / (states["vz"] + self.smallest)
-        return adj_states
-
-
-class Multiplication(Function):
-
-    def __init__(self, grids=None, **kwargs):
-        super().__init__(grids, **kwargs)
-        self.required_states = ["vx", "vz"]
-        self.updated_states = ["vx"]
-        self.smallest = self.grids["vx"].smallest
-
-    def forward(self, states, **kwargs):
-
-        states["vx"] = states["vx"] * states["vz"]
-        return states
-
-    def linear(self, dstates, states, **kwargs):
-        """
-        [dvx   =   [vz vx] [dvx
-         dvz]       0   1]  dvz]
-
-        [vx'   =   [vz  0] [vx'
-         vz']       vx  1]  vz']
-        """
-        dstates["vx"] = dstates["vx"] * states["vz"]
-        dstates["vx"] += states["vx"] * dstates["vz"]
-
-        return dstates
-
-    def adjoint(self, adj_states, states, **kwargs):
-        adj_states["vz"] += states["vx"] * adj_states["vx"]
-        adj_states["vx"] = adj_states["vx"] * states["vz"]
-        return adj_states
-
-
 class UpdateVelocity(ReversibleFunction):
 
     def __init__(self):
@@ -628,43 +127,6 @@ class UpdateVelocity(ReversibleFunction):
         vz.lin[vz.valid] += (szz_z + sxz_x) * cv.lin[vz.valid]
 
         return vx, vz
-
-    def adjoint(self, cv, vx, vz, sxx, szz, sxz, **kwargs):
-        """
-        Adjoint update the velocity for 2D P-SV isotropic elastic wave
-        propagation.
-
-        The transpose of the forward:
-            [vx'     [      1        0        0     0    0     [vx'
-             vz'            0        1        0     0    0      vz'
-             sxx'  =   -Dmx * cv     0        1     0    0  =   sxx'
-             szz'           0    -Dmz * cv     0     1    0     szz'
-             sxz']     -Dpz * cv -Dpx * cv     0     0    1]    sxz']
-        """
-
-        cv0 = np.zeros_like(cv.data)
-        cv0[cv.valid] = cv[cv.valid]
-        adj_vx_x = Dpx_adj(cv0 * vx.grad)
-        adj_vx_z = Dmz_adj(cv0 * vx.grad)
-        adj_vz_z = Dpz_adj(cv0 * vz.grad)
-        adj_vz_x = Dmx_adj(cv0 * vz.grad)
-
-        sxx_x = Dpx(sxx.grad)
-        szz_z = Dpz(szz.grad)
-        sxz_x = Dmx(sxz.grad)
-        sxz_z = Dmz(sxz.grad)
-
-        sxx.grad += adj_vx_x
-        szz.grad += adj_vz_z
-        sxz.grad += adj_vx_z + adj_vz_x
-
-        cv.grad[cv.valid] += (sxx_x + sxz_z) * vx.grad[vx.valid]
-        cv.grad[cv.valid] += (szz_z + sxz_x) * vz.grad[vz.valid]
-
-        return sxx, szz, sxz, cv
-
-
-class UpdateVelocity2(UpdateVelocity):
 
     def adjoint(self, cv, vx, vz, sxx, szz, sxz):
         """
@@ -779,52 +241,6 @@ class UpdateStress(ReversibleFunction):
         csM0 = np.zeros_like(csM.data)
         csM0[valid] = csM.data[valid]
 
-        adj_sxx_x = Dmx_adj(csM0 * sxx.grad)
-        adj_sxx_z = Dmz_adj((csM0 - 2.0 * csu0) * sxx.grad)
-        adj_szz_x = Dmx_adj((csM0 - 2.0 * csu0) * szz.grad)
-        adj_szz_z = Dmz_adj(csM0 * szz.grad)
-        adj_sxz_x = Dpx_adj(csu0 * sxz.grad)
-        adj_sxz_z = Dpz_adj(csu0 * sxz.grad)
-
-        vx_x = Dmx(vx.data)
-        vx_z = Dpz(vx.data)
-        vz_x = Dpx(vz.data)
-        vz_z = Dmz(vz.data)
-
-        vx.grad += adj_sxx_x + adj_szz_x + adj_sxz_z
-        vz.grad += adj_sxx_z + adj_szz_z + adj_sxz_x
-
-        csM.grad[valid] += (vx_x + vz_z) * sxx.grad[valid]
-        csM.grad[valid] += (vx_x + vz_z) * szz.grad[valid]
-        csu.grad[valid] += - 2.0 * vz_z * sxx.grad[valid]
-        csu.grad[valid] += - 2.0 * vx_x * szz.grad[valid]
-        csu.grad[valid] += (vx_z + vz_x) * sxz.grad[valid]
-
-        return vx, vz, csM, csu
-
-
-class UpdateStress2(UpdateStress):
-
-    def adjoint(self, csM, csu, vx, vz, sxx, szz, sxz):
-        """
-        Adjoint update the velocity for 2D P-SV isotropic elastic wave
-        propagation.
-
-        The transpose of the forward:
-            [vx'     [ 1    0      -Dpx csM     -Dpx(csM - 2csu) -Dmz csu [vx'
-             vz'       0    1  -Dpz (csM - 2csu)    -Dpz csM     -Dmx csu  vz'
-             sxx'  =   0    0          1               0           0   =   sxx'
-             szz'      0    0          0               1           0       szz'
-             sxz']     0    0          0               0           1  ]    sxz']
-             :param **kwargs:
-        """
-
-        valid = vx.valid
-        csu0 = np.zeros_like(csu.data)
-        csu0[valid] = csu.data[valid]
-        csM0 = np.zeros_like(csM.data)
-        csM0[valid] = csM.data[valid]
-
         adj_sxx_x = -Dpx(csM0 * sxx.grad)
         adj_sxx_z = -Dpz((csM0 - 2.0 * csu0) * sxx.grad)
         adj_szz_x = -Dpx((csM0 - 2.0 * csu0) * szz.grad)
@@ -841,36 +257,12 @@ class UpdateStress2(UpdateStress):
         vz.grad[valid] += adj_sxx_z + adj_szz_z + adj_sxz_x
 
         csM.grad[valid] += (vx_x + vz_z) * sxx.grad[valid] \
-                         + (vx_x + vz_z) * szz.grad[valid]
+                           + (vx_x + vz_z) * szz.grad[valid]
         csu.grad[valid] += - 2.0 * vz_z * sxx.grad[valid] \
-                         + - 2.0 * vx_x * szz.grad[valid] \
-                         + (vx_z + vz_x) * sxz.grad[valid]
+                           + - 2.0 * vx_x * szz.grad[valid] \
+                           + (vx_z + vz_x) * sxz.grad[valid]
 
         return vx, vz, csM, csu
-
-
-class ZeroBoundary(Function):
-    def __init__(self, required_states, grids=None, **kwargs):
-        super().__init__(grids, **kwargs)
-        self.required_states = required_states
-
-    def forward(self, states, **kwargs):
-
-        for el in self.required_states:
-            mask = np.ones(self.grids[el].shape, np.bool)
-            mask[self.grids[el].valid] = 0
-            states[el][mask] = 0
-
-        return states
-
-    def adjoint(self, adj_states, states, rec_pos=(), t=0, **kwargs):
-
-        for el in self.required_states:
-            mask = np.ones(self.grids[el].shape, np.bool)
-            mask[self.grids[el].valid] = 0
-            adj_states[el][mask] = 0
-
-        return adj_states
 
 
 class Cerjan(Function):
@@ -1361,24 +753,111 @@ def ricker(f0, dt, NT):
 
 
 @TapedFunction
-def elastic2d(vp, vs, rho, vx, vz, sxx, szz, sxz, rec_pos, src_pos, src, dt, dx):
+def elastic2d(vp, vs, rho, vx, vz, sxx, szz, sxz, rec_pos, src_pos, src, dt, dx, vzout):
 
     vp, vs, rho = ScaledParameters(dt, dx)(vp, vs, rho)
     src_fun = PointForceSource()
     rec_fun = Receiver()
-    updatev = UpdateVelocity2()
-    updates = UpdateStress2()
+    updatev = UpdateVelocity()
+    updates = UpdateStress()
     abs = Cerjan(nab=2)
-    vzout = Variable("vzout", shape=(len(src), len(rec_pos)))
     for t in range(src.size):
         src_fun(vz, src[t], src_pos=src_pos)
         updatev(rho, vx, vz, sxx, szz, sxz)
-        #abs(vx, vz)
+        abs(vx, vz)
         updates(vp, vs, vx, vz, sxx, szz, sxz)
-        #abs(sxx, szz, sxz)
+        abs(sxx, szz, sxz)
         rec_fun(vz, vzout, rec_pos=rec_pos, t=t)
 
-    return vp, vs, rho, vx, vz, sxx, szz, sxz
+    return vp, vs, rho, vx, vz, sxx, szz, sxz, vzout
+
+
+class ElasticTester(unittest.TestCase):
+
+    def setUp(self):
+        nrec = 1
+        nt = 3
+        nab = 2
+        self.dt = 0.00000000001
+        self.dx = 1
+        shape = (10, 10)
+        vp = self.vp = Variable(shape=shape, initialize_method="random", pad=2)
+        self.vs = Variable(shape=vp.shape, initialize_method="random", pad=2)
+        self.rho = Variable(shape=vp.shape, initialize_method="random", pad=2)
+        self.vx = Variable(shape=vp.shape, initialize_method="random", pad=2)
+        self.vz = Variable(shape=vp.shape, initialize_method="random", pad=2)
+        self.sxx = Variable(shape=vp.shape, initialize_method="random", pad=2)
+        self.szz = Variable(shape=vp.shape, initialize_method="random", pad=2)
+        self.sxz = Variable(shape=vp.shape, initialize_method="random", pad=2)
+        self.vxout = Variable(shape=vp.shape, initialize_method="random", pad=2)
+
+    def test_scaledparameters(self):
+        vp = self.vp; vs = self.vs; rho = self.rho
+        dt = self.dt; dx = self.dx
+        sp = ScaledParameters(dt, dx)
+        self.assertLess(sp.backward_test(vp, vs, rho), 1e-12)
+        self.assertLess(sp.linear_test(vp, vs, rho), 1e-12)
+        self.assertLess(sp.dot_test(vp, vs, rho), 1e-12)
+
+    def test_UpdateVelocity(self):
+        vp = self.vp; vs = self.vs; rho = self.rho
+        vx = self.vx; vz = self.vz
+        sxx = self.sxx; szz = self.szz; sxz = self.sxz
+        fun = UpdateVelocity()
+        self.assertLess(fun.backward_test(rho, vx, vz, sxx, szz, sxz), 1e-12)
+        self.assertLess(fun.linear_test(rho, vx, vz, sxx, szz, sxz), 1e-12)
+        self.assertLess(fun.dot_test(rho, vx, vz, sxx, szz, sxz), 1e-12)
+
+    def test_UpdateStress(self):
+        vp = self.vp; vs = self.vs; rho = self.rho
+        vx = self.vx; vz = self.vz
+        sxx = self.sxx; szz = self.szz; sxz = self.sxz
+        fun = UpdateStress()
+        self.assertLess(fun.backward_test(vp, vs, vx, vz, sxx, szz, sxz), 1e-12)
+        self.assertLess(fun.linear_test(vp, vs, vx, vz, sxx, szz, sxz), 1e-12)
+        self.assertLess(fun.dot_test(vp, vs, vx, vz, sxx, szz, sxz), 1e-12)
+
+    def test_Cerjan(self):
+        vx = self.vx; vz = self.vz
+        fun = Cerjan()
+        self.assertLess(fun.backward_test(vx, vz), 1e-12)
+        self.assertLess(fun.linear_test(vx, vz), 1e-12)
+        self.assertLess(fun.dot_test(vx, vz), 1e-12)
+
+    def test_PoinSource(self):
+        vx = self.vx
+        fun = PointForceSource()
+        self.assertLess(fun.backward_test(vx, 1, (0, 1)), 1e-12)
+        self.assertLess(fun.linear_test(vx, 1, (0, 1)), 1e-12)
+        self.assertLess(fun.dot_test(vx, 1, (0, 1)), 1e-12)
+
+    def test_Receiver(self):
+        vx = self.vx; vxout = self.vxout
+        fun = Receiver()
+        self.assertLess(fun.backward_test(vx, vxout, ((5, 5), (6,6))), 1e-12)
+        self.assertLess(fun.linear_test(vx, vxout, ((5, 5), (6,6))), 1e-12)
+        self.assertLess(fun.dot_test(vx, vxout, ((5, 5), (6,6))), 1e-12)
+
+    def test_elastic2d(self):
+        dt = self.dt; dx = self.dx
+        vxout = self.vxout
+        vp = self.vp; vs = self.vs; rho = self.rho
+        vx = self.vx; vz = self.vz
+        sxx = self.sxx; szz = self.szz; sxz = self.sxz
+        rec_pos = ((5, 5), (6, 6))
+        src_pos = (0, 1)
+        src = np.ones((10,))
+        self.assertLess(elastic2d.backward_test(vp, vs, rho, vx, vz,
+                                                sxx, szz, sxz,
+                                                rec_pos, src_pos, src, dt, dx, vxout),
+                        1e-12)
+        self.assertLess(elastic2d.linear_test(vp, vs, rho, vx, vz,
+                                              sxx, szz, sxz,
+                                               rec_pos, src_pos, src, dt, dx, vxout),
+                        1e-12)
+        self.assertLess(elastic2d.dot_test(vp, vs, rho, vx, vz, sxx, szz, sxz,
+                                           rec_pos, src_pos, src, dt, dx, vxout),
+                        1e-12)
 
 
 if __name__ == '__main__':
@@ -1399,24 +878,7 @@ if __name__ == '__main__':
     szz = Variable(shape=vp.shape, initialize_method="random", pad=2)
     sxz = Variable(shape=vp.shape, initialize_method="random", pad=2)
     vxout = Variable(shape=vp.shape, initialize_method="random", pad=2)
-    ScaledParameters(dt, dx).backward_test(vp, vs, rho)
-    ScaledParameters(dt, dx).linear_test(vp, vs, rho)
-    ScaledParameters(dt, dx).dot_test(vp, vs, rho)
-    UpdateVelocity2().backward_test(rho, vx, vz, sxx, szz, sxz)
-    UpdateVelocity2().linear_test(rho, vx, vz, sxx, szz, sxz)
-    UpdateVelocity2().dot_test(rho, vx, vz, sxx, szz, sxz)
-    UpdateStress2().backward_test(vp, vs, vx, vz, sxx, szz, sxz)
-    UpdateStress2().linear_test(vp, vs, vx, vz, sxx, szz, sxz)
-    UpdateStress2().dot_test(vp, vs, vx, vz, sxx, szz, sxz)
-    Cerjan(nab=2).backward_test(vx)
-    Cerjan(nab=2).linear_test(vx)
-    Cerjan(nab=2).dot_test(vx)
-    PointForceSource().backward_test(vx, 1, (0, 1))
-    PointForceSource().linear_test(vx, 1, (0, 1))
-    PointForceSource().dot_test(vx, 1, (0, 1))
-    Receiver().backward_test(vx, vxout, ((5, 5), (6,6)), t=0)
-    Receiver().linear_test(vx, vxout, ((5, 5), (6,6)),  t=0)
-    Receiver().dot_test(vx, vxout, ((5, 5), (6,6)), t=0)
+
 
     rec_pos = ((5, 5), (6, 6))
     src_pos = (0, 1)
