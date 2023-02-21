@@ -12,6 +12,7 @@ import math
 from bigfloat import half_precision, BigFloat
 from copy import copy, deepcopy
 from inspect import signature, Parameter
+from tape import Variable, Function, TapedFunction, ReversibleFunction
 #import os.path
 from collections import OrderedDict
 
@@ -150,482 +151,319 @@ class Grid:
     def np(array):
         return array
 
-
-class Tape:
-    """
-    Keeps track of function calls as well as variables.
-    """
-    def __init__(self):
-        #TODO do we need to track variables ?
-        self.vars = {} #keep track of all encountered variables.
-        self.graph = []
-
-    def append(self, kernel):
-        self.graph.append(kernel)
-
-    def pop(self):
-        return self.graph.pop()
-
-    def add_variable(self, var):
-        if var.name in self.vars:
-            raise NameError("Variable name already exists in tape")
-        self.vars[var.name] = var
-
-    def empty(self):
-        self.vars = {} #keep track of all encountered variables.
-        self.graph = []
-
-
-class TapeHolder:
-    _tape = Tape()
-
-
-class Function(TapeHolder):
-    """
-    Kernel implementing forward, linear and adjoint modes.
-    """
-
-    mode = "forward"
-
-    def __init__(self, grids=None, **kwargs):
-
-        self.grids = grids
-        self._forward_states = None
-        self.ncall = 0
-        self.signature = signature(self.forward)
-        self.required_states = [name for name, par
-                                in signature(self.forward).parameters.items()
-                                if par.kind == Parameter.POSITIONAL_OR_KEYWORD]
-        self.updated_states = []
-        if not hasattr(self, 'default_grids'):
-            self._default_grids = {}
-        if not hasattr(self, 'copy_states'):
-            self.copy_states = {}
-        if not hasattr(self, 'zeroinit_states'):
-            self.zeroinit_states = []
-
-    #TODO added mode global variable to change behavior of call. Fix caching
-    def __call__(self, *args, initialize=True, cache_states=True, **kwargs):
-
-        kwargs = self.make_kwargs_compatible(**kwargs)
-        if initialize:
-            self.initialize(*args, empty_cache=cache_states, **kwargs)
-        if cache_states:
-            self._tape.append(self)
-            self.cache_states(*args, **kwargs)
-
-        return self.__getattribute__(self.mode)(*args, **kwargs)
-
-    def call_linear(self, *args, initialize=True, cache_states=True, **kwargs):
-
-        kwargs = self.make_kwargs_compatible(**kwargs)
-        if initialize:
-            self.initialize(*args, empty_cache=cache_states, **kwargs)
-        if cache_states:
-            self.cache_states(*args, **kwargs)
-        self.linear(*args, **kwargs)
-        return self.forward(*args, **kwargs)
-
-    def gradient(self, *args, initialize=True, **kwargs):
-
-        kwargs = self.make_kwargs_compatible(**kwargs)
-        if initialize:
-            self.initialize(*args,  adjoint=True, empty_cache=False, **kwargs)
-        self.backward(*args, **kwargs)
-        return self.adjoint(*args, **kwargs)
-
-    def cache_states(self, *args, **kwargs):
-        vars = self.arguments(*args, **kwargs)
-        for el in self.updated_states:
-            regions = self.updated_regions(vars[el])
-            if regions is None:
-                self._forward_states[el][..., self.ncall] = vars[el].data
-            else:
-                for ii, region in enumerate(regions):
-                    self._forward_states[el][ii][..., self.ncall] = vars[el].data[region]
-        self.ncall += 1
-
-    def updated_regions(self, var):
-        return {}
-
-    @property
-    def grids(self):
-        return self._grids
-
-    @grids.setter
-    def grids(self, val):
-        self._grids = val
-
-    @property
-    def default_grids(self):
-        return self._default_grids
-
-    @default_grids.setter
-    def default_grids(self, val):
-        self._default_grids = val
-
-    @property
-    def required_grids(self):
-        return list(set([val for val in self.default_grids.values()]))
-
-    def initialize(self, *args, empty_cache=True, method="zero", adjoint=False,
-                   copy_state=True, cache_size=1, **kwargs):
-
-        # if adjoint:
-        #     toinit = list(set(self.updated_states + self.required_states))
-        # else:
-        #     toinit = self.required_states
-        #     self.ncall = 0
-        #
-        # for el in toinit:
-        #     if el not in self.grids:
-        #         self.grids[el] = self.grids[self.default_grids[el]]
-        #
-        #     if el not in argins and el not in self._tape.vars:
-        #         if el not in self.zeroinit_states:
-        #             var = Variable(el,
-        #                            data=self.grids[el].initialize(method=method)
-        #                            )
-        #         else:
-        #             var = Variable(el,
-        #                            data=self.grids[el].initialize()
-        #                            )
-        #     elif el not in self._tape.vars:
-        #         if type(argins[el]) is Variable:
-        #             self._tape.vars[el] = argins[el]
-        #         else:
-        #             if type(argins[el]) is not self.grids[el].backend:
-        #                 data = self.grids[el].initialize(data=argins[el])
-        #             else:
-        #                 data = argins[el]
-        #             self._tape.vars[el] = Variable(el, data=data)
-        #     else:
-        #         raise NotImplemented("Variable already in tape:"
-        #                              " cannot overwrite")
-
-        # if copy_state:
-        #     for el in self.copy_states:
-        #         if el not in self._tape.vars:
-        #             self._tape.vars[el] = self._tape.vars[self.copy_states[el]]
-
-        vars = self.arguments(*args, **kwargs)
-        if not self.updated_states:
-            self.updated_states = vars.keys()
-        if empty_cache:
-            self._forward_states = {}
-            for el in self.updated_states:
-                regions = self.updated_regions(vars[el])
-                self._forward_states[el] = vars[el].create_cache(regions=regions,
-                                                                 cache_size=cache_size)
-            self.ncall = 0
-
-    def make_kwargs_compatible(self, **kwargs):
-        return kwargs
-
-    def forward(self, *args, **kwargs):
-        """
-        Applies the forward kernel.
-
-        :param **kwargs:
-        :param states: A dict containing the variables describing the state of a
-                       dynamical system. The state variables are updated by
-                       the forward, but they keep the same dimensions.
-        :return:
-            states:     A dict containing the updated states.
-        """
-        raise NotImplemented
-
-    def linear(self, *args, **kwargs):
-        """
-        Applies the linearized forward J = d forward / d states
-        to a state perturbation out = J * dstates
-        By default, forward is treated as a linear function
-        (self.linear = self.forward).
-
-        :param dstates: State perturbation
-        :param states:  State at which the forward is linearized
-        :param kwargs:
-        :return: J * dstates
-        """
-        raise NotImplemented
-
-    def adjoint(self, *args, **kwargs):
-        """
-        Applies the adjoint of the forward
-
-        :param **kwargs:
-        :param adj_states: A dict containing the adjoint of the forward states.
-                           Each elements has the same dimension as the forward
-                           state, as the forward kernel do not change the
-                           dimension of the state.
-        :param states: The states of the system, before calling forward.
-
-        :return:
-            adj_states All Variables modified by adjoint.
-        """
-        raise NotImplemented
-
-    def backward(self, *args, **kwargs):
-        """
-        Reconstruct the input states from the output of forward
-
-        :param **kwargs:
-        :param states: A dict containing the variables describing the state of a
-                      dynamical system. The state variables are updated by
-                      the forward, but they keep the same dimensions.
-        """
-
-        vars = self.arguments(*args, **kwargs)
-        self.ncall -= 1
-        for el in self._forward_states:
-            regions = self.updated_regions(vars[el])
-            if regions is None:
-                vars[el].data = self._forward_states[el][..., self.ncall]
-            else:
-                for ii, reg in enumerate(regions):
-                    vars[el].data[reg] = self._forward_states[el][ii][...,
-                                                                      self.ncall]
-
-    def backward_test(self, *args, **kwargs):
-
-        vars = self.arguments(*args, **kwargs)
-        vars0 = {name: copy(var) for name, var in vars.items()}
-        for name, var in vars.items():
-            if type(var) is Variable:
-                var.data = var.initialize(method="random")
-                vars0[name].data = var.data.copy()
-
-        self(*args, **kwargs)
-        self.backward(*args, **kwargs)
-
-        err = 0
-        scale = 0
-        for name, var in vars.items():
-            smallest = var.smallest
-            snp = vars0[name].data
-            bsnp = var.data
-            errii = snp - bsnp
-            err += np.sum(errii**2)
-            scale += np.sum((snp - np.mean(snp))**2) + smallest
-        err = err / scale
-        print("Backpropagation test for Kernel %s: %.15e"
-              % (self.__class__.__name__, err))
-
-        return err
-
-    def linear_test(self, *args, **kwargs):
-
-        vars = self.arguments(*args, **kwargs)
-        pargs = deepcopy(args)
-        pkwargs = deepcopy(kwargs)
-        pvars = self.arguments(*pargs, **pkwargs)
-        fargs = deepcopy(args)
-        fkwargs = deepcopy(kwargs)
-        fvars = self.arguments(*fargs, **fkwargs)
-        for name, var in vars.items():
-            var.data = var.initialize(method="random")
-            var.lin = var.initialize(method="random")
-            fvars[name].data = var.data.copy()
-            fvars[name].lin = var.lin.copy()
-        outs = self.call_linear(*fargs, **fkwargs)
-        try:
-            iter(outs)
-        except TypeError:
-            outs = (outs,)
-
-        errs = []
-        cond = True if vars else False
-        if not any([el not in self.zeroinit_states for el in vars]):
-            cond = False
-        eps = 1.0
-        while cond:
-            for name, var in vars.items():
-                pvars[name].data = var.data + eps * var.lin
-            pouts = self(*pargs, **pkwargs)
-            try:
-                iter(pouts)
-            except TypeError:
-                pouts = (pouts,)
-
-            err = 0
-            scale = 0
-            for out, pout in zip(outs, pouts):
-                err += np.sum((pout.data - out.data - eps * out.lin)**2)
-                scale += np.sum((eps*(out.lin - np.mean(out.lin)))**2)
-            errs.append([err/(scale+out.smallest)])
-
-            eps /= 10.0
-            for el, var in vars.items():
-                if el not in self.zeroinit_states:
-                    if np.max(eps*var.lin / (var.data+var.smallest)) < var.eps:
-                        cond = False
-                        break
-        try:
-            errmin = np.min(errs)
-            print("Linear test for Kernel %s: %.15e"
-                  % (self.__class__.__name__, errmin))
-        except ValueError:
-            errmin = 0
-            print("Linear test for Kernel %s: unable to perform"
-                  % (self.__class__.__name__))
-
-        return errmin
-
-    def dot_test(self, *args, **kwargs):
-        """
-        Dot product test for fstates, outputs = F(states)
-
-        dF = [dfstates/dstates     [dstates
-              doutputs/dstates]     dparams ]
-
-        dot = [adj_states  ^T [dfstates/dstates     [states
-               adj_outputs]    doutputs/dstates]   params]
-
-        """
-
-        vars = self.arguments(*args, **kwargs)
-        fargs = deepcopy(args)
-        fkwargs = deepcopy(kwargs)
-        fvars = self.arguments(*fargs, **fkwargs)
-        for name, var in vars.items():
-            var.data = var.initialize(method="random")
-            var.lin = var.initialize(method="random")
-            var.grad = var.initialize(method="random")
-            fvars[name].data = var.data.copy()
-            fvars[name].lin = var.lin.copy()
-            fvars[name].grad = var.grad.copy()
-        self.call_linear(*fargs, **fkwargs)
-        self.gradient(*fargs, **fkwargs)
-
-        prod1 = np.sum([np.sum(fvars[el].lin * vars[el].grad)
-                        for el in vars])
-        prod2 = np.sum([np.sum(fvars[el].grad * vars[el].lin)
-                        for el in vars])
-
-        print("Dot product test for Kernel %s: %.15e"
-              % (self.__class__.__name__, (prod1-prod2)/(prod1+prod2)))
-
-        return (prod1-prod2)/(prod1+prod2)
-
-    def arguments(self, *args, **kwargs):
-        a = self.signature.bind(*args, **kwargs)
-        a.apply_defaults()
-
-        out = {el: var for el, var in a.arguments.items()
-               if type(var) is Variable}
-        if "args" in a.arguments:
-            for ii, var in enumerate(a.arguments["args"]):
-                if type(var) is Variable:
-                    out["arg"+str(ii)] = var
-        return out
-
-
-class Variable(TapeHolder):
-    """
-
-    """
-    def __init__(self, name=None, data=None, shape=None, lin=None, grad=None,
-                 initialize_method="zero", dtype=np.float,
-                 pad=None):
-
-        self.name = name
-        # TODO do we need to track all variables ?
-        #self._tape.add_variable(self)
-        self.data = data
-        if data is None:
-            if shape is None:
-                raise ValueError("Either data or shape must be provided")
-            else:
-                self.shape = shape
-        else:
-            self.shape = data.shape
-        self.lin = lin # contains the small data perturbation
-        self.grad = grad # contains the gradient
-        self.last_update = None # The last kernel that updated the state
-        self.initialize_method = initialize_method
-        self.dtype = dtype
-        self.smallest = np.nextafter(dtype(0), dtype(1))
-        self.eps = np.finfo(dtype).eps
-        self.pad = pad
-
-    @property
-    def data(self):
-        if self._data is None:
-            self._data = self.initialize()
-        return self._data
-
-    @data.setter
-    def data(self, data):
-        self._data = data
-
-    @property
-    def lin(self):
-        if self._lin is None:
-            self._lin = self.initialize()
-        return self._lin
-
-    @lin.setter
-    def lin(self, lin):
-        self._lin = lin
-
-    @property
-    def grad(self):
-        if self._grad is None:
-            self._grad = self.initialize(method="ones")
-        return self._grad
-
-    @grad.setter
-    def grad(self, grad):
-        self._grad = grad
-
-    @property
-    def valid(self):
-        if self.pad is None:
-            return Ellipsis
-        else:
-            return tuple([slice(self.pad, -self.pad)] * len(self.shape))
-
-    def initialize(self, method=None):
-        if method is None:
-            method = self.initialize_method
-        if method == "zero":
-            return self.zero()
-        elif method == "random":
-            return self.random()
-        elif method == "ones":
-            return self.ones()
-
-    def ones(self):
-        return np.ones(self.shape, dtype=self.dtype, order="F")
-
-    def zero(self):
-        return np.zeros(self.shape, dtype=self.dtype, order="F")
-
-    def random(self):
-        if self.pad:
-            state = np.zeros(self.shape, dtype=self.dtype, order="F")
-            state[self.valid] = np.random.rand(*state[self.valid].shape)*10e6
-        else:
-            state = np.random.rand(*self.shape).astype(self.dtype)
-        return np.require(state, requirements='F')
-
-    def create_cache(self, cache_size=1, regions=None):
-        if regions:
-            cache = []
-            for region in regions:
-                shape = [0 for _ in range(len(self.shape))]
-                for ii in range(len(self.shape)):
-                    if region[ii] is Ellipsis:
-                        shape[ii] = self.shape[ii]
-                    else:
-                        indices = region[ii].indices(self.shape[ii])
-                        shape[ii] = int((indices[1]-indices[0])/indices[2])
-                cache.append(np.empty(shape + [cache_size], dtype=self.dtype,
-                                      order="F"))
-            return cache
-        else:
-            return np.empty(list(self.shape) + [cache_size],
-                            dtype=self.dtype, order="F")
+#
+# class Function(TapeHolder):
+#     """
+#     Kernel implementing forward, linear and adjoint modes.
+#     """
+#
+#     def __init__(self):
+#
+#         self._forward_states = None
+#         self.ncall = 0
+#         self.signature = signature(self.forward)
+#         self.required_states = [name for name, par
+#                                 in signature(self.forward).parameters.items()
+#                                 if par.kind == Parameter.POSITIONAL_OR_KEYWORD]
+#         self.updated_states = []
+#         if not hasattr(self, 'copy_states'):
+#             self.copy_states = {}
+#         if not hasattr(self, 'zeroinit_states'):
+#             self.zeroinit_states = []
+#
+#     def __call__(self, *args, initialize=True, cache_states=True, **kwargs):
+#
+#         kwargs = self.make_kwargs_compatible(**kwargs)
+#         if initialize:
+#             self.initialize(*args, empty_cache=cache_states, **kwargs)
+#         if cache_states:
+#             self.tape.append(self)
+#             self.cache_states(*args, **kwargs)
+#
+#         return self.forward(*args, **kwargs)
+#
+#     def call_linear(self, *args, initialize=True, cache_states=True, **kwargs):
+#
+#         kwargs = self.make_kwargs_compatible(**kwargs)
+#         if initialize:
+#             self.initialize(*args, empty_cache=cache_states, **kwargs)
+#         if cache_states:
+#             self.cache_states(*args, **kwargs)
+#         self.linear(*args, **kwargs)
+#         return self.forward(*args, **kwargs)
+#
+#     def gradient(self, *args, initialize=True, **kwargs):
+#
+#         kwargs = self.make_kwargs_compatible(**kwargs)
+#         if initialize:
+#             self.initialize(*args,  adjoint=True, empty_cache=False, **kwargs)
+#         self.backward(*args, **kwargs)
+#         return self.adjoint(*args, **kwargs)
+#
+#     def cache_states(self, *args, **kwargs):
+#         vars = self.arguments(*args, **kwargs)
+#         for el in self.updated_states:
+#             regions = self.updated_regions(vars[el])
+#             if regions is None:
+#                 self._forward_states[el][..., self.ncall] = vars[el].data
+#             else:
+#                 for ii, region in enumerate(regions):
+#                     self._forward_states[el][ii][..., self.ncall] = vars[el].data[region]
+#         self.ncall += 1
+#
+#     def updated_regions(self, var):
+#         return {}
+#
+#     def initialize(self, *args, empty_cache=True, method="zero", adjoint=False,
+#                    copy_state=True, cache_size=1, **kwargs):
+#
+#         # if adjoint:
+#         #     toinit = list(set(self.updated_states + self.required_states))
+#         # else:
+#         #     toinit = self.required_states
+#         #     self.ncall = 0
+#         #
+#         # for el in toinit:
+#         #     if el not in self.grids:
+#         #         self.grids[el] = self.grids[self.default_grids[el]]
+#         #
+#         #     if el not in argins and el not in self.tape.vars:
+#         #         if el not in self.zeroinit_states:
+#         #             var = Variable(el,
+#         #                            data=self.grids[el].initialize(method=method)
+#         #                            )
+#         #         else:
+#         #             var = Variable(el,
+#         #                            data=self.grids[el].initialize()
+#         #                            )
+#         #     elif el not in self.tape.vars:
+#         #         if type(argins[el]) is Variable:
+#         #             self.tape.vars[el] = argins[el]
+#         #         else:
+#         #             if type(argins[el]) is not self.grids[el].backend:
+#         #                 data = self.grids[el].initialize(data=argins[el])
+#         #             else:
+#         #                 data = argins[el]
+#         #             self.tape.vars[el] = Variable(el, data=data)
+#         #     else:
+#         #         raise NotImplemented("Variable already in tape:"
+#         #                              " cannot overwrite")
+#
+#         # if copy_state:
+#         #     for el in self.copy_states:
+#         #         if el not in self.tape.vars:
+#         #             self.tape.vars[el] = self.tape.vars[self.copy_states[el]]
+#
+#         vars = self.arguments(*args, **kwargs)
+#         if not self.updated_states:
+#             self.updated_states = vars.keys()
+#         if empty_cache:
+#             self._forward_states = {}
+#             for el in self.updated_states:
+#                 regions = self.updated_regions(vars[el])
+#                 self._forward_states[el] = vars[el].create_cache(regions=regions,
+#                                                                  cache_size=cache_size)
+#             self.ncall = 0
+#
+#     def make_kwargs_compatible(self, **kwargs):
+#         return kwargs
+#
+#     def forward(self, *args, **kwargs):
+#         """
+#         Applies the forward kernel.
+#
+#         :param **kwargs:
+#         :param states: A dict containing the variables describing the state of a
+#                        dynamical system. The state variables are updated by
+#                        the forward, but they keep the same dimensions.
+#         :return:
+#             states:     A dict containing the updated states.
+#         """
+#         raise NotImplemented
+#
+#     def linear(self, *args, **kwargs):
+#         """
+#         Applies the linearized forward J = d forward / d states
+#         to a state perturbation out = J * dstates
+#         By default, forward is treated as a linear function
+#         (self.linear = self.forward).
+#
+#         :param dstates: State perturbation
+#         :param states:  State at which the forward is linearized
+#         :param kwargs:
+#         :return: J * dstates
+#         """
+#         raise NotImplemented
+#
+#     def adjoint(self, *args, **kwargs):
+#         """
+#         Applies the adjoint of the forward
+#
+#         :param **kwargs:
+#         :param adj_states: A dict containing the adjoint of the forward states.
+#                            Each elements has the same dimension as the forward
+#                            state, as the forward kernel do not change the
+#                            dimension of the state.
+#         :param states: The states of the system, before calling forward.
+#
+#         :return:
+#             adj_states All Variables modified by adjoint.
+#         """
+#         raise NotImplemented
+#
+#     def backward(self, *args, **kwargs):
+#         """
+#         Reconstruct the input states from the output of forward
+#
+#         :param **kwargs:
+#         :param states: A dict containing the variables describing the state of a
+#                       dynamical system. The state variables are updated by
+#                       the forward, but they keep the same dimensions.
+#         """
+#
+#         vars = self.arguments(*args, **kwargs)
+#         self.ncall -= 1
+#         for el in self._forward_states:
+#             regions = self.updated_regions(vars[el])
+#             if regions is None:
+#                 vars[el].data = self._forward_states[el][..., self.ncall]
+#             else:
+#                 for ii, reg in enumerate(regions):
+#                     vars[el].data[reg] = self._forward_states[el][ii][...,
+#                                                                       self.ncall]
+#
+#     def backward_test(self, *args, **kwargs):
+#
+#         vars = self.arguments(*args, **kwargs)
+#         vars0 = {name: copy(var) for name, var in vars.items()}
+#         for name, var in vars.items():
+#             if type(var) is Variable:
+#                 var.data = var.initialize(method="random")
+#                 vars0[name].data = var.data.copy()
+#
+#         self(*args, **kwargs)
+#         self.backward(*args, **kwargs)
+#
+#         err = 0
+#         scale = 0
+#         for name, var in vars.items():
+#             smallest = var.smallest
+#             snp = vars0[name].data
+#             bsnp = var.data
+#             errii = snp - bsnp
+#             err += np.sum(errii**2)
+#             scale += np.sum((snp - np.mean(snp))**2) + smallest
+#         err = err / scale
+#         print("Backpropagation test for Kernel %s: %.15e"
+#               % (self.__class__.__name__, err))
+#
+#         return err
+#
+#     def linear_test(self, *args, **kwargs):
+#
+#         vars = self.arguments(*args, **kwargs)
+#         pargs = deepcopy(args)
+#         pkwargs = deepcopy(kwargs)
+#         pvars = self.arguments(*pargs, **pkwargs)
+#         fargs = deepcopy(args)
+#         fkwargs = deepcopy(kwargs)
+#         fvars = self.arguments(*fargs, **fkwargs)
+#         for name, var in vars.items():
+#             var.data = var.initialize(method="random")
+#             var.lin = var.initialize(method="random")
+#             fvars[name].data = var.data.copy()
+#             fvars[name].lin = var.lin.copy()
+#         outs = self.call_linear(*fargs, **fkwargs)
+#         try:
+#             iter(outs)
+#         except TypeError:
+#             outs = (outs,)
+#
+#         errs = []
+#         cond = True if vars else False
+#         if not any([el not in self.zeroinit_states for el in vars]):
+#             cond = False
+#         eps = 1.0
+#         while cond:
+#             for name, var in vars.items():
+#                 pvars[name].data = var.data + eps * var.lin
+#             pouts = self(*pargs, **pkwargs)
+#             try:
+#                 iter(pouts)
+#             except TypeError:
+#                 pouts = (pouts,)
+#
+#             err = 0
+#             scale = 0
+#             for out, pout in zip(outs, pouts):
+#                 err += np.sum((pout.data - out.data - eps * out.lin)**2)
+#                 scale += np.sum((eps*(out.lin - np.mean(out.lin)))**2)
+#             errs.append([err/(scale+out.smallest)])
+#
+#             eps /= 10.0
+#             for el, var in vars.items():
+#                 if el not in self.zeroinit_states:
+#                     if np.max(eps*var.lin / (var.data+var.smallest)) < var.eps:
+#                         cond = False
+#                         break
+#         try:
+#             errmin = np.min(errs)
+#             print("Linear test for Kernel %s: %.15e"
+#                   % (self.__class__.__name__, errmin))
+#         except ValueError:
+#             errmin = 0
+#             print("Linear test for Kernel %s: unable to perform"
+#                   % (self.__class__.__name__))
+#
+#         return errmin
+#
+#     def dot_test(self, *args, **kwargs):
+#         """
+#         Dot product test for fstates, outputs = F(states)
+#
+#         dF = [dfstates/dstates     [dstates
+#               doutputs/dstates]     dparams ]
+#
+#         dot = [adj_states  ^T [dfstates/dstates     [states
+#                adj_outputs]    doutputs/dstates]   params]
+#
+#         """
+#
+#         vars = self.arguments(*args, **kwargs)
+#         fargs = deepcopy(args)
+#         fkwargs = deepcopy(kwargs)
+#         fvars = self.arguments(*fargs, **fkwargs)
+#         for name, var in vars.items():
+#             var.data = var.initialize(method="random")
+#             var.lin = var.initialize(method="random")
+#             var.grad = var.initialize(method="random")
+#             fvars[name].data = var.data.copy()
+#             fvars[name].lin = var.lin.copy()
+#             fvars[name].grad = var.grad.copy()
+#         self.call_linear(*fargs, **fkwargs)
+#         self.gradient(*fargs, **fkwargs)
+#
+#         prod1 = np.sum([np.sum(fvars[el].lin * vars[el].grad)
+#                         for el in vars])
+#         prod2 = np.sum([np.sum(fvars[el].grad * vars[el].lin)
+#                         for el in vars])
+#
+#         print("Dot product test for Kernel %s: %.15e"
+#               % (self.__class__.__name__, (prod1-prod2)/(prod1+prod2)))
+#
+#         return (prod1-prod2)/(prod1+prod2)
+#
+#     def arguments(self, *args, **kwargs):
+#         a = self.signature.bind(*args, **kwargs)
+#         a.apply_defaults()
+#
+#         out = {el: var for el, var in a.arguments.items()
+#                if type(var) is Variable}
+#         if "args" in a.arguments:
+#             for ii, var in enumerate(a.arguments["args"]):
+#                 if type(var) is Variable:
+#                     out["arg"+str(ii)] = var
+#         return out
 
 
 class RandKernel(Function):
@@ -740,27 +578,10 @@ class Multiplication(Function):
         return adj_states
 
 
-class ReversibleFunction(Function):
-
-    def __call__(self, *args, initialize=True, **kwargs):
-        kwargs.pop("cache_states", None)
-        return super().__call__(*args, initialize=initialize,
-                                cache_states=False, **kwargs)
-
-    def call_linear(self, *args, initialize=True, cache_states=True, **kwargs):
-        kwargs.pop("cache_states", None)
-        return super().call_linear(*args, initialize=initialize,
-                                   cache_states=False, **kwargs)
-
-    def backward(self, *args, **kwargs):
-        kwargs = self.make_kwargs_compatible(**kwargs)
-        return self.forward(*args, backpropagate=True, **kwargs)
-
-
 class UpdateVelocity(ReversibleFunction):
 
-    def __init__(self, grids=None, **kwargs):
-        super().__init__(grids, **kwargs)
+    def __init__(self):
+        super().__init__()
         self.updated_states = ["vx", "vz"]
 
     def forward(self, cv, vx, vz, sxx, szz, sxz, backpropagate=False, **kwargs):
@@ -882,8 +703,8 @@ class UpdateVelocity2(UpdateVelocity):
 
 class UpdateStress(ReversibleFunction):
 
-    def __init__(self, grids=None, **kwargs):
-        super().__init__(grids, **kwargs)
+    def __init__(self):
+        super().__init__()
         self.updated_states = ["sxx", "szz", "sxz"]
 
     def forward(self, csM, csu, vx, vz, sxx, szz, sxz, backpropagate=False):
@@ -1054,33 +875,30 @@ class ZeroBoundary(Function):
 
 class Cerjan(Function):
 
-    def __init__(self, grids=None, freesurf=False, abpc=4.0, nab=2, pad=2,
-                 required_states=(), **kwargs):
-        super().__init__(grids, **kwargs)
+    def __init__(self, freesurf=False, abpc=4.0, nab=2, pad=2):
+        super().__init__()
         self.abpc = abpc
         self.nab = nab
         self.pad = pad
-        self.required_states = required_states
-        self.updated_states = required_states
         self.taper = np.exp(np.log(1.0-abpc/100)/nab**2 * np.arange(nab) **2)
         #self.taper = np.concatenate([self.taper,  self.taper[-pad:][::-1]])
         self.taper = np.expand_dims(self.taper, -1)
         self.freesurf = freesurf
 
-    def updated_regions(self, var):
-        regions = []
-        pad = self.pad
-        ndim = len(var.shape)
-        b = self.nab + pad
-        for dim in range(ndim):
-            region = [Ellipsis for _ in range(ndim)]
-            region[dim] = slice(pad, b)
-            if dim != 0 or not self.freesurf:
-                regions.append(tuple(region))
-            region = [Ellipsis for _ in range(ndim)]
-            region[dim] = slice(-b, -pad)
-            regions.append(tuple(region))
-        return regions
+    # def updated_regions(self, var):
+    #     regions = []
+    #     pad = self.pad
+    #     ndim = len(var.shape)
+    #     b = self.nab + pad
+    #     for dim in range(ndim):
+    #         region = [Ellipsis for _ in range(ndim)]
+    #         region[dim] = slice(pad, b)
+    #         if dim != 0 or not self.freesurf:
+    #             regions.append(tuple(region))
+    #         region = [Ellipsis for _ in range(ndim)]
+    #         region[dim] = slice(-b, -pad)
+    #         regions.append(tuple(region))
+    #     return regions
 
     def forward(self, *args, direction="data"):
         pad = self.pad
@@ -1120,7 +938,7 @@ class Receiver(ReversibleFunction):
             var.grad[r] += varout.grad[t, ii]
         return var
 
-    def backward(self, var, varout, rec_pos=(), t=0):
+    def recover_states(self, initial_states, var, varout, rec_pos=(), t=0):
         for ii, r in enumerate(rec_pos):
             varout.data[t, ii] -= var.data[r]
         return varout
@@ -1148,17 +966,11 @@ class PointForceSource(ReversibleFunction):
 
 class FreeSurface(Function):
 
-    def __init__(self, grids=None, **kwargs):
-        super().__init__(grids, **kwargs)
+    def __init__(self):
+        super().__init__()
         self.required_states = ["vx", "vz", "sxx", "szz", "sxz", "csu", "csM"]
         self.updated_states = ["sxx", "szz", "sxz"]
-        self.default_grids = {"vx": "gridfd",
-                              "vz": "gridfd",
-                              "sxx": "gridfd",
-                              "szz": "gridfd",
-                              "sxz": "gridfd",
-                              "csu": "gridpar",
-                              "csM": "gridpar"}
+
 
     def __call__(self, states, initialize=True, **kwargs):
 
@@ -1284,18 +1096,10 @@ class FreeSurface(Function):
 
 class FreeSurface2(ReversibleFunction):
     #TODO Does not pass linear and dot product tests
-    def __init__(self, grids=None, **kwargs):
-        super().__init__(grids, **kwargs)
+    def __init__(self):
+        super().__init__()
         self.required_states = ["vx", "vz", "sxx", "szz", "sxz", "csu", "csM", "cv"]
         self.updated_states = ["sxx", "szz", "vx", "vz"]
-        self.default_grids = {"vx": "gridfd",
-                              "vz": "gridfd",
-                              "sxx": "gridfd",
-                              "szz": "gridfd",
-                              "sxz": "gridfd",
-                              "cv": "gridpar",
-                              "csu": "gridpar",
-                              "csM": "gridpar"}
 
     def forward(self, states, backpropagate=False, **kwargs):
 
@@ -1490,8 +1294,8 @@ class FreeSurface2(ReversibleFunction):
 
 class ScaledParameters(ReversibleFunction):
 
-    def __init__(self, dt, dx, grids=None, **kwargs):
-        super().__init__(grids, **kwargs)
+    def __init__(self, dt, dx):
+        super().__init__()
         self.required_states = ["cv", "csu", "csM"]
         self.updated_states = ["cv", "csu", "csM"]
         self.sc = None
@@ -1500,18 +1304,27 @@ class ScaledParameters(ReversibleFunction):
     def scale(self, M):
         return int(np.log2(np.max(M) * self.dtdx))
 
-    def forward(self, vp, vs, rho, **kwargs):
+    def forward(self, vp, vs, rho, backpropagate=False):
 
-        vp.data = (vp.data**2 * rho.data)
-        vs.data = (vs.data**2 * rho.data)
-        self.sc = sc = self.scale(vp.data)
-        rho.data[rho.valid] = 2 ** sc * self.dtdx / rho.data[rho.valid]
-        vp.data = self.dtdx * vp.data * 2 ** -sc
-        vs.data = self.dtdx * vs.data * 2 ** -sc
+        if not backpropagate:
+            vp.data = (vp.data**2 * rho.data)
+            vs.data = (vs.data**2 * rho.data)
+            self.sc = sc = self.scale(vp.data)
+            rho.data[rho.valid] = 2 ** sc * self.dtdx / rho.data[rho.valid]
+            vp.data = self.dtdx * vp.data * 2 ** -sc
+            vs.data = self.dtdx * vs.data * 2 ** -sc
+        else:
+            sc = self.sc
+            rho.data[rho.valid] = 2 ** sc * self.dtdx / rho.data[rho.valid]
+            vp.data = 1.0 / self.dtdx * vp.data * 2 ** sc
+            vs.data = 1.0 / self.dtdx * vs.data * 2 ** sc
+
+            vs.data[rho.valid] = np.sqrt(vs.data[rho.valid] / rho.data[rho.valid])
+            vp.data[rho.valid] = np.sqrt(vp.data[rho.valid] / rho.data[rho.valid])
 
         return vp, vs, rho
 
-    def linear(self, vp, vs, rho, **kwargs):
+    def linear(self, vp, vs, rho):
 
         vp.lin = 2.0 * (vp.data * rho.data) * vp.lin + vp.data**2 * rho.lin
         vs.lin = 2.0 * (vs.data * rho.data) * vs.lin + vs.data**2 * rho.lin
@@ -1522,7 +1335,7 @@ class ScaledParameters(ReversibleFunction):
 
         return vp, vs, rho
 
-    def adjoint(self, vp, vs, rho, **kwargs):
+    def adjoint(self, vp, vs, rho):
 
         sc = self.sc
         vp.grad = self.dtdx * vp.grad * 2 ** -sc
@@ -1536,23 +1349,11 @@ class ScaledParameters(ReversibleFunction):
 
         return vp, vs, rho
 
-    def backward(self, vp, vs, rho, **kwargs):
-
-        sc = self.sc
-        rho.data[rho.valid] = 2 ** sc * self.dtdx / rho.data[rho.valid]
-        vp.data = 1.0 / self.dtdx  * vp.data * 2 ** sc
-        vs.data = 1.0 / self.dtdx * vs.data * 2 ** sc
-
-        vs.data[rho.valid] = np.sqrt(vs.data[rho.valid] / rho.data[rho.valid])
-        vp.data[rho.valid] = np.sqrt(vp.data[rho.valid] / rho.data[rho.valid])
-
-        return vp, vs, rho
-
 
 class PrecisionTester(Function):
 
-    def __init__(self, grids=None, **kwargs):
-        super().__init__(grids, **kwargs)
+    def __init__(self):
+        super().__init__()
         self.required_states = ["vx", "vz", "sxx", "szz", "sxz"]
         self.updated_states = []
 
@@ -1575,37 +1376,27 @@ def ricker(f0, dt, NT):
 
     return ricker
 
-#TODO decorator function. Change __call__ of all Function objects to forward, linear or adjoint
-#TODO we can do this with a global variable common to all Function instances
 
+@TapedFunction
+def elastic2d(vp, vs, rho, vx, vz, sxx, szz, sxz, rec_pos, src_pos, src, dt, dx):
 
+    vp, vs, rho = ScaledParameters(dt, dx)(vp, vs, rho)
+    src_fun = PointForceSource()
+    rec_fun = Receiver()
+    updatev = UpdateVelocity2()
+    updates = UpdateStress2()
+    abs = Cerjan(nab=2)
+    vzout = Variable("vzout", shape=(len(src), len(rec_pos)))
+    for t in range(src.size):
+        src_fun(vz, src[t], src_pos=src_pos)
+        updatev(rho, vx, vz, sxx, szz, sxz)
+        #abs(vx, vz)
+        updates(vp, vs, vx, vz, sxx, szz, sxz)
+        #abs(sxx, szz, sxz)
+        rec_fun(vz, vzout, rec_pos=rec_pos, t=t)
 
-def define_psv(vp, vs, rho, gridout, nab, nt):
+    return vp, vs, rho, vx, vz, sxx, szz, sxz
 
-    vx = Variable(shape=vp.shape)
-    vy = Variable(shape=vp.shape)
-    sxx = Variable(shape=vp.shape)
-    szz = Variable(shape=vp.shape)
-    sxz = Variable(shape=vp.shape)
-
-    vp, vs, rho = ScaledParameters()(vp, vs, rho)
-    # for t in range(nt):
-    #
-    #
-    # stepper = Sequence([Source(required_states=["vx"]),
-    #                     UpdateVelocity2(),
-    #                     Cerjan(required_states=["vx", "vz"], freesurf=1, nab=nab),
-    #                     Receiver(required_states=["vx", "vz"]),
-    #                     UpdateStress2(),
-    #                     FreeSurface2(),
-    #                     Cerjan(required_states=["sxx", "szz", "sxz"],
-    #                            freesurf=1, nab=nab),
-    #                     ])
-    # prop = Propagator(stepper, nt)
-    # psv2D = Sequence([ScaledParameters(),
-    #                   prop],
-    #                  grids=defs)
-    # return psv2D
 
 if __name__ == '__main__':
 
@@ -1623,18 +1414,18 @@ if __name__ == '__main__':
     nrec = 1
     nt = 3
     nab = 2
-    dt = 0.0001
+    dt = 0.00000000001
     dx = 1
     shape = (10, 10)
-    vp = Variable(data=np.full(shape, 3500), pad=2)
-    vs = Variable(data=np.full(shape, 2000), pad=2)
-    rho = Variable(data=np.full(shape, 2000), pad=2)
-    vx = Variable(shape=vp.shape, pad=2)
-    vz = Variable(shape=vp.shape, pad=2)
-    sxx = Variable(shape=vp.shape, pad=2)
-    szz = Variable(shape=vp.shape, pad=2)
-    sxz = Variable(shape=vp.shape, pad=2)
-    vxout = Variable(shape=(nt, 2), pad=2)
+    vp = Variable(shape=shape, initialize_method="random", pad=2)
+    vs = Variable(shape=vp.shape, initialize_method="random", pad=2)
+    rho = Variable(shape=vp.shape, initialize_method="random", pad=2)
+    vx = Variable(shape=vp.shape, initialize_method="random", pad=2)
+    vz = Variable(shape=vp.shape, initialize_method="random", pad=2)
+    sxx = Variable(shape=vp.shape, initialize_method="random", pad=2)
+    szz = Variable(shape=vp.shape, initialize_method="random", pad=2)
+    sxz = Variable(shape=vp.shape, initialize_method="random", pad=2)
+    vxout = Variable(shape=vp.shape, initialize_method="random", pad=2)
     ScaledParameters(dt, dx).backward_test(vp, vs, rho)
     ScaledParameters(dt, dx).linear_test(vp, vs, rho)
     ScaledParameters(dt, dx).dot_test(vp, vs, rho)
@@ -1654,6 +1445,13 @@ if __name__ == '__main__':
     Receiver().linear_test(vx, vxout, ((5, 5), (6,6)),  t=0)
     Receiver().dot_test(vx, vxout, ((5, 5), (6,6)), t=0)
 
+    rec_pos = ((5, 5), (6, 6))
+    src_pos = (0, 1)
+    src = np.ones((15,))
+    elastic2d.backward_test(vp, vs, rho, vx, vz, sxx, szz, sxz,
+                            rec_pos, src_pos, src, dt, dx)
+    elastic2d.linear_test(vp, vs, rho, vx, vz, sxx, szz, sxz, rec_pos, src_pos, src, dt, dx)
+    elastic2d.dot_test(vp, vs, rho, vx, vz, sxx, szz, sxz, rec_pos, src_pos, src, dt, dx)
     # grid2D = Grid(shape=(10, 10), type=np.float64, zero_boundary=True)
     # gridout = Grid(shape=(nt, nrec), type=np.float64)
     # psv2D = define_psv(grid2D, gridout, nab, nt)
