@@ -51,17 +51,6 @@ class Tape:
 TapeHolder.tape = Tape()
 
 
-# class Variable(TapeHolder):
-#
-#     def __init__(self, name):
-#         self.name = name
-#         self.tape.add_variable(self)
-#         self.data = None # contains the data
-#         self.lin = None # contains the small data perturbation
-#         self.grad = None # contains the gradient
-#         self.last_update = None # The last kernel that updated the state
-
-
 class Variable(TapeHolder):
     """
 
@@ -171,7 +160,6 @@ class Variable(TapeHolder):
                             dtype=self.dtype, order="F")
 
 
-#TODO Merge Function from seis2D and tape.py
 class Function(TapeHolder):
     """
     Transforms States and its operation to the tape, if required.
@@ -379,6 +367,7 @@ class ReversibleFunction(Function):
 
     def recover_states(self, initial_states, *args, **kwargs):
         return self.forward(*args, backpropagate=True, **kwargs)
+
 
 #TODO replace localtape by saving the localtape in the current tape
 class TapedFunction(Function):
@@ -605,6 +594,7 @@ class TapedFunctionTester(unittest.TestCase):
             self.assertIsNot(fun1.localtape, fun2.localtape)
             self.assertIsNot(fun1.localtape, fun3.localtape)
             self.assertIs(tape.graph[0][0], fun3)
+
 
 class FunctionTester(unittest.TestCase):
 
