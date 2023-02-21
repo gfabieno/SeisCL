@@ -314,9 +314,11 @@ class Function(TapeHolder):
             err = 0
             scale = 0
             for out, pout in zip(outs, pouts):
-                err += np.sum((pout.data - out.data - eps * out.lin)**2)
-                scale += np.sum((eps*(out.lin - np.mean(out.lin)))**2)
-            errs.append([err/(scale+out.smallest)])
+                if pouts and out:
+                    err += np.sum((pout.data - out.data - eps * out.lin)**2)
+                    scale += np.sum((eps*(out.lin - np.mean(out.lin)))**2)
+                    smallest = out.smallest
+            errs.append([err/(scale+smallest)])
 
             eps /= 10.0
             for el, var in vars.items():
@@ -427,7 +429,7 @@ class TapedFunction(Function):
         for argout, argin in zip(args, self.tape.graph[-1][1]):
             if argout is not argin and type(argout) is Variable:
                 argout.grad = argin.grad
-        for name, var in kwargs:
+        for name, var in kwargs.items():
             if type(var) is Variable:
                 if name in self.tape.graph[-1][2]:
                     self.tape.graph[-1][2][name].grad = var.grad

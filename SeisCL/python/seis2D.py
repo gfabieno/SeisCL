@@ -344,8 +344,7 @@ class PointForceSource(ReversibleFunction):
             sign = -1.0
         else:
             sign = 1.0
-        for ii, s in enumerate(src_pos):
-            var.data[s] += sign * src
+        var.data[src_pos] += sign * src
 
         return var
 
@@ -753,7 +752,8 @@ def ricker(f0, dt, NT):
 
 
 @TapedFunction
-def elastic2d(vp, vs, rho, vx, vz, sxx, szz, sxz, rec_pos, src_pos, src, dt, dx, vzout):
+def elastic2d(vp, vs, rho, vx, vz, sxx, szz, sxz, rec_pos, sources, dt,
+              dx, vzout=None, vxout=None, pout=None):
 
     vp, vs, rho = ScaledParameters(dt, dx)(vp, vs, rho)
     src_fun = PointForceSource()
@@ -761,15 +761,22 @@ def elastic2d(vp, vs, rho, vx, vz, sxx, szz, sxz, rec_pos, src_pos, src, dt, dx,
     updatev = UpdateVelocity()
     updates = UpdateStress()
     abs = Cerjan(nab=2)
-    for t in range(src.size):
-        src_fun(vz, src[t], src_pos=src_pos)
+    for t in range(sources[0]["signal"].size):
+        for src in sources:
+            if src["type"] == "vx":
+                src_fun(vx, src["signal"][t], src_pos=src["pos"])
+            elif src["type"] == "vz":
+                src_fun(vz, src["signal"][t], src_pos=src["pos"])
         updatev(rho, vx, vz, sxx, szz, sxz)
         abs(vx, vz)
         updates(vp, vs, vx, vz, sxx, szz, sxz)
         abs(sxx, szz, sxz)
-        rec_fun(vz, vzout, rec_pos=rec_pos, t=t)
+        if vxout:
+            rec_fun(vx, vxout, rec_pos=rec_pos, t=t)
+        if vzout:
+            rec_fun(vz, vzout, rec_pos=rec_pos, t=t)
 
-    return vp, vs, rho, vx, vz, sxx, szz, sxz, vzout
+    return vp, vs, rho, vx, vz, sxx, szz, sxz, vzout, vxout
 
 
 class ElasticTester(unittest.TestCase):
@@ -844,97 +851,66 @@ class ElasticTester(unittest.TestCase):
         vp = self.vp; vs = self.vs; rho = self.rho
         vx = self.vx; vz = self.vz
         sxx = self.sxx; szz = self.szz; sxz = self.sxz
-        rec_pos = ((5, 5), (6, 6))
-        src_pos = (0, 1)
-        src = np.ones((10,))
+        rec_pos = [(5, 5), (6, 6)]
+        sources = [{"type": "vz", "pos": (2, 2), "signal": np.ones((10,))}]
         self.assertLess(elastic2d.backward_test(vp, vs, rho, vx, vz,
                                                 sxx, szz, sxz,
-                                                rec_pos, src_pos, src, dt, dx, vxout),
-                        1e-12)
+                                                rec_pos, sources, dt, dx,
+                                                vxout=vxout), 1e-12)
         self.assertLess(elastic2d.linear_test(vp, vs, rho, vx, vz,
                                               sxx, szz, sxz,
-                                               rec_pos, src_pos, src, dt, dx, vxout),
-                        1e-12)
-        self.assertLess(elastic2d.dot_test(vp, vs, rho, vx, vz, sxx, szz, sxz,
-                                           rec_pos, src_pos, src, dt, dx, vxout),
-                        1e-12)
+                                              rec_pos, sources, dt, dx,
+                                              vxout=vxout), 1e-12)
+        self.assertLess(elastic2d.dot_test(vp, vs, rho, vx, vz,
+                                           sxx, szz, sxz,
+                                           rec_pos, sources, dt, dx,
+                                           vxout=vxout), 1e-12)
 
 
 if __name__ == '__main__':
 
 
     nrec = 1
-    nt = 3
-    nab = 2
-    dt = 0.00000000001
-    dx = 1
-    shape = (10, 10)
-    vp = Variable(shape=shape, initialize_method="random", pad=2)
-    vs = Variable(shape=vp.shape, initialize_method="random", pad=2)
-    rho = Variable(shape=vp.shape, initialize_method="random", pad=2)
-    vx = Variable(shape=vp.shape, initialize_method="random", pad=2)
-    vz = Variable(shape=vp.shape, initialize_method="random", pad=2)
-    sxx = Variable(shape=vp.shape, initialize_method="random", pad=2)
-    szz = Variable(shape=vp.shape, initialize_method="random", pad=2)
-    sxz = Variable(shape=vp.shape, initialize_method="random", pad=2)
-    vxout = Variable(shape=vp.shape, initialize_method="random", pad=2)
+    nt = 7500
+    nab = 16
+    dx = 1.0
+    dt = 0.0001
+    shape = (160, 300)
+    vs = Variable(data=np.full(shape, 300.0), pad=2)
+    vp = Variable(data=np.full(shape, 1800.0), pad=2)
+    rho = Variable(data=np.full(shape, 1500.0), pad=2)
+    vs.data[80:, :] = 600
+    vp.data[80:, :] = 2000
+    rho.data[80:, :] = 2000
+    vs0 = vs.data.copy()
+    vs.data[5:10, 145:155] *= 1.05
+
+    vx = Variable(shape=vp.shape, pad=2)
+    vz = Variable(shape=vp.shape, pad=2)
+    sxx = Variable(shape=vp.shape, pad=2)
+    szz = Variable(shape=vp.shape, pad=2)
+    sxz = Variable(shape=vp.shape, pad=2)
 
 
-    rec_pos = ((5, 5), (6, 6))
-    src_pos = (0, 1)
-    src = np.ones((15,))
-    elastic2d.backward_test(vp, vs, rho, vx, vz, sxx, szz, sxz,
-                            rec_pos, src_pos, src, dt, dx)
-    elastic2d.linear_test(vp, vs, rho, vx, vz, sxx, szz, sxz, rec_pos, src_pos, src, dt, dx)
-    elastic2d.dot_test(vp, vs, rho, vx, vz, sxx, szz, sxz, rec_pos, src_pos, src, dt, dx)
-    # grid2D = Grid(shape=(10, 10), type=np.float64, zero_boundary=True)
-    # gridout = Grid(shape=(nt, nrec), type=np.float64)
-    # psv2D = define_psv(grid2D, gridout, nab, nt)
-    #
-    # psv2D.backward_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
-    #                     src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*nt}])
-    # psv2D.linear_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
-    #                   src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*nt}])
-    # psv2D.dot_test(rec_pos=[{"type": "vx", "z": 5, "x": 5}],
-    #                src_pos=[{"type": "vx", "pos": (5, 5), "signal": [10]*nt}])
-    #
-    # nrec = 1
-    # nt = 7500
-    # nab = 16
-    # rec_pos = [{"type": "vx", "z": 3, "x": x} for x in range(50, 250)]
-    # rec_pos += [{"type": "vz", "z": 3, "x": x} for x in range(50, 250)]
-    # grid2D = Grid(shape=(160, 300), type=np.float64)
-    # gridout = Grid(shape=(nt, len(rec_pos)//2), type=np.float64)
-    # psv2D = define_psv(grid2D, gridout, nab, nt)
-    # dx = 1.0
-    # dt = 0.0001
-    #
-    # csu = np.full(grid2D.shape, 300.0)
-    # cv = np.full(grid2D.shape, 1800.0)
-    # csM = np.full(grid2D.shape, 1500.0)
-    # csu[80:, :] = 600
-    # csM[80:, :] = 2000
-    # cv[80:, :] = 2000
-    # csu0 = csu.copy()
-    # csu[5:10, 145:155] *= 1.05
-    #
-    # states = psv2D({"cv": cv,
-    #                 "csu": csu,
-    #                 "csM": csM},
-    #                dx=dx,
-    #                dt=dt,
-    #                rec_pos=rec_pos,
-    #                src_pos=[{"type": "vz", "pos": (2, 50), "signal": ricker(10, dt, nt)}])
-    # plt.imshow(states["vx"])
-    # plt.show()
-    # #
-    # vxobs = states["vxout"]
-    # vzobs = states["vzout"]
-    # clip = 0.01
-    # vmin = np.min(states["vzout"]) * 0.1
-    # vmax=-vmin
-    # plt.imshow(states["vzout"], aspect="auto", vmin=vmin, vmax=vmax)
-    # plt.show()
+    rec_pos = [(nab+3, x) for x in range(nab+2, shape[1]-nab-2)]
+    sources = [{"type": "vz", "pos": (nab+2, 50), "signal": ricker(10, dt, nt)}]
+    vxout = Variable(shape=(nt, len(rec_pos)), pad=2)
+    vzout = Variable(shape=(nt, len(rec_pos)), pad=2)
+
+    (vp, vs, rho,
+     vx, vz, sxx, szz, sxz,
+     vzout, vxout) = elastic2d(vp, vs, rho,
+                               vx, vz, sxx, szz, sxz,
+                               rec_pos, sources, dt, dx,
+                               vxout=vxout, vzout=vzout)
+    plt.imshow(vx.data)
+    plt.show()
+
+    clip = 0.01
+    vmin = np.min(vzout.data) * 0.1
+    vmax=-vmin
+    plt.imshow(vzout.data, aspect="auto", vmin=vmin, vmax=vmax)
+    plt.show()
     #
     # states = psv2D({"cv": cv,
     #                 "csu": csu0,
