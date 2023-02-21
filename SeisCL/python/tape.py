@@ -4,10 +4,11 @@
 from inspect import signature, Parameter, _empty
 import numpy as np
 from copy import copy, deepcopy
+import unittest
+
 
 class TapeHolder:
     tape = None
-
 
 class Tape:
     """
@@ -449,221 +450,249 @@ class Function1(Function):
         return vx
 
 
-#TODO use unitest module
+class TapeTester(unittest.TestCase):
 
-# Function and Variable should see the active tape, regardless of the Tape
-# active at their creation.
-# Tapeholder.tape should come back to its initial value after leaving context
-tape0 = TapeHolder.tape
-with Tape() as tape:
-    fun1 = Function1()
-    var1 = Variable("var1", shape=(1,))
-    assert(tape == fun1.tape)
-    assert(tape == var1.tape)
-assert(tape0 == fun1.tape)
-assert(tape0 == var1.tape)
-assert(tape0 == TapeHolder.tape)
+    def test_tape_as_context_manager(self):
+        """
+        Function and Variable should see the active tape, regardless of the Tape
+        active at their creation. Tapeholder.tape should come back to its
+        initial value after leaving context
+        """
+        tape0 = TapeHolder.tape
+        with Tape() as tape:
+            fun1 = Function1()
+            var1 = Variable("var1", shape=(1,))
+            self.assertEqual(tape, fun1.tape)
+            self.assertEqual(tape, var1.tape)
+        self.assertEqual(tape0, fun1.tape)
+        self.assertEqual(tape0, var1.tape)
+        self.assertEqual(tape0, TapeHolder.tape)
+        self.assertNotEqual(tape0,tape)
 
+    def test_tape_to_chose_function_modes(self):
+        """
+        Tape set the behavior of __call__ of function, choosing between forward,
+        linear  and adjoint.
+        """
 
-# Tape set the behavior of __call__ of function, choosing between forward,
-# linear  and adjoint.
-with Tape() as tape:
-    fun1 = Function1()
-    var1 = Variable("var1",
-                    data=np.array([False]),
-                    lin=np.array([False]),
-                    grad=np.array([False]))
-    assert(not var1.data)
-    assert(not var1.lin)
-    assert(not var1.grad)
-    fun1(var1, var1, var1)
-    assert(var1.data)
-    assert(not var1.lin)
-    assert(not var1.grad)
-    var1.data = None
-    tape.mode = "linear"
-    fun1(var1, var1, var1)
-    assert(var1.data)
-    assert(var1.lin)
-    assert(not var1.grad)
-    var1.data = var1.lin = None
-    tape.mode = "adjoint"
-    fun1(var1, var1, var1)
-    assert(not var1.data)
-    assert(not var1.lin)
-    assert(var1.grad)
-    var1.data = var1.lin = var1.grad = None
-    fun1(var1, var1, var1, mode="adjoint")
-    assert(not var1.data)
-    assert(not var1.lin)
-    assert(var1.grad)
-
-
-# TapedFunction can be used as a decorator to function of multiples Functions
-with Tape() as tape:
-    @TapedFunction
-    def fun(var):
-        fun1 = Function1()
-        fun2 = Function1()
-        for ii in range(3):
-            fun1(var, var, var)
-            fun2(var, var, var)
-        return var
-    assert(type(fun) is TapedFunction)
-    var1 = Variable("var1",
-                    data=np.array([False]),
-                    lin=np.array([False]),
-                    grad=np.array([False]))
-    assert(not var1.data)
-    assert(not var1.lin)
-    assert(not var1.grad)
-    fun(var1)
-    assert(var1.data)
-    assert(not var1.lin)
-    assert(not var1.grad)
-    assert(fun is tape.graph[0][0])
-
-# Two TapedFunction can be defined without cross interactions
-with Tape() as tape:
-    @TapedFunction
-    def fun1(var):
-        fun1 = Function1()
-        for ii in range(3):
-            fun1(var, var, var)
-        return var
-    @TapedFunction
-    def fun2(var):
-        fun1 = Function1()
-        for ii in range(3):
-            fun1(var, var, var)
-        return var
-    var1 = Variable("var1",
-                    data=np.array([False]),
-                    lin=np.array([False]),
-                    grad=np.array([False]))
-    var2 = Variable("var1",
-                    data=np.array([False]),
-                    lin=np.array([False]),
-                    grad=np.array([False]))
-    fun1(var1)
-    assert(fun1.localtape)
-    assert(fun2.localtape is None)
-    fun2(var1)
-    assert(fun1.localtape is not fun2.localtape)
-    assert(tape.graph[0][0] is fun1)
-    assert(tape.graph[1][0] is fun2)
+        with Tape() as tape:
+            fun1 = Function1()
+            var1 = Variable("var1",
+                            data=np.array([False]),
+                            lin=np.array([False]),
+                            grad=np.array([False]))
+            self.assertFalse(var1.data)
+            self.assertFalse(var1.lin)
+            self.assertFalse(var1.grad)
+            fun1(var1, var1, var1)
+            self.assertTrue(var1.data)
+            self.assertFalse(var1.lin)
+            self.assertFalse(var1.grad)
+            var1.data = None
+            tape.mode = "linear"
+            fun1(var1, var1, var1)
+            self.assertTrue(var1.data)
+            self.assertTrue(var1.lin)
+            self.assertFalse(var1.grad)
+            var1.data = var1.lin = None
+            tape.mode = "adjoint"
+            fun1(var1, var1, var1)
+            self.assertFalse(var1.data)
+            self.assertFalse(var1.lin)
+            self.assertTrue(var1.grad)
+            var1.data = var1.lin = var1.grad = None
+            fun1(var1, var1, var1, mode="adjoint")
+            self.assertFalse(var1.data)
+            self.assertFalse(var1.lin)
+            self.assertTrue(var1.grad)
 
 
-# A TapedFunction can contain Tapedfunctions
-#TODO Beware, if fun1 or fun2 is called before fun3, fun3 will erase their tapes
-with Tape() as tape:
-    @TapedFunction
-    def fun1(var):
-        fun1 = Function1()
-        for ii in range(3):
-            fun1(var, var, var)
-        return var
-    @TapedFunction
-    def fun2(var):
-        fun1 = Function1()
-        for ii in range(3):
-            fun1(var, var, var)
-        return var
-    @TapedFunction
-    def fun3(var):
-        fun1(var)
-        fun2(var)
-        return var
+class TapedFunctionTester(unittest.TestCase):
 
-    var1 = Variable("var1",
-                    data=np.array([False]),
-                    lin=np.array([False]),
-                    grad=np.array([False]))
-    fun3(var1)
-    assert(fun1.localtape)
-    assert(fun2.localtape)
-    assert(fun3.localtape)
-    assert(fun1.localtape is not fun2.localtape)
-    assert(fun1.localtape is not fun3.localtape)
-    assert(tape.graph[0][0] is fun3)
+    def test_tapedfunction_as_decorator(self):
+        """
+        TapedFunction can be used as a decorator to function of multiples
+        Functions
+        """
+
+        with Tape() as tape:
+            @TapedFunction
+            def fun(var):
+                fun1 = Function1()
+                fun2 = Function1()
+                for ii in range(3):
+                    fun1(var, var, var)
+                    fun2(var, var, var)
+                return var
+            self.assertIsInstance(fun, TapedFunction)
+            var1 = Variable("var1",
+                            data=np.array([False]),
+                            lin=np.array([False]),
+                            grad=np.array([False]))
+            self.assertFalse(var1.data)
+            self.assertFalse(var1.lin)
+            self.assertFalse(var1.grad)
+            fun(var1)
+            self.assertTrue(var1.data)
+            self.assertFalse(var1.lin)
+            self.assertFalse(var1.grad)
+            self.assertIs(fun, tape.graph[0][0])
+
+    def test_interaction(self):
+        """
+        Two TapedFunction can be defined without cross interactions
+        """
+        # Two TapedFunction can be defined without cross interactions
+        with Tape() as tape:
+            @TapedFunction
+            def fun1(var):
+                fun1 = Function1()
+                for ii in range(3):
+                    fun1(var, var, var)
+                return var
+            @TapedFunction
+            def fun2(var):
+                fun1 = Function1()
+                for ii in range(3):
+                    fun1(var, var, var)
+                return var
+            var1 = Variable("var1",
+                            data=np.array([False]),
+                            lin=np.array([False]),
+                            grad=np.array([False]))
+            fun1(var1)
+            self.assertTrue(fun1.localtape)
+            self.assertFalse(fun2.localtape)
+            fun2(var1)
+            self.assertIsNot(fun1.localtape, fun2.localtape)
+            self.assertIs(tape.graph[0][0],  fun1)
+            self.assertIs(tape.graph[1][0], fun2)
+
+    def test_nested(self):
+        """
+        A TapedFunction can contain Tapedfunctions
+        """
+        # A TapedFunction can contain Tapedfunctions
+        #TODO Beware, if fun1 or fun2 is called before fun3,
+        # fun3 will erase their tapes
+        with Tape() as tape:
+            @TapedFunction
+            def fun1(var):
+                fun1 = Function1()
+                for ii in range(3):
+                    fun1(var, var, var)
+                return var
+            @TapedFunction
+            def fun2(var):
+                fun1 = Function1()
+                for ii in range(3):
+                    fun1(var, var, var)
+                return var
+            @TapedFunction
+            def fun3(var):
+                fun1(var)
+                fun2(var)
+                return var
+
+            var1 = Variable("var1",
+                            data=np.array([False]),
+                            lin=np.array([False]),
+                            grad=np.array([False]))
+            fun3(var1)
+            self.assertTrue(fun1.localtape)
+            self.assertTrue(fun2.localtape)
+            self.assertTrue(fun3.localtape)
+            self.assertIsNot(fun1.localtape, fun2.localtape)
+            self.assertIsNot(fun1.localtape, fun3.localtape)
+            self.assertIs(tape.graph[0][0], fun3)
+
+class FunctionTester(unittest.TestCase):
+
+    def test_cache_and_recover(self):
+        """
+        Methods Function.cache_states and Function.recover_states should save
+        and recover the states
+        """
+
+        with Tape() as tape:
+
+            var1 = Variable("var1",
+                            data=np.array([False]),
+                            lin=np.array([False]),
+                            grad=np.array([False]))
+            fun = Function()
+            initial_states = fun.cache_states(var1)
+            self.assertFalse(var1.data)
+            self.assertFalse(initial_states["arg0"])
+            var1.data = True
+            fun.recover_states(initial_states, var1)
+            self.assertFalse(var1.data)
+
+    def test_cache_with_regions(self):
+        """
+        Methods Function.cache_states and Function.recover_states should save and
+        recover the states with regions
+        """
+
+        class FunRegion(Function):
+
+            def __init__(self):
+                super().__init__()
+                self.updated_states = ["var"]
+
+            def updated_regions(self, var):
+                return [(1,), (2,)]
+
+            def forward(self, var):
+                for region in self.updated_regions(var):
+                    var.data[region] = True
+                return var
 
 
-# Methods Function.cache_states and Function.recover_states should save and
-# recover the states
-with Tape() as tape:
+        with Tape() as tape:
 
-    var1 = Variable("var1",
-                    data=np.array([False]),
-                    lin=np.array([False]),
-                    grad=np.array([False]))
-    fun = Function()
-    initial_states = fun.cache_states(var1)
-    assert(not var1.data)
-    assert(not initial_states["arg0"])
-    var1.data = True
-    assert (var1.data)
-    fun.recover_states(initial_states, var1)
-    assert(not var1.data)
+            var1 = Variable("var1",
+                            data=np.array([False, False, False]),
+                            lin=np.array([False, False, False]),
+                            grad=np.array([False, False, False]))
+            fun = FunRegion()
+            initial_states = fun.cache_states(var1)
+            self.assertFalse(np.all(var1.data))
+            self.assertFalse(np.all(initial_states["var"]))
+            fun.forward(var1)
+            self.assertTrue(not var1.data[0] and var1.data[1] and var1.data[2])
+            fun.recover_states(initial_states, var1)
+            self.assertFalse(np.all(var1.data))
+            self.assertTrue(fun.backward_test(var1, verbose=False) < 1e-12)
 
+    def test_reversiblefunctions_backpropagation(self):
+        """
+        Reversible Functions should be able to pass backpropagation tests
+        """
 
-# Methods Function.cache_states and Function.recover_states should save and
-# recover the states with regions
-class FunRegion(Function):
+        class FunBack(ReversibleFunction):
 
-    def __init__(self):
-        super().__init__()
-        self.updated_states = ["var"]
-    def updated_regions(self, var):
-        return [(1,), (2,)]
+            def __init__(self):
+                super().__init__()
+                self.updated_states = ["var"]
 
-    def forward(self, var):
-        for region in self.updated_regions(var):
-            var.data[region] = True
-        return var
+            def forward(self, var, backpropagate=False):
+                if backpropagate:
+                    var.data += 1
+                else:
+                    var.data -= 1
+                return var
 
-
-with Tape() as tape:
-
-    var1 = Variable("var1",
-                    data=np.array([False, False, False]),
-                    lin=np.array([False, False, False]),
-                    grad=np.array([False, False, False]))
-    fun = FunRegion()
-    initial_states = fun.cache_states(var1)
-    assert(not np.all(var1.data))
-    assert(not np.all(initial_states["var"]))
-    fun.forward(var1)
-    assert (not var1.data[0] and var1.data[1] and var1.data[2])
-    fun.recover_states(initial_states, var1)
-    assert(not np.all(var1.data))
-    assert(fun.backward_test(var1, verbose=False) < 1e-12)
-
-
-# Reversible Functions should be able to pass backpropagation tests
-class FunBack(ReversibleFunction):
-
-    def __init__(self):
-        super().__init__()
-        self.updated_states = ["var"]
-
-    def forward(self, var, backpropagate=False):
-        if backpropagate:
-            var.data += 1
-        else:
-            var.data -= 1
-        return var
-
-
-with Tape() as tape:
-    fun = FunBack()
-    var1 = Variable("var1",
-                    data=np.array([1]))
-    assert(var1.data[0] == 1)
-    assert(not fun.cache_states(var1))
-    fun(var1)
-    assert(var1.data[0] == 0)
-    fun.recover_states([], var1)
-    assert(var1.data[0] == 1)
-    assert(fun.backward_test(var1, verbose=False) < 1e-12)
+        with Tape() as tape:
+            fun = FunBack()
+            var1 = Variable("var1",
+                            data=np.array([1]))
+            self.assertEqual(var1.data[0], 1)
+            self.assertFalse(fun.cache_states(var1))
+            fun(var1)
+            self.assertEqual(var1.data[0], 0)
+            fun.recover_states([], var1)
+            self.assertEqual(var1.data[0], 1)
+            self.assertTrue(fun.backward_test(var1, verbose=False) < 1e-12)
 
 

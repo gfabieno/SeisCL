@@ -1350,23 +1350,6 @@ class ScaledParameters(ReversibleFunction):
         return vp, vs, rho
 
 
-class PrecisionTester(Function):
-
-    def __init__(self):
-        super().__init__()
-        self.required_states = ["vx", "vz", "sxx", "szz", "sxz"]
-        self.updated_states = []
-
-    def forward(self, states, **kwargs):
-        with half_precision:
-            for el in self.required_states:
-                for ii in range(states[el].shape[0]):
-                    for jj in range(states[el].shape[1]):
-                        states[el][ii, jj] = BigFloat(float(states[el][ii, jj]))
-
-        return states
-
-
 def ricker(f0, dt, NT):
     tmin = -2 / f0
     t = np.zeros((NT, 1))
@@ -1400,16 +1383,6 @@ def elastic2d(vp, vs, rho, vx, vz, sxx, szz, sxz, rec_pos, src_pos, src, dt, dx)
 
 if __name__ == '__main__':
 
-    grid1D = Grid(shape=(10,))
-    defs = {"vx": grid1D,
-            "vz": grid1D,}
-    x = Variable("x", shape=(10, 1), initialize_method="random")
-    b = Variable("b", shape=(10, 1), initialize_method="random")
-    y = Variable("y", shape=(10, 1), initialize_method="random")
-    matmul = RandKernel()
-    # matmul.backward_test(x, b, y)
-    # matmul.linear_test(x, b, y)
-    # matmul.dot_test(x, b, y)
 
     nrec = 1
     nt = 3
