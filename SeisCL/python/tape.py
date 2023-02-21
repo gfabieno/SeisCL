@@ -10,17 +10,19 @@ import unittest
 class TapeHolder:
     tape = None
 
+
 class Tape:
     """
     Keeps track of function calls as well as variables.
     """
-    def __init__(self, cache_size=1):
+    def __init__(self, cache_size=1, locked=False):
         self.variables = {} # keep track of all encountered variables.
         self.graph = []
         self.previous_tape = TapeHolder.tape
         self.mode = "forward"
         self.cache_size = cache_size
         TapeHolder.tape = self
+        self.locked = locked
 
     # TODO use memory pooling to improve performance
     def append(self, kernel, *args, **kwargs):
@@ -59,9 +61,16 @@ class Variable(TapeHolder):
                  initialize_method="zero", dtype=np.float,
                  pad=None):
 
+        if self.tape.locked:
+            raise PermissionError("Tape loccked: "
+                                  "Cannot create a new Variable inside "
+                                  "a TapedFunction ")
         self.name = name
-        # TODO do we need to track all variables ?
-        #self.tape.add_variable(self)
+        self.initialize_method = initialize_method
+        self.dtype = dtype
+        self.smallest = np.nextafter(dtype(0), dtype(1))
+        self.eps = np.finfo(dtype).eps
+        self.pad = pad
         self.data = data
         if data is None:
             if shape is None:
@@ -73,11 +82,6 @@ class Variable(TapeHolder):
         self.lin = lin # contains the small data perturbation
         self.grad = grad # contains the gradient
         self.last_update = None # The last kernel that updated the state
-        self.initialize_method = initialize_method
-        self.dtype = dtype
-        self.smallest = np.nextafter(dtype(0), dtype(1))
-        self.eps = np.finfo(dtype).eps
-        self.pad = pad
 
     @property
     def data(self):
@@ -87,7 +91,10 @@ class Variable(TapeHolder):
 
     @data.setter
     def data(self, data):
-        self._data = data
+        if data is None:
+            self._data = None
+        else:
+            self._data = np.require(data, dtype=self.dtype, requirements='F')
 
     @property
     def lin(self):
@@ -97,7 +104,10 @@ class Variable(TapeHolder):
 
     @lin.setter
     def lin(self, lin):
-        self._lin = lin
+        if lin is None:
+            self._lin = None
+        else:
+            self._lin = np.require(lin, dtype=self.dtype, requirements='F')
 
     @property
     def grad(self):
@@ -107,7 +117,10 @@ class Variable(TapeHolder):
 
     @grad.setter
     def grad(self, grad):
-        self._grad = grad
+        if grad is None:
+            self._grad = None
+        else:
+            self._grad = np.require(grad, dtype=self.dtype, requirements='F')
 
     @property
     def valid(self):
@@ -159,6 +172,14 @@ class Variable(TapeHolder):
             return np.empty(list(self.shape) + [cache_size],
                             dtype=self.dtype, order="F")
 
+    def xyz2lin(self, *args):
+        return np.ravel_multi_index([np.array(el)+self.pad for el in args],
+                                    self.shape, order="F")
+
+    @staticmethod
+    def np(array):
+        return array
+
 
 class Function(TapeHolder):
     """
@@ -191,10 +212,12 @@ class Function(TapeHolder):
 
     def cache_states(self, *args, **kwargs):
         if not self.required_states and not self.updated_states:
-            self.updated_states = self.arguments(*args, **kwargs).keys()
+            updated_states = self.arguments(*args, **kwargs).keys()
+        else:
+            updated_states = self.updated_states
         vars = self.arguments(*args, **kwargs)
         initial_states = {}
-        for el in self.updated_states:
+        for el in updated_states:
             regions = self.updated_regions(vars[el])
             if regions:
                 initial_states[el] = []
@@ -383,7 +406,7 @@ class TapedFunction(Function):
             mode = self.tape.mode
         if mode == "forward" or mode == "linear":
             self.tape.append(self, *args, **kwargs)
-            with Tape() as self.localtape:
+            with Tape(locked=True) as self.localtape:
                 if mode == "linear":
                     self.localtape.mode = "linear"
                     outs = self.linear(*args, **kwargs)
@@ -594,6 +617,21 @@ class TapedFunctionTester(unittest.TestCase):
             self.assertIsNot(fun1.localtape, fun2.localtape)
             self.assertIsNot(fun1.localtape, fun3.localtape)
             self.assertIs(tape.graph[0][0], fun3)
+
+    def test_locked_tape(self):
+        with Tape() as tape:
+            var1 = Variable("var1", shape=(1,))
+            @TapedFunction
+            def fun(var):
+                fun1 = Function1()
+                fun2 = Function1()
+                var2 = Variable("var2", shape=(1,))
+                for ii in range(3):
+                    fun1(var, var, var)
+                    fun2(var, var, var)
+                return var
+            with self.assertRaises(PermissionError):
+                fun(var1)
 
 
 class FunctionTester(unittest.TestCase):
