@@ -2,15 +2,12 @@ import numpy as np
 from tape import Function, Variable
 import unittest
 
-#TODO complete loss definition
-
 
 class Loss(Function):
 
     def __init__(self):
         super().__init__()
         self.updated_states = ["loss"]
-
 
 
 class NormalizedL2(Loss):

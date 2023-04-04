@@ -188,7 +188,13 @@ class Variable(TapeHolder):
 
 class Function(TapeHolder):
     """
-    Transforms States and its operation to the tape, if required.
+    Base class to create a function that modifies the value of the `Variables`
+    given as inputs.  `Functions`can be differentiated with reverse mode
+    automatic differentiation.
+
+    Override the methods `forward` `linear` and `adjoint` to implement
+    your function.
+
     """
 
     mode = "forward"
@@ -201,19 +207,23 @@ class Function(TapeHolder):
         self.updated_states = []
 
     def __call__(self, *args, mode=None, **kwargs):
+        locked = self.tape.locked
+        self.tape.locked = True
         if mode is None:
             mode = self.tape.mode
         if mode == "forward" or mode == "linear":
             self.tape.append(self, *args, **kwargs)
             if mode == "linear":
                 self.linear(*args, **kwargs)
-            return self.forward(*args, **kwargs)
+            out = self.forward(*args, **kwargs)
         elif mode == "adjoint":
             self.tape.pop()
-            return self.adjoint(*args, **kwargs)
+            out = self.adjoint(*args, **kwargs)
         else:
             raise ValueError("Tape.mode should be in [\'forward\', \'linear\',"
                              " \'adjoint\']")
+        self.tape.locked = locked
+        return out
 
     def cache_states(self, *args, **kwargs):
         if not self.required_states and not self.updated_states:
@@ -246,12 +256,48 @@ class Function(TapeHolder):
         return {}
 
     def forward(self, *args, **kwargs):
+        """
+        Performs y = f(x; z), x is a vector containing all differentiable inputs
+        z contains all constant inputs and y is a vector containing all
+        outputs. All arguments that are an instance of `Variable` with
+        `Variable.differentiable` set to `True` are collected into x.
+
+        The `forward` method cannot create new `Variable` instances.
+        All variables either inputs or outputs (x or y) must be provided
+        as arguments, either in *args or **kwargs.
+        The method modifies the `Variable.data` attribute and returns all
+         `Variable` instances that were modified. These are automatically
+         collected to form y.
+        """
         raise NotImplementedError
 
     def linear(self, *args, **kwargs):
+        """
+        Performs py = J(x0) px, where J(x0) = df/dx|_x=x0 is the Jacobian
+        evaluated for the input x0 and px and py are the input and output
+        perturbations.
+
+        As for the `forward` method, all arguments that are an instance of
+        `Variable` with `Variable.differentiable` set to `True` are collected
+        into px and x0. The perturbed values px and py are contained in
+        `Variable.lin`. Should return all updated variables, meaning it should
+        have the same output signature than `forward`.
+        """
         raise NotImplementedError
 
     def adjoint(self,  *args, **kwargs):
+        """
+        Performs gx = J(x0)^T gy, where J(x0)^T is the transpose (adjoint) of
+        the Jacobian evaluated at x0 and gy is the gradient (adjoint source)
+        of the the outputs of `forward` y and gx is the gradient gradient of the
+        inputs x with respect to the output y.
+
+        The method modifies the `Variable.grad` attribute of arguments in x,
+        i.e. all `Variable` instances which affect y with
+        `Variable.differentiable` set to `True`. Returns all `Variable` instances
+        in `x`.
+
+        """
         raise NotImplementedError
 
     def backward_test(self, *args, verbose=True, **kwargs):
@@ -731,5 +777,16 @@ class FunctionTester(unittest.TestCase):
             fun.recover_states([], var1)
             self.assertEqual(var1.data[0], 1)
             self.assertTrue(fun.backward_test(var1, verbose=False) < 1e-12)
+
+    def test_variable_creation_error(self):
+
+        class Fun(Function):
+            def forward(self):
+                var = Variable(shape=(1,))
+                return var
+        fun = Fun()
+        with self.assertRaises(PermissionError):
+            fun()
+
 
 
