@@ -803,7 +803,7 @@ class ElasticTester(unittest.TestCase):
         dt = self.dt; dx = self.dx
         sp = ScaledParameters(dt, dx)
         self.assertLess(sp.backward_test(vp, vs, rho), 1e-12)
-        self.assertLess(sp.linear_test(vp, vs, rho), 1e-12)
+        self.assertLess(sp.linear_test(vp, vs, rho), 1e-05)
         self.assertLess(sp.dot_test(vp, vs, rho), 1e-12)
 
     def test_UpdateVelocity(self):
@@ -812,7 +812,7 @@ class ElasticTester(unittest.TestCase):
         sxx = self.sxx; szz = self.szz; sxz = self.sxz
         fun = UpdateVelocity()
         self.assertLess(fun.backward_test(rho, vx, vz, sxx, szz, sxz), 1e-12)
-        self.assertLess(fun.linear_test(rho, vx, vz, sxx, szz, sxz), 1e-12)
+        self.assertLess(fun.linear_test(rho, vx, vz, sxx, szz, sxz), 1e-05)
         self.assertLess(fun.dot_test(rho, vx, vz, sxx, szz, sxz), 1e-12)
 
     def test_UpdateStress(self):
@@ -821,7 +821,7 @@ class ElasticTester(unittest.TestCase):
         sxx = self.sxx; szz = self.szz; sxz = self.sxz
         fun = UpdateStress()
         self.assertLess(fun.backward_test(vp, vs, vx, vz, sxx, szz, sxz), 1e-12)
-        self.assertLess(fun.linear_test(vp, vs, vx, vz, sxx, szz, sxz), 1e-12)
+        self.assertLess(fun.linear_test(vp, vs, vx, vz, sxx, szz, sxz), 1e-05)
         self.assertLess(fun.dot_test(vp, vs, vx, vz, sxx, szz, sxz), 1e-12)
 
     def test_Cerjan(self):
@@ -860,7 +860,7 @@ class ElasticTester(unittest.TestCase):
         self.assertLess(elastic2d.linear_test(vp, vs, rho, vx, vz,
                                               sxx, szz, sxz,
                                               rec_pos, sources, dt, dx,
-                                              vxout=vxout), 1e-12)
+                                              vxout=vxout), 1e-05)
         self.assertLess(elastic2d.dot_test(vp, vs, rho, vx, vz,
                                            sxx, szz, sxz,
                                            rec_pos, sources, dt, dx,
@@ -891,7 +891,6 @@ if __name__ == '__main__':
     szz = Variable(shape=vp.shape, pad=2)
     sxz = Variable(shape=vp.shape, pad=2)
 
-
     rec_pos = [(nab+3, x) for x in range(nab+2, shape[1]-nab-2)]
     sources = [{"type": "vz", "pos": (nab+2, 50), "signal": ricker(10, dt, nt)}]
     vxout = Variable(shape=(nt, len(rec_pos)), pad=2)
@@ -911,6 +910,8 @@ if __name__ == '__main__':
     vmax=-vmin
     plt.imshow(vzout.data, aspect="auto", vmin=vmin, vmax=vmax)
     plt.show()
+
+
     #
     # states = psv2D({"cv": cv,
     #                 "csu": csu0,

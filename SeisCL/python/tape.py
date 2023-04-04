@@ -59,7 +59,7 @@ class Variable(TapeHolder):
     """
     def __init__(self, name=None, data=None, shape=None, lin=None, grad=None,
                  initialize_method="zero", dtype=np.float,
-                 pad=None):
+                 pad=None, differentiable=True):
 
         if self.tape.locked:
             raise PermissionError("Tape loccked: "
@@ -80,8 +80,10 @@ class Variable(TapeHolder):
         else:
             self.shape = data.shape
         self.lin = lin # contains the small data perturbation
+        self.differentiable = differentiable
         self.grad = grad # contains the gradient
         self.last_update = None # The last kernel that updated the state
+
 
     @property
     def data(self):
@@ -111,12 +113,15 @@ class Variable(TapeHolder):
 
     @property
     def grad(self):
-        if self._grad is None:
+        if self._grad is None and self.differentiable:
             self._grad = self.initialize(method="ones")
         return self._grad
 
     @grad.setter
     def grad(self, grad):
+        if not self.differentiable and grad is not None:
+            raise ValueError("Variable is not Differentiable,"
+                             " cannot compute gradient")
         if grad is None:
             self._grad = None
         else:
@@ -304,7 +309,8 @@ class Function(TapeHolder):
         eps = 1.0
         while cond:
             for name, var in vars.items():
-                pvars[name].data = var.data + eps * var.lin
+                if var.differentiable:
+                    pvars[name].data = var.data + eps * var.lin
             pouts = self(*pargs, mode="forward", **pkwargs)
             try:
                 iter(pouts)
@@ -315,10 +321,10 @@ class Function(TapeHolder):
             scale = 0
             for out, pout in zip(outs, pouts):
                 if pouts and out:
-                    err += np.sum((pout.data - out.data - eps * out.lin)**2)
-                    scale += np.sum((eps*(out.lin - np.mean(out.lin)))**2)
                     smallest = out.smallest
-            errs.append([err/(scale+smallest)])
+                    erri = (pout.data - out.data) / (eps * out.lin + smallest) -1.0
+                    err = np.max([err, np.max(erri)])
+            errs.append(err)
 
             eps /= 10.0
             for el, var in vars.items():
@@ -355,17 +361,19 @@ class Function(TapeHolder):
         for name, var in vars.items():
             var.data = var.initialize(method="random")
             var.lin = var.initialize(method="random")
-            var.grad = var.initialize(method="random")
+            if var.differentiable:
+                var.grad = var.initialize(method="random")
             fvars[name].data = var.data.copy()
             fvars[name].lin = var.lin.copy()
-            fvars[name].grad = var.grad.copy()
+            if var.differentiable:
+                fvars[name].grad = var.grad.copy()
         self(*fargs, mode="linear", **fkwargs)
         self(*fargs, mode="adjoint", **fkwargs)
 
         prod1 = np.sum([np.sum(fvars[el].lin * vars[el].grad)
-                        for el in vars])
+                        for el in vars if vars[el].differentiable])
         prod2 = np.sum([np.sum(fvars[el].grad * vars[el].lin)
-                        for el in vars])
+                        for el in vars if vars[el].differentiable])
 
         print("Dot product test for Kernel %s: %.15e"
               % (self.__class__.__name__, (prod1-prod2)/(prod1+prod2)))
@@ -556,7 +564,6 @@ class TapedFunctionTester(unittest.TestCase):
         """
         Two TapedFunction can be defined without cross interactions
         """
-        # Two TapedFunction can be defined without cross interactions
         with Tape() as tape:
             @TapedFunction
             def fun1(var):
