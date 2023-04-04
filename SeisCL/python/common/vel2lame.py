@@ -1,4 +1,4 @@
-from SeisCL.python.seis2D import (ReversibleFunction)
+from SeisCL.python.PSV2D.elastic_numpy import (ReversibleFunction)
 from SeisCL.python.pycl_backend import ComputeRessource, GridCL, ReversibleFunctionCL
 import numpy as np
 import pyopencl.clmath as math

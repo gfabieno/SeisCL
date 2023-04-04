@@ -1,14 +1,11 @@
-import pyopencl.array
-
 from SeisCL.python.pycl_backend import (GridCL,
                                         FunctionGPU,
                                         ReversibleFunctionCL,
                                         ComputeRessource,
-                                        State,
                                         SequenceCL,
                                         PropagatorCL,
                                         )
-from SeisCL.python.seis2D import ReversibleFunction, ricker
+from SeisCL.python.PSV2D.elastic_numpy import ricker
 from SeisCL.python.FDstencils import FDCoefficients
 from SeisCL.python.common.vel2lame import Velocity2LameCL
 from SeisCL.python.PSV2D.elastic import ScaledParameters
@@ -21,8 +18,6 @@ from SeisCL.python.PSV2D.elastic import UpdateVelocity
 import numpy as np
 from copy import copy
 import matplotlib.pyplot as plt
-from SeisCL.python.PSV2D.elastic import UpdateStress as UpdateStresselas
-from SeisCL.python.PSV2D.elastic import elastic2d
 
 
 class UpdateStress(FunctionGPU):

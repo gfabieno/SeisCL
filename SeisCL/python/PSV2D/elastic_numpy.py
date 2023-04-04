@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import animation
 import math
-from tape import Variable, Function, TapedFunction, ReversibleFunction
+from SeisCL.python.tape import Variable, Function, TapedFunction, ReversibleFunction
 import unittest
 
 def Dpx(var):

@@ -2,9 +2,8 @@
 import numpy as np
 import pyopencl as cl
 import pyopencl.array
-import pyopencl.clrandom
 from pyopencl.tools import get_or_register_dtype, match_dtype_to_c_struct
-from SeisCL.python.seis2D import Grid, Function,  Propagator, Sequence, ReversibleFunction
+from SeisCL.python.PSV2D.elastic_numpy import Grid, Function,  Propagator, Sequence, ReversibleFunction
 import re
 from SeisCL.python.FDstencils import get_pos_header, FDCoefficients, CUDACL_header, grid_stop_header
 
