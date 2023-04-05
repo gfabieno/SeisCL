@@ -1,12 +1,14 @@
 import numpy as np
 from typing import List, Tuple
 from copy import deepcopy
+import unittest
 import matplotlib as mpl
 from matplotlib.patches import Rectangle
 import matplotlib.pyplot as plt
 from matplotlib.patheffects import withStroke
 mpl.rcParams['hatch.linewidth'] = 0.5
-import unittest
+
+
 
 class Receiver:
 
@@ -163,7 +165,7 @@ class Acquisition:
 
     def regular2d(self, dir: str = "x", dg: int = 2, ds: int = 5,
                   sx0: int = 2, sz0: int = 2, gx0: int = 2, gz0: int = 2,
-                  src_type: str = "p", rec_types: List[str] = ["p"],
+                  src_type: str = "p", rec_types: List[str] = ("p",),
                   wavelet: np.ndarray = None, f0: float = 15):
         """
         Build source and receiver position for a regular surface acquisition.
@@ -193,9 +195,9 @@ class Acquisition:
         dh = self.grid.dh
         xmax = nx - 2 * self.grid.nab
         if self.grid.freesurf:
-            zmax = nx - self.grid.nab
+            zmax = nz - self.grid.nab
         else:
-            zmax = nx - 2 *self.grid.nab
+            zmax = nz - 2 * self.grid.nab
 
         receivers = []
         if dir == "x":
@@ -304,7 +306,7 @@ class Acquisition:
                                            (nx-2*nab)*dh, nab*dh,
                                            linewidth=2, edgecolor='k',
                                            facecolor='none', hatch='/')
-                       }
+                        }
 
             if not self.grid.freesurf:
                 abs_rect['North'] = Rectangle((nab*dh, 0), (nx-2*nab)*dh,
