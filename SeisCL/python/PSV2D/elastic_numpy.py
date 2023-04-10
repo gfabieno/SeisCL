@@ -10,7 +10,10 @@ import matplotlib.pyplot as plt
 from matplotlib import animation
 import math
 from SeisCL.python.tape import Variable, Function, TapedFunction, ReversibleFunction
+from SeisCL.python.common.Acquisition import Acquisition, Grid, Source, Shot
 import unittest
+from SeisCL.python.Propagator import FWI, Propagator
+from typing import List
 
 def Dpx(var):
     return 1.1382 * (var[2:-2, 3:-1] - var[2:-2, 2:-2]) - 0.046414 * (var[2:-2, 4:] - var[2:-2, 1:-3])
@@ -315,25 +318,51 @@ class Cerjan(Function):
 
 class Receiver(ReversibleFunction):
 
-    def forward(self, var, varout, rec_pos=(), t=0):
+    def forward(self, var, varout, rec_pos=(), trids=(), t=0):
         for ii, r in enumerate(rec_pos):
-            varout.data[t, ii] += var.data[r]
+            varout.data[t, trids[ii]] += var.data[r]
         return varout
 
-    def linear(self, var, varout, rec_pos=(), t=0):
+    def linear(self, var, varout, rec_pos=(), trids=(), t=0):
         for ii, r in enumerate(rec_pos):
-            varout.lin[t, ii] += var.lin[r]
+            varout.lin[t, trids[ii]] += var.lin[r]
         return varout
 
-    def adjoint(self, var, varout, rec_pos=(), t=0):
+    def adjoint(self, var, varout, rec_pos=(), trids=(), t=0):
         for ii, r in enumerate(rec_pos):
-            var.grad[r] += varout.grad[t, ii]
+            var.grad[r] += varout.grad[t, trids[ii]]
         return var
 
-    def recover_states(self, initial_states, var, varout, rec_pos=(), t=0):
+    def recover_states(self, initial_states, var, varout, rec_pos=(),
+                       trids=(), t=0):
         for ii, r in enumerate(rec_pos):
-            varout.data[t, ii] -= var.data[r]
+            varout.data[t, trids[ii]] -= var.data[r]
         return varout
+
+
+class ElasticReceivers:
+
+    def __init__(self, acquisition: Acquisition):
+        self.acquisition = acquisition
+        self.rec_fun = Receiver()
+
+    def __call__(self, shot: List[Shot], t: int,
+                 vx, vz, sxx, szz, vy=None, syy=None):
+
+        for type, trids in shot.rectypes.items():
+            receivers = [shot.receivers[trid] for trid in trids]
+            pos = [tuple([int(np.round(el/self.acquisition.grid.dh))
+                         for el in [r.z, r.y, r.x] if el is not None])
+                   for r in receivers]
+            try:
+                self.rec_fun(locals()[type], shot.dmod, pos, trids, t)
+            except KeyError:
+                if type == 'p':
+                    self.rec_fun(sxx, shot.dmod, pos, trids, t)
+                    self.rec_fun(szz, shot.dmod, pos, trids, t)
+                else:
+                    raise ValueError('Receiver type %s not implemented' % type)
+
 
 
 class PointForceSource(ReversibleFunction):
@@ -355,13 +384,36 @@ class PointForceSource(ReversibleFunction):
         return var
 
 
+class ElasticSources:
+
+        def __init__(self, acquisition: Acquisition):
+            self.acquisition = acquisition
+            self.src_fun = PointForceSource()
+
+        def __call__(self, sources: List[Source], t: int,
+                     vx, vz, sxx, szz, vy=None, syy=None):
+            for source in sources:
+                pos = tuple(int(np.round(el/self.acquisition.grid.dh))
+                            for el in [source.z, source.y, source.x]
+                            if el is not None)
+                #lin_src_pos = vx.xyz2lin(*pos)
+                try:
+                    self.src_fun(locals()[source.type], source.wavelet[t], pos)
+                except KeyError:
+                    if source.type == 'p':
+                        self.src_fun(sxx, source.wavelet[t], pos)
+                        self.src_fun(szz, source.wavelet[t], pos)
+                    else:
+                        raise ValueError('Source type %s not implemented'
+                                         % source.type)
+
+
 class FreeSurface(Function):
 
     def __init__(self):
         super().__init__()
         self.required_states = ["vx", "vz", "sxx", "szz", "sxz", "csu", "csM"]
         self.updated_states = ["sxx", "szz", "sxz"]
-
 
     def __call__(self, states, initialize=True, **kwargs):
 
@@ -779,6 +831,47 @@ def elastic2d(vp, vs, rho, vx, vz, sxx, szz, sxz, rec_pos, sources, dt,
     return vp, vs, rho, vx, vz, sxx, szz, sxz, vzout, vxout
 
 
+class Elastic2dPropagator(Propagator):
+
+    def __init__(self, acquisition: Acquisition, fdorder=4):
+
+        self.acquisition = acquisition
+        #TODO define a class Stencil to handle the fdorder and type of stencil
+        self.fdorder = fdorder
+        shape = (self.acquisition.grid.nz, self.acquisition.grid.nx)
+        pad = self.fdorder//2
+        self.vx = Variable(shape=shape, pad=pad)
+        self.vz = Variable(shape=shape, pad=pad)
+        self.sxx = Variable(shape=shape, pad=pad)
+        self.szz = Variable(shape=shape, pad=pad)
+        self.sxz = Variable(shape=shape, pad=pad)
+        self.vs = Variable(shape=shape, pad=pad)
+        self.vp = Variable(shape=shape, pad=pad)
+        self.rho = Variable(shape=shape, pad=pad)
+        self.scaledparameters = ScaledParameters(self.acquisition.grid.dt,
+                                                 self.acquisition.grid.dh)
+        self.src_fun = ElasticSources(acquisition)
+        self.rec_fun = ElasticReceivers(acquisition)
+        self.updatev = UpdateVelocity()
+        self.updates = UpdateStress()
+        self.abs = Cerjan(nab=self.acquisition.grid.nab)
+
+    def propagate(self, shot, vp, vs, rho):
+
+        vp, vs, rho = self.scaledparameters(vp, vs, rho)
+        vx, vz, sxx, szz, sxz = (self.vx, self.vz, self.sxx, self.szz, self.sxz)
+        for t in range(self.acquisition.grid.nt):
+            self.src_fun(shot.sources, t, vx, vz, sxx, szz)
+            self.updatev(rho, vx, vz, sxx, szz, sxz)
+            self.abs(vx, vz)
+            self.updates(vp, vs, vx, vz,
+                         sxx, szz, sxz)
+            self.abs(sxx, szz, sxz)
+            self.rec_fun(shot, t, vx, vz, sxx, szz)
+
+        return shot.dmod, vp, vs, rho, vx, vz, sxx, szz, sxz
+
+
 class ElasticTester(unittest.TestCase):
 
     def setUp(self):
@@ -869,46 +962,29 @@ class ElasticTester(unittest.TestCase):
 
 if __name__ == '__main__':
 
-
-    nrec = 1
-    nt = 7500
-    nab = 16
-    dx = 1.0
-    dt = 0.0001
-    shape = (160, 300)
-    vs = Variable(data=np.full(shape, 300.0), pad=2)
-    vp = Variable(data=np.full(shape, 1800.0), pad=2)
-    rho = Variable(data=np.full(shape, 1500.0), pad=2)
+    grid = Grid(nd=2, nx=300, ny=None, nz=160, nt=7500, dt=0.0001, dh=1.0,
+                nab=16, freesurf=True)
+    acquisition = Acquisition(grid=grid)
+    acquisition.regular2d(rec_types=["vx", "vz"], gz0=4)
+    propagator = Elastic2dPropagator(acquisition)
+    vp, vs, rho = (propagator.vp, propagator.vs, propagator.rho)
+    vp.data[:, :] = 1500
+    vs.data[:, :] = 400
+    rho.data[:, :] = 1800
     vs.data[80:, :] = 600
     vp.data[80:, :] = 2000
     rho.data[80:, :] = 2000
     vs0 = vs.data.copy()
     vs.data[5:10, 145:155] *= 1.05
 
-    vx = Variable(shape=vp.shape, pad=2)
-    vz = Variable(shape=vp.shape, pad=2)
-    sxx = Variable(shape=vp.shape, pad=2)
-    szz = Variable(shape=vp.shape, pad=2)
-    sxz = Variable(shape=vp.shape, pad=2)
+    acquisition.shots[0].init_dmod()
+    dmod, _, _, _, _, _, _, _, _ = propagator.propagate(acquisition.shots[0],
+                                                        vp, vs, rho)
 
-    rec_pos = [(nab+3, x) for x in range(nab+2, shape[1]-nab-2)]
-    sources = [{"type": "vz", "pos": (nab+2, 50), "signal": ricker(10, dt, nt)}]
-    vxout = Variable(shape=(nt, len(rec_pos)), pad=2)
-    vzout = Variable(shape=(nt, len(rec_pos)), pad=2)
-
-    (vp, vs, rho,
-     vx, vz, sxx, szz, sxz,
-     vzout, vxout) = elastic2d(vp, vs, rho,
-                               vx, vz, sxx, szz, sxz,
-                               rec_pos, sources, dt, dx,
-                               vxout=vxout, vzout=vzout)
-    plt.imshow(vx.data)
-    plt.show()
-
-    clip = 0.01
-    vmin = np.min(vzout.data) * 0.1
+    clip = 0.0001
+    vmin = np.min(dmod.data) * clip
     vmax=-vmin
-    plt.imshow(vzout.data, aspect="auto", vmin=vmin, vmax=vmax)
+    plt.imshow(dmod.data, aspect="auto", vmin=vmin, vmax=vmax)
     plt.show()
 
 

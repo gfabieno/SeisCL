@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 from copy import deepcopy
 import unittest
 import matplotlib as mpl
@@ -7,12 +7,12 @@ from matplotlib.patches import Rectangle
 import matplotlib.pyplot as plt
 from matplotlib.patheffects import withStroke
 mpl.rcParams['hatch.linewidth'] = 0.5
-
+from SeisCL.python.tape import Variable
 
 
 class Receiver:
 
-    def __init__(self, x: float = 0, y: float = 0, z: float = 0,
+    def __init__(self, x: float = 0, y: float = None, z: float = 0,
                  type: str = "z", trid: int = 0):
         """
         Define the position of a receiver.
@@ -36,7 +36,7 @@ class Receiver:
 
 class Source:
 
-    def __init__(self, x: float = 0, y: float = 0, z: float = 0,
+    def __init__(self, x: float = 0, y: float = None, z: float = 0,
                  wavelet: np.ndarray = None, type: str = "z"):
         """
         Define the position and wavelet of a source.
@@ -60,7 +60,8 @@ class Source:
 
 class Shot:
 
-    def __init__(self, sources: List, receivers: List, sid: int):
+    def __init__(self, sources: List, receivers: List, sid: int,
+                 dobs: Variable = None):
         """
         Define a shot that may contain simultaneous sources
         and multiple receivers.
@@ -68,10 +69,30 @@ class Shot:
         :param sources: A list of Source objects fired simultaneously.
         :param receivers: A list of Receiver objects
         :param sid: The source unique shot id.
+        :param dobs: The observed data, as a Variable object.
         """
         self.sources = sources
         self.receivers = receivers
         self.sid = sid
+        self.dobs = dobs
+        self.dmod = None
+
+    @property
+    def rectypes(self):
+        rectypes = set([r.type for r in self.receivers])
+        return {rtype: [ii for ii, rec in enumerate(self.receivers)
+                        if rec.type == rtype] for rtype in rectypes}
+
+    @property
+    def srctypes(self):
+        srctypes = set([s.type for s in self.sources])
+        return {stype: [ii for ii, src in enumerate(self.sources)
+                        if src.type == stype] for stype in srctypes}
+
+    def init_dmod(self):
+        nt = self.sources[0].wavelet.shape[0]
+        self.dmod = Variable(shape=(nt, len(self.receivers)))
+        return self.dmod
 
 
 def ricker_wavelet(f0=None, nt=None, dt=None, tmin=None):
@@ -162,6 +183,7 @@ class Acquisition:
                                      "the grid with a size of %f m"
                                      % (receiver.z, zmax))
         self._shots = tuple(shots)
+
 
     def regular2d(self, dir: str = "x", dg: int = 2, ds: int = 5,
                   sx0: int = 2, sz0: int = 2, gx0: int = 2, gz0: int = 2,
@@ -375,7 +397,7 @@ class AcquisitionTester(unittest.TestCase):
                     nab=16, freesurf=True)
         shot = Shot(receivers=[], sources=[Source(x=600)], sid=0)
         with self.assertRaises(ValueError):
-            acquisition = Acquisition(grid, [shot])
+            geometry = Acquisition(grid, [shot])
 
 
 if __name__ == '__main__':

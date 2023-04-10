@@ -3,19 +3,13 @@
 """
 Interface to SeisCL
 """
-import h5py as h5
+
 import numpy as np
 import subprocess
-import os
 import shutil
 from obspy.core import Trace, Stream
 from obspy.io.segy.segy import _read_segy
-
-import matplotlib as mpl
-from matplotlib.patches import Rectangle
-import matplotlib.pyplot as plt
-from matplotlib.patheffects import withStroke
-mpl.rcParams['hatch.linewidth'] = 0.5
+from SeisCL.python.common.Acquisition import Acquisition
 
 class SeisCLError(Exception):
     pass
@@ -35,21 +29,14 @@ class SeisCL:
         (https://github.com/gfabieno/SeisCL.git)
     """
 
-    def __init__(self,
-
-                 N:  np.ndarray = None, ND: int = 2, dh: float = 10,
-                 dt: float = 0.0008, NT: int = 875,
+    def __init__(self, geometry: Acquisition,
 
                  L: int = 0, f0: float = 15, FL: np.ndarray = np.array(15),
 
                  FDORDER: int = 8, MAXRELERROR: int = 1, FP16: int = 0,
 
-                 src_pos_all:  np.ndarray = np.empty((5, 0)),
-                 rec_pos_all:  np.ndarray = np.empty((8, 0)),
-                 src_all:  np.ndarray = None,
-
-                 freesurf: int = 0, abs_type: int = 1,
-                 VPPML: float = 3500, NPOWER: float = 2,  FPML: float = 15,
+                 abs_type: int = 1,
+                 VPPML: float = 3500, NPOWER: float = 2, FPML: float = 15,
                  K_MAX_CPML: float = 2, nab: int = 16, abpc: float = 6,
 
                  with_docker: bool = False, with_mpi: bool = False,
@@ -391,197 +378,7 @@ class SeisCL:
         segy = _read_segy(name)
         return np.transpose(np.array([trace.data for trace in segy.traces]))
 
-    def surface_acquisition_2d(self, dg=2, ds=5, dsx=2, dsz=2, dgsz=0,
-                               src_type=100):
-        """
-        Fills the sources and receivers position (src_pos_all and rec_pos_all)
-        for a regular surface acquisition.
 
-        :param dg: Spacing between receivers (in grid points)
-        :param ds: Spacing between sources (in grid points)
-        :param dsx: X distance from the absorbing boundary of the first source
-        :param dsz: Depth of the sources relative to the free surface or of the
-                    absorbing boundary
-        :param dgsz: Depth of the receivers relative to the depth of the sources
-        :param src_type: The type of sources
-        """
-
-        self.src_pos_all = np.empty((5, 0))
-        self.rec_pos_all = np.empty((8, 0))
-        self.src_all = None
-
-        nx = self.N[1]
-        dlx = self.nab + dsx
-        if self.freesurf == 0:
-            dlz = self.nab + dsz
-        else:
-            dlz = dsz
-        gx = np.arange(dlx + dsx, nx - dlx, dg) * self.dh
-        gz = gx * 0 + (dlz + dgsz) * self.dh
-
-        for ii in range(dlx, nx - dlx, ds):
-            idsrc = self.src_pos_all.shape[1]
-            toappend = np.zeros((5, 1))
-            toappend[0, :] = (ii) * self.dh
-            toappend[1, :] = 0
-            toappend[2, :] = dlz * self.dh
-            toappend[3, :] = idsrc
-            toappend[4, :] = src_type
-            self.src_pos_all = np.append(self.src_pos_all, toappend, axis=1)
-
-            gid = np.arange(0, len(gx)) + self.rec_pos_all.shape[1] + 1
-            toappend = np.stack([gx,
-                                 gz * 0,
-                                 gz,
-                                 gz * 0 + idsrc,
-                                 gid,
-                                 gx * 0,
-                                 gx * 0,
-                                 gx * 0], 0)
-            self.rec_pos_all = np.append(self.rec_pos_all, toappend, axis=1)
-
-    def crosshole_acquisition_2d(self, dg=2, ds=5, dsx=2, dsz=2):
-        """
-        Fills the sources and receivers position (src_pos_all and rec_pos_all)
-        for 2D multi-offset crosshole acquisition.
-
-        :param dg: Spacing of the receivers (in grid points)
-        :param ds: Spacing of the source (in grid points)
-        :param dsx: X distance from the absorbing boundary of the sources (left)
-                    and receivers (right)
-        :param dsz: Z distance from the absorbing boundary or the free surface
-                    for both sources and receivers
-        """
-
-        nz, nx = self.N
-        dlx = self.nab + dsx
-        if self.freesurf == 0:
-            dlz = self.nab + dsz
-        else:
-            dlz = dsz
-        gz = np.arange(dlz, nz - dlz, dg) * self.dh
-        gx = gz * 0 + (nx - dlx) * self.dh
-
-        for ii in range(dlz, nz - dlz, ds):
-            idsrc = self.src_pos_all.shape[1]
-            toappend = np.zeros((5, 1))
-            toappend[0, :] = dlx * self.dh
-            toappend[1, :] = 0
-            toappend[2, :] = (ii) * self.dh
-            toappend[3, :] = idsrc
-            toappend[4, :] = 100
-            self.src_pos_all = np.append(self.src_pos_all, toappend, axis=1)
-
-            gid = np.arange(0, len(gx)) + self.rec_pos_all.shape[1] + 1
-            toappend = np.stack([gx,
-                                 gx * 0,
-                                 gz,
-                                 gz * 0 + idsrc,
-                                 gid,
-                                 gx * 0 + 2,
-                                 gx * 0,
-                                 gx * 0], 0)
-            self.rec_pos_all = np.append(self.rec_pos_all, toappend, axis=1)
-
-    def DrawDomain2D(self, model, ax=None, showabs=False, showsrcrec=False):
-        """
-        Draws the 2D model with absorbing boundary position or receivers and
-        sources positions
-
-        :param model: The 2D array of the model to draw
-        :param ax: The axis on which to plot
-        :param showabs: If True, draws the absorbing boundary
-        :param showsrcrec: If True, draws the sources and receivers positions
-
-        """
-
-        nz, nx = self.N
-        dh = self.dh
-
-        if not ax:
-            _, ax = plt.subplots(1, 1)
-
-        im = ax.imshow(model, extent=[0, nx*dh, nz*dh, 0])
-        ax.set_xlabel('Distance (m)')
-        ax.set_ylabel('Depth (m)')
-
-        cbar = plt.colorbar(im)
-        cbar.set_label('Velocity (m/s)')
-
-        if showsrcrec:
-            self.DrawSrcRec(ax)
-
-        if showabs:
-            self.DrawLayers(ax)
-
-        plt.show()
-
-    def DrawSrcRec(self, ax):
-        """
-        Draws the sources and receivers position
-
-        :param ax: Axis on which to draw the positions
-        """
-        sx = self.src_pos_all[0]
-        sy = self.src_pos_all[2]
-
-        gx = self.rec_pos_all[0, :]
-        gy = self.rec_pos_all[2, :]
-
-        ax.plot(sx, sy, marker='.', linestyle='none', markersize=15,
-                color='k', label='source')
-
-        ax.plot(gx, gy, marker='v', linestyle='none', markersize=8,
-                markerfacecolor="None", markeredgecolor='k',
-                markeredgewidth=1, label='receiver')
-
-        plt.legend(loc=4)
-
-    def DrawLayers(self, ax):
-
-        nab = self.nab
-        nz, nx = self.N
-        dh = self.dh
-
-        AbsRect = {'East': Rectangle((0, 0), nab*dh, nz*dh, linewidth=2,
-                                     edgecolor='k', facecolor='none', hatch='/'),
-                   'West': Rectangle(((nx-nab)*dh, 0), nab*dh, nz*dh, linewidth=2,
-                                     edgecolor='k', facecolor='none', hatch='/'),
-                   'South': Rectangle((nab*dh, (nz-nab)*dh), (nx-2*nab)*dh, nab*dh,
-                                      linewidth=2, edgecolor='k',
-                                      facecolor='none', hatch='/')
-                   }
-
-        if not self.freesurf:
-            AbsRect['North'] = Rectangle((nab*dh, 0), (nx-2*nab)*dh, nab*dh,
-                                         linewidth=2, edgecolor='k',
-                                         facecolor='none', hatch='/')
-        else:
-            ax.spines['top'].set_linewidth(6)
-            # Not the best way to do it
-            ax.set_title('free surface', fontsize=12)
-
-        if self.abs_type == 1:
-            TextLayers = 'PML'
-        else:
-            TextLayers = 'Cerjan'
-
-        for r in AbsRect:
-            ax.add_artist(AbsRect[r])
-            rx, ry = AbsRect[r].get_xy()
-            cx = rx + AbsRect[r].get_width()/2.0
-            cy = ry + AbsRect[r].get_height()/2.0
-
-            if r is 'North' or r is 'South':
-                ax.annotate(TextLayers, (cx, cy), color='k', weight='bold',
-                            fontsize=12, ha='center', va='center',
-                            path_effects=[withStroke(linewidth=3,
-                                                     foreground="w")])
-            elif r is 'East' or r is 'West':
-                ax.annotate(TextLayers, (cx, cy), color='k', weight='bold',
-                            fontsize=12, ha='center', va='center', rotation=90,
-                            path_effects=[withStroke(linewidth=3,
-                                                     foreground="w")])
 
 
 if __name__ == "__main__":

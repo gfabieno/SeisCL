@@ -285,7 +285,7 @@ class Function(TapeHolder):
         """
         raise NotImplementedError
 
-    def adjoint(self,  *args, **kwargs):
+    def adjoint(self, *args, **kwargs):
         """
         Performs gx = J(x0)^T gy, where J(x0)^T is the transpose (adjoint) of
         the Jacobian evaluated at x0 and gy is the gradient (adjoint source)
@@ -498,6 +498,34 @@ class TapedFunction(Function):
     def recover_states(self, initial_states, *args, **kwargs):
         while self.localtape.graph:
             self.localtape.pop()
+
+#Define a class with bas Function that performs a Map operation of a Function
+# on a list of arguments (list of Variables)
+class MapFunction(Function):
+    def __init__(self, fun, *args, **kwargs):
+        self.fun = fun
+        super().__init__(*args, **kwargs)
+
+    def forward(self, *args, **kwargs):
+        return [self.fun(*arg, **kwargs) for arg in args]
+
+    def linear(self, *args, **kwargs):
+        return [self.fun(*arg, **kwargs, mode="linear") for arg in args]
+
+    def adjoint(self, *args, **kwargs):
+        return [self.fun(*arg, **kwargs, mode="adjoint") for arg in args]
+
+
+class ReduceFunction(Function):
+
+    def forward(self, *args):
+        return np.sum([arg.data for arg in args])
+
+    def linear(self, *args, **kwargs):
+        return np.sum([arg.lin for arg in args])
+
+    def adjoint(self, *args, **kwargs):
+        return args
 
 
 class Function1(Function):
