@@ -27,13 +27,14 @@ class Propagator:
 
 class FWI:
 
-    def __init__(self, acquisition: Acquisition, propagator, loss=NormalizedL2):
+    def __init__(self, acquisition: Acquisition,
+                 propagator: Propagator,
+                 loss=NormalizedL2):
 
         self.acquisition = acquisition
         self.propagator = propagator
         self.lossfun = loss()
         self.records = {} #store the wavefields and seismograms
-        self.create_variables()
         self.loss = Variable(shape=(1,))
 
 

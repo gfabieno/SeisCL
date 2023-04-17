@@ -13,7 +13,7 @@ from SeisCL.python.tape import Variable
 class Receiver:
 
     def __init__(self, x: float = 0, y: float = None, z: float = 0,
-                 type: str = "z", trid: int = 0):
+                 type: str = "vz", trid: int = 0):
         """
         Define the position of a receiver.
 
@@ -21,9 +21,9 @@ class Receiver:
         :param y: y location in meters
         :param z: z location in meters
         :param type: Type of receiver:
-                     "x": force in x
-                     "y": force in y
-                     "z": force in z
+                     "vx": force in x
+                     "vy": force in y
+                     "vz": force in z
                      "p": pressure
         :param trid: Trace id in the segy file.
         """
@@ -37,7 +37,7 @@ class Receiver:
 class Source:
 
     def __init__(self, x: float = 0, y: float = None, z: float = 0,
-                 wavelet: np.ndarray = None, type: str = "z"):
+                 type: str = "vz"):
         """
         Define the position and wavelet of a source.
 
@@ -45,13 +45,11 @@ class Source:
         :param y: y location in meters.
         :param z: z location in meters
         :param type: Type of receiver:
-                     "x": force in x
-                     "y": force in y
-                     "z": force in z
+                     "vx": force in x
+                     "vy": force in y
+                     "vz": force in z
                      "p": pressure
-        :param wavelet: The source wavelet
         """
-        self.wavelet = wavelet
         self.x = x
         self.y = y
         self.z = z
@@ -61,7 +59,8 @@ class Source:
 class Shot:
 
     def __init__(self, sources: List, receivers: List, sid: int,
-                 dobs: Variable = None):
+                 nt: int, dt: float, dobs: Variable = None,
+                 wavelet: Variable = None, f0: float = 20):
         """
         Define a shot that may contain simultaneous sources
         and multiple receivers.
@@ -69,13 +68,20 @@ class Shot:
         :param sources: A list of Source objects fired simultaneously.
         :param receivers: A list of Receiver objects
         :param sid: The source unique shot id.
+        :param nt: Number of time steps.
+        :param dt: Sampling time.
         :param dobs: The observed data, as a Variable object.
+        :param wavelet: The source wavelet as a Variable object.
         """
         self.sources = sources
         self.receivers = receivers
         self.sid = sid
+        self.nt = nt
+        self.dt = dt
         self.dobs = dobs
-        self.dmod = None
+        self.f0 = f0
+        self.wavelet = wavelet
+        self.dmod = Variable(shape=(nt, len(self.receivers)))
 
     @property
     def rectypes(self):
@@ -89,10 +95,24 @@ class Shot:
         return {stype: [ii for ii, src in enumerate(self.sources)
                         if src.type == stype] for stype in srctypes}
 
-    def init_dmod(self):
-        nt = self.sources[0].wavelet.shape[0]
-        self.dmod = Variable(shape=(nt, len(self.receivers)))
-        return self.dmod
+    @property
+    def wavelet(self):
+        return self._wavelet
+
+    @wavelet.setter
+    def wavelet(self, wavelet):
+        if wavelet is None:
+            d = ricker_wavelet(f0=self.f0, nt=self.nt, dt=self.dt)
+            d = np.tile(d.reshape(-1, 1), reps=(1, len(self.sources)))
+            wavelet = Variable(data=d)
+        else:
+            if wavelet.shape[0] != self.nt:
+                raise ValueError("Wavelet has wrong number of time steps")
+            if wavelet.shape[1] != len(self.sources):
+                raise ValueError("Wavelet has wrong number of sources")
+            if type(wavelet) is not Variable:
+                raise ValueError("Wavelet must be a Variable object")
+        self._wavelet = wavelet
 
 
 def ricker_wavelet(f0=None, nt=None, dt=None, tmin=None):
@@ -212,6 +232,7 @@ class Acquisition:
 
         if wavelet is None:
             wavelet = ricker_wavelet(f0, nt=self.grid.nt, dt=self.grid.dt)
+            wavelet = Variable(data=wavelet.reshape(-1, 1))
         nx = self.grid.nx
         nz = self.grid.nz
         dh = self.grid.dh
@@ -247,11 +268,12 @@ class Acquisition:
             else:
                 x = sx0*dh
                 z = ii*dh
-            source = Source(x=x, z=z, wavelet=wavelet, type=src_type)
+            source = Source(x=x, z=z, type=src_type)
             receivers = deepcopy(receivers)
             for rec in receivers:
                 rec.trid += len(receivers)
-            shots.append(Shot(sources=[source], receivers=receivers, sid=sid))
+            shots.append(Shot([source], receivers, sid, self.grid.nt,
+                              self.grid.dt, wavelet=wavelet))
             sid += 1
         self.shots = shots
         return self.shots

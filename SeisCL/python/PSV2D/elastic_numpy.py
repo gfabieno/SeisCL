@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from matplotlib import animation
 import math
 from SeisCL.python.tape import Variable, Function, TapedFunction, ReversibleFunction
-from SeisCL.python.common.Acquisition import Acquisition, Grid, Source, Shot
+from SeisCL.python.common.Acquisition import Acquisition, Grid, Source, Shot, Receiver
 import unittest
 from SeisCL.python.Propagator import FWI, Propagator
 from typing import List
@@ -316,25 +316,33 @@ class Cerjan(Function):
         return self.forward(*args, direction="grad")
 
 
-class Receiver(ReversibleFunction):
+class Geophone(ReversibleFunction):
 
     def forward(self, var, varout, rec_pos=(), trids=(), t=0):
+        if not trids:
+            trids = np.arange(len(rec_pos))
         for ii, r in enumerate(rec_pos):
             varout.data[t, trids[ii]] += var.data[r]
         return varout
 
     def linear(self, var, varout, rec_pos=(), trids=(), t=0):
+        if not trids:
+            trids = np.arange(len(rec_pos))
         for ii, r in enumerate(rec_pos):
             varout.lin[t, trids[ii]] += var.lin[r]
         return varout
 
     def adjoint(self, var, varout, rec_pos=(), trids=(), t=0):
+        if not trids:
+            trids = np.arange(len(rec_pos))
         for ii, r in enumerate(rec_pos):
             var.grad[r] += varout.grad[t, trids[ii]]
         return var
 
     def recover_states(self, initial_states, var, varout, rec_pos=(),
                        trids=(), t=0):
+        if not trids:
+            trids = np.arange(len(rec_pos))
         for ii, r in enumerate(rec_pos):
             varout.data[t, trids[ii]] -= var.data[r]
         return varout
@@ -344,7 +352,7 @@ class ElasticReceivers:
 
     def __init__(self, acquisition: Acquisition):
         self.acquisition = acquisition
-        self.rec_fun = Receiver()
+        self.rec_fun = Geophone()
 
     def __call__(self, shot: List[Shot], t: int,
                  vx, vz, sxx, szz, vy=None, syy=None):
@@ -390,19 +398,19 @@ class ElasticSources:
             self.acquisition = acquisition
             self.src_fun = PointForceSource()
 
-        def __call__(self, sources: List[Source], t: int,
-                     vx, vz, sxx, szz, vy=None, syy=None):
-            for source in sources:
+        def __call__(self, sources: List[Source], wavelet: Variable,
+                     t: int, vx, vz, sxx, szz, vy=None, syy=None):
+            for ii, source in enumerate(sources):
                 pos = tuple(int(np.round(el/self.acquisition.grid.dh))
                             for el in [source.z, source.y, source.x]
                             if el is not None)
                 #lin_src_pos = vx.xyz2lin(*pos)
                 try:
-                    self.src_fun(locals()[source.type], source.wavelet[t], pos)
+                    self.src_fun(locals()[source.type], wavelet.data[t, ii], pos)
                 except KeyError:
                     if source.type == 'p':
-                        self.src_fun(sxx, source.wavelet[t], pos)
-                        self.src_fun(szz, source.wavelet[t], pos)
+                        self.src_fun(sxx, wavelet.data[t, ii], pos)
+                        self.src_fun(szz, wavelet.data[t, ii], pos)
                     else:
                         raise ValueError('Source type %s not implemented'
                                          % source.type)
@@ -803,34 +811,6 @@ def ricker(f0, dt, NT):
     return ricker
 
 
-@TapedFunction
-def elastic2d(vp, vs, rho, vx, vz, sxx, szz, sxz, rec_pos, sources, dt,
-              dx, vzout=None, vxout=None, pout=None):
-
-    vp, vs, rho = ScaledParameters(dt, dx)(vp, vs, rho)
-    src_fun = PointForceSource()
-    rec_fun = Receiver()
-    updatev = UpdateVelocity()
-    updates = UpdateStress()
-    abs = Cerjan(nab=2)
-    for t in range(sources[0]["signal"].size):
-        for src in sources:
-            if src["type"] == "vx":
-                src_fun(vx, src["signal"][t], src_pos=src["pos"])
-            elif src["type"] == "vz":
-                src_fun(vz, src["signal"][t], src_pos=src["pos"])
-        updatev(rho, vx, vz, sxx, szz, sxz)
-        abs(vx, vz)
-        updates(vp, vs, vx, vz, sxx, szz, sxz)
-        abs(sxx, szz, sxz)
-        if vxout:
-            rec_fun(vx, vxout, rec_pos=rec_pos, t=t)
-        if vzout:
-            rec_fun(vz, vzout, rec_pos=rec_pos, t=t)
-
-    return vp, vs, rho, vx, vz, sxx, szz, sxz, vzout, vxout
-
-
 class Elastic2dPropagator(Propagator):
 
     def __init__(self, acquisition: Acquisition, fdorder=4):
@@ -856,12 +836,23 @@ class Elastic2dPropagator(Propagator):
         self.updates = UpdateStress()
         self.abs = Cerjan(nab=self.acquisition.grid.nab)
 
+    def initialize(self, shot):
+        self.vx.initialize()
+        self.vz.initialize()
+        self.sxx.initialize()
+        self.szz.initialize()
+        self.sxz.initialize()
+        shot.dmod.initialize()
+
     def propagate(self, shot, vp, vs, rho):
 
+        self.vp = vp
+        self.vs = vs
+        self.rho = rho
         vp, vs, rho = self.scaledparameters(vp, vs, rho)
         vx, vz, sxx, szz, sxz = (self.vx, self.vz, self.sxx, self.szz, self.sxz)
         for t in range(self.acquisition.grid.nt):
-            self.src_fun(shot.sources, t, vx, vz, sxx, szz)
+            self.src_fun(shot.sources, shot.wavelet, t, vx, vz, sxx, szz)
             self.updatev(rho, vx, vz, sxx, szz, sxz)
             self.abs(vx, vz)
             self.updates(vp, vs, vx, vz,
@@ -875,6 +866,7 @@ class Elastic2dPropagator(Propagator):
 class ElasticTester(unittest.TestCase):
 
     def setUp(self):
+
         nrec = 1
         nt = 3
         nab = 2
@@ -931,34 +923,29 @@ class ElasticTester(unittest.TestCase):
         self.assertLess(fun.linear_test(vx, 1, (0, 1)), 1e-12)
         self.assertLess(fun.dot_test(vx, 1, (0, 1)), 1e-12)
 
-    def test_Receiver(self):
+    def test_Geophone(self):
         vx = self.vx; vxout = self.vxout
-        fun = Receiver()
-        self.assertLess(fun.backward_test(vx, vxout, ((5, 5), (6,6))), 1e-12)
-        self.assertLess(fun.linear_test(vx, vxout, ((5, 5), (6,6))), 1e-12)
-        self.assertLess(fun.dot_test(vx, vxout, ((5, 5), (6,6))), 1e-12)
+        fun = Geophone()
+        self.assertLess(fun.backward_test(vx, vxout, ((5, 5), (6, 6))), 1e-12)
+        self.assertLess(fun.linear_test(vx, vxout, ((5, 5), (6, 6))), 1e-12)
+        self.assertLess(fun.dot_test(vx, vxout, ((5, 5), (6, 6))), 1e-12)
 
-    def test_elastic2d(self):
-        dt = self.dt; dx = self.dx
-        vxout = self.vxout
-        vp = self.vp; vs = self.vs; rho = self.rho
-        vx = self.vx; vz = self.vz
-        sxx = self.sxx; szz = self.szz; sxz = self.sxz
-        rec_pos = [(5, 5), (6, 6)]
-        sources = [{"type": "vz", "pos": (2, 2), "signal": np.ones((10,))}]
-        self.assertLess(elastic2d.backward_test(vp, vs, rho, vx, vz,
-                                                sxx, szz, sxz,
-                                                rec_pos, sources, dt, dx,
-                                                vxout=vxout), 1e-12)
-        self.assertLess(elastic2d.linear_test(vp, vs, rho, vx, vz,
-                                              sxx, szz, sxz,
-                                              rec_pos, sources, dt, dx,
-                                              vxout=vxout), 1e-05)
-        self.assertLess(elastic2d.dot_test(vp, vs, rho, vx, vz,
-                                           sxx, szz, sxz,
-                                           rec_pos, sources, dt, dx,
-                                           vxout=vxout), 1e-12)
-
+    def test_elastic2d_propagator(self):
+        grid = Grid(nd=2, nx=10, ny=None, nz=10, nt=3, dt=0.00000000001, dh=1.0,
+                    nab=2, freesurf=True)
+        shot = Shot([Source()], [Receiver(x=0), Receiver(x=1)], 0,
+                    grid.nt, grid.dt)
+        self.assertIsNot(shot.wavelet, None)
+        acquisition = Acquisition(grid=grid, shots=[shot])
+        propagator = Elastic2dPropagator(acquisition)
+        shot = propagator.acquisition.shots[0]
+        vp = propagator.vp; vs = propagator.vs; rho = propagator.rho
+        @TapedFunction
+        def prop(shot, vp, vs, rho):
+            return propagator.propagate(shot, vp, vs, rho)
+        self.assertLess(prop.backward_test(shot, vp, vs, rho), 1e-12)
+        self.assertLess(prop.linear_test(shot, vp, vs, rho), 1e-05)
+        self.assertLess(prop.dot_test(shot, vp, vs, rho), 1e-12)
 
 if __name__ == '__main__':
 
@@ -977,7 +964,6 @@ if __name__ == '__main__':
     vs0 = vs.data.copy()
     vs.data[5:10, 145:155] *= 1.05
 
-    acquisition.shots[0].init_dmod()
     dmod, _, _, _, _, _, _, _, _ = propagator.propagate(acquisition.shots[0],
                                                         vp, vs, rho)
 
