@@ -1,6 +1,6 @@
 import numpy as np
 
-from SeisCL.python.common.Acquisition import Acquisition
+from SeisCL.python.common.Acquisition import Acquisition, Shot
 from SeisCL.python.Losses import NormalizedL2
 from SeisCL.python.tape import TapedFunction, Variable, Function
 from typing import List
@@ -12,14 +12,6 @@ class Propagator:
 
         self.fdorder = fdorder
         self.grid = grid
-
-
-    def initialize(self, **kwargs):
-        """
-        Set wavefield values to 0, and assign values to variables specified in
-        **kwargs (such as model parameters vp, vs ...)
-        """
-        raise NotImplementedError
 
     def propagate(self, shot, *args, **kwargs):
         raise NotImplementedError
@@ -39,12 +31,12 @@ class FWI:
 
 
     @TapedFunction
-    def compute_loss(self, shot, dmod, dobs):
-        dmod = self.propagator.propagate(shot, **dmod)
-        self.lossfun(self.loss, dobs, dmod)
+    def compute_loss(self, shot, *args, **kwargs):
+        dmod, (_) = self.propagator.propagate(shot, *args, **kwargs)
+        self.lossfun(self.loss, shot.dobs, dmod)
         return dmod, self.loss
 
-    def __call__(self, shotids: List[int] = None,
+    def __call__(self, shots: List[Shot], *args,
                  compute_gradient: bool = False,
                  **kwargs):
         """
@@ -52,24 +44,27 @@ class FWI:
         is True, compute the loss and the gradient as well.
 
         """
-        if shotids is None:
-            shotids = range(len(self.acquisition.shots))
+        # if shots is None:
+        #     shots = self.acquisition.shots
+        if compute_gradient:
+            return self.gradient(shots, *args, **kwargs)
+        else:
+            return self.forward(shots, *args, **kwargs)
 
-        for ii in shotids:
-            self.propagator.initialize(**kwargs)
-            self.acquisition.shots[ii].init_dmod()
-            shot = self.acquisition.shots[ii]
-            dmod = self.acquisition.shots[ii].dmod
-            self.propagator.propagate(shot, **dmod)
+    def forward(self, shots: List[Shot], *args, **kwargs):
+        """
+        Compute the modelled data for the provided shotids.
 
-        return (self.acquisition.shots[ii] for ii in shotids)
+        """
+        for shot in shots:
+            self.propagator.propagate(shot, *args, **kwargs)
 
-    def gradient(self, shotids: List[int] = None, **kwargs):
+        return shots
+
+    def gradient(self, shots: List[Shot], *args, **kwargs):
         """
         Compute gradient
         """
-        if shotids is None:
-            shotids = range(len(self.acquisition.shots))
 
         self.loss.initialize()
         gradients = {}
@@ -77,14 +72,10 @@ class FWI:
             if type(var) is Variable:
                 gradients[name] = np.zeros_like(var.grad)
 
-        for ii in shotids:
+        for shot in shots:
             self.propagator.initialize(**kwargs)
-            self.acquisition.shots[ii].init_dmod()
-            shot = self.acquisition.shots[ii]
-            dobs = self.acquisition.shots[ii].dobs
-            dmod = self.acquisition.shots[ii].dmod
-            dmod, _ = self.compute_loss(shot, dmod, dobs)
-            self.compute_loss(shot, dmod, dobs, mode="adjoint")
+            dmod, _ = self.compute_loss(shot, *args, **kwargs)
+            self.compute_loss(shot, *args, mode="adjoint", **kwargs)
             for name in gradients:
                 gradients[name] += getattr(self.propagator, name).grad
         for name in gradients:

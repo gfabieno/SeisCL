@@ -1,7 +1,7 @@
 
 #TODO cache data in Tape in memory pool
 #TODO eager and compiled mode
-from inspect import signature, Parameter, _empty
+from inspect import signature, Parameter
 import numpy as np
 from copy import copy, deepcopy
 import unittest
@@ -34,11 +34,6 @@ class Tape:
         kernel.recover_states(initial_states, *args, **kwargs)
         return kernel, args, kwargs
 
-    def add_variable(self, var):
-        if var.name in self.variables:
-            raise NameError("Variable name already exists in tape")
-        self.variables[var.name] = var
-
     def empty(self):
         self.variables = {}
         self.graph = []
@@ -57,15 +52,15 @@ class Variable(TapeHolder):
     """
 
     """
-    def __init__(self, name=None, data=None, shape=None, lin=None, grad=None,
-                 initialize_method="zero", dtype=np.float,
+    def __init__(self, data=None, shape=None, lin=None, grad=None,
+                 initialize_method="zero", dtype=np.float32,
                  pad=None, differentiable=True):
 
         if self.tape.locked:
-            raise PermissionError("Tape loccked: "
+            raise PermissionError("Tape locked: "
                                   "Cannot create a new Variable inside "
                                   "a TapedFunction ")
-        self.name = name
+
         self.initialize_method = initialize_method
         self.dtype = dtype
         self.smallest = np.nextafter(dtype(0), dtype(1))
@@ -96,7 +91,9 @@ class Variable(TapeHolder):
         if data is None:
             self._data = None
         else:
-            self._data = np.require(data, dtype=self.dtype, requirements='F')
+            if type(data) is np.ndarray:
+                data = np.require(data, dtype=self.dtype, requirements='F')
+            self._data = self.todevice(data)
 
     @property
     def lin(self):
@@ -109,7 +106,9 @@ class Variable(TapeHolder):
         if lin is None:
             self._lin = None
         else:
-            self._lin = np.require(lin, dtype=self.dtype, requirements='F')
+            if type(lin) is np.ndarray:
+                lin = np.require(lin, dtype=self.dtype, requirements='F')
+            self._lin = self.todevice(lin)
 
     @property
     def grad(self):
@@ -125,7 +124,9 @@ class Variable(TapeHolder):
         if grad is None:
             self._grad = None
         else:
-            self._grad = np.require(grad, dtype=self.dtype, requirements='F')
+            if type(grad) is np.ndarray:
+                grad = np.require(grad, dtype=self.dtype, requirements='F')
+            self._grad = self.todevice(grad)
 
     @property
     def valid(self):
@@ -144,6 +145,9 @@ class Variable(TapeHolder):
         elif method == "ones":
             return self.ones()
 
+    def empty(self):
+        return np.empty(self.shape, dtype=self.dtype, order="F")
+
     def ones(self):
         return np.ones(self.shape, dtype=self.dtype, order="F")
 
@@ -156,7 +160,10 @@ class Variable(TapeHolder):
             state[self.valid] = np.random.rand(*state[self.valid].shape)*10e6
         else:
             state = np.random.rand(*self.shape).astype(self.dtype)
-        return np.require(state, requirements='F')
+        return self.todevice(np.require(state, requirements='F'))
+
+    def todevice(self, mem):
+        return mem
 
     #TODO create cache in tape
     def create_cache(self, cache_size=1, regions=None):
@@ -181,10 +188,15 @@ class Variable(TapeHolder):
         return np.ravel_multi_index([np.array(el)+self.pad for el in args],
                                     self.shape, order="F")
 
-    @staticmethod
-    def np(array):
-        return array
-
+    def __deepcopy__(self, memo):
+        var = copy(self)
+        if var.data is not None:
+            var.data = self.data.copy()
+        if var.lin is not None:
+            var.lin = self.lin.copy()
+        if var.grad is not None:
+            var.grad = self.grad.copy()
+        return var
 
 class Function(TapeHolder):
     """
@@ -201,9 +213,6 @@ class Function(TapeHolder):
 
     def __init__(self):
         self.signature = signature(self.forward)
-        self.required_states = [name for name, par
-                                in signature(self.forward).parameters.items()
-                                if par.kind == Parameter.POSITIONAL_OR_KEYWORD]
         self.updated_states = []
 
     def __call__(self, *args, mode=None, **kwargs):
@@ -226,7 +235,7 @@ class Function(TapeHolder):
         return out
 
     def cache_states(self, *args, **kwargs):
-        if not self.required_states and not self.updated_states:
+        if not self.updated_states:
             updated_states = self.arguments(*args, **kwargs).keys()
         else:
             updated_states = self.updated_states
@@ -268,6 +277,12 @@ class Function(TapeHolder):
         The method modifies the `Variable.data` attribute and returns all
          `Variable` instances that were modified. These are automatically
          collected to form y.
+
+        :param args: Can contain `Variables`, ìnt`, `float` or `bool`.
+        :param kwargs: Can contain `Variables`, ìnt`, `float` or `bool`.
+
+        :return: Returns the `Variables` that are modified by the forward.
+
         """
         raise NotImplementedError
 
@@ -311,7 +326,6 @@ class Function(TapeHolder):
 
         initial_states = self.cache_states(*args, **kwargs)
         self(*args, **kwargs)
-        #self.tape.pop()
         self.recover_states(initial_states, *args, **kwargs)
 
         err = 0
@@ -322,8 +336,11 @@ class Function(TapeHolder):
             bsnp = var.data
             errii = snp - bsnp
             err += np.sum(errii**2)
-            scale += np.sum((snp - np.mean(snp))**2) + smallest
+            mean =  np.sum(snp) / snp.size
+            scale += np.sum((snp - mean)**2) + smallest
         err = err / scale
+        if hasattr(err, "get"):
+            err = err.get()[()]
         if verbose:
             print("Backpropagation test for Kernel %s: %.15e"
                   % (self.__class__.__name__, err))
@@ -368,7 +385,10 @@ class Function(TapeHolder):
             for out, pout in zip(outs, pouts):
                 if pouts and out:
                     smallest = out.smallest
-                    erri = (pout.data - out.data) / (eps * out.lin + smallest) -1.0
+                    erri = (pout.data - out.data) / (eps * out.lin + smallest) - 1.0
+                    if hasattr(erri, "get"):
+                        erri = erri.get()[()]
+                    erri -= 1.0
                     err = np.max([err, np.max(erri)])
             errs.append(err)
 
@@ -379,6 +399,8 @@ class Function(TapeHolder):
                     break
         try:
             errmin = np.min(errs)
+            if hasattr(errmin, "get"):
+                errmin = errmin.get()[()]
             print("Linear test for Kernel %s: %.15e"
                   % (self.__class__.__name__, errmin))
         except ValueError:
@@ -421,17 +443,20 @@ class Function(TapeHolder):
         prod2 = np.sum([np.sum(fvars[el].grad * vars[el].lin)
                         for el in vars if vars[el].differentiable])
 
+        res = (prod1-prod2)/(prod1+prod2)
+        if hasattr(res, "get"):
+            res = res.get()[()]
         print("Dot product test for Kernel %s: %.15e"
-              % (self.__class__.__name__, (prod1-prod2)/(prod1+prod2)))
+              % (self.__class__.__name__, res))
 
-        return (prod1-prod2)/(prod1+prod2)
+        return res
 
     def arguments(self, *args, **kwargs):
         a = self.signature.bind(*args, **kwargs)
         a.apply_defaults()
 
         out = {el: var for el, var in a.arguments.items()
-               if type(var) is Variable}
+               if isinstance(var, Variable)}
         if "args" in a.arguments:
             for ii, var in enumerate(a.arguments["args"]):
                 if type(var) is Variable:
@@ -499,33 +524,51 @@ class TapedFunction(Function):
         while self.localtape.graph:
             self.localtape.pop()
 
-#Define a class with bas Function that performs a Map operation of a Function
-# on a list of arguments (list of Variables)
-class MapFunction(Function):
-    def __init__(self, fun, *args, **kwargs):
+
+#TODO Should we have a MapReduceFunction and a MapFunction?
+class MapGather(Function):
+    def __init__(self, fun, reduce, *args, **kwargs):
         self.fun = fun
+        self.reduce = reduce
+        self.child_tapes = []
         super().__init__(*args, **kwargs)
 
-    def forward(self, *args, **kwargs):
-        return [self.fun(*arg, **kwargs) for arg in args]
+    def __call__(self, args, mode=None, **kwargs):
+        if mode is None:
+            mode = self.tape.mode
+        #each child tape should have the same initial value as the parent tape
+        if mode == "forward" or mode == "linear":
+            self.child_tapes = [Tape() for __ in args]
+            outputs = []
+            for ii, arg in enumerate(args):
+                with self.child_tapes[ii] as tape:
+                    tape.mode = mode
+                    outputs.append([el.copy() for el in self.fun(arg)])
+        else:
+            for ii, arg in enumerate(args):
+                with self.child_tapes[ii] as tape:
+                    tape.mode = mode
+                    outs = self.fun(arg)
+                    for argout, argin in zip(arg, self.tape.graph[-1][1]):
+                        if argout is not argin and type(argout) is Variable:
+                            argout.grad = argin.grad
+                    for name, var in kwargs.items():
+                        if type(var) is Variable:
+                            if name in self.tape.graph[-1][2]:
+                                self.tape.graph[-1][2][name].grad = var.grad
+
+
+
+        return outputs
+
+    def forward(self, *arg, **kwargs):
+        return self.fun(*arg, **kwargs)
 
     def linear(self, *args, **kwargs):
-        return [self.fun(*arg, **kwargs, mode="linear") for arg in args]
+        return self.fun(*args, **kwargs, mode="linear")
 
     def adjoint(self, *args, **kwargs):
-        return [self.fun(*arg, **kwargs, mode="adjoint") for arg in args]
-
-
-class ReduceFunction(Function):
-
-    def forward(self, *args):
-        return np.sum([arg.data for arg in args])
-
-    def linear(self, *args, **kwargs):
-        return np.sum([arg.lin for arg in args])
-
-    def adjoint(self, *args, **kwargs):
-        return args
+        return self.fun(*args, **kwargs, mode="adjoint")
 
 
 class Function1(Function):
@@ -557,7 +600,7 @@ class TapeTester(unittest.TestCase):
         tape0 = TapeHolder.tape
         with Tape() as tape:
             fun1 = Function1()
-            var1 = Variable("var1", shape=(1,))
+            var1 = Variable(shape=(1,))
             self.assertEqual(tape, fun1.tape)
             self.assertEqual(tape, var1.tape)
         self.assertEqual(tape0, fun1.tape)
@@ -573,8 +616,7 @@ class TapeTester(unittest.TestCase):
 
         with Tape() as tape:
             fun1 = Function1()
-            var1 = Variable("var1",
-                            data=np.array([False]),
+            var1 = Variable(data=np.array([False]),
                             lin=np.array([False]),
                             grad=np.array([False]))
             self.assertFalse(var1.data)
@@ -621,8 +663,7 @@ class TapedFunctionTester(unittest.TestCase):
                     fun2(var, var, var)
                 return var
             self.assertIsInstance(fun, TapedFunction)
-            var1 = Variable("var1",
-                            data=np.array([False]),
+            var1 = Variable(data=np.array([False]),
                             lin=np.array([False]),
                             grad=np.array([False]))
             self.assertFalse(var1.data)
@@ -651,8 +692,7 @@ class TapedFunctionTester(unittest.TestCase):
                 for ii in range(3):
                     fun1(var, var, var)
                 return var
-            var1 = Variable("var1",
-                            data=np.array([False]),
+            var1 = Variable(data=np.array([False]),
                             lin=np.array([False]),
                             grad=np.array([False]))
             fun1(var1)
@@ -689,8 +729,7 @@ class TapedFunctionTester(unittest.TestCase):
                 fun2(var)
                 return var
 
-            var1 = Variable("var1",
-                            data=np.array([False]),
+            var1 = Variable(data=np.array([False]),
                             lin=np.array([False]),
                             grad=np.array([False]))
             fun3(var1)
@@ -703,12 +742,12 @@ class TapedFunctionTester(unittest.TestCase):
 
     def test_locked_tape(self):
         with Tape() as tape:
-            var1 = Variable("var1", shape=(1,))
+            var1 = Variable(shape=(1,))
             @TapedFunction
             def fun(var):
                 fun1 = Function1()
                 fun2 = Function1()
-                var2 = Variable("var2", shape=(1,))
+                var2 = Variable(shape=(1,))
                 for ii in range(3):
                     fun1(var, var, var)
                     fun2(var, var, var)
@@ -727,8 +766,7 @@ class FunctionTester(unittest.TestCase):
 
         with Tape() as tape:
 
-            var1 = Variable("var1",
-                            data=np.array([False]),
+            var1 = Variable(data=np.array([False]),
                             lin=np.array([False]),
                             grad=np.array([False]))
             fun = Function()
@@ -762,8 +800,7 @@ class FunctionTester(unittest.TestCase):
 
         with Tape() as tape:
 
-            var1 = Variable("var1",
-                            data=np.array([False, False, False]),
+            var1 = Variable(data=np.array([False, False, False]),
                             lin=np.array([False, False, False]),
                             grad=np.array([False, False, False]))
             fun = FunRegion()
@@ -796,8 +833,7 @@ class FunctionTester(unittest.TestCase):
 
         with Tape() as tape:
             fun = FunBack()
-            var1 = Variable("var1",
-                            data=np.array([1]))
+            var1 = Variable(data=np.array([1]))
             self.assertEqual(var1.data[0], 1)
             self.assertFalse(fun.cache_states(var1))
             fun(var1)

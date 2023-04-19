@@ -86,7 +86,7 @@ class UpdateVelocity(ReversibleFunction):
         super().__init__()
         self.updated_states = ["vx", "vz"]
 
-    def forward(self, cv, vx, vz, sxx, szz, sxz, backpropagate=False, **kwargs):
+    def forward(self, cv, vx, vz, sxx, szz, sxz, backpropagate=False):
         """
         Update the velocity for 2D P-SV isotropic elastic wave propagation.
 
@@ -112,7 +112,7 @@ class UpdateVelocity(ReversibleFunction):
 
         return vx, vz
 
-    def linear(self, cv, vx, vz, sxx, szz, sxz, **kwargs):
+    def linear(self, cv, vx, vz, sxx, szz, sxz):
 
         sxx_x = Dpx(sxx.lin)
         szz_z = Dpz(szz.lin)
@@ -836,19 +836,17 @@ class Elastic2dPropagator(Propagator):
         self.updates = UpdateStress()
         self.abs = Cerjan(nab=self.acquisition.grid.nab)
 
-    def initialize(self, shot):
+    def propagate(self, shot, vp, vs, rho):
+
+        self.vp = vp
+        self.vs = vs
+        self.rho = rho
         self.vx.initialize()
         self.vz.initialize()
         self.sxx.initialize()
         self.szz.initialize()
         self.sxz.initialize()
         shot.dmod.initialize()
-
-    def propagate(self, shot, vp, vs, rho):
-
-        self.vp = vp
-        self.vs = vs
-        self.rho = rho
         vp, vs, rho = self.scaledparameters(vp, vs, rho)
         vx, vz, sxx, szz, sxz = (self.vx, self.vz, self.sxx, self.szz, self.sxz)
         for t in range(self.acquisition.grid.nt):
@@ -947,9 +945,10 @@ class ElasticTester(unittest.TestCase):
         self.assertLess(prop.linear_test(shot, vp, vs, rho), 1e-05)
         self.assertLess(prop.dot_test(shot, vp, vs, rho), 1e-12)
 
+
 if __name__ == '__main__':
 
-    grid = Grid(nd=2, nx=300, ny=None, nz=160, nt=7500, dt=0.0001, dh=1.0,
+    grid = Grid(nd=2, nx=300, ny=None, nz=160, nt=4500, dt=0.0001, dh=1.0,
                 nab=16, freesurf=True)
     acquisition = Acquisition(grid=grid)
     acquisition.regular2d(rec_types=["vx", "vz"], gz0=4)
@@ -964,14 +963,19 @@ if __name__ == '__main__':
     vs0 = vs.data.copy()
     vs.data[5:10, 145:155] *= 1.05
 
-    dmod, _, _, _, _, _, _, _, _ = propagator.propagate(acquisition.shots[0],
-                                                        vp, vs, rho)
+    # dmod, _, _, _, _, _, _, _, _ = propagator.propagate(acquisition.shots[1],
+    #                                                     vp, vs, rho)
+
+    fwi = FWI(acquisition, propagator)
+    shots = fwi(acquisition.shots[:2], vp, vs, rho)
+    dmod = shots[1].dmod
 
     clip = 0.0001
     vmin = np.min(dmod.data) * clip
     vmax=-vmin
     plt.imshow(dmod.data, aspect="auto", vmin=vmin, vmax=vmax)
     plt.show()
+
 
 
     #
