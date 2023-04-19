@@ -416,6 +416,9 @@ void get_pos(grid * g){
 
 """
 
+
+
+
 grid_stop_header="""
 #if LOCAL_OFF==0
     #if COMM12==0

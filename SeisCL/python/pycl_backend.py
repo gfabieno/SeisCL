@@ -132,6 +132,12 @@ class VariableCL(Variable):
 
 class Kernel:
 
+    cudacl = {"FUNDEF": "__kernel",
+              "LFUNDEF": "",
+              "GLOBARG": "__global",
+              "LOCID": "__local",
+              }
+
     def __init__(self, queue, name, signature, src, header, options,
                  mode, local_size=None):
 
@@ -150,7 +156,7 @@ class Kernel:
     def __call__(self, grid_size, *args, **kwargs):
         a = self.signature.bind(*args, **kwargs)
         a.apply_defaults()
-        kernels = self.kernel(a.arguments)
+        kernels = self.kernel(a.arguments, grid_size)
 
         #TODO remove the list of kernel capibility if applicable
         if "backpropagate" in kwargs:
@@ -166,7 +172,7 @@ class Kernel:
     #TODO method defining macros for Variable size
 
     def argument_definition(self, arguments):
-        fundef = "("
+        argdef = []
         for el, var in arguments.items():
             if isinstance(var, VariableCL):
                 if var.dtype == np.float32:
@@ -182,21 +188,22 @@ class Kernel:
                 else:
                     raise TypeError("Type not supported for %s with type %s"
                                     % (el, var.dtype))
-                fundef += "GLOBARG %s * %s, " % (dtype, el)
+                globarg = self.cudacl["GLOBARG"]
+                argdef.append("%s %s * %s, \n" % (globarg, dtype, el))
                 if self.mode == "linear":
-                    fundef += "GLOBARG %s * %s_lin, " % (dtype, el)
+                    argdef.append("%s %s * %s_lin, \n" % (globarg, dtype, el))
                 if self.mode == "adjoint":
-                    fundef += "GLOBARG %s * %s_adj, " % (dtype, el)
+                    argdef.append("%s %s * %s_adj, \n" % (globarg, dtype, el))
             elif isinstance(var, int) or isinstance(var, np.int32):
-                fundef += "int %s, " % (el)
+                argdef.append("int %s, \n" % (el))
             elif isinstance(var, float) or isinstance(var, np.float32):
-                fundef += "float %s, " % (el)
+                argdef.append("float %s, \n" % (el))
             elif isinstance(var, bool) or isinstance(var, np.bool):
-                fundef += "int %s, " % (el)
+                argdef.append("int %s, \n" % (el))
             else:
                 raise TypeError("Type not supported: %s" % type(var))
-        fundef = fundef[:-2] + ")"
-        return fundef
+        argdef[-1] = argdef[-1][:-3]
+        return argdef
 
     def arg_list(self, arguments):
         arg_list = []
@@ -218,20 +225,38 @@ class Kernel:
                                 % (type(var), el))
         return arg_list
 
-    def kernel(self, arguments):
+    def kernel(self, arguments, grid_size):
         if not self._kernel:
             argdef = self.argument_definition(arguments)
-            if isinstance(self.src, list):
-                names = ["%s" % self.name + str(ii)
-                         for ii in range(len(self.src))]
-                src = ["FUNDEF void %s" % name + argdef + "{" + s + "}"
-                       for name, s in zip(names, self.src)]
-                src = "\n".join(src)
+            fundef = self.cudacl["FUNDEF"]
+            grid_struct, grid_filler = get_positional_headers(grid_size,
+                                                              self.local_size)
+            if isinstance(self.src, str):
+                src = [self.src]
             else:
-                src = "FUNDEF void %s" % self.name
-                src += argdef + "{" + self.src + "}"
-                names = [self.name]
-            src = self.header + src
+                src = self.src
+            names = ["%s" % self.name + str(ii)
+                     for ii in range(len(src))]
+
+            for name, s in zip(names, src):
+                srci = "%s void %s(" % (fundef, name)
+                indent = len(srci)*" "
+                for ii, el in enumerate(argdef):
+                    if ii > 0:
+                        argdef[ii] = indent + el
+                srci += "".join(argdef)
+                srci += "){\n"
+                srci += grid_filler
+                srci += "\n".join(["    " + el.strip() for el in s.split("\n")])
+                srci += "\n}"
+                src[src.index(s)] = srci
+            # src = ["%s void %s" % (fundef, name) + argdef + "{\n"
+            #        + grid_filler
+            #        + "\n".join(["    " + el.strip() for el in s.split("\n")])
+            #        + "\n}"
+            #        for name, s in zip(names, src)]
+            src = "\n".join(src)
+            src = self.header + grid_struct + src
             if not self._prog:
                 options = options_def + self.options
 
@@ -326,7 +351,7 @@ class FunctionGPU(Function):
             options = []
         self.options = options
         #TODO clean up header creation
-        self.header = CUDACL_header
+        self.header = ""
         self._gpukernel = {"forward": None, "linear": None, "adjoint": None}
         super().__init__()
 
@@ -375,6 +400,39 @@ class FunctionGPU(Function):
 class ReversibleFunctionCL(ReversibleFunction, FunctionGPU):
     pass
 
+
+def get_positional_headers(global_size, local_size):
+
+    grid_struct_header = """typedef struct grid{\n"""
+    if len(global_size) == 3:
+        names = ["z", "y", "x"]
+    elif len(global_size) == 2:
+        names = ["z", "x"]
+    elif len(global_size) == 1:
+        names = ["x"]
+    else:
+        raise ValueError("global_size must be a list of length 1, 2 or 3")
+
+    for name in names:
+        grid_struct_header += "    int %s;\n" % name
+    if local_size is not None:
+        for name in names:
+            grid_struct_header += "    int l%s{};\n" % name
+        for name in names:
+            grid_struct_header += "    int lsize%s{}\n;" % name
+
+    grid_struct_header += "} grid;\n"
+
+    grid_filler = "    grid g;\n"
+    for ii, name in enumerate(names):
+        grid_filler += "    g.%s = get_global_id(%d);\n" % (name, ii)
+    if local_size is not None:
+        for ii, name in enumerate(names):
+            grid_filler += "    g.l%s = get_local_id(%d);\n" % (name, ii)
+        for ii, name in enumerate(names):
+            grid_filler += "    g.lsize%s = get_local_size(%d);\n" % (name, ii)
+
+    return grid_struct_header, grid_filler
 
 
 class Gridtester(FunctionGPU):
@@ -473,26 +531,23 @@ class FunctionGpuTester(unittest.TestCase):
 
             def forward(self, a, b, c):
                 src = """
-                      int gid = get_global_id(0);
-                      c[gid] = a[gid] + b[gid];
+                      c[g.x] = a[g.x] + b[g.x];
                       """
                 self.gpukernel(src, "forward", a.shape, a, b, c)
                 return c
 
             def linear(self, a, b, c):
                 src = """
-                      int gid = get_global_id(0);
-                      c_lin[gid] = a_lin[gid] + b_lin[gid];
+                      c_lin[g.x] = a_lin[g.x] + b_lin[g.x];
                       """
                 self.gpukernel(src, "linear", a.shape, a, b, c)
                 return c
 
             def adjoint(self, a, b, c):
                 src = """
-                      int gid = get_global_id(0);
-                      a_adj[gid] += c_adj[gid];
-                      b_adj[gid] += c_adj[gid];
-                      c_adj[gid] = 0;
+                      a_adj[g.x] += c_adj[g.x];
+                      b_adj[g.x] += c_adj[g.x];
+                      c_adj[g.x] = 0;
                       """
                 self.gpukernel(src, "adjoint", a.shape, a, b, c)
                 return a, b
