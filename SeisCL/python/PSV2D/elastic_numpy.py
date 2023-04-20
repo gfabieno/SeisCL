@@ -7,9 +7,8 @@ Created on Mon Apr 24 16:13:18 2017
 """
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib import animation
 import math
-from SeisCL.python.tape import Variable, Function, TapedFunction, ReversibleFunction
+from SeisCL.python.tape.tape import Variable, Function, TapedFunction, ReversibleFunction
 from SeisCL.python.common.Acquisition import Acquisition, Grid, Source, Shot, Receiver
 import unittest
 from SeisCL.python.Propagator import FWI, Propagator

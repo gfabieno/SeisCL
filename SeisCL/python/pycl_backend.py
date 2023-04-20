@@ -1,14 +1,10 @@
 
 import numpy as np
 import unittest
-import re
-from typing import List, Tuple, Dict, Union, Any
 import pyopencl as cl
 import pyopencl.array
-from pyopencl.tools import get_or_register_dtype, match_dtype_to_c_struct
-from SeisCL.python.tape import Variable, Function, ReversibleFunction
-from SeisCL.python.FDstencils import get_pos_header, FDCoefficients, CUDACL_header, grid_stop_header
-from inspect import signature, Parameter
+from SeisCL.python.tape.tape import Variable, Function, ReversibleFunction
+from SeisCL.python.FDstencils import FDCoefficients
 
 options_def = ["-D LCOMM=0",
                "-D ABS_TYPE=0",

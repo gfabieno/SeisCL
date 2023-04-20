@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List, Tuple, Dict
+from typing import List, Tuple
 from copy import deepcopy
 import unittest
 import matplotlib as mpl
@@ -7,7 +7,7 @@ from matplotlib.patches import Rectangle
 import matplotlib.pyplot as plt
 from matplotlib.patheffects import withStroke
 mpl.rcParams['hatch.linewidth'] = 0.5
-from SeisCL.python.tape import Variable
+from SeisCL.python.tape.tape import Variable
 
 
 class Receiver:
