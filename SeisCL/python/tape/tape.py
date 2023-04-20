@@ -2,11 +2,6 @@
 #TODO cache data in Tape in memory pool
 #TODO eager and compiled mode
 
-import numpy as np
-from copy import copy, deepcopy
-import unittest
-
-
 class TapeHolder:
     tape = None
 

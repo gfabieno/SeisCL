@@ -1,8 +1,8 @@
 from inspect import signature
 from copy import copy, deepcopy
 import numpy as np
-from SeisCL.python.tape.tape import Tape, TapeHolder
-from SeisCL.python.variable import Variable
+from SeisCL.python import Tape, TapeHolder
+from SeisCL.python import Variable
 
 
 class Function(TapeHolder):

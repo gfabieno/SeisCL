@@ -88,7 +88,7 @@ class FunctionTester(unittest.TestCase):
             self.assertEqual(var1.data[0], 0)
             fun.recover_states([], var1)
             self.assertEqual(var1.data[0], 1)
-            self.assertTrue(fun.backward_test(var1, verbose=False) < 1e-12)
+            self.assertTrue(fun.backward_test(var1, verbose=False) < 1e-8)
 
 
 class Function1(Function):

@@ -1,3 +1,4 @@
-from .function import *
+from .tape import *
 from .variable import *
-from SeisCL.python.tape.tape import *
+from .function import *
+from .gpu import *
