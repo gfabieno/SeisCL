@@ -18,6 +18,11 @@ options_def = ["-D LCOMM=0",
                "-D NUM_DEVICES=0",
                "-D NLOCALP=0"]
 
+cudacl = {"FUNDEF": {"opencl": "__kernel", "cuda": "__global__"},
+          "LFUNDEF": {"opencl": "", "cuda": "__device__ __inline__"},
+          "GLOBARG": {"opencl": "__global", "cuda": ""},
+          "LOCID": {"opencl": "__local", "cuda": "__shared__"},
+          }
 
 class ComputeRessource:
 
@@ -53,7 +58,6 @@ class VariableCL(Variable):
                  initialize_method="zero", dtype=np.float32,
                  pad=None, differentiable=True):
         self.queue = queue
-        self._struct_np, self.struct_c = self.define_struct()
         self.copy_array = CopyArrayCL(queue.context)
         super().__init__(data=data, shape=shape, lin=lin, grad=grad,
                          initialize_method=initialize_method, dtype=dtype,
@@ -76,70 +80,11 @@ class VariableCL(Variable):
                              "or cl.array.Array")
         return data
 
-    #TODO create such a structure is not available in pycuda
-    #Workwaround: define as macro or as seperate kenerl inputs
-    def define_struct(self):
-        dtype = np.dtype([
-            ("NX", np.int32),
-            ("NY", np.int32),
-            ("NZ", np.int32),
-            ("nt", np.int32),
-            ("dh", np.float32),
-            ("dt", np.float32),
-            ("offset", np.int32),
-            ("lsizez", np.int32),
-            ("lsizex", np.int32),
-            ("lidx", np.int32),
-            ("lidz", np.int32),
-            ("gidx", np.int32),
-            ("gidz", np.int32),
-        ])
-        name = "grid"
-        dtype, c_decl = match_dtype_to_c_struct(self.queue.device, name, dtype)
-        dtype = get_or_register_dtype(name, dtype)
-
-        return dtype, c_decl
-
-    # TODO revise and remove
-    @property
-    def headers(self):
-        return self.struct_c + get_pos_header + grid_stop_header
-
-    # TODO revise and remove
-    @property
-    def options(self):
-        return ["-D __FDOH__=%d" % self.pad,
-                "-D __ND__=%d" % len(self.shape)]
-
-    # TODO revise and remove
-    @property
-    def struct_np(self):
-        struct = np.zeros(1, self._struct_np)
-        if len(self.shape) == 1:
-            struct[0]["NZ"] = self.shape[0]
-        elif len(self.shape) == 2:
-            struct[0]["NZ"] = self.shape[0]
-            struct[0]["NX"] = self.shape[1]
-        elif len(self.shape) == 3:
-            struct[0]["NZ"] = self.shape[0]
-            struct[0]["NY"] = self.shape[1]
-            struct[0]["NX"] = self.shape[2]
-        struct[0]["nt"] = self.nt
-        struct[0]["dh"] = self.dh
-        struct[0]["dt"] = self.dt
-        return struct
-
 
 class Kernel:
 
-    cudacl = {"FUNDEF": "__kernel",
-              "LFUNDEF": "",
-              "GLOBARG": "__global",
-              "LOCID": "__local",
-              }
-
     def __init__(self, queue, name, signature, src, header, options,
-                 mode, local_size=None):
+                 mode, local_size=None, check_shape=False, platform="opencl"):
 
         self.queue = queue
         self.name = name
@@ -149,9 +94,12 @@ class Kernel:
         self.options = options
         self.mode = mode
         self.local_size = local_size
+        self.check_shape = check_shape
+        self.platform = platform
         self.event = None
         self._prog = None
         self._kernel = None
+        self._kernal_variables_shape = None
 
     def __call__(self, grid_size, *args, **kwargs):
         a = self.signature.bind(*args, **kwargs)
@@ -168,42 +116,7 @@ class Kernel:
                                 self.global_size(grid_size),
                                 self.local_size,
                                 *self.arg_list(a.arguments))
-
-    #TODO method defining macros for Variable size
-
-    def argument_definition(self, arguments):
-        argdef = []
-        for el, var in arguments.items():
-            if isinstance(var, VariableCL):
-                if var.dtype == np.float32:
-                    dtype = "float"
-                elif var.dtype == np.int32:
-                    dtype = "int"
-                elif var.dtype == np.float64:
-                    dtype = "double"
-                elif var.dtype == np.int64:
-                    dtype = "long"
-                elif var.dtype == np.float16:
-                    dtype = "half"
-                else:
-                    raise TypeError("Type not supported for %s with type %s"
-                                    % (el, var.dtype))
-                globarg = self.cudacl["GLOBARG"]
-                argdef.append("%s %s * %s, \n" % (globarg, dtype, el))
-                if self.mode == "linear":
-                    argdef.append("%s %s * %s_lin, \n" % (globarg, dtype, el))
-                if self.mode == "adjoint":
-                    argdef.append("%s %s * %s_adj, \n" % (globarg, dtype, el))
-            elif isinstance(var, int) or isinstance(var, np.int32):
-                argdef.append("int %s, \n" % (el))
-            elif isinstance(var, float) or isinstance(var, np.float32):
-                argdef.append("float %s, \n" % (el))
-            elif isinstance(var, bool) or isinstance(var, np.bool):
-                argdef.append("int %s, \n" % (el))
-            else:
-                raise TypeError("Type not supported: %s" % type(var))
-        argdef[-1] = argdef[-1][:-3]
-        return argdef
+        return self.event
 
     def arg_list(self, arguments):
         arg_list = []
@@ -226,11 +139,27 @@ class Kernel:
         return arg_list
 
     def kernel(self, arguments, grid_size):
+
+        if self._kernel and self.check_shape:
+            variables = {name: var for name, var in arguments.items()
+                         if isinstance(var, Variable)}
+            for name, var in variables.items():
+                if self._kernel_variables_shape[name] != var.shape:
+                    Warning("Shape of variable %s has changed from %s to %s, "
+                            "recompiling kernel"
+                            % (name, self._kernel_variables_shape[name],
+                               var.shape))
+                    self._kernel = None
+                    break
+        #TODO add grid stopper if applicable
         if not self._kernel:
-            argdef = self.argument_definition(arguments)
-            fundef = self.cudacl["FUNDEF"]
+            argdef = argument_definition(arguments, self.mode, self.platform)
+            fundef = cudacl["FUNDEF"][self.platform]
             grid_struct, grid_filler = get_positional_headers(grid_size,
                                                               self.local_size)
+            variables = {name: var for name, var in arguments.items()
+                         if isinstance(var, Variable)}
+            variables_headers = get_variable_headers(variables, self.mode)
             if isinstance(self.src, str):
                 src = [self.src]
             else:
@@ -250,13 +179,8 @@ class Kernel:
                 srci += "\n".join(["    " + el.strip() for el in s.split("\n")])
                 srci += "\n}"
                 src[src.index(s)] = srci
-            # src = ["%s void %s" % (fundef, name) + argdef + "{\n"
-            #        + grid_filler
-            #        + "\n".join(["    " + el.strip() for el in s.split("\n")])
-            #        + "\n}"
-            #        for name, s in zip(names, src)]
             src = "\n".join(src)
-            src = self.header + grid_struct + src
+            src = self.header + grid_struct + variables_headers + src
             if not self._prog:
                 options = options_def + self.options
 
@@ -363,7 +287,7 @@ class FunctionGPU(Function):
 
         :param src: String containing the body of the kernel. If a List of
                     string is passed, multiple kernels are compiled and
-                    lauched in order.
+                    launched in order.
         :param mode: Either 'forward', 'linear' or 'adjoint'
         :param grid_size: The size of the compute grid to use for the kernel.
         :param args: The list of arguments to pass to the kernel. Must contain
@@ -435,20 +359,66 @@ def get_positional_headers(global_size, local_size):
     return grid_struct_header, grid_filler
 
 
-class Gridtester(FunctionGPU):
-    forward_src = """
-FUNDEF void Gridtester(__global float *a, grid g)
-{
-    get_pos(&g);
-    a[indg(g, 0, 0, 0)] = __ND__;
-}
-"""
+def get_variable_headers(variables, mode):
 
-    def __init__(self, grids=None, computegrid=None, **kwargs):
-        self.required_states = ["a"]
-        self.updated_states = ["a"]
-        self.default_grids = {"a": "a"}
-        super().__init__(grids=grids, computegrid=computegrid, **kwargs)
+    shapes = {}
+    for name, var in variables.items():
+        if var.shape not in shapes:
+            shapes[var.shape] = {name: var}
+        else:
+            shapes[var.shape][name] = var
+    header = ""
+    for shape, vars in shapes.items():
+        varii = "%s(" + ", ".join(["x%d"%ii for ii in range(len(shape))]) + ") "
+        varii += "%s[" + " + ".join(["(x%d) * %d" % (len(shape) - 1 - ii,
+                                                   np.prod(shape[:-ii-1]))
+                                     for ii in range(len(shape)-1)])
+        if len(shape) >1:
+            varii += "+ (x0)]\n"
+        else:
+            varii += "(x0)]\n"
+        for name, var in vars.items():
+            header += "#define " + varii % (name, name)
+            if mode == "linear":
+                header += "#define " + varii % (name + "_lin", name + "_lin")
+            if mode == "adjoint":
+                header += "#define " + varii % (name + "_adj", name + "_adj")
+    return header
+
+
+def argument_definition(arguments, mode, platform):
+    argdef = []
+    for el, var in arguments.items():
+        if isinstance(var, VariableCL):
+            if var.dtype == np.float32:
+                dtype = "float"
+            elif var.dtype == np.int32:
+                dtype = "int"
+            elif var.dtype == np.float64:
+                dtype = "double"
+            elif var.dtype == np.int64:
+                dtype = "long"
+            elif var.dtype == np.float16:
+                dtype = "half"
+            else:
+                raise TypeError("Type not supported for %s with type %s"
+                                % (el, var.dtype))
+            globarg = cudacl["GLOBARG"][platform]
+            argdef.append("%s %s * %s, \n" % (globarg, dtype, el))
+            if mode == "linear":
+                argdef.append("%s %s * %s_lin, \n" % (globarg, dtype, el))
+            if mode == "adjoint":
+                argdef.append("%s %s * %s_adj, \n" % (globarg, dtype, el))
+        elif isinstance(var, int) or isinstance(var, np.int32):
+            argdef.append("int %s, \n" % (el))
+        elif isinstance(var, float) or isinstance(var, np.float32):
+            argdef.append("float %s, \n" % (el))
+        elif isinstance(var, bool) or isinstance(var, np.bool):
+            argdef.append("int %s, \n" % (el))
+        else:
+            raise TypeError("Type not supported: %s" % type(var))
+    argdef[-1] = argdef[-1][:-3]
+    return argdef
 
 
 class DerivativeTester(FunctionGPU):
@@ -526,58 +496,91 @@ class VariableTester(unittest.TestCase):
 
 
 class FunctionGpuTester(unittest.TestCase):
-    def setUp(self):
-        class Sum(FunctionGPU):
 
+    def get_fun(self, ndim):
+        
+        class Sum(FunctionGPU):
             def forward(self, a, b, c):
                 src = """
-                      c[g.x] = a[g.x] + b[g.x];
+                      c(%s) = a(%s) + b(%s);
                       """
+                if len(a.shape) == 1:
+                    src = src % (("g.x", )*3)
+                elif len(a.shape) == 2:
+                    src = src % (("g.z, g.x", )*3)
+                elif len(a.shape) == 3:
+                    src = src % (("g.z, g.y, g.x", )*3)
                 self.gpukernel(src, "forward", a.shape, a, b, c)
                 return c
 
             def linear(self, a, b, c):
                 src = """
-                      c_lin[g.x] = a_lin[g.x] + b_lin[g.x];
+                      c_lin(%s) = a_lin(%s) + b_lin(%s);
                       """
+                if len(a.shape) == 1:
+                    src = src % (("g.x", )*3)
+                elif len(a.shape) == 2:
+                    src = src % (("g.z, g.x", )*3)
+                elif len(a.shape) == 3:
+                    src = src % (("g.z, g.y, g.x", )*3)
                 self.gpukernel(src, "linear", a.shape, a, b, c)
                 return c
 
             def adjoint(self, a, b, c):
                 src = """
-                      a_adj[g.x] += c_adj[g.x];
-                      b_adj[g.x] += c_adj[g.x];
-                      c_adj[g.x] = 0;
+                      a_adj(%s) += c_adj(%s);
+                      b_adj(%s) += c_adj(%s);
+                      c_adj(%s) = 0;
                       """
+                if len(a.shape) == 1:
+                    src = src % (("g.x", )*5)
+                elif len(a.shape) == 2:
+                    src = src % (("g.z, g.x", )*5)
+                elif len(a.shape) == 3:
+                    src = src % (("g.z, g.y, g.x", )*5)
                 self.gpukernel(src, "adjoint", a.shape, a, b, c)
                 return a, b
-        self.resc = ComputeRessource()
-        self.sum = Sum(self.resc.queues[0])
-        self.a = VariableCL(self.resc.queues[0],
-                            data=np.random.rand(10,),
-                            lin=np.random.rand(10,))
-        self.b = VariableCL(self.resc.queues[0],
-                            data=np.random.rand(10,),  lin=np.random.rand(10,))
-        self.c = VariableCL(self.resc.queues[0],
-                            data=np.random.rand(10,),  lin=np.random.rand(10,))
+        resc = ComputeRessource()
+        sum = Sum(resc.queues[0])
+        shape = (3,)*ndim
+        a = VariableCL(resc.queues[0],
+                       data=np.random.rand(*shape),
+                       lin=np.random.rand(*shape))
+        b = VariableCL(resc.queues[0],
+                       data=np.random.rand(*shape),
+                       lin=np.random.rand(*shape))
+        c = VariableCL(resc.queues[0],
+                       data=np.random.rand(*shape),
+                       lin=np.random.rand(*shape))
+        return sum, a, b, c
 
     def test_forward(self):
 
-        c_np = self.a.data.get() + self.b.data.get()
-        c = self.sum(self.a, self.b, self.c)
-        self.assertTrue(np.allclose(c_np, c.data.get()))
+        for dim in range(1, 4):
+            sum, a, b, c = self.get_fun(dim)
+            c_np = a.data.get() + b.data.get()
+            c = sum(a, b, c)
+            self.assertTrue(np.allclose(c_np, c.data.get()))
 
     def test_linear(self):
-        c_lin_np = self.a.lin.get() + self.b.lin.get()
-        c_lin = self.sum(self.a, self.b, self.c, mode="linear")
-        self.assertTrue(np.allclose(c_lin_np, c_lin.lin.get()))
+        for dim in range(1, 4):
+            sum, a, b, c = self.get_fun(dim)
+            c_lin_np = a.lin.get() + b.lin.get()
+            c_lin = sum(a, b, c, mode="linear")
+            self.assertTrue(np.allclose(c_lin_np, c_lin.lin.get()))
 
     def test_dottest(self):
-        self.assertLess(self.sum.dot_test(self.a, self.b, self.c), 1e-6)
+        for dim in range(1, 4):
+            sum, a, b, c = self.get_fun(dim)
+            self.assertLess(sum.dot_test(a, b, c), 1e-6)
 
-    def test_bacward_test(self):
-        self.assertLess(self.sum.backward_test(self.a, self.b, self.c), 1e-12)
+    def test_backward_test(self):
+        for dim in range(1, 4):
+            sum, a, b, c = self.get_fun(dim)
+            self.assertLess(sum.backward_test(a, b, c), 1e-12)
 
     def test_linear_test(self):
-        self.assertLess(self.sum.linear_test(self.a, self.b, self.c), 1e-6)
+        for dim in range(1, 4):
+            sum, a, b, c = self.get_fun(dim)
+            self.assertLess(sum.linear_test(a, b, c), 1e-5)
 

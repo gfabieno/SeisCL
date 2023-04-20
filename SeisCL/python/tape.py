@@ -56,10 +56,11 @@ class Variable(TapeHolder):
                  initialize_method="zero", dtype=np.float32,
                  pad=None, differentiable=True):
 
-        if self.tape.locked:
-            raise PermissionError("Tape locked: "
-                                  "Cannot create a new Variable inside "
-                                  "a TapedFunction ")
+        #TODO do we really need to keep track of the tape?
+        # if self.tape.locked:
+        #     raise PermissionError("Tape locked: "
+        #                           "Cannot create a new Variable inside "
+        #                           "a TapedFunction ")
 
         self.initialize_method = initialize_method
         self.dtype = dtype
