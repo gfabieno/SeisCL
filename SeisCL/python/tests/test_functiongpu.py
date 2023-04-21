@@ -2,7 +2,7 @@
 import unittest
 import numpy as np
 from SeisCL.python import FunctionGPU, ComputeRessource, VariableCL
-
+from SeisCL.python import Grid
 
 class FunctionGpuTester(unittest.TestCase):
 
@@ -14,12 +14,13 @@ class FunctionGpuTester(unittest.TestCase):
                       c(%s) = a(%s) + b(%s);
                       """
                 if len(a.shape) == 1:
-                    src = src % (("g.x", )*3)
+                    src = src % (("g.z", )*3)
                 elif len(a.shape) == 2:
                     src = src % (("g.z, g.x", )*3)
                 elif len(a.shape) == 3:
                     src = src % (("g.z, g.y, g.x", )*3)
-                self.gpukernel(src, "forward", a.shape, a, b, c)
+                grid = Grid(shape=a.shape)
+                self.gpukernel(src, "forward", grid, a, b, c)
                 return c
 
             def linear(self, a, b, c):
@@ -27,12 +28,13 @@ class FunctionGpuTester(unittest.TestCase):
                       c_lin(%s) = a_lin(%s) + b_lin(%s);
                       """
                 if len(a.shape) == 1:
-                    src = src % (("g.x", )*3)
+                    src = src % (("g.z", )*3)
                 elif len(a.shape) == 2:
                     src = src % (("g.z, g.x", )*3)
                 elif len(a.shape) == 3:
                     src = src % (("g.z, g.y, g.x", )*3)
-                self.gpukernel(src, "linear", a.shape, a, b, c)
+                grid = Grid(shape=a.shape)
+                self.gpukernel(src, "linear", grid, a, b, c)
                 return c
 
             def adjoint(self, a, b, c):
@@ -42,12 +44,13 @@ class FunctionGpuTester(unittest.TestCase):
                       c_adj(%s) = 0;
                       """
                 if len(a.shape) == 1:
-                    src = src % (("g.x", )*5)
+                    src = src % (("g.z", )*5)
                 elif len(a.shape) == 2:
                     src = src % (("g.z, g.x", )*5)
                 elif len(a.shape) == 3:
                     src = src % (("g.z, g.y, g.x", )*5)
-                self.gpukernel(src, "adjoint", a.shape, a, b, c)
+                grid = Grid(shape=a.shape)
+                self.gpukernel(src, "adjoint", grid, a, b, c)
                 return a, b
         resc = ComputeRessource()
         sum = Sum(resc.queues[0])

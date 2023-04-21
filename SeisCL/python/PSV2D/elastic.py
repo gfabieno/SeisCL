@@ -5,7 +5,7 @@ from SeisCL.python.pycl_backend import (GridCL,
                                         SequenceCL,
                                         PropagatorCL,
                                         )
-from SeisCL.python.FDstencils import FDCoefficients
+from SeisCL.python.stencils.fdcoefficient import FDCoefficients
 from SeisCL.python.PSV2D.elastic_numpy import ReversibleFunction, ricker, Cerjan
 from SeisCL.python.common.sources import Source
 from SeisCL.python.common.receivers import Receiver

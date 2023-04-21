@@ -6,7 +6,7 @@ from SeisCL.python.pycl_backend import (GridCL,
                                         PropagatorCL,
                                         )
 from SeisCL.python.PSV2D.elastic_numpy import ricker
-from SeisCL.python.FDstencils import FDCoefficients
+from SeisCL.python.stencils.fdcoefficient import FDCoefficients
 from SeisCL.python.common.vel2lame import Velocity2LameCL
 from SeisCL.python.PSV2D.elastic import ScaledParameters
 from SeisCL.python.common.averaging import (ArithmeticAveraging,

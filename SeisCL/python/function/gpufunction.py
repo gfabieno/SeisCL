@@ -22,7 +22,7 @@ class FunctionGPU(Function):
         self._gpukernel = {"forward": None, "linear": None, "adjoint": None}
         super().__init__()
 
-    def gpukernel(self, src, mode, grid_size, *args, **kwargs):
+    def gpukernel(self, src, mode, grid, *args, **kwargs):
         """
         Launch the GPU kernel. The kernel is compiled and cached the first time
         it is called. The kernel is then launched with the arguments passed to
@@ -32,7 +32,8 @@ class FunctionGPU(Function):
                     string is passed, multiple kernels are compiled and
                     launched in order.
         :param mode: Either 'forward', 'linear' or 'adjoint'
-        :param grid_size: The size of the compute grid to use for the kernel.
+        :param grid: A `Grid` object containing the grid on which the kernel
+                     is launched.
         :param args: The list of arguments to pass to the kernel. Must contain
                      only `Variable` objects, int, float or bool.
         :param kwargs: Same as args, but passed as keyword arguments.
@@ -52,7 +53,7 @@ class FunctionGPU(Function):
                                            mode,
                                            self.local_size
                                            )
-        self._gpukernel[mode](grid_size, *args, **kwargs)
+        self._gpukernel[mode](grid, *args, **kwargs)
     # def cache_states(self, states):
     #     for el in self.updated_states:
     #         if el in self.updated_regions:

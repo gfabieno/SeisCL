@@ -15,6 +15,8 @@ cudacl = {"FUNDEF": {"opencl": "__kernel", "cuda": "__global__"},
           "LFUNDEF": {"opencl": "", "cuda": "__device__ __inline__"},
           "GLOBARG": {"opencl": "__global", "cuda": ""},
           "LOCID": {"opencl": "__local", "cuda": "__shared__"},
+          "BARRIER": {"opencl": "barrier(CLK_LOCAL_MEM_FENCE);",
+                      "cuda": "__syncthreads();"},
           }
 
 options_def = ["-D LCOMM=0",
@@ -29,7 +31,8 @@ options_def = ["-D LCOMM=0",
 class Kernel:
 
     def __init__(self, queue, name, signature, src, header, options,
-                 mode, local_size=None, check_shape=False, platform="opencl"):
+                 mode, local_size=None, check_shape=False, platform="opencl",
+                 include=None):
 
         self.queue = queue
         self.name = name
@@ -41,15 +44,16 @@ class Kernel:
         self.local_size = local_size
         self.check_shape = check_shape
         self.platform = platform
+        self.include = include
         self.event = None
         self._prog = None
         self._kernel = None
         self._kernal_variables_shape = None
 
-    def __call__(self, grid_size, *args, **kwargs):
+    def __call__(self, grid, *args, **kwargs):
         a = self.signature.bind(*args, **kwargs)
         a.apply_defaults()
-        kernels = self.kernel(a.arguments, grid_size)
+        kernels = self.kernel(a.arguments, grid)
 
         #TODO remove the list of kernel capibility if applicable
         if "backpropagate" in kwargs:
@@ -58,7 +62,7 @@ class Kernel:
 
         for kernel in kernels:
             self.event = kernel(self.queue,
-                                self.global_size(grid_size),
+                                self.global_size(grid.shape),
                                 self.local_size,
                                 *self.arg_list(a.arguments))
         return self.event
@@ -83,7 +87,7 @@ class Kernel:
                                 % (type(var), el))
         return arg_list
 
-    def kernel(self, arguments, grid_size):
+    def kernel(self, arguments, grid):
 
         if self._kernel and self.check_shape:
             variables = {name: var for name, var in arguments.items()
@@ -100,8 +104,9 @@ class Kernel:
         if not self._kernel:
             argdef = argument_definition(arguments, self.mode, self.platform)
             fundef = cudacl["FUNDEF"][self.platform]
-            grid_struct, grid_filler = get_positional_headers(grid_size,
-                                                              self.local_size)
+            grid_struct, grid_filler = get_positional_headers(len(grid.shape),
+                                                              self.local_size,
+                                                              grid.pad)
             variables = {name: var for name, var in arguments.items()
                          if isinstance(var, Variable)}
             variables_headers = get_variable_headers(variables, self.mode)
@@ -125,6 +130,7 @@ class Kernel:
                 srci += "\n}"
                 src[src.index(s)] = srci
             src = "\n".join(src)
+
             src = self.header + grid_struct + variables_headers + src
             if not self._prog:
                 options = options_def + self.options
@@ -132,10 +138,16 @@ class Kernel:
                 #TODO redefine the EPS macro
                 #options += ["-D __EPS__=%d" % self.grid.smallest]
                 if self.local_size is not None:
-                    total = np.prod([el+self.grid.pad*2
+                    total = np.prod([el+grid.pad*2
                                      for el in self.local_size])
                     options += ["-D __LSIZE__=%d" % total]
-                self._prog = compile(self.queue.context, src, options)
+                    options += ["-D LOCID=%s" % cudacl["LOCID"][self.platform]]
+                    options += ["-D BARRIER=%s" % cudacl["BARRIER"][self.platform]]
+                try:
+                    self._prog = compile(self.queue.context, src, options)
+                except Exception as e:
+                    print(src)
+                    raise e
             self._kernel = [getattr(self._prog, name) for name in names]
         return self._kernel
 
@@ -147,15 +159,15 @@ class Kernel:
                     for s, l in zip(grid_size, self.local_size)]
 
 
-def get_positional_headers(global_size, local_size):
+def get_positional_headers(nd, local_size, pad=0):
 
     grid_struct_header = """typedef struct grid{\n"""
-    if len(global_size) == 3:
+    if nd == 3:
         names = ["z", "y", "x"]
-    elif len(global_size) == 2:
+    elif nd == 2:
         names = ["z", "x"]
-    elif len(global_size) == 1:
-        names = ["x"]
+    elif nd == 1:
+        names = ["z"]
     else:
         raise ValueError("global_size must be a list of length 1, 2 or 3")
 
@@ -163,20 +175,28 @@ def get_positional_headers(global_size, local_size):
         grid_struct_header += "    int %s;\n" % name
     if local_size is not None:
         for name in names:
-            grid_struct_header += "    int l%s{};\n" % name
+            grid_struct_header += "    int l%s;\n" % name
         for name in names:
-            grid_struct_header += "    int lsize%s{}\n;" % name
+            grid_struct_header += "    int nl%s;\n" % name
 
     grid_struct_header += "} grid;\n"
 
     grid_filler = "    grid g;\n"
+    if pad > 0:
+        padstr = " + %d" % pad
+        padstr2 = " + %d" % (2*pad)
+    else:
+        padstr = padstr2 = ""
+
     for ii, name in enumerate(names):
-        grid_filler += "    g.%s = get_global_id(%d);\n" % (name, ii)
+        grid_filler += "    g.%s = get_global_id(%d)%s;\n" % (name, ii, padstr)
     if local_size is not None:
         for ii, name in enumerate(names):
-            grid_filler += "    g.l%s = get_local_id(%d);\n" % (name, ii)
+            grid_filler += "    g.l%s = get_local_id(%d)%s;\n" \
+                           % (name, ii, padstr)
         for ii, name in enumerate(names):
-            grid_filler += "    g.lsize%s = get_local_size(%d);\n" % (name, ii)
+            grid_filler += "    g.nl%s = get_local_size(%d)%s;\n" \
+                           % (name, ii, padstr2)
 
     return grid_struct_header, grid_filler
 
@@ -195,7 +215,7 @@ def get_variable_headers(variables, mode):
         varii += "%s[" + " + ".join(["(x%d) * %d" % (len(shape) - 1 - ii,
                                                      np.prod(shape[:-ii-1]))
                                      for ii in range(len(shape)-1)])
-        if len(shape) >1:
+        if len(shape) > 1:
             varii += "+ (x0)]\n"
         else:
             varii += "(x0)]\n"

@@ -1,10 +1,4 @@
-
-import numpy as np
-import unittest
-import pyopencl as cl
-import pyopencl.array
-from SeisCL.python import Variable, Function, ReversibleFunction
-from SeisCL.python.FDstencils import FDCoefficients
+from SeisCL.python.stencils.fdcoefficient import FDCoefficients
 
 
 
