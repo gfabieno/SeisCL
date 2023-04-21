@@ -1,4 +1,4 @@
-from SeisCL.python.PSV2D.elastic_numpy import (ReversibleFunction)
+from SeisCL.python.seismic.PSV2D.elastic_numpy import (ReversibleFunction)
 from SeisCL.python.pycl_backend import ComputeRessource, GridCL
 import numpy as np
 from pyopencl.array import max

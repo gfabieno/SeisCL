@@ -27,7 +27,8 @@ options_def = ["-D LCOMM=0",
                "-D NUM_DEVICES=0",
                "-D NLOCALP=0"]
 
-
+#TODO header creation is scattered all over the place, review
+#TODO document the header options
 class Kernel:
 
     def __init__(self, queue, name, signature, src, header, options,

@@ -6,15 +6,15 @@ from SeisCL.python.pycl_backend import (GridCL,
                                         PropagatorCL,
                                         )
 from SeisCL.python.stencils.fdcoefficient import FDCoefficients
-from SeisCL.python.PSV2D.elastic_numpy import ReversibleFunction, ricker, Cerjan
-from SeisCL.python.common.sources import Source
-from SeisCL.python.common.receivers import Receiver
+from SeisCL.python.seismic.PSV2D.elastic_numpy import ReversibleFunction, ricker, Cerjan
+from SeisCL.python.seismic.common.sources import Source
+from SeisCL.python.seismic.common.receivers import Receiver
 import numpy as np
 from copy import copy
 from pyopencl.array import max
-from SeisCL.python.common.vel2lame import Velocity2LameCL
-from SeisCL.python.common.scaling import ScaledParameters
-from SeisCL.python.common.averaging import ArithmeticAveraging, HarmonicAveraging
+from SeisCL.python.seismic.common.vel2lame import Velocity2LameCL
+from SeisCL.python.seismic.common.scaling import ScaledParameters
+from SeisCL.python.seismic.common.averaging import ArithmeticAveraging, HarmonicAveraging
 import matplotlib.pyplot as plt
 
 #TODO interface with backward compatibility with SeisCL

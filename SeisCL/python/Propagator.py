@@ -1,6 +1,6 @@
 import numpy as np
 
-from SeisCL.python.common.Acquisition import Acquisition, Shot
+from SeisCL.python.seismic.common.Acquisition import Acquisition, Shot
 from SeisCL.python.Losses import NormalizedL2
 from SeisCL.python.tape.tape import TapedFunction, Variable
 from typing import List

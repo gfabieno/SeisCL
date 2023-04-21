@@ -5,16 +5,16 @@ from SeisCL.python.pycl_backend import (GridCL,
                                         SequenceCL,
                                         PropagatorCL,
                                         )
-from SeisCL.python.PSV2D.elastic_numpy import ricker
+from SeisCL.python.seismic.PSV2D.elastic_numpy import ricker
 from SeisCL.python.stencils.fdcoefficient import FDCoefficients
-from SeisCL.python.common.vel2lame import Velocity2LameCL
-from SeisCL.python.PSV2D.elastic import ScaledParameters
-from SeisCL.python.common.averaging import (ArithmeticAveraging,
-                                            HarmonicAveraging,
-                                            ArithmeticAveraging2)
-from SeisCL.python.common.sources import Source
-from SeisCL.python.common.receivers import Receiver
-from SeisCL.python.PSV2D.elastic import UpdateVelocity
+from SeisCL.python.seismic.common.vel2lame import Velocity2LameCL
+from SeisCL.python.seismic.PSV2D.elastic import ScaledParameters
+from SeisCL.python.seismic.common.averaging import (ArithmeticAveraging,
+                                                    HarmonicAveraging,
+                                                    ArithmeticAveraging2)
+from SeisCL.python.seismic.common.sources import Source
+from SeisCL.python.seismic.common.receivers import Receiver
+from SeisCL.python.seismic.PSV2D.elastic import UpdateVelocity
 import numpy as np
 from copy import copy
 import matplotlib.pyplot as plt
