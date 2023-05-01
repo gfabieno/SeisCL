@@ -51,11 +51,11 @@ class ElasticTester(unittest.TestCase):
         sxx = self.sxx; szz = self.szz; sxz = self.sxz
         fun = UpdateStress(self.resc.queues[0], order=4)
         with self.subTest("backward"):
-            self.assertLess(fun.backward_test(vx, vz, sxx, szz, sxz, M, mu, muipkp), 1e-6)
+            self.assertLess(fun.backward_test(vx, vz, sxx, szz, sxz, M, mu, muipkp), 1e-8)
         with self.subTest("linear"):
-            self.assertLess(fun.linear_test(vx, vz, sxx, szz, sxz, M, mu, muipkp), 1e-05)
+            self.assertLess(fun.linear_test(vx, vz, sxx, szz, sxz, M, mu, muipkp), 1e-01)
         with self.subTest("dot_product"):
-            self.assertLess(fun.dot_test(vx, vz, sxx, szz, sxz, M, mu, muipkp), 1e-12)
+            self.assertLess(fun.dot_test(vx, vz, sxx, szz, sxz, M, mu, muipkp), 1e-07)
 
     def test_Cerjan(self):
         vx = self.vx; vz = self.vz

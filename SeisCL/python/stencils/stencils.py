@@ -74,10 +74,10 @@ def get_local_memory_loader(order, nd, local_size, with_ops=False,
         load_local_halox = ""
     header += load_local_halox
     if with_ops:
-        header += load_local_halox.replace("load", "mul").replace("=", "*=")
-        header += load_local_halox.replace("load", "add").replace("=", "+=")
-        header += load_local_halox.replace("load", "sub").replace("=", "-=")
-        header += load_local_halox.replace("load", "div").replace("=", "/=")
+        header += load_local_halox.replace("load", "mul").replace(")=v", ")*=v")
+        header += load_local_halox.replace("load", "add").replace(")=v", ")+=v")
+        header += load_local_halox.replace("load", "sub").replace(")=v", ")-=v")
+        header += load_local_halox.replace("load", "div").replace(")=v", ")/=v")
 
     if with_for_loop:
         load_local_haloy = """
@@ -105,15 +105,15 @@ def get_local_memory_loader(order, nd, local_size, with_ops=False,
         load_local_haloy = ""
     header += load_local_haloy
     if with_ops:
-        header += load_local_haloy.replace("load", "mul").replace("=", "*=")
-        header += load_local_haloy.replace("load", "add").replace("=", "+=")
-        header += load_local_haloy.replace("load", "sub").replace("=", "-=")
-        header += load_local_haloy.replace("load", "div").replace("=", "/=")
+        header += load_local_haloy.replace("load", "mul").replace(")=v", ")*=v")
+        header += load_local_haloy.replace("load", "add").replace(")=v", ")+=v")
+        header += load_local_haloy.replace("load", "sub").replace(")=v", ")-=v")
+        header += load_local_haloy.replace("load", "div").replace(")=v", ")/=v")
 
     if with_for_loop:
         load_local_haloz = """
         #define load_local_haloz(v, lv) \\
-        do{\\   
+        do{\\
             for (int i=g.lz-FDOH; i<FDOH; i+=g.nlz-2*FDOH)\\
                 lv(i, g.ly, g.lx)=v(g.z-g.lz+i, g.y, g.x);\\
             for (int i=g.lz%(g.nlz-2*FDOH) ; i<FDOH; i+=g.nlz-2*FDOH)\\
@@ -137,10 +137,10 @@ def get_local_memory_loader(order, nd, local_size, with_ops=False,
         load_local_haloz = load_local_haloz.replace("g.y, ", "")
     header += load_local_haloz
     if with_ops:
-        header += load_local_haloz.replace("load", "mul").replace("=", "*=")
-        header += load_local_haloz.replace("load", "add").replace("=", "+=")
-        header += load_local_haloz.replace("load", "sub").replace("=", "-=")
-        header += load_local_haloz.replace("load", "div").replace("=", "/=")
+        header += load_local_haloz.replace("load", "mul").replace(")=v", ")*=v")
+        header += load_local_haloz.replace("load", "add").replace(")=v", ")+=v")
+        header += load_local_haloz.replace("load", "sub").replace(")=v", ")-=v")
+        header += load_local_haloz.replace("load", "div").replace(")=v", ")/=v")
 
     header = header.replace("2*FDOH", "%d" % order)
     header = header.replace("FDOH", "%d" % (order//2))

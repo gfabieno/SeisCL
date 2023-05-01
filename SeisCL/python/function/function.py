@@ -192,11 +192,11 @@ class Function(TapeHolder):
             for out, pout in zip(outs, pouts):
                 if pouts and out:
                     smallest = out.smallest
-                    erri = (pout.data - out.data) / (eps * out.lin + smallest) - 1.0
+                    erri = (pout.data - out.data - eps * out.lin) / (eps * out.lin + 10*smallest)
                     if hasattr(erri, "get"):
                         erri = erri.get()[()]
-                    erri -= 1.0
                     err = np.max([err, np.max(erri)])
+
             errs.append(err)
 
             eps /= 10.0
