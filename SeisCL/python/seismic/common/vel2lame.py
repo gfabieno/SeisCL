@@ -1,5 +1,5 @@
-from SeisCL.python.seismic.PSV2D.elastic_numpy import (ReversibleFunction)
-from SeisCL.python.pycl_backend import ComputeRessource, GridCL, ReversibleFunctionCL
+from SeisCL.python import ReversibleFunction
+from SeisCL.python import ComputeRessource, ReversibleFunctionGPU
 import numpy as np
 import pyopencl.clmath as math
 
@@ -71,7 +71,7 @@ class Velocity2Lame(ReversibleFunction):
         return states
 
 
-class Velocity2LameCL(ReversibleFunctionCL):
+class Velocity2LameGPU(ReversibleFunctionGPU):
 
     forward_src = """
     FUNDEF void Velocity2LameCL(grid pos,

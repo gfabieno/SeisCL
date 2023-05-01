@@ -1,13 +1,10 @@
-from SeisCL.python.pycl_backend import (ReversibleFunctionCL,
-                                        GridCL,
-                                        ComputeRessource,
-                                        )
+from SeisCL.python import (ReversibleFunctionGPU, ComputeRessource)
 import numpy as np
 import pyopencl as cl
 import pyopencl.array
 
 #TODO cannot perform dot product
-class Receiver(ReversibleFunctionCL):
+class Receiver(ReversibleFunctionGPU):
 
     forward_src = """
     FUNDEF void Receiver(grid pos,

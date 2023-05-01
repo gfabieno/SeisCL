@@ -1,8 +1,5 @@
 
-from SeisCL.python.pycl_backend import (GridCL,
-                                        FunctionGPU,
-                                        ComputeRessource,
-                                        )
+from SeisCL.python import (FunctionGPU, ComputeRessource)
 import numpy as np
 
 

@@ -1,18 +1,13 @@
-from SeisCL.python.pycl_backend import (GridCL,
-                                        FunctionGPU,
-                                        ReversibleFunctionCL,
-                                        ComputeRessource,
-                                        SequenceCL,
-                                        PropagatorCL,
-                                        )
-from SeisCL.python.stencils.fdcoefficient import FDCoefficients
-from SeisCL.python.seismic.PSV2D.elastic_numpy import ReversibleFunction, ricker, Cerjan
+from SeisCL.python import (ComputeGrid, FunctionGPU, ReversibleFunctionGPU, ReversibleFunction,
+                           ComputeRessource)
+from SeisCL.python import get_header_stencil
+from SeisCL.python.seismic.PSV2D.elastic_numpy import ricker, Cerjan
 from SeisCL.python.seismic.common.sources import Source
 from SeisCL.python.seismic.common.receivers import Receiver
 import numpy as np
 from copy import copy
 from pyopencl.array import max
-from SeisCL.python.seismic.common.vel2lame import Velocity2LameCL
+from SeisCL.python.seismic.common.vel2lame import Velocity2LameGPU
 from SeisCL.python.seismic.common.scaling import ScaledParameters
 from SeisCL.python.seismic.common.averaging import ArithmeticAveraging, HarmonicAveraging
 import matplotlib.pyplot as plt
@@ -22,256 +17,226 @@ import matplotlib.pyplot as plt
 #TODO PML
 
 
+class UpdateStress(ReversibleFunctionGPU):
 
-class UpdateStress(ReversibleFunctionCL):
-    forward_src = """
-FUNDEF void UpdateStress(grid pos,
-                         GLOBARG float *vx,         GLOBARG float *vz,
-                         GLOBARG float *sxx,        GLOBARG float *szz,
-                         GLOBARG float *sxz,        GLOBARG float *M,
-                         GLOBARG float *mu,         GLOBARG float *muipkp,
-                         int backpropagate)
-{
-    
-    get_pos(&pos);
-    LOCID float lvar[__LSIZE__];
-    
-    float vxx, vzz, vzx, vxz;
-    int ind0 = indg(pos,0,0,0);
-    
-// Calculation of the velocity spatial derivatives
-#if LOCAL_OFF==0
-    load_local_in(pos, vx, lvar);
-    load_local_haloz(pos, vx, lvar);
-    load_local_halox(pos, vx, lvar);
-    BARRIER
-#endif
-    vxx = Dxm(pos, lvar);
-    vxz = Dzp(pos, lvar);
-    
-#if LOCAL_OFF==0
-    BARRIER
-    load_local_in(pos, vz, lvar);
-    load_local_haloz(pos, vz, lvar);
-    load_local_halox(pos, vz, lvar);
-    BARRIER
-#endif
-    vzz = Dzm(pos, lvar);
-    vzx = Dxp(pos, lvar);
-    
-    gridstop(pos);
+    def __init__(self, queue, order=8, local_size=(16, 16)):
+        super().__init__(queue, local_size=local_size)
+        self.header, self.local_header = get_header_stencil(order, 2,
+                                                            local_size=local_size,
+                                                            with_local_ops=True)
+        self.order = order
 
-// Update the stresses
-    int sign = -2*backpropagate+1; 
-    sxz[ind0]+= sign * (muipkp[ind0]*(vxz+vzx));
-    sxx[ind0]+= sign * ((M[ind0]*(vxx+vzz))-(2.0*mu[ind0]*vzz));
-    szz[ind0]+= sign * ((M[ind0]*(vxx+vzz))-(2.0*mu[ind0]*vxx));
-}
-"""
+    def forward(self, vx, vz, sxx, szz, sxz, M, mu, muipkp, backpropagate=0):
+        """
+        Update the stresses
+        """
+        src = self.local_header
+        src += """        
+        float vxx, vzz, vzx, vxz;
+                
+        // Calculation of the velocity spatial derivatives
+        #if LOCAL_OFF==0
+            load_local_in(vx, lvar);
+            load_local_haloz(vx, lvar);
+            load_local_halox(vx, lvar);
+            BARRIER
+        #endif
+        vxx = Dxm(lvar);
+        vxz = Dzp(lvar);
+        
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(vz, lvar);
+            load_local_haloz(vz, lvar);
+            load_local_halox(vz, lvar);
+            BARRIER
+        #endif
+        vzz = Dzm(lvar);
+        vzx = Dxp(lvar);
+        
+        gridstop(g);
+    
+        // Update the stresses
+        int sign = -2*backpropagate+1; 
+        sxz(g.z, g.x) = backpropagate;
+        //sxz(g.z, g.x) += sign * (muipkp(g.z, g.x)*(vxz+vzx));
+        sxx(g.z, g.x) += sign * ((M(g.z, g.x)*(vxx+vzz))-(2.0*mu(g.z, g.x)*vzz));
+        szz(g.z, g.x) += sign * ((M(g.z, g.x)*(vxx+vzz))-(2.0*mu(g.z, g.x)*vxx));
+        """
+        grid = ComputeGrid(shape=[s - self.order for s in vx.shape],
+                           queue=self.queue,
+                           origin=[self.order//2 for _ in vx.shape])
+        self.gpukernel(src, "forward", grid, vx, vz, sxx, szz, sxz, M, mu, muipkp)
+        return sxx, szz, sxz
 
-    linear_src = """
-FUNDEF void UpdateStress_lin(grid pos,
-                       GLOBARG float *vx,         GLOBARG float *vz,
-                       GLOBARG float *sxx,        GLOBARG float *szz,
-                       GLOBARG float *sxz,        GLOBARG float *M,
-                       GLOBARG float *mu,         GLOBARG float *muipkp,
-                       GLOBARG float *vx_lin,     GLOBARG float *vz_lin,
-                       GLOBARG float *sxx_lin,    GLOBARG float *szz_lin,
-                       GLOBARG float *sxz_lin,    GLOBARG float *M_lin,
-                       GLOBARG float *mu_lin,     GLOBARG float *muipkp_lin)
-{
-    
-    get_pos(&pos);
-    LOCID float lvar[__LSIZE__];
-    
-    float vxx, vzz, vzx, vxz;
-    float vxx_lin, vzz_lin, vzx_lin, vxz_lin;
-    int ind0 = indg(pos,0,0,0);
-    
-// Calculation of the velocity spatial derivatives
-#if LOCAL_OFF==0
-    load_local_in(pos, vx, lvar);
-    load_local_haloz(pos, vx, lvar);
-    load_local_halox(pos, vx, lvar);
-    BARRIER
-#endif
-    vxx = Dxm(pos, lvar);
-    vxz = Dzp(pos, lvar);
-    
-#if LOCAL_OFF==0
-    BARRIER
-    load_local_in(pos, vx_lin, lvar);
-    load_local_haloz(pos, vx_lin, lvar);
-    load_local_halox(pos, vx_lin, lvar);
-    BARRIER
-#endif
-    vxx_lin = Dxm(pos, lvar);
-    vxz_lin = Dzp(pos, lvar);
-    
-#if LOCAL_OFF==0
-    BARRIER
-    load_local_in(pos, vz, lvar);
-    load_local_haloz(pos, vz, lvar);
-    load_local_halox(pos, vz, lvar);
-    BARRIER
-#endif
-    vzz = Dzm(pos, lvar);
-    vzx = Dxp(pos, lvar);
-    
-#if LOCAL_OFF==0
-    BARRIER
-    load_local_in(pos, vz_lin, lvar);
-    load_local_haloz(pos, vz_lin, lvar);
-    load_local_halox(pos, vz_lin, lvar);
-    BARRIER
-#endif
-    vzz_lin = Dzm(pos, lvar);
-    vzx_lin = Dxp(pos, lvar);
-    gridstop(pos);
-    
-    sxz_lin[ind0]+= muipkp[ind0]*(vxz_lin+vzx_lin)\
-                   +muipkp_lin[ind0]*(vxz+vzx);
-    sxx_lin[ind0]+= M[ind0]*(vxx_lin+vzz_lin)-(2.0*mu[ind0]*vzz_lin) \
-                   +M_lin[ind0]*(vxx+vzz)-(2.0*mu_lin[ind0]*vzz);
-    szz_lin[ind0]+= M[ind0]*(vxx_lin+vzz_lin)-(2.0*mu[ind0]*vxx_lin) \
-                   +M_lin[ind0]*(vxx+vzz)-(2.0*mu_lin[ind0]*vxx);
-}
-"""
+    def linear(self, vx, vz, sxx, szz, sxz, M, mu, muipkp, backpropagate=0):
 
-    adjoint_src = """
-FUNDEF void UpdateStress_adj(grid pos,
-                       GLOBARG float *vx,         GLOBARG float *vz,
-                       GLOBARG float *sxx,        GLOBARG float *szz,
-                       GLOBARG float *sxz,        GLOBARG float *M,
-                       GLOBARG float *mu,         GLOBARG float *muipkp,
-                       GLOBARG float *vx_adj,     GLOBARG float *vz_adj,
-                       GLOBARG float *sxx_adj,    GLOBARG float *szz_adj,
-                       GLOBARG float *sxz_adj,    GLOBARG float *M_adj,
-                       GLOBARG float *mu_adj,     GLOBARG float *muipkp_adj)
-{
-    
-    get_pos(&pos);
-    LOCID float lvar[__LSIZE__];
-    
-    float vxx, vzz, vzx, vxz;
-    float sxx_x_adj, sxx_z_adj, szz_x_adj, szz_z_adj, sxz_x_adj, sxz_z_adj;
-    int ind0 = indg(pos,0,0,0);
-    
-// Calculation of the velocity spatial derivatives
-#if LOCAL_OFF==0
-    load_local_in(pos, vx, lvar);
-    load_local_haloz(pos, vx, lvar);
-    load_local_halox(pos, vx, lvar);
-    BARRIER
-#endif
-    vxx = Dxm(pos, lvar);
-    vxz = Dzp(pos, lvar);
-    
-#if LOCAL_OFF==0
-    BARRIER
-    load_local_in(pos, vz, lvar);
-    load_local_haloz(pos, vz, lvar);
-    load_local_halox(pos, vz, lvar);
-    BARRIER
-#endif
-    vzz = Dzm(pos, lvar);
-    vzx = Dxp(pos, lvar);
-    
-#if LOCAL_OFF==0
-    BARRIER
-    load_local_in(pos, sxz_adj, lvar);
-    mul_local_in(pos, muipkp, lvar);
-    load_local_haloz(pos, sxz_adj, lvar);
-    mul_local_haloz(pos, muipkp, lvar);
-    load_local_halox(pos, sxz_adj, lvar);
-    mul_local_halox(pos, muipkp, lvar);
-    BARRIER
-#endif
-    sxz_x_adj = -Dxm(pos, lvar);
-    sxz_z_adj = -Dzm(pos, lvar);
+        src = self.local_header
+        src += """ 
+        float vxx, vzz, vzx, vxz;
+        float vxx_lin, vzz_lin, vzx_lin, vxz_lin;
+        
+        // Calculation of the velocity spatial derivatives
+        #if LOCAL_OFF==0
+            load_local_in(vx, lvar);
+            load_local_haloz(vx, lvar);
+            load_local_halox(vx, lvar);
+            BARRIER
+        #endif
+        vxx = Dxm(lvar);
+        vxz = Dzp(lvar);
+        
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(vx_lin, lvar);
+            load_local_haloz(vx_lin, lvar);
+            load_local_halox(vx_lin, lvar);
+            BARRIER
+        #endif
+        vxx_lin = Dxm(lvar);
+        vxz_lin = Dzp(lvar);
+        
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(vz, lvar);
+            load_local_haloz(vz, lvar);
+            load_local_halox(vz, lvar);
+            BARRIER
+        #endif
+        vzz = Dzm(lvar);
+        vzx = Dxp(lvar);
+        
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(vz_lin, lvar);
+            load_local_haloz(vz_lin, lvar);
+            load_local_halox(vz_lin, lvar);
+            BARRIER
+        #endif
+        vzz_lin = Dzm(lvar);
+        vzx_lin = Dxp(lvar);
+        gridstop(g);
+        
+        sxz_lin(g.z, g.x)+= muipkp(g.z, g.x)*(vxz_lin+vzx_lin)\
+                       +muipkp_lin(g.z, g.x)*(vxz+vzx);
+        sxx_lin(g.z, g.x)+= M(g.z, g.x)*(vxx_lin+vzz_lin)-(2.0*mu(g.z, g.x)*vzz_lin) \
+                       +M_lin(g.z, g.x)*(vxx+vzz)-(2.0*mu_lin(g.z, g.x)*vzz);
+        szz_lin(g.z, g.x)+= M(g.z, g.x)*(vxx_lin+vzz_lin)-(2.0*mu(g.z, g.x)*vxx_lin) \
+                       +M_lin(g.z, g.x)*(vxx+vzz)-(2.0*mu_lin(g.z, g.x)*vxx);
+    """
+        grid = ComputeGrid(shape=[s - self.order for s in vx.shape],
+                           queue=self.queue,
+                           origin=[self.order//2 for _ in vx.shape])
+        self.gpukernel(src, "linear", grid,
+                       vx, vz, sxx, szz, sxz, M, mu, muipkp)
+        return sxx, szz, sxz
 
-#if LOCAL_OFF==0
-    BARRIER
-    load_local_in(pos, sxx_adj, lvar);
-    mul_local_in(pos, M, lvar);
-    load_local_haloz(pos, sxx_adj, lvar);
-    mul_local_haloz(pos, M, lvar);
-    load_local_halox(pos, sxx_adj, lvar);
-    mul_local_halox(pos, M, lvar);
-    BARRIER
-#endif
-    sxx_x_adj = -Dxp(pos, lvar);
-    sxx_z_adj = -Dzp(pos, lvar);
+    def adjoint(self, vx, vz, sxx, szz, sxz, M, mu, muipkp):
 
-#if LOCAL_OFF==0
-    BARRIER
-    load_local_in(pos, sxx_adj, lvar);
-    mul_local_in(pos, mu, lvar);
-    load_local_haloz(pos, sxx_adj, lvar);
-    mul_local_haloz(pos, mu, lvar);
-    BARRIER
-#endif
-    sxx_z_adj += 2.0*Dzp(pos, lvar);
-
-#if LOCAL_OFF==0
-    BARRIER
-    load_local_in(pos, szz_adj, lvar);
-    mul_local_in(pos, M, lvar);
-    load_local_haloz(pos, szz_adj, lvar);
-    mul_local_haloz(pos, M, lvar);
-    load_local_halox(pos, szz_adj, lvar);
-    mul_local_halox(pos, M, lvar);
-    BARRIER
-#endif
-    szz_x_adj = -Dxp(pos, lvar);
-    szz_z_adj = -Dzp(pos, lvar);
-
-#if LOCAL_OFF==0
-    BARRIER
-    load_local_in(pos, szz_adj, lvar);
-    mul_local_in(pos, mu, lvar);
-    load_local_halox(pos, szz_adj, lvar);
-    mul_local_halox(pos, mu, lvar);
-    BARRIER
-#endif
-    szz_x_adj += 2.0*Dxp(pos, lvar);
-      
-    gridstop(pos);
-    
-    vx_adj[ind0] += sxx_x_adj + szz_x_adj + sxz_z_adj;
-    vz_adj[ind0] += sxx_z_adj + szz_z_adj + sxz_x_adj;
-    
-    M_adj[ind0] += (vxx + vzz) * (sxx_adj[ind0] + szz_adj[ind0]);
-    mu_adj[ind0] += - 2.0 * (vzz * sxx_adj[ind0] + vxx * szz_adj[ind0]);
-    muipkp_adj[ind0] += (vxz + vzx) * sxz_adj[ind0];
-}
-"""
-
-    def __init__(self, grids=None, computegrid=None, fdcoefs=None,
-                 local_size=(16, 16), local_off=0, **kwargs):
-        self.required_states = ["vx", "vz", "sxx", "szz", "sxz", "M", "mu", "muipkp"]
-        self.updated_states = ["sxx", "szz", "sxz"]
-        self.default_grids = {"vx": "gridfd",
-                              "vz": "gridfd",
-                              "sxx": "gridfd",
-                              "szz": "gridfd",
-                              "sxz": "gridfd",
-                              "M": "gridpar",
-                              "mu": "gridpar",
-                              "muipkp": "gridpar"}
-        if fdcoefs is None:
-            fdcoefs = FDCoefficients(order=grids["gridfd"].pad*2,
-                                     local_off=local_off)
-        if fdcoefs.order//2 != grids["gridfd"].pad:
-            raise ValueError("The grid padding should be equal to half the "
-                             "fd stencil width")
-        self.headers = fdcoefs.header()
-        options = fdcoefs.options
-        super().__init__(grids=grids, computegrid=computegrid,
-                         local_size=local_size, options=options, **kwargs)
+        src = self.local_header
+        src += """ 
+        float vxx, vzz, vzx, vxz;
+        float sxx_x_adj, sxx_z_adj, szz_x_adj, szz_z_adj, sxz_x_adj, sxz_z_adj;
+        
+        // Calculation of the velocity spatial derivatives
+        #if LOCAL_OFF==0
+            load_local_in(vx, lvar);
+            load_local_haloz(vx, lvar);
+            load_local_halox(vx, lvar);
+            BARRIER
+        #endif
+            vxx = Dxm(lvar);
+            vxz = Dzp(lvar);
+            
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(vz, lvar);
+            load_local_haloz(vz, lvar);
+            load_local_halox(vz, lvar);
+            BARRIER
+        #endif
+            vzz = Dzm(lvar);
+            vzx = Dxp(lvar);
+            
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(sxz_adj, lvar);
+            mul_local_in(muipkp, lvar);
+            load_local_haloz(sxz_adj, lvar);
+            mul_local_haloz(muipkp, lvar);
+            load_local_halox(sxz_adj, lvar);
+            mul_local_halox(muipkp, lvar);
+            BARRIER
+        #endif
+            sxz_x_adj = -Dxm(lvar);
+            sxz_z_adj = -Dzm(lvar);
+        
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(sxx_adj, lvar);
+            mul_local_in(M, lvar);
+            load_local_haloz(sxx_adj, lvar);
+            mul_local_haloz(M, lvar);
+            load_local_halox(sxx_adj, lvar);
+            mul_local_halox(M, lvar);
+            BARRIER
+        #endif
+            sxx_x_adj = -Dxp(lvar);
+            sxx_z_adj = -Dzp(lvar);
+        
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(sxx_adj, lvar);
+            mul_local_in(mu, lvar);
+            load_local_haloz(sxx_adj, lvar);
+            mul_local_haloz(mu, lvar);
+            BARRIER
+        #endif
+            sxx_z_adj += 2.0*Dzp(lvar);
+        
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(szz_adj, lvar);
+            mul_local_in(M, lvar);
+            load_local_haloz(szz_adj, lvar);
+            mul_local_haloz(M, lvar);
+            load_local_halox(szz_adj, lvar);
+            mul_local_halox(M, lvar);
+            BARRIER
+        #endif
+            szz_x_adj = -Dxp(lvar);
+            szz_z_adj = -Dzp(lvar);
+        
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(szz_adj, lvar);
+            mul_local_in(mu, lvar);
+            load_local_halox(szz_adj, lvar);
+            mul_local_halox(mu, lvar);
+            BARRIER
+        #endif
+        szz_x_adj += 2.0*Dxp(lvar);
+          
+        gridstop(g);
+        
+        vx_adj(g.z, g.x) += sxx_x_adj + szz_x_adj + sxz_z_adj;
+        vz_adj(g.z, g.x) += sxx_z_adj + szz_z_adj + sxz_x_adj;
+        
+        M_adj(g.z, g.x) += (vxx + vzz) * (sxx_adj(g.z, g.x) + szz_adj(g.z, g.x));
+        mu_adj(g.z, g.x) += - 2.0 * (vzz * sxx_adj(g.z, g.x) + vxx * szz_adj(g.z, g.x));
+        muipkp_adj(g.z, g.x) += (vxz + vzx) * sxz_adj(g.z, g.x);
+        """
+        grid = ComputeGrid(shape=[s - self.order for s in vx.shape],
+                           queue=self.queue,
+                           origin=[self.order//2 for _ in vx.shape])
+        self.gpukernel(src, "adjoint", grid,
+                       vx, vz, sxx, szz, sxz, M, mu, muipkp)
+        return vx, vz, M, mu, muipkp
 
 
-class UpdateVelocity(ReversibleFunctionCL):
+
+
+class UpdateVelocity(ReversibleFunctionGPU):
     forward_src = """
 
 FUNDEF void UpdateVelocity(grid pos,
@@ -292,36 +257,36 @@ FUNDEF void UpdateVelocity(grid pos,
     
     // Calculation of the stresses spatial derivatives
 #if LOCAL_OFF==0
-    load_local_in(pos, sxx, lvar);
-    load_local_halox(pos, sxx, lvar);
+    load_local_in(sxx, lvar);
+    load_local_halox(sxx, lvar);
     BARRIER
 #endif
-    sxx_x = Dxp(pos, lvar);
+    sxx_x = Dxp(lvar);
         
 #if LOCAL_OFF==0
     BARRIER
-    load_local_in(pos, szz, lvar);
-    load_local_haloz(pos, szz, lvar);
+    load_local_in(szz, lvar);
+    load_local_haloz(szz, lvar);
     BARRIER
 #endif
-    szz_z = Dzp(pos, lvar);
+    szz_z = Dzp(lvar);
         
 #if LOCAL_OFF==0
     BARRIER
-    load_local_in(pos, sxz, lvar);
-    load_local_haloz(pos, sxz, lvar);
-    load_local_halox(pos, sxz, lvar);
+    load_local_in(sxz, lvar);
+    load_local_haloz(sxz, lvar);
+    load_local_halox(sxz, lvar);
     BARRIER
 #endif
-    sxz_z = Dzm(pos, lvar);
-    sxz_x = Dxm(pos, lvar);
+    sxz_z = Dzm(lvar);
+    sxz_x = Dxm(lvar);
 
-    gridstop(pos);
+    gridstop(g);
     
     // Update the velocities
     int sign = -2*backpropagate+1; 
-    vx[ind0]+= sign * ((sxx_x + sxz_z)*rip[ind0]);
-    vz[ind0]+= sign * ((szz_z + sxz_x)*rkp[ind0]);
+    vx(g.z, g.x)+= sign * ((sxx_x + sxz_z)*rip(g.z, g.x));
+    vz(g.z, g.x)+= sign * ((szz_z + sxz_x)*rkp(g.z, g.x));
 }
 """
 
@@ -347,63 +312,63 @@ FUNDEF void UpdateVelocity_lin(grid pos,
     
     // Calculation of the stresses spatial derivatives
 #if LOCAL_OFF==0
-    load_local_in(pos, sxx, lvar);
-    load_local_halox(pos, sxx, lvar);
+    load_local_in(sxx, lvar);
+    load_local_halox(sxx, lvar);
     BARRIER
 #endif
-    sxx_x = Dxp(pos, lvar);
+    sxx_x = Dxp(lvar);
         
 #if LOCAL_OFF==0
     BARRIER
-    load_local_in(pos, szz, lvar);
-    load_local_haloz(pos, szz, lvar);
+    load_local_in(szz, lvar);
+    load_local_haloz(szz, lvar);
     BARRIER
 #endif
-    szz_z = Dzp(pos, lvar);
+    szz_z = Dzp(lvar);
         
 #if LOCAL_OFF==0
     BARRIER
-    load_local_in(pos, sxz, lvar);
-    load_local_haloz(pos, sxz, lvar);
-    load_local_halox(pos, sxz, lvar);
+    load_local_in(sxz, lvar);
+    load_local_haloz(sxz, lvar);
+    load_local_halox(sxz, lvar);
     BARRIER
 #endif
-    sxz_z = Dzm(pos, lvar);
-    sxz_x = Dxm(pos, lvar);
+    sxz_z = Dzm(lvar);
+    sxz_x = Dxm(lvar);
 
 #if LOCAL_OFF==0
     BARRIER
-    load_local_in(pos, sxx_lin, lvar);
-    load_local_halox(pos, sxx_lin, lvar);
+    load_local_in(sxx_lin, lvar);
+    load_local_halox(sxx_lin, lvar);
     BARRIER
 #endif
-    sxx_x_lin = Dxp(pos, lvar);
+    sxx_x_lin = Dxp(lvar);
         
 #if LOCAL_OFF==0
     BARRIER
-    load_local_in(pos, szz_lin, lvar);
-    load_local_haloz(pos, szz_lin, lvar);
+    load_local_in(szz_lin, lvar);
+    load_local_haloz(szz_lin, lvar);
     BARRIER
 #endif
-    szz_z_lin = Dzp(pos, lvar);
+    szz_z_lin = Dzp(lvar);
         
 #if LOCAL_OFF==0
     BARRIER
-    load_local_in(pos, sxz_lin, lvar);
-    load_local_haloz(pos, sxz_lin, lvar);
-    load_local_halox(pos, sxz_lin, lvar);
+    load_local_in(sxz_lin, lvar);
+    load_local_haloz(sxz_lin, lvar);
+    load_local_halox(sxz_lin, lvar);
     BARRIER
 #endif
-    sxz_z_lin = Dzm(pos, lvar);
-    sxz_x_lin = Dxm(pos, lvar);
+    sxz_z_lin = Dzm(lvar);
+    sxz_x_lin = Dxm(lvar);
 
-    gridstop(pos);
+    gridstop(g);
     
     // Update the velocities
-    vx_lin[ind0]+= (sxx_x_lin + sxz_z_lin)*rip[ind0] \
-                   +(sxx_x + sxz_z)*rip_lin[ind0];
-    vz_lin[ind0]+= (szz_z_lin + sxz_x_lin)*rkp[ind0] \
-                   +(szz_z + sxz_x)*rkp_lin[ind0];
+    vx_lin(g.z, g.x)+= (sxx_x_lin + sxz_z_lin)*rip(g.z, g.x) \
+                   +(sxx_x + sxz_z)*rip_lin(g.z, g.x);
+    vz_lin(g.z, g.x)+= (szz_z_lin + sxz_x_lin)*rkp(g.z, g.x) \
+                   +(szz_z + sxz_x)*rkp_lin(g.z, g.x);
 }
 """
 
@@ -429,65 +394,65 @@ FUNDEF void UpdateVelocity_adj(grid pos,
     
     // Calculation of the stresses spatial derivatives
 #if LOCAL_OFF==0
-    load_local_in(pos, sxx, lvar);
-    load_local_halox(pos, sxx, lvar);
+    load_local_in(sxx, lvar);
+    load_local_halox(sxx, lvar);
     BARRIER
 #endif
-    sxx_x = Dxp(pos, lvar);
+    sxx_x = Dxp(lvar);
         
 #if LOCAL_OFF==0
     BARRIER
-    load_local_in(pos, szz, lvar);
-    load_local_haloz(pos, szz, lvar);
+    load_local_in(szz, lvar);
+    load_local_haloz(szz, lvar);
     BARRIER
 #endif
-    szz_z = Dzp(pos, lvar);
+    szz_z = Dzp(lvar);
         
 #if LOCAL_OFF==0
     BARRIER
-    load_local_in(pos, sxz, lvar);
-    load_local_haloz(pos, sxz, lvar);
-    load_local_halox(pos, sxz, lvar);
+    load_local_in(sxz, lvar);
+    load_local_haloz(sxz, lvar);
+    load_local_halox(sxz, lvar);
     BARRIER
 #endif
-    sxz_z = Dzm(pos, lvar);
-    sxz_x = Dxm(pos, lvar);
+    sxz_z = Dzm(lvar);
+    sxz_x = Dxm(lvar);
 
 #if LOCAL_OFF==0
     BARRIER
-    load_local_in(pos, vx_adj, lvar);
-    mul_local_in(pos, rip, lvar);
-    load_local_haloz(pos, vx_adj, lvar);
-    mul_local_haloz(pos, rip, lvar);
-    load_local_halox(pos, vx_adj, lvar);
-    mul_local_halox(pos, rip, lvar);
+    load_local_in(vx_adj, lvar);
+    mul_local_in(rip, lvar);
+    load_local_haloz(vx_adj, lvar);
+    mul_local_haloz(rip, lvar);
+    load_local_halox(vx_adj, lvar);
+    mul_local_halox(rip, lvar);
     BARRIER
 #endif
-    vxx_adj = -Dxm(pos, lvar);
-    vxz_adj = -Dzp(pos, lvar);
+    vxx_adj = -Dxm(lvar);
+    vxz_adj = -Dzp(lvar);
     
 #if LOCAL_OFF==0
     BARRIER
-    load_local_in(pos, vz_adj, lvar);
-    mul_local_in(pos, rkp, lvar);
-    load_local_haloz(pos, vz_adj, lvar);
-    mul_local_haloz(pos, rkp, lvar);
-    load_local_halox(pos, vz_adj, lvar);
-    mul_local_halox(pos, rkp, lvar);
+    load_local_in(vz_adj, lvar);
+    mul_local_in(rkp, lvar);
+    load_local_haloz(vz_adj, lvar);
+    mul_local_haloz(rkp, lvar);
+    load_local_halox(vz_adj, lvar);
+    mul_local_halox(rkp, lvar);
     BARRIER
 #endif
-    vzx_adj = -Dxp(pos, lvar);
-    vzz_adj = -Dzm(pos, lvar);
+    vzx_adj = -Dxp(lvar);
+    vzz_adj = -Dzm(lvar);
     
-    gridstop(pos);
+    gridstop(g);
     
     // Update the velocities
-    sxx_adj[ind0] += vxx_adj;
-    szz_adj[ind0] += vzz_adj;
-    sxz_adj[ind0] += vxz_adj + vzx_adj;
+    sxx_adj(g.z, g.x) += vxx_adj;
+    szz_adj(g.z, g.x) += vzz_adj;
+    sxz_adj(g.z, g.x) += vxz_adj + vzx_adj;
     
-    rip_adj[ind0] += (sxx_x + sxz_z) * vx_adj[ind0];
-    rkp_adj[ind0] += (szz_z + sxz_x) * vz_adj[ind0];
+    rip_adj(g.z, g.x) += (sxx_x + sxz_z) * vx_adj(g.z, g.x);
+    rkp_adj(g.z, g.x) += (szz_z + sxz_x) * vz_adj(g.z, g.x);
 }
 """
 
@@ -511,7 +476,7 @@ FUNDEF void UpdateVelocity_adj(grid pos,
                          local_size=local_size, **kwargs)
 
 
-class FreeSurface(ReversibleFunctionCL):
+class FreeSurface(ReversibleFunctionGPU):
 
     forward_src = """
 FUNDEF void FreeSurface1(grid pos,
@@ -527,19 +492,19 @@ FUNDEF void FreeSurface1(grid pos,
     int ind0 = indg(pos,0,0,0);
     int sign = -2*backpropagate+1; 
         
-    vxx = Dxm(pos, vx);
-    vzz = Dzm(pos, vz);
+    vxx = Dxm(vx);
+    vzz = Dzm(vz);
     //int i, j;
     //vxx = vzz = 0;
     //for (i=0; i<__FDOH__; i++){
     //    vxx += hc[i] * (vx[indg(pos, 0, 0, i)] - vx[indg(pos, 0, 0, -i-1)]);
     //    vzz += hc[i] * (vz[indg(pos, i, 0, 0)] - vz[indg(pos, -i-1, 0, 0)]);
     //}
-    f = mu[ind0] * 2.0;
-    g = M[ind0];
-    sxx[ind0] += sign * (-((g - f) * (g - f) * vxx / g) - ((g - f) * vzz));
-    //szz[ind0] = 0;
-    szz[ind0]+= sign * -((g*(vxx+vzz))-(f*vxx));
+    f = mu(g.z, g.x) * 2.0;
+    g = M(g.z, g.x);
+    sxx(g.z, g.x) += sign * (-((g - f) * (g - f) * vxx / g) - ((g - f) * vzz));
+    //szz(g.z, g.x) = 0;
+    szz(g.z, g.x)+= sign * -((g*(vxx+vzz))-(f*vxx));
 }
 FUNDEF void FreeSurface2(grid pos,
                          GLOBARG float *vx,         GLOBARG float *vz,
@@ -589,23 +554,23 @@ FUNDEF void FreeSurface_lin1(grid pos,
     float g, f, dg, df;
     int ind0 = indg(pos,0,0,0);
     
-    vxx = Dxm(pos, vx_lin);
-    vzz = Dzm(pos, vz_lin);
-    f = mu[ind0] * 2.0;
-    g = M[ind0];
-    sxx_lin[ind0] += -((g - f) * (g - f) * vxx / g) - ((g - f) * vzz);
-    //szz_lin[ind0] = 0;
-    szz_lin[ind0]+= -((g*(vxx+vzz))-(f*vxx));
+    vxx = Dxm(vx_lin);
+    vzz = Dzm(vz_lin);
+    f = mu(g.z, g.x) * 2.0;
+    g = M(g.z, g.x);
+    sxx_lin(g.z, g.x) += -((g - f) * (g - f) * vxx / g) - ((g - f) * vzz);
+    //szz_lin(g.z, g.x) = 0;
+    szz_lin(g.z, g.x)+= -((g*(vxx+vzz))-(f*vxx));
     
-    vxx = Dxm(pos, vx);
-    vzz = Dzm(pos, vz);
+    vxx = Dxm(vx);
+    vzz = Dzm(vz);
 
-    df = mu_lin[ind0] * 2.0;
-    dg = M_lin[ind0];
-    sxx_lin[ind0] += (2.0 * (g - f) * vxx / g + vzz) * df +\
+    df = mu_lin(g.z, g.x) * 2.0;
+    dg = M_lin(g.z, g.x);
+    sxx_lin(g.z, g.x) += (2.0 * (g - f) * vxx / g + vzz) * df +\
                      (-2.0 * (g - f) * vxx / g 
                      + (g - f)*(g - f) / g / g * vxx - vzz) * dg;
-    szz_lin[ind0] += -((dg*(vxx+vzz))-(df*vxx));
+    szz_lin(g.z, g.x) += -((dg*(vxx+vzz))-(df*vxx));
 }
 FUNDEF void FreeSurface_lin2(grid pos,
                              GLOBARG float *vx,         GLOBARG float *vz,
@@ -678,11 +643,11 @@ FUNDEF void FreeSurface_lin2(grid pos,
         ind0 = indg(pos,i,0,0);
         for (j=i+1; j<__FDOH__; j++){
             indi = indg(pos,j-i,0,0);
-            szz_adj[indi] += rkp[ind0] * hc[j] * vz_adj[ind0];
+            szz_adj[indi] += rkp(g.z, g.x) * hc[j] * vz_adj(g.z, g.x);
         }
         for (j=i; j<__FDOH__; j++){
             indi = indg(pos,j-i+1,0,0);
-            sxz_adj[indi] += rip[ind0] * hc[j] * vx_adj[ind0];
+            sxz_adj[indi] += rip(g.z, g.x) * hc[j] * vx_adj(g.z, g.x);
         }
     }
     
@@ -721,35 +686,35 @@ FUNDEF void FreeSurface_adj2(grid pos,
     float hx, hz;
     
 
-    f = mu[ind0] * 2.0;
-    g = M[ind0];
+    f = mu(g.z, g.x) * 2.0;
+    g = M(g.z, g.x);
     hx = -((g - f) * (g - f) / g);
     hz = - (g - f);
     for (i=0; i<__FDOH__; i++){
-        vx_adj[indg(pos, 0, 0, i)] += hc[i] * hx * sxx_adj[ind0];
-        vx_adj[indg(pos, 0, 0, -i-1)] += - hc[i] * hx * sxx_adj[ind0];
-        vz_adj[indg(pos, i, 0, 0)] += hc[i] * hz * sxx_adj[ind0];
-        vz_adj[indg(pos, -i-1, 0, 0)] += - hc[i] * hz * sxx_adj[ind0];
+        vx_adj[indg(pos, 0, 0, i)] += hc[i] * hx * sxx_adj(g.z, g.x);
+        vx_adj[indg(pos, 0, 0, -i-1)] += - hc[i] * hx * sxx_adj(g.z, g.x);
+        vz_adj[indg(pos, i, 0, 0)] += hc[i] * hz * sxx_adj(g.z, g.x);
+        vz_adj[indg(pos, -i-1, 0, 0)] += - hc[i] * hz * sxx_adj(g.z, g.x);
         
-        vx_adj[indg(pos, 0, 0, i)] += hc[i] * hz * szz_adj[ind0];
-        vx_adj[indg(pos, 0, 0, -i-1)] += - hc[i] * hz * szz_adj[ind0];
-        vz_adj[indg(pos, i, 0, 0)] += hc[i] * (-g) * szz_adj[ind0];
-        vz_adj[indg(pos, -i-1, 0, 0)] += - hc[i] * (-g) * szz_adj[ind0];
+        vx_adj[indg(pos, 0, 0, i)] += hc[i] * hz * szz_adj(g.z, g.x);
+        vx_adj[indg(pos, 0, 0, -i-1)] += - hc[i] * hz * szz_adj(g.z, g.x);
+        vz_adj[indg(pos, i, 0, 0)] += hc[i] * (-g) * szz_adj(g.z, g.x);
+        vz_adj[indg(pos, -i-1, 0, 0)] += - hc[i] * (-g) * szz_adj(g.z, g.x);
     }
     
-    //szz_adj[ind0] = 0;
+    //szz_adj(g.z, g.x) = 0;
     
-    vxx = Dxm(pos, vx);
-    vzz = Dzm(pos, vz);
+    vxx = Dxm(vx);
+    vzz = Dzm(vz);
 
-    f_adj = mu_adj[ind0] * 2.0;
-    g_adj = M_adj[ind0];
-    M_adj[ind0] += (-2.0 * (g - f) * vxx / g 
-                  + (g - f)*(g - f) / g / g * vxx - vzz) * sxx_adj[ind0];
-    mu_adj[ind0] += 2.0 * (2.0 * (g - f) * vxx / g + vzz) * sxx_adj[ind0];
+    f_adj = mu_adj(g.z, g.x) * 2.0;
+    g_adj = M_adj(g.z, g.x);
+    M_adj(g.z, g.x) += (-2.0 * (g - f) * vxx / g 
+                  + (g - f)*(g - f) / g / g * vxx - vzz) * sxx_adj(g.z, g.x);
+    mu_adj(g.z, g.x) += 2.0 * (2.0 * (g - f) * vxx / g + vzz) * sxx_adj(g.z, g.x);
     
-    M_adj[ind0] += -(vxx + vzz) *  szz_adj[ind0];
-    mu_adj[ind0] += 2.0 * vxx *  szz_adj[ind0];
+    M_adj(g.z, g.x) += -(vxx + vzz) *  szz_adj(g.z, g.x);
+    mu_adj(g.z, g.x) += 2.0 * vxx *  szz_adj(g.z, g.x);
 }
 """
 

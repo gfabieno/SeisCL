@@ -4,6 +4,7 @@ from SeisCL.python import Variable
 
 try:
     import pyopencl as cl
+    from pyopencl.array import Array, to_device
     def compile(ctx, src, options):
         return cl.Program(ctx, src).build(options)
 except ImportError:
@@ -29,6 +30,26 @@ options_def = ["-D LCOMM=0",
 
 #TODO header creation is scattered all over the place, review
 #TODO document the header options
+
+
+class ComputeGrid:
+
+    def __init__(self, queue, shape, origin, local=None):
+        self.queue = queue
+        self.shape = shape
+        self.origin = origin
+
+    @property
+    def origin(self):
+        return self._origin
+
+    @origin.setter
+    def origin(self, origin):
+        if len(origin) != len(self.shape):
+            raise ValueError("origin and shape must have the same length")
+        self._origin = to_device(self.queue, np.array(origin, dtype=np.int32))
+
+
 class Kernel:
 
     def __init__(self, queue, name, signature, src, header, options,
@@ -39,6 +60,7 @@ class Kernel:
         self.name = name
         self.signature = signature
         self.src = src
+        self.compiled_src = None
         self.header = header
         self.options = options
         self.mode = mode
@@ -51,9 +73,13 @@ class Kernel:
         self._kernel = None
         self._kernal_variables_shape = None
 
-    def __call__(self, grid, *args, **kwargs):
+    def __call__(self, grid: ComputeGrid, *args, **kwargs):
         a = self.signature.bind(*args, **kwargs)
         a.apply_defaults()
+        arguments = a.arguments
+        if "origin" in arguments:
+            raise ValueError("origin is a reserved argument name")
+        arguments["origin"] = grid.origin
         kernels = self.kernel(a.arguments, grid)
 
         #TODO remove the list of kernel capibility if applicable
@@ -83,12 +109,14 @@ class Kernel:
                 arg_list.append(np.float32(var))
             elif isinstance(var, bool) or isinstance(var, np.bool):
                 arg_list.append(np.int32(var))
+            elif isinstance(var, Array):
+                arg_list.append(var.data)
             else:
                 raise TypeError("Type not supported: %s for arg %s"
                                 % (type(var), el))
         return arg_list
 
-    def kernel(self, arguments, grid):
+    def kernel(self, arguments, grid: ComputeGrid):
 
         if self._kernel and self.check_shape:
             variables = {name: var for name, var in arguments.items()
@@ -101,13 +129,12 @@ class Kernel:
                                var.shape))
                     self._kernel = None
                     break
-        #TODO add grid stopper if applicable
+
         if not self._kernel:
             argdef = argument_definition(arguments, self.mode, self.platform)
             fundef = cudacl["FUNDEF"][self.platform]
-            grid_struct, grid_filler = get_positional_headers(len(grid.shape),
-                                                              self.local_size,
-                                                              grid.pad)
+            grid_struct, grid_filler = get_positional_headers(grid,
+                                                              self.local_size)
             variables = {name: var for name, var in arguments.items()
                          if isinstance(var, Variable)}
             variables_headers = get_variable_headers(variables, self.mode)
@@ -131,19 +158,18 @@ class Kernel:
                 srci += "\n}"
                 src[src.index(s)] = srci
             src = "\n".join(src)
-
-            src = self.header + grid_struct + variables_headers + src
+            grid_stop_header = grid_stopper(grid,
+                                            use_local=self.local_size is not None)
+            src = "\n".join([self.header,
+                             grid_struct,
+                             variables_headers,
+                             grid_stop_header,
+                             src])
+            self.compiled_src = src
             if not self._prog:
                 options = options_def + self.options
-
                 #TODO redefine the EPS macro
                 #options += ["-D __EPS__=%d" % self.grid.smallest]
-                if self.local_size is not None:
-                    total = np.prod([el+grid.pad*2
-                                     for el in self.local_size])
-                    options += ["-D __LSIZE__=%d" % total]
-                    options += ["-D LOCID=%s" % cudacl["LOCID"][self.platform]]
-                    options += ["-D BARRIER=%s" % cudacl["BARRIER"][self.platform]]
                 try:
                     self._prog = compile(self.queue.context, src, options)
                 except Exception as e:
@@ -160,8 +186,9 @@ class Kernel:
                     for s, l in zip(grid_size, self.local_size)]
 
 
-def get_positional_headers(nd, local_size, pad=0):
+def get_positional_headers(grid: ComputeGrid, local_size: tuple):
 
+    nd = len(grid.shape)
     grid_struct_header = """typedef struct grid{\n"""
     if nd == 3:
         names = ["z", "y", "x"]
@@ -183,21 +210,10 @@ def get_positional_headers(nd, local_size, pad=0):
     grid_struct_header += "} grid;\n"
 
     grid_filler = "    grid g;\n"
-    if pad > 0:
-        padstr = " + %d" % pad
-        padstr2 = " + %d" % (2*pad)
-    else:
-        padstr = padstr2 = ""
 
     for ii, name in enumerate(names):
-        grid_filler += "    g.%s = get_global_id(%d)%s;\n" % (name, ii, padstr)
-    if local_size is not None:
-        for ii, name in enumerate(names):
-            grid_filler += "    g.l%s = get_local_id(%d)%s;\n" \
-                           % (name, ii, padstr)
-        for ii, name in enumerate(names):
-            grid_filler += "    g.nl%s = get_local_size(%d)%s;\n" \
-                           % (name, ii, padstr2)
+        grid_filler += "    g.%s = get_global_id(%d) + origin[%d];\n" \
+                       % (name, ii, ii)
 
     return grid_struct_header, grid_filler
 
@@ -258,7 +274,57 @@ def argument_definition(arguments, mode, platform):
             argdef.append("float %s, \n" % (el))
         elif isinstance(var, bool) or isinstance(var, np.bool):
             argdef.append("int %s, \n" % (el))
+        elif isinstance(var, np.ndarray) or isinstance(var, Array):
+            if var.dtype == np.float32:
+                dtype = "float"
+            elif var.dtype == np.int32:
+                dtype = "int"
+            elif var.dtype == np.float64:
+                dtype = "double"
+            elif var.dtype == np.int64:
+                dtype = "long"
+            elif var.dtype == np.float16:
+                dtype = "half"
+            else:
+                raise TypeError("Type not supported for %s with type %s"
+                                % (el, var.dtype))
+            globarg = cudacl["GLOBARG"][platform]
+            argdef.append("%s %s * %s, \n" % (globarg, dtype, el))
+
         else:
             raise TypeError("Type not supported: %s" % type(var))
     argdef[-1] = argdef[-1][:-3]
     return argdef
+
+
+def grid_stopper(grid: ComputeGrid, use_local=True, with_offset=False):
+
+    shape = grid.shape
+    if use_local:
+        if with_offset:
+            offstr = "- offset "
+        else:
+            offstr = ""
+
+        src = """
+        #define gridstop(p)\\
+        do{\\
+            if (((p).z - origin[0]) >= %d || ((p).y - origin[1]) >= %d || ((p).x %s- origin[2]) >= %d){\\
+            return;}\\
+            } while(0)\n
+        """.strip() + "\n"
+        if len(shape) == 1:
+            src = src.replace("|| ((p).y - origin[1]) >= %d || ((p).x %s- origin[2]) >= %d", "")
+            src = src % shape[0]
+        elif len(shape) == 2:
+            src = src.replace("|| ((p).y - origin[1]) >= %d", "")
+            src = src.replace("[2]", "[1]")
+            src = src % (shape[0], offstr, shape[1])
+        elif len(shape) == 3:
+            src = src % (shape[0], shape[1], offstr, shape[2])
+        else:
+            raise ValueError("Shape must be 1, 2 or 3 dimensional")
+    else:
+        src = "#define gridstop(p) \n"
+    src = src.strip() + "\n"
+    return src

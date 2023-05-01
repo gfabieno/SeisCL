@@ -7,7 +7,7 @@ from matplotlib.patches import Rectangle
 import matplotlib.pyplot as plt
 from matplotlib.patheffects import withStroke
 mpl.rcParams['hatch.linewidth'] = 0.5
-from SeisCL.python.tape.tape import Variable
+from SeisCL.python import Variable
 
 
 class Receiver:

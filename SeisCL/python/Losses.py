@@ -1,5 +1,5 @@
 import numpy as np
-from SeisCL.python.tape.tape import Function, Variable
+from SeisCL.python import Function, Variable
 import unittest
 
 

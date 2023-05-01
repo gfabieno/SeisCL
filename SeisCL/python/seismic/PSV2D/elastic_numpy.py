@@ -8,7 +8,7 @@ Created on Mon Apr 24 16:13:18 2017
 import numpy as np
 import matplotlib.pyplot as plt
 import math
-from SeisCL.python.tape.tape import Variable, Function, TapedFunction, ReversibleFunction
+from SeisCL.python import Variable, Function, TapedFunction, ReversibleFunction
 from SeisCL.python.seismic.common.Acquisition import Acquisition, Grid, Source, Shot, Receiver
 import unittest
 from SeisCL.python.Propagator import FWI, Propagator
@@ -58,7 +58,6 @@ def Dpz_adj(var):
     dvar[2:-2, 2:-2] += -1.1382 * var[2:-2, 2:-2]
     dvar[3:-1, 2:-2] += 1.1382 * var[2:-2, 2:-2]
     dvar[4:, 2:-2] += - 0.046414 * var[2:-2, 2:-2]
-
 
     return dvar
 
@@ -369,7 +368,6 @@ class ElasticReceivers:
                     self.rec_fun(szz, shot.dmod, pos, trids, t)
                 else:
                     raise ValueError('Receiver type %s not implemented' % type)
-
 
 
 class PointForceSource(ReversibleFunction):

@@ -127,7 +127,7 @@ class Function(TapeHolder):
         vars = self.arguments(*args, **kwargs)
         vars0 = {name: copy(var) for name, var in vars.items()}
         for name, var in vars.items():
-            if type(var) is Variable:
+            if isinstance(var, Variable):
                 var.data = var.initialize(method="random")
                 vars0[name].data = var.data.copy()
 
@@ -143,7 +143,7 @@ class Function(TapeHolder):
             bsnp = var.data
             errii = snp - bsnp
             err += np.sum(errii**2)
-            mean =  np.sum(snp) / snp.size
+            mean = np.sum(snp) / snp.size
             scale += np.sum((snp - mean)**2) + smallest
         err = err / scale
         if hasattr(err, "get"):

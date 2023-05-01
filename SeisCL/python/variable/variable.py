@@ -112,7 +112,7 @@ class Variable:
     def random(self):
         if self.pad:
             state = np.zeros(self.shape, dtype=self.dtype, order="F")
-            state[self.valid] = np.random.rand(*state[self.valid].shape)*10e6
+            state[self.valid] = np.random.rand(*state[self.valid].shape)*10e0
         else:
             state = np.random.rand(*self.shape).astype(self.dtype)
         return self.todevice(np.require(state, requirements='F'))
