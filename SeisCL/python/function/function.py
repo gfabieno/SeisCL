@@ -125,11 +125,8 @@ class Function(TapeHolder):
     def backward_test(self, *args, verbose=True, **kwargs):
 
         vars = self.arguments(*args, **kwargs)
-        vars0 = {name: copy(var) for name, var in vars.items()}
-        for name, var in vars.items():
-            if isinstance(var, Variable):
-                var.data = var.initialize(method="random")
-                vars0[name].data = var.data.copy()
+        vars0 = {name: deepcopy(var) for name, var in vars.items()
+                 if isinstance(var, Variable)}
 
         initial_states = self.cache_states(*args, **kwargs)
         self(*args, **kwargs)
@@ -148,6 +145,7 @@ class Function(TapeHolder):
         err = err / scale
         if hasattr(err, "get"):
             err = err.get()[()]
+        err = np.sqrt(err)
         if verbose:
             print("Backpropagation test for Kernel %s: %.15e"
                   % (self.__class__.__name__, err))
@@ -188,18 +186,17 @@ class Function(TapeHolder):
                 pouts = (pouts,)
 
             err = 0
-            scale = 0
             for out, pout in zip(outs, pouts):
                 if pouts and out:
                     smallest = out.smallest
-                    erri = (pout.data - out.data - eps * out.lin) / (eps * out.lin + 10*smallest)
+                    erri = np.abs((pout.data - out.data - eps * out.lin) / (eps * out.lin + 10*smallest))
                     if hasattr(erri, "get"):
                         erri = erri.get()[()]
                     err = np.max([err, np.max(erri)])
 
             errs.append(err)
 
-            eps /= 10.0
+            eps /= 10
             for el, var in vars.items():
                 if np.max(eps*var.lin / (var.data+var.smallest)) < var.eps:
                     cond = False
@@ -244,6 +241,7 @@ class Function(TapeHolder):
                 fvars[name].grad = var.grad.copy()
         self(*fargs, mode="linear", **fkwargs)
         self(*fargs, mode="adjoint", **fkwargs)
+
 
         prod1 = np.sum([np.sum(fvars[el].lin * vars[el].grad)
                         for el in vars if vars[el].differentiable])

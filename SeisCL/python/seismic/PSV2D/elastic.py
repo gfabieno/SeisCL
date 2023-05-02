@@ -1,6 +1,6 @@
 from SeisCL.python import (ComputeGrid, FunctionGPU, ReversibleFunctionGPU, ReversibleFunction,
                            ComputeRessource)
-from SeisCL.python import get_header_stencil
+from SeisCL.python import get_header_stencil, cudacl
 from SeisCL.python.seismic.PSV2D.elastic_numpy import ricker, Cerjan
 from SeisCL.python.seismic.common.sources import Source
 from SeisCL.python.seismic.common.receivers import Receiver
@@ -66,7 +66,8 @@ class UpdateStress(ReversibleFunctionGPU):
         grid = ComputeGrid(shape=[s - self.order for s in vx.shape],
                            queue=self.queue,
                            origin=[self.order//2 for _ in vx.shape])
-        self.gpukernel(src, "forward", grid, vx, vz, sxx, szz, sxz, M, mu, muipkp)
+        self.gpukernel(src, "forward", grid, vx, vz, sxx, szz, sxz, M, mu,
+                       muipkp, backpropagate=backpropagate)
         return sxx, szz, sxz
 
     def linear(self, vx, vz, sxx, szz, sxz, M, mu, muipkp, backpropagate=0):
@@ -234,593 +235,506 @@ class UpdateStress(ReversibleFunctionGPU):
         return vx, vz, M, mu, muipkp
 
 
-
-
 class UpdateVelocity(ReversibleFunctionGPU):
-    forward_src = """
 
-FUNDEF void UpdateVelocity(grid pos,
-                     GLOBARG float *vx,      GLOBARG float *vz,
-                     GLOBARG float *sxx,     GLOBARG float *szz,     
-                     GLOBARG float *sxz,     GLOBARG float *rip,
-                     GLOBARG float *rkp,     int backpropagate)
-{
+    def __init__(self, queue, order=8, local_size=(16, 16)):
+        super().__init__(queue, local_size=local_size)
+        self.header, self.local_header = get_header_stencil(order, 2,
+                                                            local_size=local_size,
+                                                            with_local_ops=True)
+        self.order = order
 
-    get_pos(&pos);
-    LOCID float lvar[__LSIZE__];
-    float sxx_x;
-    float szz_z;
-    float sxz_x;
-    float sxz_z;
+    def forward(self, vx, vz, sxx, szz, sxz, rip, rkp, backpropagate=0):
+        """
+        Update the velocity field using the stress field.
+        """
+        src = self.local_header
+        src += """
+
+        float sxx_x, szz_z, sxz_x, sxz_z;
+                
+        // Calculation of the stresses spatial derivatives
+        #if LOCAL_OFF==0
+            load_local_in(sxx, lvar);
+            load_local_halox(sxx, lvar);
+            BARRIER
+        #endif
+        sxx_x = Dxp(lvar);
+            
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(szz, lvar);
+            load_local_haloz(szz, lvar);
+            BARRIER
+        #endif
+        szz_z = Dzp(lvar);
+            
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(sxz, lvar);
+            load_local_haloz(sxz, lvar);
+            load_local_halox(sxz, lvar);
+            BARRIER
+        #endif
+        sxz_z = Dzm(lvar);
+        sxz_x = Dxm(lvar);
     
-    int ind0 = indg(pos,0,0,0);
-    
-    // Calculation of the stresses spatial derivatives
-#if LOCAL_OFF==0
-    load_local_in(sxx, lvar);
-    load_local_halox(sxx, lvar);
-    BARRIER
-#endif
-    sxx_x = Dxp(lvar);
+        gridstop(g);
         
-#if LOCAL_OFF==0
-    BARRIER
-    load_local_in(szz, lvar);
-    load_local_haloz(szz, lvar);
-    BARRIER
-#endif
-    szz_z = Dzp(lvar);
+        // Update the velocities
+        int sign = -2*backpropagate+1; 
+        vx(g.z, g.x)+= sign * ((sxx_x + sxz_z)*rip(g.z, g.x));
+        vz(g.z, g.x)+= sign * ((szz_z + sxz_x)*rkp(g.z, g.x));
+        """
+        grid = ComputeGrid(shape=[s - self.order for s in vx.shape],
+                           queue=self.queue,
+                           origin=[self.order//2 for _ in vx.shape])
+        self.gpukernel(src, "forward", grid, vx, vz, sxx, szz, sxz, rip, rkp,
+                       backpropagate=backpropagate)
+        return vx, vz
+
+    def linear(self, vx, vz, sxx, szz, sxz, rip, rkp):
+
+        src = self.local_header
+        src += """ 
+        float sxx_x, szz_z, sxz_x, sxz_z;
+        float sxx_x_lin, szz_z_lin, sxz_x_lin, sxz_z_lin;
         
-#if LOCAL_OFF==0
-    BARRIER
-    load_local_in(sxz, lvar);
-    load_local_haloz(sxz, lvar);
-    load_local_halox(sxz, lvar);
-    BARRIER
-#endif
-    sxz_z = Dzm(lvar);
-    sxz_x = Dxm(lvar);
-
-    gridstop(g);
+        // Calculation of the stresses spatial derivatives
+        #if LOCAL_OFF==0
+            load_local_in(sxx, lvar);
+            load_local_halox(sxx, lvar);
+            BARRIER
+        #endif
+        sxx_x = Dxp(lvar);
+            
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(szz, lvar);
+            load_local_haloz(szz, lvar);
+            BARRIER
+        #endif
+        szz_z = Dzp(lvar);
+            
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(sxz, lvar);
+            load_local_haloz(sxz, lvar);
+            load_local_halox(sxz, lvar);
+            BARRIER
+        #endif
+        sxz_z = Dzm(lvar);
+        sxz_x = Dxm(lvar);
     
-    // Update the velocities
-    int sign = -2*backpropagate+1; 
-    vx(g.z, g.x)+= sign * ((sxx_x + sxz_z)*rip(g.z, g.x));
-    vz(g.z, g.x)+= sign * ((szz_z + sxz_x)*rkp(g.z, g.x));
-}
-"""
-
-    linear_src = """
-
-FUNDEF void UpdateVelocity_lin(grid pos,
-                               GLOBARG float *vx,      GLOBARG float *vz,
-                               GLOBARG float *sxx,     GLOBARG float *szz,     
-                               GLOBARG float *sxz,     GLOBARG float *rip,
-                               GLOBARG float *rkp,
-                               GLOBARG float *vx_lin,  GLOBARG float *vz_lin,
-                               GLOBARG float *sxx_lin, GLOBARG float *szz_lin,     
-                               GLOBARG float *sxz_lin, GLOBARG float *rip_lin,
-                               GLOBARG float *rkp_lin)
-{
-
-    get_pos(&pos);
-    LOCID float lvar[__LSIZE__];
-    float sxx_x, szz_z, sxz_x, sxz_z;
-    float sxx_x_lin, szz_z_lin, sxz_x_lin, sxz_z_lin;
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(sxx_lin, lvar);
+            load_local_halox(sxx_lin, lvar);
+            BARRIER
+        #endif
+        sxx_x_lin = Dxp(lvar);
+            
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(szz_lin, lvar);
+            load_local_haloz(szz_lin, lvar);
+            BARRIER
+        #endif
+        szz_z_lin = Dzp(lvar);
+            
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(sxz_lin, lvar);
+            load_local_haloz(sxz_lin, lvar);
+            load_local_halox(sxz_lin, lvar);
+            BARRIER
+        #endif
+        sxz_z_lin = Dzm(lvar);
+        sxz_x_lin = Dxm(lvar);
     
-    int ind0 = indg(pos,0,0,0);
-    
-    // Calculation of the stresses spatial derivatives
-#if LOCAL_OFF==0
-    load_local_in(sxx, lvar);
-    load_local_halox(sxx, lvar);
-    BARRIER
-#endif
-    sxx_x = Dxp(lvar);
+        gridstop(g);
         
-#if LOCAL_OFF==0
-    BARRIER
-    load_local_in(szz, lvar);
-    load_local_haloz(szz, lvar);
-    BARRIER
-#endif
-    szz_z = Dzp(lvar);
+        // Update the velocities
+        vx_lin(g.z, g.x)+= (sxx_x_lin + sxz_z_lin)*rip(g.z, g.x) \
+                       +(sxx_x + sxz_z)*rip_lin(g.z, g.x);
+        vz_lin(g.z, g.x)+= (szz_z_lin + sxz_x_lin)*rkp(g.z, g.x) \
+                       +(szz_z + sxz_x)*rkp_lin(g.z, g.x);
+        """
+        grid = ComputeGrid(shape=[s - self.order for s in vx.shape],
+                           queue=self.queue,
+                           origin=[self.order//2 for _ in vx.shape])
+        self.gpukernel(src, "linear", grid, vx, vz, sxx, szz, sxz, rip, rkp)
+        return vx, vz
+
+    def adjoint(self, vx, vz, sxx, szz, sxz, rip, rkp):
+
+        src = self.local_header
+        src += """ 
+        float sxx_x, szz_z, sxz_x, sxz_z;
+        float vxx_adj, vxz_adj, vzz_adj, vzx_adj;
         
-#if LOCAL_OFF==0
-    BARRIER
-    load_local_in(sxz, lvar);
-    load_local_haloz(sxz, lvar);
-    load_local_halox(sxz, lvar);
-    BARRIER
-#endif
-    sxz_z = Dzm(lvar);
-    sxz_x = Dxm(lvar);
-
-#if LOCAL_OFF==0
-    BARRIER
-    load_local_in(sxx_lin, lvar);
-    load_local_halox(sxx_lin, lvar);
-    BARRIER
-#endif
-    sxx_x_lin = Dxp(lvar);
+        // Calculation of the stresses spatial derivatives
+        #if LOCAL_OFF==0
+            load_local_in(sxx, lvar);
+            load_local_halox(sxx, lvar);
+            BARRIER
+        #endif
+        sxx_x = Dxp(lvar);
+            
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(szz, lvar);
+            load_local_haloz(szz, lvar);
+            BARRIER
+        #endif
+        szz_z = Dzp(lvar);
+            
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(sxz, lvar);
+            load_local_haloz(sxz, lvar);
+            load_local_halox(sxz, lvar);
+            BARRIER
+        #endif
+        sxz_z = Dzm(lvar);
+        sxz_x = Dxm(lvar);
+    
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(vx_adj, lvar);
+            mul_local_in(rip, lvar);
+            load_local_haloz(vx_adj, lvar);
+            mul_local_haloz(rip, lvar);
+            load_local_halox(vx_adj, lvar);
+            mul_local_halox(rip, lvar);
+            BARRIER
+        #endif
+        vxx_adj = -Dxm(lvar);
+        vxz_adj = -Dzp(lvar);
         
-#if LOCAL_OFF==0
-    BARRIER
-    load_local_in(szz_lin, lvar);
-    load_local_haloz(szz_lin, lvar);
-    BARRIER
-#endif
-    szz_z_lin = Dzp(lvar);
+        #if LOCAL_OFF==0
+            BARRIER
+            load_local_in(vz_adj, lvar);
+            mul_local_in(rkp, lvar);
+            load_local_haloz(vz_adj, lvar);
+            mul_local_haloz(rkp, lvar);
+            load_local_halox(vz_adj, lvar);
+            mul_local_halox(rkp, lvar);
+            BARRIER
+        #endif
+        vzx_adj = -Dxp(lvar);
+        vzz_adj = -Dzm(lvar);
         
-#if LOCAL_OFF==0
-    BARRIER
-    load_local_in(sxz_lin, lvar);
-    load_local_haloz(sxz_lin, lvar);
-    load_local_halox(sxz_lin, lvar);
-    BARRIER
-#endif
-    sxz_z_lin = Dzm(lvar);
-    sxz_x_lin = Dxm(lvar);
-
-    gridstop(g);
-    
-    // Update the velocities
-    vx_lin(g.z, g.x)+= (sxx_x_lin + sxz_z_lin)*rip(g.z, g.x) \
-                   +(sxx_x + sxz_z)*rip_lin(g.z, g.x);
-    vz_lin(g.z, g.x)+= (szz_z_lin + sxz_x_lin)*rkp(g.z, g.x) \
-                   +(szz_z + sxz_x)*rkp_lin(g.z, g.x);
-}
-"""
-
-    adjoint_src = """
-
-FUNDEF void UpdateVelocity_adj(grid pos,
-                               GLOBARG float *vx,      GLOBARG float *vz,
-                               GLOBARG float *sxx,     GLOBARG float *szz,     
-                               GLOBARG float *sxz,     GLOBARG float *rip,
-                               GLOBARG float *rkp,
-                               GLOBARG float *vx_adj,  GLOBARG float *vz_adj,
-                               GLOBARG float *sxx_adj, GLOBARG float *szz_adj,     
-                               GLOBARG float *sxz_adj, GLOBARG float *rip_adj,
-                               GLOBARG float *rkp_adj)
-{
-
-    get_pos(&pos);
-    LOCID float lvar[__LSIZE__];
-    float sxx_x, szz_z, sxz_x, sxz_z;
-    float vxx_adj, vxz_adj, vzz_adj, vzx_adj;
-    
-    int ind0 = indg(pos,0,0,0);
-    
-    // Calculation of the stresses spatial derivatives
-#if LOCAL_OFF==0
-    load_local_in(sxx, lvar);
-    load_local_halox(sxx, lvar);
-    BARRIER
-#endif
-    sxx_x = Dxp(lvar);
+        gridstop(g);
         
-#if LOCAL_OFF==0
-    BARRIER
-    load_local_in(szz, lvar);
-    load_local_haloz(szz, lvar);
-    BARRIER
-#endif
-    szz_z = Dzp(lvar);
+        // Update the velocities
+        sxx_adj(g.z, g.x) += vxx_adj;
+        szz_adj(g.z, g.x) += vzz_adj;
+        sxz_adj(g.z, g.x) += vxz_adj + vzx_adj;
         
-#if LOCAL_OFF==0
-    BARRIER
-    load_local_in(sxz, lvar);
-    load_local_haloz(sxz, lvar);
-    load_local_halox(sxz, lvar);
-    BARRIER
-#endif
-    sxz_z = Dzm(lvar);
-    sxz_x = Dxm(lvar);
-
-#if LOCAL_OFF==0
-    BARRIER
-    load_local_in(vx_adj, lvar);
-    mul_local_in(rip, lvar);
-    load_local_haloz(vx_adj, lvar);
-    mul_local_haloz(rip, lvar);
-    load_local_halox(vx_adj, lvar);
-    mul_local_halox(rip, lvar);
-    BARRIER
-#endif
-    vxx_adj = -Dxm(lvar);
-    vxz_adj = -Dzp(lvar);
-    
-#if LOCAL_OFF==0
-    BARRIER
-    load_local_in(vz_adj, lvar);
-    mul_local_in(rkp, lvar);
-    load_local_haloz(vz_adj, lvar);
-    mul_local_haloz(rkp, lvar);
-    load_local_halox(vz_adj, lvar);
-    mul_local_halox(rkp, lvar);
-    BARRIER
-#endif
-    vzx_adj = -Dxp(lvar);
-    vzz_adj = -Dzm(lvar);
-    
-    gridstop(g);
-    
-    // Update the velocities
-    sxx_adj(g.z, g.x) += vxx_adj;
-    szz_adj(g.z, g.x) += vzz_adj;
-    sxz_adj(g.z, g.x) += vxz_adj + vzx_adj;
-    
-    rip_adj(g.z, g.x) += (sxx_x + sxz_z) * vx_adj(g.z, g.x);
-    rkp_adj(g.z, g.x) += (szz_z + sxz_x) * vz_adj(g.z, g.x);
-}
-"""
-
-    def __init__(self, grids=None, computegrid=None, fdcoefs=None,
-                 local_size=(16, 16), local_off=0, **kwargs):
-        self.required_states = ["vx", "vz", "sxx", "szz", "sxz", "rip", "rkp"]
-        self.updated_states = ["vx", "vz"]
-        self.default_grids = {"vx": "gridfd",
-                              "vz": "gridfd",
-                              "sxx": "gridfd",
-                              "szz": "gridfd",
-                              "sxz": "gridfd",
-                              "rip": "gridpar",
-                              "rkp": "gridpar"}
-        if fdcoefs is None:
-            fdcoefs = FDCoefficients(order=grids["gridfd"].pad*2,
-                                     local_off=local_off)
-        self.headers = fdcoefs.header()
-        options = fdcoefs.options
-        super().__init__(grids=grids, computegrid=computegrid, options=options,
-                         local_size=local_size, **kwargs)
+        rip_adj(g.z, g.x) += (sxx_x + sxz_z) * vx_adj(g.z, g.x);
+        rkp_adj(g.z, g.x) += (szz_z + sxz_x) * vz_adj(g.z, g.x);
+        """
+        grid = ComputeGrid(shape=[s - self.order for s in vx.shape],
+                           queue=self.queue,
+                           origin=[self.order//2 for _ in vx.shape])
+        self.gpukernel(src, "adjoint", grid, vx, vz, sxx, szz, sxz, rip, rkp)
+        return sxx, szz, sxz, rip, rkp
 
 
-class FreeSurface(ReversibleFunctionGPU):
+class FreeSurface1(ReversibleFunctionGPU):
 
-    forward_src = """
-FUNDEF void FreeSurface1(grid pos,
-                         GLOBARG float *vx,         GLOBARG float *vz,
-                         GLOBARG float *sxx,        GLOBARG float *szz,
-                         GLOBARG float *sxz,        GLOBARG float *M,
-                         GLOBARG float *mu,         GLOBARG float *rkp,
-                         GLOBARG float *rip,        int backpropagate)
-{
-    get_pos(&pos);
-    float vxx, vzz;
-    float g, f;
-    int ind0 = indg(pos,0,0,0);
-    int sign = -2*backpropagate+1; 
+    def __init__(self, queue, order=8):
+        super().__init__(queue, local_size=None)
+        self.header, _ = get_header_stencil(order, 2,
+                                                            local_size=None,
+                                                            with_local_ops=True)
+        hc = ["HC%d" % (i+1) for i in range(order//2)]
+        self.header += "float constant hc[%d] = {%s};\n" % (order//2,
+                                                            ", ".join(hc))
+        self.order = order
+
+    def forward(self, vx, vz, sxx, szz, sxz, M, mu, rkp, rip,
+                backpropagate=False):
+
+        src = """ 
+        float vxx, vzz;
+        float a, b;
+        int sign = -2*backpropagate+1; 
+            
+        vxx = Dxm(vx);
+        vzz = Dzm(vz);
+        //int i, j;
+        //vxx = vzz = 0;
+        //for (i=0; i<__FDOH__; i++){
+        //    vxx += hc[i] * (vx[indg(pos, 0, 0, i)] - vx[indg(pos, 0, 0, -i-1)]);
+        //    vzz += hc[i] * (vz[indg(pos, i, 0, 0)] - vz[indg(pos, -i-1, 0, 0)]);
+        //}
+        b = mu(g.z, g.x) * 2.0;
+        a = M(g.z, g.x);
+        sxx(g.z, g.x) += sign * (-((a - b) * (a - b) * vxx / a) - ((a - b) * vzz));
+        //szz(g.z, g.x) = 0;
+        szz(g.z, g.x)+= sign * -((a*(vxx+vzz))-(b*vxx));
+        """
+        grid = ComputeGrid(shape=[1, vx.shape[1] - self.order],
+                           queue=self.queue,
+                           origin=[self.order//2 for _ in vx.shape])
+        self.gpukernel(src, "forward", grid, vx, vz, sxx, szz, sxz,
+                       M, mu, rkp, rip, backpropagate=backpropagate)
+        return sxx, szz
+
+    def linear(self, vx, vz, sxx, szz, sxz, M, mu, rkp, rip):
+
+        src = """ 
+        float vxx, vzz;
+        float a, b, da, db;
         
-    vxx = Dxm(vx);
-    vzz = Dzm(vz);
-    //int i, j;
-    //vxx = vzz = 0;
-    //for (i=0; i<__FDOH__; i++){
-    //    vxx += hc[i] * (vx[indg(pos, 0, 0, i)] - vx[indg(pos, 0, 0, -i-1)]);
-    //    vzz += hc[i] * (vz[indg(pos, i, 0, 0)] - vz[indg(pos, -i-1, 0, 0)]);
-    //}
-    f = mu(g.z, g.x) * 2.0;
-    g = M(g.z, g.x);
-    sxx(g.z, g.x) += sign * (-((g - f) * (g - f) * vxx / g) - ((g - f) * vzz));
-    //szz(g.z, g.x) = 0;
-    szz(g.z, g.x)+= sign * -((g*(vxx+vzz))-(f*vxx));
-}
-FUNDEF void FreeSurface2(grid pos,
-                         GLOBARG float *vx,         GLOBARG float *vz,
-                         GLOBARG float *sxx,        GLOBARG float *szz,
-                         GLOBARG float *sxz,        GLOBARG float *M,
-                         GLOBARG float *mu,         GLOBARG float *rkp,
-                         GLOBARG float *rip,        int backpropagate)
-{
-    get_pos(&pos);
-    float szz_z, sxz_z;
-    int i, j;
-    int indi;
-    
-    int sign = -2*backpropagate+1; 
-    for (i=0; i<__FDOH__; i++){
-        sxz_z = szz_z = 0;
-        for (j=i+1; j<__FDOH__; j++){
-            indi = indg(pos,j-i,0,0);
-            szz_z += hc[j] * szz[indi];
-        }
-        for (j=i; j<__FDOH__; j++){
-            indi = indg(pos,j-i+1,0,0);
-            sxz_z += hc[j] * sxz[indi];
-        }
-        indi = indg(pos,i,0,0);
-        vx[indi] += sign * sxz_z * rip[indi];
-        vz[indi] += sign * szz_z * rkp[indi];
-    }
-}
-    """
-
-    linear_src = """
-FUNDEF void FreeSurface_lin1(grid pos,
-                             GLOBARG float *vx,         GLOBARG float *vz,
-                             GLOBARG float *sxx,        GLOBARG float *szz,
-                             GLOBARG float *sxz,        GLOBARG float *M,
-                             GLOBARG float *mu,         GLOBARG float *rkp,
-                             GLOBARG float *rip,
-                             GLOBARG float *vx_lin,     GLOBARG float *vz_lin,
-                             GLOBARG float *sxx_lin,    GLOBARG float *szz_lin,
-                             GLOBARG float *sxz_lin,    GLOBARG float *M_lin,
-                             GLOBARG float *mu_lin,     GLOBARG float *rkp_lin,
-                             GLOBARG float *rip_lin)
-{
-    get_pos(&pos);
-    float vxx, vzz;
-    float g, f, dg, df;
-    int ind0 = indg(pos,0,0,0);
-    
-    vxx = Dxm(vx_lin);
-    vzz = Dzm(vz_lin);
-    f = mu(g.z, g.x) * 2.0;
-    g = M(g.z, g.x);
-    sxx_lin(g.z, g.x) += -((g - f) * (g - f) * vxx / g) - ((g - f) * vzz);
-    //szz_lin(g.z, g.x) = 0;
-    szz_lin(g.z, g.x)+= -((g*(vxx+vzz))-(f*vxx));
-    
-    vxx = Dxm(vx);
-    vzz = Dzm(vz);
-
-    df = mu_lin(g.z, g.x) * 2.0;
-    dg = M_lin(g.z, g.x);
-    sxx_lin(g.z, g.x) += (2.0 * (g - f) * vxx / g + vzz) * df +\
-                     (-2.0 * (g - f) * vxx / g 
-                     + (g - f)*(g - f) / g / g * vxx - vzz) * dg;
-    szz_lin(g.z, g.x) += -((dg*(vxx+vzz))-(df*vxx));
-}
-FUNDEF void FreeSurface_lin2(grid pos,
-                             GLOBARG float *vx,         GLOBARG float *vz,
-                             GLOBARG float *sxx,        GLOBARG float *szz,
-                             GLOBARG float *sxz,        GLOBARG float *M,
-                             GLOBARG float *mu,         GLOBARG float *rkp,
-                             GLOBARG float *rip,
-                             GLOBARG float *vx_lin,     GLOBARG float *vz_lin,
-                             GLOBARG float *sxx_lin,    GLOBARG float *szz_lin,
-                             GLOBARG float *sxz_lin,    GLOBARG float *M_lin,
-                             GLOBARG float *mu_lin,     GLOBARG float *rkp_lin,
-                             GLOBARG float *rip_lin)
-{
-    get_pos(&pos);
-    float szz_z, sxz_z;
-    int i, j;
-    int indi;
-
-    for (i=0; i<__FDOH__; i++){
-        sxz_z = szz_z = 0;
-        for (j=i+1; j<__FDOH__; j++){
-            indi = indg(pos,j-i,0,0);
-            szz_z += hc[j] * szz_lin[indi];
-        }
-        for (j=i; j<__FDOH__; j++){
-            indi = indg(pos,j-i+1,0,0);
-            sxz_z += hc[j] * sxz_lin[indi];
-        }
-        indi = indg(pos,i,0,0);
-        vx_lin[indi] += sxz_z * rip[indi];
-        vz_lin[indi] += szz_z * rkp[indi];
-    }
-    
-    for (i=0; i<__FDOH__; i++){
-        sxz_z = szz_z = 0;
-        for (j=i+1; j<__FDOH__; j++){
-            indi = indg(pos,j-i,0,0);
-            szz_z += hc[j] * szz[indi];
-        }
-        for (j=i; j<__FDOH__; j++){
-            indi = indg(pos,j-i+1,0,0);
-            sxz_z += hc[j] * sxz[indi];
-        }
-        indi = indg(pos,i,0,0);
-        vx_lin[indi] += sxz_z * rip_lin[indi];
-        vz_lin[indi] += szz_z * rkp_lin[indi];
-    }
-}
-"""
-
-    adjoint_src = """
-    FUNDEF void FreeSurface_adj1(grid pos,
-                         GLOBARG float *vx,         GLOBARG float *vz,
-                         GLOBARG float *sxx,        GLOBARG float *szz,
-                         GLOBARG float *sxz,        GLOBARG float *rkp,
-                         GLOBARG float *rip,        GLOBARG float *M,
-                         GLOBARG float *mu, 
-                         GLOBARG float *vx_adj,     GLOBARG float *vz_adj,
-                         GLOBARG float *sxx_adj,    GLOBARG float *szz_adj,
-                         GLOBARG float *sxz_adj,    GLOBARG float *rkp_adj,
-                         GLOBARG float *rip_adj,    GLOBARG float *M_adj,
-                         GLOBARG float *mu_adj)
-{
-    get_pos(&pos);
-    float szz_z, sxz_z;
-    int i, j;
-    int indi, ind0;
-
-    for (i=0; i<__FDOH__; i++){
-        ind0 = indg(pos,i,0,0);
-        for (j=i+1; j<__FDOH__; j++){
-            indi = indg(pos,j-i,0,0);
-            szz_adj[indi] += rkp(g.z, g.x) * hc[j] * vz_adj(g.z, g.x);
-        }
-        for (j=i; j<__FDOH__; j++){
-            indi = indg(pos,j-i+1,0,0);
-            sxz_adj[indi] += rip(g.z, g.x) * hc[j] * vx_adj(g.z, g.x);
-        }
-    }
-    
-    for (i=0; i<__FDOH__; i++){
-        sxz_z = szz_z = 0;
-        for (j=i+1; j<__FDOH__; j++){
-            indi = indg(pos,j-i,0,0);
-            szz_z += hc[j] * szz[indi];
-        }
-        for (j=i; j<__FDOH__; j++){
-            indi = indg(pos,j-i+1,0,0);
-            sxz_z += hc[j] * sxz[indi];
-        }
-        indi = indg(pos,i,0,0);
-        rip_adj[indi] += sxz_z * vx_adj[indi];
-        rkp_adj[indi] += szz_z * vz_adj[indi];
-    }
-}
-FUNDEF void FreeSurface_adj2(grid pos,
-                             GLOBARG float *vx,         GLOBARG float *vz,
-                             GLOBARG float *sxx,        GLOBARG float *szz,
-                             GLOBARG float *sxz,        GLOBARG float *rkp,
-                             GLOBARG float *rip,        GLOBARG float *M,
-                             GLOBARG float *mu, 
-                             GLOBARG float *vx_adj,     GLOBARG float *vz_adj,
-                             GLOBARG float *sxx_adj,    GLOBARG float *szz_adj,
-                             GLOBARG float *sxz_adj,    GLOBARG float *rkp_adj,
-                             GLOBARG float *rip_adj,    GLOBARG float *M_adj,
-                             GLOBARG float *mu_adj)
-{
-    get_pos(&pos);
-    float vxx, vzz;
-    float g, f, g_adj, f_adj;
-    int ind0 = indg(pos,0,0,0);
-    int i;
-    float hx, hz;
-    
-
-    f = mu(g.z, g.x) * 2.0;
-    g = M(g.z, g.x);
-    hx = -((g - f) * (g - f) / g);
-    hz = - (g - f);
-    for (i=0; i<__FDOH__; i++){
-        vx_adj[indg(pos, 0, 0, i)] += hc[i] * hx * sxx_adj(g.z, g.x);
-        vx_adj[indg(pos, 0, 0, -i-1)] += - hc[i] * hx * sxx_adj(g.z, g.x);
-        vz_adj[indg(pos, i, 0, 0)] += hc[i] * hz * sxx_adj(g.z, g.x);
-        vz_adj[indg(pos, -i-1, 0, 0)] += - hc[i] * hz * sxx_adj(g.z, g.x);
+        vxx = Dxm(vx_lin);
+        vzz = Dzm(vz_lin);
+        b = mu(g.z, g.x) * 2.0;
+        a = M(g.z, g.x);
+        sxx_lin(g.z, g.x) += -((a - b) * (a - b) * vxx / a) - ((a - b) * vzz);
+        //szz_lin(g.z, g.x) = 0;
+        szz_lin(g.z, g.x)+= -((a*(vxx+vzz))-(b*vxx));
         
-        vx_adj[indg(pos, 0, 0, i)] += hc[i] * hz * szz_adj(g.z, g.x);
-        vx_adj[indg(pos, 0, 0, -i-1)] += - hc[i] * hz * szz_adj(g.z, g.x);
-        vz_adj[indg(pos, i, 0, 0)] += hc[i] * (-g) * szz_adj(g.z, g.x);
-        vz_adj[indg(pos, -i-1, 0, 0)] += - hc[i] * (-g) * szz_adj(g.z, g.x);
-    }
+        vxx = Dxm(vx);
+        vzz = Dzm(vz);
     
-    //szz_adj(g.z, g.x) = 0;
+        db = mu_lin(g.z, g.x) * 2.0;
+        da = M_lin(g.z, g.x);
+        sxx_lin(g.z, g.x) += (2.0 * (a - b) * vxx / a + vzz) * db +\
+                         (-2.0 * (a - b) * vxx / a 
+                         + (a - b)*(a - b) / a / a * vxx - vzz) * da;
+        szz_lin(g.z, g.x) += -((da*(vxx+vzz))-(db*vxx));
+        """
+        grid = ComputeGrid(shape=[1, vx.shape[1] - self.order],
+                           queue=self.queue,
+                           origin=[self.order//2 for _ in vx.shape])
+        self.gpukernel(src, "linear", grid, vx, vz, sxx, szz, sxz,
+                       M, mu, rkp, rip)
+        return sxx, szz
+
+    def adjoint(self, vx, vz, sxx, szz, sxz, M, mu, rkp, rip):
+
+        src = """ 
+        float vxx, vzz;
+        float a, b, a_adj, b_adj;
+        int i;
+        float hx, hz;
     
-    vxx = Dxm(vx);
-    vzz = Dzm(vz);
-
-    f_adj = mu_adj(g.z, g.x) * 2.0;
-    g_adj = M_adj(g.z, g.x);
-    M_adj(g.z, g.x) += (-2.0 * (g - f) * vxx / g 
-                  + (g - f)*(g - f) / g / g * vxx - vzz) * sxx_adj(g.z, g.x);
-    mu_adj(g.z, g.x) += 2.0 * (2.0 * (g - f) * vxx / g + vzz) * sxx_adj(g.z, g.x);
+        b = mu(g.z, g.x) * 2.0;
+        a = M(g.z, g.x);
+        hx = -((a - b) * (a - b) / a);
+        hz = - (a - b);
+        for (i=0; i<%d; i++){
+            vx_adj(g.z, g.x+i) += hc[i] * hx * sxx_adj(g.z, g.x);
+            vx_adj(g.z, g.x-i-1) += - hc[i] * hx * sxx_adj(g.z, g.x);
+            vz_adj(g.z+i, g.x) += hc[i] * hz * sxx_adj(g.z, g.x);
+            vz_adj(g.z-i-1, g.x) += - hc[i] * hz * sxx_adj(g.z, g.x);
+            
+            vx_adj(g.z, g.x+i) += hc[i] * hz * szz_adj(g.z, g.x);
+            vx_adj(g.z, g.x-i-1) += - hc[i] * hz * szz_adj(g.z, g.x);
+            vz_adj(g.z+i, g.x) += hc[i] * (-a) * szz_adj(g.z, g.x);
+            vz_adj(g.z-i-1, g.x) += - hc[i] * (-a) * szz_adj(g.z, g.x);
+        }
+        
+        //szz_adj(g.z, g.x) = 0;
+        
+        vxx = Dxm(vx);
+        vzz = Dzm(vz);
     
-    M_adj(g.z, g.x) += -(vxx + vzz) *  szz_adj(g.z, g.x);
-    mu_adj(g.z, g.x) += 2.0 * vxx *  szz_adj(g.z, g.x);
-}
-"""
+        b_adj = mu_adj(g.z, g.x) * 2.0;
+        a_adj = M_adj(g.z, g.x);
+        M_adj(g.z, g.x) += (-2.0 * (a - b) * vxx / a 
+                      + (a - b)*(a - b) / a / a * vxx - vzz) * sxx_adj(g.z, g.x);
+        mu_adj(g.z, g.x) += 2.0 * (2.0 * (a - b) * vxx / a + vzz) * sxx_adj(g.z, g.x);
+        
+        M_adj(g.z, g.x) += -(vxx + vzz) *  szz_adj(g.z, g.x);
+        mu_adj(g.z, g.x) += 2.0 * vxx *  szz_adj(g.z, g.x);
+        """ % (self.order//2)
 
-    def __init__(self, grids=None, fdcoefs=None, **kwargs):
-        self.required_states = ["vx", "vz", "sxx", "szz", "sxz", "mu", "M",
-                                "rip", "rkp"]
-        self.updated_states = ["sxx", "szz", "vx", "vz"]
-        self.default_grids = {"vx": "gridfd",
-                              "vz": "gridfd",
-                              "sxx": "gridfd",
-                              "szz": "gridfd",
-                              "sxz": "gridfd",
-                              "M": "gridpar",
-                              "mu": "gridpar",
-                              "muipkp": "gridpar",
-                              "rip": "gridpar",
-                              "rkp": "gridpar"}
-        if fdcoefs is None:
-            fdcoefs = FDCoefficients(order=grids["gridfd"].pad*2,
-                                     local_off=1)
-        if fdcoefs.order//2 != grids["gridfd"].pad:
-            raise ValueError("The grid padding should be equal to half the "
-                             "fd stencil width")
-        self.headers = fdcoefs.header()
-        computegrid = copy(grids["gridfd"])
-        options = fdcoefs.options
-        super().__init__(grids=grids, computegrid=computegrid, options=options,
-                         **kwargs)
+        grid = ComputeGrid(shape=[1, vx.shape[1] - self.order],
+                           queue=self.queue,
+                           origin=[self.order//2 for _ in vx.shape])
+        self.gpukernel(src, "adjoint", grid, vx, vz, sxx, szz, sxz,
+                       M, mu, rkp, rip)
+        return vx, vz, M, mu, rkp, rip
 
-    def global_size_fw(self):
-        gsize = [np.int32(s - 2 * self.computegrid.pad)
-                 for s in self.computegrid.shape]
-        gsize[0] = 1
-        return gsize
+
+class FreeSurface2(ReversibleFunctionGPU):
+
+    def __init__(self, queue, order=8):
+        super().__init__(queue, local_size=None)
+        self.header, _ = get_header_stencil(order, 2,
+                                            local_size=None,
+                                            with_local_ops=True)
+        hc = ["HC%d" % (i+1) for i in range(order//2)]
+        self.header += "float constant hc[%d] = {%s};\n" % (order//2,
+                                                            ", ".join(hc))
+        self.order = order
+
+    def forward(self, vx, vz, sxx, szz, sxz, rkp, rip, backpropagate=False):
+
+        src = """ 
+        float szz_z, sxz_z;
+        int i, j;
+        
+        int sign = -2*backpropagate+1; 
+        for (i=0; i<%d; i++){
+            sxz_z = szz_z = 0;
+            for (j=i+1; j<%d; j++){
+                szz_z += hc[j] * szz(g.z+j-i, g.x);
+            }
+            for (j=i; j<%d; j++){
+                sxz_z += hc[j] * sxz(g.z+j-i+1, g.x);
+            }
+            vx(g.z, g.x) += sign * sxz_z * rip(g.z, g.x);
+            vz(g.z, g.x) += sign * szz_z * rkp(g.z, g.x);
+        }
+        """ % ((self.order//2, )*3)
+        grid = ComputeGrid(shape=[1, vx.shape[1] - self.order],
+                           queue=self.queue,
+                           origin=[self.order//2 for _ in vx.shape])
+        self.gpukernel(src, "forward", grid, vx, vz, sxx, szz, sxz,
+                       rkp, rip, backpropagate=backpropagate)
+        return vx, vz
+
+    def linear(self, vx, vz, sxx, szz, sxz, rkp, rip):
+
+        src = """ 
+        float szz_z, sxz_z;
+        int i, j;
+        
+        for (i=0; i<%d; i++){
+            sxz_z = szz_z = 0;
+            for (j=i+1; j<%d; j++){
+                szz_z += hc[j] * szz_lin(g.z+j-i, g.x);
+            }
+            for (j=i; j<%d; j++){
+                sxz_z += hc[j] * sxz_lin(g.z+j-i+1, g.x);
+            }
+            vx_lin(g.z, g.x) += sxz_z * rip(g.z, g.x);
+            vz_lin(g.z, g.x) += szz_z * rkp(g.z, g.x);
+        }
+        
+        for (i=0; i<%d; i++){
+            sxz_z = szz_z = 0;
+            for (j=i+1; j<%d; j++){
+                szz_z += hc[j] * szz(g.z+j-i, g.x);
+            }
+            for (j=i; j<%d; j++){
+                sxz_z += hc[j] * sxz(g.z+j-i+1, g.x);
+            }
+            vx_lin(g.z, g.x) += sxz_z * rip_lin(g.z, g.x);
+            vz_lin(g.z, g.x) += szz_z * rkp_lin(g.z, g.x);
+        }
+        """ % ((self.order//2, )*6)
+        grid = ComputeGrid(shape=[1, vx.shape[1] - self.order],
+                           queue=self.queue,
+                           origin=[self.order//2 for _ in vx.shape])
+        self.gpukernel(src, "linear", grid, vx, vz, sxx, szz, sxz,
+                       rkp, rip)
+        return vx, vz
+
+    def adjoint(self, vx, vz, sxx, szz, sxz, rkp, rip):
+
+        src = """ 
+        float szz_z, sxz_z;
+        int i, j;
+    
+        for (i=0; i<%d; i++){
+            for (j=i+1; j<%d; j++){
+                szz_adj(g.z+j-i, g.x) += rkp(g.z, g.x) * hc[j] * vz_adj(g.z, g.x);
+            }
+            for (j=i; j<%d; j++){
+                sxz_adj(g.z+j-i+1, g.x) += rip(g.z, g.x) * hc[j] * vx_adj(g.z, g.x);
+            }
+        }
+        
+        for (i=0; i<%d; i++){
+            sxz_z = szz_z = 0;
+            for (j=i+1; j<%d; j++){
+                szz_z += hc[j] * szz(g.z+j-i, g.x);
+            }
+            for (j=i; j<%d; j++){
+                sxz_z += hc[j] * sxz(g.z+j-i+1, g.x);
+            }
+            rip_adj(g.z, g.x) += sxz_z * vx_adj(g.z, g.x);
+            rkp_adj(g.z, g.x) += szz_z * vz_adj(g.z, g.x);
+        }
+        """  % ((self.order//2, )*6)
+
+        grid = ComputeGrid(shape=[1, vx.shape[1] - self.order],
+                           queue=self.queue,
+                           origin=[self.order//2 for _ in vx.shape])
+        self.gpukernel(src, "adjoint", grid, vx, vz, sxx, szz, sxz,
+                       rkp, rip)
+        return szz, sxz
 
 
 class ScaledParameters(ReversibleFunction):
 
-    def __init__(self, grids=None, dt=1, dh=1, **kwargs):
-        super().__init__(grids, **kwargs)
-        self.required_states = ["M", "mu", "muipkp", "rho", "rip", "rkp"]
-        self.updated_states = ["M", "mu", "muipkp", "rho", "rip", "rkp"]
+    def __init__(self, dt=1, dh=1):
+        super().__init__()
         self.sc = 1.0
         self.dt = dt
         self.dh = dh
-        self.default_grids = {el: "gridpar" for el in self.required_states}
 
     @staticmethod
     def scale(M, dt, dx):
         return int(np.log2(max(M).get() * dt / dx))
 
-    def forward(self, states, **kwargs):
+    def forward(self, rho, rip, rkp, M, mu, muipkp, backpropagate=False):
 
         dt = self.dt
         dh = self.dh
-        self.sc = sc = self.scale(states["M"], dt, dh)
-        states["rho"] = 2 ** sc * dt / dh / states["rho"]
-        states["rip"] = 2 ** sc * dt / dh / states["rip"]
-        states["rkp"] = 2 ** sc * dt / dh / states["rkp"]
-        states["M"] = 2 ** -sc * dt / dh * states["M"]
-        states["mu"] = 2 ** -sc * dt / dh * states["mu"]
-        states["muipkp"] = 2 ** -sc * dt / dh * states["muipkp"]
 
-        return states
+        if backpropagate:
+            sc = self.sc
+            rho.data = 2 ** sc * dt / dh / (rho.data + np.sqrt(rho.smallest))
+            rip.data = 2 ** sc * dt / dh / (rip.data + np.sqrt(rip.smallest))
+            rkp.data = 2 ** sc * dt / dh / (rkp.data + np.sqrt(rkp.smallest))
+            M.data = 2 ** sc / dt * dh * M.data
+            mu.data = 2 ** sc / dt * dh * mu.data
+            muipkp.data = 2 ** sc / dt * dh * muipkp.data
+        else:
+            self.sc = sc = self.scale(M.data, dt, dh)
+            rho.data = 2 ** sc * dt / dh / (rho.data + np.sqrt(rho.smallest))
+            rip.data = 2 ** sc * dt / dh / (rip.data + np.sqrt(rip.smallest))
+            rkp.data = 2 ** sc * dt / dh / (rkp.data + np.sqrt(rkp.smallest))
+            M.data = 2 ** -sc * dt / dh * M.data
+            mu.data = 2 ** -sc * dt / dh * mu.data
+            muipkp.data = 2 ** -sc * dt / dh * muipkp.data
 
-    def linear(self, dstates, states, **kwargs):
+        return rho, rip, rkp, M, mu, muipkp
+
+    def linear(self, rho, rip, rkp, M, mu, muipkp):
+
+        dt = self.dt
+        dh = self.dh
+        sc = self.sc
+        rho.lin = -2 ** sc * dt / dh / (rho.data + np.sqrt(rho.smallest)) ** 2 * rho.lin
+        rip.lin = -2 ** sc * dt / dh / (rip.data + np.sqrt(rip.smallest)) ** 2 * rip.lin
+        rkp.lin = -2 ** sc * dt / dh / (rkp.data + np.sqrt(rkp.smallest)) ** 2 * rkp.lin
+        M.lin = 2 ** -sc * dt / dh * M.lin
+        mu.lin = 2 ** -sc * dt / dh * mu.lin
+        muipkp.lin = 2 ** -sc * dt / dh * muipkp.lin
+
+        return rho, rip, rkp, M, mu, muipkp
+
+    def adjoint(self, rho, rip, rkp, M, mu, muipkp):
 
         sc = self.sc
         dt = self.dt
         dh = self.dh
-        dstates["rho"] = -2 ** sc * dt / dh / states["rho"] ** 2 * dstates["rho"]
-        dstates["rip"] = -2 ** sc * dt / dh / states["rip"] ** 2 * dstates["rip"]
-        dstates["rkp"] = -2 ** sc * dt / dh / states["rkp"] ** 2 * dstates["rkp"]
-        dstates["M"] = 2 ** -sc * dt / dh * dstates["M"]
-        dstates["mu"] = 2 ** -sc * dt / dh * dstates["mu"]
-        dstates["muipkp"] = 2 ** -sc * dt / dh * dstates["muipkp"]
+        rho.grad = -2 ** sc * dt / dh / (rho.data + np.sqrt(rho.smallest)) ** 2 * rho.grad
+        rip.grad = -2 ** sc * dt / dh / (rip.data + np.sqrt(rip.smallest)) ** 2 * rip.grad
+        rkp.grad = -2 ** sc * dt / dh / (rkp.data + np.sqrt(rkp.smallest)) ** 2 * rkp.grad
+        M.grad = 2 ** -sc * dt / dh * M.grad
+        mu.grad = 2 ** -sc * dt / dh * mu.grad
+        muipkp.grad = 2 ** -sc * dt / dh * muipkp.grad
 
-        return dstates
-
-    def adjoint(self, adj_states, states,  **kwargs):
-
-        sc = self.sc
-        dt = self.dt
-        dh = self.dh
-        adj_states["rho"] = -2 ** sc * dt / dh / states["rho"] ** 2 * adj_states["rho"]
-        adj_states["rip"] = -2 ** sc * dt / dh / states["rip"] ** 2 * adj_states["rip"]
-        adj_states["rkp"] = -2 ** sc * dt / dh / states["rkp"] ** 2 * adj_states["rkp"]
-        adj_states["M"] = 2 ** -sc * dt / dh * adj_states["M"]
-        adj_states["mu"] = 2 ** -sc * dt / dh * adj_states["mu"]
-        adj_states["muipkp"] = 2 ** -sc * dt / dh * adj_states["muipkp"]
-
-        return adj_states
-
-    def backward(self, states, **kwargs):
-
-        sc = self.sc
-        dt = self.dt
-        dh = self.dh
-        states["rho"] = 2 ** sc * dt / dh / states["rho"]
-        states["rip"] = 2 ** sc * dt / dh / states["rip"]
-        states["rkp"] = 2 ** sc * dt / dh / states["rkp"]
-        states["M"] = 2 ** sc / dt * dh * states["M"]
-        states["mu"] = 2 ** sc / dt * dh * states["mu"]
-        states["muipkp"] = 2 ** sc / dt * dh * states["muipkp"]
-
-        return states
+        return rho, rip, rkp, M, mu, muipkp
 
 
 class Cerjan(FunctionGPU):

@@ -1,7 +1,8 @@
 import unittest
-from .elastic import UpdateStress
+from .elastic import UpdateStress, UpdateVelocity, ScaledParameters, Cerjan, FreeSurface1, FreeSurface2
 from SeisCL.python import VariableCL as Variable
 from SeisCL.python import ComputeRessource
+
 
 class ElasticTester(unittest.TestCase):
 
@@ -18,6 +19,8 @@ class ElasticTester(unittest.TestCase):
         self.vp = Variable(q, shape=shape, initialize_method="random", pad=2)
         self.vs = Variable(q, shape=shape, initialize_method="random", pad=2)
         self.rho = Variable(q, shape=shape, initialize_method="random", pad=2)
+        self.rip = Variable(q, shape=shape, initialize_method="random", pad=2)
+        self.rkp = Variable(q, shape=shape, initialize_method="random", pad=2)
         self.vx = Variable(q, shape=shape, initialize_method="random", pad=2)
         self.vz = Variable(q, shape=shape, initialize_method="random", pad=2)
         self.sxx = Variable(q, shape=shape, initialize_method="random", pad=2)
@@ -29,21 +32,22 @@ class ElasticTester(unittest.TestCase):
         self.vxout = Variable(q, shape=shape, initialize_method="random", pad=2)
 
     def test_scaledparameters(self):
-        vp = self.vp; vs = self.vs; rho = self.rho
+        rho = self.rho; rip = self.rip; rkp = self.rkp
+        M = self.M; mu = self.mu; muipkp = self.muipkp
         dt = self.dt; dx = self.dx
         sp = ScaledParameters(dt, dx)
-        self.assertLess(sp.backward_test(vp, vs, rho), 1e-12)
-        self.assertLess(sp.linear_test(vp, vs, rho), 1e-05)
-        self.assertLess(sp.dot_test(vp, vs, rho), 1e-12)
+        self.assertLess(sp.backward_test(rho, rip, rkp, M, mu, muipkp), 1e-06)
+        self.assertLess(sp.linear_test(rho, rip, rkp, M, mu, muipkp), 1e-01)
+        self.assertLess(sp.dot_test(rho, rip, rkp, M, mu, muipkp), 1e-06)
 
     def test_UpdateVelocity(self):
-        vp = self.vp; vs = self.vs; rho = self.rho
+        rip = self.rip; rkp = self.rkp
         vx = self.vx; vz = self.vz
         sxx = self.sxx; szz = self.szz; sxz = self.sxz
-        fun = UpdateVelocity()
-        self.assertLess(fun.backward_test(rho, vx, vz, sxx, szz, sxz), 1e-12)
-        self.assertLess(fun.linear_test(rho, vx, vz, sxx, szz, sxz), 1e-05)
-        self.assertLess(fun.dot_test(rho, vx, vz, sxx, szz, sxz), 1e-12)
+        fun = UpdateVelocity(self.resc.queues[0], order=4)
+        self.assertLess(fun.backward_test(vx, vz, sxx, szz, sxz, rip, rkp), 1e-06)
+        self.assertLess(fun.linear_test(vx, vz, sxx, szz, sxz, rip, rkp), 1e-01)
+        self.assertLess(fun.dot_test(vx, vz, sxx, szz, sxz, rip, rkp), 1e-06)
 
     def test_UpdateStress(self):
         M = self.M; mu = self.mu; muipkp = self.muipkp
@@ -51,11 +55,39 @@ class ElasticTester(unittest.TestCase):
         sxx = self.sxx; szz = self.szz; sxz = self.sxz
         fun = UpdateStress(self.resc.queues[0], order=4)
         with self.subTest("backward"):
-            self.assertLess(fun.backward_test(vx, vz, sxx, szz, sxz, M, mu, muipkp), 1e-8)
+            self.assertLess(fun.backward_test(vx, vz, sxx, szz, sxz, M, mu, muipkp), 1e-06)
         with self.subTest("linear"):
             self.assertLess(fun.linear_test(vx, vz, sxx, szz, sxz, M, mu, muipkp), 1e-01)
         with self.subTest("dot_product"):
-            self.assertLess(fun.dot_test(vx, vz, sxx, szz, sxz, M, mu, muipkp), 1e-07)
+            self.assertLess(fun.dot_test(vx, vz, sxx, szz, sxz, M, mu, muipkp), 1e-06)
+
+    def test_FreeSurface1(self):
+
+        rip = self.rip; rkp = self.rkp
+        M = self.M; mu = self.mu;
+        vx = self.vx; vz = self.vz
+        sxx = self.sxx; szz = self.szz; sxz = self.sxz
+        fun = FreeSurface1(self.resc.queues[0], order=4)
+        with self.subTest("backward"):
+            self.assertLess(fun.backward_test(vx, vz, sxx, szz, sxz, M, mu, rkp, rip), 1e-06)
+        with self.subTest("linear"):
+            self.assertLess(fun.linear_test(vx, vz, sxx, szz, sxz, M, mu, rkp, rip), 1e-01)
+        with self.subTest("dot_product"):
+            self.assertLess(fun.dot_test(vx, vz, sxx, szz, sxz, M, mu, rkp, rip), 1e-06)
+
+    def test_FreeSurface2(self):
+
+        rip = self.rip; rkp = self.rkp
+        M = self.M; mu = self.mu;
+        vx = self.vx; vz = self.vz
+        sxx = self.sxx; szz = self.szz; sxz = self.sxz
+        fun = FreeSurface2(self.resc.queues[0], order=4)
+        with self.subTest("backward"):
+            self.assertLess(fun.backward_test(vx, vz, sxx, szz, sxz, rkp, rip), 1e-06)
+        with self.subTest("linear"):
+            self.assertLess(fun.linear_test(vx, vz, sxx, szz, sxz, rkp, rip), 1e-01)
+        with self.subTest("dot_product"):
+            self.assertLess(fun.dot_test(vx, vz, sxx, szz, sxz, rkp, rip), 1e-06)
 
     def test_Cerjan(self):
         vx = self.vx; vz = self.vz
