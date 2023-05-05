@@ -1,3 +1,5 @@
+
+from .configuration import Configuration
 from .tape import *
 from .variable import *
 from .function import *

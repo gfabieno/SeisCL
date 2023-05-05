@@ -2,7 +2,8 @@
 import unittest
 import numpy as np
 from SeisCL.python import FunctionGPU, ComputeRessource, VariableCL
-from SeisCL.python import Grid
+from SeisCL.python import ComputeGrid
+
 
 class FunctionGpuTester(unittest.TestCase):
 
@@ -19,7 +20,7 @@ class FunctionGpuTester(unittest.TestCase):
                     src = src % (("g.z, g.x", )*3)
                 elif len(a.shape) == 3:
                     src = src % (("g.z, g.y, g.x", )*3)
-                grid = Grid(shape=a.shape)
+                grid = ComputeGrid(self.queue, a.shape, [0]*ndim)
                 self.gpukernel(src, "forward", grid, a, b, c)
                 return c
 
@@ -33,7 +34,7 @@ class FunctionGpuTester(unittest.TestCase):
                     src = src % (("g.z, g.x", )*3)
                 elif len(a.shape) == 3:
                     src = src % (("g.z, g.y, g.x", )*3)
-                grid = Grid(shape=a.shape)
+                grid = ComputeGrid(self.queue, a.shape, [0]*ndim)
                 self.gpukernel(src, "linear", grid, a, b, c)
                 return c
 
@@ -49,7 +50,7 @@ class FunctionGpuTester(unittest.TestCase):
                     src = src % (("g.z, g.x", )*5)
                 elif len(a.shape) == 3:
                     src = src % (("g.z, g.y, g.x", )*5)
-                grid = Grid(shape=a.shape)
+                grid = ComputeGrid(self.queue, a.shape, [0]*ndim)
                 self.gpukernel(src, "adjoint", grid, a, b, c)
                 return a, b
         resc = ComputeRessource()

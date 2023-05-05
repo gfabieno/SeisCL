@@ -13,11 +13,11 @@ except ImportError:
 # TODO review how dimensions names are assigned
 class VariableCL(Variable):
 
-    def __init__(self, queue, data=None, shape=None, lin=None, grad=None,
+    def __init__(self, queue=None, data=None, shape=None, lin=None, grad=None,
                  initialize_method="zero", dtype=np.float32,
                  pad=None, differentiable=True):
         self.queue = queue
-        self.copy_array = CopyArrayCL(queue.context)
+        #self.copy_array = CopyArrayCL(queue.context)
         super().__init__(data=data, shape=shape, lin=lin, grad=grad,
                          initialize_method=initialize_method, dtype=dtype,
                          pad=pad, differentiable=differentiable)

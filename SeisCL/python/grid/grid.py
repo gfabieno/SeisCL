@@ -1,7 +1,6 @@
 from copy import copy
 
 
-
 class Grid:
 
     def __init__(self, shape, nt=0, dt=0, dh=0, pad=0):

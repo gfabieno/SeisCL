@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import math
 from SeisCL.python import Variable, Function, TapedFunction, ReversibleFunction
-from SeisCL.python.seismic.common.Acquisition import Acquisition, Grid, Source, Shot, Receiver
+from SeisCL.python.seismic.common.acquisition import Acquisition, Grid, Source, Shot, Receiver
 import unittest
 from SeisCL.python.Propagator import FWI, Propagator
 from typing import List

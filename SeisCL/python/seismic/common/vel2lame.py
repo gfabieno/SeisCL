@@ -1,145 +1,110 @@
-from SeisCL.python import ReversibleFunction
-from SeisCL.python import ComputeRessource, ReversibleFunctionGPU
+from SeisCL.python import ReversibleFunction, ReversibleFunctionGPU
+from SeisCL.python import ComputeRessource, ComputeGrid
 import numpy as np
 import pyopencl.clmath as math
 
 
 class Velocity2Lame(ReversibleFunction):
 
-    def __init__(self, grids=None, **kwargs):
-        super().__init__(grids, **kwargs)
-        self.required_states = ["vp", "vs", "rho"]
-        self.updated_states = ["M", "mu", "rhoi"]
-        self.default_grids = {el: "gridpar"
-                              for el in self.required_states+self.updated_states}
+    def forward(self, vp, vs, rho, backpropate=False):
 
-    def forward(self, states, **kwargs):
+        if backpropate:
+            vp.data = math.sqrt(vp.data * rho.data)
+            vs.data = math.sqrt(vs.data * rho.data)
+        else:
+            vp.data = vp.data**2 * rho.data
+            vs.data = vs.data**2 * rho.data
+            #rho.data = 1.0 / (rho.data + rho.smallest)
 
-        vs = states["vp"]
-        vp = states["vs"]
-        rho = states["rho"]
+        return vp, vs
 
-        states["M"] = vp**2 * rho
-        states["mu"] = vs**2 * rho
-        states["rhoi"] = 1.0 / (rho + self.grids["rho"].smallest)
+    def linear(self, vp, vs, rho):
 
-        return states
+        vp.lin = 2.0 * (vp.data * rho.data) * vp.lin + vp.data**2 * rho.lin
+        vs.lin = 2.0 * (vs.data * rho.data) * vs.lin + vs.data**2 * rho.lin
+        #dstates["rhoi"] = -1.0 / (rho + self.grids["rho"].smallest)**2 * drho
 
-    def linear(self, dstates, states, **kwargs):
+        return vp, vs
 
-        vs = states["vs"]
-        vp = states["vp"]
-        rho = states["rho"]
+    def adjoint(self, vp, vs, rho):
 
-        dvs = dstates["vs"]
-        dvp = dstates["vp"]
-        drho = dstates["rho"]
+        rho.grad += vp.data**2 * vp.grad + vs.data**2 * vs.grad
+        #- 1.0 / (rho + self.grids["rho"].smallest)**2 * adj_rhoi
+        vp.grad += 2.0 * (vp.data * rho.data) * vp.grad
+        vs.grad += 2.0 * (vs.data * rho.data) * vs.grad
 
-        dstates["M"] = 2.0 * (vp * rho) * dvp + vp**2 * drho
-        dstates["mu"] = 2.0 * (vs * rho) * dvs + vs**2 * drho
-        dstates["rhoi"] = -1.0 / (rho + self.grids["rho"].smallest)**2 * drho
-
-        return dstates
-
-    def adjoint(self, adj_states, states, dt=0.1, dx=2.0, **kwargs):
-
-        vs = states["vs"]
-        vp = states["vp"]
-        rho = states["rho"]
-
-        adj_mu = adj_states["mu"]
-        adj_M = adj_states["M"]
-        adj_rhoi = adj_states["rhoi"]
-
-        adj_states["vp"] += 2.0 * (vp * rho) * adj_M
-        adj_states["vs"] += 2.0 * (vs * rho) * adj_mu
-        adj_states["rho"] += (vp**2 * adj_M
-                             + vs**2 * adj_mu
-                             - 1.0 / (rho + self.grids["rho"].smallest)**2 * adj_rhoi)
-        return adj_states
-
-    def backward(self, states, dt=0.1, dx=2.0, **kwargs):
-
-        rhoi = states["rhoi"]
-        M = states["M"]
-        mu = states["mu"]
-
-        states["rho"] = 1.0 / (rhoi + self.grids["rho"].smallest)
-        states["vs"] = math.sqrt(mu * rhoi)
-        states["vp"] = math.sqrt(M * rhoi)
-
-        return states
+        return vp, vs, rho
 
 
 class Velocity2LameGPU(ReversibleFunctionGPU):
 
-    forward_src = """
-    FUNDEF void Velocity2LameCL(grid pos,
-                                GLOBARG float *rho,
-                                GLOBARG float *vp,
-                                GLOBARG float *vs,
-                                int backpropagate){
+    def forward(self, vp, vs, rho, backpropagate=False):
+
+        if len(vp.shape) == 3:
+            postr = """g.z, g.y, g.x"""
+        elif len(vp.shape) == 2:
+            postr = """g.z, g.x"""
+        else:
+            postr = """g.z"""
+
+        src = """
+        if (backpropagate){
+            vp(%s) = sqrt(vp(%s) / rho(%s));
+            vs(%s) = sqrt(vs(%s) / rho(%s));
+        }
+        else{
+            vp(%s) = pow(vp(%s), 2) * rho(%s);
+            vs(%s) = pow(vs(%s), 2) * rho(%s);
+        }
+        """ % ((postr,) * 12)
+        grid = ComputeGrid(shape=[s - 2*vp.pad for s in vp.shape],
+                           queue=self.queue,
+                           origin=[vp.pad for _ in vp.shape])
+        self.gpukernel(src, "forward", grid, vp, vs, rho,
+                       backpropagate=backpropagate)
+        return vp, vs
+
+    def linear(self, vp, vs, rho):
+
+        if len(vp.shape) == 3:
+            postr = """g.z, g.y, g.x"""
+        elif len(vp.shape) == 2:
+            postr = """g.z, g.x"""
+        else:
+            postr = """g.z"""
+        src = """
+        vp_lin(%s) = 2.0 * (vp(%s) * rho(%s)) * vp_lin(%s) \
+                      + pow(vp(%s), 2) * rho_lin(%s);
+        vs_lin(%s) = 2.0 * (vs(%s) * rho(%s)) * vs_lin(%s) \
+                      + pow(vs(%s), 2) * rho_lin(%s);
+        """ % ((postr,) * 12)
+        grid = ComputeGrid(shape=[s - 2*vp.pad for s in vp.shape],
+                           queue=self.queue,
+                           origin=[vp.pad for _ in vp.shape])
+        self.gpukernel(src, "linear", grid, vp, vs, rho)
+        return vp, vs
+
+    def adjoint(self, vp, vs, rho):
+
+        if len(vp.shape) == 3:
+            postr = """g.z, g.y, g.x"""
+        elif len(vp.shape) == 2:
+            postr = """g.z, g.x"""
+        else:
+            postr = """g.z"""
+        src = """
+        rho_adj(%s) += pow(vp(%s), 2) * vp_adj(%s) \
+                        + pow(vs(%s), 2) * vs_adj(%s) ;
+        vp_adj(%s) = 2.0 * (vp(%s) * rho(%s)) * vp_adj(%s);
+        vs_adj(%s) = 2.0 * (vs(%s) * rho(%s)) * vs_adj(%s);
+        """ % ((postr,) * 13)
+        grid = ComputeGrid(shape=[s - 2*vp.pad for s in vp.shape],
+                           queue=self.queue,
+                           origin=[vp.pad for _ in vp.shape])
+        self.gpukernel(src, "adjoint", grid, vp, vs, rho)
+        return vp, vs
     
-    get_pos(&pos);
-    int ind0 = indg(pos, 0, 0, 0);
-    if (backpropagate){
-        vp[ind0] = sqrt(vp[ind0] / rho[ind0]);
-        vs[ind0] = sqrt(vs[ind0] / rho[ind0]);
-    }
-    else{
-        vp[ind0] = pow(vp[ind0], 2) * rho[ind0];
-        vs[ind0] = pow(vs[ind0], 2) * rho[ind0];
-    }
-}
-    """
 
-    linear_src = """
-    FUNDEF void Velocity2LameCL_lin(grid pos,
-                                GLOBARG float *rho,
-                                GLOBARG float *vp,
-                                GLOBARG float *vs,
-                                GLOBARG float *rho_lin,
-                                GLOBARG float *vp_lin,
-                                GLOBARG float *vs_lin){
-    
-    get_pos(&pos);
-    int ind0 = indg(pos, 0, 0, 0);
-    vp_lin[ind0] = 2.0 * (vp[ind0] * rho[ind0]) * vp_lin[ind0] \
-                  + pow(vp[ind0], 2) * rho_lin[ind0];
-    vs_lin[ind0] = 2.0 * (vs[ind0] * rho[ind0]) * vs_lin[ind0] \
-                  + pow(vs[ind0], 2) * rho_lin[ind0];
-}
-    """
-
-    adjoint_src = """
-    FUNDEF void Velocity2LameCL_adj(grid pos,
-                                GLOBARG float *rho,
-                                GLOBARG float *vp,
-                                GLOBARG float *vs,
-                                GLOBARG float *rho_adj,
-                                GLOBARG float *vp_adj,
-                                GLOBARG float *vs_adj){
-    
-    get_pos(&pos);
-    int ind0 = indg(pos, 0, 0, 0);
-    rho_adj[ind0] += pow(vp[ind0], 2) * vp_adj[ind0] \
-                    + pow(vs[ind0], 2) * vs_adj[ind0] ;
-    vp_adj[ind0] = 2.0 * (vp[ind0] * rho[ind0]) * vp_adj[ind0];
-    vs_adj[ind0] = 2.0 * (vs[ind0] * rho[ind0]) * vs_adj[ind0];
-
-}
-    """
-
-    def __init__(self, grids=None, computegrid=None, **kwargs):
-        self.required_states = ["vp", "vs", "rho"]
-        self.updated_states = ["vp", "vs", "rho"]
-        self.default_grids = {el: "gridpar" for el in self.required_states}
-        self.default_grids["M"] = "gridpar"
-        self.default_grids["mu"] = "gridpar"
-        self.copy_states = {"M": "vp", "mu": "vs"}
-        super().__init__(grids=grids,
-                         computegrid=computegrid,
-                         **kwargs)
 
 
 if __name__ == '__main__':

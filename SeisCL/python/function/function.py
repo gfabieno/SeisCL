@@ -122,7 +122,7 @@ class Function(TapeHolder):
         """
         raise NotImplementedError
 
-    def backward_test(self, *args, verbose=True, **kwargs):
+    def backward_test(self, *args, verbose=False, **kwargs):
 
         vars = self.arguments(*args, **kwargs)
         vars0 = {name: deepcopy(var) for name, var in vars.items()
@@ -152,7 +152,7 @@ class Function(TapeHolder):
 
         return err
 
-    def linear_test(self, *args, **kwargs):
+    def linear_test(self, *args, verbose=False, **kwargs):
 
         vars = self.arguments(*args, **kwargs)
         pargs = deepcopy(args)
@@ -201,20 +201,17 @@ class Function(TapeHolder):
                 if np.max(eps*var.lin / (var.data+var.smallest)) < var.eps:
                     cond = False
                     break
-        try:
-            errmin = np.min(errs)
-            if hasattr(errmin, "get"):
-                errmin = errmin.get()[()]
+
+        errmin = np.min(errs)
+        if hasattr(errmin, "get"):
+            errmin = errmin.get()[()]
+        if verbose:
             print("Linear test for Kernel %s: %.15e"
                   % (self.__class__.__name__, errmin))
-        except ValueError:
-            errmin = 0
-            print("Linear test for Kernel %s: unable to perform"
-                  % (self.__class__.__name__))
 
         return errmin
 
-    def dot_test(self, *args, **kwargs):
+    def dot_test(self, *args, verbose=False, **kwargs):
         """
         Dot product test for fstates, outputs = F(states)
 
@@ -251,8 +248,9 @@ class Function(TapeHolder):
         res = (prod1-prod2)/(prod1+prod2)
         if hasattr(res, "get"):
             res = res.get()[()]
-        print("Dot product test for Kernel %s: %.15e"
-              % (self.__class__.__name__, res))
+        if verbose:
+            print("Dot product test for Kernel %s: %.15e"
+                  % (self.__class__.__name__, res))
 
         return res
 

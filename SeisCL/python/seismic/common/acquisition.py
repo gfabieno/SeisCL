@@ -36,7 +36,7 @@ class Receiver:
 
 class Source:
 
-    def __init__(self, x: float = 0, y: float = None, z: float = 0,
+    def __init__(self, x: float = None, y: float = None, z: float = None,
                  type: str = "vz"):
         """
         Define the position and wavelet of a source.
@@ -56,6 +56,7 @@ class Source:
         self.type = type
 
 
+#TODO sources should be sorted by type, each with a wavelet Variable
 class Shot:
 
     def __init__(self, sources: List, receivers: List, sid: int,
@@ -72,6 +73,7 @@ class Shot:
         :param dt: Sampling time.
         :param dobs: The observed data, as a Variable object.
         :param wavelet: The source wavelet as a Variable object.
+        :param f0: The dominant frequency of the wavelet.
         """
         self.sources = sources
         self.receivers = receivers
@@ -110,9 +112,67 @@ class Shot:
                 raise ValueError("Wavelet has wrong number of time steps")
             if wavelet.shape[1] != len(self.sources):
                 raise ValueError("Wavelet has wrong number of sources")
-            if type(wavelet) is not Variable:
+            if not isinstance(wavelet, Variable):
                 raise ValueError("Wavelet must be a Variable object")
         self._wavelet = wavelet
+
+    @property
+    def sources(self):
+        return self._sources
+
+    @sources.setter
+    def sources(self, sources):
+        if type(sources) is not list:
+            raise ValueError("Sources must be a list of Source objects")
+        self._sources = sources
+        self._src_pos = None
+
+    @property
+    def receivers(self):
+        return self._receivers
+
+    @receivers.setter
+    def receivers(self, receivers):
+        if type(receivers) is not list:
+            raise ValueError("Receivers must be a list of Receiver objects")
+        self._receivers = receivers
+        self._rec_pos = None
+
+    def src_pos(self, dh=None, shape=None):
+        """
+        Return the source positions as a numpy array in (m).
+
+        :param dh: If provided, round the positions to this grid spacing.
+        :param shape: If provided, positions are the linear indices of the array
+        :return: The sources positions as a numpy array.
+        """
+        if self._src_pos is None:
+            src_pos = np.array([[el for el in [s.x, s.y, s.z] if el is not None]
+                                for s in self.sources])
+            if dh is not None:
+                src_pos = np.round(src_pos/dh).astype(np.int)
+            if shape is not None:
+                src_pos = np.ravel_multi_index(src_pos, shape, order="F")
+            self._src_pos = src_pos
+        return self._src_pos
+
+    def rec_pos(self, dh=None, shape=None):
+        """
+        Return the receiver positions as a numpy array in (m).
+
+        :param dh: If provided, round the positions to this grid spacing.
+        :param shape: If provided, positions are the linear indices of the array
+        :return: The receivers positions as a numpy array.
+        """
+        if self._rec_pos is None:
+            rec_pos = np.array([[el for el in [r.x, r.y, r.z] if el is not None]
+                                for r in self.receivers])
+            if dh is not None:
+                rec_pos = np.round(rec_pos/dh).astype(np.int)
+            if shape is not None:
+                rec_pos = np.ravel_multi_index(rec_pos, shape, order="F")
+            self._rec_pos = rec_pos
+        return self._rec_pos
 
 
 def ricker_wavelet(f0=None, nt=None, dt=None, tmin=None):

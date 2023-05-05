@@ -9,7 +9,7 @@ import subprocess
 import shutil
 from obspy.core import Trace, Stream
 from obspy.io.segy.segy import _read_segy
-from SeisCL.python.seismic.common.Acquisition import Acquisition
+from SeisCL.python.seismic.common.acquisition import Acquisition
 
 class SeisCLError(Exception):
     pass

@@ -1,7 +1,7 @@
 from .function import Function, ReversibleFunction
 from .kernel import Kernel
 
-
+#TODO memoize forward, linear and adjoint kernels
 class FunctionGPU(Function):
     """
     Base class for all GPU functions. As for `Function`, override the methods

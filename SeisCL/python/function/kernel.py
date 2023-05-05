@@ -1,6 +1,6 @@
 
 import numpy as np
-from SeisCL.python import Variable
+from SeisCL.python import VariableCL, Variable
 
 try:
     import pyopencl as cl
@@ -97,7 +97,7 @@ class Kernel:
     def arg_list(self, arguments):
         arg_list = []
         for el, var in arguments.items():
-            if isinstance(var, Variable):
+            if isinstance(var, VariableCL):
                 arg_list.append(var.data.data)
                 if self.mode == "linear":
                     arg_list.append(var.lin.data)
@@ -248,7 +248,7 @@ def get_variable_headers(variables, mode):
 def argument_definition(arguments, mode, platform):
     argdef = []
     for el, var in arguments.items():
-        if isinstance(var, Variable):
+        if isinstance(var, VariableCL):
             if var.dtype == np.float32:
                 dtype = "float"
             elif var.dtype == np.int32:
