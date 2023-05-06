@@ -29,7 +29,6 @@ class TestVelocity2Lame(unittest.TestCase):
                 self.assertLess(v2l.dot_test(vp, vs, rho), 1e-06)
 
 
-#TODO finish that test case
 class TestPointSources(unittest.TestCase):
 
     def test_GPU_version(self):
@@ -89,6 +88,7 @@ class TestPointSources(unittest.TestCase):
                 self.assertLess(srcfun.backward_test(*fields, shot.wavelet,
                                                      src_pos, src_type, t),
                                 1e-06)
+
 
 class TestReceivers(unittest.TestCase):
 
