@@ -3,7 +3,9 @@ import unittest
 import numpy as np
 
 from SeisCL.python.seismic import Velocity2Lame, Velocity2LameGPU
-from SeisCL.python.seismic import PointSources2DGPU, PointSources3DGPU, Acquisition, Shot, Source
+from SeisCL.python.seismic import (PointSources2DGPU, PointSources3DGPU,
+                                   GeophoneGPU2D, GeophoneGPU3D,
+                                   Acquisition, Shot, Source, Receiver)
 from SeisCL.python import Variable, VariableCL, ComputeRessource
 
 
@@ -88,6 +90,65 @@ class TestPointSources(unittest.TestCase):
                                                      src_pos, src_type, t),
                                 1e-06)
 
+class TestReceivers(unittest.TestCase):
+
+    def test_GPU_version(self):
+
+        resc = ComputeRessource()
+        q = resc.queues[0]
+        for nd in range(2, 4):
+
+            if nd == 2:
+                rtypes = ["vz", "vx", "p"]
+                recfun = GeophoneGPU2D(q)
+            elif nd == 3:
+                rtypes = ["vz", "vy", "vx", "p"]
+                recfun = GeophoneGPU3D(q)
+
+            for rtype in rtypes:
+                shape = (10, ) * nd
+                dh = 1.5
+                t = 2
+                nt = 10
+                pos = [(4*dh, ) * nd, (5*dh, ) * nd]
+                receivers = [Receiver(*p, type=rtype) for p in pos]
+                dmod = VariableCL(q, shape=(nt, len(pos)),
+                                  initialize_method="random")
+                shot = Shot([], receivers, 0, 10, 1, dmod=dmod)
+                fields = [VariableCL(q, shape=shape, initialize_method="random",
+                                     pad=2) for _ in range(2*nd)]
+                rec_pos = recfun.rec_pos(shot, dh, shape)
+                rec_type = recfun.rec_type(shot)
+                recfun(*fields, shot.dmod, rec_pos, rec_type, t)
+                args = recfun.arguments(*fields, shot.dmod, rec_pos, rec_type,
+                                        t)
+                if rtype in args:
+                    f1 = args[rtype].data.get().flatten()[rec_pos.get()]
+                    f2 = shot.dmod.data.get()[t, :]
+                    self.assertTrue(np.allclose(f1, f2))
+                elif rtype == "p":
+                    f1 = shot.dmod.data.get()[t, :]
+                    sxx = args["sxx"].data.get().flatten()[rec_pos.get()]
+                    szz = args["szz"].data.get().flatten()[rec_pos.get()]
+                    if nd == 3:
+                        syy = args["syy"].data.get().flatten()[rec_pos.get()]
+                        f2 = (sxx + syy + szz) / nd
+                    else:
+                        f2 = (sxx + szz) / nd
+                    self.assertTrue(np.allclose(f1, f2))
+
+            # with self.subTest(nd=nd, msg="PointSourcesGPU: backward test"):
+            #     self.assertLess(recfun.backward_test(*fields, shot.wavelet,
+            #                                          rec_pos, rec_type, t),
+            #                     1e-06)
+            with self.subTest(nd=nd, msg="GeophoneGPU: linear test"):
+                self.assertLess(recfun.linear_test(*fields, shot.dmod, rec_pos,
+                                                   rec_type, t),
+                                1e-06)
+            with self.subTest(nd=nd, msg="GeophoneGPU: linear test"):
+                self.assertLess(recfun.dot_test(*fields, shot.dmod, rec_pos,
+                                                rec_type, t),
+                                1e-06)
 
 
 

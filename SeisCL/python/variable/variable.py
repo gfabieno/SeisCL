@@ -143,8 +143,10 @@ class Variable:
         return np.ravel_multi_index([np.array(el)+self.pad for el in args],
                                     self.shape, order="F")
 
-    def __deepcopy__(self, memo):
-        var = copy(self)
+    def __copy__(self):
+        cls = self.__class__
+        var = cls.__new__(cls)
+        var.__dict__.update(self.__dict__)
         if var.data is not None:
             var.data = self.data.copy()
         if var.lin is not None:
@@ -152,5 +154,4 @@ class Variable:
         if var.grad is not None:
             var.grad = self.grad.copy()
         return var
-
 

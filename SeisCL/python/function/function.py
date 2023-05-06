@@ -155,11 +155,11 @@ class Function(TapeHolder):
     def linear_test(self, *args, verbose=False, **kwargs):
 
         vars = self.arguments(*args, **kwargs)
-        pargs = deepcopy(args)
-        pkwargs = deepcopy(kwargs)
+        pargs = [copy(a) for a in args]
+        pkwargs = {name: copy(val) for name, val in kwargs.items()}
         pvars = self.arguments(*pargs, **pkwargs)
-        fargs = deepcopy(args)
-        fkwargs = deepcopy(kwargs)
+        fargs = [copy(a) for a in args]
+        fkwargs = {name: copy(val) for name, val in kwargs.items()}
         fvars = self.arguments(*fargs, **fkwargs)
         for name, var in vars.items():
             var.data = var.initialize(method="random")
@@ -224,8 +224,8 @@ class Function(TapeHolder):
         """
 
         vars = self.arguments(*args, **kwargs)
-        fargs = deepcopy(args)
-        fkwargs = deepcopy(kwargs)
+        fargs = [copy(a) for a in args]
+        fkwargs = {name: copy(val) for name, val in kwargs.items()}
         fvars = self.arguments(*fargs, **fkwargs)
         for name, var in vars.items():
             var.data = var.initialize(method="random")

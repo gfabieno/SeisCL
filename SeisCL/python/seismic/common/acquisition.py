@@ -12,7 +12,7 @@ from SeisCL.python import Variable
 
 class Receiver:
 
-    def __init__(self, x: float = 0, y: float = None, z: float = 0,
+    def __init__(self, x: float = None, y: float = None, z: float = None,
                  type: str = "vz", trid: int = 0):
         """
         Define the position of a receiver.
@@ -61,6 +61,7 @@ class Shot:
 
     def __init__(self, sources: List, receivers: List, sid: int,
                  nt: int, dt: float, dobs: Variable = None,
+                 dmod: Variable = None,
                  wavelet: Variable = None, f0: float = 20):
         """
         Define a shot that may contain simultaneous sources
@@ -72,6 +73,7 @@ class Shot:
         :param nt: Number of time steps.
         :param dt: Sampling time.
         :param dobs: The observed data, as a Variable object.
+        :param dmod: The modeled data, as a Variable object.
         :param wavelet: The source wavelet as a Variable object.
         :param f0: The dominant frequency of the wavelet.
         """
@@ -83,7 +85,7 @@ class Shot:
         self.dobs = dobs
         self.f0 = f0
         self.wavelet = wavelet
-        self.dmod = Variable(shape=(nt, len(self.receivers)))
+        self.dmod = dmod
 
     @property
     def rectypes(self):
