@@ -1,4 +1,7 @@
 import unittest
+
+import numpy as np
+
 from SeisCL.python.seismic import Velocity2Lame, Velocity2LameGPU
 from SeisCL.python.seismic import PointSources2DGPU, PointSources3DGPU, Acquisition, Shot, Source
 from SeisCL.python import Variable, VariableCL, ComputeRessource
@@ -47,12 +50,46 @@ class TestPointSources(unittest.TestCase):
                 nt = 10
                 pos = [(4*dh, ) * nd, (5*dh, ) * nd]
                 sources = [Source(*p, type=stype) for p in pos]
-                wavelet = VariableCL(q, shape=(nt,len(pos)), initialize_method="random")
+                wavelet = VariableCL(q, shape=(nt,len(pos)),
+                                     initialize_method="random")
                 shot = Shot(sources, [], 0, 10, 1, wavelet=wavelet)
                 fields = [VariableCL(q, shape=shape, initialize_method="random",
                                      pad=2) for _ in range(2*nd)]
+                fieldsnp = [Variable(data=f.data.get()) for f in fields]
                 src_pos = srcfun.src_pos(shot, dh, shape)
                 src_type = srcfun.src_type(shot)
                 srcfun(*fields, shot.wavelet, src_pos, src_type, t)
-                #TODO verify that the result is correct
+                args = srcfun.arguments(*fields, shot.wavelet, src_pos,
+                                        src_type, t)
+                argsnp = srcfun.arguments(*fieldsnp, shot.wavelet, src_pos,
+                                          src_type, t)
+                if stype in args:
+                    f1 = args[stype].data.get().flatten()[src_pos.get()]
+                    f2 = argsnp[stype].data.flatten()[src_pos.get()]
+                    f2 += wavelet.data.get()[t, :]
+                    self.assertTrue(np.allclose(f1, f2))
+                elif stype == "p":
+                    sxx = args["sxx"].data.get().flatten()[src_pos.get()]
+                    sxx0 = argsnp["sxx"].data.flatten()[src_pos.get()]
+                    sxx0 += wavelet.data.get()[t, :] / nd
+                    self.assertTrue(np.allclose(sxx, sxx0))
+                    if nd == 3:
+                        syy = args["syy"].data.get().flatten()[src_pos.get()]
+                        syy0 = argsnp["syy"].data.flatten()[src_pos.get()]
+                        syy0 += wavelet.data.get()[t, :] / nd
+                        self.assertTrue(np.allclose(syy, syy0))
+                    szz = args["szz"].data.get().flatten()[src_pos.get()]
+                    szz0 = argsnp["szz"].data.flatten()[src_pos.get()]
+                    szz0 += wavelet.data.get()[t, :] / nd
+                    self.assertTrue(np.allclose(szz, szz0))
+
+            with self.subTest(nd=nd, msg="PointSourcesGPU: backward test"):
+                self.assertLess(srcfun.backward_test(*fields, shot.wavelet,
+                                                     src_pos, src_type, t),
+                                1e-06)
+
+
+
+
+
 
