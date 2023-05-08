@@ -2,7 +2,7 @@ import unittest
 from SeisCL.python import Function, FunctionGPU, ComputeRessource, VariableCL, Variable, ComputeGrid
 from SeisCL.python import get_header_stencil, FDCoefficients
 import numpy as np
-from copy import deepcopy
+from copy import copy
 
 
 
@@ -397,9 +397,9 @@ class FDFunctionGpuTester(unittest.TestCase):
                     with self.subTest(ndim=ndim, order=2*order, mode=mode):
                         derg, ag, bg, cg = self.get_function(resc, ndim, 2*order, False)
                         derl, al, bl, cl = self.get_function(resc, ndim, 2*order, True)
-                        al = deepcopy(ag)
-                        bl = deepcopy(bg)
-                        cl = deepcopy(cg)
+                        al = copy(ag)
+                        bl = copy(bg)
+                        cl = copy(cg)
 
                         derg.__getattribute__(mode)(ag, bg, cg)
                         derl.__getattribute__(mode)(al, bl, cl)

@@ -21,13 +21,13 @@ class VariableTester(unittest.TestCase):
         self.assertTrue(np.allclose(var.grad.get(), grad))
 
     def test_copy_variable(self):
-        from copy import copy, deepcopy
+        from copy import copy
         resc = ComputeRessource()
         data = np.random.rand(10, 10)
         lin = np.random.rand(10, 10)
         grad = np.random.rand(10, 10)
         var = VariableCL(resc.queues[0], data=data, lin=lin, grad=grad)
-        var2 = deepcopy(var)
+        var2 = copy(var)
         self.assertIsInstance(var2.data, Array)
         self.assertIsInstance(var2.lin, Array)
         self.assertIsInstance(var2.grad, Array)
@@ -37,7 +37,4 @@ class VariableTester(unittest.TestCase):
         self.assertIsNot(var2.data, var.data)
         self.assertIsNot(var2.lin, var.lin)
         self.assertIsNot(var2.grad, var.grad)
-        var3 = copy(var)
-        self.assertIs(var3.data, var.data)
-        self.assertIs(var3.lin, var.lin)
-        self.assertIs(var3.grad, var.grad)
+

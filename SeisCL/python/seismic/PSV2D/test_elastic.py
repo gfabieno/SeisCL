@@ -89,12 +89,6 @@ class ElasticTester(unittest.TestCase):
         with self.subTest("dot_product"):
             self.assertLess(fun.dot_test(vx, vz, sxx, szz, sxz, rkp, rip), 1e-06)
 
-    def test_Cerjan(self):
-        vx = self.vx; vz = self.vz
-        fun = Cerjan()
-        self.assertLess(fun.backward_test(vx, vz), 1e-12)
-        self.assertLess(fun.linear_test(vx, vz), 1e-12)
-        self.assertLess(fun.dot_test(vx, vz), 1e-12)
 
     def test_elastic2d_propagator(self):
         grid = Grid(nd=2, nx=10, ny=None, nz=10, nt=3, dt=0.00000000001, dh=1.0,

@@ -5,6 +5,7 @@ from SeisCL.python.seismic import (PointSources2DGPU, PointSources3DGPU,
                                    GeophoneGPU2D, GeophoneGPU3D,
                                    Acquisition, Shot, Source, Receiver)
 from SeisCL.python.seismic import Cerjan, CerjanGPU
+from SeisCL.python.seismic import ArithmeticAveraging, ArithmeticAveraging2, HarmonicAveraging
 from SeisCL.python import Variable, VariableCL, ComputeRessource
 
 
@@ -186,3 +187,68 @@ class TestCerjan(unittest.TestCase):
         self.assertLess(fun.backward_test(vx, vz), 1e-08)
         self.assertLess(fun.linear_test(vx, vz), 1e-2)
         self.assertLess(fun.dot_test(vx, vz), 1e-06)
+
+
+class TestAveragin(unittest.TestCase):
+
+    def test_ArithmeticAveraging(self):
+
+        resc = ComputeRessource()
+        q = resc.queues[0]
+        for nd in [2, 3]:
+
+            shape = (10,) * nd
+            v = VariableCL(q, shape=shape, initialize_method="random",
+                            pad=2)
+            ave = VariableCL(q, shape=shape, initialize_method="random",
+                             pad=2)
+            fun = ArithmeticAveraging(q)
+            with self.subTest(nd=nd, msg="ArithmeticAveraging backward test"):
+                self.assertLess(fun.backward_test(v, ave, dx=1, dz=0), 1e-06)
+            with self.subTest(nd=nd, msg="ArithmeticAveraging linear test"):
+                self.assertLess(fun.linear_test(v, ave, dx=1, dz=0), 1e-2)
+            with self.subTest(nd=nd, msg="ArithmeticAveraging dot test"):
+                self.assertLess(fun.dot_test(v, ave, dx=1, dz=0), 1e-06)
+
+    def test_ArithmeticAveraging2(self):
+
+        resc = ComputeRessource()
+        q = resc.queues[0]
+        for nd in [2, 3]:
+
+            shape = (10,) * nd
+            v = VariableCL(q, shape=shape, initialize_method="random",
+                           pad=2)
+            ave = VariableCL(q, shape=shape, initialize_method="random",
+                             pad=2)
+            fun = ArithmeticAveraging2(q)
+            with self.subTest(nd=nd, msg="ArithmeticAveraging backward test"):
+                self.assertLess(fun.backward_test(v, ave, dx1=1, dz1=1,
+                                                  dx2=1, dz2=1), 1e-06)
+            with self.subTest(nd=nd, msg="ArithmeticAveraging linear test"):
+                self.assertLess(fun.linear_test(v, ave, dx1=1, dz1=1,
+                                                dx2=1, dz2=1), 1e-2)
+            with self.subTest(nd=nd, msg="ArithmeticAveraging dot test"):
+                self.assertLess(fun.dot_test(v, ave, dx1=1, dz1=1,
+                                             dx2=1, dz2=1), 1e-06)
+
+    def test_HarmonicAveraging(self):
+        resc = ComputeRessource()
+        q = resc.queues[0]
+        for nd in [2, 3]:
+
+            shape = (10,) * nd
+            v = VariableCL(q, shape=shape, initialize_method="random",
+                           pad=2)
+            ave = VariableCL(q, shape=shape, initialize_method="random",
+                             pad=2)
+            fun = HarmonicAveraging(q)
+            with self.subTest(nd=nd, msg="HarmonicAveraging backward test"):
+                self.assertLess(fun.backward_test(v, ave, dx1=1, dz1=1,
+                                                  dx2=1, dz2=1), 1e-06)
+            with self.subTest(nd=nd, msg="HarmonicAveraging linear test"):
+                self.assertLess(fun.linear_test(v, ave, dx1=1, dz1=1,
+                                                dx2=1, dz2=1), 1e-2)
+            with self.subTest(nd=nd, msg="HarmonicAveraging dot test"):
+                self.assertLess(fun.dot_test(v, ave, dx1=1, dz1=1,
+                                             dx2=1, dz2=1), 1e-06)

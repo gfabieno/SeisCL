@@ -12,7 +12,6 @@ from SeisCL.python.seismic.common.averaging import ArithmeticAveraging, Harmonic
 import matplotlib.pyplot as plt
 
 #TODO interface with backward compatibility with SeisCL
-#TODO abs cerjan
 #TODO PML
 
 
