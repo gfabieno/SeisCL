@@ -67,7 +67,7 @@ class DerivativeLocalMemory(FunctionGPU):
         grid = ComputeGrid(shape=[s - 2 * a.pad for s in a.shape],
                            queue=self.queue,
                            origin=[a.pad for _ in a.shape])
-        self.gpukernel(src, "forward", grid, a, b, c)
+        self.callgpu(src, "forward", grid, a, b, c)
         return c
 
     def linear(self, a, b, c):
@@ -102,7 +102,7 @@ class DerivativeLocalMemory(FunctionGPU):
         grid = ComputeGrid(shape=[s - 2 * a.pad for s in a.shape],
                            queue=self.queue,
                            origin=[a.pad for _ in a.shape])
-        self.gpukernel(src, "linear", grid, a, b, c)
+        self.callgpu(src, "linear", grid, a, b, c)
 
     def adjoint(self, a, b, c):
 
@@ -147,7 +147,7 @@ class DerivativeLocalMemory(FunctionGPU):
         grid = ComputeGrid(shape=[s - 2 * a.pad for s in a.shape],
                            queue=self.queue,
                            origin=[a.pad for _ in a.shape])
-        self.gpukernel(src, "adjoint", grid, a, b, c)
+        self.callgpu(src, "adjoint", grid, a, b, c)
         return a
 
 
@@ -177,7 +177,7 @@ class DerivativeGlobalMemory(FunctionGPU):
         grid = ComputeGrid(shape=[s - 2 * a.pad for s in a.shape],
                            queue=self.queue,
                            origin=[a.pad for _ in a.shape])
-        self.gpukernel(src, "forward", grid, a, b, c)
+        self.callgpu(src, "forward", grid, a, b, c)
         return c
 
     def linear(self, a, b, c):
@@ -200,7 +200,7 @@ class DerivativeGlobalMemory(FunctionGPU):
         grid = ComputeGrid(shape=[s - 2 * a.pad for s in a.shape],
                            queue=self.queue,
                            origin=[a.pad for _ in a.shape])
-        self.gpukernel(src, "linear", grid, a, b, c)
+        self.callgpu(src, "linear", grid, a, b, c)
 
     def adjoint(self, a, b, c):
 
@@ -221,7 +221,7 @@ class DerivativeGlobalMemory(FunctionGPU):
         grid = ComputeGrid(shape=[s - 2 * a.pad for s in a.shape],
                            queue=self.queue,
                            origin=[a.pad for _ in a.shape])
-        self.gpukernel(src, "adjoint", grid, a, b, c)
+        self.callgpu(src, "adjoint", grid, a, b, c)
         return a
 
 

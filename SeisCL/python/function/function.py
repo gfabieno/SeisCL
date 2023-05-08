@@ -1,8 +1,9 @@
 from inspect import signature
-from copy import copy, deepcopy
+from copy import copy
 import numpy as np
 from SeisCL.python import Tape, TapeHolder
 from SeisCL.python import Variable
+
 
 class Function(TapeHolder):
     """
@@ -124,7 +125,7 @@ class Function(TapeHolder):
     def backward_test(self, *args, verbose=False, **kwargs):
 
         vars = self.arguments(*args, **kwargs)
-        vars0 = {name: deepcopy(var) for name, var in vars.items()
+        vars0 = {name: copy(var) for name, var in vars.items()
                  if isinstance(var, Variable)}
 
         initial_states = self.cache_states(*args, **kwargs)
@@ -261,7 +262,7 @@ class Function(TapeHolder):
                if isinstance(var, Variable)}
         if "args" in a.arguments:
             for ii, var in enumerate(a.arguments["args"]):
-                if type(var) is Variable:
+                if isinstance(var, Variable):
                     out["arg"+str(ii)] = var
         return out
 

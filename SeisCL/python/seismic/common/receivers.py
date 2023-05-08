@@ -103,8 +103,8 @@ class GeophoneGPU3D(ReversibleFunctionGPU):
         grid = ComputeGrid(shape=rec_pos.shape,
                            queue=self.queue,
                            origin=[0])
-        self.gpukernel(src, "forward", grid, vx, vy, vz, sxx, syy, szz, dout,
-                       rec_pos, rec_type, t, backpropagate=backpropagate)
+        self.callgpu(src, "forward", grid, vx, vy, vz, sxx, syy, szz, dout,
+                     rec_pos, rec_type, t, backpropagate=backpropagate)
         return dout
 
     def linear(self, vx, vy, vz, sxx, syy, szz, dout, rec_pos, rec_type, t):
@@ -124,8 +124,8 @@ class GeophoneGPU3D(ReversibleFunctionGPU):
         grid = ComputeGrid(shape=rec_pos.shape,
                            queue=self.queue,
                            origin=[0])
-        self.gpukernel(src, "linear", grid, vx, vy, vz, sxx, syy, szz, dout,
-                       rec_pos, rec_type, t)
+        self.callgpu(src, "linear", grid, vx, vy, vz, sxx, syy, szz, dout,
+                     rec_pos, rec_type, t)
         return dout
 
     def adjoint(self, vx, vy, vz, sxx, syy, szz, dout, rec_pos, rec_type, t):
@@ -145,8 +145,8 @@ class GeophoneGPU3D(ReversibleFunctionGPU):
         grid = ComputeGrid(shape=rec_pos.shape,
                            queue=self.queue,
                            origin=[0])
-        self.gpukernel(src, "adjoint", grid, vx, vy, vz, sxx, syy, szz, dout,
-                       rec_pos, rec_type, t)
+        self.callgpu(src, "adjoint", grid, vx, vy, vz, sxx, syy, szz, dout,
+                     rec_pos, rec_type, t)
         return vx, vy, vz, sxx, syy, szz
 
 
@@ -167,8 +167,8 @@ class GeophoneGPU2D(GeophoneGPU3D):
         grid = ComputeGrid(shape=rec_pos.shape,
                            queue=self.queue,
                            origin=[0])
-        self.gpukernel(src, "forward", grid, vx, vz, sxx, szz, dout,
-                       rec_pos, rec_type, t, backpropagate=backpropagate)
+        self.callgpu(src, "forward", grid, vx, vz, sxx, szz, dout,
+                     rec_pos, rec_type, t, backpropagate=backpropagate)
         return dout
 
     def linear(self, vx, vz, sxx, szz, dout, rec_pos, rec_type, t):
@@ -185,8 +185,8 @@ class GeophoneGPU2D(GeophoneGPU3D):
         grid = ComputeGrid(shape=rec_pos.shape,
                            queue=self.queue,
                            origin=[0])
-        self.gpukernel(src, "linear", grid, vx, vz, sxx, szz, dout,
-                       rec_pos, rec_type, t)
+        self.callgpu(src, "linear", grid, vx, vz, sxx, szz, dout,
+                     rec_pos, rec_type, t)
         return dout
 
     def adjoint(self, vx, vz, sxx, szz, dout, rec_pos, rec_type, t):
@@ -203,7 +203,7 @@ class GeophoneGPU2D(GeophoneGPU3D):
         grid = ComputeGrid(shape=rec_pos.shape,
                            queue=self.queue,
                            origin=[0])
-        self.gpukernel(src, "adjoint", grid, vx, vz, sxx, szz, dout,
-                       rec_pos, rec_type, t)
+        self.callgpu(src, "adjoint", grid, vx, vz, sxx, szz, dout,
+                     rec_pos, rec_type, t)
         return vx, vz, sxx, szz
 

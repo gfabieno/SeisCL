@@ -1,11 +1,10 @@
 import unittest
-
 import numpy as np
-
 from SeisCL.python.seismic import Velocity2Lame, Velocity2LameGPU
 from SeisCL.python.seismic import (PointSources2DGPU, PointSources3DGPU,
                                    GeophoneGPU2D, GeophoneGPU3D,
                                    Acquisition, Shot, Source, Receiver)
+from SeisCL.python.seismic import Cerjan, CerjanGPU
 from SeisCL.python import Variable, VariableCL, ComputeRessource
 
 
@@ -151,6 +150,39 @@ class TestReceivers(unittest.TestCase):
                                 1e-06)
 
 
+class TestCerjan(unittest.TestCase):
 
+    def test_Cerjan_GPU(self):
+        resc = ComputeRessource()
+        q = resc.queues[0]
+        shape = (10, ) * 2
+        vx = VariableCL(q, shape=shape, initialize_method="random", pad=2)
+        vz = VariableCL(q, shape=shape, initialize_method="random", pad=2)
+        fun = CerjanGPU(q)
+        self.assertLess(fun.backward_test(vx, vz), 1e-08)
+        self.assertLess(fun.linear_test(vx, vz), 1e-2)
+        self.assertLess(fun.dot_test(vx, vz), 1e-06)
 
+    def test_Cerjan_gpu_numpy(self):
+        resc = ComputeRessource()
+        q = resc.queues[0]
+        shape = (10, ) * 2
+        vxgpu = VariableCL(q, shape=shape, initialize_method="random", pad=2)
+        vzgpu = VariableCL(q, shape=shape, initialize_method="random", pad=2)
+        vxnp = Variable(data=vxgpu.data.get(), pad=2)
+        vznp = Variable(data=vzgpu.data.get(), pad=2)
+        self.assertTrue(np.allclose(vxgpu.data.get(), vxnp.data))
+        self.assertTrue(np.allclose(vzgpu.data.get(), vznp.data))
+        CerjanGPU(q)(vxgpu, vzgpu)
+        Cerjan()(vxnp, vznp)
+        self.assertTrue(np.allclose(vxgpu.data.get(), vxnp.data))
+        self.assertTrue(np.allclose(vzgpu.data.get(), vznp.data))
 
+    def test_Cerjan_numpy(self):
+        shape = (10, ) * 2
+        vx = Variable(shape=shape, initialize_method="random", pad=2)
+        vz = Variable(shape=shape, initialize_method="random", pad=2)
+        fun = Cerjan()
+        self.assertLess(fun.backward_test(vx, vz), 1e-08)
+        self.assertLess(fun.linear_test(vx, vz), 1e-2)
+        self.assertLess(fun.dot_test(vx, vz), 1e-06)

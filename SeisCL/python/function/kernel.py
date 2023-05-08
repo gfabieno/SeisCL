@@ -1,7 +1,7 @@
 
 import numpy as np
 from SeisCL.python import VariableCL, Variable
-
+from collections import OrderedDict
 try:
     import pyopencl as cl
     from pyopencl.array import Array, to_device
@@ -74,6 +74,7 @@ class Kernel:
         self._kernal_variables_shape = None
 
     def __call__(self, grid: ComputeGrid, *args, **kwargs):
+
         a = self.signature.bind(*args, **kwargs)
         a.apply_defaults()
         arguments = a.arguments
@@ -96,6 +97,15 @@ class Kernel:
 
     def arg_list(self, arguments):
         arg_list = []
+        if "args" in arguments:
+            newargs = OrderedDict()
+            for el, var in arguments.items():
+                if el == "args":
+                    for ii, arg in enumerate(var):
+                        newargs["arg%d"%ii] = arg
+                else:
+                    newargs[el] = var
+            arguments = newargs
         for el, var in arguments.items():
             if isinstance(var, VariableCL):
                 arg_list.append(var.data.data)
@@ -131,7 +141,8 @@ class Kernel:
                     break
 
         if not self._kernel:
-            argdef = argument_definition(arguments, self.mode, self.platform)
+            argdef, arguments = argument_definition(arguments, self.mode,
+                                                    self.platform)
             fundef = cudacl["FUNDEF"][self.platform]
             grid_struct, grid_filler = get_positional_headers(grid,
                                                               self.local_size)
@@ -247,6 +258,16 @@ def get_variable_headers(variables, mode):
 
 def argument_definition(arguments, mode, platform):
     argdef = []
+    if "args" in arguments:
+        newargs = OrderedDict()
+        for el, var in arguments.items():
+            if el == "args":
+                for ii, arg in enumerate(var):
+                    newargs["arg%d"%ii] = arg
+            else:
+                newargs[el] = var
+        arguments = newargs
+
     for el, var in arguments.items():
         if isinstance(var, VariableCL):
             if var.dtype == np.float32:
@@ -294,7 +315,7 @@ def argument_definition(arguments, mode, platform):
         else:
             raise TypeError("Type not supported: %s" % type(var))
     argdef[-1] = argdef[-1][:-3]
-    return argdef
+    return argdef, arguments
 
 
 def grid_stopper(grid: ComputeGrid, use_local=True, with_offset=False):

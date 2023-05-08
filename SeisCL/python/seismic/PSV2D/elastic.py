@@ -2,13 +2,12 @@ from SeisCL.python import (ComputeGrid, FunctionGPU, ReversibleFunctionGPU, Reve
                            ComputeRessource)
 from SeisCL.python import get_header_stencil, cudacl
 from SeisCL.python.seismic.PSV2D.elastic_numpy import ricker, Cerjan
-from SeisCL.python.seismic.common.sources import Source
-from SeisCL.python.seismic.common.receivers import Receiver
+from SeisCL.python.seismic.common.sources import PointSources3DGPU
+from SeisCL.python.seismic.common.receivers import GeophoneGPU2D
 import numpy as np
 from copy import copy
 from pyopencl.array import max
 from SeisCL.python.seismic.common.vel2lame import Velocity2LameGPU
-from SeisCL.python.seismic.common.scaling import ScaledParameters
 from SeisCL.python.seismic.common.averaging import ArithmeticAveraging, HarmonicAveraging
 import matplotlib.pyplot as plt
 
@@ -66,8 +65,8 @@ class UpdateStress(ReversibleFunctionGPU):
         grid = ComputeGrid(shape=[s - self.order for s in vx.shape],
                            queue=self.queue,
                            origin=[self.order//2 for _ in vx.shape])
-        self.gpukernel(src, "forward", grid, vx, vz, sxx, szz, sxz, M, mu,
-                       muipkp, backpropagate=backpropagate)
+        self.callgpu(src, "forward", grid, vx, vz, sxx, szz, sxz, M, mu,
+                     muipkp, backpropagate=backpropagate)
         return sxx, szz, sxz
 
     def linear(self, vx, vz, sxx, szz, sxz, M, mu, muipkp, backpropagate=0):
@@ -128,8 +127,8 @@ class UpdateStress(ReversibleFunctionGPU):
         grid = ComputeGrid(shape=[s - self.order for s in vx.shape],
                            queue=self.queue,
                            origin=[self.order//2 for _ in vx.shape])
-        self.gpukernel(src, "linear", grid,
-                       vx, vz, sxx, szz, sxz, M, mu, muipkp)
+        self.callgpu(src, "linear", grid,
+                     vx, vz, sxx, szz, sxz, M, mu, muipkp)
         return sxx, szz, sxz
 
     def adjoint(self, vx, vz, sxx, szz, sxz, M, mu, muipkp):
@@ -230,8 +229,8 @@ class UpdateStress(ReversibleFunctionGPU):
         grid = ComputeGrid(shape=[s - self.order for s in vx.shape],
                            queue=self.queue,
                            origin=[self.order//2 for _ in vx.shape])
-        self.gpukernel(src, "adjoint", grid,
-                       vx, vz, sxx, szz, sxz, M, mu, muipkp)
+        self.callgpu(src, "adjoint", grid,
+                     vx, vz, sxx, szz, sxz, M, mu, muipkp)
         return vx, vz, M, mu, muipkp
 
 
@@ -289,8 +288,8 @@ class UpdateVelocity(ReversibleFunctionGPU):
         grid = ComputeGrid(shape=[s - self.order for s in vx.shape],
                            queue=self.queue,
                            origin=[self.order//2 for _ in vx.shape])
-        self.gpukernel(src, "forward", grid, vx, vz, sxx, szz, sxz, rip, rkp,
-                       backpropagate=backpropagate)
+        self.callgpu(src, "forward", grid, vx, vz, sxx, szz, sxz, rip, rkp,
+                     backpropagate=backpropagate)
         return vx, vz
 
     def linear(self, vx, vz, sxx, szz, sxz, rip, rkp):
@@ -363,7 +362,7 @@ class UpdateVelocity(ReversibleFunctionGPU):
         grid = ComputeGrid(shape=[s - self.order for s in vx.shape],
                            queue=self.queue,
                            origin=[self.order//2 for _ in vx.shape])
-        self.gpukernel(src, "linear", grid, vx, vz, sxx, szz, sxz, rip, rkp)
+        self.callgpu(src, "linear", grid, vx, vz, sxx, szz, sxz, rip, rkp)
         return vx, vz
 
     def adjoint(self, vx, vz, sxx, szz, sxz, rip, rkp):
@@ -438,7 +437,7 @@ class UpdateVelocity(ReversibleFunctionGPU):
         grid = ComputeGrid(shape=[s - self.order for s in vx.shape],
                            queue=self.queue,
                            origin=[self.order//2 for _ in vx.shape])
-        self.gpukernel(src, "adjoint", grid, vx, vz, sxx, szz, sxz, rip, rkp)
+        self.callgpu(src, "adjoint", grid, vx, vz, sxx, szz, sxz, rip, rkp)
         return sxx, szz, sxz, rip, rkp
 
 
@@ -479,8 +478,8 @@ class FreeSurface1(ReversibleFunctionGPU):
         grid = ComputeGrid(shape=[1, vx.shape[1] - self.order],
                            queue=self.queue,
                            origin=[self.order//2 for _ in vx.shape])
-        self.gpukernel(src, "forward", grid, vx, vz, sxx, szz, sxz,
-                       M, mu, rkp, rip, backpropagate=backpropagate)
+        self.callgpu(src, "forward", grid, vx, vz, sxx, szz, sxz,
+                     M, mu, rkp, rip, backpropagate=backpropagate)
         return sxx, szz
 
     def linear(self, vx, vz, sxx, szz, sxz, M, mu, rkp, rip):
@@ -510,8 +509,8 @@ class FreeSurface1(ReversibleFunctionGPU):
         grid = ComputeGrid(shape=[1, vx.shape[1] - self.order],
                            queue=self.queue,
                            origin=[self.order//2 for _ in vx.shape])
-        self.gpukernel(src, "linear", grid, vx, vz, sxx, szz, sxz,
-                       M, mu, rkp, rip)
+        self.callgpu(src, "linear", grid, vx, vz, sxx, szz, sxz,
+                     M, mu, rkp, rip)
         return sxx, szz
 
     def adjoint(self, vx, vz, sxx, szz, sxz, M, mu, rkp, rip):
@@ -556,8 +555,8 @@ class FreeSurface1(ReversibleFunctionGPU):
         grid = ComputeGrid(shape=[1, vx.shape[1] - self.order],
                            queue=self.queue,
                            origin=[self.order//2 for _ in vx.shape])
-        self.gpukernel(src, "adjoint", grid, vx, vz, sxx, szz, sxz,
-                       M, mu, rkp, rip)
+        self.callgpu(src, "adjoint", grid, vx, vz, sxx, szz, sxz,
+                     M, mu, rkp, rip)
         return vx, vz, M, mu, rkp, rip
 
 
@@ -595,8 +594,8 @@ class FreeSurface2(ReversibleFunctionGPU):
         grid = ComputeGrid(shape=[1, vx.shape[1] - self.order],
                            queue=self.queue,
                            origin=[self.order//2 for _ in vx.shape])
-        self.gpukernel(src, "forward", grid, vx, vz, sxx, szz, sxz,
-                       rkp, rip, backpropagate=backpropagate)
+        self.callgpu(src, "forward", grid, vx, vz, sxx, szz, sxz,
+                     rkp, rip, backpropagate=backpropagate)
         return vx, vz
 
     def linear(self, vx, vz, sxx, szz, sxz, rkp, rip):
@@ -632,8 +631,8 @@ class FreeSurface2(ReversibleFunctionGPU):
         grid = ComputeGrid(shape=[1, vx.shape[1] - self.order],
                            queue=self.queue,
                            origin=[self.order//2 for _ in vx.shape])
-        self.gpukernel(src, "linear", grid, vx, vz, sxx, szz, sxz,
-                       rkp, rip)
+        self.callgpu(src, "linear", grid, vx, vz, sxx, szz, sxz,
+                     rkp, rip)
         return vx, vz
 
     def adjoint(self, vx, vz, sxx, szz, sxz, rkp, rip):
@@ -667,8 +666,8 @@ class FreeSurface2(ReversibleFunctionGPU):
         grid = ComputeGrid(shape=[1, vx.shape[1] - self.order],
                            queue=self.queue,
                            origin=[self.order//2 for _ in vx.shape])
-        self.gpukernel(src, "adjoint", grid, vx, vz, sxx, szz, sxz,
-                       rkp, rip)
+        self.callgpu(src, "adjoint", grid, vx, vz, sxx, szz, sxz,
+                     rkp, rip)
         return szz, sxz
 
 
@@ -735,54 +734,6 @@ class ScaledParameters(ReversibleFunction):
         muipkp.grad = 2 ** -sc * dt / dh * muipkp.grad
 
         return rho, rip, rkp, M, mu, muipkp
-
-
-class Cerjan(FunctionGPU):
-
-    def __init__(self, grids=None, freesurf=False, abpc=4.0, nab=2,
-                 required_states=(), **kwargs):
-        self.abpc = abpc
-        self.nab = nab
-        self.required_states = required_states
-        self.updated_states = required_states
-        self.taper = np.exp(np.log(1.0-abpc/100)/nab**2 * np.arange(nab) **2)
-        self.taper = np.expand_dims(self.taper, -1)
-        self.freesurf = freesurf
-        self.default_grids = {el: "gridfd" for el in self.required_states}
-        super().__init__(grids, **kwargs)
-
-    @property
-    def updated_regions(self):
-        regions = []
-        pad = self.grids[self.updated_states[0]].pad
-        ndim = len(self.grids[self.updated_states[0]].shape)
-        b = self.nab + pad
-        for dim in range(ndim):
-            region = [Ellipsis for _ in range(ndim)]
-            region[dim] = slice(pad, b)
-            if dim != 0 or not self.freesurf:
-                regions.append(region)
-            region = [Ellipsis for _ in range(ndim)]
-            region[dim] = slice(-b, -pad)
-            regions.append(tuple(region))
-        return {el: regions for el in self.updated_states}
-
-    def forward(self, states, **kwargs):
-        pad = self.grids[self.updated_states[0]].pad
-        for el in self.required_states:
-            if not self.freesurf:
-                states[el][pad:self.nab+pad, :] *= self.taper[::-1]
-            states[el][-self.nab-pad:-pad, :] *= self.taper
-
-            tapert = np.transpose(self.taper)
-            states[el][:, pad:self.nab+pad] *= tapert[:, ::-1]
-            states[el][:, -self.nab-pad:-pad] *= tapert
-
-        return states
-
-    def adjoint(self, adj_states, states, **kwargs):
-
-        return self.forward(adj_states, **kwargs)
 
 
 def elastic2d(grid2D, gridout, gridsrc, nab):

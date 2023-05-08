@@ -21,7 +21,7 @@ class FunctionGpuTester(unittest.TestCase):
                 elif len(a.shape) == 3:
                     src = src % (("g.z, g.y, g.x", )*3)
                 grid = ComputeGrid(self.queue, a.shape, [0]*ndim)
-                self.gpukernel(src, "forward", grid, a, b, c)
+                self.callgpu(src, "forward", grid, a, b, c)
                 return c
 
             def linear(self, a, b, c):
@@ -35,7 +35,7 @@ class FunctionGpuTester(unittest.TestCase):
                 elif len(a.shape) == 3:
                     src = src % (("g.z, g.y, g.x", )*3)
                 grid = ComputeGrid(self.queue, a.shape, [0]*ndim)
-                self.gpukernel(src, "linear", grid, a, b, c)
+                self.callgpu(src, "linear", grid, a, b, c)
                 return c
 
             def adjoint(self, a, b, c):
@@ -51,7 +51,7 @@ class FunctionGpuTester(unittest.TestCase):
                 elif len(a.shape) == 3:
                     src = src % (("g.z, g.y, g.x", )*5)
                 grid = ComputeGrid(self.queue, a.shape, [0]*ndim)
-                self.gpukernel(src, "adjoint", grid, a, b, c)
+                self.callgpu(src, "adjoint", grid, a, b, c)
                 return a, b
         resc = ComputeRessource()
         sum = Sum(resc.queues[0])

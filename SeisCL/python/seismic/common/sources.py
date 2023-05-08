@@ -91,8 +91,8 @@ class PointSources3DGPU(ReversibleFunctionGPU):
         grid = ComputeGrid(shape=src_pos.shape,
                            queue=self.queue,
                            origin=[0])
-        self.gpukernel(src, "forward", grid, vx, vy, vz, sxx, syy, szz, wavelet,
-                       src_pos, src_type, t, backpropagate=backpropagate)
+        self.callgpu(src, "forward", grid, vx, vy, vz, sxx, syy, szz, wavelet,
+                     src_pos, src_type, t, backpropagate=backpropagate)
         return vx, vy, vz, sxx, syy, szz
 
     def linear(self, sxx, szz, src, src_pos):
@@ -122,7 +122,7 @@ class PointSources2DGPU(PointSources3DGPU):
         grid = ComputeGrid(shape=src_pos.shape,
                            queue=self.queue,
                            origin=[0])
-        self.gpukernel(src, "forward", grid, vx, vz, sxx, szz, wavelet,
-                       src_pos, src_type, t,
-                       backpropagate=backpropagate)
+        self.callgpu(src, "forward", grid, vx, vz, sxx, szz, wavelet,
+                     src_pos, src_type, t,
+                     backpropagate=backpropagate)
         return vx, vz, sxx, szz

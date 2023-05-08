@@ -60,8 +60,8 @@ class Velocity2LameGPU(ReversibleFunctionGPU):
         grid = ComputeGrid(shape=[s - 2*vp.pad for s in vp.shape],
                            queue=self.queue,
                            origin=[vp.pad for _ in vp.shape])
-        self.gpukernel(src, "forward", grid, vp, vs, rho,
-                       backpropagate=backpropagate)
+        self.callgpu(src, "forward", grid, vp, vs, rho,
+                     backpropagate=backpropagate)
         return vp, vs
 
     def linear(self, vp, vs, rho):
@@ -81,7 +81,7 @@ class Velocity2LameGPU(ReversibleFunctionGPU):
         grid = ComputeGrid(shape=[s - 2*vp.pad for s in vp.shape],
                            queue=self.queue,
                            origin=[vp.pad for _ in vp.shape])
-        self.gpukernel(src, "linear", grid, vp, vs, rho)
+        self.callgpu(src, "linear", grid, vp, vs, rho)
         return vp, vs
 
     def adjoint(self, vp, vs, rho):
@@ -101,27 +101,5 @@ class Velocity2LameGPU(ReversibleFunctionGPU):
         grid = ComputeGrid(shape=[s - 2*vp.pad for s in vp.shape],
                            queue=self.queue,
                            origin=[vp.pad for _ in vp.shape])
-        self.gpukernel(src, "adjoint", grid, vp, vs, rho)
-        return vp, vs
-    
-
-
-
-if __name__ == '__main__':
-
-    resc = ComputeRessource()
-    nx = 24
-    nz = 24
-
-    grid = GridCL(resc.queues[0], shape=(nz, nx), pad=4, dtype=np.float32,
-                  zero_boundary=False)
-    v = np.tile(np.arange(nx, dtype=np.float32), [nz, 1])
-
-    # veltrans =Velocity2Lame(grids={"gridpar": grid})
-    # veltrans.linear_test()
-    # veltrans.dot_test()
-
-    veltrans =Velocity2LameCL(grids={"gridpar": grid})
-    veltrans.linear_test()
-    veltrans.backward_test()
-    veltrans.dot_test()
+        self.callgpu(src, "adjoint", grid, vp, vs, rho)
+        return vp, vs, rho

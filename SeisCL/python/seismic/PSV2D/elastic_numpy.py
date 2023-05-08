@@ -9,10 +9,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import math
 from SeisCL.python import Variable, Function, TapedFunction, ReversibleFunction
-from SeisCL.python.seismic.common.acquisition import Acquisition, Grid, Source, Shot, Receiver
+from SeisCL.python.seismic import Acquisition, Grid, Source, Shot, Receiver, Cerjan
 import unittest
 from SeisCL.python.Propagator import FWI, Propagator
 from typing import List
+
 
 def Dpx(var):
     return 1.1382 * (var[2:-2, 3:-1] - var[2:-2, 2:-2]) - 0.046414 * (var[2:-2, 4:] - var[2:-2, 1:-3])
@@ -264,54 +265,6 @@ class UpdateStress(ReversibleFunction):
                            + (vx_z + vz_x) * sxz.grad[valid]
 
         return vx, vz, csM, csu
-
-
-class Cerjan(Function):
-
-    def __init__(self, freesurf=False, abpc=4.0, nab=2, pad=2):
-        super().__init__()
-        self.abpc = abpc
-        self.nab = nab
-        self.pad = pad
-        self.taper = np.exp(np.log(1.0-abpc/100)/nab**2 * np.arange(nab) **2)
-        #self.taper = np.concatenate([self.taper,  self.taper[-pad:][::-1]])
-        self.taper = np.expand_dims(self.taper, -1)
-        self.freesurf = freesurf
-
-    # def updated_regions(self, var):
-    #     regions = []
-    #     pad = self.pad
-    #     ndim = len(var.shape)
-    #     b = self.nab + pad
-    #     for dim in range(ndim):
-    #         region = [Ellipsis for _ in range(ndim)]
-    #         region[dim] = slice(pad, b)
-    #         if dim != 0 or not self.freesurf:
-    #             regions.append(tuple(region))
-    #         region = [Ellipsis for _ in range(ndim)]
-    #         region[dim] = slice(-b, -pad)
-    #         regions.append(tuple(region))
-    #     return regions
-
-    def forward(self, *args, direction="data"):
-        pad = self.pad
-        nab = self.nab
-        for arg in args:
-            d = getattr(arg, direction)
-            if not self.freesurf:
-                d[pad:nab+pad, :] *= self.taper[::-1]
-            d[-nab-pad:-pad, :] *= self.taper
-
-            tapert = np.transpose(self.taper)
-            d[:, pad:nab+pad] *= tapert[:, ::-1]
-            d[:, -nab-pad:-pad] *= tapert
-        return args
-
-    def linear(self, *args):
-        return self.forward(*args, direction="lin")
-
-    def adjoint(self, *args):
-        return self.forward(*args, direction="grad")
 
 
 class Geophone(ReversibleFunction):
@@ -902,12 +855,6 @@ class ElasticTester(unittest.TestCase):
         self.assertLess(fun.linear_test(vp, vs, vx, vz, sxx, szz, sxz), 1e-01)
         self.assertLess(fun.dot_test(vp, vs, vx, vz, sxx, szz, sxz), 1e-7)
 
-    def test_Cerjan(self):
-        vx = self.vx; vz = self.vz
-        fun = Cerjan()
-        self.assertLess(fun.backward_test(vx, vz), 1e-08)
-        self.assertLess(fun.linear_test(vx, vz), 1e-2)
-        self.assertLess(fun.dot_test(vx, vz), 1e-08)
 
     def test_PoinSource(self):
         vx = self.vx

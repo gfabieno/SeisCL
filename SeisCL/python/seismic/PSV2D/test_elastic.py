@@ -96,20 +96,6 @@ class ElasticTester(unittest.TestCase):
         self.assertLess(fun.linear_test(vx, vz), 1e-12)
         self.assertLess(fun.dot_test(vx, vz), 1e-12)
 
-    def test_PoinSource(self):
-        vx = self.vx
-        fun = PointForceSource()
-        self.assertLess(fun.backward_test(vx, 1, (0, 1)), 1e-12)
-        self.assertLess(fun.linear_test(vx, 1, (0, 1)), 1e-12)
-        self.assertLess(fun.dot_test(vx, 1, (0, 1)), 1e-12)
-
-    def test_Geophone(self):
-        vx = self.vx; vxout = self.vxout
-        fun = Geophone()
-        self.assertLess(fun.backward_test(vx, vxout, ((5, 5), (6, 6))), 1e-12)
-        self.assertLess(fun.linear_test(vx, vxout, ((5, 5), (6, 6))), 1e-12)
-        self.assertLess(fun.dot_test(vx, vxout, ((5, 5), (6, 6))), 1e-12)
-
     def test_elastic2d_propagator(self):
         grid = Grid(nd=2, nx=10, ny=None, nz=10, nt=3, dt=0.00000000001, dh=1.0,
                     nab=2, freesurf=True)
