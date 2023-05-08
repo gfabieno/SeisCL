@@ -4,7 +4,6 @@ import numpy as np
 from SeisCL.python import Tape, TapeHolder
 from SeisCL.python import Variable
 
-
 class Function(TapeHolder):
     """
     Base class to create a function that modifies the value of the `Variables`
@@ -171,7 +170,6 @@ class Function(TapeHolder):
             iter(outs)
         except TypeError:
             outs = (outs,)
-
         errs = []
         cond = True if vars else False
         eps = 1.0
@@ -195,13 +193,14 @@ class Function(TapeHolder):
                     err = np.max([err, np.max(erri)])
 
             errs.append(err)
-
             eps /= 10
             for el, var in vars.items():
-                if np.max(eps*var.lin / (var.data+var.smallest)) < var.eps:
+                p = eps*var.lin / (var.data+var.smallest)
+                if hasattr(p, "get"):
+                    p = p.get()[()]
+                if np.max(p) < var.eps:
                     cond = False
                     break
-
         errmin = np.min(errs)
         if hasattr(errmin, "get"):
             errmin = errmin.get()[()]
