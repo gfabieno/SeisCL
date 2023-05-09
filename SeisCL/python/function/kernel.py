@@ -93,6 +93,7 @@ class Kernel:
                                 self.global_size(grid.shape),
                                 self.local_size,
                                 *self.arg_list(a.arguments))
+
         return self.event
 
     def arg_list(self, arguments):

@@ -18,7 +18,7 @@ class ArithmeticAveraging(FunctionGPU):
             posstr2 = ", ".join(["g."+el+" + d"+el for el in "z"])
         return posstr1, posstr2
 
-    def forward(self, v, vave, dx=0, dy=0, dz=1):
+    def forward(self, v, vave, dx=0, dy=0, dz=0):
 
         posstr1, posstr2 = self.define_postr(v)
         src = """
@@ -30,7 +30,7 @@ class ArithmeticAveraging(FunctionGPU):
         self.callgpu(src, "forward", grid, v, vave, dx, dy, dz)
         return vave
 
-    def linear(self, v, vave, dx=0, dy=0, dz=1):
+    def linear(self, v, vave, dx=0, dy=0, dz=0):
 
         posstr1, posstr2 = self.define_postr(v)
         src = """
@@ -42,7 +42,7 @@ class ArithmeticAveraging(FunctionGPU):
         self.callgpu(src, "linear", grid, v, vave, dx, dy, dz)
         return vave
 
-    def adjoint(self, v, vave, dx=0, dy=0, dz=1):
+    def adjoint(self, v, vave, dx=0, dy=0, dz=0):
 
             posstr1, posstr2 = self.define_postr(v)
             src = """
@@ -77,7 +77,7 @@ class ArithmeticAveraging2(FunctionGPU):
             raise ValueError("Number of dimension must be 2 or 3")
         return posstr1, posstr2, posstr3, posstr4
 
-    def forward(self, v, vave, dx1=1, dy1=0, dz1=1, dx2=1, dy2=0, dz2=1):
+    def forward(self, v, vave, dx1=0, dy1=0, dz1=0, dx2=0, dy2=0, dz2=0):
 
         posstr1, posstr2, posstr3, posstr4 = self.posstr(v)
         src = """
@@ -89,7 +89,7 @@ class ArithmeticAveraging2(FunctionGPU):
         self.callgpu(src, "forward", grid, v, vave, dx1, dy1, dz1, dx2, dy2, dz2)
         return vave
 
-    def linear(self, v, vave, dx1=1, dy1=0, dz1=1, dx2=1, dy2=0, dz2=1):
+    def linear(self, v, vave, dx1=0, dy1=0, dz1=0, dx2=0, dy2=0, dz2=0):
 
             posstr1, posstr2, posstr3, posstr4 = self.posstr(v)
             src = """
@@ -101,7 +101,7 @@ class ArithmeticAveraging2(FunctionGPU):
             self.callgpu(src, "linear", grid, v, vave, dx1, dy1, dz1, dx2, dy2, dz2)
             return vave
 
-    def adjoint(self, v, vave, dx1=1, dy1=0, dz1=1, dx2=1, dy2=0, dz2=1):
+    def adjoint(self, v, vave, dx1=0, dy1=0, dz1=0, dx2=0, dy2=0, dz2=0):
 
         posstr1, posstr2, posstr3, posstr4 = self.posstr(v)
         src = """
@@ -138,7 +138,7 @@ class HarmonicAveraging(FunctionGPU):
             raise ValueError("Number of dimension must be 2 or 3")
         return posstr1, posstr2, posstr3, posstr4
 
-    def forward(self, v, vave, dx1=1, dy1=0, dz1=1, dx2=0, dy2=0, dz2=0):
+    def forward(self, v, vave, dx1=0, dy1=0, dz1=0, dx2=0, dy2=0, dz2=0):
 
         posstr1, posstr2, posstr3, posstr4 = self.posstr(v)
         eps = v.smallest
@@ -150,7 +150,7 @@ class HarmonicAveraging(FunctionGPU):
             d += 1.0 / v(%s);
         }
         if (v(%s) > %e){
-            n+=1;
+            n+=0;
             d += 1.0 / v(%s);
         }
         if (v(%s) > %e){
@@ -174,7 +174,7 @@ class HarmonicAveraging(FunctionGPU):
                      dz2)
         return vave
 
-    def linear(self, v, vave, dx1=1, dy1=0, dz1=1, dx2=0, dy2=0, dz2=0):
+    def linear(self, v, vave, dx1=0, dy1=0, dz1=0, dx2=0, dy2=0, dz2=0):
 
         posstr1, posstr2, posstr3, posstr4 = self.posstr(v)
         eps = v.smallest
@@ -215,7 +215,7 @@ class HarmonicAveraging(FunctionGPU):
                      dz2)
         return vave
 
-    def adjoint(self, v, vave, dx1=1, dy1=0, dz1=1, dx2=0, dy2=0, dz2=0):
+    def adjoint(self, v, vave, dx1=0, dy1=0, dz1=0, dx2=0, dy2=0, dz2=0):
 
             posstr1, posstr2, posstr3, posstr4 = self.posstr(v)
             eps = v.smallest

@@ -78,8 +78,11 @@ class GeophoneGPU3D(ReversibleFunctionGPU):
         return to_device(self.queue, rec_type)
 
     def rec_pos(self, shot, dh, shape):
-        rec_pos = np.array([[el for el in [r.x, r.y, r.z] if el is not None]
+
+        rec_pos = np.array([[el for el in [r.z, r.y, r.x] if el is not None]
                             for r in shot.receivers])
+        for ii in range(rec_pos.shape[1]):
+            rec_pos[:, ii] += shot.origin[ii]
         rec_pos = np.round(rec_pos/dh).astype(np.int)
         postuple = [rec_pos[:, i] for i in range(rec_pos.shape[1])]
         rec_pos = np.ravel_multi_index(postuple, shape, order="F")

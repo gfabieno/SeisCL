@@ -7,7 +7,7 @@ from matplotlib.patches import Rectangle
 import matplotlib.pyplot as plt
 from matplotlib.patheffects import withStroke
 mpl.rcParams['hatch.linewidth'] = 0.5
-from SeisCL.python import Variable
+from SeisCL.python import Variable, VariableCL
 
 
 class Receiver:
@@ -60,9 +60,8 @@ class Source:
 class Shot:
 
     def __init__(self, sources: List, receivers: List, sid: int,
-                 nt: int, dt: float, dobs: Variable = None,
-                 dmod: Variable = None,
-                 wavelet: Variable = None, f0: float = 20):
+                 nt: int, dt: float, wavelet: Variable, dobs: Variable = None,
+                 dmod: Variable = None):
         """
         Define a shot that may contain simultaneous sources
         and multiple receivers.
@@ -72,10 +71,9 @@ class Shot:
         :param sid: The source unique shot id.
         :param nt: Number of time steps.
         :param dt: Sampling time.
+        :param wavelet: The source wavelet as a Variable object.
         :param dobs: The observed data, as a Variable object.
         :param dmod: The modeled data, as a Variable object.
-        :param wavelet: The source wavelet as a Variable object.
-        :param f0: The dominant frequency of the wavelet.
         """
         self.sources = sources
         self.receivers = receivers
@@ -83,9 +81,9 @@ class Shot:
         self.nt = nt
         self.dt = dt
         self.dobs = dobs
-        self.f0 = f0
         self.wavelet = wavelet
         self.dmod = dmod
+        self.origin = None
 
     @property
     def rectypes(self):
@@ -105,17 +103,12 @@ class Shot:
 
     @wavelet.setter
     def wavelet(self, wavelet):
-        if wavelet is None:
-            d = ricker_wavelet(f0=self.f0, nt=self.nt, dt=self.dt)
-            d = np.tile(d.reshape(-1, 1), reps=(1, len(self.sources)))
-            wavelet = Variable(data=d)
-        else:
-            if wavelet.shape[0] != self.nt:
-                raise ValueError("Wavelet has wrong number of time steps")
-            if wavelet.shape[1] != len(self.sources):
-                raise ValueError("Wavelet has wrong number of sources")
-            if not isinstance(wavelet, Variable):
-                raise ValueError("Wavelet must be a Variable object")
+        if wavelet.shape[0] != self.nt:
+            raise ValueError("Wavelet has wrong number of time steps")
+        if wavelet.shape[1] != len(self.sources):
+            raise ValueError("Wavelet has wrong number of sources")
+        if not isinstance(wavelet, Variable):
+            raise ValueError("Wavelet must be a Variable object")
         self._wavelet = wavelet
 
     @property
@@ -200,7 +193,7 @@ def ricker_wavelet(f0=None, nt=None, dt=None, tmin=None):
 
 class Grid:
 
-    def __init__(self, nd, nx, ny, nz, nt, dt, dh, nab, freesurf):
+    def __init__(self, nd, nx, ny, nz, nt, dt, dh, nab, pad, freesurf):
 
         self.nd = nd
         self.nx = nx
@@ -210,7 +203,15 @@ class Grid:
         self.dt = dt
         self.dh = dh
         self.nab = nab
+        self.pad = pad
         self.freesurf = freesurf
+
+    @property
+    def origin(self):
+        origin = np.array([(self.pad+self.nab)*self.dh]*self.nd)
+        if self.freesurf:
+            origin[0] = self.pad*self.dh
+        return origin
 
 
 class Acquisition:
@@ -245,7 +246,9 @@ class Acquisition:
             zmax = (self.grid.nz - self.grid.nab) * self.grid.dh
         else:
             zmax = (self.grid.nz - 2*self.grid.nab) * self.grid.dh
+        origin = self.grid.origin
         for shot in shots:
+            shot.origin = origin
             for source in shot.sources:
                 if source.x > xmax or source.x < 0:
                     raise ValueError("Source located at x=%f m is outside "
@@ -270,7 +273,7 @@ class Acquisition:
     def regular2d(self, dir: str = "x", dg: int = 2, ds: int = 5,
                   sx0: int = 2, sz0: int = 2, gx0: int = 2, gz0: int = 2,
                   src_type: str = "p", rec_types: List[str] = ("p",),
-                  wavelet: np.ndarray = None, f0: float = 15):
+                  wavelet: np.ndarray = None, f0: float = 15, queue=None):
         """
         Build source and receiver position for a regular surface acquisition.
 
@@ -290,11 +293,16 @@ class Acquisition:
         :param wavelet:   An array containing the source wavelet. Default to
                           a ricker wavelet with a center frequency of f0
         :param f0:      The center frequency of the default ricker wavelet
+        :param queue:   A PyOpenCL queue to use for the variables
         """
 
         if wavelet is None:
             wavelet = ricker_wavelet(f0, nt=self.grid.nt, dt=self.grid.dt)
-            wavelet = Variable(data=wavelet.reshape(-1, 1))
+            if queue is None:
+                wavelet = Variable(data=wavelet.reshape(-1, 1))
+            else:
+                wavelet = VariableCL(queue=queue,
+                                     data=wavelet.reshape(-1, 1))
         nx = self.grid.nx
         nz = self.grid.nz
         dh = self.grid.dh
@@ -478,8 +486,9 @@ class AcquisitionTester(unittest.TestCase):
 
     def test_position_checking(self):
         grid = Grid(nd=2, nx=200, ny=None, nz=100, nt=500, dt=0.0001, dh=2,
-                    nab=16, freesurf=True)
-        shot = Shot(receivers=[], sources=[Source(x=600)], sid=0)
+                    nab=16, pad=0, freesurf=True)
+        shot = Shot(sources=[Source(x=600)], receivers=[], sid=0,
+                    nt=grid.nt, dt=grid.dt)
         with self.assertRaises(ValueError):
             geometry = Acquisition(grid, [shot])
 

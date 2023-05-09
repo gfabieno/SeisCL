@@ -62,7 +62,7 @@ class PointSources3DGPU(ReversibleFunctionGPU):
         return to_device(self.queue, src_type)
 
     def src_pos(self, shot, dh, shape):
-        src_pos = np.array([[el for el in [s.x, s.y, s.z] if el is not None]
+        src_pos = np.array([[el for el in [s.z, s.y, s.x] if el is not None]
                             for s in shot.sources])
         src_pos = np.round(src_pos/dh).astype(np.int)
         postuple = [src_pos[:, i] for i in range(src_pos.shape[1])]

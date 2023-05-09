@@ -1,19 +1,25 @@
-from SeisCL.python import (ComputeGrid, FunctionGPU, ReversibleFunctionGPU, ReversibleFunction,
-                           ComputeRessource)
-from SeisCL.python import get_header_stencil, cudacl
-from SeisCL.python.seismic.PSV2D.elastic_numpy import ricker, Cerjan
-from SeisCL.python.seismic.common.sources import PointSources3DGPU
-from SeisCL.python.seismic.common.receivers import GeophoneGPU2D
+import time
+
+from SeisCL.python import (ComputeGrid, ReversibleFunctionGPU, ReversibleFunction,
+                           ComputeRessource, VariableCL)
+from SeisCL.python import get_header_stencil
+from SeisCL.python.seismic.PSV2D.elastic_numpy import ricker
 import numpy as np
 from copy import copy
 from pyopencl.array import max
-from SeisCL.python.seismic.common.vel2lame import Velocity2LameGPU
-from SeisCL.python.seismic.common.averaging import ArithmeticAveraging, HarmonicAveraging
+from SeisCL.python.seismic import (Acquisition, Grid,
+                                   Velocity2LameGPU,
+                                   ArithmeticAveraging,
+                                   HarmonicAveraging,
+                                   GeophoneGPU2D,
+                                   PointSources2DGPU,
+                                   CerjanGPU
+                                   )
+from SeisCL.python.Propagator import FWI, Propagator
 import matplotlib.pyplot as plt
 
 #TODO interface with backward compatibility with SeisCL
 #TODO PML
-
 
 class UpdateStress(ReversibleFunctionGPU):
 
@@ -241,7 +247,16 @@ class UpdateVelocity(ReversibleFunctionGPU):
                                                             local_size=local_size,
                                                             with_local_ops=True)
         self.order = order
+        self.grid = None
 
+    def compute_grid(self, shape):
+        if self.grid is None:
+            self.grid = ComputeGrid(shape=[s - self.order for s in shape],
+                                    queue=self.queue,
+                                    origin=[self.order//2 for _ in shape])
+        return self.grid
+
+    #TODO memoize in a better way
     def forward(self, vx, vz, sxx, szz, sxz, rip, rkp, backpropagate=0):
         """
         Update the velocity field using the stress field.
@@ -250,7 +265,7 @@ class UpdateVelocity(ReversibleFunctionGPU):
         src += """
 
         float sxx_x, szz_z, sxz_x, sxz_z;
-                
+
         // Calculation of the stresses spatial derivatives
         #if LOCAL_OFF==0
             load_local_in(sxx, lvar);
@@ -258,7 +273,7 @@ class UpdateVelocity(ReversibleFunctionGPU):
             BARRIER
         #endif
         sxx_x = Dxp(lvar);
-            
+
         #if LOCAL_OFF==0
             BARRIER
             load_local_in(szz, lvar);
@@ -266,7 +281,7 @@ class UpdateVelocity(ReversibleFunctionGPU):
             BARRIER
         #endif
         szz_z = Dzp(lvar);
-            
+
         #if LOCAL_OFF==0
             BARRIER
             load_local_in(sxz, lvar);
@@ -276,17 +291,15 @@ class UpdateVelocity(ReversibleFunctionGPU):
         #endif
         sxz_z = Dzm(lvar);
         sxz_x = Dxm(lvar);
-    
+
         gridstop(g);
-        
+
         // Update the velocities
-        int sign = -2*backpropagate+1; 
+        int sign = -2*backpropagate+1;
         vx(g.z, g.x)+= sign * ((sxx_x + sxz_z)*rip(g.z, g.x));
         vz(g.z, g.x)+= sign * ((szz_z + sxz_x)*rkp(g.z, g.x));
         """
-        grid = ComputeGrid(shape=[s - self.order for s in vx.shape],
-                           queue=self.queue,
-                           origin=[self.order//2 for _ in vx.shape])
+        grid = self.compute_grid(vx.shape)
         self.callgpu(src, "forward", grid, vx, vz, sxx, szz, sxz, rip, rkp,
                      backpropagate=backpropagate)
         return vx, vz
@@ -444,11 +457,10 @@ class FreeSurface1(ReversibleFunctionGPU):
 
     def __init__(self, queue, order=8):
         super().__init__(queue, local_size=None)
-        self.header, _ = get_header_stencil(order, 2,
-                                                            local_size=None,
-                                                            with_local_ops=True)
-        hc = ["HC%d" % (i+1) for i in range(order//2)]
-        self.header += "float constant hc[%d] = {%s};\n" % (order//2,
+        self.header, _ = get_header_stencil(order, 2, local_size=None,
+                                            with_local_ops=True)
+        hc = ["HC%d" % (i+1) for i in range(order // 2)]
+        self.header += "float constant hc[%d] = {%s};\n" % (order // 2,
                                                             ", ".join(hc))
         self.order = order
 
@@ -566,8 +578,8 @@ class FreeSurface2(ReversibleFunctionGPU):
         self.header, _ = get_header_stencil(order, 2,
                                             local_size=None,
                                             with_local_ops=True)
-        hc = ["HC%d" % (i+1) for i in range(order//2)]
-        self.header += "float constant hc[%d] = {%s};\n" % (order//2,
+        hc = ["HC%d" % (i+1) for i in range(order // 2)]
+        self.header += "float constant hc[%d] = {%s};\n" % (order // 2,
                                                             ", ".join(hc))
         self.order = order
 
@@ -735,66 +747,116 @@ class ScaledParameters(ReversibleFunction):
         return rho, rip, rkp, M, mu, muipkp
 
 
-def elastic2d(grid2D, gridout, gridsrc, nab):
+class Elastic2dPropagatorGPU(Propagator):
 
-    gridpar = copy(grid2D)
-    gridpar.zero_boundary = False
-    gridpar.pad = 0
-    defs = {"gridfd": grid2D, "gridpar": gridpar, "gridout": gridout,
-            "gridsrc": gridsrc}
+    def __init__(self, grid: Grid, order=4,
+                 local_size=(16, 16)):
 
-    stepper = SequenceCL([Source(required_states=["vz"], grids=defs),
-                          UpdateVelocity(grids=defs),
-                          Cerjan(required_states=["vx", "vz"], freesurf=1, nab=nab),
-                          Receiver(required_states=["vz"],
-                                   updated_states=["vzout"],
-                                   grids=defs),
-                          UpdateStress(grids=defs),
-                          FreeSurface(grids=defs),
-                          Cerjan(required_states=["sxx", "szz", "sxz"],
-                                 freesurf=1, nab=nab),
-                          ])
-    psv2D = SequenceCL([Velocity2LameCL(grids=defs),
-                        ArithmeticAveraging(grids=defs,
-                                            required_states=["rho", "rip"],
-                                            updated_states=["rip"], dx=1),
-                        ArithmeticAveraging(grids=defs,
-                                            required_states=["rho", "rkp"],
-                                            updated_states=["rkp"], dz=1),
-                        HarmonicAveraging(grids=defs,
-                                          required_states=["mu", "muipkp"],
-                                          updated_states=["muipkp"],
-                                          dx1=1, dz2=1),
-                        ScaledParameters(grids=defs,
-                                         dt=gridsrc.dt,
-                                         dh=grid2D.dh),
-                        PropagatorCL(stepper, gridsrc.nt)],
-                       grids=defs)
-    return psv2D
+        resc = ComputeRessource()
+        queue = self.queue = resc.queues[0]
+        self.queue = queue
+        self.grid = grid
+        self.fdorder = order
+        shape = (self.grid.nz, self.grid.nx)
+        pad = self.fdorder//2
+        self.vx = VariableCL(queue, shape=shape, pad=pad)
+        self.vz = VariableCL(queue, shape=shape, pad=pad)
+        self.sxx = VariableCL(queue, shape=shape, pad=pad)
+        self.szz = VariableCL(queue, shape=shape, pad=pad)
+        self.sxz = VariableCL(queue, shape=shape, pad=pad)
+        self.vs = VariableCL(queue, shape=shape, pad=pad)
+        self.vp = VariableCL(queue, shape=shape, pad=pad)
+        self.rho = VariableCL(queue, shape=shape, pad=pad)
+        self.rip = VariableCL(queue, shape=shape, pad=pad)
+        self.rkp = VariableCL(queue, shape=shape, pad=pad)
+        self.muipkp = VariableCL(queue, shape=shape, pad=pad)
+        self.vel2lame = Velocity2LameGPU(queue)
+        self.arithemtic_average = ArithmeticAveraging(queue)
+        self.harmonic_average = HarmonicAveraging(queue)
+        self.scaledparameters = ScaledParameters(self.grid.dt,
+                                                 self.grid.dh)
+        self.src_fun = PointSources2DGPU(queue)
+        self.rec_fun = GeophoneGPU2D(queue)
+        self.updatev = UpdateVelocity(queue, order=order, local_size=local_size)
+        self.updates = UpdateStress(queue, order=order, local_size=local_size)
+        self.freesurface1 = FreeSurface1(queue, order=order)
+        self.freesurface2 = FreeSurface2(queue, order=order)
+        self.abs_v = CerjanGPU(queue, nab=self.grid.nab)
+        self.abs_s = CerjanGPU(queue, nab=self.grid.nab)
+
+    def propagate(self, shot, vp, vs, rho):
+
+        self.vp.data = vp
+        self.vs.data = vs
+        self.rho.data = rho
+        vp, vs, rho = (self.vp, self.vs, self.rho)
+
+        self.vx.initialize()
+        self.vz.initialize()
+        self.sxx.initialize()
+        self.szz.initialize()
+        self.sxz.initialize()
+        shot.dmod = VariableCL(self.queue,
+                               shape=(shot.nt, len(shot.receivers)))
+        rec_pos = self.rec_fun.rec_pos(shot, self.grid.dh, vp.shape)
+        rec_type = self.rec_fun.rec_type(shot)
+        src_pos = self.src_fun.src_pos(shot, self.grid.dh, vp.shape)
+        src_type = self.src_fun.src_type(shot)
+        M, mu = self.vel2lame(vp, vs, rho)
+        rip = self.arithemtic_average(rho, self.rip, dx=1)
+        rkp = self.arithemtic_average(rho, self.rkp, dz=1)
+        muipkp = self.harmonic_average(mu, self.muipkp, dx1=1, dz2=1)
+        rho, rip, rkp, M, mu, muipkp = self.scaledparameters(rho, rip, rkp,
+                                                             M, mu, muipkp)
+        vx, vz, sxx, szz, sxz = (self.vx, self.vz, self.sxx, self.szz, self.sxz)
+        for t in range(self.grid.nt):
+            # vx, vz, sxx, szz = self.src_fun(vx, vz, sxx, szz, shot.wavelet,
+            #                                 src_pos, src_type, t)
+            vx, vz = self.updatev(vx, vz, sxx, szz, sxz, rip, rkp)
+            # vx, vz = self.abs_v(vx, vz)
+            # sxx, szz, sxz = self.updates(vx, vz, sxx, szz, sxz, M, mu, muipkp)
+            # sxx, szz = self.freesurface1(vx, vz, sxx, szz, sxz, M, mu, rkp, rip)
+            # vx, vz = self.freesurface2(vx, vz, sxx, szz, sxz, rkp, rip)
+            # sxx, szz, sxz = self.abs_s(sxx, szz, sxz)
+            # shot.dmod = self.rec_fun(vx, vz, sxx, szz, shot.dmod, rec_pos,
+            #                          rec_type, t)
+            print(t)
+        return shot.dmod
 
 
 if __name__ == '__main__':
 
-    resc = ComputeRessource()
+    shape = (160, 300)
+    grid = Grid(nd=2, nx=shape[1], ny=None, nz=shape[0], nt=4500, dt=0.0001,
+                dh=1.0, nab=16, pad=2, freesurf=True)
+    acquisition = Acquisition(grid=grid)
+    propagator = Elastic2dPropagatorGPU(grid)
+    acquisition.regular2d(rec_types=["vx", "vz"], gz0=4, queue=propagator.queue)
+    vp, vs, rho = (np.zeros(shape, dtype=np.float32) for _ in range(3))
+    vp[:, :] = 1500
+    vs[:, :] = 400
+    rho[:, :] = 1800
+    vs[80:, :] = 600
+    vp[80:, :] = 2000
+    rho[80:, :] = 2000
+    vs0 = vs.copy()
+    vs[5:10, 145:155] *= 1.05
 
-    nx = 24
-    nz = 24
-    nrec = 1
-    nt = 3
-    nab = 2
-    dh = 1.0
-    dt = 0.0001
+    t1 = time.time()
+    dmod = propagator.propagate(acquisition.shots[1], vp, vs, rho)
+    t2 = time.time() -t1
+    print(t2)
 
-    grid2D = GridCL(resc.queues[0], shape=(nz, nx), pad=4, type=np.float32,
-                    zero_boundary=True)
-    src_linpos = grid2D.xyz2lin([0], [15]).astype(np.int32)
-    xrec = np.arange(10, 15)
-    zrec = xrec*0
-    rec_linpos = grid2D.xyz2lin(zrec, xrec).astype(np.int32)
-    gridsrc = GridCL(resc.queues[0], shape=(1,), pad=0, type=np.float32,
-                     dt=dt, nt=nt)
-    gridout = GridCL(resc.queues[0], shape=(nt, nrec), type=np.float32)
-    psv2D = psv2D = elastic2d(grid2D, gridout, gridsrc, nab)
+    # fwi = FWI(acquisition, propagator)
+    # shots = fwi(acquisition.shots[:2], vp, vs, rho)
+    # dmod = shots[1].dmod
+
+    clip = 0.1
+    vmin = np.min(dmod.data.get()) * clip
+    vmax=-vmin
+    plt.imshow(dmod.data.get(), aspect="auto", vmin=vmin, vmax=vmax)
+    plt.show()
+
 
     # psv2D.backward_test(reclinpos=rec_linpos,
     #                     srclinpos=src_linpos)
@@ -803,47 +865,4 @@ if __name__ == '__main__':
     # psv2D.dot_test(reclinpos=rec_linpos,
     #                srclinpos=src_linpos)
 
-    nrec = 1
-    nt = 7500
-    nab = 16
-    dh = 1.0
-    dt = 0.0001
-
-    grid2D = GridCL(resc.queues[0], shape=(160, 300), type=np.float32,
-                    zero_boundary=True, dh=dh, pad=2)
-
-    src_linpos = grid2D.xyz2lin([0], [50]).astype(np.int32)
-    xrec = np.arange(50, 250)
-    zrec = xrec*0
-    rec_linpos = grid2D.xyz2lin(zrec, xrec).astype(np.int32)
-    gridout = GridCL(resc.queues[0], shape=(nt, xrec.shape[0]), pad=0,
-                     type=np.float32, dt=dt, nt=nt)
-    gridsrc = GridCL(resc.queues[0], shape=(nt, 1), pad=0, type=np.float32,
-                     dt=dt, nt=nt)
-    psv2D = elastic2d(grid2D, gridout, gridsrc, nab)
-
-    vs = np.full(grid2D.shape, 300.0)
-    rho = np.full(grid2D.shape, 1800.0)
-    vp = np.full(grid2D.shape, 1500.0)
-    vs[80:, :] = 600
-    rho[80:, :] = 2000
-    vp[80:, :] = 2000
-    vs0 = vs.copy()
-    vs[5:10, 145:155] *= 1.05
-
-    states = psv2D({"vs": vs,
-                    "vp": vp,
-                    "rho": rho,
-                    "signal": ricker(10, dt, nt)},
-                    reclinpos=rec_linpos,
-                    srclinpos=src_linpos)
-    plt.imshow(states["vx"].get())
-    plt.show()
-    #
-    vzobs = states["vzout"].get()
-    clip = 0.01
-    vmin = np.min(vzobs) * 0.1
-    vmax=-vmin
-    plt.imshow(vzobs, aspect="auto", vmin=vmin, vmax=vmax)
-    plt.show()
 

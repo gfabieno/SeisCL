@@ -794,7 +794,7 @@ class Elastic2dPropagator(Propagator):
         self.sxx.initialize()
         self.szz.initialize()
         self.sxz.initialize()
-        shot.dmod.initialize()
+        shot.dmod = Variable(shape=(shot.nt, len(shot.receivers)))
         vp, vs, rho = self.scaledparameters(vp, vs, rho)
         vx, vz, sxx, szz, sxz = (self.vx, self.vz, self.sxx, self.szz, self.sxz)
         for t in range(self.acquisition.grid.nt):
@@ -805,6 +805,7 @@ class Elastic2dPropagator(Propagator):
                          sxx, szz, sxz)
             self.abs(sxx, szz, sxz)
             self.rec_fun(shot, t, vx, vz, sxx, szz)
+            print(t)
 
         return shot.dmod, vp, vs, rho, vx, vz, sxx, szz, sxz
 
@@ -872,7 +873,7 @@ class ElasticTester(unittest.TestCase):
 
     def test_elastic2d_propagator(self):
         grid = Grid(nd=2, nx=10, ny=None, nz=10, nt=3, dt=0.00000000001, dh=1.0,
-                    nab=2, freesurf=True)
+                    nab=2, pad=2, freesurf=True)
         shot = Shot([Source()], [Receiver(x=0), Receiver(x=1)], 0,
                     grid.nt, grid.dt)
         self.assertIsNot(shot.wavelet, None)
@@ -891,7 +892,7 @@ class ElasticTester(unittest.TestCase):
 if __name__ == '__main__':
 
     grid = Grid(nd=2, nx=300, ny=None, nz=160, nt=4500, dt=0.0001, dh=1.0,
-                nab=16, freesurf=True)
+                nab=16, pad=2, freesurf=True)
     acquisition = Acquisition(grid=grid)
     acquisition.regular2d(rec_types=["vx", "vz"], gz0=4)
     propagator = Elastic2dPropagator(acquisition)
@@ -905,12 +906,16 @@ if __name__ == '__main__':
     vs0 = vs.data.copy()
     vs.data[5:10, 145:155] *= 1.05
 
-    # dmod, _, _, _, _, _, _, _, _ = propagator.propagate(acquisition.shots[1],
-    #                                                     vp, vs, rho)
+    import time
+    t1 = time.time()
+    dmod, _, _, _, _, _, _, _, _ = propagator.propagate(acquisition.shots[1],
+                                                        vp, vs, rho)
+    t2 = time.time() -t1
+    print(t2)
 
-    fwi = FWI(acquisition, propagator)
-    shots = fwi(acquisition.shots[:2], vp, vs, rho)
-    dmod = shots[1].dmod
+    # fwi = FWI(acquisition, propagator)
+    # shots = fwi(acquisition.shots[:2], vp, vs, rho)
+    # dmod = shots[1].dmod
 
     clip = 0.0001
     vmin = np.min(dmod.data) * clip
