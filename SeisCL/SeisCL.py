@@ -429,7 +429,7 @@ class SeisCL:
             self.gradout = 1
         else:
             self.gradout = 0
-        self.N = np.array(params[self.params[0]].shape, dtype=np.int)
+        self.N = np.array(params[self.params[0]].shape, dtype=int)
         self.write_csts(workdir)
         self.write_model(params, workdir)
 
