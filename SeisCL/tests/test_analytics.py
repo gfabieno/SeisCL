@@ -24,7 +24,7 @@ matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 plt.interactive(False)
 import sys
-sys.path.append('../')
+#sys.path.append('../')
 from SeisCL import SeisCL
 from SeisCL.analytical.viscoelastic import viscoelastic_3D, viscoelastic_2D
 from SeisCL.analytical import garvin2, lamb3D

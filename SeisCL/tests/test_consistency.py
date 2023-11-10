@@ -11,7 +11,7 @@ import numpy as np
 import sys
 import matplotlib.pyplot as plt
 import argparse
-sys.path.append('../')
+#sys.path.append('../')
 from SeisCL.SeisCL import SeisCL, SeisCLError
 
 
