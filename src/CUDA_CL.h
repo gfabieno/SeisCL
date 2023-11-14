@@ -46,7 +46,7 @@
 #define DEVICE_TYPE int
 #define CUCL_SUCCESS CUDA_SUCCESS
 #define CL_INT int
-#define CL_UINT uint
+#define CL_UINT unsigned int
 #define CL_CHAR char
 #define MEMFREE cuMemFree
 #define QUEUEFREE cuStreamDestroy

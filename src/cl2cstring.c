@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
     int ii;
     
     filename = argv[1];
-    fh = fopen(filename, "r");
+    fh = fopen(filename, "rb");
     if (fh==NULL){
         
         fprintf(stderr,"Error: Could not open the file: %s \n", filename);
@@ -80,7 +80,7 @@ int main(int argc, char **argv) {
                         fputs("\\b", fh);
                         break;
                     case '\n':
-                        fputs("\\n", fh);
+                        fputs("\\n\"\n\"", fh);
                         break;
                     case '\t':
                         fputs("\\t", fh);

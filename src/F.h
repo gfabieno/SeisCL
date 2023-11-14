@@ -24,7 +24,6 @@
 #include <stdio.h>
 #include <float.h>
 #include <stdint.h>
-#include <unistd.h>
 #include <errno.h>
 //#include <cmath>
 
@@ -32,15 +31,19 @@
 #include <string.h>
 #include <ctype.h>
 #include <assert.h>
-#include <sys/sysctl.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <pwd.h>
 //#include <mach/mach_time.h>
 #include <sys/types.h>
-#include <unistd.h>
 #include <limits.h>
-#include <sys/time.h>
+#include <sys/stat.h>
+#ifndef _WIN32
+    #include <unistd.h>
+    #include <pwd.h>
+    #include <sys/sysctl.h>
+    #include <sys/time.h>
+#else
+    #include <io.h>
+#endif // _WIN32
+
 
 #include "third_party/KISS_FFT/kiss_fft.h"
 #include "third_party/KISS_FFT/kiss_fftr.h"
@@ -53,13 +56,25 @@
 
 #include <hdf5.h>
 
+#ifdef _WIN32
+#define PATH_MAX _MAX_PATH
+#endif // _WIN32
+
 #define STRING_SIZE 256
 #define PI (3.141592653589793238462643383279502884197169)
 
+#ifdef _WIN32
+#define GMALLOC(x,y) {\
+            if (!state) if (!((x)=malloc((y)))) {state=1;fprintf(stderr,"Error: malloc failed at line %d in %s()\n",__LINE__,__func__);};\
+            if (!state) memset((x),0,(y));\
+            }
+#else
 #define GMALLOC(x,y) ({\
             if (!state) if (!((x)=malloc((y)))) {state=1;fprintf(stderr,"Error: malloc failed at line %d in %s()\n",__LINE__,__func__);};\
             if (!state) memset((x),0,(y));\
             })
+#endif // _WIN32
+
 
 #define GFree(x) if ((x)) free( (x) );(x)=NULL;
 
