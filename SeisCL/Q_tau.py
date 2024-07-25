@@ -5,8 +5,8 @@ so the the relation between 1/Q and tau are as linear as possible.
 """
 
 import numpy as np
+import scipy.stats
 from scipy.optimize import minimize
-from sklearn.linear_model import LinearRegression
 from scipy.interpolate import interp1d
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -96,22 +96,19 @@ class QTAU(object):
             Q[ii] = np.average(1/thisq)
             Qvar = np.std(1/thisq)
 
-        fit = LinearRegression().fit(np.expand_dims(tau, axis=-1),
-                                     np.expand_dims(np.log(Q), axis=-1))
+        fit = scipy.stats.linregress(tau, np.log(Q))
         if plot is True:
             #plt.loglog(np.exp(tau), Q, color='black')
             plt.errorbar(np.exp(tau), Q, Qvar,  color='black')
-            plt.plot(np.exp(tau), np.exp(fit.predict(np.expand_dims(tau, axis=-1))), color='red' )
+            plt.plot(np.exp(tau), np.exp(fit.slope*tau + fit.intercept), color='red' )
             plt.xscale("log")
             plt.yscale("log")
             plt.xlabel('tau')
             plt.ylabel('$Q^{-1}$')
             plt.show()
 
-        slope = fit.coef_[0][0]
+        return np.exp(tau), Q, Qvar, np.sum(Qvar/Q), fit.slope
 
-
-        return np.exp(tau), Q, Qvar, np.sum(Qvar/Q), slope
 
     def tau_optimize(self):
 

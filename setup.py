@@ -16,6 +16,5 @@ setup(name='SeisCL',
       install_requires=['obspy',
                         'numpy',
                         'h5py',
-                        'scipy',
-                        'sklearn'],
+                        'scipy'],
       zip_safe=False)
