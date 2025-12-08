@@ -628,3 +628,5 @@ int kernel_sources(model * m,
                    device * dev,
                    clprogram * prog);
 
+int scale_sources(struct model * m);
+

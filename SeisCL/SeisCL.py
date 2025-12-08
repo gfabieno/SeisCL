@@ -29,6 +29,23 @@ csts = [ 'N', 'ND', 'dh', 'dt', 'NT', 'freesurf', 'FDORDER', 'MAXRELERROR',
         'fmin', 'fmax', 'gradout', 'Hout', 'gradsrcout', 'seisout', 'resout',
         'rmsout', 'movout', 'restype', 'inputres', 'FP16']
 
+SOURCE_TYPES = {
+    "Fx": 0,
+    "Fy": 1,
+    "Fz": 2,
+    "pressure": 100,
+    "explosive": 100,
+    "Sxx": 4,
+    "Syy": 5,
+    "Szz": 6,
+    "Sxz": 7,
+    "Sxy": 8,
+    "Syz": 9,
+    "Mxx": 10,
+    "Mzz": 11,
+    "Mxz": 12,
+}
+
 
 class SeisCL:
     """ A class that implements an interface to SeisCL
@@ -110,14 +127,49 @@ class SeisCL:
 
         :param src_pos_all:      Position of all shots containted in dataset
                                  Array [sx sy sz srcid src_type] x nb sources
-                                 The same srcid are fired simulatneously
-                                 src_type: 100: Explosive, 0: Force in X, 1:
-                                 Force in Y, 2:Force in Z
+                                 The same srcid are fired simulatneously.
+                                 Supported src_type values include:
+                                 100: explosive/pressure (Pa·m²), 0/1/2:
+                                 point forces Fx/Fy/Fz (Newtons), 10/11/12:
+                                 strain-rate sources Mxx/Mzz/Mxz (1/s) that are
+                                 converted internally to stress sources using
+                                 the local Lamé constants.
         :param rec_pos_all:      Position of all the receivers in the dataset
                                  Array [gx gy gz srcid recid - - -] x nb traces
                                  srcid is the source number
                                  recid is the trace number in the record
         :param src_all:          Source signals. NT x number of sources
+                                 Point-force amplitudes are interpreted as
+                                 Newtons and scaled by 1/(rho·cell volume).
+                                 Strain-rate moment components are multiplied
+                                 by the stiffness tensor Cijkl so that signals
+                                 are injected as stress-rate (Pa/s).
+
+        NOTE: SeisCL solves the first-order velocity–stress elastic (or acoustic)
+        wave equations in the form:
+
+            ∂t v_i  = (1/ρ) ∂j σ_ij   + s_i
+            ∂t σ_ij = λ δ_ij ∂k v_k  + μ (∂i v_j + ∂j v_i) + s_ij
+
+        In the current SeisCL implementation, s_i and s_ij are inserted directly
+        into the right-hand side of these equations without unit normalization.
+        As a result, the *numerical units* of sources differ from their *physical
+        units*. To get the correct physical units, the user must scale the source
+        amplitudes as follows:
+
+            - For explosive sources s_σ in stress Pa (source_type=100)
+                s_ij = (ND λ δ_ij   + 2μ) \int_t s_σ dt
+            - For force sources s_v in Newtons (source_type=0,1,2)
+                s_i = (1/ρ) s_v / (dh^3)
+
+        Source units and scaling
+        -----------------------
+        Point-force time functions should be specified in Newtons. SeisCL
+        converts them internally to acceleration by dividing by
+        (rho · dx · dz) in 2D (or rho · dx · dy · dz in 3D), preserving
+        reciprocity. Stress or moment-tensor style sources use strain-rate
+        inputs (1/s). The code multiplies them by the Lamé parameters to
+        inject stress-rate components in Pascal/second.
 
         NOTE: SeisCL solves the first-order velocity–stress elastic (or acoustic)
         wave equations in the form:

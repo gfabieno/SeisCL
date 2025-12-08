@@ -133,6 +133,35 @@ To perform all consistency tests:
 
 Test scripts are a good start to understand how to use the python interface to SeisCL.
 
+## Source Types and Units in SeisCL
+
+SeisCL enforces physically scaled sources so that point forces, acoustic
+monopoles, and moment tensors have the expected units and satisfy reciprocity:
+
+* **Point forces (src_type 0/1/2)** – supply time histories in Newtons. SeisCL
+  divides by the local density and cell volume before injecting acceleration.
+* **Acoustic/pressure (src_type 100)** – interpreted as pressure–volume inputs
+  (Pa·m²) without additional spatial scaling.
+* **Moment/strain-rate sources (src_type 10/11/12)** – provide strain-rate
+  tensors (1/s). The code multiplies them by the stiffness tensor (Lamé
+  parameters) so stresses are injected in Pa/s with the proper diagonal
+  coupling.
+
+Example usage:
+
+```python
+from SeisCL.SeisCL import SeisCL, SOURCE_TYPES
+import numpy as np
+
+seis = SeisCL(N=np.array([128, 128]), dh=10, dt=0.001, NT=200)
+seis.src_pos_all = np.array([[500.0], [0.0], [500.0], [0.0], [SOURCE_TYPES["Fx"]]])
+seis.src_all = seis.rickerwavelet()[:, None] * 1.0  # 1 N Ricker force
+
+# Moment tensor entry: strain-rate in 1/s
+seis.src_pos_all = np.array([[500.0], [0.0], [500.0], [0.0], [SOURCE_TYPES["Mxx"]]])
+seis.src_all = seis.rickerwavelet()[:, None] * 1e-6
+```
+
 
 
 
