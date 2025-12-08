@@ -402,6 +402,7 @@ int kernel_sources(model * m,
     const char * src_names[10] = {"vx", "vy", "vz", "p",
                                   "sxx", "syy", "szz",
                                   "sxz", "sxy", "syz"};
+    int src_codes[10] = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
     char temp[MAX_KERN_STR]={0};
     char temp2[100]={0};
 //    

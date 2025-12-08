@@ -25,7 +25,7 @@ csts = [ 'N', 'ND', 'dh', 'dt', 'NT', 'freesurf', 'FDORDER', 'MAXRELERROR',
         'NPOWER', 'FPML', 'K_MAX_CPML', 'nab', 'abpc', 'pref_device_type',
         'no_use_GPUs', 'MPI_NPROC_SHOT', 'nmax_dev', 'back_prop_type',
         'param_type', 'gradfreqs', 'tmax', 'tmin', 'scalerms',
-        'scalermsnorm', 'scaleshot', 'scale_sources',
+        'scalermsnorm', 'scaleshot',
         'fmin', 'fmax', 'gradout', 'Hout', 'gradsrcout', 'seisout', 'resout',
         'rmsout', 'movout', 'restype', 'inputres', 'FP16']
 
@@ -35,12 +35,12 @@ SOURCE_TYPES = {
     "Fz": 2,
     "pressure": 100,
     "explosive": 100,
-    "Sxx": 3,
-    "Syy": 4,
-    "Szz": 5,
-    "Sxz": 6,
-    "Sxy": 7,
-    "Syz": 8,
+    "Sxx": 4,
+    "Syy": 5,
+    "Szz": 6,
+    "Sxz": 7,
+    "Sxy": 8,
+    "Syz": 9,
 }
 
 
@@ -337,7 +337,6 @@ class SeisCL:
         self.scalerms = scalerms
         self.scalermsnorm = scalermsnorm
         self.scaleshot = scaleshot
-        self.scale_sources = scale_sources
 
         self.seisout = seisout
         self.resout = resout
