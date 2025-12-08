@@ -265,14 +265,16 @@ int Init_model(model * m) {
     __GUARD m->check_stability( (void*) m);
 
     /*
-     * Scale and expand the sources so that user-provided amplitudes correspond
-     * to physical quantities. Point-force signals are interpreted as Newtons
-     * and are internally converted to acceleration by dividing by
-     * (rho * cell_volume). Moment-tensor entries (provided as strain-rates)
-     * are converted to stress-rate contributions using the local elastic
-     * moduli.
+     * Optionally scale and expand the sources so that user-provided
+     * amplitudes correspond to physical quantities. Point-force signals are
+     * interpreted as Newtons and are internally converted to acceleration by
+     * dividing by (rho * cell_volume). Moment-tensor entries (provided as
+     * strain-rates) are converted to stress-rate contributions using the local
+     * elastic moduli.
      */
-    __GUARD scale_sources(m);
+    if (m->scale_sources){
+        __GUARD scale_sources(m);
+    }
 
     GMALLOC(m->src_recs.src_scales, sizeof(int)*m->src_recs.ns);
     float srcmax;

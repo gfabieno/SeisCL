@@ -25,7 +25,7 @@ csts = [ 'N', 'ND', 'dh', 'dt', 'NT', 'freesurf', 'FDORDER', 'MAXRELERROR',
         'NPOWER', 'FPML', 'K_MAX_CPML', 'nab', 'abpc', 'pref_device_type',
         'no_use_GPUs', 'MPI_NPROC_SHOT', 'nmax_dev', 'back_prop_type',
         'param_type', 'gradfreqs', 'tmax', 'tmin', 'scalerms',
-        'scalermsnorm', 'scaleshot',
+        'scalermsnorm', 'scaleshot', 'scale_sources',
         'fmin', 'fmax', 'gradout', 'Hout', 'gradsrcout', 'seisout', 'resout',
         'rmsout', 'movout', 'restype', 'inputres', 'FP16']
 
@@ -82,6 +82,7 @@ class SeisCL:
                  offmin: float = -float('Inf'), offmax: float = float('Inf'),
                  inputres: int = 0, restype: int = 0, scalerms: int = 0,
                  scalermsnorm: int = 0, scaleshot: int = 0,
+                 scale_sources: int = 0,
 
                  seisout: int = 2, resout: int = 0, rmsout: int = 0,
                  movout: int = 0,
@@ -144,23 +145,10 @@ class SeisCL:
                                  Strain-rate moment components are multiplied
                                  by the stiffness tensor Cijkl so that signals
                                  are injected as stress-rate (Pa/s).
-
-        NOTE: SeisCL solves the first-order velocity–stress elastic (or acoustic)
-        wave equations in the form:
-
-            ∂t v_i  = (1/ρ) ∂j σ_ij   + s_i
-            ∂t σ_ij = λ δ_ij ∂k v_k  + μ (∂i v_j + ∂j v_i) + s_ij
-
-        In the current SeisCL implementation, s_i and s_ij are inserted directly
-        into the right-hand side of these equations without unit normalization.
-        As a result, the *numerical units* of sources differ from their *physical
-        units*. To get the correct physical units, the user must scale the source
-        amplitudes as follows:
-
-            - For explosive sources s_σ in stress Pa (source_type=100)
-                s_ij = (ND λ δ_ij   + 2μ) \int_t s_σ dt
-            - For force sources s_v in Newtons (source_type=0,1,2)
-                s_i = (1/ρ) s_v / (dh^3)
+        :param scale_sources:    If 1, normalize source amplitudes to the
+                                 physical units described below before
+                                 injection. If 0 (default), keep legacy
+                                 amplitudes without automatic scaling.
 
         Source units and scaling
         -----------------------
@@ -179,14 +167,19 @@ class SeisCL:
 
         In the current SeisCL implementation, `s_i` and `s_ij`
         are inserted directly into the right-hand side of these equations without
-        unit normalization.  As a result, the *numerical units* of sources differ
-        from their *physical units*. To get the correct physical units, the user must
-        scale the source amplitudes as follows:
+        unit normalization when ``scale_sources=0``. As a result, the *numerical
+        units* of sources differ from their *physical units*, and the user must
+        scale the source amplitudes as follows to obtain physical units or enable
+        ``scale_sources`` to apply the same normalization automatically:
 
             - For explosive sources s_σ in stress Pa (source_type=100)
                 s_ij = (ND λ δ_ij   + 2μ) \int_t s_σ dt
             - For force sources s_v in Newtons (source_type=0,1,2)
                 s_i = (1/ρ) s_v / (dh^3)
+
+        Setting ``scale_sources=1`` applies these conversions automatically at
+        runtime while preserving backward compatibility by leaving scaling
+        disabled by default.
 
         Parameters defining the Boundary conditions
 
@@ -360,6 +353,7 @@ class SeisCL:
         self.scalerms = scalerms
         self.scalermsnorm = scalermsnorm
         self.scaleshot = scaleshot
+        self.scale_sources = scale_sources
 
         self.seisout = seisout
         self.resout = resout

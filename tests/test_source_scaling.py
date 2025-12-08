@@ -1,4 +1,8 @@
 import numpy as np
+import pytest
+
+h5py = pytest.importorskip("h5py")
+from SeisCL.SeisCL import SeisCL
 
 
 def test_force_scaling_matches_physical_volume():
@@ -48,4 +52,20 @@ def test_reciprocal_force_scaling_symmetry():
     source_b = inv_rho / (dt * vol_scale)
 
     np.testing.assert_allclose(source_a, source_b)
+
+
+def test_scale_sources_flag_is_optional(tmp_path):
+    sim = SeisCL(scale_sources=0)
+
+    sim.write_csts(workdir=tmp_path)
+
+    with h5py.File(tmp_path / sim.file_csts, "r") as f:
+        assert f["scale_sources"][()] == 0
+
+    sim.scale_sources = 1
+    sim.write_csts(workdir=tmp_path)
+
+    loader = SeisCL()
+    loader.read_csts(workdir=tmp_path)
+    assert loader.scale_sources == 1
 
