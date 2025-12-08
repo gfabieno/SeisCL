@@ -119,7 +119,22 @@ class SeisCL:
                                  recid is the trace number in the record
         :param src_all:          Source signals. NT x number of sources
 
+        NOTE: SeisCL solves the first-order velocity–stress elastic (or acoustic)
+        wave equations in the form:
 
+            ∂t v_i  = (1/ρ) ∂j σ_ij   + s_i
+            ∂t σ_ij = λ δ_ij ∂k v_k  + μ (∂i v_j + ∂j v_i) + s_ij
+
+        In the current SeisCL implementation, `s_i` and `s_ij`
+        are inserted directly into the right-hand side of these equations without
+        unit normalization.  As a result, the *numerical units* of sources differ
+        from their *physical units*. To get the correct physical units, the user must
+        scale the source amplitudes as follows:
+
+            - For explosive sources s_σ in stress Pa (source_type=100)
+                s_ij = (ND λ δ_ij   + 2μ) \int_t s_σ dt
+            - For force sources s_v in Newtons (source_type=0,1,2)
+                s_i = (1/ρ) s_v / (dh^3)
 
         Parameters defining the Boundary conditions
 
@@ -307,7 +322,7 @@ class SeisCL:
         self.__to_load_names = None
 
     # _____________________Setters _______________________
-    
+
     # When setting a file for the datalist, load the datalist from it
     @property
     def workdir(self):
@@ -398,11 +413,11 @@ class SeisCL:
                 toload = ["sxx", "syy", "szz", "sxz", "sxy", "syz"]
         elif self.seisout == 4:
             if self.ND == 2:
-                toload = ["vx", "vz", "sxx", "szz", "sxz"]
+                toload = ["vx", "vz", "p", "sxx", "szz", "sxz"]
             if self.ND == 21:
                 toload = ["vy", "sxy", "syz"]
             if self.ND == 3:
-                toload = ["vx", "vy", "vz",
+                toload = ["vx", "vy", "vz", "p",
                           "sxx", "syy", "szz", "sxz", "sxy", "syz"]
 
         return toload
@@ -423,13 +438,13 @@ class SeisCL:
 
         if workdir is None:
             workdir = self.workdir
-        
+
+        self.N = np.array(params[self.params[0]].shape, dtype=int)
         self.prepare_data(jobids)
         if withgrad:
             self.gradout = 1
         else:
             self.gradout = 0
-        self.N = np.array(params[self.params[0]].shape, dtype=int)
         self.write_csts(workdir)
         self.write_model(params, workdir)
 
@@ -807,6 +822,31 @@ class SeisCL:
 
         self.rec_pos[4, :] = [x+1 for x in recels]
 
+        # check that receivers and sources are within model and outside ABCs
+        for dim in range(3):
+
+            if dim ==1 and self.N.shape[0] == 2:
+                continue
+            if self.freesurf and dim == 0:
+                nmin = 0
+            else:
+                nmin = self.nab
+
+            if dim == 2 and self.N.shape[0] == 2:
+                nmax = self.N[1] - self.nab
+            else:
+                nmax = self.N[dim] - self.nab
+
+            smin = self.src_pos[2-dim, :].min() / self.dh
+            smax = self.src_pos[2-dim, :].max() / self.dh
+            rmin = self.rec_pos[2-dim, :].min() / self.dh
+            rmax = self.rec_pos[2-dim, :].max() / self.dh
+
+            if np.any(smin < nmin) or np.any(smax > nmax):
+                raise SeisCLError('Sources are out of model or in ABC\n')
+            if np.any(rmin < nmin) or np.any(rmax > nmax):
+                raise SeisCLError('Receivers are out of model or in ABC\n')
+
     def ricker_wavelet(self, f0=None, NT=None, dt=None, tmin=None):
         """
         Compute a ricker wavelet
@@ -1040,12 +1080,12 @@ class SeisCL:
             cx = rx + AbsRect[r].get_width()/2.0
             cy = ry + AbsRect[r].get_height()/2.0
 
-            if r is 'North' or r is 'South':
+            if r == 'North' or r == 'South':
                 ax.annotate(TextLayers, (cx, cy), color='k', weight='bold',
                             fontsize=12, ha='center', va='center',
                             path_effects=[withStroke(linewidth=3,
                                                      foreground="w")])
-            elif r is 'East' or r is 'West':
+            elif r == 'East' or r == 'West':
                 ax.annotate(TextLayers, (cx, cy), color='k', weight='bold',
                             fontsize=12, ha='center', va='center', rotation=90,
                             path_effects=[withStroke(linewidth=3,

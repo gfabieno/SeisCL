@@ -400,6 +400,7 @@ int kernel_sources(model * m,
     variable * vars = dev->vars;
     variable * tvars = dev->trans_vars;
     const char * src_names[4] = {"vx", "vy", "vz", "p"};
+    int src_codes[4] = {0, 1, 2, 100};
     char temp[MAX_KERN_STR]={0};
     char temp2[100]={0};
 //    
@@ -419,6 +420,7 @@ int kernel_sources(model * m,
             for (j=0;j<dev->nvars;j++){
                 if (strcmp(vars[j].name,src_names[ind])==0){
                     tosources[j]=1;
+                    src_codes[j]=ind;
                 }
             }
         }
@@ -563,7 +565,7 @@ int kernel_sources(model * m,
         
         if (tosources[i]){
             if (ntypes>1){
-                sprintf(temp2,"    if (source_type==%d)\n", i);
+                sprintf(temp2,"    if (source_type==%d)\n", src_codes[i]);
                 strcat(temp, temp2);
                 strcat(temp, "    ");
             }
