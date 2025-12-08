@@ -458,7 +458,6 @@ typedef struct model {
     int scalerms;
     int scaleshot;
     int scalermsnorm;
-    int scale_sources;
     
     float TAU;
     float f0;

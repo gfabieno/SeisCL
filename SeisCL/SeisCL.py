@@ -35,15 +35,12 @@ SOURCE_TYPES = {
     "Fz": 2,
     "pressure": 100,
     "explosive": 100,
-    "Sxx": 4,
-    "Syy": 5,
-    "Szz": 6,
-    "Sxz": 7,
-    "Sxy": 8,
-    "Syz": 9,
-    "Mxx": 10,
-    "Mzz": 11,
-    "Mxz": 12,
+    "Sxx": 3,
+    "Syy": 4,
+    "Szz": 5,
+    "Sxz": 6,
+    "Sxy": 7,
+    "Syz": 8,
 }
 
 
@@ -82,7 +79,6 @@ class SeisCL:
                  offmin: float = -float('Inf'), offmax: float = float('Inf'),
                  inputres: int = 0, restype: int = 0, scalerms: int = 0,
                  scalermsnorm: int = 0, scaleshot: int = 0,
-                 scale_sources: int = 0,
 
                  seisout: int = 2, resout: int = 0, rmsout: int = 0,
                  movout: int = 0,
@@ -130,11 +126,11 @@ class SeisCL:
                                  Array [sx sy sz srcid src_type] x nb sources
                                  The same srcid are fired simulatneously.
                                  Supported src_type values include:
-                                 100: explosive/pressure (Pa·m²), 0/1/2:
-                                 point forces Fx/Fy/Fz (Newtons), 10/11/12:
-                                 strain-rate sources Mxx/Mzz/Mxz (1/s) that are
-                                 converted internally to stress sources using
-                                 the local Lamé constants.
+                                 100: explosive/pressure,
+                                 0/1/2: point forces Fx/Fy/Fz,
+                                 4-9: stress-rate sources Sxx/Syy/Szz/Sxz/Sxy/Syz
+                                 The dictionary SOURCE_TYPES provides a mapping.
+                                 See NOTE below for details on source units.
         :param rec_pos_all:      Position of all the receivers in the dataset
                                  Array [gx gy gz srcid recid - - -] x nb traces
                                  srcid is the source number
@@ -145,41 +141,29 @@ class SeisCL:
                                  Strain-rate moment components are multiplied
                                  by the stiffness tensor Cijkl so that signals
                                  are injected as stress-rate (Pa/s).
-        :param scale_sources:    If 1, normalize source amplitudes to the
-                                 physical units described below before
-                                 injection. If 0 (default), keep legacy
-                                 amplitudes without automatic scaling.
 
         Source units and scaling
         -----------------------
-        Point-force time functions should be specified in Newtons. SeisCL
-        converts them internally to acceleration by dividing by
-        (rho · dx · dz) in 2D (or rho · dx · dy · dz in 3D), preserving
-        reciprocity. Stress or moment-tensor style sources use strain-rate
-        inputs (1/s). The code multiplies them by the Lamé parameters to
-        inject stress-rate components in Pascal/second.
 
         NOTE: SeisCL solves the first-order velocity–stress elastic (or acoustic)
         wave equations in the form:
 
-            ∂t v_i  = (1/ρ) ∂j σ_ij   + s_i
-            ∂t σ_ij = λ δ_ij ∂k v_k  + μ (∂i v_j + ∂j v_i) + s_ij
+            ∂t v_i  = (1/ρ) ∂j σ_ij   + s_vi
+            ∂t σ_ij = λ δ_ij ∂k v_k  + μ (∂i v_j + ∂j v_i) + s_σij
 
-        In the current SeisCL implementation, `s_i` and `s_ij`
+        In the current SeisCL implementation, `s_vi` and `s_σij`
         are inserted directly into the right-hand side of these equations without
-        unit normalization when ``scale_sources=0``. As a result, the *numerical
-        units* of sources differ from their *physical units*, and the user must
-        scale the source amplitudes as follows to obtain physical units or enable
-        ``scale_sources`` to apply the same normalization automatically:
+        unit normalization. As a result, reciprocity is not respected. To ensure reciprocity, the user should apply the following conversions:
+            - For deformation rate density s_σ (1/s) (source_type=3-8, 100)
+                s_σij = -λ Tr(s_ij)δ_ij   + 2μ s_ij
+            - For volume force density (N) (source_type=0,1,2)
+                s_vi = (1/ρ) s_i / (dh^3)
 
-            - For explosive sources s_σ in stress Pa (source_type=100)
-                s_ij = (ND λ δ_ij   + 2μ) \int_t s_σ dt
-            - For force sources s_v in Newtons (source_type=0,1,2)
-                s_i = (1/ρ) s_v / (dh^3)
-
-        Setting ``scale_sources=1`` applies these conversions automatically at
-        runtime while preserving backward compatibility by leaving scaling
-        disabled by default.
+        This scaling solves the reciprocal wave equation given by:
+            ρ∂t v_i - ∂j σ_ij = si
+            -sijkl ∂t σ_ij + (∂i v_j + ∂j v_i)/2 = s_ij
+        with the compliance tensor sijkl defined as the inverse of the stiffness,
+        here cijkl = λ δ_ij δ_kl + μ (δ_ik δ_jl + δ_il δ_jk).
 
         Parameters defining the Boundary conditions
 

@@ -500,7 +500,6 @@ int read_csts(hid_t file_id, model * m){
     read_optional(file_id, H5T_NATIVE_INT,   "/scalerms", &m->scalerms);
     read_optional(file_id, H5T_NATIVE_INT,   "/scaleshot", &m->scaleshot);
     read_optional(file_id, H5T_NATIVE_INT,"/scalermsnorm",&m->scalermsnorm);
-    read_optional(file_id, H5T_NATIVE_INT,"/scale_sources",&m->scale_sources);
     read_optional(file_id, H5T_NATIVE_INT,   "/restype", &m->restype);
     read_optional(file_id, H5T_NATIVE_INT,   "/Hout", &m->HOUT);
     read_optional(file_id, H5T_NATIVE_INT,   "/movout", &m->MOVOUT);
