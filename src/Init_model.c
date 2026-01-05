@@ -20,16 +20,6 @@
 #include "F.h"
 #include "third_party/NVIDIA_FP16/fp16_conversion.h"
 
-static size_t idx3d(int x, int y, int z, int ny, int nz, int fdoh) {
-    return (size_t)(x - fdoh) * (size_t)(ny - 2 * fdoh) * (size_t)(nz - 2 * fdoh)
-         + (size_t)(y - fdoh) * (size_t)(nz - 2 * fdoh)
-         + (size_t)(z - fdoh);
-}
-
-static size_t idx2d(int x, int z, int nz, int fdoh) {
-    return (size_t)(x - fdoh) * (size_t)(nz - 2 * fdoh) + (size_t)(z - fdoh);
-}
-
 #define rho(z,y,x) rho[(x)*NY*NZ+(y)*NZ+(z)]
 #define rip(z,y,x) rip[(x)*NY*NZ+(y)*NZ+(z)]
 #define rjp(z,y,x) rjp[(x)*NY*NZ+(y)*NZ+(z)]
@@ -53,6 +43,7 @@ int Init_model(model * m) {
     int i,j,t;
     half * hpar;
 
+
     __GUARD m->set_par_scale( (void*) m);
     for (i=0;i<m->npars;i++){
         if (m->pars[i].transform !=NULL){
@@ -60,7 +51,6 @@ int Init_model(model * m) {
         }
     }
     __GUARD m->check_stability( (void*) m);
-
 
     GMALLOC(m->src_recs.src_scales, sizeof(int)*m->src_recs.ns);
     float srcmax;
