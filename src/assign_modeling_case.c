@@ -47,7 +47,7 @@
 #include "header_CUDACL.hcl"
 #include "header_injectbnd.hcl"
 
-void ave_arithmetic1(float * pin, float * pout, int * N, int ndim, int  dir[3]){
+void ave_arithmetic_rho(float * pin, float * pout, int * N, int ndim, int  *dir){
     
     int i,j,k;
     int NX, NY, NZ;
@@ -64,14 +64,16 @@ void ave_arithmetic1(float * pin, float * pout, int * N, int ndim, int  dir[3]){
         NY=1;
         NZ=N[0];
     }
-    
-    
+
+    // implementation of improved vacuum formulation eq. 6-7
+    // converted rho to buoyancy (pin=b here), so arithmetic averaging of rho
+    // is now: rhoij = 0.5*(rho1+rho2) -> bij = 2 / (1/pin1 + 1/pin2)
     for (k=0;k<NZ-dir[0];k++){
         for (j=0;j<NY-dir[1];j++){
             for (i=0;i<NX-dir[2];i++){
                 ind1 = (i  )*NY*NZ+(j)*NZ+(k);
                 ind2 = (i+dir[2])*NY*NZ+(j+dir[1])*NZ+(k+dir[0]);
-                pout[ind1]=0.5*( pin[ind1]+pin[ind2]);
+                pout[ind1]=2/(1.0/pin[ind1] + 1.0/pin[ind2]);
             }
         }
     }
@@ -97,7 +99,7 @@ void ave_arithmetic1(float * pin, float * pout, int * N, int ndim, int  dir[3]){
     
     
 }
-void ave_arithmetic2(float *pin, float *pout, int *N, int ndim, int dir[2][3]) {
+void ave_arithmetic_tau(float *pin, float *pout, int *N, int ndim, int **dir) {
     
     int i,j,k;
     int NX, NY, NZ;
@@ -171,58 +173,8 @@ void ave_arithmetic2(float *pin, float *pout, int *N, int ndim, int dir[2][3]) {
     
     
 }
-void ave_harmonic1(float * pin, float * pout, int * N, int ndim, int  dir[3]){
-    
-    int i,j,k;
-    int NX, NY, NZ;
-    int NX0=0, NY0=0, NZ0=0;
-    int ind1, ind2;
-    if (ndim==3){
-        NX=N[2];
-        NY=N[1];
-        NZ=N[0];
-    }
-    else
-    {
-        NX=N[1];
-        NY=1;
-        NZ=N[0];
-    }
-    
-    
-    for (k=0;k<NZ-dir[0];k++){
-        for (j=0;j<NY-dir[1];j++){
-            for (i=0;i<NX-dir[2];i++){
-                ind1 = (i  )*NY*NZ+(j)*NZ+(k);
-                ind2 = (i+dir[2])*NY*NZ+(j+dir[1])*NZ+(k+dir[0]);
-                pout[ind1]=2.0*( 1.0/pin[ind1]+1.0/pin[ind2]);
-            }
-        }
-    }
-    
-    if (dir[2]==1){
-        NX0=NX-1;
-    }
-    else if (dir[1]==1){
-        NY0=NY-1;
-    }
-    if (dir[0]==1){
-        NZ0=NZ-1;
-    }
-    
-    for (k=NZ0;k<NZ;k++){
-        for (j=NY0;j<NY;j++){
-            for (i=NX0;i<NX;i++){
-                ind1 = (i  )*NY*NZ+(j)*NZ+(k);
-                pout[ind1]= pin[ind1];
-            }
-        }
-    }
-    
-    
-}
 
-void ave_harmonic(float * pin, float * pout, int * N, int ndim, int dir[2][3]) {
+void ave_harmonic_mu(float * pin, float * pout, int * N, int ndim, int **dir) {
     
     int i,j,k;
     int NX, NY, NZ;
@@ -255,6 +207,11 @@ void ave_harmonic(float * pin, float * pout, int * N, int ndim, int dir[2][3]) {
                                 +1.0/pin[ind2]
                                 +1.0/pin[ind3]
                                 +1.0/pin[ind4]);
+                // implementation of improved vacuum formulation eq. 8
+                if (pin[ind1]==0 || pin[ind2]==0 || pin[ind3]==0 || pin[ind4]==0)
+                {
+                    pout[ind1] = 0;
+                }
             }
         }
     }
@@ -467,7 +424,7 @@ void rip(void * mptr){
     float *rho = get_par(m->pars, m->npars, "rho")->gl_par;
     float *rip = get_par(m->pars, m->npars, "rip")->gl_par;
     int dir[3]={0,0,1};
-    ave_arithmetic1(rho, rip, m->N, m->NDIM, dir);
+    ave_arithmetic_rho(rho, rip, m->N, m->NDIM, dir);
 }
 void rjp(void * mptr){
     
@@ -475,7 +432,7 @@ void rjp(void * mptr){
     float *rho = get_par(m->pars, m->npars, "rho")->gl_par;
     float *rjp = get_par(m->pars, m->npars, "rjp")->gl_par;
     int dir[3]={0,1,0};
-    ave_arithmetic1(rho, rjp, m->N, m->NDIM, dir);
+    ave_arithmetic_rho(rho, rjp, m->N, m->NDIM, dir);
 }
 void rkp(void * mptr){
     
@@ -483,7 +440,7 @@ void rkp(void * mptr){
     float *rho = get_par(m->pars, m->npars, "rho")->gl_par;
     float *rkp = get_par(m->pars, m->npars, "rkp")->gl_par;
     int dir[3]={1,0,0};
-    ave_arithmetic1(rho, rkp, m->N, m->NDIM, dir);
+    ave_arithmetic_rho(rho, rkp, m->N, m->NDIM, dir);
 }
 void muipkp(void * mptr){
     
@@ -491,7 +448,7 @@ void muipkp(void * mptr){
     float *mu = get_par(m->pars, m->npars, "mu")->gl_par;
     float *muipkp = get_par(m->pars, m->npars, "muipkp")->gl_par;
     int dir[2][3]={{0,0,1},{1,0,0}};
-    ave_harmonic(mu, muipkp, m->N, m->NDIM, dir);
+    ave_harmonic_mu(mu, muipkp, m->N, m->NDIM, dir);
 }
 void mujpkp(void * mptr){
     
@@ -499,7 +456,7 @@ void mujpkp(void * mptr){
     float *mu = get_par(m->pars, m->npars, "mu")->gl_par;
     float *mujpkp = get_par(m->pars, m->npars, "mujpkp")->gl_par;
     int dir[2][3]={{0,1,0},{1,0,0}};
-    ave_harmonic(mu, mujpkp, m->N, m->NDIM, dir);
+    ave_harmonic_mu(mu, mujpkp, m->N, m->NDIM, dir);
 }
 void muipjp(void * mptr){
     
@@ -507,7 +464,7 @@ void muipjp(void * mptr){
     float *mu = get_par(m->pars, m->npars, "mu")->gl_par;
     float *muipjp = get_par(m->pars, m->npars, "muipjp")->gl_par;
     int dir[2][3]={{0,0,1},{0,1,0}};
-    ave_harmonic(mu, muipjp, m->N, m->NDIM, dir);
+    ave_harmonic_mu(mu, muipjp, m->N, m->NDIM, dir);
 }
 void tausipkp(void * mptr){
     
@@ -515,7 +472,7 @@ void tausipkp(void * mptr){
     float *taus = get_par(m->pars, m->npars, "taus")->gl_par;
     float *tausipkp = get_par(m->pars, m->npars, "tausipkp")->gl_par;
     int dir[2][3]={{0,0,1},{1,0,0}};
-    ave_arithmetic2(taus, tausipkp, m->N, m->NDIM, dir);
+    ave_arithmetic_tau(taus, tausipkp, m->N, m->NDIM, dir);
 }
 void tausjpkp(void * mptr){
     
@@ -523,7 +480,7 @@ void tausjpkp(void * mptr){
     float *taus = get_par(m->pars, m->npars, "taus")->gl_par;
     float *tausjpkp = get_par(m->pars, m->npars, "tausjpkp")->gl_par;
     int dir[2][3]={{0,1,0},{1,0,0}};
-    ave_arithmetic2(taus, tausjpkp, m->N, m->NDIM, dir);
+    ave_arithmetic_tau(taus, tausjpkp, m->N, m->NDIM, dir);
 }
 void tausipjp(void * mptr){
     
@@ -531,7 +488,7 @@ void tausipjp(void * mptr){
     float *taus = get_par(m->pars, m->npars, "taus")->gl_par;
     float *tausipjp = get_par(m->pars, m->npars, "tausipjp")->gl_par;
     int dir[2][3]={{0,0,1},{0,1,0}};
-    ave_arithmetic2(taus, tausipjp, m->N, m->NDIM, dir);
+    ave_arithmetic_tau(taus, tausipjp, m->N, m->NDIM, dir);
 }
 void eta( void *mptr, void *cstptr, int ncst){
     //Viscoelastic constants initialization
