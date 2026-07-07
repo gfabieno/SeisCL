@@ -46,7 +46,8 @@ FUNDEF void update_adjs(int offcomm,
                           GLOBARG float*psi_vx_x,    GLOBARG float*psi_vx_z,
                           GLOBARG float*psi_vz_x,    GLOBARG float*psi_vz_z,
                           GLOBARG float*gradrho,    GLOBARG float*gradM,     GLOBARG float*gradmu,
-                          GLOBARG float*gradtaup,   GLOBARG float*gradtaus,  GLOBARG float*gradsrc,
+                          GLOBARG float*gradmuipkp, GLOBARG float*gradtaup,   GLOBARG float*gradtaus,
+                          GLOBARG float*gradtausipkp, GLOBARG float*gradsrc,
                           GLOBARG float*Hrho,    GLOBARG float*HM,     GLOBARG float*Hmu,
                         GLOBARG float*Htaup,   GLOBARG float*Htaus,  GLOBARG float*Hsrc,
                         LOCARG)
@@ -439,34 +440,33 @@ FUNDEF void update_adjs(int offcomm,
 // Shear wave modulus and P-wave modulus gradient calculation on the fly
 #if BACK_PROP_TYPE==1
     #if RESTYPE==0
-    float c1=1.0/( (2.0*lM-2.0*lmu)*(2.0*lM-2.0*lmu) );
-    
-    
-    float c3=1.0/(lmu*lmu);
-    float c5=0.25*c3;
+        float c1=1.0/( (2.0*lM-2.0*lmu)*(2.0*lM-2.0*lmu) );
 
-    float dM=c1*( sxx[indv]+szz[indv] )*( lsxx+lszz );
-    
-    gradM[indp]+=-dM;
-    gradmu[indp]+=-c3*(sxz[indv]*lsxz)+dM-c5*(  (sxx[indv]-szz[indv])*(lsxx-lszz)  );
 
-    #if HOUT==1
-    float dMH=c1*(sxx[indv]+szz[indv])*(sxx[indv]+szz[indv]);
-    HM[indp]+= dMH;
-    Hmu[indp]+=c3*sxz[indv]*sxz[indv]-dM+c5*(sxx[indv]-szz[indv])*(sxx[indv]-szz[indv]) ;
-    #endif
+        float c3=1.0/(lmu*lmu);
+        float c5=0.25*c3;
+
+        float dM=c1*( sxx[indv]+szz[indv] )*( lsxx+lszz );
+
+        gradM[indp]+=-dM;
+        gradmu[indp]+=-c3*(sxz[indv]*lsxz)+dM-c5*(  (sxx[indv]-szz[indv])*(lsxx-lszz)  );
+
+        #if HOUT==1
+            float dMH=c1*(sxx[indv]+szz[indv])*(sxx[indv]+szz[indv]);
+            HM[indp]+= dMH;
+            Hmu[indp]+=c3*sxz[indv]*sxz[indv]-dM+c5*(sxx[indv]-szz[indv])*(sxx[indv]-szz[indv]) ;
+        #endif
     #endif
     
     #if RESTYPE==1
-    float dM=( sxx[indv]+szz[indv] )*( lsxx+lszz );
-    
-    gradM[indp]+=-dM;
-    
-    #if HOUT==1
-    float dMH= (sxx[indv]+szz[indv])*(sxx[indv]+szz[indv]);
-    HM[indp]+= dMH;
-    
-    #endif
+        float dM=( sxx[indv]+szz[indv] )*( lsxx+lszz );
+
+        gradM[indp]+=-dM;
+        #if HOUT==1
+        float dMH= (sxx[indv]+szz[indv])*(sxx[indv]+szz[indv]);
+        HM[indp]+= dMH;
+
+        #endif
     #endif
 
 #endif
