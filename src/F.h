@@ -531,6 +531,13 @@ int readhdf5(struct filenames files, model * m);
 int readvar(hid_t file_id, hid_t memtype, const char * invar, void * varptr);
 int checkexists(hid_t file_id, const char * invar);
 
+/* In-memory counterpart of read_srcrec() (src/read_hdf5.c), used by the
+ * PyTorch binding (src/seiscl_api.c) instead of reading HDF5 files. */
+int seiscl_set_srcrec(model * m,
+                      const float * src_pos, int allns,
+                      const float * src,
+                      const float * rec_pos, int allng);
+
 int assign_modeling_case(model * m);
 
 
