@@ -511,7 +511,13 @@ class SeisCL:
         if workdir is None:
             workdir = self.workdir
         workdir = os.path.abspath(workdir)
-        file_din = os.path.abspath(self.file_din)
+        # self.file_din is a bare filename by default (joined with workdir
+        # below), but some callers (e.g. test_consistency.py's
+        # test_fp16_grad) pre-set it to an already workdir-prefixed path as
+        # a workaround for this same resolution -- os.path.basename() here
+        # normalizes both conventions to the same, correct absolute path.
+        file_din = os.path.abspath(
+            os.path.join(workdir, os.path.basename(self.file_din)))
         path_din = os.path.dirname(file_din)
         cmd = ''
         if self.with_mpi:
@@ -522,10 +528,10 @@ class SeisCL:
             cmd += ' -w ' + workdir + ' '
             cmd += '--user $(id -u):$(id -g) '
             cmd += self.docker_name + ' '
-        
+
         cmd += self.progname
         cmd += ' ' + workdir + '/' + self.file
-        cmd += ' ' + self.file_din
+        cmd += ' ' + file_din
         return cmd
 
     def execute(self, workdir=None):
