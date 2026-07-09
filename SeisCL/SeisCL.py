@@ -511,13 +511,12 @@ class SeisCL:
         if workdir is None:
             workdir = self.workdir
         workdir = os.path.abspath(workdir)
-        # self.file_din is a bare filename by default (joined with workdir
-        # below), but some callers (e.g. test_consistency.py's
-        # test_fp16_grad) pre-set it to an already workdir-prefixed path as
-        # a workaround for this same resolution -- os.path.basename() here
-        # normalizes both conventions to the same, correct absolute path.
-        file_din = os.path.abspath(
-            os.path.join(workdir, os.path.basename(self.file_din)))
+        # Resolve self.file_din against workdir with the same os.path.join
+        # convention write_data() uses (see write_data(): filename is
+        # joined with workdir there too): a bare filename lands in workdir,
+        # a relative subpath is nested under it, and an absolute path is
+        # used as-is (os.path.join discards workdir in that case).
+        file_din = os.path.abspath(os.path.join(workdir, self.file_din))
         path_din = os.path.dirname(file_din)
         cmd = ''
         if self.with_mpi:
