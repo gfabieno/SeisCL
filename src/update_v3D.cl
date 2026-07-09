@@ -32,20 +32,20 @@
 
 
 FUNDEF void update_v(int offcomm,
-                       GLOBARG float * RESTRICT vx,               GLOBARG float * RESTRICT vy,               GLOBARG float * RESTRICT vz,
-                       GLOBARG const float * RESTRICT sxx,        GLOBARG const float * RESTRICT syy,        GLOBARG const float * RESTRICT szz,
-                       GLOBARG const float * RESTRICT sxy,        GLOBARG const float * RESTRICT syz,        GLOBARG const float * RESTRICT sxz,
-                       GLOBARG const float * RESTRICT rip,        GLOBARG const float * RESTRICT rjp,        GLOBARG const float * RESTRICT rkp,
+                       GLOBARG float * RESTRICT vx,              GLOBARG float * RESTRICT vy,              GLOBARG float * RESTRICT vz,
+                       GLOBARG const float * RESTRICT sxx,       GLOBARG const float * RESTRICT syy,       GLOBARG const float * RESTRICT szz,
+                       GLOBARG const float * RESTRICT sxy,       GLOBARG const float * RESTRICT syz,       GLOBARG const float * RESTRICT sxz,
+                       GLOBARG const float * RESTRICT rip,       GLOBARG const float * RESTRICT rjp,       GLOBARG const float * RESTRICT rkp,
                        GLOBARG const float * RESTRICT taper,
-                       GLOBARG const float * RESTRICT K_x,        GLOBARG const float * RESTRICT a_x,          GLOBARG const float * RESTRICT b_x,
-                       GLOBARG const float * RESTRICT K_x_half,   GLOBARG const float * RESTRICT a_x_half,     GLOBARG const float * RESTRICT b_x_half,
-                       GLOBARG const float * RESTRICT K_y,        GLOBARG const float * RESTRICT a_y,          GLOBARG const float * RESTRICT b_y,
-                       GLOBARG const float * RESTRICT K_y_half,   GLOBARG const float * RESTRICT a_y_half,     GLOBARG const float * RESTRICT b_y_half,
-                       GLOBARG const float * RESTRICT K_z,        GLOBARG const float * RESTRICT a_z,          GLOBARG const float * RESTRICT b_z,
-                       GLOBARG const float * RESTRICT K_z_half,   GLOBARG const float * RESTRICT a_z_half,     GLOBARG const float * RESTRICT b_z_half,
-                       GLOBARG float * RESTRICT psi_sxx_x,  GLOBARG float * RESTRICT psi_sxy_x,     GLOBARG float * RESTRICT psi_sxy_y,
-                       GLOBARG float * RESTRICT psi_sxz_x,  GLOBARG float * RESTRICT psi_sxz_z,     GLOBARG float * RESTRICT psi_syy_y,
-                       GLOBARG float * RESTRICT psi_syz_y,  GLOBARG float * RESTRICT psi_syz_z,     GLOBARG float * RESTRICT psi_szz_z,
+                       GLOBARG const float * RESTRICT K_x,       GLOBARG const float * RESTRICT a_x,       GLOBARG const float * RESTRICT b_x,
+                       GLOBARG const float * RESTRICT K_x_half,  GLOBARG const float * RESTRICT a_x_half,  GLOBARG const float * RESTRICT b_x_half,
+                       GLOBARG const float * RESTRICT K_y,       GLOBARG const float * RESTRICT a_y,       GLOBARG const float * RESTRICT b_y,
+                       GLOBARG const float * RESTRICT K_y_half,  GLOBARG const float * RESTRICT a_y_half,  GLOBARG const float * RESTRICT b_y_half,
+                       GLOBARG const float * RESTRICT K_z,       GLOBARG const float * RESTRICT a_z,       GLOBARG const float * RESTRICT b_z,
+                       GLOBARG const float * RESTRICT K_z_half,  GLOBARG const float * RESTRICT a_z_half,  GLOBARG const float * RESTRICT b_z_half,
+                       GLOBARG float * RESTRICT psi_sxx_x,       GLOBARG float * RESTRICT psi_sxy_x,       GLOBARG float * RESTRICT psi_sxy_y,
+                       GLOBARG float * RESTRICT psi_sxz_x,       GLOBARG float * RESTRICT psi_sxz_z,       GLOBARG float * RESTRICT psi_syy_y,
+                       GLOBARG float * RESTRICT psi_syz_y,       GLOBARG float * RESTRICT psi_syz_z,       GLOBARG float * RESTRICT psi_szz_z,
                        LOCARG)
 {
     LOCDEF
