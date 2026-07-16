@@ -38,9 +38,9 @@ Usage:
 
 import argparse
 import os
+import re
 import shutil
 import sys
-import time
 
 import numpy as np
 
@@ -117,6 +117,37 @@ def with_binary_on_path(binary_path):
     return old_path
 
 
+_TIME_RE = re.compile(r"Time for modeling:\s*([0-9eE.+-]+)")
+
+
+def parse_kernel_time(stdout):
+    """Extract the timestep-loop-only wall time SeisCL_MPI prints to stdout
+    (src/SeisCL_MPI.c, "Time for modeling"). This is time4-time5 around the
+    time_stepping() call: it excludes MPI/process startup, HDF5 I/O, and
+    Init_CUDA context setup, but *includes* any OpenCL/CUDA kernel JIT
+    compilation triggered by a cache miss inside time_stepping(). Callers
+    must ensure the on-disk kernel cache (<file>_cache/) is already warm
+    for the binary under test before timing, or this will measure compile
+    time instead of kernel run time.
+    """
+    match = _TIME_RE.search(stdout)
+    if not match:
+        raise RuntimeError(
+            "Could not find 'Time for modeling' in SeisCL stdout:\n" + stdout)
+    return float(match.group(1))
+
+
+def reset_dir(path):
+    """Remove any cache/output left over from a previous benchmark run so
+    the first call against a binary always starts from a cold (but known)
+    state, rather than possibly reusing a stale <file>_cache/ compiled
+    against a different kernel source.
+    """
+    if os.path.exists(path):
+        shutil.rmtree(path)
+    os.makedirs(path, exist_ok=True)
+
+
 def run_forward(binary_path, ND, N, nt, workdir):
     old_path = with_binary_on_path(binary_path)
     try:
@@ -124,9 +155,8 @@ def run_forward(binary_path, ND, N, nt, workdir):
         seis.set_forward(seis.src_pos_all[3, :], params, withgrad=False)
         seis.write_data({})
         os.chdir(workdir)
-        t0 = time.perf_counter()
-        seis.execute()
-        elapsed = time.perf_counter() - t0
+        stdout = seis.execute()
+        elapsed = parse_kernel_time(stdout)
         data = seis.read_data()
         return elapsed, data
     finally:
@@ -143,15 +173,13 @@ def run_grad(binary_path, ND, N, nt, workdir):
         seis.write_csts(workdir)
         seis.write_data({})
         os.chdir(workdir)
-        t0 = time.perf_counter()
-        seis.execute()
-        fwd_elapsed = time.perf_counter() - t0
+        stdout = seis.execute()
+        fwd_elapsed = parse_kernel_time(stdout)
         data = seis.read_data()
 
         seis.set_backward(residuals=data)
-        t0 = time.perf_counter()
-        seis.execute()
-        adj_elapsed = time.perf_counter() - t0
+        stdout = seis.execute()
+        adj_elapsed = parse_kernel_time(stdout)
         grad = seis.read_grad()
         return fwd_elapsed, adj_elapsed, grad
     finally:
@@ -173,58 +201,72 @@ def compare_arrays(name, arrays_a, arrays_b, rtol):
     return ok
 
 
-def timeit(fn, repeats):
-    times = [fn() for _ in range(repeats)]
+def timeit(fn, repeats, label):
+    times = []
+    for i in range(repeats):
+        t = fn()
+        times.append(t)
+        print(f"      [{label}] rep {i+1}/{repeats}: {t*1000:.2f} ms", flush=True)
     return np.mean(times), np.std(times)
 
 
 def bench_dim(ND, args):
-    print(f"\n=== {ND}D (N={args.n}, NT={args.nt}, repeats={args.repeats}) ===")
+    print(f"\n=== {ND}D (N={args.n}, NT={args.nt}, repeats={args.repeats}) ===",
+          flush=True)
     workdir_base = os.path.join(args.workdir, f"{ND}d")
     rtol = args.rtol
 
     # ---- forward-only mode ----
-    print("-- forward-only (update_v / update_s) --")
+    print("-- forward-only (update_v / update_s) --", flush=True)
     wd_a = os.path.join(workdir_base, "fwd_baseline")
     wd_b = os.path.join(workdir_base, "fwd_restrict")
-    os.makedirs(wd_a, exist_ok=True)
-    os.makedirs(wd_b, exist_ok=True)
+    reset_dir(wd_a)
+    reset_dir(wd_b)
 
+    print("    warming baseline cache (correctness run)...", flush=True)
     t_a, data_a = run_forward(args.baseline_bin, ND, args.n, args.nt, wd_a)
+    print("    warming restrict cache (correctness run)...", flush=True)
     t_b, data_b = run_forward(args.restrict_bin, ND, args.n, args.nt, wd_b)
     ok = compare_arrays("data", data_a, data_b, rtol)
 
     mean_a, std_a = timeit(
         lambda: run_forward(args.baseline_bin, ND, args.n, args.nt, wd_a)[0],
-        args.repeats)
+        args.repeats, "baseline")
     mean_b, std_b = timeit(
         lambda: run_forward(args.restrict_bin, ND, args.n, args.nt, wd_b)[0],
-        args.repeats)
+        args.repeats, "restrict")
     speedup = mean_a / mean_b if mean_b > 0 else float("nan")
     print(f"    baseline: {mean_a*1000:.1f} +/- {std_a*1000:.1f} ms")
     print(f"    restrict: {mean_b*1000:.1f} +/- {std_b*1000:.1f} ms")
-    print(f"    speedup:  {speedup:.3f}x  correctness={'PASS' if ok else 'FAIL'}")
+    print(f"    speedup:  {speedup:.3f}x  correctness={'PASS' if ok else 'FAIL'}",
+          flush=True)
 
     # ---- forward+gradient mode (adjoint kernels timed separately) ----
-    print("-- gradient (update_adjv / update_adjs, adjoint pass only timed) --")
+    print("-- gradient (update_adjv / update_adjs, adjoint pass only timed) --",
+          flush=True)
     wd_a = os.path.join(workdir_base, "grad_baseline")
     wd_b = os.path.join(workdir_base, "grad_restrict")
-    os.makedirs(wd_a, exist_ok=True)
-    os.makedirs(wd_b, exist_ok=True)
+    reset_dir(wd_a)
+    reset_dir(wd_b)
 
+    print("    warming baseline cache (correctness run)...", flush=True)
     fwd_a, adj_a, grad_a = run_grad(args.baseline_bin, ND, args.n, args.nt, wd_a)
+    print("    warming restrict cache (correctness run)...", flush=True)
     fwd_b, adj_b, grad_b = run_grad(args.restrict_bin, ND, args.n, args.nt, wd_b)
     ok = compare_arrays("grad", grad_a, grad_b, rtol)
 
     def adj_only(binary, wd):
         return run_grad(binary, ND, args.n, args.nt, wd)[1]
 
-    mean_a, std_a = timeit(lambda: adj_only(args.baseline_bin, wd_a), args.repeats)
-    mean_b, std_b = timeit(lambda: adj_only(args.restrict_bin, wd_b), args.repeats)
+    mean_a, std_a = timeit(lambda: adj_only(args.baseline_bin, wd_a),
+                            args.repeats, "baseline-adj")
+    mean_b, std_b = timeit(lambda: adj_only(args.restrict_bin, wd_b),
+                            args.repeats, "restrict-adj")
     speedup = mean_a / mean_b if mean_b > 0 else float("nan")
     print(f"    baseline (adjoint pass): {mean_a*1000:.1f} +/- {std_a*1000:.1f} ms")
     print(f"    restrict (adjoint pass): {mean_b*1000:.1f} +/- {std_b*1000:.1f} ms")
-    print(f"    speedup:  {speedup:.3f}x  correctness={'PASS' if ok else 'FAIL'}")
+    print(f"    speedup:  {speedup:.3f}x  correctness={'PASS' if ok else 'FAIL'}",
+          flush=True)
 
 
 def main():
