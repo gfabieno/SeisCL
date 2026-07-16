@@ -511,12 +511,7 @@ class SeisCL:
         if workdir is None:
             workdir = self.workdir
         workdir = os.path.abspath(workdir)
-        # Resolve self.file_din against workdir with the same os.path.join
-        # convention write_data() uses (see write_data(): filename is
-        # joined with workdir there too): a bare filename lands in workdir,
-        # a relative subpath is nested under it, and an absolute path is
-        # used as-is (os.path.join discards workdir in that case).
-        file_din = os.path.abspath(os.path.join(workdir, self.file_din))
+        file_din = os.path.abspath(self.file_din)
         path_din = os.path.dirname(file_din)
         cmd = ''
         if self.with_mpi:
@@ -530,7 +525,7 @@ class SeisCL:
 
         cmd += self.progname
         cmd += ' ' + workdir + '/' + self.file
-        cmd += ' ' + file_din
+        cmd += ' ' + self.file_din
         return cmd
 
     def execute(self, workdir=None):
