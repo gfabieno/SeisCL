@@ -68,6 +68,7 @@ find_package(HDF5 COMPONENTS C HL REQUIRED)
 include_directories(SYSTEM ${HDF5_INCLUDE_DIRS})
 target_link_libraries(SeisCL_MPI ${HDF5_LIBRARIES})
 target_link_libraries(SeisCL_MPI ${HDF5_HL_LIBRARIES})
+target_link_libraries(SeisCL_MPI m)
 
 
 if (USECUDA)
