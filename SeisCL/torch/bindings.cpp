@@ -251,10 +251,30 @@ py::dict collect_data(model &m) {
     return result;
 }
 
+// Zero the NAB-wide absorbing-boundary strip, matching SeisCL.py's cropgrad
+// default (SeisCL.py:639-646) -- boundary-storage-method gradients
+// (BACK_PROP_TYPE=1) are inaccurate in this region. 2D only, matching the
+// scope of SeisCL.py's own cropgrad implementation (its slicing doesn't
+// correctly handle a 3D array either). Internal layout is X-slowest/
+// Z-fastest flat (gl_par[x*NZ+z], see src/Init_model.c's indexing macros),
+// matching what SeisCL.py's write_model() produces via np.transpose().
+void crop_boundary_2d(float *grad, const model &m) {
+    if (m.NDIM != 2) return;
+    int nz = m.N[0], nx = m.N[1], nab = m.NAB;
+    for (int x = 0; x < nx; x++) {
+        for (int z = 0; z < nz; z++) {
+            bool in_boundary = (m.FREESURF == 0 && z < nab) || z >= nz - nab ||
+                               x < nab || x >= nx - nab;
+            if (in_boundary) grad[x * nz + z] = 0.0f;
+        }
+    }
+}
+
 py::dict collect_grads(model &m) {
     py::dict result;
     for (int i = 0; i < m.npars; i++) {
         if (m.pars[i].to_grad && m.pars[i].gl_grad) {
+            crop_boundary_2d(m.pars[i].gl_grad, m);
             torch::Tensor g = torch::from_blob(m.pars[i].gl_grad,
                                                {m.pars[i].num_ele},
                                                torch::kFloat32)
