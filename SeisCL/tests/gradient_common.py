@@ -139,24 +139,42 @@ def relerr(a, b):
     return float(np.abs(a - b).max() / scale)
 
 
-def run_tests(tests):
+def run_tests(tests, xfail=()):
     """Run zero-argument test callables, print a table, return the failure count.
 
     Works under plain `python test_x.py` and is also pytest-collectable.
+
+    :param xfail: names of tests that are known to fail for a documented,
+                  unresolved reason. They still run and still print their
+                  diagnostics, but they do not contribute to the exit status --
+                  so a genuine regression elsewhere is not masked by a red test
+                  that everyone has learned to ignore. An xfail test that starts
+                  passing is reported as XPASS and should be un-listed.
     """
     nfail = 0
     for fn in tests:
         name = fn.__name__
+        expected_fail = name in xfail
         try:
             fn()
-            print("PASS  %s" % name)
+            if expected_fail:
+                print("XPASS %s  (listed as xfail but passed -- un-list it)"
+                      % name)
+            else:
+                print("PASS  %s" % name)
         except AssertionError as e:
-            nfail += 1
-            print("FAIL  %s\n      %s" % (name, str(e).replace("\n", "\n      ")))
+            msg = str(e).replace("\n", "\n      ")
+            if expected_fail:
+                print("XFAIL %s  (known open)\n      %s" % (name, msg))
+            else:
+                nfail += 1
+                print("FAIL  %s\n      %s" % (name, msg))
         except Exception as e:  # noqa: BLE001 - report, do not mask
             nfail += 1
             print("ERROR %s\n      %s: %s"
                   % (name, type(e).__name__,
                      str(e).replace("\n", "\n      ")[:400]))
-    print("\n%d/%d passed" % (len(tests) - nfail, len(tests)))
+    nx = sum(1 for fn in tests if fn.__name__ in xfail)
+    print("\n%d/%d passed (%d known-open)"
+          % (len(tests) - nfail - nx, len(tests) - nx, nx))
     return nfail
