@@ -966,63 +966,66 @@ int kernel_initsavefreqs(device * dev,
     strcat(temp, "){\n\n");
 
 
+    /* Flat 1-D launch in both backends. This kernel is a pure elementwise map
+     * over the padded buffer, so any bijection of [0, num_ele) is correct and a
+     * 1-D index is the natural one. The former CUDA path built gid from a
+     * multi-dimensional launch whose strides were the block-rounded extents
+     * rather than the padded ones; in 3D it also read
+     * "gidx = blockIdx.y*blockDim.z" (blockIdx.z was meant), and since
+     * blockDim.y == blockDim.z == 1 that made gidx == gidy, so only a diagonal
+     * of the buffer was ever touched. A flat launch removes both problems and
+     * stops over-launching (the 2-D form dispatched ~5x more threads than there
+     * are elements for a short, wide grid). */
     #ifdef __SEISCL__
         strcat(temp,"    int gid = get_global_id(0);\n");
         strcat(temp,"    float2 f20 = 0.0;\n");
     #else
-    if (dev->NDIM==2){
         strcat(temp,"    float2 f20 = make_float2(0.0, 0.0);\n");
-        strcat(temp,"    int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
-               "    int gidx = blockIdx.y*blockDim.y + threadIdx.y;\n"
-               "    int gid = gidx*blockDim.x*gridDim.x+gidz;\n");
-    }
-    else if (dev->NDIM==3){
-        strcat(temp,"    int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
-               "    int gidy = blockIdx.y*blockDim.y + threadIdx.y;\n"
-               "    int gidx = blockIdx.y*blockDim.z + threadIdx.z;\n"
-               "    int gid = gidx*blockDim.x*gridDim.x*blockDim.y*gridDim.y"
-               "+gidy*blockDim.x*gridDim.x +gidz;\n");
-    }
+        strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n");
     #endif
     
     
+    /* Zero every frequency slice, not just slice 0. The buffer is
+     * num_ele*NFREQS float2 and clbuf_create does not zero-initialize
+     * (clbuf.c:202-220), so without the freq loop slices 1..NFREQS-1 started
+     * from uninitialized device memory on the first shot and then accumulated
+     * across shots, because this kernel is also what resets the buffers between
+     * sources (time_stepping.c:1048-1049). */
+    strcat(temp,"    int freq;\n");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
-            sprintf(ptemp,"    if (gid<%d)\n", vars[i].num_ele);
-
+            sprintf(ptemp,"    if (gid<%d){\n", vars[i].num_ele);
             strcat(temp,ptemp);
-            strcat(temp, "    ");
-            strcat(temp, "    f");
+            strcat(temp, "        for (freq=0;freq<NFREQS;freq++){\n");
+            strcat(temp, "            f");
             strcat(temp, vars[i].name);
-            strcat(temp, "[gid]=f20;\n");
+            sprintf(ptemp, "[gid+freq*%d]=f20;\n", vars[i].num_ele);
+            strcat(temp,ptemp);
+            strcat(temp, "        }\n");
+            strcat(temp, "    }\n");
         }
     }
-    
+
     strcat(temp, "\n}");
-    
+
        __GUARD prog_source(prog, "initsavefreqs", temp, 0, NULL);
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
     #ifdef __SEISCL__
-    prog->gsize[0] = 1;
-    for (i=0;i<dev->NDIM;i++){
-        prog->gsize[0]*=dev->N[i];
-    }
-    prog->wdim=1;
+    /* Launch one work-item per element of the *padded* buffer. prod(dev->N) is
+     * the unpadded count and is smaller than num_ele = prod(N+FDORDER), so it
+     * left a tail of each buffer untouched while the in-kernel guard, and
+     * calc_grad, both use the padded count. */
+    prog->gsize[0] = maxsize;
     #else
-    
-    prog->gsize[0]=dev->N[0];
-
-    prog->gsize[1]=dev->N[1];
-    if (dev->NDIM==3){
-        prog->gsize[2]=dev->N[2];
-    }
-    
-    prog->wdim=dev->NDIM;
+    /* Same flat 1-D launch as OpenCL: prog_launch picks tsize={BLOCK_SIZE,1,1}
+     * and bsize=ceil(gsize/tsize), which covers [0, maxsize) exactly. */
+    prog->gsize[0] = maxsize;
     #endif
-    
+    prog->wdim=1;
+
     return state;
-    
+
 }
 
 int kernel_savefreqs(device * dev,
@@ -1074,22 +1077,11 @@ int kernel_savefreqs(device * dev,
     p[-2]='\0';
     strcat(temp, ";\n\n");
     
+    /* Flat 1-D launch in both backends -- see kernel_initsavefreqs. */
     #ifdef __SEISCL__
     strcat(temp,"    int gid = get_global_id(0);\n\n" );
     #else
-    if (dev->NDIM==2){
-
-        strcat(temp,"int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
-               "    int gidx = blockIdx.y*blockDim.y + threadIdx.y;\n"
-               "    int gid = gidx*blockDim.x*gridDim.x+gidz;\n\n");
-    }
-    else if (dev->NDIM==3){
-        strcat(temp,"    int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
-               "    int gidy = blockIdx.y*blockDim.y + threadIdx.y;\n"
-               "    int gidx = blockIdx.y*blockDim.z + threadIdx.z;\n"
-               "    int gid = gidx*blockDim.x*gridDim.x*blockDim.y*gridDim.y"
-               "+gidy*blockDim.x*gridDim.x +gidz;\n\n");
-    }
+    strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n\n");
     #endif
 
     for (i=0;i<dev->nvars;i++){
@@ -1150,23 +1142,16 @@ int kernel_savefreqs(device * dev,
     
 //    printf("%s\n\n%lu\n",temp, strlen(temp));
 #ifdef __SEISCL__
-    prog->gsize[0] = 1;
-    for (i=0;i<dev->NDIM;i++){
-        prog->gsize[0]*=dev->N[i];
-    }
-    prog->wdim=1;
+    /* One work-item per element of the padded buffer -- see the same comment in
+     * kernel_initsavefreqs. prod(dev->N) under-covers by
+     * prod(N+FDORDER) - prod(N) elements. */
+    prog->gsize[0] = maxsize;
 #else
-    
-    prog->gsize[0]=dev->N[0];
-    
-    prog->gsize[1]=dev->N[1];
-    if (dev->NDIM==3){
-        prog->gsize[2]=dev->N[2];
-    }
-    
-    prog->wdim=dev->NDIM;
+    /* Same flat 1-D launch as OpenCL -- see kernel_initsavefreqs. */
+    prog->gsize[0] = maxsize;
 #endif
-    
+    prog->wdim=1;
+
     return state;
     
 }

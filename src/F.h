@@ -93,6 +93,7 @@ struct filenames {
     char movout[1024];
     char res[1024];
     char checkpoint[1024];
+    char dftout[1024];
 };
 
 
@@ -423,6 +424,10 @@ typedef struct model {
     int MOVOUT;
     int RESOUT;
     int RMSOUT;
+    /* Debug: dump the raw forward and adjoint DFT wavefield buffers
+     * (BACK_PROP_TYPE==2 only) so they can be checked against a reference DFT
+     * independently of the gradient correlation. Single device, single shot. */
+    int DFTOUT;
     int INPUTRES;
     int L;
 

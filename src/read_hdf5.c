@@ -495,6 +495,7 @@ int read_csts(hid_t file_id, model * m){
     __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/K_MAX_CPML",&m->K_MAX_CPML);
 
     /*Optional variables*/
+    read_optional(file_id, H5T_NATIVE_INT,     "/dftout", &m->DFTOUT);
     read_optional(file_id, H5T_NATIVE_FLOAT,   "/fmax", &m->fmax);
     read_optional(file_id, H5T_NATIVE_FLOAT,   "/fmin", &m->fmin);
     read_optional(file_id, H5T_NATIVE_INT,   "/scalerms", &m->scalerms);

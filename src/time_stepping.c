@@ -89,6 +89,89 @@ int reduce_seis(model * m, device ** dev, int s){
     
 }
 
+/* Debug facility (DFTOUT): dump the raw forward and adjoint DFT wavefield
+ * buffers that savefreqs accumulated, plus the derived DFT parameters, so the
+ * spectra can be validated against a reference DFT without involving the
+ * gradient correlation at all. This is what makes the savefreqs half of
+ * BACK_PROP_TYPE==2 testable independently -- in particular it is testable in
+ * the CUDA build, where calc_grad() is a no-op stub.
+ *
+ * Layout written, C order: (NFREQS, NX+FDORDER, NZ+FDORDER, 2) in 2D and
+ * (NFREQS, NX+FDORDER, NY+FDORDER, NZ+FDORDER, 2) in 3D, matching the
+ * f*num_ele + padded-flat indexing that savefreqs and calc_grad both use. The
+ * trailing 2 is the interleaved (real, imag) float2 pair.
+ *
+ * Single device, single shot only: the buffers are per device and are reset
+ * between shots, so anything else would need a reduction that would defeat the
+ * purpose of dumping raw values. */
+static int dump_dft(model * m, device ** dev, struct filenames files){
+
+    int state=0;
+    int i, nd;
+    char name[100];
+    hsize_t dims[MAX_DIMS];
+    hid_t file_id=0;
+    device * di = &(*dev)[0];
+
+    if (m->NUM_DEVICES!=1 || m->NLOCALP!=1){
+        fprintf(stderr,"Error: dftout requires a single device and a single "
+                       "MPI process per shot (debug facility)\n");
+        return 1;
+    }
+
+    file_id = create_file(files.dftout);
+    if (!file_id) return 1;
+
+    /* Derived DFT parameters, so a test cannot silently drift from the C code
+     * that produced the spectra. */
+    dims[0]=1; dims[1]=1;
+    float tmp;
+    tmp=(float)m->DTNYQ;  writetomat(&file_id, "/DTNYQ",  &tmp, 2, dims);
+    tmp=(float)m->NTNYQ;  writetomat(&file_id, "/NTNYQ",  &tmp, 2, dims);
+    tmp=(float)m->NFREQS; writetomat(&file_id, "/NFREQS", &tmp, 2, dims);
+    tmp=(float)m->FDORDER;writetomat(&file_id, "/FDORDER",&tmp, 2, dims);
+    tmp=(float)m->tmin;   writetomat(&file_id, "/tminind",&tmp, 2, dims);
+    tmp=(float)m->tmax;   writetomat(&file_id, "/tmaxind",&tmp, 2, dims);
+    dims[0]=1; dims[1]=m->NFREQS;
+    writetomat(&file_id, "/gradfreqsn",
+               get_cst(m->csts, m->ncsts, "gradfreqsn")->gl_cst, 2, dims);
+
+    /* The spectra. nd counts the padded spatial axes plus the complex pair. */
+    int npad=1, a;
+    for (a=0;a<m->NDIM;a++) npad*=di->N[a]+m->FDORDER;
+    for (i=0;i<di->nvars;i++){
+        if (!di->vars[i].for_grad) continue;
+        /* Wavefields have num_ele==npad; the viscoelastic memory variables are
+         * sized npad*L, so give them an extra leading axis rather than
+         * mis-shaping them. */
+        int nrep=di->vars[i].num_ele/npad;
+        if (nrep<1 || nrep*npad!=di->vars[i].num_ele){
+            fprintf(stderr,"Error: dftout: unexpected num_ele %d for %s "
+                           "(npad %d)\n",
+                    di->vars[i].num_ele, di->vars[i].name, npad);
+            state=1;
+            break;
+        }
+        nd=0;
+        dims[nd++]=m->NFREQS;
+        if (nrep>1) dims[nd++]=nrep;
+        /* di->N is (NZ, NX) in 2D and (NZ, NY, NX) in 3D; the padded flat
+         * index runs slowest on the last axis, so emit them reversed. */
+        for (a=m->NDIM-1;a>=0;a--){
+            dims[nd++]=di->N[a]+m->FDORDER;
+        }
+        dims[nd++]=2;
+        sprintf(name, "/dft_f_%s", di->vars[i].name);
+        writetomat(&file_id, name, di->vars[i].cl_fvar.host, nd, dims);
+        sprintf(name, "/dft_a_%s", di->vars[i].name);
+        writetomat(&file_id, name, di->vars[i].cl_fvar_adj.host, nd, dims);
+    }
+
+    if (file_id) H5Fclose(file_id);
+
+    return state;
+}
+
 int checkpoint_d2h(model * m, device ** dev, hid_t file_id, int s){
     int state=0;
     int d, i, j;
@@ -923,7 +1006,16 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
                     }
 
                 }
-                // Outputting the movie
+                // Outputting the movie.
+                // NOTE: left gated on BACK_PROP_TYPE==1 deliberately. Enabling
+                // it for BACK_PROP_TYPE==2 would dump the adjoint field (which
+                // reuses vars[i].cl_var in that mode), but into the same gl_mov
+                // buffer and the same frame index the forward loop above already
+                // wrote, so the two passes would partly overwrite each other.
+                // An adjoint movie needs its own buffer; not needed here because
+                // T1 validates the forward spectrum against a separate
+                // forward-only run, and the adjoint sampling is covered by the
+                // gradient-level tests.
                 if (m->MOVOUT>0 && m->BACK_PROP_TYPE==1
                     && (t)%m->MOVOUT==0 && state==0)
                     movout(m, dev, t, s);
@@ -969,6 +1061,14 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
                 }
                 for (d=0;d<m->NUM_DEVICES;d++){
                     __GUARD WAITQUEUE((*dev)[d].queue);
+                }
+                /* Dump before calc_grad: for L>0 calc_grad rewrites the host
+                 * stress spectra in place (the memory-variable correction),
+                 * so afterwards they are no longer the raw savefreqs output. */
+                if (m->DFTOUT && !state){
+                    __GUARD dump_dft(m, dev, files);
+                }
+                for (d=0;d<m->NUM_DEVICES;d++){
                     __GUARD calc_grad(m, &(*dev)[d]);
                 }
             }

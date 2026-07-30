@@ -27,7 +27,7 @@ csts = [ 'N', 'ND', 'dh', 'dt', 'NT', 'freesurf', 'FDORDER', 'MAXRELERROR',
         'param_type', 'gradfreqs', 'tmax', 'tmin', 'scalerms',
         'scalermsnorm', 'scaleshot',
         'fmin', 'fmax', 'gradout', 'Hout', 'gradsrcout', 'seisout', 'resout',
-        'rmsout', 'movout', 'restype', 'inputres', 'FP16']
+        'rmsout', 'movout', 'restype', 'inputres', 'FP16', 'dftout']
 
 SOURCE_TYPES = {
     "Fx": 0,
@@ -81,7 +81,7 @@ class SeisCL:
                  scalermsnorm: int = 0, scaleshot: int = 0,
 
                  seisout: int = 2, resout: int = 0, rmsout: int = 0,
-                 movout: int = 0,
+                 movout: int = 0, dftout: int = 0,
 
                  file: str = "SeisCL", workdir: str = "./seiscl",
                  ):
@@ -250,6 +250,12 @@ class SeisCL:
         :param resout:           Output residuals 1:yes, 0: no
         :param rmsout:           Output rms value of the cost 1:yes, 0: no
         :param movout:           Output movie every n frames
+        :param dftout:           Debug: 1 to dump the raw forward and adjoint
+                                 DFT wavefield buffers accumulated by
+                                 savefreqs (back_prop_type=2 only, single
+                                 device, single shot). Read with read_dft().
+                                 Lets the DFT spectra be validated on their own,
+                                 independently of the gradient correlation.
 
 
         Parameters for file creation
@@ -342,6 +348,7 @@ class SeisCL:
         self.resout = resout
         self.rmsout = rmsout
         self.movout = movout
+        self.dftout = dftout
 
         self.file = file
         self.file_datalist = None
@@ -413,6 +420,7 @@ class SeisCL:
         self.file_movout = file+"_movie.mat"
         self.file_din = file+"_din.mat"
         self.file_res = file + "_res.mat"
+        self.file_dft = file + "_dft.mat"
 
     @property
     def csts(self):
@@ -645,6 +653,49 @@ class SeisCL:
                 o[:, -self.nab:] = 0
         return output 
     
+    def read_dft(self, workdir=None, filename=None):
+        """
+        Read the raw forward and adjoint DFT wavefield buffers dumped by
+        dftout=1 (back_prop_type=2 only, single device, single shot).
+
+        This is a debug facility: it exposes what the savefreqs kernel
+        accumulated, before any gradient correlation, so the spectra can be
+        checked against a reference DFT on their own.
+
+        :param workdir: The directory of the dft file
+        :param filename: The filename of the dft dump
+
+        :return: A dict with the derived DFT parameters DTNYQ, NTNYQ, NFREQS,
+                 FDORDER, tminind, tmaxind (ints), gradfreqsn (int array of DFT
+                 bin indices), and one complex128 array per variable under the
+                 keys 'f_<var>' (forward) and 'a_<var>' (adjoint), shaped
+                 (NZ+FDORDER, [NY+FDORDER,] NX+FDORDER, [L,] NFREQS) -- i.e.
+                 the padded grid leading in (z, [y,] x) order, matching the
+                 convention of read_movie().
+        """
+        if workdir is None:
+            workdir = self.workdir
+        if filename is None:
+            filename = self.file_dft
+        try:
+            mat = h5.File(os.path.join(workdir, filename), 'r')
+        except OSError:
+            raise SeisCLError('Could not read dft dump: is dftout=1 set?')
+
+        out = {}
+        for k in ('DTNYQ', 'NTNYQ', 'NFREQS', 'FDORDER', 'tminind', 'tmaxind'):
+            out[k] = int(np.array(mat[k]).ravel()[0])
+        out['gradfreqsn'] = np.array(mat['gradfreqsn']).ravel().astype(int)
+        for v in mat.keys():
+            if not (v.startswith('dft_f_') or v.startswith('dft_a_')):
+                continue
+            # Stored C-order as (NFREQS, [L,] Xpad, [Ypad,] Zpad, 2). A full
+            # transpose (as read_movie does) puts the interleaved real/imag
+            # pair on axis 0 and the spatial axes first in (z, [y,] x) order.
+            a = np.transpose(np.array(mat[v]))
+            out[v[4:]] = (a[0] + 1j * a[1]).astype(np.complex128)
+        return out
+
     def read_Hessian(self,  workdir=None, param_names=None, filename=None):
         """
         Read the approximate hessian output by SeisCL

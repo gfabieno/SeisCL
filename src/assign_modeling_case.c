@@ -530,7 +530,14 @@ void gradfreqsn( void *mptr, void *cstptr, int ncst){
         return;
     }
     m->DTNYQ=ceil(0.0156/fmaxout/m->dt);
-    m->NTNYQ=(m->tmax-m->tmin)/m->DTNYQ+1;
+    /* NTNYQ is the DFT period: it must equal the number of samples savefreqs
+     * actually accumulates, otherwise the basis is not orthogonal and every bin
+     * picks up a phase drift. The forward loop runs t = 0 .. tmax-1 and fires
+     * when t >= tmin && (t-tmin) % DTNYQ == 0 (time_stepping.c:838, :850-853),
+     * i.e. ceil((tmax-tmin)/DTNYQ) samples. The previous
+     * (tmax-tmin)/DTNYQ + 1 overcounted by one whenever DTNYQ divides
+     * tmax-tmin, giving e.g. 257 for 256 accumulated samples. */
+    m->NTNYQ=(m->tmax-m->tmin+m->DTNYQ-1)/m->DTNYQ;
     df=1.0/m->NTNYQ/m->dt/m->DTNYQ;
     for (j=0;j<m->NFREQS;j++){
         gradfreqsn[j]=floor(gradfreqs[j]/df);
