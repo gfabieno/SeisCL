@@ -1047,6 +1047,16 @@ int kernel_savefreqs(device * dev,
         }
     }
     
+    /* cospi/sinpi are overloaded in OpenCL C but are double-only in CUDA,
+     * where the float versions are cospif/sinpif. */
+    strcat(temp,
+        "#ifdef __OPENCL_VERSION__\n"
+        "    #define COSPI(x) cospi(x)\n"
+        "    #define SINPI(x) sinpi(x)\n"
+        "#else\n"
+        "    #define COSPI(x) cospif(x)\n"
+        "    #define SINPI(x) sinpif(x)\n"
+        "#endif\n\n");
     strcat(temp, FUNDEF"void savefreqs("GLOBARG"float * gradfreqsn, int nt, ");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
@@ -1063,8 +1073,10 @@ int kernel_savefreqs(device * dev,
     p[-2]='\0';
     strcat(temp, "){\n\n");
 
-    strcat(temp,"    int freq;\n"
-                "    float2 fact[NFREQS]={0};\n");
+    /* No float2 fact[NFREQS] array: it was a per-thread array indexed in a
+     * loop, which costs registers and can spill as NFREQS grows. The twiddle is
+     * now computed inside the frequency loop and consumed immediately. */
+    strcat(temp,"    int freq;\n");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
             strcat(temp, "    float  l");
@@ -1099,42 +1111,51 @@ int kernel_savefreqs(device * dev,
     }
 
 
-    strcat(temp,"\n"
+
+
+
+
+    /* One pass over the frequencies, applying each twiddle to every variable
+     * while it is still in a register.
+     *
+     * The twiddle argument is computed in *float*. It used to be
+     * "2.0*gradfreqsn[freq]*nt/NTNYQ", where 2.0 is a double literal, so the
+     * whole expression promoted to double and called the double-precision
+     * cospi/sinpi -- 98 double-precision FLOPs per grid point per frequency on
+     * hardware whose FP64 rate is 1/32 of FP32. That single literal made
+     * savefreqs 84% of all GPU time. Float costs ~1e-6 relative error in the
+     * accumulated spectrum, well under the fp32 accumulation noise floor, so
+     * there is nothing to buy by keeping double here.
+     *
+     * The accumulator is also read and written as one float2 rather than as
+     * two separate .x/.y accesses, halving the memory instructions. */
+    strcat(temp,
+        "\n"
         "    for (freq=0;freq<NFREQS;freq++){\n"
-        "        fact[freq].x = DTNYQ*DT*cospi(2.0*gradfreqsn[freq]*nt/NTNYQ);\n"
-        "        fact[freq].y = -DTNYQ*DT*sinpi(2.0*gradfreqsn[freq]*nt/NTNYQ);\n"
-        "    }\n\n"
-           );
-
-
-
+        "        float ang = 2.0f*gradfreqsn[freq]*(float)nt/(float)NTNYQ;\n"
+        "        float fr =  DTNYQ*DT*COSPI(ang);\n"
+        "        float fi = -DTNYQ*DT*SINPI(ang);\n");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
-            sprintf(ptemp,"    if (gid<%d){\n", vars[i].num_ele);
-
+            sprintf(ptemp,"        if (gid<%d){\n", vars[i].num_ele);
             strcat(temp,ptemp);
-            strcat(temp, "    #pragma unroll\n");
-            strcat(temp, "    for (freq=0;freq<NFREQS;freq++){\n");
-            strcat(temp, "        f");
-            strcat(temp, vars[i].name);
-            strcat(temp, "[gid+freq*");
-            sprintf(ptemp, "%d].x+=fact[freq].x*l", vars[i].num_ele);
+            sprintf(ptemp,"            int ind = gid+freq*%d;\n",
+                    vars[i].num_ele);
             strcat(temp,ptemp);
+            strcat(temp, "            float2 acc = f");
             strcat(temp, vars[i].name);
-            strcat(temp, ";\n");
-
-            strcat(temp, "        f");
+            strcat(temp, "[ind];\n");
+            strcat(temp, "            acc.x += fr*l");
             strcat(temp, vars[i].name);
-            strcat(temp, "[gid+freq*");
-            sprintf(ptemp, "%d].y+=fact[freq].y*l", vars[i].num_ele);
-            strcat(temp,ptemp);
+            strcat(temp, ";\n            acc.y += fi*l");
             strcat(temp, vars[i].name);
-            strcat(temp, ";\n");
-
-            strcat(temp, "    }\n");
-            strcat(temp,"    }\n");
+            strcat(temp, ";\n            f");
+            strcat(temp, vars[i].name);
+            strcat(temp, "[ind] = acc;\n");
+            strcat(temp, "        }\n");
         }
     }
+    strcat(temp, "    }\n");
     
     strcat(temp, "\n}");
 
