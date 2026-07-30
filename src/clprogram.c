@@ -1040,8 +1040,11 @@ int prog_launch(QUEUE *inqueue, clprogram * prog){
         }
         bsize[i]=(unsigned int)(prog->gsize[i]+tsize[i]-1)/tsize[i];
     }
-    if (prog->nwait > 0){
-        state = cuStreamWaitEvent(*inqueue, *prog->waits, 0);
+    /* Wait on all nwait events, not just waits[0]: the OpenCL branch above
+     * honours nwait, so silently dropping the rest here would desynchronize
+     * the CUDA path for any kernel with more than one dependency. */
+    for (i=0;i<prog->nwait;i++){
+        state = cuStreamWaitEvent(*inqueue, prog->waits[i], 0);
     }
     state = cuLaunchKernel (prog->kernel,
                             bsize[0],

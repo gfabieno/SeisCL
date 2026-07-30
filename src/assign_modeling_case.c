@@ -517,6 +517,18 @@ void gradfreqsn( void *mptr, void *cstptr, int ncst){
         fmaxout=gradfreqs[j];
     }
     float df;
+    if (!(fmaxout>0)){
+        /* Every gradfreqs entry is zero or negative. Without this guard the
+         * DTNYQ expression below divides by zero and every downstream size is
+         * inf/nan. assign_modeling_case() cannot catch this because the cst
+         * values are not loaded yet when it runs. */
+        fprintf(stderr,"Error: back_prop_type=2 requires at least one strictly "
+                       "positive entry in gradfreqs (max was %g)\n", fmaxout);
+        m->DTNYQ=1;
+        m->NTNYQ=1;
+        for (j=0;j<m->NFREQS;j++) gradfreqsn[j]=0;
+        return;
+    }
     m->DTNYQ=ceil(0.0156/fmaxout/m->dt);
     m->NTNYQ=(m->tmax-m->tmin)/m->DTNYQ+1;
     df=1.0/m->NTNYQ/m->dt/m->DTNYQ;
@@ -835,6 +847,35 @@ int assign_modeling_case(model * m){
     // Check Stability function
     m->check_stability=&check_stability;
     m->set_par_scale=&set_par_scale;
+
+    /* Reject the BACK_PROP_TYPE==2 (DFT gradient) configurations that are not
+     * supported. Each of these used to run to completion and emit a silently
+     * wrong or empty gradient. */
+    if (m->GRADOUT==1 && m->BACK_PROP_TYPE==2){
+        if (m->NFREQS<1){
+            state=1;
+            fprintf(stderr,"Error: back_prop_type=2 requires a non-empty "
+                           "gradfreqs\n");
+        }
+        if (m->FP16>1){
+            state=1;
+            fprintf(stderr,"Error: back_prop_type=2 does not support FP16>1: "
+                           "the savefreqs kernel reads the wavefield buffers "
+                           "as float, but they are packed half\n");
+        }
+        if (m->INPUTRES){
+            state=1;
+            fprintf(stderr,"Error: back_prop_type=2 is incompatible with "
+                           "inputres=1: the forward pass is skipped, so the "
+                           "forward frequency buffers are never filled\n");
+        }
+    }
+    if (m->GRADOUT==1 && m->ND==22){
+        state=1;
+        fprintf(stderr,"Error: gradient computation is not implemented for "
+                       "ND=22 (acoustic): no adjoint or savebnd kernel is "
+                       "assigned\n");
+    }
 
     /* Definition of each seismic modeling case that has been implemented */
     const char * updatev;

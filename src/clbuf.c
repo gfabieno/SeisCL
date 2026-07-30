@@ -43,8 +43,9 @@ CL_INT clbuf_send(QUEUE *inqueue, clbuf * buf)
                                buf->waits_s,
                                event);
     #else
-    if (buf->nwait_s >0){
-        state = cuStreamWaitEvent(*inqueue, *buf->waits_s, 0);
+    /* Wait on all nwait_s events, not just waits_s[0] (see prog_launch). */
+    for (int i=0;i<buf->nwait_s;i++){
+        state = cuStreamWaitEvent(*inqueue, buf->waits_s[i], 0);
     }
     state = cuMemcpyHtoDAsync(buf->mem, (void*)buf->host, buf->size, *inqueue);
     if (buf->outevent_s){
@@ -87,8 +88,9 @@ CL_INT clbuf_sendfrom(QUEUE *inqueue,
                                buf->waits_s,
                                event);
     #else
-    if (buf->nwait_s >0){
-        state = cuStreamWaitEvent(*inqueue, *buf->waits_s, 0);
+    /* Wait on all nwait_s events, not just waits_s[0] (see prog_launch). */
+    for (int i=0;i<buf->nwait_s;i++){
+        state = cuStreamWaitEvent(*inqueue, buf->waits_s[i], 0);
     }
     state = cuMemcpyHtoDAsync(buf->mem, ptr, buf->size, *inqueue );
     if (buf->outevent_s){
@@ -132,8 +134,9 @@ CL_INT clbuf_read(QUEUE *inqueue, clbuf * buf)
                               buf->waits_r,
                               event);
     #else
-    if (buf->nwait_r >0){
-        state = cuStreamWaitEvent(*inqueue, *buf->waits_r, 0);
+    /* Wait on all nwait_r events, not just waits_r[0] (see prog_launch). */
+    for (int i=0;i<buf->nwait_r;i++){
+        state = cuStreamWaitEvent(*inqueue, buf->waits_r[i], 0);
     }
     state= cuMemcpyDtoHAsync ( buf->host, buf->mem, buf->size, *inqueue );
     if (buf->outevent_r){
@@ -181,8 +184,9 @@ CL_INT clbuf_readto(QUEUE *inqueue,
                               event);
     
     #else
-    if (buf->nwait_r >0){
-        state = cuStreamWaitEvent(*inqueue, *buf->waits_r, 0);
+    /* Wait on all nwait_r events, not just waits_r[0] (see prog_launch). */
+    for (int i=0;i<buf->nwait_r;i++){
+        state = cuStreamWaitEvent(*inqueue, buf->waits_r[i], 0);
     }
     state= cuMemcpyDtoHAsync(ptr, buf->mem, buf->size, *inqueue);
     if (buf->outevent_r){

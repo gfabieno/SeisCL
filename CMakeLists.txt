@@ -6,7 +6,14 @@ set(CMAKE_C_STANDARD 11)
 
 option(USEMPI "Compile with MPI support" ON)
 option(USECUDA "Use CUDA instead of OpenCL" OFF)
-set(CMAKE_BUILD_TYPE Debug)
+
+# Do not force the build type: an unconditional set() here silently overrides
+# -DCMAKE_BUILD_TYPE on the command line, which left every host-side loop
+# (calc_grad, res_calc, transf_grad) compiled at -O0. RelWithDebInfo keeps -g
+# so nsys/ncu can attribute host samples and gdb still works.
+if (NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE RelWithDebInfo)
+endif()
 
 if (USEMPI)
     add_executable(SeisCL_MPI
