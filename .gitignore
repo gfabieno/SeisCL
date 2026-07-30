@@ -44,3 +44,6 @@ SeisCL_MPI
 cl2cstring
 # out-of-source build trees
 build*/
+
+# local test working dirs
+SeisCL/tests/_dftwork/

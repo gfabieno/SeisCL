@@ -1233,6 +1233,22 @@ int assign_modeling_case(model * m){
                     m->pars[i].to_read="/vsI";
             }
         }
+        else if (m->par_type==1){
+            /* (M, mu, rho). This branch used to be absent: par_type==1 fell
+             * into the else below, which forcibly reset par_type to 0 and then
+             * asked for /vp and /vs. So par_type=1 was silently downgraded to
+             * par_type=0 and the run died with "Variable /vp is not defined",
+             * while the par_type==1 arms of the parameter transforms
+             * (assign_modeling_case.c:276-280, :351-354) and the
+             * grad_coefelast_1 / grad_coefvisc_1 coefficient sets were all
+             * unreachable. */
+            for (i=0;i<m->npars;i++){
+                if (strcmp(m->pars[i].name,"M")==0)
+                    m->pars[i].to_read="/M";
+                if (strcmp(m->pars[i].name,"mu")==0)
+                    m->pars[i].to_read="/mu";
+            }
+        }
         else {
             m->par_type=0;
             for (i=0;i<m->npars;i++){

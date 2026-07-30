@@ -850,15 +850,29 @@ int calc_grad(model * m, device * dev)  {
                                         +c[15]*dot[7];
                     }
                     
+                    /* The c[16..23] group is the parameterization chain rule:
+                     * for par_type=0, M = rho*vp^2 and mu = rho*vs^2 both depend
+                     * on rho, so d(J)/d(rho) at fixed vp,vs picks up
+                     * vp^2*gradM + vs^2*gradmu on top of the density kernel
+                     * -dot[8]. c[16] is vp^2/den and c[18..20] carry the mu/rho
+                     * = vs^2 factor, so these terms must enter with the *same*
+                     * signs as the gradM and gradmu expressions above -- which
+                     * is what transf_grad does for back_prop_type=1
+                     * (calc_grad.c:1036-1041: gradrho += M/rho*gradM and
+                     * += mu/rho*gradmu, both positive). The group was negated,
+                     * which left gradrho anti-correlated with the time-domain
+                     * gradient (cos=-0.64) while gradrho in the (M,mu,rho)
+                     * parameterization -- where this group is absent -- agreed
+                     * at cos=0.99. */
                     gradrho[indm]+=-dot[8]
-                                    +c[16]*dot[0]
-                                    -c[17]*dot[1]
-                                    +c[18]*dot[2]
-                                    -c[19]*dot[3]
-                                    +c[20]*dot[4]
-                                    -c[21]*dot[5]
-                                    +c[22]*dot[6]
-                                    -c[23]*dot[7];
+                                    -c[16]*dot[0]
+                                    +c[17]*dot[1]
+                                    -c[18]*dot[2]
+                                    +c[19]*dot[3]
+                                    -c[20]*dot[4]
+                                    +c[21]*dot[5]
+                                    -c[22]*dot[6]
+                                    +c[23]*dot[7];
                     
                     if(m->HOUT){
                         dot[1]=0;dot[5]=0;dot[6]=0;dot[7]=0;

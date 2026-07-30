@@ -95,7 +95,12 @@ def gradient_2d_elastic(fwd, adj, M, mu, rho, bins, ntnyq, dtnyq, dt,
 
         gM += -c[0] * d0
         gmu += -c[2] * d2 + c[3] * d3 - c[4] * d4
-        grho += (-d8 + c[16] * d0 + c[18] * d2 - c[19] * d3 + c[20] * d4)
+        # The c[16..20] chain-rule group carries the *same* signs as the gradM
+        # and gradmu expressions above: for par_type=0 both M and mu depend on
+        # rho, so gradrho picks up vp^2*gradM + vs^2*gradmu (both positive, as
+        # transf_grad does for back_prop_type=1 at calc_grad.c:1036-1041) on top
+        # of the density kernel -d8.
+        grho += (-d8 - c[16] * d0 - c[18] * d2 + c[19] * d3 - c[20] * d4)
 
     # calc_grad already applies the param_type=0 chain rule through c[], so
     # these are gradients with respect to (vp, vs, rho) directly.
