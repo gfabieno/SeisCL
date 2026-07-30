@@ -884,12 +884,7 @@ int assign_modeling_case(model * m){
                            "the savefreqs kernel reads the wavefield buffers "
                            "as float, but they are packed half\n");
         }
-        if (m->INPUTRES){
-            state=1;
-            fprintf(stderr,"Error: back_prop_type=2 is incompatible with "
-                           "inputres=1: the forward pass is skipped, so the "
-                           "forward frequency buffers are never filled\n");
-        }
+
     }
     /* Only par_type=0, (vp, vs, rho), is supported by the engine. The other
      * parameterizations are a chain rule on the model grid -- pointwise, and

@@ -905,8 +905,13 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
         }
     }
 
+    /* The checkpoint protocol stores the wavefield so the second call can skip
+     * the forward pass. It cannot serve BACK_PROP_TYPE==2, whose adjoint needs
+     * the *frequency* buffers accumulated during the forward pass, and those
+     * are not checkpointed. For the DFT path the forward pass is simply re-run
+     * below: one extra propagation, but obviously correct and no new state. */
     //Initialize checkpoint file
-    if (m->INPUTRES==1 && m->GRADOUT==0){
+    if (m->INPUTRES==1 && m->GRADOUT==0 && m->BACK_PROP_TYPE==1){
         state = remove(files.checkpoint);
         if (errno == ENOENT)
             state = 0;
@@ -917,7 +922,7 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
             file_id = create_file(files.checkpoint);
         }
     }
-    if (m->INPUTRES==1 && m->GRADOUT==1){
+    if (m->INPUTRES==1 && m->GRADOUT==1 && m->BACK_PROP_TYPE==1){
         file_id = H5Fopen(files.checkpoint, H5F_ACC_RDWR, H5P_DEFAULT);
     }
     // Main loop over shots of this group
@@ -928,7 +933,7 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
         __GUARD initialize_forward(m, dev, s, &pdir);
 
         // Loop for forward time stepping
-        if (!(m->INPUTRES && m->GRADOUT)) {
+        if (!(m->INPUTRES && m->GRADOUT && m->BACK_PROP_TYPE==1)) {
             for (t = 0; t < m->tmax; t++) {
                 //Assign the time step value to kernels
                 for (d = 0; d < m->NUM_DEVICES; d++) {

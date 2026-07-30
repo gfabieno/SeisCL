@@ -931,6 +931,33 @@ class SeisCL:
                 "param_type=%d is not supported." % self.param_type)
         return [g0, g1, g2] + list(grad[3:])
 
+
+    def misfit(self, dmod, dobs=None, workdir=None):
+        """L2 misfit and its adjoint source, computed here rather than in C.
+
+        The engine's own rms scalar is not reproducible from Python -- see
+        notes/dft-gradient-findings.md -- and for back_prop_type=2 it is
+        evaluated at slightly different discrete frequencies than the gradient
+        (residuals.c:364-405 selects bins as gradfreqs*nfft*dt+1 while the
+        gradient uses floor(f/df)). Computing the objective here removes both
+        problems and makes finite-difference checks straightforward.
+
+        The engine's adjoint source was measured to be exactly proportional to
+        (d_obs - d_mod), so feeding back (d_mod - d_obs) through set_backward()
+        reproduces the same gradient up to the constant res_scale applies.
+
+        :param dmod: list of modelled data, as returned by read_data()
+        :param dobs: list of observed data; defaults to reading file_din
+        :return: (J, residuals) with J = 0.5*sum (d_mod - d_obs)**2 and
+                 residuals the list of (d_mod - d_obs) arrays
+        """
+        if dobs is None:
+            dobs = self.read_data(workdir=workdir, filename=self.file_din)
+        res = [np.asarray(a, dtype=np.float64) - np.asarray(b, dtype=np.float64)
+               for a, b in zip(dmod, dobs)]
+        J = 0.5 * float(sum((r ** 2).sum() for r in res))
+        return J, res
+
     def write_model(self, params, workdir=None):
         """
         Write model parameters to the model files

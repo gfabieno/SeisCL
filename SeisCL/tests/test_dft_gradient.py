@@ -596,6 +596,108 @@ def test_engine_rejects_nonzero_par_type():
         "engine did not reject par_type=1; stderr was:\n%s" % err[:500])
     print("  engine rejected par_type=1 as expected")
 
+def test_finite_difference_python_objective():
+    """T4: the gradient matches a finite difference of a Python-side objective.
+
+    The engine's own rms scalar cannot be reproduced from Python (see
+    notes/dft-gradient-findings.md), which is what blocked a finite-difference
+    check for a long time. Here J is computed here instead --
+    J = 0.5*sum (d_mod - d_obs)^2 -- and the residual is fed back with
+    inputres=1, so the gradient corresponds to *this* J by construction.
+
+    The engine applies a fixed scaling to the adjoint source (res_scale), so
+    the gradient is correct only up to one global constant. The assertion is
+    therefore that the ratio FD / <g,v> is the *same* for several independent
+    random directions and two step sizes -- which tests the gradient fully
+    while remaining agnostic about that constant.
+
+    KNOWN OPEN -- listed in XFAIL. The harness itself is sound: per direction
+    the two step sizes agree to 4-5 digits, so the finite difference is clean
+    and converging as O(eps^2). But the ratio varies by ~5x *between*
+    directions, with a dense frequency set:
+
+        dir 0   ratio -2.826e+13
+        dir 1   ratio -3.806e+13
+        dir 2   ratio -7.936e+12
+
+    so the DFT gradient is not the gradient of this L2 objective, and not by a
+    constant. The negative sign is consistent with the integration-by-parts
+    result recorded on T2: back_prop_type=1 accumulates int u dlambda/dt while
+    the frequency form computes int lambda du/dt, and those are negatives.
+
+    This is the first time a finite-difference arbiter has been available at
+    all -- it was blocked while the objective could not be reproduced from
+    Python -- so it is the tool to use when resolving T2.
+    """
+    wd = workdir("t4_fd")
+    s0 = make_seiscl(wd)
+    params = homogeneous(s0)
+    true_params = {k: v.copy() for k, v in params.items()}
+    nz, nx = int(s0.N[0]), int(s0.N[1])
+    true_params["vp"][nz//2-5:nz//2+5, nx//2-5:nx//2+5] += 300.0
+    din = make_observed(s0, params=true_params)
+    # the din file stores plain variable names ("p"), not the "<var>out" that
+    # read_data() looks for, so read it directly
+    with h5.File(din, "r") as f:
+        dobs = [np.transpose(np.array(f["p"])).astype(np.float64)]
+
+    def model_data(pp):
+        sm = make_seiscl(wd, seisout=2)
+        sm.set_forward(sm.src_pos_all[3, :], pp, withgrad=False)
+        sm.execute()
+        return sm.read_data()
+
+    def objective(pp):
+        return s0.misfit(model_data(pp), dobs=dobs)[0]
+
+    # gradient of the same J: supply the residual ourselves
+    # A DFT gradient over a few frequencies is the gradient of a
+    # *frequency-restricted* objective and would not match the broadband J
+    # above, so the frequency set must be dense. back_prop_type=2 is used
+    # rather than 1 because inputres=1 with back_prop_type=1 needs the
+    # two-call checkpoint protocol, whereas the DFT path re-runs the forward
+    # pass and works in one call.
+    ntt = int(s0.NT)
+    dfq = 1.0 / (ntt * s0.dt)
+    sg = make_seiscl(wd, gradout=1, back_prop_type=2, inputres=1,
+                     gradfreqs=dfq * np.arange(1, ntt // 2 + 1))
+    sg.file_din = din
+    sg.set_forward(sg.src_pos_all[3, :], params, withgrad=True)
+    _, res = sg.misfit(model_data(params), dobs=dobs)
+    sg.set_backward(residuals=res)
+    sg.execute()
+    g = sg.read_grad()
+
+    rng = np.random.default_rng(1)
+    # smooth directions, zero in the absorbing strip, where cropgrad zeroes g
+    nab = s0.nab
+    ratios = []
+    for trial in range(3):
+        v = rng.standard_normal((nz, nx))
+        v = (v + np.roll(v, 1, 0) + np.roll(v, -1, 0)
+             + np.roll(v, 1, 1) + np.roll(v, -1, 1)) / 5.0
+        v[:nab, :] = 0; v[-nab:, :] = 0; v[:, :nab] = 0; v[:, -nab:] = 0
+        v /= np.abs(v).max()
+        gv = float((g[0] * v).sum())
+        for eps in (2.0, 4.0):
+            pp = {k: q.copy() for k, q in params.items()}
+            pm = {k: q.copy() for k, q in params.items()}
+            pp["vp"] = pp["vp"] + eps * v
+            pm["vp"] = pm["vp"] - eps * v
+            fd = (objective(pp) - objective(pm)) / (2 * eps)
+            ratios.append(fd / gv)
+            print("  dir %d eps=%4.1f  FD=%12.5e  <g,v>=%12.5e  ratio=%12.5e"
+                  % (trial, eps, fd, gv, fd / gv))
+
+    r = np.array(ratios)
+    spread = float(r.max() / r.min())
+    print("  ratio spread (max/min) = %.6f over %d checks" % (spread, len(r)))
+    assert abs(spread - 1.0) < 0.02, (
+        "FD / <g,v> is not constant across directions and step sizes "
+        "(spread %.4f, ratios %s). A constant ratio means the gradient is "
+        "right up to the single res_scale factor; a varying one means it is "
+        "wrong." % (spread, np.array2string(r, precision=4)))
+
 
 TESTS = [
     test_dft_forward_spectrum_vs_numpy,
@@ -605,12 +707,14 @@ TESTS = [
     test_device_kernel_matches_host_oracle,
     test_dft_osamp_convergence,
     test_param_type_chain_rule,
+    test_finite_difference_python_objective,
     test_engine_rejects_nonzero_par_type,
     test_dense_dft_matches_backprop,
 ]
 
 # Known-open failures, documented in the corresponding docstring.
-XFAIL = {"test_dense_dft_matches_backprop"}
+XFAIL = {"test_dense_dft_matches_backprop",
+         "test_finite_difference_python_objective"}
 
 if __name__ == "__main__":
     import sys
