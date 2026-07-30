@@ -401,6 +401,14 @@ int calc_grad(model * m, device * dev)  {
     
     ND=(float)m->ND;
     df=1.0/m->NTNYQ/m->dt/m->DTNYQ;
+    /* Parseval normalization for the frequency-domain dot products. With
+     * A_k = sum_n a_n * dteff * exp(-2i.pi.kn/N) and dteff = DTNYQ*dt,
+     * sum_n a_n b_n dteff = (1/(N*dteff)) sum_k A_k conj(B_k), so the factor is
+     * 1/(NTNYQ*DTNYQ*dt), not 1/NTNYQ. The missing DTNYQ was invisible while
+     * DTNYQ was always 1, but it scales the whole gradient linearly with DTNYQ:
+     * measured error was exactly DTNYQ-1 across a dft_osamp sweep. Any run with
+     * a low fmax or a small dt, where DTNYQ > 1, was affected. */
+    double dftnorm = (double)m->NTNYQ*(double)m->DTNYQ;
     
     w0=2.0*PI*m->f0;
     al=0;
@@ -672,15 +680,15 @@ int calc_grad(model * m, device * dev)  {
                             rxx_myyzz= cl_diff(frxx[indL], fryy[indL], frzz[indL]);
                             ryy_mxxzz= cl_diff(frxx[indL], fryy[indL], frzz[indL]);
                             rzz_mxxyy= cl_diff(frxx[indL], fryy[indL], frzz[indL]);
-                            dot[1]+=cl_rm( rxxyyzzr, rxxyyzz, tausigl[l],freq )/m->NTNYQ;
+                            dot[1]+=cl_rm( rxxyyzzr, rxxyyzz, tausigl[l],freq )/dftnorm;
                             
                             dot[5]+=(+cl_rm( frxyr[indL], frxy[indL] , tausigl[l],freq)
                                      +cl_rm( frxzr[indL], frxz[indL] , tausigl[l],freq)
-                                     +cl_rm( fryzr[indL], fryz[indL] , tausigl[l],freq))/m->NTNYQ;
+                                     +cl_rm( fryzr[indL], fryz[indL] , tausigl[l],freq))/dftnorm;
                             dot[6]=dot[1];
                             dot[7]+=(+cl_rm( frxxr[indL], rxx_myyzz , tausigl[l],freq)
                                      +cl_rm( fryyr[indL], ryy_mxxzz , tausigl[l],freq)
-                                     +cl_rm( frzzr[indL], rzz_mxxyy , tausigl[l],freq))/m->NTNYQ;
+                                     +cl_rm( frzzr[indL], rzz_mxxyy , tausigl[l],freq))/dftnorm;
                         }
                         
                         sxxyyzz=    cl_add(fsxx[indfd], fsyy[indfd], fszz[indfd]);
@@ -689,21 +697,21 @@ int calc_grad(model * m, device * dev)  {
                         syy_mxxzz= cl_diff(fsyy[indfd], fsxx[indfd], fszz[indfd]);
                         szz_mxxyy= cl_diff(fszz[indfd], fsxx[indfd], fsyy[indfd]);
 
-                        dot[0]=freq*cl_itreal( sxxyyzzr, sxxyyzz )/m->NTNYQ;
+                        dot[0]=freq*cl_itreal( sxxyyzzr, sxxyyzz )/dftnorm;
                         dot[2]=freq*(+cl_itreal( fsxyr[indfd], fsxy[indfd] )
                                      +cl_itreal( fsxzr[indfd], fsxz[indfd] )
-                                     +cl_itreal( fsyzr[indfd], fsyz[indfd] ))/m->NTNYQ;
+                                     +cl_itreal( fsyzr[indfd], fsyz[indfd] ))/dftnorm;
                         dot[3]=dot[0];
                         dot[4]=freq*(+cl_itreal( fsxxr[indfd], sxx_myyzz )
                                      +cl_itreal( fsyyr[indfd], syy_mxxzz )
-                                     +cl_itreal( fszzr[indfd], szz_mxxyy ))/m->NTNYQ;
+                                     +cl_itreal( fszzr[indfd], szz_mxxyy ))/dftnorm;
 
                         
                         dot[8]=freq*(
                                      cl_itreal( fvxr[indfd], fvx[indfd] ) +
                                      cl_itreal( fvyr[indfd], fvy[indfd] ) +
                                      cl_itreal( fvzr[indfd], fvz[indfd] )
-                                     )/m->NTNYQ;
+                                     )/dftnorm;
                         
                         gradM[indm]+=   -c[0]*dot[0]
                                         +c[1]*dot[1];
@@ -805,12 +813,12 @@ int calc_grad(model * m, device * dev)  {
                         rxx_mzz= cl_diff2(frxx[indL], frzz[indL]);
                         rzz_mxx= cl_diff2(frzz[indL], frxx[indL]);
                         
-                        dot[1]+=cl_rm( rxxzzr, rxxzz, tausigl[l],freq )/m->NTNYQ;
+                        dot[1]+=cl_rm( rxxzzr, rxxzz, tausigl[l],freq )/dftnorm;
                         
-                        dot[5]+=(cl_rm( frxzr[indL], frxz[indL] , tausigl[l],freq) )/m->NTNYQ;
+                        dot[5]+=(cl_rm( frxzr[indL], frxz[indL] , tausigl[l],freq) )/dftnorm;
                         dot[6]=dot[1];
                         dot[7]+=(+cl_rm( frxxr[indL], rxx_mzz , tausigl[l],freq)
-                                 +cl_rm( frzzr[indL], rzz_mxx , tausigl[l],freq))/m->NTNYQ;
+                                 +cl_rm( frzzr[indL], rzz_mxx , tausigl[l],freq))/dftnorm;
                         
                     }
                     sxxzz=    cl_add2(fsxx[indfd], fszz[indfd]);
@@ -820,13 +828,13 @@ int calc_grad(model * m, device * dev)  {
                     
 
                     
-                    dot[0]=freq*cl_itreal( sxxzzr, sxxzz )/m->NTNYQ;
-                    dot[2]=freq* ( cl_itreal( fsxzr[indfd], fsxz[indfd])  )/m->NTNYQ;
+                    dot[0]=freq*cl_itreal( sxxzzr, sxxzz )/dftnorm;
+                    dot[2]=freq* ( cl_itreal( fsxzr[indfd], fsxz[indfd])  )/dftnorm;
                     dot[3]=dot[0];
                     dot[4]=freq*(+cl_itreal( fsxxr[indfd], sxx_mzz )
-                                 +cl_itreal( fszzr[indfd], szz_mxx ))/m->NTNYQ;
+                                 +cl_itreal( fszzr[indfd], szz_mxx ))/dftnorm;
 
-                    dot[8]=freq*(cl_itreal( fvxr[indfd], fvx[indfd] ) + cl_itreal( fvzr[indfd], fvz[indfd] ))/m->NTNYQ;
+                    dot[8]=freq*(cl_itreal( fvxr[indfd], fvx[indfd] ) + cl_itreal( fvzr[indfd], fvz[indfd] ))/dftnorm;
                     
                     
                     gradM[indm]+= -c[0]*dot[0]
@@ -886,11 +894,11 @@ int calc_grad(model * m, device * dev)  {
                             rxx_mzz= cl_diff2(frxx[indL], frzz[indL]);
                             rzz_mxx= cl_diff2(frzz[indL], frxx[indL]);
                             
-                            dot[1]+=cl_norm(cl_add2( rxxzz, cl_derivative(rxxzz, freq*tausigl[l])) )/m->NTNYQ;
-                            dot[5]+=cl_norm(cl_add2( frxz[indL], cl_derivative(frxz[indL], freq*tausigl[l])) )/m->NTNYQ;
+                            dot[1]+=cl_norm(cl_add2( rxxzz, cl_derivative(rxxzz, freq*tausigl[l])) )/dftnorm;
+                            dot[5]+=cl_norm(cl_add2( frxz[indL], cl_derivative(frxz[indL], freq*tausigl[l])) )/dftnorm;
                             dot[6]=dot[1];
                             dot[7]+=(cl_norm(cl_add2( rxx_mzz, cl_derivative(rxx_mzz, freq*tausigl[l])) )
-                                    +cl_norm(cl_add2( rzz_mxx, cl_derivative(rzz_mxx, freq*tausigl[l])) ))/m->NTNYQ;
+                                    +cl_norm(cl_add2( rzz_mxx, cl_derivative(rzz_mxx, freq*tausigl[l])) ))/dftnorm;
                             
                         }
                         sxxzz=    cl_add2(fsxx[indfd], fszz[indfd]);
@@ -898,13 +906,13 @@ int calc_grad(model * m, device * dev)  {
                         szz_mxx= cl_diff2(fszz[indfd], fsxx[indfd]);
                         
                         
-                        dot[0]=cl_norm(cl_derivative(sxxzz, freq))/m->NTNYQ;
-                        dot[2]=cl_norm(cl_derivative(fsxz[indfd], freq))/m->NTNYQ;
+                        dot[0]=cl_norm(cl_derivative(sxxzz, freq))/dftnorm;
+                        dot[2]=cl_norm(cl_derivative(fsxz[indfd], freq))/dftnorm;
                         dot[3]=dot[0];
                         dot[4]=(cl_norm(cl_derivative(sxx_mzz, freq))
-                                    +cl_norm(cl_derivative(szz_mxx, freq)))/m->NTNYQ;
+                                    +cl_norm(cl_derivative(szz_mxx, freq)))/dftnorm;
                         dot[8]=(cl_norm(cl_derivative(fvx[indfd], freq))
-                                +cl_norm(cl_derivative(fvz[indfd], freq)))/m->NTNYQ;
+                                +cl_norm(cl_derivative(fvz[indfd], freq)))/dftnorm;
                         
                         HM[indm]+=   c[0]*dot[0]
                                     -c[1]*dot[1];
@@ -962,17 +970,17 @@ int calc_grad(model * m, device * dev)  {
                         c_calc(&c,M[indm], mu[indm], 0, 0, rho[indm], ND,m->L,al);
                     
                     
-                    dot[0]=freq*(cl_itreal(fsxyr[indfd],fsxy[indfd])+ cl_itreal(fsyzr[indfd],fsyz[indfd]) )/m->NTNYQ;
+                    dot[0]=freq*(cl_itreal(fsxyr[indfd],fsxy[indfd])+ cl_itreal(fsyzr[indfd],fsyz[indfd]) )/dftnorm;
 
                     for (l=0;l<m->L;l++){
                         indL= f*(NX+m->FDORDER)*(NZ+m->FDORDER)*m->L
                         +l*(NX+m->FDORDER)*(NZ+m->FDORDER)
                         +(i+m->FDOH)*(NZ+m->FDORDER)
                         +(k+m->FDOH);
-                        dot[1]=(cl_rm( frxyr[indL], frxy[indL],tausigl[l],freq )+cl_rm( fryzr[indL], fryz[indL],tausigl[l],freq ))/m->NTNYQ;
+                        dot[1]=(cl_rm( frxyr[indL], frxy[indL],tausigl[l],freq )+cl_rm( fryzr[indL], fryz[indL],tausigl[l],freq ))/dftnorm;
                     }
                     
-                    dot[2]=freq*(cl_itreal( fvyr[indfd], fvy[indfd] ))/m->NTNYQ;
+                    dot[2]=freq*(cl_itreal( fvyr[indfd], fvy[indfd] ))/dftnorm;
                     
 
                     gradmu[indm]+=-c[0]*dot[0]+c[1]*dot[1];

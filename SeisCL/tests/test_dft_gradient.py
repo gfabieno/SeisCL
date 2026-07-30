@@ -404,6 +404,101 @@ def test_device_kernel_matches_host_oracle():
             "device kernel disagrees with the host reference for grad%s: "
             "cos=%.8f reldiff=%.3e" % (nm, cos, rel))
 
+def test_dft_osamp_convergence():
+    """T8: how far the savefreqs oversampling can be relaxed.
+
+    DTNYQ = ceil((1/dft_osamp)/fmax/dt) sets how often savefreqs fires. The
+    historical hardcoded constant 0.0156 is an oversample of 64, which at
+    typical 2D parameters gives DTNYQ=1 -- savefreqs runs on *every* time step
+    and is ~75% of GPU time. This test characterizes the error incurred by
+    lowering it.
+
+    The trade-off is aliasing, not quadrature: with DTNYQ>1 the accumulation is
+    the exact DFT of the decimated series, and the error is energy above the
+    decimated Nyquist folding onto the selected bins.
+
+    MEASURED (2D elastic, Ricker f0=25, gradfreqs up to 25 Hz):
+
+        dft_osamp   DTNYQ    rel err
+             64        1     0
+             20        2     6.6e-3
+           13.3        3     1.3e-2
+              8        5     2.7e-2
+              4       10     9.3e-2
+              2       20     1.9
+
+    This *refutes* the estimate that an oversample of 8 would be safe at the
+    1e-27 level from Ricker bandwidth alone. It is 2.7% in practice, because the
+    adjoint field is driven by the data residual rather than by the source
+    wavelet, and carries far more high-frequency content -- plus grid dispersion
+    and boundary reflections. So the default stays at 64 and dft_osamp is
+    offered as an explicit, measured trade: DTNYQ=2 halves the dominant kernel
+    for ~0.7% gradient error.
+
+    The assertions below are structural rather than a threshold on accuracy:
+    the error must be monotone in DTNYQ, and modest at DTNYQ=2. A regression
+    that reintroduced a DTNYQ-dependent *scaling* (as the missing DTNYQ in the
+    Parseval normalization did -- it produced errors of exactly DTNYQ-1) would
+    break both.
+
+    NT is chosen divisible by every DTNYQ exercised here. Otherwise
+    NTNYQ = ceil((tmax-tmin)/DTNYQ) rounds up, df = 1/(NTNYQ*dt*DTNYQ) drifts,
+    and the analysis frequencies shift between runs -- which would show up as
+    "aliasing error" that is really just a different set of frequencies.
+    """
+    wd = workdir("t8_osamp")
+    geom = dict(NT=240)
+    s0 = make_seiscl(wd, **geom)
+    params = homogeneous(s0)
+    true_params = {k: v.copy() for k, v in params.items()}
+    nz, nx = int(s0.N[0]), int(s0.N[1])
+    true_params["vp"][nz//2-5:nz//2+5, nx//2-5:nx//2+5] += 300.0
+    din = make_observed(s0, params=true_params)
+
+    gradfreqs = np.array([10.0, 17.0, 25.0])     # fmax = 25 -> DTNYQ = ceil(40/osamp)
+    ref = None
+    df0 = None
+    rows = []
+    for osamp in (64.0, 20.0, 40.0/3.0, 8.0, 4.0, 2.0):
+        s = make_seiscl(wd, gradout=1, back_prop_type=2, dftout=1,
+                        gradfreqs=gradfreqs, dft_osamp=osamp, **geom)
+        s.file_din = din
+        s.set_forward(s.src_pos_all[3, :], params, withgrad=True)
+        s.execute()
+        d = s.read_dft()
+        g = s.read_grad()
+        dtnyq, ntnyq = d["DTNYQ"], d["NTNYQ"]
+        df = 1.0 / (ntnyq * s.dt * dtnyq)
+        if df0 is None:
+            df0 = df
+        assert abs(df - df0) < 1e-6 * df0, (
+            "df drifted from %.6f to %.6f at dft_osamp=%g (DTNYQ=%d, NTNYQ=%d): "
+            "NT must be divisible by every DTNYQ exercised, or the comparison "
+            "is between different analysis frequencies."
+            % (df0, df, osamp, dtnyq, ntnyq))
+        if ref is None:
+            ref = [x.copy() for x in g]
+            rows.append((osamp, dtnyq, 0.0))
+            continue
+        err = max(float(np.abs(a - b).max() / (np.abs(a).max() or 1.0))
+                  for a, b in zip(ref, g))
+        rows.append((osamp, dtnyq, err))
+
+    print("  %-10s %7s %12s" % ("dft_osamp", "DTNYQ", "rel err"))
+    for osamp, dtnyq, err in rows:
+        print("  %-10.3f %7d %12.3e" % (osamp, dtnyq, err))
+
+    errs = [e for _, _, e in rows]
+    assert all(b >= a - 1e-12 for a, b in zip(errs, errs[1:])), (
+        "aliasing error is not monotone in DTNYQ: %s. A DTNYQ-dependent scaling "
+        "error would show up here." % errs)
+    at2 = [e for _, dtn, e in rows if dtn == 2]
+    assert at2 and at2[0] < 5e-2, (
+        "relative gradient error at DTNYQ=2 is %.3e; it was ~6.6e-3 when "
+        "measured. A value near DTNYQ-1 = 1.0 means the Parseval normalization "
+        "lost its DTNYQ factor again (calc_grad.c dftnorm)."
+        % (at2[0] if at2 else float("nan")))
+
 
 TESTS = [
     test_dft_forward_spectrum_vs_numpy,
@@ -411,6 +506,7 @@ TESTS = [
     test_dft_padded_tail_is_accumulated,
     test_dft_gradient_vs_numpy_heterogeneous,
     test_device_kernel_matches_host_oracle,
+    test_dft_osamp_convergence,
     test_dense_dft_matches_backprop,
 ]
 

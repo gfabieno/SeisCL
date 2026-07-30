@@ -27,7 +27,8 @@ csts = [ 'N', 'ND', 'dh', 'dt', 'NT', 'freesurf', 'FDORDER', 'MAXRELERROR',
         'param_type', 'gradfreqs', 'tmax', 'tmin', 'scalerms',
         'scalermsnorm', 'scaleshot',
         'fmin', 'fmax', 'gradout', 'Hout', 'gradsrcout', 'seisout', 'resout',
-        'rmsout', 'movout', 'restype', 'inputres', 'FP16', 'dftout']
+        'rmsout', 'movout', 'restype', 'inputres', 'FP16', 'dftout',
+        'dft_osamp']
 
 SOURCE_TYPES = {
     "Fx": 0,
@@ -82,6 +83,7 @@ class SeisCL:
 
                  seisout: int = 2, resout: int = 0, rmsout: int = 0,
                  movout: int = 0, dftout: int = 0,
+                 dft_osamp: float = 64.0,
 
                  file: str = "SeisCL", workdir: str = "./seiscl",
                  ):
@@ -349,6 +351,7 @@ class SeisCL:
         self.rmsout = rmsout
         self.movout = movout
         self.dftout = dftout
+        self.dft_osamp = dft_osamp
 
         self.file = file
         self.file_datalist = None

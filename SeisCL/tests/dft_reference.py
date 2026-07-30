@@ -60,6 +60,8 @@ def gradient_2d_elastic(fwd, adj, M, mu, rho, bins, ntnyq, dtnyq, dt,
     :return: dict with 'vp', 'vs', 'rho', each (nz, nx)
     """
     df = 1.0 / ntnyq / dt / dtnyq
+    # Parseval factor is 1/(NTNYQ*DTNYQ), not 1/NTNYQ -- see calc_grad.c.
+    dftnorm = float(ntnyq) * float(dtnyq)
     c = grad_coef_elast_0(M, mu, rho, ND)
 
     sl = (slice(fdoh, fdoh + nz), slice(fdoh, fdoh + nx))
@@ -87,11 +89,11 @@ def gradient_2d_elastic(fwd, adj, M, mu, rho, bins, ntnyq, dtnyq, dt,
         sxx_mzz = fsxx - fszz
         szz_mxx = fszz - fsxx
 
-        d0 = w * _itreal(sxxzzr, sxxzz) / ntnyq
-        d2 = w * _itreal(asxz, fsxz) / ntnyq
+        d0 = w * _itreal(sxxzzr, sxxzz) / dftnorm
+        d2 = w * _itreal(asxz, fsxz) / dftnorm
         d3 = d0
-        d4 = w * (_itreal(asxx, sxx_mzz) + _itreal(aszz, szz_mxx)) / ntnyq
-        d8 = w * (_itreal(avx, fvx) + _itreal(avz, fvz)) / ntnyq
+        d4 = w * (_itreal(asxx, sxx_mzz) + _itreal(aszz, szz_mxx)) / dftnorm
+        d8 = w * (_itreal(avx, fvx) + _itreal(avz, fvz)) / dftnorm
 
         gM += -c[0] * d0
         gmu += -c[2] * d2 + c[3] * d3 - c[4] * d4

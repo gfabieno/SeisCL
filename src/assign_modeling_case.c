@@ -530,7 +530,20 @@ void gradfreqsn( void *mptr, void *cstptr, int ncst){
         for (j=0;j<m->NFREQS;j++) gradfreqsn[j]=0;
         return;
     }
-    m->DTNYQ=ceil(0.0156/fmaxout/m->dt);
+    /* Oversampling of the highest requested gradient frequency. The DFT only
+     * needs the Nyquist rate of fmax, but savefreqs was sampling at
+     * 1/0.0156 = 64x that, which for typical 2D parameters (fmax=25 Hz,
+     * dt=1e-3) gives DTNYQ=1 -- i.e. it fires on *every* time step, and it is
+     * ~75% of GPU time. dft_osamp exposes the factor; the default of 64
+     * preserves the previous behaviour exactly.
+     *
+     * Lowering it is an aliasing trade-off, not a quadrature one: with
+     * DTNYQ>1 the accumulation is the *exact* DFT of the decimated series, and
+     * the error is energy above the decimated Nyquist folding onto the selected
+     * bins. For a Ricker at f0 the spectrum is ~e^-64 at 8*f0, so with
+     * fmax ~ 2*f0 an oversample of 8 puts the decimated Nyquist at 8*f0. */
+    m->DTNYQ=ceil((1.0/m->dft_osamp)/fmaxout/m->dt);
+    if (m->DTNYQ<1) m->DTNYQ=1;
     /* NTNYQ is the DFT period: it must equal the number of samples savefreqs
      * actually accumulates, otherwise the basis is not orthogonal and every bin
      * picks up a phase drift. The forward loop runs t = 0 .. tmax-1 and fires

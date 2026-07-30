@@ -106,6 +106,9 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
 
     /* df = 1/(NTNYQ*dt*DTNYQ), from defines that already exist. */
     double dftdf = 1.0/((double)NTNYQ*(double)DT*(double)DTNYQ);
+    /* Parseval factor: 1/(NTNYQ*DTNYQ), not 1/NTNYQ -- see calc_grad.c. Without
+     * the DTNYQ the gradient scales linearly with the decimation factor. */
+    double dftnorm = (double)NTNYQ*(double)DTNYQ;
 
     /* ND is a build-option macro (-D ND=%d), so it must not be shadowed. */
     const double NDd = (double)ND;
@@ -147,12 +150,12 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         Fmm.x = Fxx.x - Fzz.x;  Fmm.y = Fxx.y - Fzz.y;   /* fwd  sxx-szz */
         Fmz.x = Fzz.x - Fxx.x;  Fmz.y = Fzz.y - Fxx.y;   /* fwd  szz-sxx */
 
-        double d0 = w*itreal(App, Fpp)/(double)NTNYQ;
-        double d2 = w*itreal(Axz, Fxz)/(double)NTNYQ;
+        double d0 = w*itreal(App, Fpp)/dftnorm;
+        double d2 = w*itreal(Axz, Fxz)/dftnorm;
         double d3 = d0;
-        double d4 = w*(itreal(Axx, Fmm) + itreal(Azz, Fmz))/(double)NTNYQ;
+        double d4 = w*(itreal(Axx, Fmm) + itreal(Azz, Fmz))/dftnorm;
         double d8 = w*(itreal(fvx[id], fvx_f[id])
-                     + itreal(fvz[id], fvz_f[id]))/(double)NTNYQ;
+                     + itreal(fvz[id], fvz_f[id]))/dftnorm;
 
         gM   += -c0*d0;
         gmu  += -c2*d2 + c3*d3 - c4*d4;

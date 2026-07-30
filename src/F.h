@@ -434,6 +434,9 @@ typedef struct model {
      * (BACK_PROP_TYPE==2 only) so they can be checked against a reference DFT
      * independently of the gradient correlation. Single device, single shot. */
     int DFTOUT;
+    /* Oversampling factor of max(gradfreqs) at which savefreqs accumulates.
+     * Default 64, which is what the hardcoded 0.0156 used to give. */
+    float dft_osamp;
     int INPUTRES;
     int L;
 
