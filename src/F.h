@@ -524,6 +524,7 @@ int append_cst(model * m,
 constants * get_cst(constants * csts, int ncsts, const char * name);
 parameter * get_par(parameter * pars, int npars, const char * name);
 variable * get_var(variable * vars, int nvars, const char * name);
+void set_freesurf2_vacuum(void * mptr);
 
 /* __________________________SeisCL functions________________________________*/
 

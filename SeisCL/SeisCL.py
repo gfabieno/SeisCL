@@ -167,7 +167,10 @@ class SeisCL:
 
         Parameters defining the Boundary conditions
 
-        :param freesurf:         Include a free surface 0: no, 1: yes
+        :param freesurf:         Free surface: 0: none, 1: stress-image
+                                 (Levander, 1988), 2: improved vacuum
+                                 formulation (Zeng et al., 2012,
+                                 doi:10.1190/geo2011-0067.1)
         :param abs_type:         Absorbing boundary type:
                                  1: CPML, 2: Absorbing layer of Cerjan
         :param VPPML:            Vp velocity near CPML boundary
@@ -638,8 +641,19 @@ class SeisCL:
         output = [np.transpose(mat[v]) for v in toread]
         if self.cropgrad:
             for o in output:
-                if self.freesurf == 0:
-                    o[:self.nab, :] = 0
+                if self.freesurf != 1:
+                    # freesurf==0: no free surface, top nab rows are real
+                    # PML, general BACK_PROP_TYPE=1 boundary-inaccuracy
+                    # crop applies (nab deep). freesurf==2: improved vacuum
+                    # formulation - nab does NOT apply to this edge (CPML is
+                    # already disabled there for any nonzero freesurf,
+                    # regardless of nab); the vacuum band itself is only
+                    # fdoh deep (set_freesurf2_vacuum,
+                    # assign_modeling_case.c) but still has no real material
+                    # to invert for (see notes/vacuum-freesurface-plan.md,
+                    # Phase 3), so mask that instead.
+                    ztop = self.FDORDER // 2 if self.freesurf == 2 else self.nab
+                    o[:ztop, :] = 0
                 o[-self.nab:, :] = 0
                 o[:, :self.nab] = 0
                 o[:, -self.nab:] = 0
@@ -670,8 +684,19 @@ class SeisCL:
             raise SeisCLError('Could not read Hessian')
         if self.cropgrad:
             for o in output:
-                if self.freesurf == 0:
-                    o[:self.nab, :] = 0
+                if self.freesurf != 1:
+                    # freesurf==0: no free surface, top nab rows are real
+                    # PML, general BACK_PROP_TYPE=1 boundary-inaccuracy
+                    # crop applies (nab deep). freesurf==2: improved vacuum
+                    # formulation - nab does NOT apply to this edge (CPML is
+                    # already disabled there for any nonzero freesurf,
+                    # regardless of nab); the vacuum band itself is only
+                    # fdoh deep (set_freesurf2_vacuum,
+                    # assign_modeling_case.c) but still has no real material
+                    # to invert for (see notes/vacuum-freesurface-plan.md,
+                    # Phase 3), so mask that instead.
+                    ztop = self.FDORDER // 2 if self.freesurf == 2 else self.nab
+                    o[:ztop, :] = 0
                 o[-self.nab:, :] = 0
                 o[:, :self.nab] = 0
                 o[:, -self.nab:] = 0
@@ -856,8 +881,13 @@ class SeisCL:
 
             if dim ==1 and self.N.shape[0] == 2:
                 continue
-            if self.freesurf and dim == 0:
+            if self.freesurf == 1 and dim == 0:
                 nmin = 0
+            elif self.freesurf == 2 and dim == 0:
+                # the vacuum band (set_freesurf2_vacuum,
+                # assign_modeling_case.c) is fdoh deep -- nab does not
+                # apply to this edge once a free surface is active.
+                nmin = self.FDORDER // 2
             else:
                 nmin = self.nab
 

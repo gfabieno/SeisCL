@@ -1160,7 +1160,7 @@ int Init_CUDA(model * m, device ** dev)  {
         
         //TODO Boundary conditions should be included in the update kernel
         //TODO Adjoint free surface
-        if (m->FREESURF){
+        if (m->FREESURF==1){
             di->bnd_cnds.surf=m->bnd_cnds.surf;
             __GUARD prog_create(m, di,  &di->bnd_cnds.surf);
             di->bnd_cnds.surf.wdim=m->NDIM-1;
