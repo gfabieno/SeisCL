@@ -42,3 +42,7 @@ docs/_build/
 *.ipynb_checkpoints
 SeisCL_MPI
 cl2cstring
+# build / docs / env artifacts
+build/
+docs/_build/
+.venv*/

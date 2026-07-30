@@ -1,11 +1,34 @@
+# Documentation build requirements.
+#
+#   pip install -r docs/requirements.txt
+#   sphinx-build -b html docs docs/_build
+#
+# SeisCL's own runtime dependencies are needed too, because docs/api.rst
+# autodocs SeisCL.SeisCL and SeisCL.py imports them unconditionally.
+numpy
+scipy
+h5py
 matplotlib
-ipython
+obspy
+
+# Sphinx and the extensions used by docs/conf.py.
 Sphinx
 sphinx-rtd-theme
-sphinx-gallery
 numpydoc
 nbsphinx
-sphinx_nbexamples
-image
 m2r2
-pandoc
+ipython
+
+# nbsphinx renders the tutorial notebooks by shelling out to the `pandoc`
+# *binary*. `pypandoc-binary` ships a private copy of it, and docs/conf.py puts
+# that copy on PATH when no system pandoc is found. Do NOT use the `pandoc`
+# PyPI package -- it is only a Python wrapper and provides no binary. As an
+# alternative, install pandoc from your OS package manager and drop this line.
+pypandoc-binary
+
+# Removed: sphinx_nbexamples (used for the examples gallery) is unmaintained
+# and cannot even be imported on Python >= 3.11 -- it compiles the regex
+# r'\.\. code:: ipython\d\n(?s)(.+?)(?=\n\S+|$)', and an inline global flag
+# that is not at the start of the pattern became a hard re.error in 3.11.
+# The examples are now a plain nbsphinx toctree: docs/notebooks/examples/index.rst.
+# sphinx-gallery and `image` were only pulled in for that gallery.
