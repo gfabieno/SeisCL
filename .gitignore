@@ -47,3 +47,4 @@ build*/
 
 # local test working dirs
 SeisCL/tests/_dftwork/
+cudacheck.py
