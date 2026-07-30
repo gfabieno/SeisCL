@@ -480,6 +480,9 @@ class SeisCL:
             workdir = self.workdir
 
         self.N = np.array(params[self.params[0]].shape, dtype=int)
+        # Kept so read_grad() can apply the parameterization chain rule, which
+        # needs the model it was evaluated at.
+        self._last_params = {k: np.asarray(v) for k, v in params.items()}
         self.prepare_data(jobids)
         if withgrad:
             self.gradout = 1
@@ -639,8 +642,14 @@ class SeisCL:
             workdir = self.workdir
         if filename is None:
             filename = self.file_gout
+        # The engine always runs par_type=0, so the datasets are gradvp,
+        # gradvs, gradrho (plus gradtaup/gradtaus when L>0), whatever
+        # parameterization the caller works in.
+        native = ['vp', 'vs', 'rho']
+        if self.L > 0:
+            native += ['taup', 'taus']
         if param_names is None:
-            param_names = self.params
+            param_names = native
         toread = ['grad'+name for name in param_names]
         try:
             mat = h5.File(os.path.join(workdir, filename), 'r')
@@ -654,6 +663,14 @@ class SeisCL:
                 o[-self.nab:, :] = 0
                 o[:, :self.nab] = 0
                 o[:, -self.nab:] = 0
+        if self.param_type != 0:
+            if getattr(self, "_last_params", None) is None:
+                raise SeisCLError(
+                    "read_grad() needs the model to convert the gradient into "
+                    "param_type=%d; call set_forward() first, or read with "
+                    "param_names=['vp','vs','rho'] to get the native gradient."
+                    % self.param_type)
+            output = self._grad_to_param_type(output, self._last_params)
         return output 
     
     def read_dft(self, workdir=None, filename=None):
@@ -813,10 +830,16 @@ class SeisCL:
         try:
             with h5.File(os.path.join(workdir, filename), "w") as f:
                 for el in csts:
-                    if isinstance(self.__dict__[el], np.ndarray):
-                        f[el] = np.transpose(self.__dict__[el])
+                    val = self.__dict__[el]
+                    # The engine implements only (vp, vs, rho) and rejects
+                    # anything else; this class converts the model and the
+                    # gradient itself, so it always asks for the native one.
+                    if el == 'param_type':
+                        val = 0
+                    if isinstance(val, np.ndarray):
+                        f[el] = np.transpose(val)
                     else:
-                        f[el] = self.__dict__[el]
+                        f[el] = val
         except OSError:
             raise SeisCLError('could not write parameter file \n')
 
@@ -842,6 +865,72 @@ class SeisCL:
             self.src_all[:, srcid] = src_new
         return src_new
 
+
+    # ------------------------------------------------------------------
+    # Parameterization
+    #
+    # The engine only implements par_type=0, (vp, vs, rho); it errors on
+    # anything else so that other wrappers are told rather than silently handed
+    # a gradient in the wrong parameterization. The other parameterizations are
+    # a pointwise chain rule on the model grid, negligible next to propagation,
+    # so they are done here. param_type keeps its previous meaning for callers
+    # of this class:
+    #
+    #   0 : (vp, vs, rho)      native, no conversion
+    #   1 : (M, mu, rho)       M = rho*vp**2,  mu = rho*vs**2
+    #   2 : (Ip, Is, rho)      Ip = rho*vp,    Is = rho*vs
+    # ------------------------------------------------------------------
+
+    def _to_native(self, params):
+        """Convert a model in self.param_type to the engine's (vp, vs, rho)."""
+        if self.param_type == 0:
+            return dict(params)
+        rho = np.asarray(params["rho"], dtype=np.float64)
+        if self.param_type == 1:
+            vp = np.sqrt(np.asarray(params["M"], dtype=np.float64) / rho)
+            vs = np.sqrt(np.asarray(params["mu"], dtype=np.float64) / rho)
+        elif self.param_type == 2:
+            vp = np.asarray(params["Ip"], dtype=np.float64) / rho
+            vs = np.asarray(params["Is"], dtype=np.float64) / rho
+        else:
+            raise NotImplementedError(
+                "param_type=%d is not supported. The engine implements only "
+                "(vp, vs, rho); this wrapper converts 1 (M, mu, rho) and "
+                "2 (Ip, Is, rho)." % self.param_type)
+        out = {"vp": vp, "vs": vs, "rho": rho}
+        for extra in ("taup", "taus"):
+            if extra in params:
+                out[extra] = params[extra]
+        return out
+
+    def _grad_to_param_type(self, grad, params):
+        """Chain-rule a gradient from (vp, vs, rho) into self.param_type.
+
+        :param grad:   [gvp, gvs, grho, ...] as returned by the engine
+        :param params: the model, in self.param_type units
+        """
+        if self.param_type == 0:
+            return grad
+        nat = self._to_native(params)
+        vp, vs = nat["vp"], nat["vs"]
+        rho = np.asarray(params["rho"], dtype=np.float64)
+        gvp, gvs, grho = grad[0], grad[1], grad[2]
+        if self.param_type == 1:
+            # vp = sqrt(M/rho) -> dvp/dM = 1/(2*rho*vp), dvp/drho = -vp/(2*rho)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                g0 = np.where(vp > 0, gvp / (2.0 * rho * vp), 0.0)
+                g1 = np.where(vs > 0, gvs / (2.0 * rho * vs), 0.0)
+            g2 = grho - (gvp * vp + gvs * vs) / (2.0 * rho)
+        elif self.param_type == 2:
+            # vp = Ip/rho -> dvp/dIp = 1/rho, dvp/drho = -vp/rho
+            g0 = gvp / rho
+            g1 = gvs / rho
+            g2 = grho - (gvp * vp + gvs * vs) / rho
+        else:
+            raise NotImplementedError(
+                "param_type=%d is not supported." % self.param_type)
+        return [g0, g1, g2] + list(grad[3:])
+
     def write_model(self, params, workdir=None):
         """
         Write model parameters to the model files
@@ -856,9 +945,13 @@ class SeisCL:
         for param in self.params:
             if param not in params:
                 raise SeisCLError('Parameter with %s not defined\n' % param)
+        # The engine only reads (vp, vs, rho); convert here if the caller works
+        # in another parameterization.
+        towrite = self._to_native(params)
         with h5.File(os.path.join(workdir, self.file_model), "w") as file:
-            for param in params:
-                file[param] = np.transpose(params[param].astype(np.float32))
+            for param in towrite:
+                file[param] = np.transpose(
+                    np.asarray(towrite[param]).astype(np.float32))
 
     def prepare_data(self, srcids):
         """

@@ -507,6 +507,95 @@ def test_dft_osamp_convergence():
         "lost its DTNYQ factor again (calc_grad.c dftnorm)."
         % (at2[0] if at2 else float("nan")))
 
+def test_param_type_chain_rule():
+    """Python-side parameterization: the gradient must predict the same change.
+
+    The engine implements only par_type=0, (vp, vs, rho), and errors on
+    anything else. The SeisCL class keeps accepting param_type 1 (M, mu, rho)
+    and 2 (Ip, Is, rho) and applies the chain rule itself.
+
+    A gradient is a linear form, so it does not matter which coordinates it is
+    expressed in: for a model perturbation dm, <g_p, dm_p> must be the same in
+    every parameterization, where dm_p is the same physical perturbation
+    written in those coordinates. This is checked against the *native* gradient
+    the engine produced, so it catches a wrong Jacobian, a missing factor, or a
+    sign error in the conversion, without needing a second engine run.
+    """
+    wd = workdir("param_chain")
+    s0 = make_seiscl(wd)
+    params = homogeneous(s0)
+    true_params = {k: v.copy() for k, v in params.items()}
+    nz, nx = int(s0.N[0]), int(s0.N[1])
+    true_params["vp"][nz//2-5:nz//2+5, nx//2-5:nx//2+5] += 300.0
+    din = make_observed(s0, params=true_params)
+
+    s = make_seiscl(wd, gradout=1, back_prop_type=2,
+                    gradfreqs=np.array([11.0, 19.0, 27.0]))
+    s.file_din = din
+    s.set_forward(s.src_pos_all[3, :], params, withgrad=True)
+    s.execute()
+    gnat = s.read_grad()                      # (vp, vs, rho)
+
+    vp, vs = params["vp"], params["vs"]
+    rho = params["rho"]
+    rng = np.random.default_rng(0)
+    dvp = rng.standard_normal(vp.shape) * 10.0
+    dvs = rng.standard_normal(vs.shape) * 5.0
+    drho = rng.standard_normal(rho.shape) * 5.0
+    ref = float((gnat[0]*dvp + gnat[1]*dvs + gnat[2]*drho).sum())
+
+    for ptype, to_p in ((1, lambda: {          # M = rho vp^2, mu = rho vs^2
+                            "dm0": 2*rho*vp*dvp + vp**2*drho,
+                            "dm1": 2*rho*vs*dvs + vs**2*drho,
+                            "dm2": drho}),
+                        (2, lambda: {          # Ip = rho vp, Is = rho vs
+                            "dm0": rho*dvp + vp*drho,
+                            "dm1": rho*dvs + vs*drho,
+                            "dm2": drho})):
+        sp = make_seiscl(wd, gradout=1, back_prop_type=2, param_type=ptype,
+                         gradfreqs=np.array([11.0, 19.0, 27.0]))
+        sp.file_din = din
+        if ptype == 1:
+            mp = {"M": rho*vp**2, "mu": rho*vs**2, "rho": rho}
+        else:
+            mp = {"Ip": rho*vp, "Is": rho*vs, "rho": rho}
+        sp.set_forward(sp.src_pos_all[3, :], mp, withgrad=True)
+        sp.execute()
+        gp = sp.read_grad()
+        d = to_p()
+        got = float((gp[0]*d["dm0"] + gp[1]*d["dm1"] + gp[2]*d["dm2"]).sum())
+        rel = abs(got - ref) / (abs(ref) or 1.0)
+        print("  param_type=%d  <g,dm>=%.6e  native=%.6e  rel=%.3e"
+              % (ptype, got, ref, rel))
+        assert rel < 1e-5, (
+            "param_type=%d gradient does not predict the same directional "
+            "derivative as the native (vp,vs,rho) one: %.6e vs %.6e "
+            "(rel %.3e). The chain rule in SeisCL._grad_to_param_type is "
+            "wrong." % (ptype, got, ref, rel))
+
+
+def test_engine_rejects_nonzero_par_type():
+    """The engine must refuse par_type != 0 so other wrappers are notified."""
+    import subprocess
+    wd = workdir("param_reject")
+    s0 = make_seiscl(wd)
+    params = homogeneous(s0)
+    din = make_observed(s0)
+    s = make_seiscl(wd, gradout=1, back_prop_type=2,
+                    gradfreqs=np.array([11.0]))
+    s.file_din = din
+    s.set_forward(s.src_pos_all[3, :], params, withgrad=True)
+    # write par_type=1 straight into the csts, bypassing the wrapper, the way
+    # another wrapper would.
+    with h5.File(os.path.join(wd, s.file_csts), "a") as f:
+        del f["param_type"]
+        f["param_type"] = 1
+    out = subprocess.run(s.callcmd(), shell=True, capture_output=True)
+    err = out.stderr.decode()
+    assert "par_type" in err and "no longer supported" in err, (
+        "engine did not reject par_type=1; stderr was:\n%s" % err[:500])
+    print("  engine rejected par_type=1 as expected")
+
 
 TESTS = [
     test_dft_forward_spectrum_vs_numpy,
@@ -515,6 +604,8 @@ TESTS = [
     test_dft_gradient_vs_numpy_heterogeneous,
     test_device_kernel_matches_host_oracle,
     test_dft_osamp_convergence,
+    test_param_type_chain_rule,
+    test_engine_rejects_nonzero_par_type,
     test_dense_dft_matches_backprop,
 ]
 

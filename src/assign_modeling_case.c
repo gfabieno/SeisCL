@@ -891,6 +891,29 @@ int assign_modeling_case(model * m){
                            "forward frequency buffers are never filled\n");
         }
     }
+    /* Only par_type=0, (vp, vs, rho), is supported by the engine. The other
+     * parameterizations are a chain rule on the model grid -- pointwise, and
+     * negligible next to propagation -- so they belong in the caller, where
+     * they are one expression instead of twelve hand-derived coefficient
+     * variants (grad_coef{visc,elast}_{0,1,2,3} plus the _SH twins). Keeping
+     * them here duplicated the chain rule between transf_grad (used by
+     * BACK_PROP_TYPE==1) and the grad_coef* families (used by
+     * BACK_PROP_TYPE==2), which is what let gradrho's chain-rule group sit
+     * sign-flipped without being noticed. par_type=1 was in fact unreachable:
+     * it was silently reset to 0 and then failed asking for /vp.
+     *
+     * The SeisCL Python wrapper still accepts param_type 0, 1 and 2 and does
+     * the conversion itself, so it is unaffected. This error exists so that
+     * other wrappers are told rather than silently given a gradient in the
+     * wrong parameterization. */
+    if (m->par_type!=0){
+        state=1;
+        fprintf(stderr,"Error: par_type=%d is no longer supported by the "
+                       "engine; only par_type=0 (vp, vs, rho). Convert the "
+                       "model and apply the chain rule to the gradient in the "
+                       "caller. The SeisCL Python wrapper does this for you.\n",
+                m->par_type);
+    }
     if (m->GRADOUT==1 && m->ND==22){
         state=1;
         fprintf(stderr,"Error: gradient computation is not implemented for "
