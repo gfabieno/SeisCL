@@ -283,32 +283,40 @@ def test_dft_gradient_vs_numpy_heterogeneous():
 def test_dense_dft_matches_backprop():
     """T2: with every DFT bin selected, the DFT gradient matches back_prop_type=1.
 
-    KNOWN OPEN -- listed in XFAIL below. Measured on this model with all 128
-    bins selected (2026-07-30, OpenCL build):
+    KNOWN OPEN -- listed in XFAIL below. Measured with all 128 bins selected:
+    vp cos=0.856, vs cos=0.913, rho cos=0.670.
 
-        vp   cos=0.855562   vs   cos=0.912550   rho  cos=-0.643659
+    The two methods integrate by parts against each other. back_prop_type=1
+    accumulates the stiffness gradient in update_adjs2D.cl:448-452 as
 
-    What has been ruled out:
-      * An implementation error in the correlation. T3 shows calc_grad agrees
-        with an independent float64 reference to 2e-7 per cell on a
-        heterogeneous model, and that same reference reproduces these very cos
-        values against back_prop_type=1 -- so the DFT gradient is a faithful
-        evaluation of its own formula.
-      * A whole-sample time offset between the forward and adjoint spectra
-        (the B6 sampling asymmetry). Sweeping a k-sample phase correction
-        exp(-2j*pi*bin*k/NTNYQ) on the adjoint spectrum over k in -2..2 leaves
-        k=0 as the best value for all three parameters, so the mismatch is not
-        a shift.
-      * Wrong spectra. T1 validates both against a numpy DFT to fp32 noise.
+        dM = c1*(sxx+szz)*(lsxx+lszz);   gradM += -dM;
 
-    The strongest remaining lead is gradrho, which is *anti*-correlated
-    (cos<0) rather than merely inaccurate -- a sign convention rather than an
-    approximation. Note also that a finite-difference probe against
-    read_rms() currently fails to give a constant ratio for *either*
-    back_prop_type (bpt=1 gave 5.5e-5, 6.1e-5, 2.2e-5 across three cells), so
-    the FD harness needs its own validation -- read_rms() may not return the
-    objective the gradient corresponds to -- before it can arbitrate which
-    method is right.
+    where sxx is the reconstructed forward field and *lsxx is the adjoint
+    stress increment, not the adjoint field* -- it is what gets added at
+    update_adjs2D.cl:397. So the time-domain method forms sum_t u*dlambda,
+    i.e. int u dlambda/dt, while the frequency form computes
+    w*Im(A conj F) = Re(A conj(dF/dt)), i.e. int lambda du/dt. With u(0)=0 and
+    lambda(T)=0 the boundary term vanishes and the two are exact negatives.
+
+    Confirmed where nothing else interferes: at NT=50, where the wavefield
+    never reaches the absorbing boundary and the source band spans essentially
+    one bin, cos(bpt1, dft) = -0.997.
+
+    Ruled out, each by measurement:
+      * a frequency-weighting error -- least squares over *free* per-bin
+        weights caps at cos=0.946 and overfits (weights reach 1e10 in bins with
+        no energy), so no weighting reaches 1
+      * a wrong power of omega -- omega^1 is near-optimal (0.822/0.856/0.865
+        for powers 0/1/2)
+      * plain Parseval Re(A conj F) -- cos=-0.017 against 0.856 for w*Im, which
+        is what identified lsxx as an increment
+      * non-time-reversible Cerjan damping in the reconstruction -- CPML gives
+        0.8551 against Cerjan's 0.8556
+      * mishandled high frequencies -- cos saturates at 0.8556 by bin 16
+      * a whole- or fractional-sample time offset -- optimum at exactly k=0
+
+    Still open: why the relationship degrades from -0.997 at NT=50 to +0.856 at
+    NT=256, when the integration-by-parts identity holds at any record length.
 
     This does not block the device-side correlation kernel, whose acceptance
     test is T3.
