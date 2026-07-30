@@ -144,7 +144,27 @@ can only autodoc it because autodoc never instantiates.
 warning at construction, so that geometry helpers, `ricker_wavelet()`,
 `save_segy()` and the plotting utilities work without a compiled engine.
 
-## 8. Smaller items
+## 8. `read_rms()` returns a relative misfit, and says nothing about it — **verified**
+
+`read_rms()`'s docstring is "Read the cost value output by SeisCL", which invites
+the reader to compare it against their own least-squares $J$. It is not that
+quantity. Measured across two source amplitudes (1 and 1e6):
+
+- `rms_norm` = $\lVert d_{obs}\rVert_2$ — matches `sqrt(sum(d_obs**2))` to 5 digits.
+- `rms` = $\lVert d - d_{obs}\rVert_2 / \lVert d_{obs}\rVert_2$ — a **relative**
+  residual norm, *invariant to source amplitude* (0.0204885 at both scales).
+
+So `0.5 * (rms * rms_norm)**2` recovers the absolute least-squares misfit
+(verified to a ratio of 0.999925). Note also that the C side writes
+`rms = sqrt(m->rms)` (`src/writehdf5.c:252`) where `m->rms` accumulates squared
+residuals — the normalization by `rmsnorm` happens elsewhere in
+`src/residuals.c`, so the formula is not apparent from either site alone.
+
+**Fix:** state the definition in the docstring, and return it as something
+self-describing (a small dataclass or dict with named fields) rather than a bare
+two-tuple of 1-element arrays.
+
+## 9. Smaller items
 
 - `SeisCL.torch.Config.pref_device_type` is exposed but inert (`seiscl_core` is
   always CUDA; the device-type fallback in `src/Init_OpenCL.c` is entirely
