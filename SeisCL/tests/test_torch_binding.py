@@ -15,7 +15,9 @@ from SeisCL.SeisCL import SeisCL
 
 try:
     import torch
-    from SeisCL.torch import Config, seiscl_forward
+    import SeisCL.torch as seiscl_torch
+    from SeisCL.torch import (Config, seiscl_forward, clear_engine_cache,
+                              engine_cache_size, set_engine_cache_size)
     _TORCH_AVAILABLE = True
 except ImportError:
     _TORCH_AVAILABLE = False
@@ -182,6 +184,134 @@ def test_gradient_finite_difference():
     print("Testing: torch_gradient_finite_difference ....... passed")
 
 
+def _simple_geometry(nrec=10):
+    """Shared source/receiver/wavelet setup for the engine-reuse tests."""
+    nx = N[1]
+    sx, sz = nx // 2 * DH, N[0] // 2 * DH
+    src_pos = torch.tensor([[sx, 0.0, sz, 0.0, 0.0]], dtype=torch.float32)
+    rec_x = np.linspace(20 * DH, (nx - 20) * DH, nrec)
+    rec_pos = torch.zeros((nrec, 8), dtype=torch.float32)
+    rec_pos[:, 0] = torch.from_numpy(rec_x).float()
+    rec_pos[:, 2] = sz
+    rec_pos[:, 4] = torch.arange(1, nrec + 1)
+    t = np.arange(NT) * DT
+    f0 = 25.0
+    t0 = 1.0 / f0
+    ricker = ((1 - 2 * (np.pi * f0 * (t - t0)) ** 2)
+              * np.exp(-((np.pi * f0 * (t - t0)) ** 2)))
+    src = torch.from_numpy(ricker).float().reshape(1, NT)
+    return src, src_pos, rec_pos
+
+
+def _forward_with_vp(vp, nrec=10):
+    cfg = _make_config()
+    src, src_pos, rec_pos = _simple_geometry(nrec)
+    nz, nx = N
+    params = {
+        "M": torch.full((nz * nx,), vp, dtype=torch.float32),
+        "mu": torch.full((nz * nx,), VS, dtype=torch.float32),
+        "rho": torch.full((nz * nx,), RHO, dtype=torch.float32),
+    }
+    return seiscl_forward(cfg, params, src, src_pos, rec_pos,
+                          output_fields=["vx"])["vx"]
+
+
+def test_cuda_input_rejected():
+    """CUDA tensors are refused, rather than memcpy'd from a device pointer."""
+    if not torch.cuda.is_available():
+        print("Testing: torch_cuda_input_rejected ....... skipped (no CUDA)")
+        return
+    cfg = _make_config()
+    src, src_pos, rec_pos = _simple_geometry()
+    params = _homogeneous_params()
+    params["M"] = params["M"].cuda()
+    try:
+        seiscl_forward(cfg, params, src, src_pos, rec_pos,
+                       output_fields=["vx"])
+    except (ValueError, RuntimeError) as e:
+        assert "CPU tensor" in str(e), f"unexpected error message: {e}"
+    else:
+        raise AssertionError("a CUDA parameter tensor was silently accepted")
+    print("Testing: torch_cuda_input_rejected ....... passed")
+
+
+def test_cache_hit_matches_fresh_build():
+    """A reused engine gives the same answer as a freshly built one.
+
+    Guards the core assumption behind engine reuse: that nothing carries
+    over between calls on a shared handle. reduce_seis() accumulates into
+    gl_varout with +=, so a missing reset here shows up immediately as a
+    doubled seismogram.
+    """
+    clear_engine_cache()
+    a_fresh = _forward_with_vp(2000.0)
+    clear_engine_cache()
+    b_fresh = _forward_with_vp(2200.0)
+
+    # Same two runs again, now back-to-back so the second reuses the first's
+    # engine rather than building its own.
+    clear_engine_cache()
+    a_reused = _forward_with_vp(2000.0)
+    b_reused = _forward_with_vp(2200.0)
+
+    assert not torch.equal(a_fresh, b_fresh), \
+        "different vp gave identical output -- the test is not sensitive"
+    assert torch.equal(a_fresh, a_reused), "first call changed under reuse"
+    assert torch.equal(b_fresh, b_reused), \
+        "cache-hit call differs from a fresh build"
+    print("Testing: torch_cache_hit_matches_fresh_build ....... passed")
+
+
+def test_cache_shape_change_and_back():
+    """Interleaving a different shape leaves the original still correct."""
+    clear_engine_cache()
+    ref = _forward_with_vp(2000.0, nrec=10)
+
+    clear_engine_cache()
+    a = _forward_with_vp(2000.0, nrec=10)
+    other = _forward_with_vp(2000.0, nrec=7)     # different geometry -> new key
+    back = _forward_with_vp(2000.0, nrec=10)     # back to the first shape
+
+    assert other.shape[0] == 7, "second shape did not take effect"
+    assert torch.equal(ref, a)
+    assert torch.equal(ref, back), \
+        "returning to an earlier shape gave a different result"
+    print("Testing: torch_cache_shape_change_and_back ....... passed")
+
+
+def test_cache_eviction_correctness():
+    """Results stay correct when the cache is too small to hold every shape."""
+    clear_engine_cache()
+    refs = {n: _forward_with_vp(2000.0, nrec=n) for n in (8, 9, 10)}
+
+    clear_engine_cache()
+    set_engine_cache_size(1)
+    try:
+        for _ in range(2):
+            for n in (8, 9, 10):
+                got = _forward_with_vp(2000.0, nrec=n)
+                assert torch.equal(got, refs[n]), \
+                    f"nrec={n} wrong after eviction cycling"
+    finally:
+        set_engine_cache_size(2)
+        clear_engine_cache()
+    print("Testing: torch_cache_eviction_correctness ....... passed")
+
+
+def test_cache_is_actually_used():
+    """A repeat call reuses its engine instead of rebuilding."""
+    clear_engine_cache()
+    assert engine_cache_size() == 0
+    _forward_with_vp(2000.0)
+    assert engine_cache_size() == 1
+    _forward_with_vp(2100.0)
+    assert engine_cache_size() == 1, \
+        "a same-shape repeat call built a second engine instead of reusing"
+    clear_engine_cache()
+    assert engine_cache_size() == 0
+    print("Testing: torch_cache_is_actually_used ....... passed")
+
+
 if __name__ == "__main__":
     if not _TORCH_AVAILABLE:
         print("SeisCL.torch not importable (torch extra not installed) "
@@ -190,3 +320,8 @@ if __name__ == "__main__":
         test_forward_smoke()
         test_forward_parity()
         test_gradient_finite_difference()
+        test_cuda_input_rejected()
+        test_cache_is_actually_used()
+        test_cache_hit_matches_fresh_build()
+        test_cache_shape_change_and_back()
+        test_cache_eviction_correctness()

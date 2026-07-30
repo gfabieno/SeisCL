@@ -545,6 +545,11 @@ int Init_cst(model * m);
 
 int Init_model(model * m);
 
+/* Allocation-free part of Init_model(): recomputes host parameter values
+ * (scaling, transforms, stability check, FP16 conversion) from freshly
+ * supplied raw values. Used to refresh a reused engine build. */
+int Init_model_values(model * m);
+
 int Init_data(model * m);
 
 #ifndef __NOMPI__
