@@ -139,6 +139,11 @@ def relerr(a, b):
     return float(np.abs(a - b).max() / scale)
 
 
+class SkipTest(Exception):
+    """Raised by a test that cannot run in this build (e.g. the host calc_grad
+    reference, which exists only in the OpenCL build)."""
+
+
 def run_tests(tests, xfail=()):
     """Run zero-argument test callables, print a table, return the failure count.
 
@@ -152,6 +157,7 @@ def run_tests(tests, xfail=()):
                   passing is reported as XPASS and should be un-listed.
     """
     nfail = 0
+    nskip = 0
     for fn in tests:
         name = fn.__name__
         expected_fail = name in xfail
@@ -162,6 +168,10 @@ def run_tests(tests, xfail=()):
                       % name)
             else:
                 print("PASS  %s" % name)
+        except SkipTest as e:
+            print("SKIP  %s\n      %s" % (name, e))
+            nskip += 1
+            continue
         except AssertionError as e:
             msg = str(e).replace("\n", "\n      ")
             if expected_fail:
@@ -175,6 +185,7 @@ def run_tests(tests, xfail=()):
                   % (name, type(e).__name__,
                      str(e).replace("\n", "\n      ")[:400]))
     nx = sum(1 for fn in tests if fn.__name__ in xfail)
-    print("\n%d/%d passed (%d known-open)"
-          % (len(tests) - nfail - nx, len(tests) - nx, nx))
+    print("\n%d/%d passed (%d known-open, %d skipped)"
+          % (len(tests) - nfail - nx - nskip, len(tests) - nx - nskip,
+             nx, nskip))
     return nfail

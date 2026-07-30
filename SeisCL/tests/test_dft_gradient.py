@@ -28,7 +28,8 @@ import h5py as h5
 import numpy as np
 
 from gradient_common import (make_seiscl, homogeneous, make_observed,
-                             reference_dft, relerr, run_tests, workdir)
+                             reference_dft, relerr, run_tests, workdir,
+                             SkipTest)
 
 # 2D P-SV for_grad variables (assign_modeling_case.c:1009-1023)
 VARS2D = ["vx", "vz", "sxx", "szz", "sxz"]
@@ -345,12 +346,71 @@ def test_dense_dft_matches_backprop():
             "cos=%.6f (alpha=%.4e). With every bin selected these must be "
             "proportional." % (nm, cos, alpha))
 
+def test_device_kernel_matches_host_oracle():
+    """T6: the on-device correlation reproduces the host calc_grad reference.
+
+    calc_grad() is kept as the reference implementation of the DFT gradient and
+    is selectable at runtime with SEISCL_DFT_HOST=1, so the two can be compared
+    in the same build on the same data. Both are double precision internally, so
+    the only expected difference is the float gradient buffer, ~1e-7.
+
+    This is the permanent guard on src/grad_dft2D.cl. It also covers the CUDA
+    build, where calc_grad() is a no-op stub and the DFT gradient produced
+    exactly zero before the device kernel existed.
+    """
+    wd = workdir("t6_devhost")
+    s0 = make_seiscl(wd)
+    params = homogeneous(s0)
+    true_params = {k: v.copy() for k, v in params.items()}
+    nz, nx = int(s0.N[0]), int(s0.N[1])
+    true_params["vp"][nz//2-5:nz//2+5, nx//2-5:nx//2+5] += 300.0
+    din = make_observed(s0, params=true_params)
+
+    def run(host):
+        if host:
+            os.environ["SEISCL_DFT_HOST"] = "1"
+        else:
+            os.environ.pop("SEISCL_DFT_HOST", None)
+        try:
+            s = make_seiscl(wd, gradout=1, back_prop_type=2,
+                            gradfreqs=np.array([11.0, 19.0, 27.0]))
+            s.file_din = din
+            s.set_forward(s.src_pos_all[3, :], params, withgrad=True)
+            s.execute()
+            return s, s.read_grad()
+        finally:
+            os.environ.pop("SEISCL_DFT_HOST", None)
+
+    s, g_dev = run(host=False)
+    _, g_host = run(host=True)
+
+    for i, nm in enumerate(("vp", "vs", "rho")):
+        a, b = _interior(s, g_host[i]), _interior(s, g_dev[i])
+        na, nb = np.linalg.norm(a), np.linalg.norm(b)
+        assert nb > 0, (
+            "the device DFT correlation produced an identically zero grad%s. In "
+            "a CUDA build this is what the old no-op calc_grad() stub did." % nm)
+        if na == 0:
+            raise SkipTest(
+                "the host calc_grad reference returned zero, so this build has "
+                "no host implementation to compare against. calc_grad() is "
+                "#ifdef __SEISCL__ and is a no-op stub in the CUDA build "
+                "(calc_grad.c:969), which is precisely why the device kernel "
+                "exists. Run this test against the OpenCL build.")
+        cos = float(a @ b / (na * nb))
+        rel = float(np.abs(a - b).max() / np.abs(a).max())
+        print("  %-4s cos=%.8f reldiff=%.3e" % (nm, cos, rel))
+        assert rel < 1e-5 and abs(cos - 1.0) < 1e-6, (
+            "device kernel disagrees with the host reference for grad%s: "
+            "cos=%.8f reldiff=%.3e" % (nm, cos, rel))
+
 
 TESTS = [
     test_dft_forward_spectrum_vs_numpy,
     test_dft_forward_spectrum_multifreq,
     test_dft_padded_tail_is_accumulated,
     test_dft_gradient_vs_numpy_heterogeneous,
+    test_device_kernel_matches_host_oracle,
     test_dense_dft_matches_backprop,
 ]
 

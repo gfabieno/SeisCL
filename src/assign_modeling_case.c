@@ -11,6 +11,7 @@
 
 /*Loading files autmatically created by the makefile that contain the *.cl kernels in a c string.
  This way, no .cl file need to be read and there is no need to be in the executable directory to execute SeisCL.*/
+#include "grad_dft2D.hcl"
 #include "savebnd2D.hcl"
 #include "savebnd3D.hcl"
 #include "surface2D.hcl"
@@ -996,6 +997,12 @@ int assign_modeling_case(model * m){
             __GUARD prog_source(&m->bnd_cnds.surf_adj,
                                 "surface_adj", surface_adj, 2, headers);
         }
+    }
+    /* On-device DFT gradient correlation. 2D P-SV elastic only for now; other
+     * cases keep the host calc_grad, which the OpenCL build still provides. */
+    if (m->GRADOUT && m->BACK_PROP_TYPE==2 && m->ND==2 && m->L==0){
+        __GUARD prog_source(&m->grads.calc_grad, "calc_grad_dft",
+                            (char*)grad_dft2D_source, 2, headers);
     }
     if ((m->GRADOUT || m->INPUTRES) && m->BACK_PROP_TYPE==1){
         __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd, 1, headers);

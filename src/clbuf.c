@@ -223,6 +223,32 @@ CL_INT clbuf_create(CONTEXT *incontext, clbuf * buf)
     
 }
 
+CL_INT clbuf_copy(QUEUE *inqueue, clbuf * src, clbuf * dst)
+{
+    /*Copy a buffer to another on the same device, without going through the
+      host. Used to stash the forward DFT spectrum before savefreqs reuses its
+      buffer for the adjoint pass. */
+    CL_INT state = 0;
+
+    if (src->size != dst->size){
+        fprintf(stderr,"Error: clbuf_copy: size mismatch (%zu vs %zu)\n",
+                src->size, dst->size);
+        return 1;
+    }
+    #ifdef __SEISCL__
+    state = clEnqueueCopyBuffer(*inqueue, src->mem, dst->mem,
+                                0, 0, src->size, 0, NULL, NULL);
+    #else
+    state = cuMemcpyDtoDAsync(dst->mem, src->mem, src->size, *inqueue);
+    #endif
+    if (state !=CUCL_SUCCESS) fprintf(stderr,
+                                    "Error: clbuf_copy: %s\n",
+                                    clerrors(state));
+
+    return state;
+
+}
+
 CL_INT clbuf_create_pin(CONTEXT *incontext, QUEUE *inqueue,
                         clbuf * buf)
 {
