@@ -101,13 +101,13 @@ int checkpoint_d2h(model * m, device ** dev, hid_t file_id, int s){
             if ((*dev)[d].vars[i].cl_buf1.host){
                 dims[0] = (*dev)[d].vars[i].cl_buf1.size / sizeof(float);
                 sprintf(name, "src%d_dev%d_%s_buf1h", s, d, (*dev)[d].vars[i].name);
-                writetomat(&file_id, name, (*dev)[d].vars[i].cl_buf1.host,
+                writetomat_nocomp(&file_id, name, (*dev)[d].vars[i].cl_buf1.host,
                            1, dims);
             }
             if ((*dev)[d].vars[i].cl_buf2.host){
                 dims[0] = (*dev)[d].vars[i].cl_buf2.size / sizeof(float);
                 sprintf(name, "src%d_dev%d_%s_buf2h", s, d, (*dev)[d].vars[i].name);
-                writetomat(&file_id, name, (*dev)[d].vars[i].cl_buf2.host,
+                writetomat_nocomp(&file_id, name, (*dev)[d].vars[i].cl_buf2.host,
                            1, dims);
             }
         }
@@ -135,7 +135,7 @@ int checkpoint_d2h(model * m, device ** dev, hid_t file_id, int s){
             if ((*dev)[d].vars[i].cl_var.host){
                 dims[0] = (*dev)[d].vars[i].num_ele;
                 sprintf(name, "src%d_dev%d_%s", s, d, (*dev)[d].vars[i].name);
-                writetomat(&file_id, name, (*dev)[d].vars[i].cl_var.host,
+                writetomat_nocomp(&file_id, name, (*dev)[d].vars[i].cl_var.host,
                            1, dims);
             }
 
@@ -143,7 +143,7 @@ int checkpoint_d2h(model * m, device ** dev, hid_t file_id, int s){
                 dims[0] = (*dev)[d].vars[i].cl_varbnd.sizepin / sizeof(float);
                 sprintf(name, "src%d_dev%d_%s_bnd", s, d,
                         (*dev)[d].vars[i].name);
-                writetomat(&file_id, name, (*dev)[d].vars[i].cl_varbnd.host,
+                writetomat_nocomp(&file_id, name, (*dev)[d].vars[i].cl_varbnd.host,
                            1, dims);
             }
 
@@ -151,14 +151,14 @@ int checkpoint_d2h(model * m, device ** dev, hid_t file_id, int s){
                 dims[0] = (*dev)[d].vars[i].cl_buf1.size / sizeof(float);
                 sprintf(name, "src%d_dev%d_%s_buf1d", s, d,
                         (*dev)[d].vars[i].name);
-                writetomat(&file_id, name, (*dev)[d].vars[i].cl_buf1.host,
+                writetomat_nocomp(&file_id, name, (*dev)[d].vars[i].cl_buf1.host,
                            1, dims);
             }
             if ((*dev)[d].vars[i].cl_buf2.host){
                 dims[0] = (*dev)[d].vars[i].cl_buf2.size / sizeof(float);
                 sprintf(name, "src%d_dev%d_%s_buf2d", s, d,
                         (*dev)[d].vars[i].name);
-                writetomat(&file_id, name, (*dev)[d].vars[i].cl_buf2.host,
+                writetomat_nocomp(&file_id, name, (*dev)[d].vars[i].cl_buf2.host,
                            1, dims);
             }
         }

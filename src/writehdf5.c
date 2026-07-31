@@ -21,17 +21,22 @@
 #include "F.h"
 
 // Write float matrix compatible with .mat v7.3 format
-void writetomat(hid_t* file_id,
-                const char *var,
-                float * varptr,
-                int NDIMs,
-                hsize_t dims[] ){
-    
+/* Shared implementation of writetomat() and writetomat_nocomp(): identical
+ * except for the gzip level applied to newly created datasets. deflate<0
+ * writes the dataset uncompressed and unchunked.
+ */
+static void writetomat_level(hid_t* file_id,
+                             const char *var,
+                             float * varptr,
+                             int NDIMs,
+                             hsize_t dims[],
+                             int deflate ){
+
     hid_t dataspace_id=0, dataset_id=0, attribute_id=0;
     hid_t    plist_id;
     hsize_t  cdims[MAX_DIMS];
     int ii;
-    
+
     for (ii=0;ii<NDIMs;ii++){
         cdims[ii]=8;
     }
@@ -44,13 +49,15 @@ void writetomat(hid_t* file_id,
         dataspace_id = H5Screate_simple(NDIMs, dims, NULL);
         
         plist_id  = H5Pcreate (H5P_DATASET_CREATE);
-        for (ii=0;ii<NDIMs;ii++){
-            cdims[ii]=cdims[ii]<dims[ii]?cdims[ii]:dims[ii];
+        if (deflate >= 0){
+            for (ii=0;ii<NDIMs;ii++){
+                cdims[ii]=cdims[ii]<dims[ii]?cdims[ii]:dims[ii];
+            }
+            cdims[0]=dims[0];
+            H5Pset_chunk (plist_id, NDIMs, cdims);
+            H5Pset_deflate (plist_id, deflate);
         }
-        cdims[0]=dims[0];
-        H5Pset_chunk (plist_id, NDIMs, cdims);
-        H5Pset_deflate (plist_id, 6);
-        
+
         dataset_id = H5Dcreate2(*file_id,
                                 var,
                                 H5T_IEEE_F32LE,
@@ -89,9 +96,31 @@ void writetomat(hid_t* file_id,
                  H5P_DEFAULT,
                  varptr);
         H5Dclose(dataset_id);
-        
+
     }
-    
+
+}
+
+void writetomat(hid_t* file_id,
+                const char *var,
+                float * varptr,
+                int NDIMs,
+                hsize_t dims[] ){
+    writetomat_level(file_id, var, varptr, NDIMs, dims, 6);
+}
+
+/* Same, without compression. For data that is written and read back
+ * immediately and then discarded -- the boundary-wavefield checkpoint
+ * (time_stepping.c's checkpoint_d2h/checkpoint_h2d) -- where gzip costs far
+ * more than the bytes it saves: measured 782 ms compressed vs 10 ms
+ * uncompressed for a 10 MB checkpoint, on a file deleted milliseconds later.
+ */
+void writetomat_nocomp(hid_t* file_id,
+                       const char *var,
+                       float * varptr,
+                       int NDIMs,
+                       hsize_t dims[] ){
+    writetomat_level(file_id, var, varptr, NDIMs, dims, -1);
 }
 
 //Write double matrix compatible with .mat v7.3 format

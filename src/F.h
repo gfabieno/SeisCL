@@ -569,6 +569,14 @@ int Out_MPI(model * m);
 #endif
 int writehdf5(struct filenames file, model * m);
 hid_t create_file(const char *filename);
+/* Uncompressed variant of writetomat(), for transient data (the boundary
+ * checkpoint) where gzip costs far more than the space it saves. */
+void writetomat_nocomp(hid_t* file_id,
+                       const char *var,
+                       float * varptr,
+                       int NDIMs,
+                       hsize_t dims[] );
+
 void writetomat(hid_t* file_id,
                 const char *var,
                 float * varptr,
