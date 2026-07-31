@@ -216,23 +216,47 @@ def _forward_with_vp(vp, nrec=10):
                           output_fields=["vx"])["vx"]
 
 
-def test_cuda_input_rejected():
-    """CUDA tensors are refused, rather than memcpy'd from a device pointer."""
+def test_cuda_geometry_rejected():
+    """CUDA geometry tensors are refused rather than read as host pointers.
+
+    Parameters are the exception -- they're copied down automatically, see
+    test_cuda_params_accepted.
+    """
     if not torch.cuda.is_available():
-        print("Testing: torch_cuda_input_rejected ....... skipped (no CUDA)")
+        print("Testing: torch_cuda_geometry_rejected ....... skipped (no CUDA)")
         return
     cfg = _make_config()
     src, src_pos, rec_pos = _simple_geometry()
-    params = _homogeneous_params()
-    params["M"] = params["M"].cuda()
     try:
-        seiscl_forward(cfg, params, src, src_pos, rec_pos,
-                       output_fields=["vx"])
+        seiscl_forward(cfg, _homogeneous_params(), src.cuda(), src_pos,
+                       rec_pos, output_fields=["vx"])
     except (ValueError, RuntimeError) as e:
         assert "CPU tensor" in str(e), f"unexpected error message: {e}"
     else:
-        raise AssertionError("a CUDA parameter tensor was silently accepted")
-    print("Testing: torch_cuda_input_rejected ....... passed")
+        raise AssertionError("a CUDA src tensor was silently accepted")
+    print("Testing: torch_cuda_geometry_rejected ....... passed")
+
+
+def test_cuda_params_accepted():
+    """GPU-resident model parameters give the same answer as CPU ones."""
+    if not torch.cuda.is_available():
+        print("Testing: torch_cuda_params_accepted ....... skipped (no CUDA)")
+        return
+    cfg = _make_config()
+    src, src_pos, rec_pos = _simple_geometry()
+
+    clear_engine_cache()
+    on_cpu = seiscl_forward(cfg, _homogeneous_params(), src, src_pos, rec_pos,
+                            output_fields=["vx"])["vx"]
+
+    cuda_params = {k: v.cuda() for k, v in _homogeneous_params().items()}
+    on_gpu = seiscl_forward(cfg, cuda_params, src, src_pos, rec_pos,
+                            output_fields=["vx"])["vx"]
+
+    assert not on_gpu.is_cuda, "output should still be a CPU tensor"
+    assert torch.equal(on_cpu, on_gpu), \
+        "CUDA-resident parameters gave a different result"
+    print("Testing: torch_cuda_params_accepted ....... passed")
 
 
 def test_cache_hit_matches_fresh_build():
@@ -320,7 +344,8 @@ if __name__ == "__main__":
         test_forward_smoke()
         test_forward_parity()
         test_gradient_finite_difference()
-        test_cuda_input_rejected()
+        test_cuda_geometry_rejected()
+        test_cuda_params_accepted()
         test_cache_is_actually_used()
         test_cache_hit_matches_fresh_build()
         test_cache_shape_change_and_back()

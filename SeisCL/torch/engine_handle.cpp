@@ -111,10 +111,15 @@ void apply_config(model &m, const Config &cfg, int gradout, int inputres) {
 void set_params(model &m, const py::dict &params) {
     for (auto item : params) {
         std::string name = py::cast<std::string>(item.first);
+        // CUDA parameter tensors are accepted and copied down here. This is
+        // a convenience, not a fast path: Init_model_values() runs
+        // set_par_scale/transform/check_stability on the host gl_par array
+        // before it is uploaded, so the values have to pass through host
+        // memory either way. Doing it here just saves every caller holding
+        // GPU model parameters from writing .cpu() at the call site.
         torch::Tensor t = py::cast<torch::Tensor>(item.second)
-                              .to(torch::kFloat32)
+                              .to(torch::kCPU, torch::kFloat32)
                               .contiguous();
-        require_cpu(t, "Parameter " + name);
         parameter *par = find_par(m, name);
         if (!par) {
             throw std::invalid_argument("Unknown parameter: " + name);
