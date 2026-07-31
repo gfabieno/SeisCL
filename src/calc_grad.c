@@ -776,6 +776,22 @@ int calc_grad(model * m, device * dev)  {
                     double mu_p  = mu ? mu[indm]*dhdt*s2 : 0.0;
                     double taup_p = (m->L>0 && taup) ? taup[indm] : 0.0;
                     double taus_p = (m->L>0 && taus) ? taus[indm] : 0.0;
+                    /* Vacuum cells (M == mu == rho == 0) contribute nothing,
+                     * and must be skipped rather than evaluated: the coefficient
+                     * formulas divide by rho and by (ND*M-2(ND-1)mu)^2, so a
+                     * zero cell yields 0/0 = NaN which then propagates through
+                     * the whole gradient. The device kernel is already immune
+                     * because its (ND*M-2(ND-1)mu)^2 > 0 guard short-circuits
+                     * there; this keeps the host reference in step, so
+                     * SEISCL_DFT_CHECK does not compare against NaN. See
+                     * ../notes/back-prop-type1-zero-material-nan.md, which
+                     * root-causes the same class of failure in transf_grad()
+                     * for BACK_PROP_TYPE==1. */
+                    double den_p = ND*M_p - 2.0*(ND-1.0)*mu_p;
+                    if (!(rho_p>0.0) || !(den_p*den_p>0.0)){
+                        for (n=0;n<24;n++) c[n]=0;
+                    }
+                    else{
                     c_calc(&c, M_p, mu_p, taup_p, taus_p, rho_p, ND, m->L, al);
 
                     /* Fluid cells: drop every shear-related coefficient. Tested
@@ -784,6 +800,7 @@ int calc_grad(model * m, device * dev)  {
                         for (n=2;n<8;n++)   c[n]=0;
                         for (n=10;n<16;n++) c[n]=0;
                         for (n=18;n<24;n++) c[n]=0;
+                    }
                     }
                 }
                 for (f=0;f<m->NFREQS;f++){
