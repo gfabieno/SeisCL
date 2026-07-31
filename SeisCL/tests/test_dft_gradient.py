@@ -611,24 +611,35 @@ def test_finite_difference_python_objective():
     random directions and two step sizes -- which tests the gradient fully
     while remaining agnostic about that constant.
 
-    KNOWN OPEN -- listed in XFAIL. The harness itself is sound: per direction
-    the two step sizes agree to 4-5 digits, so the finite difference is clean
-    and converging as O(eps^2). But the ratio varies by ~5x *between*
-    directions, with a dense frequency set:
+    KNOWN OPEN -- listed in XFAIL, but note carefully what it does and does
+    *not* show.
 
-        dir 0   ratio -2.826e+13
-        dir 1   ratio -3.806e+13
-        dir 2   ratio -7.936e+12
+    The finite difference itself is sound: per direction the two step sizes
+    agree to 4-5 digits, so it is clean and converging as O(eps^2). But the
+    ratio FD / <g,v> varies ~5x between directions, and it does so for **both**
+    gradient methods, by almost the same amount:
 
-    so the DFT gradient is not the gradient of this L2 objective, and not by a
-    constant. The negative sign is consistent with the integration-by-parts
-    result recorded on T2: back_prop_type=1 accumulates int u dlambda/dt while
-    the frequency form computes int lambda du/dt, and those are negatives.
+        back_prop_type=1   ratios 9.51e-09, 1.91e-08, 4.32e-09   spread 4.42
+        back_prop_type=2   ratios 2.76e+06, 3.72e+06, 7.75e+05   spread 4.79
 
-    This is the first time a finite-difference arbiter has been available at
-    all -- it was blocked while the objective could not be reproduced from
-    Python -- so it is the tool to use when resolving T2.
-    """
+    Two independently implemented gradients failing the same way points at the
+    objective, not at the gradients. So this test does *not* currently show
+    that either gradient is wrong; it shows that
+    J = 0.5*sum (d_mod - d_obs)^2 as computed here is not the functional
+    SeisCL differentiates.
+
+    Known to be right: the adjoint *source* is exactly proportional to
+    (d_obs - d_mod) -- fitting the residual SeisCL writes with resout=1 gives
+    pres = 1.0240e+07*(d_obs - d_mod) with a residual of 3.4e-8.
+
+    So the missing piece is between the adjoint source and the gradient. The
+    leading candidate is the parameter averaging: SeisCL averages the model
+    onto the staggered positions (ave_harmonic_mu, ave_arithmetic_rho in
+    assign_modeling_case.c) and the returned gradient may be with respect to
+    those averaged parameters, while this test perturbs the input grid. The
+    chain rule through the averaging stencil would be direction dependent,
+    which is what is observed. That is the next thing to check.
+        """
     wd = workdir("t4_fd")
     s0 = make_seiscl(wd)
     params = homogeneous(s0)

@@ -1025,7 +1025,14 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
             if ((m->GRADOUT || m->RMSOUT || m->RESOUT) && m->INPUTRES==0){
                 __GUARD m->res_calc(m,s);
             }
-            if ((!m->INPUTRES && (m->GRADOUT || m->RMSOUT || m->RESOUT))){
+            /* res_scale turns the residual into the adjoint source. In the
+             * original protocol it ran only in the else branch below, the one
+             * taken when the forward loop is skipped. BACK_PROP_TYPE==2 now
+             * runs the forward loop even under INPUTRES, so it has to run here
+             * too -- otherwise a supplied residual is never made into an
+             * adjoint source and the gradient comes out identically zero. */
+            if ((m->GRADOUT || m->RMSOUT || m->RESOUT)
+                && (!m->INPUTRES || m->GRADOUT)){
                 __GUARD m->res_scale(m,s);
             }
 
