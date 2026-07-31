@@ -144,27 +144,70 @@ can only autodoc it because autodoc never instantiates.
 warning at construction, so that geometry helpers, `ricker_wavelet()`,
 `save_segy()` and the plotting utilities work without a compiled engine.
 
-## 8. `read_rms()` returns a relative misfit, and says nothing about it — **verified**
+## 8. `read_rms()` silently rescales, and the same name means two things — **verified**
 
-`read_rms()`'s docstring is "Read the cost value output by SeisCL", which invites
-the reader to compare it against their own least-squares $J$. It is not that
-quantity. Measured across two source amplitudes (1 and 1e6):
+`read_rms()`'s summary line is "Read the cost value output by SeisCL", which
+invites comparison against one's own least-squares $J$. It is not that quantity,
+and the more surprising part is that **`rms` on disk and `rms` as returned are
+different numbers**:
 
-- `rms_norm` = $\lVert d_{obs}\rVert_2$ — matches `sqrt(sum(d_obs**2))` to 5 digits.
-- `rms` = $\lVert d - d_{obs}\rVert_2 / \lVert d_{obs}\rVert_2$ — a **relative**
-  residual norm, *invariant to source amplitude* (0.0204885 at both scales).
+| | `rms` | `rms_norm` |
+|---|---|---|
+| in `_rms.mat` | $\lVert d - d_{obs}\rVert_2$ | $\lVert d_{obs}\rVert_2$ |
+| returned by `read_rms()` | $\lVert d - d_{obs}\rVert_2 / \lVert d_{obs}\rVert_2$ | $\lVert d_{obs}\rVert_2$ |
 
-So `0.5 * (rms * rms_norm)**2` recovers the absolute least-squares misfit
-(verified to a ratio of 0.999925). Note also that the C side writes
-`rms = sqrt(m->rms)` (`src/writehdf5.c:252`) where `m->rms` accumulates squared
-residuals — the normalization by `rmsnorm` happens elsewhere in
-`src/residuals.c`, so the formula is not apparent from either site alone.
+because the last line is
+`return mat['rms'][0]/mat['rms_norm'][0], mat['rms_norm'][0]`. The C side writes
+the unnormalized norm (`rms = sqrt(m->rms)`, `src/writehdf5.c:252`); the division
+happens only in Python. So anyone reading `_rms.mat` directly with h5py — the
+obvious thing to do when debugging — gets a value that disagrees with
+`read_rms()` by a factor of $\lVert d_{obs}\rVert_2$, with nothing to indicate
+why. I hit exactly this while cross-checking the two.
 
-**Fix:** state the definition in the docstring, and return it as something
-self-describing (a small dataclass or dict with named fields) rather than a bare
-two-tuple of 1-element arrays.
+Verified: the returned `rms` is invariant to source amplitude and equals
+`sqrt(sum(res**2)/sum(d_obs**2))` to 6 digits, across all four combinations of
+`resout`/`Hout` and across source scales 1 and 1e6. So
+`0.5 * (rms * rms_norm)**2` recovers the absolute least-squares misfit (ratio
+0.999925).
 
-## 9. Smaller items
+In fairness the docstring does say "the normalized rms values" — but it never
+says normalized *by what*, and the on-disk/returned split is invisible.
+
+**Fix:** state the definition explicitly, use distinct names for the two
+quantities, and return something self-describing (a small dataclass or a dict)
+rather than a bare tuple of 1-element arrays. Also fix the "Noramlization" typo.
+
+## 9. `resout` output and `inputres` input are different quantities — **verified**
+
+Both are spelled `<field>res`, and neither the names nor the docstrings suggest
+they differ, but:
+
+- `inputres = 1` expects the **plain** residual $d - d_{obs}$ in `_res.mat`.
+  Confirmed: feeding plain residuals through `set_backward()` reproduces the
+  `withgrad=True` gradient *bit-for-bit* (`Inversion/ComputingGradient.ipynb`).
+- `resout = 1` writes the **scaled adjoint source** into `_dout.mat` — plain
+  residual divided by a single constant (measured 4.296876e14 for one config;
+  ratio spread std/mean 6.2e-08, i.e. constant to float32 precision, and
+  identical for `vx` and `vz`).
+
+So the natural-looking round trip — read residuals with `resout`, feed them back
+with `inputres` — is silently wrong by ~14 orders of magnitude. Nothing in the
+API hints at this; the magnitudes just look like an underflowed run.
+
+Two further confusions in the same area, both worth fixing on their own:
+
+- `resout = 1` writes into **`_dout.mat`**, not `_res.mat`, even though a file
+  named `_res.mat` exists. `_res.mat` is the *input* file for `inputres = 1`. So
+  the same suffix means opposite directions in two different files.
+- `resout = 1` and `inputres = 1` are mutually exclusive and the engine rejects
+  the combination (`src/read_hdf5.c`: "Cannot input and output residuals
+  simultaneously"), but only after launching the subprocess.
+
+**Fix:** either write the plain residual for `resout` (so the round trip holds)
+or rename one side to say what it is (`adjoint_source` vs `residual`). Validate
+the `resout`/`inputres` conflict in Python before spawning the process.
+
+## 10. Smaller items
 
 - `SeisCL.torch.Config.pref_device_type` is exposed but inert (`seiscl_core` is
   always CUDA; the device-type fallback in `src/Init_OpenCL.c` is entirely
