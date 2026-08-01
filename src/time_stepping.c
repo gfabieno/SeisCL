@@ -834,7 +834,13 @@ int initialize_adj(model * m, device ** dev, int s, int * pdir){
                     __GUARD clbuf_copy(&(*dev)[d].queue,
                                        &(*dev)[d].vars[i].cl_fvar,
                                        &(*dev)[d].vars[i].cl_fvar_f);
-                    if (m->DFTOUT || dft_host_path() || dft_check_path()){
+                    /* Also when the device kernel is unavailable for this
+                     * case (e.g. HOUT, 3D, SH, viscoelastic), because then the
+                     * host calc_grad runs and reads the forward spectrum from
+                     * cl_fvar.host. Without this it silently correlates against
+                     * a stale buffer and returns a zero gradient. */
+                    if (m->DFTOUT || dft_host_path() || dft_check_path()
+                        || !(*dev)[d].grads.calc_grad.kernel){
                         __GUARD clbuf_read(&(*dev)[d].queue,
                                            &(*dev)[d].vars[i].cl_fvar);
                     }

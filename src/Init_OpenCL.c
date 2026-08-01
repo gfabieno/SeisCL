@@ -788,7 +788,11 @@ int Init_CUDA(model * m, device ** dev)  {
                         di->pars[i].cl_grad.size=sizeof(float)*parsize;
                         __GUARD clbuf_create(di->context_ptr, &di->pars[i].cl_grad);
                     }
-                    if (m->HOUT && m->BACK_PROP_TYPE==1){
+                    /* Created for both back_prop_types: the gradinit kernel,
+                     * which now runs for both, zeroes these buffers, so they
+                     * must exist. For BACK_PROP_TYPE==2 the host calc_grad
+                     * fills cl_H.host directly and no readback is needed. */
+                    if (m->HOUT){
                         di->pars[i].cl_H.size=sizeof(float)*parsize;
                         __GUARD clbuf_create(di->context_ptr, &di->pars[i].cl_H);
                     }

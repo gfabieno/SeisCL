@@ -29,7 +29,7 @@ import numpy as np
 
 from gradient_common import (make_seiscl, homogeneous, make_observed,
                              reference_dft, relerr, run_tests, workdir,
-                             SkipTest)
+                             SkipTest, SeisCLError)
 
 # 2D P-SV for_grad variables (assign_modeling_case.c:1009-1023)
 VARS2D = ["vx", "vz", "sxx", "szz", "sxz"]
@@ -709,6 +709,60 @@ def test_finite_difference_python_objective():
         "right up to the single res_scale factor; a varying one means it is "
         "wrong." % (spread, np.array2string(r, precision=4)))
 
+def test_hessian_read_in_every_param_type():
+    """Hout=1 must work in every param_type, and must not return zeros.
+
+    Raised by Codex on PR #15: write_csts() always tells the engine par_type=0,
+    so the output file holds Hvp/Hvs/Hrho whatever the caller asked for, but
+    read_Hessian() still derived its dataset names from self.params and so
+    looked for HM/Hmu or HIp/HIs. That raised a bare HDF5 KeyError for every
+    non-native parameterization -- read_grad() had been fixed, read_Hessian()
+    had not.
+
+    Also covered here: the on-device DFT correlation does not compute the
+    approximate Hessian, so that case must route to the host implementation
+    rather than silently hand back the zeroed buffer.
+    """
+    wd = workdir("hessian")
+    s0 = make_seiscl(wd)
+    params = homogeneous(s0)
+    true_params = {k: v.copy() for k, v in params.items()}
+    nz, nx = int(s0.N[0]), int(s0.N[1])
+    true_params["vp"][nz//2-5:nz//2+5, nx//2-5:nx//2+5] += 300.0
+    din = make_observed(s0, params=true_params)
+
+    vp, vs, rho = params["vp"], params["vs"], params["rho"]
+    models = {0: params,
+              1: {"M": rho*vp**2, "mu": rho*vs**2, "rho": rho},
+              2: {"Ip": rho*vp, "Is": rho*vs, "rho": rho}}
+
+    for ptype in (0, 1, 2):
+        s = make_seiscl(wd, gradout=1, Hout=1, back_prop_type=2,
+                        param_type=ptype,
+                        gradfreqs=np.array([11.0, 19.0, 27.0]))
+        s.file_din = din
+        s.set_forward(s.src_pos_all[3, :], models[ptype], withgrad=True)
+        try:
+            s.execute()
+        except SeisCLError as e:
+            if "not supported in the CUDA build" in str(e):
+                raise SkipTest(
+                    "Hout=1 with back_prop_type=2 is rejected in the CUDA "
+                    "build: the device kernel does not compute the Hessian and "
+                    "calc_grad() is a no-op stub there. Run against OpenCL.")
+            raise
+        H = s.read_Hessian()          # must not raise
+        assert len(H) == 3, "expected 3 Hessian arrays, got %d" % len(H)
+        peaks = [float(np.abs(h).max()) for h in H]
+        print("  param_type=%d  max|H| = %s"
+              % (ptype, ["%.4e" % v for v in peaks]))
+        assert all(np.all(np.isfinite(h)) for h in H), (
+            "param_type=%d Hessian contains non-finite values" % ptype)
+        assert max(peaks) > 0.0, (
+            "param_type=%d Hessian is identically zero. The on-device DFT "
+            "correlation does not fill cl_H, so Hout=1 must fall back to the "
+            "host calc_grad rather than return the zeroed buffer." % ptype)
+
 
 TESTS = [
     test_dft_forward_spectrum_vs_numpy,
@@ -720,6 +774,7 @@ TESTS = [
     test_param_type_chain_rule,
     test_finite_difference_python_objective,
     test_engine_rejects_nonzero_par_type,
+    test_hessian_read_in_every_param_type,
     test_dense_dft_matches_backprop,
 ]
 

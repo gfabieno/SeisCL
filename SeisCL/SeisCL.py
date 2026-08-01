@@ -729,16 +729,26 @@ class SeisCL:
 
         if workdir is None:
             workdir = self.workdir
+        # As for read_grad: the engine always runs par_type=0, so the datasets
+        # are Hvp, Hvs, Hrho whatever parameterization the caller works in.
+        native = ['vp', 'vs', 'rho']
+        if self.L > 0:
+            native += ['taup', 'taus']
         if param_names is None:
-            param_names = self.params
+            param_names = native
         if filename is None:
             filename = self.file_gout
         toread = ['H' + name for name in param_names]
         try:
             mat = h5.File(os.path.join(workdir, filename), 'r')
-            output = [np.transpose(mat[v]) for v in toread]
         except OSError:
             raise SeisCLError('Could not read Hessian')
+        missing = [v for v in toread if v not in mat]
+        if missing:
+            raise SeisCLError(
+                'Hessian datasets %s not found in %s (found %s). Was the run '
+                'made with Hout=1?' % (missing, filename, sorted(mat.keys())))
+        output = [np.transpose(mat[v]) for v in toread]
         if self.cropgrad:
             for o in output:
                 if self.freesurf == 0:
@@ -746,6 +756,21 @@ class SeisCL:
                 o[-self.nab:, :] = 0
                 o[:, :self.nab] = 0
                 o[:, -self.nab:] = 0
+        if self.param_type != 0:
+            if getattr(self, "_last_params", None) is None:
+                raise SeisCLError(
+                    "read_Hessian() needs the model to convert into "
+                    "param_type=%d; call set_forward() first, or read with "
+                    "param_names=['vp','vs','rho'] to get the native Hessian."
+                    % self.param_type)
+            # SeisCL applies the *same* first-order map to the Hessian as to
+            # the gradient (transf_grad does Hrho += M/rho*HM and
+            # HM = 2*sqrt(rho*M)*HM, calc_grad.c:1029-1062), rather than the
+            # squared Jacobian a diagonal Hessian would strictly require. That
+            # convention is kept here so the result matches what the engine
+            # produced for these parameterizations before the conversion moved
+            # to Python.
+            output = self._grad_to_param_type(output, self._last_params)
         return output
 
     def read_rms(self, workdir=None, filename=None):
