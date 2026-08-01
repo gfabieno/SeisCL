@@ -30,6 +30,15 @@ struct EngineHandle {
     CacheKey key;
     bool built = false;
 
+    // Set when a forward pass ran with SKIP_CHECKPOINT_FILE: the boundary
+    // wavefield for pending_ckpt's run is sitting in this handle's buffers
+    // and was never written to disk, so the matching backward pass must
+    // either reuse this handle or have the file flushed to it first. While
+    // this is set the handle is pinned against LRU eviction, since evicting
+    // it would destroy the only copy.
+    bool pending_valid = false;
+    std::string pending_ckpt;
+
     EngineHandle();
     ~EngineHandle();
 

@@ -31,6 +31,25 @@ void EngineCache::evict(const CacheKey &key) {
     lru_.remove(key);
 }
 
+void EngineCache::rekey(const CacheKey &from, const CacheKey &to) {
+    std::lock_guard<std::mutex> lock(mu_);
+    if (from == to) return;
+    auto it = handles_.find(from);
+    if (it == handles_.end()) return;
+
+    std::unique_ptr<EngineHandle> handle = std::move(it->second);
+    handles_.erase(it);
+    lru_.remove(from);
+
+    // Any handle already sitting on the destination key is superseded.
+    handles_.erase(to);
+    lru_.remove(to);
+
+    handle->key = to;
+    handles_.emplace(to, std::move(handle));
+    lru_.push_front(to);
+}
+
 void EngineCache::set_max_size(std::size_t n) {
     std::lock_guard<std::mutex> lock(mu_);
     max_size_ = n;
@@ -49,11 +68,19 @@ void EngineCache::clear() {
 }
 
 // Caller holds mu_. Never evicts the front entry: that is the handle the
-// in-flight call is about to use.
+// in-flight call is about to use. Also never evicts a handle holding an
+// unwritten checkpoint, whose buffers are the only copy of a forward pass
+// some later backward call still needs -- such a handle stays until that
+// backward consumes it, so the cache can temporarily exceed max_size_.
 void EngineCache::trim() {
+    auto it = lru_.end();
     while (handles_.size() > max_size_ && lru_.size() > 1) {
-        CacheKey victim = lru_.back();
-        lru_.pop_back();
+        if (it == lru_.begin()) break;
+        --it;
+        auto found = handles_.find(*it);
+        if (found != handles_.end() && found->second->pending_valid) continue;
+        CacheKey victim = *it;
+        it = lru_.erase(it);
         handles_.erase(victim);
     }
 }

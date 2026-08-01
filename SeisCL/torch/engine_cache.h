@@ -30,6 +30,13 @@ class EngineCache {
     // whose last operation failed must never serve a later call.
     void evict(const CacheKey &key);
 
+    // Re-register an existing handle under a different key, keeping it alive.
+    // Used to normalise a request for "all output fields" (an empty list) to
+    // the resolved field names, which is only known once the engine is built
+    // -- without this a forward asking for everything and the backward
+    // supplying residuals by name would never match.
+    void rekey(const CacheKey &from, const CacheKey &to);
+
     // Note that the most recently used entry is never trimmed, since the
     // in-flight call holds a raw pointer to it. Setting the size to 0
     // therefore still leaves one entry behind; use clear() to release it.

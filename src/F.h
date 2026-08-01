@@ -424,6 +424,15 @@ typedef struct model {
     int RESOUT;
     int RMSOUT;
     int INPUTRES;
+    /* Skip the HDF5 boundary checkpoint entirely, on both the writing
+     * (GRADOUT=0) and reading (GRADOUT=1) leg of the INPUTRES=1 two-call
+     * gradient protocol. Only valid when both legs run against the same
+     * model/device state, so that the boundary wavefield the adjoint pass
+     * needs is already resident in the buffers the checkpoint would have
+     * round-tripped through -- see SeisCL/torch/bindings.cpp, which is the
+     * only caller able to guarantee that. Defaults to 0 (write and read the
+     * file, the standalone SeisCL_MPI behaviour) via the memset of model. */
+    int SKIP_CHECKPOINT_FILE;
     int L;
 
     int ND;
@@ -569,6 +578,11 @@ int Out_MPI(model * m);
 #endif
 int writehdf5(struct filenames file, model * m);
 hid_t create_file(const char *filename);
+
+/* Write the boundary checkpoint for the single resident shot, for a caller
+ * that ran the forward pass with SKIP_CHECKPOINT_FILE and now needs the file
+ * after all. Returns nonzero if there isn't exactly one shot in flight. */
+int checkpoint_flush(model * m, device ** dev, const char * path);
 /* Uncompressed variant of writetomat(), for transient data (the boundary
  * checkpoint) where gzip costs far more than the space it saves. */
 void writetomat_nocomp(hid_t* file_id,

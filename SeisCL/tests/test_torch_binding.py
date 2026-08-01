@@ -336,6 +336,86 @@ def test_cache_is_actually_used():
     print("Testing: torch_cache_is_actually_used ....... passed")
 
 
+def _grad_of(vp_value, other_forward_vp=None):
+    """Gradient of 0.5*sum(vx**2) w.r.t. M at vp_value.
+
+    If other_forward_vp is given, a second forward pass runs *between* this
+    one and its backward -- gradient accumulation, and the case where the
+    in-memory checkpoint handoff must fall back to a file because the second
+    forward overwrites the first's boundary buffers.
+    """
+    cfg = _make_config()
+    src, src_pos, rec_pos = _simple_geometry()
+    nz, nx = N
+    mu = torch.full((nz * nx,), VS, dtype=torch.float32)
+    rho = torch.full((nz * nx,), RHO, dtype=torch.float32)
+
+    M = torch.full((nz * nx,), vp_value, dtype=torch.float32).requires_grad_(True)
+    data = seiscl_forward(cfg, {"M": M, "mu": mu, "rho": rho},
+                          src, src_pos, rec_pos, output_fields=["vx"])
+    loss = 0.5 * (data["vx"] ** 2).sum()
+
+    if other_forward_vp is not None:
+        M2 = torch.full((nz * nx,), other_forward_vp,
+                        dtype=torch.float32).requires_grad_(True)
+        other = seiscl_forward(cfg, {"M": M2, "mu": mu, "rho": rho},
+                               src, src_pos, rec_pos, output_fields=["vx"])
+        # Keep it alive and differentiable so nothing is optimised away.
+        assert torch.isfinite(other["vx"]).all()
+
+    loss.backward()
+    return M.grad.clone()
+
+
+def test_checkpoint_survives_interleaved_forward():
+    """A second forward before the first's backward must not corrupt it.
+
+    The boundary wavefield normally stays in the engine's buffers between
+    forward and backward instead of going through an HDF5 file. A second
+    forward on the same engine overwrites those buffers, so the first pass's
+    checkpoint has to be flushed to disk before that happens -- if it isn't,
+    this returns a gradient computed from the *wrong* wavefield, silently.
+    """
+    clear_engine_cache()
+    reference = _grad_of(VP)
+
+    clear_engine_cache()
+    interleaved = _grad_of(VP, other_forward_vp=VP + 300.0)
+
+    assert torch.equal(reference, interleaved), (
+        "gradient changed when another forward ran before backward: "
+        f"max abs diff {float((reference - interleaved).abs().max()):.6g}")
+    print("Testing: torch_checkpoint_survives_interleaved_forward ....... passed")
+
+
+def test_checkpoint_survives_cache_clear():
+    """Dropping the engine between forward and backward is a clean error.
+
+    Without the engine, the boundary wavefield is gone and there is no file
+    to fall back on, so this must fail loudly rather than return a wrong
+    gradient.
+    """
+    cfg = _make_config()
+    src, src_pos, rec_pos = _simple_geometry()
+    nz, nx = N
+    clear_engine_cache()
+    M = torch.full((nz * nx,), VP, dtype=torch.float32).requires_grad_(True)
+    data = seiscl_forward(cfg, {"M": M,
+                                "mu": torch.full((nz * nx,), VS),
+                                "rho": torch.full((nz * nx,), RHO)},
+                          src, src_pos, rec_pos, output_fields=["vx"])
+    loss = 0.5 * (data["vx"] ** 2).sum()
+    clear_engine_cache()
+    try:
+        loss.backward()
+    except RuntimeError as e:
+        assert "checkpoint" in str(e).lower(), f"unexpected error: {e}"
+        print("Testing: torch_checkpoint_survives_cache_clear ....... passed")
+        return
+    raise AssertionError(
+        "backward() silently produced a gradient after its engine was dropped")
+
+
 if __name__ == "__main__":
     if not _TORCH_AVAILABLE:
         print("SeisCL.torch not importable (torch extra not installed) "
@@ -350,3 +430,5 @@ if __name__ == "__main__":
         test_cache_hit_matches_fresh_build()
         test_cache_shape_change_and_back()
         test_cache_eviction_correctness()
+        test_checkpoint_survives_interleaved_forward()
+        test_checkpoint_survives_cache_clear()

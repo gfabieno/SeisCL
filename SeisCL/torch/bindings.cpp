@@ -41,6 +41,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <fstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -206,10 +207,16 @@ py::dict collect_grads(model &m) {
 
 // Build on a miss, refresh on a hit. Any failure evicts the handle rather
 // than leaving a half-built or stale one for the next call to reuse.
+// build_gradout is what the engine is *built* for -- it decides which
+// kernels get compiled and which host/device buffers exist. run_gradout is
+// which leg time_stepping() executes on this particular call. They differ
+// for the forward leg of a gradient run: it is built grad-capable so that
+// the matching backward call can reuse the very same handle (and hence the
+// very same boundary buffers), but it still runs the forward path.
 EngineHandle *prepare_engine(const Config &cfg, const CacheKey &key,
-                             int gradout, int inputres, const py::dict &params,
-                             torch::Tensor &src, torch::Tensor &src_pos,
-                             torch::Tensor &rec_pos,
+                             int build_gradout, int run_gradout, int inputres,
+                             const py::dict &params, torch::Tensor &src,
+                             torch::Tensor &src_pos, torch::Tensor &rec_pos,
                              const std::vector<std::string> &output_fields) {
     EngineCache &cache = global_engine_cache();
     bool was_hit = false;
@@ -220,15 +227,12 @@ EngineHandle *prepare_engine(const Config &cfg, const CacheKey &key,
         if (was_hit) {
             state = engine_refresh_srcrec(*h, src, src_pos, rec_pos);
             if (!state) state = engine_refresh_params(*h, params);
-            // GRADOUT/INPUTRES select which path time_stepping() takes on
-            // this call; kernels for both were compiled at build time
-            // because needs_grad is part of the cache key.
-            h->m.GRADOUT = gradout;
-            h->m.INPUTRES = inputres;
         } else {
-            state = engine_build(*h, cfg, gradout, inputres, params, src,
+            state = engine_build(*h, cfg, build_gradout, inputres, params, src,
                                  src_pos, rec_pos, output_fields);
         }
+        h->m.GRADOUT = run_gradout;
+        h->m.INPUTRES = inputres;
         if (!state) engine_reset_outputs(*h);
     } catch (...) {
         cache.evict(key);
@@ -239,6 +243,21 @@ EngineHandle *prepare_engine(const Config &cfg, const CacheKey &key,
         cache.evict(key);
         throw std::runtime_error("SeisCL engine setup failed (state=" +
                                  std::to_string(state) + ")");
+    }
+
+    // "Every output field" was requested as an empty list, but which fields
+    // that actually means is only known now. Re-register under the resolved
+    // names so a later run_backward -- which necessarily names its residual
+    // fields -- looks up this same handle.
+    if (!was_hit && key.output_fields.empty()) {
+        std::vector<std::string> resolved;
+        for (int i = 0; i < h->m.nvars; i++) {
+            if (h->m.vars[i].to_output) resolved.push_back(h->m.vars[i].name);
+        }
+        std::sort(resolved.begin(), resolved.end());
+        CacheKey resolved_key = key;
+        resolved_key.output_fields = resolved;
+        cache.rekey(key, resolved_key);
     }
     return h;
 }
@@ -251,11 +270,38 @@ py::dict run_forward(const Config &cfg, const py::dict &params,
     bool has_checkpoint = !checkpoint_path.empty();
 
     int inputres = has_checkpoint ? 1 : 0;
+    // A forward that will be differentiated is built grad-capable, so its
+    // handle is the same one run_backward will look up.
+    int build_gradout = has_checkpoint ? 1 : 0;
     CacheKey key = geometry_cache_key(cfg, src_pos, rec_pos, output_fields,
-                                      /*gradout=*/0, inputres);
+                                      build_gradout, inputres);
 
-    EngineHandle *h = prepare_engine(cfg, key, /*gradout=*/0, inputres, params,
-                                     src, src_pos, rec_pos, output_fields);
+    EngineHandle *h = prepare_engine(cfg, key, build_gradout, /*run_gradout=*/0,
+                                     inputres, params, src, src_pos, rec_pos,
+                                     output_fields);
+
+    // The boundary wavefield only has to reach the matching backward pass,
+    // which will reuse this very handle -- so for a single shot it can stay
+    // in the buffers it already occupies instead of being round-tripped
+    // through HDF5. Multi-shot runs still need the file: checkpoint_d2h()
+    // runs per shot inside the shot loop, so only the last shot is ever
+    // resident.
+    bool skip_file = has_checkpoint && h->m.src_recs.ns == 1;
+
+    // A previous forward on this handle whose backward never ran is about to
+    // have its buffers overwritten. Write its checkpoint out now, so that
+    // backward can still fall back to the file.
+    if (h->pending_valid && h->pending_ckpt != checkpoint_path) {
+        if (checkpoint_flush(&h->m, &h->dev, h->pending_ckpt.c_str())) {
+            global_engine_cache().evict(key);
+            throw std::runtime_error(
+                "failed to flush a pending SeisCL checkpoint to " +
+                h->pending_ckpt);
+        }
+        h->pending_valid = false;
+    }
+
+    h->m.SKIP_CHECKPOINT_FILE = skip_file ? 1 : 0;
 
     struct filenames files;
     std::memset(&files, 0, sizeof(files));
@@ -269,6 +315,11 @@ py::dict run_forward(const Config &cfg, const py::dict &params,
         global_engine_cache().evict(key);
         throw std::runtime_error("SeisCL forward pass failed (state=" +
                                  std::to_string(state) + ")");
+    }
+
+    if (skip_file) {
+        h->pending_valid = true;
+        h->pending_ckpt = checkpoint_path;
     }
 
     return collect_data(h->m);
@@ -300,8 +351,9 @@ py::dict run_backward(const Config &cfg, const py::dict &params,
                                       /*gradout=*/1, /*inputres=*/1);
 
     EngineHandle *h =
-        prepare_engine(cfg, key, /*gradout=*/1, /*inputres=*/1, params, src,
-                       src_pos, rec_pos, output_fields);
+        prepare_engine(cfg, key, /*build_gradout=*/1, /*run_gradout=*/1,
+                       /*inputres=*/1, params, src, src_pos, rec_pos,
+                       output_fields);
 
     // Residuals (grad_output from the downstream torch loss) take the
     // place of the reference data readhdf5() would normally have supplied
@@ -341,12 +393,31 @@ py::dict run_backward(const Config &cfg, const py::dict &params,
         throw;
     }
 
+    // If this is the handle the matching forward ran on and nothing has
+    // overwritten its buffers since, the boundary wavefield is already where
+    // the adjoint pass needs it. Otherwise fall back to the file, which the
+    // forward either wrote itself or had flushed to it.
+    bool from_memory =
+        h->pending_valid && h->pending_ckpt == checkpoint_path;
+    if (!from_memory) {
+        std::ifstream f(checkpoint_path.c_str());
+        if (!f.good()) {
+            throw std::runtime_error(
+                "SeisCL checkpoint " + checkpoint_path +
+                " is neither resident in the engine cache nor on disk; the "
+                "matching forward pass may have been discarded");
+        }
+    }
+    h->m.SKIP_CHECKPOINT_FILE = from_memory ? 1 : 0;
+
     struct filenames files;
     std::memset(&files, 0, sizeof(files));
     std::strncpy(files.checkpoint, checkpoint_path.c_str(),
                 sizeof(files.checkpoint) - 1);
 
     int state = time_stepping(&h->m, &h->dev, files);
+    // Consumed either way: the adjoint pass has overwritten the buffers.
+    h->pending_valid = false;
     if (state) {
         global_engine_cache().evict(key);
         throw std::runtime_error("SeisCL backward pass failed (state=" +
