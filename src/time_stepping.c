@@ -1226,8 +1226,7 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
                         __GUARD clbuf_read(&(*dev)[d].queue,
                                            &(*dev)[d].pars[i].cl_grad);
                     }
-                    if (m->HOUT==1 && (*dev)[d].pars[i].to_grad
-                        && m->BACK_PROP_TYPE==1){
+                    if (m->HOUT==1 && (*dev)[d].pars[i].to_grad){
                         __GUARD clbuf_read(&(*dev)[d].queue,
                                            &(*dev)[d].pars[i].cl_H);
                     }

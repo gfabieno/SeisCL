@@ -719,9 +719,10 @@ def test_hessian_read_in_every_param_type():
     non-native parameterization -- read_grad() had been fixed, read_Hessian()
     had not.
 
-    Also covered here: the on-device DFT correlation does not compute the
-    approximate Hessian, so that case must route to the host implementation
-    rather than silently hand back the zeroed buffer.
+    Also covered here: the Hessian must be non-zero. It is computed in
+    grad_dft2D.cl under "#if HOUT==1", so it works in both backends -- there is
+    no host fallback for this case any more, which matters because the CUDA
+    build has no host calc_grad at all.
     """
     wd = workdir("hessian")
     s0 = make_seiscl(wd)
@@ -742,15 +743,7 @@ def test_hessian_read_in_every_param_type():
                         gradfreqs=np.array([11.0, 19.0, 27.0]))
         s.file_din = din
         s.set_forward(s.src_pos_all[3, :], models[ptype], withgrad=True)
-        try:
-            s.execute()
-        except SeisCLError as e:
-            if "not supported in the CUDA build" in str(e):
-                raise SkipTest(
-                    "Hout=1 with back_prop_type=2 is rejected in the CUDA "
-                    "build: the device kernel does not compute the Hessian and "
-                    "calc_grad() is a no-op stub there. Run against OpenCL.")
-            raise
+        s.execute()
         H = s.read_Hessian()          # must not raise
         assert len(H) == 3, "expected 3 Hessian arrays, got %d" % len(H)
         peaks = [float(np.abs(h).max()) for h in H]

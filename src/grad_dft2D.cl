@@ -70,6 +70,9 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
                           GLOBARG float * gradM,
                           GLOBARG float * gradmu,
                           GLOBARG float * gradrho,
+                          GLOBARG float * HM,
+                          GLOBARG float * Hmu,
+                          GLOBARG float * Hrho,
                           GLOBARG float2 * fvx_f,
                           GLOBARG float2 * fvz_f,
                           GLOBARG float2 * fsxx_f,
@@ -135,6 +138,9 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
     }
 
     double gM=0.0, gmu=0.0, grho=0.0;
+#if HOUT==1
+    double hM=0.0, hmu=0.0, hrho=0.0;
+#endif
 
     for (f=0; f<NFREQS; f++){
 
@@ -157,6 +163,33 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         double d8 = w*(itreal(fvx[id], fvx_f[id])
                      + itreal(fvz[id], fvz_f[id]))/dftnorm;
 
+#if HOUT==1
+        /* Approximate (Gauss-Newton style) Hessian diagonal, transcribed from
+         * the host calc_grad 2D HOUT block. cl_norm(cl_derivative(a, w)) is
+         * w^2*|a|^2, so every term here is non-negative; the sign pattern is
+         * the one the host uses, which differs from the gradient's only in the
+         * velocity term, chosen so the result stays positive. */
+        {
+            double w2 = w*w;
+            double h0 = w2*((double)Fpp.x*(double)Fpp.x
+                          + (double)Fpp.y*(double)Fpp.y)/dftnorm;
+            double h2 = w2*((double)Fxz.x*(double)Fxz.x
+                          + (double)Fxz.y*(double)Fxz.y)/dftnorm;
+            double h3 = h0;
+            double h4 = w2*(((double)Fmm.x*(double)Fmm.x
+                           + (double)Fmm.y*(double)Fmm.y)
+                          + ((double)Fmz.x*(double)Fmz.x
+                           + (double)Fmz.y*(double)Fmz.y))/dftnorm;
+            float2 Vx = fvx_f[id], Vz = fvz_f[id];
+            double h8 = w2*(((double)Vx.x*(double)Vx.x
+                           + (double)Vx.y*(double)Vx.y)
+                          + ((double)Vz.x*(double)Vz.x
+                           + (double)Vz.y*(double)Vz.y))/dftnorm;
+            hM   += c0*h0;
+            hmu  += c2*h2 - c3*h3 + c4*h4;
+            hrho += h8 - c16*h0 - c18*h2 + c19*h3 - c20*h4;
+        }
+#endif
         gM   += -c0*d0;
         gmu  += -c2*d2 + c3*d3 - c4*d4;
         /* The c16..c20 group is the parameterization chain rule and carries the
@@ -168,4 +201,9 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
     gradM[gid]   += (float)gM;
     gradmu[gid]  += (float)gmu;
     gradrho[gid] += (float)grho;
+#if HOUT==1
+    HM[gid]   += (float)hM;
+    Hmu[gid]  += (float)hmu;
+    Hrho[gid] += (float)hrho;
+#endif
 }

@@ -878,19 +878,6 @@ int assign_modeling_case(model * m){
             fprintf(stderr,"Error: back_prop_type=2 requires a non-empty "
                            "gradfreqs\n");
         }
-        #ifndef __SEISCL__
-        /* The on-device DFT correlation does not compute the approximate
-         * Hessian, so HOUT routes to the host calc_grad -- which does not
-         * exist in the CUDA build. Reject rather than silently return zeros. */
-        if (m->HOUT){
-            state=1;
-            fprintf(stderr,"Error: Hout=1 with back_prop_type=2 is not "
-                           "supported in the CUDA build: the device kernel "
-                           "does not compute the Hessian and there is no host "
-                           "fallback. Use the OpenCL build, or "
-                           "back_prop_type=1.\n");
-        }
-        #endif
         if (m->FP16>1){
             state=1;
             fprintf(stderr,"Error: back_prop_type=2 does not support FP16>1: "
@@ -1044,11 +1031,7 @@ int assign_modeling_case(model * m){
     }
     /* On-device DFT gradient correlation. 2D P-SV elastic only for now; other
      * cases keep the host calc_grad, which the OpenCL build still provides. */
-    /* Not when HOUT is set: the device kernel does not compute the approximate
-     * Hessian, and silently returning the zeroed cl_H would be worse than
-     * being slower. The host calc_grad does compute it (2D only), so leaving
-     * the kernel uncreated routes this case there. */
-    if (m->GRADOUT && m->BACK_PROP_TYPE==2 && m->ND==2 && m->L==0 && !m->HOUT){
+    if (m->GRADOUT && m->BACK_PROP_TYPE==2 && m->ND==2 && m->L==0){
         __GUARD prog_source(&m->grads.calc_grad, "calc_grad_dft",
                             (char*)grad_dft2D_source, 2, headers);
     }
