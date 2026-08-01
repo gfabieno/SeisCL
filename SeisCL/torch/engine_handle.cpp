@@ -8,7 +8,26 @@ namespace seiscl_torch {
 EngineHandle::EngineHandle() { std::memset(&m, 0, sizeof(model)); }
 
 EngineHandle::~EngineHandle() {
+    // time_stepping() deliberately leaves a RAM-backed checkpoint open for
+    // the adjoint pass; this is where it finally goes away.
+    if (m.CKPT_FILE_ID > 0) H5Fclose(m.CKPT_FILE_ID);
     if (built || dev) Free_OpenCL(&m, dev);
+}
+
+std::size_t checkpoint_bytes_per_shot(const EngineHandle &h) {
+    std::size_t total = 0;
+    for (int d = 0; d < static_cast<int>(h.m.NUM_DEVICES); d++) {
+        for (int i = 0; i < h.dev[d].nvars; i++) {
+            const variable &v = h.dev[d].vars[i];
+            if (v.cl_var.host) total += sizeof(float) * v.num_ele;
+            if (v.cl_varbnd.host) total += v.cl_varbnd.sizepin;
+            // buf1/buf2 are each stored twice, before and after the device
+            // read (the "h" and "d" datasets in checkpoint_d2h).
+            if (v.cl_buf1.host) total += 2 * v.cl_buf1.size;
+            if (v.cl_buf2.host) total += 2 * v.cl_buf2.size;
+        }
+    }
+    return total;
 }
 
 // parameter/variable lookup that doesn't rely on get_par()/get_var()

@@ -75,6 +75,10 @@ int engine_refresh_srcrec(EngineHandle &h, torch::Tensor &src,
 // Clear the host-side accumulators that time_stepping() adds into.
 void engine_reset_outputs(EngineHandle &h);
 
+// Bytes one shot's boundary checkpoint occupies. Multiplied by the shot
+// count, this is what a RAM-backed checkpoint would cost.
+std::size_t checkpoint_bytes_per_shot(const EngineHandle &h);
+
 }  // namespace seiscl_torch
 
 #endif  // SEISCL_TORCH_ENGINE_HANDLE_H

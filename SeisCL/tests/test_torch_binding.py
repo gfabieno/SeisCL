@@ -416,6 +416,78 @@ def test_checkpoint_survives_cache_clear():
         "backward() silently produced a gradient after its engine was dropped")
 
 
+def _multishot_geometry(nshot, nrec=6):
+    nz, nx = N
+    sp, rp = [], []
+    for s in range(nshot):
+        sp.append([(20 + s * 20) * DH, 0.0, nz // 2 * DH, float(s), 0.0])
+        for r in range(nrec):
+            rp.append([(20 + r * 8) * DH, 0.0, nz // 2 * DH,
+                       float(s), float(r + 1), 0.0, 0.0, 0.0])
+    t = np.arange(NT) * DT
+    f0 = 25.0
+    t0 = 1.0 / f0
+    ricker = ((1 - 2 * (np.pi * f0 * (t - t0)) ** 2)
+              * np.exp(-((np.pi * f0 * (t - t0)) ** 2))).astype(np.float32)
+    return (torch.from_numpy(np.tile(ricker, (nshot, 1))),
+            torch.tensor(sp, dtype=torch.float32),
+            torch.tensor(rp, dtype=torch.float32))
+
+
+def test_multishot_gradient_both_checkpoint_policies():
+    """Multi-shot gradients are right whether the checkpoint is RAM or a file.
+
+    A single shot keeps its wavefield in the engine's own buffers, but every
+    shot of a multi-shot run has to survive until the adjoint pass, so the
+    per-shot datasets go to a RAM-backed HDF5 file (or a real one when they
+    are too big). Both paths are checked against a central finite
+    difference, and the two are checked against each other.
+    """
+    nshot = 2
+    cfg = _make_config()
+    src, src_pos, rec_pos = _multishot_geometry(nshot)
+    nz, nx = N
+    mu = torch.full((nz * nx,), VS, dtype=torch.float32)
+    rho = torch.full((nz * nx,), RHO, dtype=torch.float32)
+    M0 = torch.full((nz * nx,), VP, dtype=torch.float32)
+
+    def loss(Mv):
+        data = seiscl_forward(cfg, {"M": Mv, "mu": mu, "rho": rho},
+                              src, src_pos, rec_pos, output_fields=["vx"])
+        return 0.5 * (data["vx"] ** 2).sum()
+
+    grads = {}
+    for policy in ("file", "memory"):
+        seiscl_torch.set_checkpoint_policy(policy)
+        clear_engine_cache()
+        M = M0.clone().requires_grad_(True)
+        loss(M).backward()
+        grads[policy] = M.grad.clone()
+
+        idx = [39 * nx + 39, 41 * nx + 41]
+        eps = 20.0
+        for i in idx:
+            Mp, Mm = M0.clone(), M0.clone()
+            Mp[i] += eps
+            Mm[i] -= eps
+            with torch.no_grad():
+                fd = float((loss(Mp) - loss(Mm)) / (2 * eps))
+            analytic = float(grads[policy][i])
+            rel = abs(fd - analytic) / (abs(analytic) + 1e-30)
+            assert rel < 0.02, (f"policy={policy} param {i}: "
+                                f"analytic={analytic:.6g} fd={fd:.6g} "
+                                f"rel_diff={rel:.4f}")
+
+    seiscl_torch.set_checkpoint_policy("auto")
+    # Not bit-identical: the engine itself is not run-to-run reproducible for
+    # multi-shot gradients (file-vs-file differs too), so compare loosely.
+    scale = float(grads["file"].abs().max())
+    drift = float((grads["file"] - grads["memory"]).abs().max()) / scale
+    assert drift < 0.02, f"RAM and file checkpoints disagree by {drift:.4f}"
+    print("Testing: torch_multishot_gradient_both_checkpoint_policies "
+          "....... passed")
+
+
 if __name__ == "__main__":
     if not _TORCH_AVAILABLE:
         print("SeisCL.torch not importable (torch extra not installed) "
@@ -432,3 +504,4 @@ if __name__ == "__main__":
         test_cache_eviction_correctness()
         test_checkpoint_survives_interleaved_forward()
         test_checkpoint_survives_cache_clear()
+        test_multishot_gradient_both_checkpoint_policies()

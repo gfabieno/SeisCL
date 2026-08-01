@@ -192,6 +192,56 @@ void writetomatd(hid_t* file_id,
 }
 
 // Create HDF5 file, compatible with .mat v7.3 format
+/* An HDF5 file that lives entirely in RAM (core driver, no backing store).
+ * Used for the boundary checkpoint of a multi-shot gradient run, where every
+ * shot's wavefield has to survive between the forward and the adjoint pass
+ * but never needs to reach disk. Deliberately reuses the ordinary file
+ * machinery -- same datasets, same names, same read/write calls -- so only
+ * the storage differs. No MATLAB userblock: nothing will ever open this as
+ * a .mat file.
+ */
+hid_t create_file_core(const char *name){
+    hid_t file_id=0, fapl_id=0;
+
+    fapl_id = H5Pcreate(H5P_FILE_ACCESS);
+    /* 16 MB growth increment; backing_store=0 means nothing touches disk. */
+    H5Pset_fapl_core(fapl_id, 16*1024*1024, 0);
+    file_id = H5Fcreate(name, H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
+    H5Pclose(fapl_id);
+
+    return file_id;
+}
+
+/* Spill an in-RAM checkpoint to a real file, for when the engine that holds
+ * it is about to be reused and its image would otherwise be lost. */
+int checkpoint_image_to_disk(hid_t file_id, const char *filename){
+    ssize_t len;
+    void *buf = NULL;
+    FILE *fp;
+    size_t written;
+
+    if (file_id <= 0) return 1;
+    H5Fflush(file_id, H5F_SCOPE_LOCAL);
+    len = H5Fget_file_image(file_id, NULL, 0);
+    if (len <= 0) return 1;
+    buf = malloc((size_t)len);
+    if (!buf) return 1;
+    if (H5Fget_file_image(file_id, buf, (size_t)len) < 0){
+        free(buf);
+        return 1;
+    }
+    fp = fopen(filename, "wb");
+    if (!fp){
+        free(buf);
+        return 1;
+    }
+    written = fwrite(buf, 1, (size_t)len, fp);
+    fclose(fp);
+    free(buf);
+
+    return written == (size_t)len ? 0 : 1;
+}
+
 hid_t create_file(const char *filename){
     FILE * fp;
     hid_t       file_id=0, fcpl_id=0;

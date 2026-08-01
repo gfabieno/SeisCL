@@ -56,6 +56,22 @@
 namespace seiscl_torch {
 namespace {
 
+// Where the boundary checkpoint of a multi-shot gradient run lives.
+// "auto" keeps it in RAM while it fits the budget and spills to a real file
+// above that -- a realistic 2D survey (400x400, NT=3000, 50 shots) needs
+// ~19 GB, so this cannot simply always be memory.
+enum class CkptPolicy { kAuto, kMemory, kFile };
+CkptPolicy g_ckpt_policy = CkptPolicy::kAuto;
+std::size_t g_ckpt_budget = 2ull * 1024 * 1024 * 1024;  // 2 GB
+
+bool checkpoint_fits_in_memory(std::size_t bytes) {
+    switch (g_ckpt_policy) {
+        case CkptPolicy::kMemory: return true;
+        case CkptPolicy::kFile: return false;
+        case CkptPolicy::kAuto: default: return bytes <= g_ckpt_budget;
+    }
+}
+
 // Per-shot counts of rows sharing an id, from column `idcol` of a `stride`-
 // wide row-major table. Ids must be sorted ascending (the engine's own
 // convention, see seiscl_set_srcrec()).
@@ -288,11 +304,30 @@ py::dict run_forward(const Config &cfg, const py::dict &params,
     // resident.
     bool skip_file = has_checkpoint && h->m.src_recs.ns == 1;
 
+    // More than one shot: every shot's wavefield has to survive until the
+    // adjoint pass, which the shared buffers cannot do on their own (they
+    // are reused per shot). Keep the per-shot datasets, but back them with
+    // RAM rather than disk when they fit.
+    bool in_memory = false;
+    if (has_checkpoint && !skip_file) {
+        std::size_t bytes =
+            checkpoint_bytes_per_shot(*h) * h->m.src_recs.ns;
+        in_memory = checkpoint_fits_in_memory(bytes);
+    }
+
     // A previous forward on this handle whose backward never ran is about to
-    // have its buffers overwritten. Write its checkpoint out now, so that
+    // have its buffers overwritten. Persist its checkpoint now, so that
     // backward can still fall back to the file.
     if (h->pending_valid && h->pending_ckpt != checkpoint_path) {
-        if (checkpoint_flush(&h->m, &h->dev, h->pending_ckpt.c_str())) {
+        int flushed;
+        if (h->m.CKPT_IN_MEMORY && h->m.CKPT_FILE_ID > 0) {
+            flushed = checkpoint_image_to_disk(h->m.CKPT_FILE_ID,
+                                               h->pending_ckpt.c_str());
+        } else {
+            flushed = checkpoint_flush(&h->m, &h->dev,
+                                       h->pending_ckpt.c_str());
+        }
+        if (flushed) {
             global_engine_cache().evict(key);
             throw std::runtime_error(
                 "failed to flush a pending SeisCL checkpoint to " +
@@ -302,6 +337,7 @@ py::dict run_forward(const Config &cfg, const py::dict &params,
     }
 
     h->m.SKIP_CHECKPOINT_FILE = skip_file ? 1 : 0;
+    h->m.CKPT_IN_MEMORY = in_memory ? 1 : 0;
 
     struct filenames files;
     std::memset(&files, 0, sizeof(files));
@@ -317,7 +353,7 @@ py::dict run_forward(const Config &cfg, const py::dict &params,
                                  std::to_string(state) + ")");
     }
 
-    if (skip_file) {
+    if (skip_file || in_memory) {
         h->pending_valid = true;
         h->pending_ckpt = checkpoint_path;
     }
@@ -399,6 +435,10 @@ py::dict run_backward(const Config &cfg, const py::dict &params,
     // forward either wrote itself or had flushed to it.
     bool from_memory =
         h->pending_valid && h->pending_ckpt == checkpoint_path;
+    // Single shot keeps the wavefield in the engine's own buffers; multiple
+    // shots keep the per-shot datasets in a RAM-backed HDF5 file.
+    bool via_ram_file = from_memory && h->m.CKPT_IN_MEMORY &&
+                        h->m.CKPT_FILE_ID > 0;
     if (!from_memory) {
         std::ifstream f(checkpoint_path.c_str());
         if (!f.good()) {
@@ -407,8 +447,10 @@ py::dict run_backward(const Config &cfg, const py::dict &params,
                 " is neither resident in the engine cache nor on disk; the "
                 "matching forward pass may have been discarded");
         }
+        // Whatever the forward did, this run must read the real file.
+        h->m.CKPT_IN_MEMORY = 0;
     }
-    h->m.SKIP_CHECKPOINT_FILE = from_memory ? 1 : 0;
+    h->m.SKIP_CHECKPOINT_FILE = (from_memory && !via_ram_file) ? 1 : 0;
 
     struct filenames files;
     std::memset(&files, 0, sizeof(files));
@@ -488,6 +530,30 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     m.def("engine_cache_size",
          []() { return seiscl_torch::global_engine_cache().size(); },
          "Number of engines currently held in the reuse cache.");
+
+    m.def("set_checkpoint_policy",
+         [](const std::string &policy, py::object budget) {
+             if (policy == "auto") {
+                 seiscl_torch::g_ckpt_policy = seiscl_torch::CkptPolicy::kAuto;
+             } else if (policy == "memory") {
+                 seiscl_torch::g_ckpt_policy = seiscl_torch::CkptPolicy::kMemory;
+             } else if (policy == "file") {
+                 seiscl_torch::g_ckpt_policy = seiscl_torch::CkptPolicy::kFile;
+             } else {
+                 throw std::invalid_argument(
+                     "checkpoint policy must be 'auto', 'memory' or 'file'");
+             }
+             if (!budget.is_none()) {
+                 seiscl_torch::g_ckpt_budget = budget.cast<std::size_t>();
+             }
+         },
+         "Where the boundary checkpoint of a multi-shot gradient run is "
+         "kept. 'auto' (the default) uses RAM while the estimated size fits "
+         "budget_bytes and spills to a file above that; 'memory' and 'file' "
+         "force one or the other. Single-shot runs always keep the wavefield "
+         "in the engine's own buffers and ignore this.",
+         py::arg("policy") = std::string("auto"),
+         py::arg("budget_bytes") = py::none());
 
     m.def("clear_engine_cache",
          []() { seiscl_torch::global_engine_cache().clear(); },

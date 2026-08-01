@@ -777,18 +777,35 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
 
     //Initialize checkpoint file
     if (m->INPUTRES==1 && m->GRADOUT==0 && !m->SKIP_CHECKPOINT_FILE){
-        state = remove(files.checkpoint);
-        if (errno == ENOENT)
-            state = 0;
-        else if (state){
-            perror("Could not delete checkpoint file");
+        if (m->CKPT_IN_MEMORY){
+            /* Discard any image left by an earlier forward pass and start a
+             * fresh one; it stays open for the adjoint pass to read. */
+            if (m->CKPT_FILE_ID > 0){
+                H5Fclose(m->CKPT_FILE_ID);
+                m->CKPT_FILE_ID = 0;
             }
-        if (!state){
-            file_id = create_file(files.checkpoint);
+            m->CKPT_FILE_ID = create_file_core(files.checkpoint);
+            file_id = m->CKPT_FILE_ID;
+        }
+        else {
+            state = remove(files.checkpoint);
+            if (errno == ENOENT)
+                state = 0;
+            else if (state){
+                perror("Could not delete checkpoint file");
+                }
+            if (!state){
+                file_id = create_file(files.checkpoint);
+            }
         }
     }
     if (m->INPUTRES==1 && m->GRADOUT==1 && !m->SKIP_CHECKPOINT_FILE){
-        file_id = H5Fopen(files.checkpoint, H5F_ACC_RDWR, H5P_DEFAULT);
+        if (m->CKPT_IN_MEMORY){
+            file_id = m->CKPT_FILE_ID;
+        }
+        else {
+            file_id = H5Fopen(files.checkpoint, H5F_ACC_RDWR, H5P_DEFAULT);
+        }
     }
     // Main loop over shots of this group
     for (s= m->src_recs.smin;s< m->src_recs.smax;s++){
@@ -1048,7 +1065,11 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
         __GUARD transf_grad(m);
     }
 
-    if (file_id) H5Fclose(file_id);
+    /* A RAM-backed checkpoint has to outlive this call so the adjoint pass
+     * can read it, so it is left open and owned by the caller. */
+    if (file_id && !(m->CKPT_IN_MEMORY && file_id == m->CKPT_FILE_ID)){
+        H5Fclose(file_id);
+    }
 
     #ifndef __NOMPI__
     if (state && m->MPI_INIT==1)

@@ -433,6 +433,15 @@ typedef struct model {
      * only caller able to guarantee that. Defaults to 0 (write and read the
      * file, the standalone SeisCL_MPI behaviour) via the memset of model. */
     int SKIP_CHECKPOINT_FILE;
+    /* Keep the boundary checkpoint in a RAM-backed HDF5 file instead of one
+     * on disk. Unlike SKIP_CHECKPOINT_FILE this works for any number of
+     * shots, since the per-shot datasets are still written -- just not to
+     * disk. CKPT_FILE_ID holds that file across the two time_stepping()
+     * calls of the gradient protocol and is owned by the caller, which must
+     * close it (SeisCL/torch/engine_handle.cpp does so when the engine is
+     * freed). Both default to 0, i.e. the ordinary on-disk behaviour. */
+    int CKPT_IN_MEMORY;
+    hid_t CKPT_FILE_ID;
     int L;
 
     int ND;
@@ -578,6 +587,11 @@ int Out_MPI(model * m);
 #endif
 int writehdf5(struct filenames file, model * m);
 hid_t create_file(const char *filename);
+
+/* HDF5 file backed by RAM instead of disk (core driver, no backing store),
+ * and a way to spill such a file out to disk if it must be persisted. */
+hid_t create_file_core(const char *name);
+int checkpoint_image_to_disk(hid_t file_id, const char *filename);
 
 /* Write the boundary checkpoint for the single resident shot, for a caller
  * that ran the forward pass with SKIP_CHECKPOINT_FILE and now needs the file
