@@ -39,9 +39,12 @@
 #include <torch/extension.h>
 #include <pybind11/stl.h>
 
+#include <unistd.h>
+
 #include <algorithm>
 #include <cstring>
 #include <fstream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -62,13 +65,52 @@ namespace {
 // ~19 GB, so this cannot simply always be memory.
 enum class CkptPolicy { kAuto, kMemory, kFile };
 CkptPolicy g_ckpt_policy = CkptPolicy::kAuto;
-std::size_t g_ckpt_budget = 2ull * 1024 * 1024 * 1024;  // 2 GB
+// 0 means "derive it from free memory"; anything else is an explicit cap.
+std::size_t g_ckpt_budget = 0;
+// Of the memory the kernel says is available, how much a checkpoint may
+// claim. Not all of it: the checkpoint is held for the whole forward/backward
+// pair while the rest of the process keeps allocating, and overcommitting here
+// trades a slower run for an OOM kill.
+double g_ckpt_ram_fraction = 0.5;
+
+// What can actually be allocated right now without swapping. MemAvailable is
+// the kernel's own estimate and accounts for reclaimable page cache, which
+// MemFree does not.
+std::size_t available_ram_bytes() {
+    std::ifstream meminfo("/proc/meminfo");
+    std::string key;
+    unsigned long long value = 0;
+    std::string unit;
+    while (meminfo >> key >> value >> unit) {
+        if (key == "MemAvailable:") {
+            return static_cast<std::size_t>(value) * 1024;
+        }
+        meminfo.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+#ifdef _SC_AVPHYS_PAGES
+    long pages = sysconf(_SC_AVPHYS_PAGES);
+    long page_size = sysconf(_SC_PAGESIZE);
+    if (pages > 0 && page_size > 0) {
+        return static_cast<std::size_t>(pages) *
+               static_cast<std::size_t>(page_size);
+    }
+#endif
+    return 0;
+}
 
 bool checkpoint_fits_in_memory(std::size_t bytes) {
     switch (g_ckpt_policy) {
         case CkptPolicy::kMemory: return true;
         case CkptPolicy::kFile: return false;
-        case CkptPolicy::kAuto: default: return bytes <= g_ckpt_budget;
+        case CkptPolicy::kAuto:
+        default: {
+            if (g_ckpt_budget) return bytes <= g_ckpt_budget;
+            std::size_t avail = available_ram_bytes();
+            // Unable to tell: fall back to the file rather than risk an OOM.
+            if (!avail) return false;
+            return static_cast<double>(bytes) <=
+                   g_ckpt_ram_fraction * static_cast<double>(avail);
+        }
     }
 }
 
@@ -532,7 +574,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
          "Number of engines currently held in the reuse cache.");
 
     m.def("set_checkpoint_policy",
-         [](const std::string &policy, py::object budget) {
+         [](const std::string &policy, py::object budget, py::object fraction) {
              if (policy == "auto") {
                  seiscl_torch::g_ckpt_policy = seiscl_torch::CkptPolicy::kAuto;
              } else if (policy == "memory") {
@@ -543,17 +585,35 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
                  throw std::invalid_argument(
                      "checkpoint policy must be 'auto', 'memory' or 'file'");
              }
+             // None leaves the budget alone; 0 restores "derive from free
+             // memory", which is the default.
              if (!budget.is_none()) {
                  seiscl_torch::g_ckpt_budget = budget.cast<std::size_t>();
              }
+             if (!fraction.is_none()) {
+                 double f = fraction.cast<double>();
+                 if (!(f > 0.0) || f > 1.0) {
+                     throw std::invalid_argument(
+                         "ram_fraction must be in (0, 1]");
+                 }
+                 seiscl_torch::g_ckpt_ram_fraction = f;
+             }
          },
          "Where the boundary checkpoint of a multi-shot gradient run is "
-         "kept. 'auto' (the default) uses RAM while the estimated size fits "
-         "budget_bytes and spills to a file above that; 'memory' and 'file' "
-         "force one or the other. Single-shot runs always keep the wavefield "
-         "in the engine's own buffers and ignore this.",
+         "kept. 'auto' (the default) keeps it in RAM while it fits, and "
+         "spills to a file otherwise; 'memory' and 'file' force one or the "
+         "other. What 'fits' means: by default ram_fraction (0.5) of the "
+         "memory the kernel reports as available right now, or budget_bytes "
+         "if you set an explicit cap (0 restores the free-memory rule). "
+         "Single-shot runs keep the wavefield in the engine's own buffers "
+         "and ignore all of this.",
          py::arg("policy") = std::string("auto"),
-         py::arg("budget_bytes") = py::none());
+         py::arg("budget_bytes") = py::none(),
+         py::arg("ram_fraction") = py::none());
+
+    m.def("available_ram_bytes", &seiscl_torch::available_ram_bytes,
+         "Memory the kernel currently reports as available, which is what "
+         "the 'auto' checkpoint policy sizes itself against. 0 if unknown.");
 
     m.def("clear_engine_cache",
          []() { seiscl_torch::global_engine_cache().clear(); },
