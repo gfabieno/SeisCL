@@ -477,7 +477,16 @@ int res_scale(model * m, int s)
                     par = get_par(m->pars, m->npars, "rip")->gl_par;
                 }
                 else if (strcmp(m->vars[i].name,"vy")==0){
-                    par = get_par(m->pars, m->npars, "rjp")->gl_par;
+                    /* 2D SH has no staggered buoyancy at all: rip/rjp/rkp are
+                     * appended only for ND!=21 (assign_modeling_case.c:1073),
+                     * and update_v2D_SH takes plain rho. Looking up "rjp" here
+                     * returned a zeroed struct -- get_par returns the address
+                     * of a local when the name is unknown -- so gl_par was
+                     * NULL and any SH run with gradout, rmsout or resout
+                     * segfaulted in the line below, for either
+                     * back_prop_type. */
+                    par = get_par(m->pars, m->npars,
+                                  m->ND==21 ? "rho" : "rjp")->gl_par;
                 }
                 else {
                     par = get_par(m->pars, m->npars, "rkp")->gl_par;
@@ -498,6 +507,12 @@ int res_scale(model * m, int s)
                         parscal = 1.0/parscal*m->dh/m->dt*powf(2,scaler);
                     }
                     else{
+                        if (!par){
+                            fprintf(stderr,"Error: res_scale: no buoyancy "
+                                           "parameter for variable %s\n",
+                                    m->vars[i].name);
+                            return 1;
+                        }
                         parscal = 1.0/par[pos]*m->dh/m->dt*powf(2,scaler);
                     }
                     for (t=0;t<tmax;t++){

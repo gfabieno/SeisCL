@@ -1006,7 +1006,11 @@ int calc_grad(model * m, device * dev)  {
                         gradtaus[indm]+=-c[2]*dot[0]+c[3]*dot[1];
                     }
                     
-                    gradrho[indm]+=-dot[2] +c[4]*dot[0]-c[5]*dot[1]  ;
+                    /* Same chain-rule sign as the P-SV case: c[4] is
+                     * (mu/rho)/mu^2 = vs^2 * (internal coefficient of dot[0]),
+                     * so it must carry the same sign as gradmu's -c[0]*dot[0],
+                     * matching transf_grad's gradrho += mu/rho*gradmu. */
+                    gradrho[indm]+=-dot[2] -c[4]*dot[0]+c[5]*dot[1]  ;
                     
                 }
             }

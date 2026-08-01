@@ -12,6 +12,7 @@
 /*Loading files autmatically created by the makefile that contain the *.cl kernels in a c string.
  This way, no .cl file need to be read and there is no need to be in the executable directory to execute SeisCL.*/
 #include "grad_dft2D.hcl"
+#include "grad_dft2D_SH.hcl"
 #include "savebnd2D.hcl"
 #include "savebnd3D.hcl"
 #include "surface2D.hcl"
@@ -1031,9 +1032,21 @@ int assign_modeling_case(model * m){
     }
     /* On-device DFT gradient correlation. 2D P-SV elastic only for now; other
      * cases keep the host calc_grad, which the OpenCL build still provides. */
-    if (m->GRADOUT && m->BACK_PROP_TYPE==2 && m->ND==2 && m->L==0){
-        __GUARD prog_source(&m->grads.calc_grad, "calc_grad_dft",
-                            (char*)grad_dft2D_source, 2, headers);
+    if (m->GRADOUT && m->BACK_PROP_TYPE==2 && m->L==0){
+        const char * graddft = NULL;
+        if (m->ND==2)       graddft = grad_dft2D_source;
+        else if (m->ND==21) graddft = grad_dft2D_SH_source;
+        /* ND==3 and L>0 still use the host calc_grad. */
+        if (graddft){
+            if (m->ND==21 && m->HOUT){
+                state=1;
+                fprintf(stderr,"Error: Hout=1 is not implemented for ND=21 "
+                               "(SH): calc_grad has no HOUT block for it "
+                               "either.\n");
+            }
+            __GUARD prog_source(&m->grads.calc_grad, "calc_grad_dft",
+                                (char*)graddft, 2, headers);
+        }
     }
     if ((m->GRADOUT || m->INPUTRES) && m->BACK_PROP_TYPE==1){
         __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd, 1, headers);

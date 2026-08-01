@@ -704,7 +704,13 @@ __kernel void update_adjs(int offcomm,
 // Shear wave modulus gradient calculation on the fly    
 #if BACK_PROP_TYPE==1
 
-    gradmu(gidz,gidy,gidx)+=-(sxy(gidz,gidx)*fipjp*vyx_r+syz(gidz,gidx)*fipjp*vyz_r)/(pown( (fipjp/DT+fjpkp/DT)/2.0,2));
+    /* gradmu is a 2-argument macro here (line 34); this was calling it with
+     * the 3D signature, so ND=21 with back_prop_type=1 did not compile at all.
+     * NOTE: the syz term uses fipjp where fjpkp would be expected, mirroring
+     * the sxy term. Left as written -- this path has never compiled, so there
+     * is no behaviour to preserve, but changing it is a physics decision that
+     * should be made deliberately rather than folded into a build fix. */
+    gradmu(gidz,gidx)+=-(sxy(gidz,gidx)*fipjp*vyx_r+syz(gidz,gidx)*fipjp*vyz_r)/(pown( (fipjp/DT+fjpkp/DT)/2.0,2));
 #endif
     
 
