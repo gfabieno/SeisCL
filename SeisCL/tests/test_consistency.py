@@ -6,6 +6,7 @@ Created on Wed Jan 20 20:35:05 2016
 @author: gabrielfabien-ouellet
 """
 
+import os
 import h5py as h5
 import numpy as np
 import sys
@@ -86,7 +87,7 @@ def test_backpropagation(seis, plot=False, ngpu=1, nmpi=1):
     seis.FP16 = 0
     seis.nmax_dev = 1
     seis.NP = 1
-    seis.file_din = seis.workdir + '/SeisCL_din.mat'
+    seis.file_din = os.path.abspath(os.path.join(seis.workdir, 'SeisCL_din.mat'))
 
     seis.movout = 1
     seis.seisout = 1
@@ -210,7 +211,7 @@ def test_fp16_grad(seis, ref=None, plot=False, ngpu=1, nmpi=1, inputres=0):
     seis.FP16 = 0
     seis.nmax_dev = 1
     seis.NP = 1
-    seis.file_din = seis.workdir + '/SeisCL_din.mat'
+    seis.file_din = os.path.abspath(os.path.join(seis.workdir, 'SeisCL_din.mat'))
 
     pars['vp'] = np.zeros(seis.N) + 3500
     pars['vp'][slices] = 4000
