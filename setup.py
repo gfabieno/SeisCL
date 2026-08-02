@@ -36,7 +36,9 @@ if os.environ.get('SEISCL_BUILD_TORCH') == '1':
     ext_modules = [
         CUDAExtension(
             name='SeisCL.torch._C',
-            sources=['SeisCL/torch/bindings.cpp'],
+            sources=['SeisCL/torch/bindings.cpp',
+                     'SeisCL/torch/engine_handle.cpp',
+                     'SeisCL/torch/engine_cache.cpp'],
             include_dirs=include_dirs,
             library_dirs=library_dirs,
             libraries=['seiscl_core', 'hdf5', 'hdf5_hl', 'cuda', 'nvrtc'],

@@ -42,8 +42,11 @@ docs/_build/
 *.ipynb_checkpoints
 SeisCL_MPI
 cl2cstring
-# out-of-source build trees
+# out-of-source build trees (build/, build-cuda/, build-ocl/, ...)
 build*/
+
+# compiled extensions (SeisCL/torch/_C*.so)
+*.so
 
 # local test working dirs
 SeisCL/tests/_dftwork/

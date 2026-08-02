@@ -5,6 +5,7 @@
     #define FUNDEF __kernel
     #define LFUNDEF
     #define GLOBARG __global
+    #define RESTRICT restrict
     #define LOCARG __local float *lvar
     #define LOCARG2 __local __prec2 *lvar2
     #define LOCID __local
@@ -14,6 +15,7 @@
     #define FUNDEF extern "C" __global__
     #define LFUNDEF __device__ __inline__
     #define GLOBARG
+    #define RESTRICT __restrict__
     #define LOCARG float *nullarg
     #define LOCARG2 __prec2 *nullarg
     #define LOCDEF extern __shared__ float lvar[];
