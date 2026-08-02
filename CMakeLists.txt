@@ -68,6 +68,9 @@ find_package(HDF5 COMPONENTS C HL REQUIRED)
 include_directories(SYSTEM ${HDF5_INCLUDE_DIRS})
 target_link_libraries(SeisCL_MPI ${HDF5_LIBRARIES})
 target_link_libraries(SeisCL_MPI ${HDF5_HL_LIBRARIES})
+# Some linkers (observed with binutils on RHEL/devtoolset-8) don't pull in
+# libm transitively for floor() etc. from third_party/KISS_FFT -- link it
+# explicitly rather than relying on implicit resolution.
 target_link_libraries(SeisCL_MPI m)
 
 
@@ -147,3 +150,58 @@ MESSAGE(STATUS "Compiler cxx debug flags:" ${CMAKE_CXX_FLAGS_DEBUG})
 MESSAGE(STATUS "Compiler cxx release flags:" ${CMAKE_CXX_FLAGS_RELEASE})
 MESSAGE(STATUS "Compiler cxx min size flags:" ${CMAKE_CXX_FLAGS_MINSIZEREL})
 MESSAGE(STATUS "Compiler cxx flags:" ${CMAKE_CXX_FLAGS})
+
+
+# seiscl_core: a no-MPI, CUDA-only static library exposing the engine for
+# in-memory use (SeisCL/torch's pybind11 extension), without going through
+# SeisCL_MPI's subprocess + HDF5-model-file interface. Off by default so
+# normal SeisCL_MPI builds are unaffected. Note this still links HDF5:
+# time_stepping.c's optional checkpoint feature depends on it unconditionally
+# at compile time (see src/time_stepping.c:92-269).
+option(BUILD_TORCH_CORE "Build seiscl_core, a no-MPI static library for the PyTorch binding in SeisCL/torch" OFF)
+
+if (BUILD_TORCH_CORE)
+    add_library(seiscl_core STATIC
+            src/third_party/KISS_FFT/kiss_fft.c
+            src/third_party/KISS_FFT/kiss_fftr.c
+            src/third_party/SOFI3D/CPML_COEFF.c
+            src/third_party/SOFI3D/holbergcoeff.c
+            src/assign_modeling_case.c
+            src/automatic_kernels.c
+            src/butterworth.c
+            src/calc_grad.c
+            src/clbuf.c
+            src/clerrors.c
+            src/clmodel.c
+            src/clprogram.c
+            src/comm.c
+            src/event_dependency.c
+            src/Free_OpenCL.c
+            src/Init_cst.c
+            src/Init_data.c
+            src/Init_model.c
+            src/Init_OpenCL.c
+            src/read_hdf5.c
+            src/residuals.c
+            src/time_stepping.c
+            src/writehdf5.c
+            src/seiscl_api.c)
+    target_compile_definitions(seiscl_core PUBLIC __NOMPI__)
+    set_target_properties(seiscl_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+    find_package(HDF5 COMPONENTS C HL REQUIRED)
+    include_directories(SYSTEM ${HDF5_INCLUDE_DIRS})
+    target_link_libraries(seiscl_core ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
+
+    # Always CUDA, regardless of the top-level USECUDA option: torch GPU
+    # tensors are CUDA device pointers, there is no OpenCL equivalent path.
+    find_package(CUDAToolkit REQUIRED)
+    target_compile_definitions(seiscl_core PRIVATE __CUDA_INCLUDE__="${CUDAToolkit_INCLUDE_DIRS}")
+    target_link_libraries(seiscl_core CUDA::cuda_driver CUDA::nvrtc)
+    include_directories(${CUDAToolkit_INCLUDE_DIRS})
+
+    foreach(filecl ${CLKERNELS})
+        get_filename_component(filehcl2 ${filecl} NAME_WE)
+        add_dependencies(seiscl_core ${filehcl2}convert)
+    endforeach(filecl)
+endif (BUILD_TORCH_CORE)

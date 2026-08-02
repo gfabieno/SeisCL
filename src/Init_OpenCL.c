@@ -291,11 +291,16 @@ CL_INT connect_devices(device ** dev, model * m)
 
         // Create command queues for each devices
         for (i=0;i<m->NUM_DEVICES;i++){
-            // Create a context with the specified devices
+            // Attach to the device's primary context rather than creating a
+            // private one. The primary context is what the CUDA runtime API
+            // uses, so this is the context PyTorch allocates its tensors in
+            // -- sharing it is what makes a device pointer from one usable
+            // by the other (SeisCL/torch/). Balanced by
+            // cuDevicePrimaryCtxRelease() in device_free() (Free_OpenCL.c).
             __GUARD cuDeviceGet(&(*dev)[i].cudev, allow_devs[i]);
-            __GUARD cuCtxCreate(&(*dev)[i].context,
-                                0,
-                                (*dev)[i].cudev);
+            __GUARD cuDevicePrimaryCtxRetain(&(*dev)[i].context,
+                                             (*dev)[i].cudev);
+            __GUARD cuCtxSetCurrent((*dev)[i].context);
             (*dev)[i].context_ptr = &(*dev)[i].context;
             __GUARD cuDeviceGetName(device_name,
                                     sizeof(vendor_name),

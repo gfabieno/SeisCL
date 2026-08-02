@@ -42,3 +42,6 @@ docs/_build/
 *.ipynb_checkpoints
 SeisCL_MPI
 cl2cstring
+# Build artifacts
+build/
+*.so
