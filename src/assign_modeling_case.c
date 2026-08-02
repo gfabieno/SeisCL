@@ -11,6 +11,8 @@
 
 /*Loading files autmatically created by the makefile that contain the *.cl kernels in a c string.
  This way, no .cl file need to be read and there is no need to be in the executable directory to execute SeisCL.*/
+#include "grad_dft2D.hcl"
+#include "grad_dft2D_SH.hcl"
 #include "savebnd2D.hcl"
 #include "savebnd3D.hcl"
 #include "surface2D.hcl"
@@ -517,8 +519,40 @@ void gradfreqsn( void *mptr, void *cstptr, int ncst){
         fmaxout=gradfreqs[j];
     }
     float df;
-    m->DTNYQ=ceil(0.0156/fmaxout/m->dt);
-    m->NTNYQ=(m->tmax-m->tmin)/m->DTNYQ+1;
+    if (!(fmaxout>0)){
+        /* Every gradfreqs entry is zero or negative. Without this guard the
+         * DTNYQ expression below divides by zero and every downstream size is
+         * inf/nan. assign_modeling_case() cannot catch this because the cst
+         * values are not loaded yet when it runs. */
+        fprintf(stderr,"Error: back_prop_type=2 requires at least one strictly "
+                       "positive entry in gradfreqs (max was %g)\n", fmaxout);
+        m->DTNYQ=1;
+        m->NTNYQ=1;
+        for (j=0;j<m->NFREQS;j++) gradfreqsn[j]=0;
+        return;
+    }
+    /* Oversampling of the highest requested gradient frequency. The DFT only
+     * needs the Nyquist rate of fmax, but savefreqs was sampling at
+     * 1/0.0156 = 64x that, which for typical 2D parameters (fmax=25 Hz,
+     * dt=1e-3) gives DTNYQ=1 -- i.e. it fires on *every* time step, and it is
+     * ~75% of GPU time. dft_osamp exposes the factor; the default of 64
+     * preserves the previous behaviour exactly.
+     *
+     * Lowering it is an aliasing trade-off, not a quadrature one: with
+     * DTNYQ>1 the accumulation is the *exact* DFT of the decimated series, and
+     * the error is energy above the decimated Nyquist folding onto the selected
+     * bins. For a Ricker at f0 the spectrum is ~e^-64 at 8*f0, so with
+     * fmax ~ 2*f0 an oversample of 8 puts the decimated Nyquist at 8*f0. */
+    m->DTNYQ=ceil((1.0/m->dft_osamp)/fmaxout/m->dt);
+    if (m->DTNYQ<1) m->DTNYQ=1;
+    /* NTNYQ is the DFT period: it must equal the number of samples savefreqs
+     * actually accumulates, otherwise the basis is not orthogonal and every bin
+     * picks up a phase drift. The forward loop runs t = 0 .. tmax-1 and fires
+     * when t >= tmin && (t-tmin) % DTNYQ == 0 (time_stepping.c:838, :850-853),
+     * i.e. ceil((tmax-tmin)/DTNYQ) samples. The previous
+     * (tmax-tmin)/DTNYQ + 1 overcounted by one whenever DTNYQ divides
+     * tmax-tmin, giving e.g. 257 for 256 accumulated samples. */
+    m->NTNYQ=(m->tmax-m->tmin+m->DTNYQ-1)/m->DTNYQ;
     df=1.0/m->NTNYQ/m->dt/m->DTNYQ;
     for (j=0;j<m->NFREQS;j++){
         gradfreqsn[j]=floor(gradfreqs[j]/df);
@@ -836,6 +870,53 @@ int assign_modeling_case(model * m){
     m->check_stability=&check_stability;
     m->set_par_scale=&set_par_scale;
 
+    /* Reject the BACK_PROP_TYPE==2 (DFT gradient) configurations that are not
+     * supported. Each of these used to run to completion and emit a silently
+     * wrong or empty gradient. */
+    if (m->GRADOUT==1 && m->BACK_PROP_TYPE==2){
+        if (m->NFREQS<1){
+            state=1;
+            fprintf(stderr,"Error: back_prop_type=2 requires a non-empty "
+                           "gradfreqs\n");
+        }
+        if (m->FP16>1){
+            state=1;
+            fprintf(stderr,"Error: back_prop_type=2 does not support FP16>1: "
+                           "the savefreqs kernel reads the wavefield buffers "
+                           "as float, but they are packed half\n");
+        }
+
+    }
+    /* Only par_type=0, (vp, vs, rho), is supported by the engine. The other
+     * parameterizations are a chain rule on the model grid -- pointwise, and
+     * negligible next to propagation -- so they belong in the caller, where
+     * they are one expression instead of twelve hand-derived coefficient
+     * variants (grad_coef{visc,elast}_{0,1,2,3} plus the _SH twins). Keeping
+     * them here duplicated the chain rule between transf_grad (used by
+     * BACK_PROP_TYPE==1) and the grad_coef* families (used by
+     * BACK_PROP_TYPE==2), which is what let gradrho's chain-rule group sit
+     * sign-flipped without being noticed. par_type=1 was in fact unreachable:
+     * it was silently reset to 0 and then failed asking for /vp.
+     *
+     * The SeisCL Python wrapper still accepts param_type 0, 1 and 2 and does
+     * the conversion itself, so it is unaffected. This error exists so that
+     * other wrappers are told rather than silently given a gradient in the
+     * wrong parameterization. */
+    if (m->par_type!=0){
+        state=1;
+        fprintf(stderr,"Error: par_type=%d is no longer supported by the "
+                       "engine; only par_type=0 (vp, vs, rho). Convert the "
+                       "model and apply the chain rule to the gradient in the "
+                       "caller. The SeisCL Python wrapper does this for you.\n",
+                m->par_type);
+    }
+    if (m->GRADOUT==1 && m->ND==22){
+        state=1;
+        fprintf(stderr,"Error: gradient computation is not implemented for "
+                       "ND=22 (acoustic): no adjoint or savebnd kernel is "
+                       "assigned\n");
+    }
+
     /* Definition of each seismic modeling case that has been implemented */
     const char * updatev;
     const char * updates;
@@ -947,6 +1028,24 @@ int assign_modeling_case(model * m){
         if (m->GRADOUT){
             __GUARD prog_source(&m->bnd_cnds.surf_adj,
                                 "surface_adj", surface_adj, 2, headers);
+        }
+    }
+    /* On-device DFT gradient correlation. 2D P-SV elastic only for now; other
+     * cases keep the host calc_grad, which the OpenCL build still provides. */
+    if (m->GRADOUT && m->BACK_PROP_TYPE==2 && m->L==0){
+        const char * graddft = NULL;
+        if (m->ND==2)       graddft = grad_dft2D_source;
+        else if (m->ND==21) graddft = grad_dft2D_SH_source;
+        /* ND==3 and L>0 still use the host calc_grad. */
+        if (graddft){
+            if (m->ND==21 && m->HOUT){
+                state=1;
+                fprintf(stderr,"Error: Hout=1 is not implemented for ND=21 "
+                               "(SH): calc_grad has no HOUT block for it "
+                               "either.\n");
+            }
+            __GUARD prog_source(&m->grads.calc_grad, "calc_grad_dft",
+                                (char*)graddft, 2, headers);
         }
     }
     if ((m->GRADOUT || m->INPUTRES) && m->BACK_PROP_TYPE==1){
@@ -1183,6 +1282,22 @@ int assign_modeling_case(model * m){
                     m->pars[i].to_read="/vpI";
                 if (strcmp(m->pars[i].name,"taus")==0)
                     m->pars[i].to_read="/vsI";
+            }
+        }
+        else if (m->par_type==1){
+            /* (M, mu, rho). This branch used to be absent: par_type==1 fell
+             * into the else below, which forcibly reset par_type to 0 and then
+             * asked for /vp and /vs. So par_type=1 was silently downgraded to
+             * par_type=0 and the run died with "Variable /vp is not defined",
+             * while the par_type==1 arms of the parameter transforms
+             * (assign_modeling_case.c:276-280, :351-354) and the
+             * grad_coefelast_1 / grad_coefvisc_1 coefficient sets were all
+             * unreachable. */
+            for (i=0;i<m->npars;i++){
+                if (strcmp(m->pars[i].name,"M")==0)
+                    m->pars[i].to_read="/M";
+                if (strcmp(m->pars[i].name,"mu")==0)
+                    m->pars[i].to_read="/mu";
             }
         }
         else {

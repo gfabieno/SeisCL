@@ -335,7 +335,7 @@ char *get_build_options(device *dev,
             "-D BACK_PROP_TYPE=%d -D COMM12=%d -D NTNYQ=%d -D DTNYQ=%d "
             "-D VARSOUT=%d -D RESOUT=%d  -D RMSOUT=%d -D MOVOUT=%d "
             "-D GRADOUT=%d -D HOUT=%d -D GRADSRCOUT=%d -D DIRPROP=%d "
-            "-D RESTYPE=%d -D FP16=%d",
+            "-D RESTYPE=%d -D FP16=%d -D PARSCALE=%d",
             (*m).NDIM, (*dev).OFFSET, (*m).FDOH, (*m).dt/(*m).dh, (*m).dh,
             (*m).dt, (*m).dt/2.0, (*m).NT, (*m).NAB, (*dev).NBND,
             (*dev).LOCAL_OFF, (*m).L, (*dev).DEVID, (*m).NUM_DEVICES,
@@ -344,7 +344,7 @@ char *get_build_options(device *dev,
             (*m).BACK_PROP_TYPE, comm, (*m).NTNYQ, (*m).DTNYQ,
             (*m).VARSOUT, (*m).RESOUT, (*m).RMSOUT, (*m).MOVOUT,
             (*m).GRADOUT, (*m).HOUT, (*m).GRADSRCOUT, DIRPROP, (*m).restype,
-            (*m).FP16) ;
+            (*m).FP16, (*m).par_scale) ;
     
     strcat(build_options,src2);
     
@@ -418,8 +418,28 @@ int compile(const char *program_source,
             
         }
         state = clBuildProgram(*program, 1, &device, build_options, NULL, NULL);
-        if (state !=CL_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
-        
+        if (state !=CL_SUCCESS){
+            /* Print the compiler diagnostics. Without this a kernel that fails
+             * to compile reports only "CL_BUILD_PROGRAM_FAILURE" and the count
+             * of errors, with no indication of what or where. */
+            size_t logsize=0;
+            char * log=NULL;
+            fprintf(stderr,"Error: %s\n",clerrors(state));
+            clGetProgramBuildInfo(*program, device, CL_PROGRAM_BUILD_LOG,
+                                  0, NULL, &logsize);
+            if (logsize>1){
+                log = malloc(logsize+1);
+                if (log){
+                    clGetProgramBuildInfo(*program, device, CL_PROGRAM_BUILD_LOG,
+                                          logsize, log, NULL);
+                    log[logsize]='\0';
+                    fprintf(stderr,"Build log for %s:\n%s\n",
+                            program_name, log);
+                    free(log);
+                }
+            }
+        }
+
         if (same!=1){
             __GUARD prog_write_binaries(program,
                                         (char *)filename_bin,
@@ -497,6 +517,8 @@ int get_build_options(device *dev,
     
     *n+=1;
     sprintf(build_options[*n-1],"-D FP16=%d ",(*m).FP16);
+    GMALLOC(build_options[*n], sizeof(char)*30); *n+=1;
+    sprintf(build_options[*n-1],"-D PARSCALE=%d ",(*m).par_scale);
     
     *n+=1;
     sprintf(build_options[*n-1],"-D NDIM=%d ",(*m).NDIM);
@@ -722,8 +744,10 @@ int prog_create(model * m,
     
     #else
     char ** build_options=NULL;
-        GMALLOC(build_options, sizeof(char*)*50);
-    for (i=0;i<50;i++){
+        /* 64, not 50: the option count is already in the low 40s and silently
+         * running off the end of this array is a nasty failure mode. */
+        GMALLOC(build_options, sizeof(char*)*64);
+    for (i=0;i<64;i++){
         GMALLOC(build_options[i], sizeof(char)*500);
     }
     state= get_build_options(dev,
@@ -825,6 +849,15 @@ int prog_create(model * m,
                 sprintf(str2comp,"f%s",(*dev).vars[j].name);
                 if (strcmp(str2comp,(*prog).input_list[i])==0){
                     prog_arg(prog, i, &(*dev).vars[j].cl_fvar.mem, memsize);
+                    argfound=1;
+                    break;
+                }
+                /* f<var>_f is the resident forward DFT spectrum; f<var> alone
+                 * stays bound to the adjoint one, so savefreqs and everything
+                 * else keep their existing binding. */
+                sprintf(str2comp,"f%s_f",(*dev).vars[j].name);
+                if (strcmp(str2comp,(*prog).input_list[i])==0){
+                    prog_arg(prog, i, &(*dev).vars[j].cl_fvar_f.mem, memsize);
                     argfound=1;
                     break;
                 }
@@ -984,10 +1017,25 @@ int prog_create(model * m,
         }
         
         if (!argfound){
-            #ifdef __DEBUGGING__
-            fprintf(stdout,"Warning: input %s undefined for kernel %s\n",
-                             (*prog).input_list[i], (*prog).name);
-            #endif
+            /* SEISCL_WARN_ARGS=1 reports these. An unmatched argument is
+             * bound to a placeholder that is not a valid memory object, so the
+             * kernel either launches with garbage or fails with
+             * CL_INVALID_KERNEL_ARGS far from the cause -- which is what made
+             * the ND=21 gradient path hard to diagnose. Off by default because
+             * kernels declare every possible argument by convention (the CPML
+             * coefficients, for instance, are legitimately unmatched whenever
+             * ABS_TYPE != 1), so it is noisy rather than wrong. */
+            {
+                static int warn=-1;
+                if (warn<0){
+                    const char * v = getenv("SEISCL_WARN_ARGS");
+                    warn = (v && v[0] && v[0]!='0') ? 1 : 0;
+                }
+                if (warn)
+                    fprintf(stderr,"Warning: argument %s of kernel %s matched "
+                                   "nothing and is bound to a placeholder\n",
+                                   (*prog).input_list[i], (*prog).name);
+            }
             prog_arg(prog, i, &dev->cuda_null, memsize);
         }
 
@@ -1040,8 +1088,11 @@ int prog_launch(QUEUE *inqueue, clprogram * prog){
         }
         bsize[i]=(unsigned int)(prog->gsize[i]+tsize[i]-1)/tsize[i];
     }
-    if (prog->nwait > 0){
-        state = cuStreamWaitEvent(*inqueue, *prog->waits, 0);
+    /* Wait on all nwait events, not just waits[0]: the OpenCL branch above
+     * honours nwait, so silently dropping the rest here would desynchronize
+     * the CUDA path for any kernel with more than one dependency. */
+    for (i=0;i<prog->nwait;i++){
+        state = cuStreamWaitEvent(*inqueue, prog->waits[i], 0);
     }
     state = cuLaunchKernel (prog->kernel,
                             bsize[0],

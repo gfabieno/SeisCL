@@ -45,3 +45,10 @@ cl2cstring
 # Build artifacts
 build/
 *.so
+
+# out-of-source build trees
+build*/
+
+# local test working dirs
+SeisCL/tests/_dftwork/
+cudacheck.py

@@ -495,6 +495,13 @@ int read_csts(hid_t file_id, model * m){
     __GUARD readscalar(file_id, H5T_NATIVE_FLOAT, "/K_MAX_CPML",&m->K_MAX_CPML);
 
     /*Optional variables*/
+    read_optional(file_id, H5T_NATIVE_INT,     "/dftout", &m->DFTOUT);
+    m->dft_osamp=64.0f;
+    read_optional(file_id, H5T_NATIVE_FLOAT,   "/dft_osamp", &m->dft_osamp);
+    if (!(m->dft_osamp>0)){
+        fprintf(stderr,"Error: dft_osamp must be > 0 (got %g)\n", m->dft_osamp);
+        state=1;
+    }
     read_optional(file_id, H5T_NATIVE_FLOAT,   "/fmax", &m->fmax);
     read_optional(file_id, H5T_NATIVE_FLOAT,   "/fmin", &m->fmin);
     read_optional(file_id, H5T_NATIVE_INT,   "/scalerms", &m->scalerms);
