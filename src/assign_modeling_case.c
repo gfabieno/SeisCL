@@ -13,6 +13,7 @@
  This way, no .cl file need to be read and there is no need to be in the executable directory to execute SeisCL.*/
 #include "grad_dft2D.hcl"
 #include "grad_dft2D_SH.hcl"
+#include "grad_dft3D.hcl"
 #include "savebnd2D.hcl"
 #include "savebnd3D.hcl"
 #include "surface2D.hcl"
@@ -1030,13 +1031,17 @@ int assign_modeling_case(model * m){
                                 "surface_adj", surface_adj, 2, headers);
         }
     }
-    /* On-device DFT gradient correlation. 2D P-SV elastic only for now; other
-     * cases keep the host calc_grad, which the OpenCL build still provides. */
+    /* On-device DFT gradient correlation. 2D P-SV and 3D elastic only for
+     * now; other cases keep the host calc_grad, which the OpenCL build still
+     * provides. */
     if (m->GRADOUT && m->BACK_PROP_TYPE==2 && m->L==0){
         const char * graddft = NULL;
         if (m->ND==2)       graddft = grad_dft2D_source;
         else if (m->ND==21) graddft = grad_dft2D_SH_source;
-        /* ND==3 and L>0 still use the host calc_grad. */
+        else if (m->ND==3)  graddft = grad_dft3D_source;
+        /* L>0 still uses the host calc_grad (needs the memory-variable
+         * correlation terms, and its ND==3 branch has a known bug --
+         * calc_grad.c:672-674 -- to fix first; see grad_dft3D.cl). */
         if (graddft){
             if (m->ND==21 && m->HOUT){
                 state=1;
