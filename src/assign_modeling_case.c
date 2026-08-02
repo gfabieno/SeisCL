@@ -918,6 +918,35 @@ int assign_modeling_case(model * m){
                        "assigned\n");
     }
 
+    /* BACK_PROP_TYPE==1 reconstructs the forward wavefield by re-running the
+     * simulation backward in time from the saved domain-boundary values. For
+     * a viscoelastic (L>0) medium the forward equations are dissipative, so
+     * running them backward in time is not merely inaccurate but
+     * unconditionally unstable: the attenuation that damps the forward
+     * simulation amplifies the reconstruction error at the same rate running
+     * in reverse, and it blows up regardless of time step or model size. This
+     * is a property of the method, not a bug to fix here. It also means
+     * gradtaup/gradtaus were never implemented for BACK_PROP_TYPE==1 (in
+     * either 2D or 3D: both update_adjs2D.cl and update_adjs3D.cl declare
+     * them as read-only kernel arguments, and transf_grad() in calc_grad.c
+     * has no taup/taus branch) -- there was no point wiring up gradients that
+     * the reconstructed wavefield feeding them cannot be trusted to produce.
+     * BACK_PROP_TYPE==2 does not reconstruct the wavefield this way (it
+     * correlates spectra accumulated during the single forward pass), so it
+     * is unaffected once it supports L>0 (todo item 6). */
+    if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1 && m->L>0){
+        state=1;
+        fprintf(stderr,"Error: back_prop_type=1 cannot compute a gradient for "
+                       "a viscoelastic model (L=%d>0): it reconstructs the "
+                       "forward wavefield by backpropagating in time, which "
+                       "is unconditionally unstable for a dissipative "
+                       "(attenuating) medium -- the reconstruction error "
+                       "grows exponentially, independent of the vp/vs/rho "
+                       "gradient's own correctness. Use back_prop_type=2 "
+                       "once it supports L>0, or a fully-checkpointed "
+                       "(non-reconstructing) gradient method.\n", m->L);
+    }
+
     /* Definition of each seismic modeling case that has been implemented */
     const char * updatev;
     const char * updates;
