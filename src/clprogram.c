@@ -1017,10 +1017,25 @@ int prog_create(model * m,
         }
         
         if (!argfound){
-            #ifdef __DEBUGGING__
-            fprintf(stdout,"Warning: input %s undefined for kernel %s\n",
-                             (*prog).input_list[i], (*prog).name);
-            #endif
+            /* SEISCL_WARN_ARGS=1 reports these. An unmatched argument is
+             * bound to a placeholder that is not a valid memory object, so the
+             * kernel either launches with garbage or fails with
+             * CL_INVALID_KERNEL_ARGS far from the cause -- which is what made
+             * the ND=21 gradient path hard to diagnose. Off by default because
+             * kernels declare every possible argument by convention (the CPML
+             * coefficients, for instance, are legitimately unmatched whenever
+             * ABS_TYPE != 1), so it is noisy rather than wrong. */
+            {
+                static int warn=-1;
+                if (warn<0){
+                    const char * v = getenv("SEISCL_WARN_ARGS");
+                    warn = (v && v[0] && v[0]!='0') ? 1 : 0;
+                }
+                if (warn)
+                    fprintf(stderr,"Warning: argument %s of kernel %s matched "
+                                   "nothing and is bound to a placeholder\n",
+                                   (*prog).input_list[i], (*prog).name);
+            }
             prog_arg(prog, i, &dev->cuda_null, memsize);
         }
 
