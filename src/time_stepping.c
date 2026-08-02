@@ -1108,8 +1108,11 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
                 __GUARD m->res_scale(m,s);
             }
 
-            // Save the checkpoints
-            if (m->INPUTRES && m->GRADOUT==0){
+            // Save the checkpoints. BACK_PROP_TYPE==2 keeps none: its
+            // adjoint call re-runs this forward pass instead (see the note
+            // above the checkpoint file creation), so no file was opened and
+            // file_id is not a valid location.
+            if (m->INPUTRES && m->GRADOUT==0 && m->BACK_PROP_TYPE==1){
                 __GUARD checkpoint_d2h(m, dev, file_id, s);
 
             }

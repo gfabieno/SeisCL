@@ -37,6 +37,15 @@ struct Config {
     int GRADSRCOUT = 0;
     int HOUT = 0;
     int BACK_PROP_TYPE = 1;
+    // BACK_PROP_TYPE=2 (DFT gradient) only. The frequencies the gradient is
+    // correlated at, in Hz; NFREQS is its length and the DFT path cannot
+    // produce a gradient without it. dft_osamp sets how often savefreqs
+    // fires (DTNYQ = ceil((1/dft_osamp)/fmax/dt)); 64 is the historical
+    // hardcoded value and fires on every time step.
+    std::vector<float> gradfreqs;
+    float dft_osamp = 64.0f;
+    // First time step included in the DFT accumulation.
+    int tmin = 0;
     int nmax_dev = 1;
     // Only meaningful for OpenCL builds (src/Init_OpenCL.c's device-type
     // fallback logic is entirely #ifdef __SEISCL__); inert here since

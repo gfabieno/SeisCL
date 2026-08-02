@@ -49,6 +49,13 @@ variable *find_var(model &m, const std::string &name) {
     return nullptr;
 }
 
+constants *find_cst(model &m, const std::string &name) {
+    for (int i = 0; i < m.ncsts; i++) {
+        if (name == m.csts[i].name) return &m.csts[i];
+    }
+    return nullptr;
+}
+
 // .to(kFloat32) converts dtype but never moves device, so a CUDA tensor
 // would reach the std::memcpy calls below as a device pointer -- undefined
 // behavior rather than an error. All inputs must be host-resident.
@@ -97,17 +104,31 @@ void apply_config(model &m, const Config &cfg, int gradout, int inputres) {
     m.nmax_dev = cfg.nmax_dev;
     m.pref_device_type = static_cast<DEVICE_TYPE>(cfg.pref_device_type);
 
-    if (inputres && cfg.BACK_PROP_TYPE != 1) {
-        // The checkpoint file this binding relies on for the INPUTRES=1
-        // two-call protocol is only written by save_bnd() when
-        // BACK_PROP_TYPE==1 (src/time_stepping.c:798-800,
-        // src/assign_modeling_case.c:952). BACK_PROP_TYPE==2 (DFT/
-        // frequency-domain gradient) also needs a "gradfreqs" constants
-        // array this binding doesn't populate -- unsupported for now.
+    if (cfg.BACK_PROP_TYPE != 1 && cfg.BACK_PROP_TYPE != 2) {
         throw std::invalid_argument(
-            "SeisCL/torch currently only supports cfg.BACK_PROP_TYPE=1 "
-            "(boundary-storage gradient)");
+            "cfg.BACK_PROP_TYPE must be 1 (boundary storage) or 2 (DFT)");
     }
+
+    // DFT gradient. NFREQS drives the size of the frequency buffers and of
+    // the gradfreqs constants array, so it has to be set before
+    // assign_modeling_case() registers them; the values themselves are
+    // filled in by engine_build() once that allocation exists.
+    m.NFREQS = static_cast<int>(cfg.gradfreqs.size());
+    m.dft_osamp = cfg.dft_osamp;
+    m.tmin = cfg.tmin;
+    if (cfg.BACK_PROP_TYPE == 2 && m.NFREQS == 0) {
+        // assign_modeling_case() divides by max(gradfreqs) -- with an empty
+        // list the DFT path silently produces no gradient at all.
+        throw std::invalid_argument(
+            "cfg.BACK_PROP_TYPE=2 needs cfg.gradfreqs (the frequencies to "
+            "correlate the gradient at, in Hz)");
+    }
+
+    // The INPUTRES=1 two-call protocol works for both methods, but by
+    // different means: BACK_PROP_TYPE=1 restores the boundary wavefield from
+    // the checkpoint, while BACK_PROP_TYPE=2 re-runs the forward pass on the
+    // adjoint call because the frequency buffers it needs are not
+    // checkpointed (src/time_stepping.c, "Initialize checkpoint file").
 
     m.GRADOUT = gradout;
     m.INPUTRES = inputres;
@@ -214,6 +235,20 @@ int engine_build(EngineHandle &h, const Config &cfg, int gradout, int inputres,
 
     int state = assign_modeling_case(&h.m);
     if (state) return state;
+
+    // gradfreqs is normally read from the input file (read_hdf5.c:555); with
+    // no file, fill the array assign_modeling_case() just allocated. Must
+    // happen before Init_cst(), which derives gradfreqsn (the bin indices)
+    // and DTNYQ/NTNYQ from these values.
+    if (cfg.BACK_PROP_TYPE == 2) {
+        constants *freqs = find_cst(h.m, "gradfreqs");
+        if (!freqs || freqs->num_ele != static_cast<int>(cfg.gradfreqs.size())) {
+            throw std::runtime_error(
+                "gradfreqs constants array was not registered as expected");
+        }
+        std::memcpy(freqs->gl_cst, cfg.gradfreqs.data(),
+                    sizeof(float) * cfg.gradfreqs.size());
+    }
 
     // May throw; the caller evicts the handle, whose destructor frees
     // whatever assign_modeling_case already allocated.

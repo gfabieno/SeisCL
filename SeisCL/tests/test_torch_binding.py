@@ -488,6 +488,73 @@ def test_multishot_gradient_both_checkpoint_policies():
           "....... passed")
 
 
+def test_dft_gradient_through_inputres():
+    """back_prop_type=2 (DFT) works through the binding's two-call protocol.
+
+    autograd forces forward and backward into separate calls (INPUTRES=1).
+    The DFT method cannot use the boundary checkpoint -- its adjoint needs the
+    frequency buffers accumulated during the forward pass, which are not
+    checkpointed -- so time_stepping() re-runs the forward pass on the adjoint
+    call instead. This checks that path produces a real gradient rather than
+    the silent zero it used to.
+
+    Deliberately NOT compared to back_prop_type=1 in absolute terms: the two
+    methods are known not to agree yet (test_dft_gradient.py's
+    test_dense_dft_matches_backprop is open at cos=0.856), because staggered
+    material averaging is missing from the cross-correlation in both. What is
+    checked is that the DFT path is populated, finite, and points broadly the
+    same way as boundary storage.
+    """
+    cfg = _make_config()
+    cfg.BACK_PROP_TYPE = 2
+    df = 1.0 / (NT * DT)
+    cfg.gradfreqs = [k * df for k in range(1, int(50.0 / df) + 1)]
+
+    src, src_pos, rec_pos = _simple_geometry(nrec=2)
+    nz, nx = N
+    mu = torch.full((nz * nx,), VS, dtype=torch.float32)
+    rho = torch.full((nz * nx,), RHO, dtype=torch.float32)
+
+    def grad_for(config):
+        clear_engine_cache()
+        M = torch.full((nz * nx,), VP, dtype=torch.float32).requires_grad_(True)
+        data = seiscl_forward(config, {"M": M, "mu": mu, "rho": rho},
+                              src, src_pos, rec_pos, output_fields=["vx"])
+        (0.5 * (data["vx"] ** 2).sum()).backward()
+        return M.grad.clone()
+
+    g_dft = grad_for(cfg)
+    assert torch.isfinite(g_dft).all(), "DFT gradient has non-finite values"
+    assert g_dft.abs().max() > 0, "DFT gradient is identically zero"
+
+    cfg1 = _make_config()
+    g_bnd = grad_for(cfg1)
+    a = g_bnd.numpy().astype(np.float64).ravel()
+    b = g_dft.numpy().astype(np.float64).ravel()
+    # float32 gradients around 1e-24 underflow a float32 norm -- do this in
+    # double or the cosine comes out as garbage.
+    cos = float(a @ b / (np.linalg.norm(a) * np.linalg.norm(b)))
+    assert cos > 0.8, (f"DFT gradient points a different way than boundary "
+                       f"storage (cos={cos:.4f})")
+    print("Testing: torch_dft_gradient_through_inputres ....... passed "
+          f"(cos vs back_prop_type=1 = {cos:.4f})")
+
+
+def test_dft_requires_gradfreqs():
+    """back_prop_type=2 without gradfreqs is refused, not silently zero."""
+    cfg = _make_config()
+    cfg.BACK_PROP_TYPE = 2
+    src, src_pos, rec_pos = _simple_geometry(nrec=2)
+    try:
+        seiscl_forward(cfg, _homogeneous_params(), src, src_pos, rec_pos,
+                       output_fields=["vx"])
+    except (ValueError, RuntimeError) as e:
+        assert "gradfreqs" in str(e), f"unexpected error: {e}"
+        print("Testing: torch_dft_requires_gradfreqs ....... passed")
+        return
+    raise AssertionError("back_prop_type=2 accepted an empty gradfreqs")
+
+
 if __name__ == "__main__":
     if not _TORCH_AVAILABLE:
         print("SeisCL.torch not importable (torch extra not installed) "
@@ -505,3 +572,5 @@ if __name__ == "__main__":
         test_checkpoint_survives_interleaved_forward()
         test_checkpoint_survives_cache_clear()
         test_multishot_gradient_both_checkpoint_policies()
+        test_dft_requires_gradfreqs()
+        test_dft_gradient_through_inputres()

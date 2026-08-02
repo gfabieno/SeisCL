@@ -170,6 +170,9 @@ CacheKey make_cache_key(const Config &cfg, int allns, int allng,
     k.GRADSRCOUT = cfg.GRADSRCOUT;
     k.HOUT = cfg.HOUT;
     k.BACK_PROP_TYPE = cfg.BACK_PROP_TYPE;
+    k.gradfreqs = cfg.gradfreqs;
+    k.dft_osamp = cfg.dft_osamp;
+    k.tmin = cfg.tmin;
     k.nmax_dev = cfg.nmax_dev;
     k.pref_device_type = cfg.pref_device_type;
     k.allns = allns;
@@ -344,14 +347,18 @@ py::dict run_forward(const Config &cfg, const py::dict &params,
     // through HDF5. Multi-shot runs still need the file: checkpoint_d2h()
     // runs per shot inside the shot loop, so only the last shot is ever
     // resident.
-    bool skip_file = has_checkpoint && h->m.src_recs.ns == 1;
+    // BACK_PROP_TYPE=2 keeps no checkpoint at all: its adjoint call
+    // re-runs the forward pass to refill the frequency buffers, so
+    // there is nothing to hand over or spill.
+    bool uses_checkpoint = has_checkpoint && cfg.BACK_PROP_TYPE == 1;
+    bool skip_file = uses_checkpoint && h->m.src_recs.ns == 1;
 
     // More than one shot: every shot's wavefield has to survive until the
     // adjoint pass, which the shared buffers cannot do on their own (they
     // are reused per shot). Keep the per-shot datasets, but back them with
     // RAM rather than disk when they fit.
     bool in_memory = false;
-    if (has_checkpoint && !skip_file) {
+    if (uses_checkpoint && !skip_file) {
         std::size_t bytes =
             checkpoint_bytes_per_shot(*h) * h->m.src_recs.ns;
         in_memory = checkpoint_fits_in_memory(bytes);
@@ -475,13 +482,17 @@ py::dict run_backward(const Config &cfg, const py::dict &params,
     // overwritten its buffers since, the boundary wavefield is already where
     // the adjoint pass needs it. Otherwise fall back to the file, which the
     // forward either wrote itself or had flushed to it.
+    // BACK_PROP_TYPE=2 never writes a checkpoint -- time_stepping() re-runs
+    // the forward pass on this call instead -- so there is nothing to locate.
+    bool uses_checkpoint = cfg.BACK_PROP_TYPE == 1;
     bool from_memory =
-        h->pending_valid && h->pending_ckpt == checkpoint_path;
+        !uses_checkpoint ||
+        (h->pending_valid && h->pending_ckpt == checkpoint_path);
     // Single shot keeps the wavefield in the engine's own buffers; multiple
     // shots keep the per-shot datasets in a RAM-backed HDF5 file.
-    bool via_ram_file = from_memory && h->m.CKPT_IN_MEMORY &&
-                        h->m.CKPT_FILE_ID > 0;
-    if (!from_memory) {
+    bool via_ram_file = uses_checkpoint && from_memory &&
+                        h->m.CKPT_IN_MEMORY && h->m.CKPT_FILE_ID > 0;
+    if (uses_checkpoint && !from_memory) {
         std::ifstream f(checkpoint_path.c_str());
         if (!f.good()) {
             throw std::runtime_error(
@@ -492,7 +503,8 @@ py::dict run_backward(const Config &cfg, const py::dict &params,
         // Whatever the forward did, this run must read the real file.
         h->m.CKPT_IN_MEMORY = 0;
     }
-    h->m.SKIP_CHECKPOINT_FILE = (from_memory && !via_ram_file) ? 1 : 0;
+    h->m.SKIP_CHECKPOINT_FILE =
+        (uses_checkpoint && from_memory && !via_ram_file) ? 1 : 0;
 
     struct filenames files;
     std::memset(&files, 0, sizeof(files));
@@ -542,6 +554,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         .def_readwrite("GRADSRCOUT", &Config::GRADSRCOUT)
         .def_readwrite("HOUT", &Config::HOUT)
         .def_readwrite("BACK_PROP_TYPE", &Config::BACK_PROP_TYPE)
+        .def_readwrite("gradfreqs", &Config::gradfreqs)
+        .def_readwrite("dft_osamp", &Config::dft_osamp)
+        .def_readwrite("tmin", &Config::tmin)
         .def_readwrite("nmax_dev", &Config::nmax_dev)
         .def_readwrite("pref_device_type", &Config::pref_device_type);
 
