@@ -766,15 +766,30 @@ int calc_grad(model * m, device * dev)  {
                                              +c[15]*dot[7];
                         }
                         
+                        /* The c[16..23] group must carry the *same* sign as
+                         * the gradM/gradmu expressions above -- see the
+                         * identical, already-fixed ND==2 branch below
+                         * (calc_grad.c, "The c[16..23] group is the
+                         * parameterization chain rule" comment) for the full
+                         * derivation. That fix, made while validating the 2D
+                         * on-device DFT kernel, was never ported to this
+                         * ND==3 branch because nothing exercised
+                         * back_prop_type=2 in 3D until grad_dft3D.cl existed.
+                         * Found by comparing grad_dft3D.cl (which already
+                         * uses the correct sign, copied from the fixed 2D
+                         * kernel) against this host oracle: gradvp/gradvs
+                         * matched to fp32 precision but gradrho did not,
+                         * isolated to exactly this group -- see
+                         * notes/3d-gradient-findings.md, "Item 6". */
                          gradrho[indm]+=-dot[8]
-                                        +c[16]*dot[0]
-                                        -c[17]*dot[1]
-                                        +c[18]*dot[2]
-                                        -c[19]*dot[3]
-                                        +c[20]*dot[4]
-                                        -c[21]*dot[5]
-                                        +c[22]*dot[6]
-                                        -c[23]*dot[7];
+                                        -c[16]*dot[0]
+                                        +c[17]*dot[1]
+                                        -c[18]*dot[2]
+                                        +c[19]*dot[3]
+                                        -c[20]*dot[4]
+                                        +c[21]*dot[5]
+                                        -c[22]*dot[6]
+                                        +c[23]*dot[7];
 
                     }
                     

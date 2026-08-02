@@ -107,3 +107,66 @@ def gradient_2d_elastic(fwd, adj, M, mu, rho, bins, ntnyq, dtnyq, dt,
     # calc_grad already applies the param_type=0 chain rule through c[], so
     # these are gradients with respect to (vp, vs, rho) directly.
     return {"vp": gM, "vs": gmu, "rho": grho}
+
+
+def gradient_3d_elastic(fwd, adj, M, mu, rho, bins, ntnyq, dtnyq, dt,
+                        fdoh, nz, ny, nx, ND=3.0):
+    """3D extension of gradient_2d_elastic. Same coefficients (already generic
+    in ND), dot products extended to the extra field components (vy, syy,
+    sxy, syz), transcribed from src/grad_dft3D.cl / calc_grad.c's ND==3
+    branch. cl_diff(a,b,c) = a-b-c (calc_grad.c:46): each of
+    sxx_myyzz/syy_mxxzz/szz_mxxyy drops its own component from the sum of all
+    three.
+
+    :param fwd: dict var -> (NZpad, NYpad, NXpad, NFREQS) forward spectrum
+    :param adj: dict var -> same, adjoint spectrum
+    :param M, mu, rho: physical stiffness/density arrays, shape (nz, ny, nx)
+    :param bins: gradfreqsn, integer DFT bin indices
+    :return: dict with 'vp', 'vs', 'rho', each (nz, ny, nx)
+    """
+    df = 1.0 / ntnyq / dt / dtnyq
+    dftnorm = float(ntnyq) * float(dtnyq)
+    c = grad_coef_elast_0(M, mu, rho, ND)
+
+    sl = (slice(fdoh, fdoh + nz), slice(fdoh, fdoh + ny), slice(fdoh, fdoh + nx))
+
+    def F(v):
+        return fwd[v][sl].astype(np.complex128)
+
+    def A(v):
+        return adj[v][sl].astype(np.complex128)
+
+    gM = np.zeros((nz, ny, nx), dtype=np.float64)
+    gmu = np.zeros((nz, ny, nx), dtype=np.float64)
+    grho = np.zeros((nz, ny, nx), dtype=np.float64)
+
+    for j, b in enumerate(bins):
+        w = 2.0 * np.pi * df * float(b)
+
+        fsxx, fsyy, fszz = F("sxx")[..., j], F("syy")[..., j], F("szz")[..., j]
+        fsxy, fsxz, fsyz = F("sxy")[..., j], F("sxz")[..., j], F("syz")[..., j]
+        asxx, asyy, aszz = A("sxx")[..., j], A("syy")[..., j], A("szz")[..., j]
+        asxy, asxz, asyz = A("sxy")[..., j], A("sxz")[..., j], A("syz")[..., j]
+        fvx, fvy, fvz = F("vx")[..., j], F("vy")[..., j], F("vz")[..., j]
+        avx, avy, avz = A("vx")[..., j], A("vy")[..., j], A("vz")[..., j]
+
+        sppp = fsxx + fsyy + fszz
+        spppr = asxx + asyy + aszz
+        sxx_myyzz = fsxx - fsyy - fszz
+        syy_mxxzz = fsyy - fsxx - fszz
+        szz_mxxyy = fszz - fsxx - fsyy
+
+        d0 = w * _itreal(spppr, sppp) / dftnorm
+        d2 = w * (_itreal(asxy, fsxy) + _itreal(asxz, fsxz)
+                  + _itreal(asyz, fsyz)) / dftnorm
+        d3 = d0
+        d4 = w * (_itreal(asxx, sxx_myyzz) + _itreal(asyy, syy_mxxzz)
+                  + _itreal(aszz, szz_mxxyy)) / dftnorm
+        d8 = w * (_itreal(avx, fvx) + _itreal(avy, fvy)
+                  + _itreal(avz, fvz)) / dftnorm
+
+        gM += -c[0] * d0
+        gmu += -c[2] * d2 + c[3] * d3 - c[4] * d4
+        grho += (-d8 - c[16] * d0 - c[18] * d2 + c[19] * d3 - c[20] * d4)
+
+    return {"vp": gM, "vs": gmu, "rho": grho}

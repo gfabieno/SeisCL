@@ -63,6 +63,49 @@ def make_seiscl(wd, **overrides):
     return s
 
 
+# 3D base model, same style as BASE but with N=[64,64,64] -- matches the
+# grid used by the item 5 3D gradient audit (notes/3d-gradient-findings.md),
+# not the 2D BASE's N, so nab/dh/dt/f0 differ accordingly.
+BASE_3D = dict(N=np.array([64, 64, 64]), ND=3, dh=10, dt=8e-4, NT=875,
+              FDORDER=8, freesurf=0, abs_type=2, nab=16, f0=15, seisout=2,
+              param_type=0)
+
+
+def make_seiscl_3d(wd, **overrides):
+    """A configured 3D SeisCL with one source at the centre and a receiver
+    line in x, at fixed y and z -- the 3D analog of make_seiscl()."""
+    cfg = dict(BASE_3D)
+    cfg.update(overrides)
+    s = SeisCL(workdir=wd, **cfg)
+    nz, ny, nx = int(s.N[0]), int(s.N[1]), int(s.N[2])
+    z0 = (s.nab + 5) * s.dh
+    y0 = ny // 2 * s.dh
+    s.src_pos_all = np.stack([[nx // 2 * s.dh], [y0], [z0], [0.], [100.]])
+    nr = 12
+    xlo = (s.nab + 4) * s.dh
+    xhi = (nx - s.nab - 4) * s.dh
+    xr = np.linspace(xlo, xhi, nr)
+    s.rec_pos_all = np.stack([xr, np.full(nr, y0), np.full(nr, z0),
+                              np.zeros(nr), np.arange(1, nr + 1, dtype=float),
+                              np.zeros(nr), np.zeros(nr), np.zeros(nr)])
+    s.src_all = None
+    return s
+
+
+def homogeneous_3d(s):
+    return {"vp": np.full(s.N, VP), "vs": np.full(s.N, VS),
+            "rho": np.full(s.N, RHO)}
+
+
+def with_anomaly_3d(s, dvp=300.0):
+    p = homogeneous_3d(s)
+    nz, ny, nx = int(s.N[0]), int(s.N[1]), int(s.N[2])
+    sl = (slice(nz // 2 - 5, nz // 2 + 5), slice(ny // 2 - 5, ny // 2 + 5),
+          slice(nx // 2 - 5, nx // 2 + 5))
+    p["vp"][sl] += dvp
+    return p
+
+
 def homogeneous(s):
     return {"vp": np.full(s.N, VP), "vs": np.full(s.N, VS),
             "rho": np.full(s.N, RHO)}
