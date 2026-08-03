@@ -1081,14 +1081,24 @@ int assign_modeling_case(model * m){
       NOT specific to FREESURF==2 or to RESTYPE: reproduced with FREESURF==0
       and manually-zeroed input parameters, so it is a pre-existing SeisCL
       limitation of BACK_PROP_TYPE==1 (also affecting e.g. an acoustic
-      water layer with mu==0 today) that RESTYPE==1 does not avoid. Fixing
-      it is out of scope here; block GRADOUT with FREESURF==2 entirely
-      until it is (see notes/vacuum-freesurface-plan.md, Phase 3).*/
-    if (m->FREESURF==2 && m->GRADOUT && m->BACK_PROP_TYPE==1 && m->restype!=1){
+      water layer with mu==0 today) that RESTYPE==1 does not avoid.
+      (3) BACK_PROP_TYPE==2 (frequency domain) reaches calc_grad.c's
+      coefficient routines, which divide by the same raw M/mu/rho the
+      vacuum band zeroes -- also NaN, by a third independent mechanism.
+      Fixing any of these is out of scope here, so the only gradient
+      configuration this version supports with FREESURF==2 is
+      BACK_PROP_TYPE==1 together with RESTYPE==1 (validated end to end:
+      finite, correctly cropped, sensible-magnitude gradM). Everything
+      else is rejected rather than silently returning NaN -- note this
+      must be an allowlist, not a BACK_PROP_TYPE==1-only check, or
+      BACK_PROP_TYPE==2 slips through into (3)
+      (see notes/vacuum-freesurface-plan.md, Phase 3).*/
+    if (m->FREESURF==2 && m->GRADOUT
+        && !(m->BACK_PROP_TYPE==1 && m->restype==1)){
         state=1;
         fprintf(stderr,
                 "Error: FREESURF=2 (improved vacuum formulation) with "
-                "GRADOUT and BACK_PROP_TYPE=1 requires restype=1 in this "
+                "GRADOUT requires BACK_PROP_TYPE=1 and restype=1 in this "
                 "version -- see notes/vacuum-freesurface-plan.md, Phase 3 \n");
     }
     
