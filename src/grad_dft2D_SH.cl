@@ -34,10 +34,11 @@
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 #endif
 
-#define NZM (NZ - 2*FDOH)
-#define NXM (NX - 2*FDOH)
-#define NPAD (NX*NZ)
-#define indf(f,i,k) ((f)*NPAD + ((i)+FDOH)*NZ + ((k)+FDOH))
+/* NZS/NXS, not NZ/NX: the scalar padded extents. See grad_dft2D.cl. */
+#define NZM (NZS - 2*FDOH)
+#define NXM (NXS - 2*FDOH)
+#define NPAD (NXS*NZS)
+#define indf(f,i,k) ((f)*NPAD + ((i)+FDOH)*NZS + ((k)+FDOH))
 
 LFUNDEF double itreal(float2 a, float2 b)
 {
@@ -54,7 +55,9 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
                           GLOBARG float2 * fsyz_f,
                           GLOBARG float2 * fvy,
                           GLOBARG float2 * fsxy,
-                          GLOBARG float2 * fsyz)
+                          GLOBARG float2 * fsyz,
+                          int src_scale,
+                          int res_scale)
 {
 
     #ifdef __OPENCL_VERSION__
@@ -79,6 +82,12 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
     double dftdf  = 1.0/((double)NTNYQ*(double)DT*(double)DTNYQ);
     double dftnorm = (double)NTNYQ*(double)DTNYQ;
 
+    /* Undo the FP16>0 wavefield scaling before applying the physical-unit
+     * coefficients -- see the long comment in grad_dft2D.cl. vy carries
+     * par_scale (set_par_scale scales vx/vy/vz only), the stresses carry 0. */
+    double sc_ss = pow(2.0, -(double)src_scale - (double)res_scale);
+    double sc_vv = sc_ss*pow(2.0, 2.0*(double)PARSCALE);
+
     /* grad_coefelast_0_SH. Vacuum and fluid cells contribute nothing. */
     double c0=0.0, c4=0.0;
     if (rho_p>0.0 && mu_p>=1.0){
@@ -93,9 +102,9 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         double w = 2.0*3.14159265358979323846*dftdf*(double)gradfreqsn[f];
         int id = indf(f,i,k);
 
-        double d0 = w*(itreal(fsxy[id], fsxy_f[id])
+        double d0 = sc_ss*w*(itreal(fsxy[id], fsxy_f[id])
                      + itreal(fsyz[id], fsyz_f[id]))/dftnorm;
-        double d2 = w*itreal(fvy[id], fvy_f[id])/dftnorm;
+        double d2 = sc_vv*w*itreal(fvy[id], fvy_f[id])/dftnorm;
 
         gmu  += -c0*d0;
         /* c4 is vs^2 times the internal coefficient of d0, so it carries the

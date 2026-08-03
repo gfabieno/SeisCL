@@ -51,12 +51,18 @@
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 #endif
 
-/* NZ and NX are the *padded* extents (clprogram.c:304-315 defines them as
- * N[i]+FDORDER), so the model extents are NZ-2*FDOH and NX-2*FDOH. */
-#define NZM (NZ - 2*FDOH)
-#define NXM (NX - 2*FDOH)
-#define NPAD (NX*NZ)
-#define indf(f,i,k) ((f)*NPAD + ((i)+FDOH)*NZ + ((k)+FDOH))
+/* NZS and NXS are the *scalar* padded extents (clprogram.c defines them as
+ * N[i]+FDORDER). Deliberately not NZ/NX: those are halved on the fastest axis
+ * whenever FP16>0, since the update kernels address the wavefield as
+ * float2/half2. This kernel is scalar -- savefreqs accumulates one float2
+ * spectrum entry per scalar element (kernel_savefreqs indexes gid<num_ele, and
+ * Init_OpenCL.c sizes cl_fvar as 2*sizeof(float)*num_ele*NFREQS regardless of
+ * FP16) -- so using NZ here made the correlation cover and stride only half the
+ * grid at FP16=1, giving a gradient uncorrelated with the FP16=0 one. */
+#define NZM (NZS - 2*FDOH)
+#define NXM (NXS - 2*FDOH)
+#define NPAD (NXS*NZS)
+#define indf(f,i,k) ((f)*NPAD + ((i)+FDOH)*NZS + ((k)+FDOH))
 
 LFUNDEF double itreal(float2 a, float2 b)
 {
@@ -82,7 +88,9 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
                           GLOBARG float2 * fvz,
                           GLOBARG float2 * fsxx,
                           GLOBARG float2 * fszz,
-                          GLOBARG float2 * fsxz)
+                          GLOBARG float2 * fsxz,
+                          int src_scale,
+                          int res_scale)
 {
 
     #ifdef __OPENCL_VERSION__
@@ -112,6 +120,23 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
     /* Parseval factor: 1/(NTNYQ*DTNYQ), not 1/NTNYQ -- see calc_grad.c. Without
      * the DTNYQ the gradient scales linearly with the decimation factor. */
     double dftnorm = (double)NTNYQ*(double)DTNYQ;
+
+    /* FP16>0 keeps the wavefield in scaled units, so the spectra savefreqs
+     * accumulated are not in physical units and the coefficient expressions
+     * below (which are) would be off by a power of two. seisout recovers a
+     * stored value as ldexp(var, -src_scale + var->scaler)
+     * (automatic_kernels.c's kernel_varout), and set_par_scale gives only
+     * vx/vy/vz a nonzero scaler, equal to par_scale -- stresses keep 0. The
+     * forward spectra therefore carry 2^(scaler-src_scale) and the adjoint
+     * ones 2^(scaler-res_scale), so each product below needs one factor:
+     *
+     *   stress x stress (d0,d2,d3,d4):  2^(-src_scale-res_scale)
+     *   velocity x velocity (d8):       2^(2*par_scale-src_scale-res_scale)
+     *
+     * There are no mixed velocity/stress products. All three scales are 0
+     * when FP16==0, so this is exactly a no-op there. */
+    double sc_ss = pow(2.0, -(double)src_scale - (double)res_scale);
+    double sc_vv = sc_ss*pow(2.0, 2.0*(double)PARSCALE);
 
     /* ND is a build-option macro (-D ND=%d), so it must not be shadowed. */
     const double NDd = (double)ND;
@@ -156,11 +181,11 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         Fmm.x = Fxx.x - Fzz.x;  Fmm.y = Fxx.y - Fzz.y;   /* fwd  sxx-szz */
         Fmz.x = Fzz.x - Fxx.x;  Fmz.y = Fzz.y - Fxx.y;   /* fwd  szz-sxx */
 
-        double d0 = w*itreal(App, Fpp)/dftnorm;
-        double d2 = w*itreal(Axz, Fxz)/dftnorm;
+        double d0 = sc_ss*w*itreal(App, Fpp)/dftnorm;
+        double d2 = sc_ss*w*itreal(Axz, Fxz)/dftnorm;
         double d3 = d0;
-        double d4 = w*(itreal(Axx, Fmm) + itreal(Azz, Fmz))/dftnorm;
-        double d8 = w*(itreal(fvx[id], fvx_f[id])
+        double d4 = sc_ss*w*(itreal(Axx, Fmm) + itreal(Azz, Fmz))/dftnorm;
+        double d8 = sc_vv*w*(itreal(fvx[id], fvx_f[id])
                      + itreal(fvz[id], fvz_f[id]))/dftnorm;
 
 #if HOUT==1
@@ -171,17 +196,22 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
          * velocity term, chosen so the result stays positive. */
         {
             double w2 = w*w;
-            double h0 = w2*((double)Fpp.x*(double)Fpp.x
+            /* These are forward-only squares, so both factors are the
+             * forward one -- 2^(-2*src_scale), not 2^(-src_scale-res_scale).
+             * Same no-op at FP16==0 as the gradient terms above. */
+            double sh_ss = pow(2.0, -2.0*(double)src_scale);
+            double sh_vv = sh_ss*pow(2.0, 2.0*(double)PARSCALE);
+            double h0 = sh_ss*w2*((double)Fpp.x*(double)Fpp.x
                           + (double)Fpp.y*(double)Fpp.y)/dftnorm;
-            double h2 = w2*((double)Fxz.x*(double)Fxz.x
+            double h2 = sh_ss*w2*((double)Fxz.x*(double)Fxz.x
                           + (double)Fxz.y*(double)Fxz.y)/dftnorm;
             double h3 = h0;
-            double h4 = w2*(((double)Fmm.x*(double)Fmm.x
+            double h4 = sh_ss*w2*(((double)Fmm.x*(double)Fmm.x
                            + (double)Fmm.y*(double)Fmm.y)
                           + ((double)Fmz.x*(double)Fmz.x
                            + (double)Fmz.y*(double)Fmz.y))/dftnorm;
             float2 Vx = fvx_f[id], Vz = fvz_f[id];
-            double h8 = w2*(((double)Vx.x*(double)Vx.x
+            double h8 = sh_vv*w2*(((double)Vx.x*(double)Vx.x
                            + (double)Vx.y*(double)Vx.y)
                           + ((double)Vz.x*(double)Vz.x
                            + (double)Vz.y*(double)Vz.y))/dftnorm;
