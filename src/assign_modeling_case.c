@@ -881,13 +881,21 @@ int assign_modeling_case(model * m){
         }
         if (m->FP16>1){
             state=1;
-            fprintf(stderr,"Error: back_prop_type=2 does not support FP16>1: "
-                           "the savefreqs kernel reads the wavefield buffers "
-                           "as float, but they are packed half. FP16=1 (FP32 "
-                           "vectorized) is supported -- it keeps one float per "
-                           "scalar element, and the DFT correlation kernels "
+            fprintf(stderr,"Error: back_prop_type=2 does not support FP16>1 "
+                           "yet. FP16<=1 is supported: the correlation kernels "
                            "index with the scalar extents NZS/NXS rather than "
-                           "the float2-halved NZ/NX\n");
+                           "the float2-halved NZ/NX, and undo the wavefield "
+                           "scaling with src_scale/res_scale/PARSCALE, giving "
+                           "cos=1.000000 against FP16=0. For FP16>1 savefreqs "
+                           "now types the wavefield as half and converts on "
+                           "load, which is necessary but not sufficient: the "
+                           "result is still structurally wrong (measured cos "
+                           "0.24-0.67 vs FP16=0, while back_prop_type=1 at the "
+                           "same FP16 level gives 0.9998), so something beyond "
+                           "the load and the power-of-two scaling is still "
+                           "unaccounted for. Compare the dftout spectra at "
+                           "FP16=0 and 2 to isolate savefreqs from the "
+                           "correlation before going further\n");
         }
 
     }
