@@ -57,7 +57,8 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
                           GLOBARG float2 * fsxy,
                           GLOBARG float2 * fsyz,
                           int src_scale,
-                          int res_scale)
+                          int res_scale,
+                          int par_scale)
 {
 
     #ifdef __OPENCL_VERSION__
@@ -73,7 +74,7 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
     int k = gid - i*NZM;
     int f;
 
-    double s2    = pow(2.0, -(double)PARSCALE);
+    double s2    = pow(2.0, -(double)par_scale);
     double dhdt  = (double)DH/(double)DT;
     double lrho  = (double)rho[gid];
     double rho_p = (lrho!=0.0) ? (1.0/lrho)*((double)DT/(double)DH)*s2 : 0.0;
@@ -86,7 +87,7 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
      * coefficients -- see the long comment in grad_dft2D.cl. vy carries
      * par_scale (set_par_scale scales vx/vy/vz only), the stresses carry 0. */
     double sc_ss = pow(2.0, -(double)src_scale - (double)res_scale);
-    double sc_vv = sc_ss*pow(2.0, 2.0*(double)PARSCALE);
+    double sc_vv = sc_ss*pow(2.0, 2.0*(double)par_scale);
 
     /* grad_coefelast_0_SH. Vacuum and fluid cells contribute nothing. */
     double c0=0.0, c4=0.0;

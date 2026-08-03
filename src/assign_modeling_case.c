@@ -885,7 +885,7 @@ int assign_modeling_case(model * m){
                            "yet. FP16<=1 is supported: the correlation kernels "
                            "index with the scalar extents NZS/NXS rather than "
                            "the float2-halved NZ/NX, and undo the wavefield "
-                           "scaling with src_scale/res_scale/PARSCALE, giving "
+                           "scaling with src_scale/res_scale/par_scale, giving "
                            "cos=1.000000 against FP16=0. For FP16>1 savefreqs "
                            "now types the wavefield as half and converts on "
                            "load, which is necessary but not sufficient: the "

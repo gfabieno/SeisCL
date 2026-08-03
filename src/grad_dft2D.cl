@@ -90,7 +90,8 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
                           GLOBARG float2 * fszz,
                           GLOBARG float2 * fsxz,
                           int src_scale,
-                          int res_scale)
+                          int res_scale,
+                          int par_scale)
 {
 
     #ifdef __OPENCL_VERSION__
@@ -108,7 +109,7 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
 
     /* Undo the internal non-dimensionalization: the coefficient expressions
      * below are in physical units. Mirrors transf_grad() in reverse. */
-    double s2    = pow(2.0, -(double)PARSCALE);
+    double s2    = pow(2.0, -(double)par_scale);
     double dhdt  = (double)DH/(double)DT;
     double lrho  = (double)rho[gid];
     double rho_p = (lrho!=0.0) ? (1.0/lrho)*((double)DT/(double)DH)*s2 : 0.0;
@@ -136,7 +137,7 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
      * There are no mixed velocity/stress products. All three scales are 0
      * when FP16==0, so this is exactly a no-op there. */
     double sc_ss = pow(2.0, -(double)src_scale - (double)res_scale);
-    double sc_vv = sc_ss*pow(2.0, 2.0*(double)PARSCALE);
+    double sc_vv = sc_ss*pow(2.0, 2.0*(double)par_scale);
 
     /* ND is a build-option macro (-D ND=%d), so it must not be shadowed. */
     const double NDd = (double)ND;
@@ -200,7 +201,7 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
              * forward one -- 2^(-2*src_scale), not 2^(-src_scale-res_scale).
              * Same no-op at FP16==0 as the gradient terms above. */
             double sh_ss = pow(2.0, -2.0*(double)src_scale);
-            double sh_vv = sh_ss*pow(2.0, 2.0*(double)PARSCALE);
+            double sh_vv = sh_ss*pow(2.0, 2.0*(double)par_scale);
             double h0 = sh_ss*w2*((double)Fpp.x*(double)Fpp.x
                           + (double)Fpp.y*(double)Fpp.y)/dftnorm;
             double h2 = sh_ss*w2*((double)Fxz.x*(double)Fxz.x
