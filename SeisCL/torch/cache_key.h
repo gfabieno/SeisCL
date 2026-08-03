@@ -35,6 +35,11 @@ struct CacheKey {
     float K_MAX_CPML;
     float abpc;
     int L;
+    // Not just L: FL's values feed eta() during Init_cst(), which a cache
+    // hit skips entirely (engine_refresh_params re-runs Init_model_values
+    // only). Two runs differing solely in FL would otherwise silently share
+    // the first one's relaxation times.
+    std::vector<float> FL;
     float f0;
     int par_type;
     int FP16;
@@ -80,6 +85,7 @@ struct CacheKey {
                NAB == o.NAB && ABS_TYPE == o.ABS_TYPE && VPPML == o.VPPML &&
                FPML == o.FPML && NPOWER == o.NPOWER &&
                K_MAX_CPML == o.K_MAX_CPML && abpc == o.abpc && L == o.L &&
+               FL == o.FL &&
                f0 == o.f0 && par_type == o.par_type && FP16 == o.FP16 &&
                restype == o.restype && GRADSRCOUT == o.GRADSRCOUT &&
                HOUT == o.HOUT && BACK_PROP_TYPE == o.BACK_PROP_TYPE &&
@@ -115,6 +121,7 @@ struct CacheKeyHash {
         combine(h, k.K_MAX_CPML);
         combine(h, k.abpc);
         combine(h, k.L);
+        for (float f : k.FL) combine(h, f);
         combine(h, k.f0);
         combine(h, k.par_type);
         combine(h, k.FP16);

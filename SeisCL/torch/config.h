@@ -31,6 +31,13 @@ struct Config {
     float abpc = 4.0f;
     int L = 0;
     float f0 = 15.0f;
+    // Center frequencies of the L attenuation mechanisms (SeisCL.py's FL,
+    // normally read from the csts file as "/FL"). Must have exactly L
+    // entries whenever L > 0: assign_modeling_case()'s eta() derives
+    // eta[l] = 2*pi*FL[l]*dt, and the M()/mu() transforms then compute
+    // dt/eta[l], so a zero-filled FL yields Inf/NaN model parameters
+    // rather than an error.
+    std::vector<float> FL;
     int par_type = 0;
     int FP16 = 0;
     int restype = 0;

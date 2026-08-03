@@ -434,6 +434,63 @@ def _multishot_geometry(nshot, nrec=6):
             torch.tensor(rp, dtype=torch.float32))
 
 
+def _viscoelastic_params(tau=0.02):
+    p = _homogeneous_params()
+    nz, nx = N
+    p["taup"] = torch.full((nz * nx,), tau, dtype=torch.float32)
+    p["taus"] = torch.full((nz * nx,), tau, dtype=torch.float32)
+    return p
+
+
+def test_viscoelastic_requires_FL():
+    """cfg.L>0 needs cfg.FL, and honours its values.
+
+    Regression test for the original torch binding: Config exposed L but
+    nothing populated the "FL" constants array, so assign_modeling_case()'s
+    zero-filled allocation reached eta() (eta[l]=2*pi*FL[l]*dt=0) and the
+    M()/mu() transforms computed dt/eta[l] -> Inf. Every viscoelastic run
+    returned Inf/NaN silently, even with valid taup/taus.
+    """
+    src, src_pos, rec_pos = _simple_geometry()
+
+    def run(L, FL=None, tau=0.02):
+        cfg = _make_config()
+        cfg.L = L
+        if FL is not None:
+            cfg.FL = FL
+        params = _viscoelastic_params(tau) if L else _homogeneous_params()
+        return seiscl_forward(cfg, params, src, src_pos, rec_pos)["vx"]
+
+    # A missing or wrong-length FL must be a clear error, not silent NaN.
+    for L, FL in ((1, None), (2, [15.0])):
+        try:
+            run(L, FL)
+            raise AssertionError(f"L={L} FL={FL} should have been rejected")
+        except ValueError as exc:
+            assert "FL" in str(exc), str(exc)
+
+    vx_elastic = run(0)
+    vx_visco = run(1, [25.0])
+    assert torch.isfinite(vx_visco).all(), "viscoelastic output not finite"
+    assert (vx_visco != 0).any(), "viscoelastic output is all zero"
+
+    # Attenuation must actually do something: less energy than elastic.
+    e_el = float((vx_elastic ** 2).sum())
+    e_vi = float((vx_visco ** 2).sum())
+    assert e_vi < e_el, f"viscoelastic not attenuated: {e_vi:.4g} vs {e_el:.4g}"
+
+    # FL is part of the engine cache key: same L, different FL must rebuild
+    # rather than silently reuse the first build's relaxation times.
+    a = run(1, [10.0])
+    b = run(1, [60.0])
+    assert float((a - b).abs().max()) > 0, \
+        "different FL returned identical data -- stale cached build"
+    assert torch.equal(a, run(1, [10.0])), \
+        "same FL not reproducible on a cache hit"
+
+    print("Testing: torch_viscoelastic_requires_FL ....... passed")
+
+
 def test_multishot_gradient_both_checkpoint_policies():
     """Multi-shot gradients are right whether the checkpoint is RAM or a file.
 
@@ -504,4 +561,5 @@ if __name__ == "__main__":
         test_cache_eviction_correctness()
         test_checkpoint_survives_interleaved_forward()
         test_checkpoint_survives_cache_clear()
+        test_viscoelastic_requires_FL()
         test_multishot_gradient_both_checkpoint_policies()

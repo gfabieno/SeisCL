@@ -163,6 +163,7 @@ CacheKey make_cache_key(const Config &cfg, int allns, int allng,
     k.K_MAX_CPML = cfg.K_MAX_CPML;
     k.abpc = cfg.abpc;
     k.L = cfg.L;
+    k.FL = cfg.FL;
     k.f0 = cfg.f0;
     k.par_type = cfg.par_type;
     k.FP16 = cfg.FP16;
@@ -535,6 +536,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         .def_readwrite("K_MAX_CPML", &Config::K_MAX_CPML)
         .def_readwrite("abpc", &Config::abpc)
         .def_readwrite("L", &Config::L)
+        .def_readwrite("FL", &Config::FL)
         .def_readwrite("f0", &Config::f0)
         .def_readwrite("par_type", &Config::par_type)
         .def_readwrite("FP16", &Config::FP16)

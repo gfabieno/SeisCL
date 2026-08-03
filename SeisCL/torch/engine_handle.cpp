@@ -109,6 +109,17 @@ void apply_config(model &m, const Config &cfg, int gradout, int inputres) {
             "(boundary-storage gradient)");
     }
 
+    if (cfg.L > 0 && static_cast<int>(cfg.FL.size()) != cfg.L) {
+        // Caught here rather than at the memcpy below so the message names
+        // the real problem. Without it, a zero-filled FL propagates through
+        // eta() into dt/eta[l] and the run returns Inf/NaN seismograms with
+        // no diagnostic at all.
+        throw std::invalid_argument(
+            "cfg.L=" + std::to_string(cfg.L) + " requires cfg.FL to hold "
+            "exactly " + std::to_string(cfg.L) + " attenuation-mechanism "
+            "center frequencies (got " + std::to_string(cfg.FL.size()) + ")");
+    }
+
     m.GRADOUT = gradout;
     m.INPUTRES = inputres;
     m.VARSOUT = 1;
@@ -219,6 +230,20 @@ int engine_build(EngineHandle &h, const Config &cfg, int gradout, int inputres,
     // whatever assign_modeling_case already allocated.
     set_params(h.m, params);
     set_srcrec(h.m, src, src_pos, rec_pos, output_fields);
+
+    // FL is normally read from the csts file (read_hdf5.c, dataset "/FL");
+    // with no file, fill it here. assign_modeling_case() has allocated the
+    // array by now (append_cst(m,"FL","/FL",m->L,NULL)) and Init_cst() is
+    // what runs eta()'s transform over it, so this must sit between the
+    // two. Same shape as the geometry/parameter uploads just above.
+    if (!state && h.m.L > 0) {
+        constants *fl = get_cst(h.m.csts, h.m.ncsts, "FL");
+        if (!fl || fl->num_ele != h.m.L) {
+            throw std::runtime_error(
+                "FL constants array was not registered as expected");
+        }
+        std::memcpy(fl->gl_cst, cfg.FL.data(), sizeof(float) * h.m.L);
+    }
 
     if (!state) state = Init_cst(&h.m);
     if (!state) state = Init_data(&h.m);
