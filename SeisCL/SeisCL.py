@@ -648,6 +648,12 @@ class SeisCL:
         native = ['vp', 'vs', 'rho']
         if self.L > 0:
             native += ['taup', 'taus']
+        # An explicit param_names is a request for those datasets as the
+        # engine wrote them: the chain rule below needs the full (vp, vs,
+        # rho) triplet, so applying it to a caller-chosen subset would index
+        # past the end, and applying it to an explicit ['vp','vs','rho'] would
+        # contradict the escape hatch the error message below documents.
+        explicit = param_names is not None
         if param_names is None:
             param_names = native
         toread = ['grad'+name for name in param_names]
@@ -663,7 +669,7 @@ class SeisCL:
                 o[-self.nab:, :] = 0
                 o[:, :self.nab] = 0
                 o[:, -self.nab:] = 0
-        if self.param_type != 0:
+        if self.param_type != 0 and not explicit:
             if getattr(self, "_last_params", None) is None:
                 raise SeisCLError(
                     "read_grad() needs the model to convert the gradient into "
@@ -671,7 +677,7 @@ class SeisCL:
                     "param_names=['vp','vs','rho'] to get the native gradient."
                     % self.param_type)
             output = self._grad_to_param_type(output, self._last_params)
-        return output 
+        return output
     
     def read_dft(self, workdir=None, filename=None):
         """
@@ -734,6 +740,7 @@ class SeisCL:
         native = ['vp', 'vs', 'rho']
         if self.L > 0:
             native += ['taup', 'taus']
+        explicit = param_names is not None  # see read_grad()
         if param_names is None:
             param_names = native
         if filename is None:
@@ -756,7 +763,7 @@ class SeisCL:
                 o[-self.nab:, :] = 0
                 o[:, :self.nab] = 0
                 o[:, -self.nab:] = 0
-        if self.param_type != 0:
+        if self.param_type != 0 and not explicit:
             if getattr(self, "_last_params", None) is None:
                 raise SeisCLError(
                     "read_Hessian() needs the model to convert into "
