@@ -69,10 +69,32 @@ LFUNDEF double itreal(float2 a, float2 b)
     return (double)a.y*(double)b.x - (double)a.x*(double)b.y;
 }
 
+/* Parameter buffers are stored as half when FP16>1 (Init_OpenCL.c halves
+ * cl_par.size), so reading them as float would return garbage. Deliberately
+ * NOT __pprec/__pconv: those are the *vectorized* pair types the update
+ * kernels use (float2/half2), and __pconv is the identity at FP16==3 because
+ * those kernels go on to compute in half2. This kernel is scalar -- one work
+ * item per model cell -- and always computes in float/double, so it takes the
+ * scalar half type and converts on load. The gradient/Hessian outputs are
+ * unaffected: cl_grad and cl_H are never halved. */
+#if FP16>1
+    #define PARARG half
+    #ifdef __OPENCL_VERSION__
+        /* cl_khr_fp16 is enabled in header_CUDACL.cl, so a half load
+         * converts implicitly. */
+        #define PARCONV(x) (x)
+    #else
+        #define PARCONV(x) __half2float(x)
+    #endif
+#else
+    #define PARARG float
+    #define PARCONV(x) (x)
+#endif
+
 FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
-                          GLOBARG float * M,
-                          GLOBARG float * mu,
-                          GLOBARG float * rho,
+                          GLOBARG PARARG * M,
+                          GLOBARG PARARG * mu,
+                          GLOBARG PARARG * rho,
                           GLOBARG float * gradM,
                           GLOBARG float * gradmu,
                           GLOBARG float * gradrho,
@@ -111,10 +133,10 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
      * below are in physical units. Mirrors transf_grad() in reverse. */
     double s2    = pow(2.0, -(double)par_scale);
     double dhdt  = (double)DH/(double)DT;
-    double lrho  = (double)rho[gid];
+    double lrho  = (double)PARCONV(rho[gid]);
     double rho_p = (lrho!=0.0) ? (1.0/lrho)*((double)DT/(double)DH)*s2 : 0.0;
-    double M_p   = (double)M[gid]*dhdt*s2;
-    double mu_p  = (double)mu[gid]*dhdt*s2;
+    double M_p   = (double)PARCONV(M[gid])*dhdt*s2;
+    double mu_p  = (double)PARCONV(mu[gid])*dhdt*s2;
 
     /* df = 1/(NTNYQ*dt*DTNYQ), from defines that already exist. */
     double dftdf = 1.0/((double)NTNYQ*(double)DT*(double)DTNYQ);

@@ -40,6 +40,20 @@
 #define NPAD (NXS*NZS)
 #define indf(f,i,k) ((f)*NPAD + ((i)+FDOH)*NZS + ((k)+FDOH))
 
+/* Scalar half load for the parameter buffers when FP16>1 -- see the long
+ * comment in grad_dft2D.cl for why this is not __pprec/__pconv. */
+#if FP16>1
+    #define PARARG half
+    #ifdef __OPENCL_VERSION__
+        #define PARCONV(x) (x)
+    #else
+        #define PARCONV(x) __half2float(x)
+    #endif
+#else
+    #define PARARG float
+    #define PARCONV(x) (x)
+#endif
+
 LFUNDEF double itreal(float2 a, float2 b)
 {
     return (double)a.y*(double)b.x - (double)a.x*(double)b.y;
@@ -76,9 +90,9 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
 
     double s2    = pow(2.0, -(double)par_scale);
     double dhdt  = (double)DH/(double)DT;
-    double lrho  = (double)rho[gid];
+    double lrho  = (double)PARCONV(rho[gid]);
     double rho_p = (lrho!=0.0) ? (1.0/lrho)*((double)DT/(double)DH)*s2 : 0.0;
-    double mu_p  = (double)mu[gid]*dhdt*s2;
+    double mu_p  = (double)PARCONV(mu[gid])*dhdt*s2;
 
     double dftdf  = 1.0/((double)NTNYQ*(double)DT*(double)DTNYQ);
     double dftnorm = (double)NTNYQ*(double)DTNYQ;
