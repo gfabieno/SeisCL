@@ -345,8 +345,11 @@ typedef struct gradients {
 typedef struct param_avg {
 
     clprogram rip;
+    clprogram rjp;
     clprogram rkp;
     clprogram muipkp;
+    clprogram muipjp;
+    clprogram mujpkp;
 
 } param_avg;
 

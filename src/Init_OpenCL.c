@@ -793,35 +793,45 @@ int Init_CUDA(model * m, device ** dev)  {
                 }
             }
 
-            // GPU port of the material-parameter averaging (2D elastic
-            // only -- see src/average_params.cl and
+            // GPU port of the material-parameter averaging (elastic only --
+            // see src/average_params.cl and
             // notes/vacuum-freesurface-plan.md, Phase 8). M/mu/rho are
             // already on-device above (uploaded in their final,
             // post-Init_model()-transform units); this overwrites
-            // rip/rkp/muipkp's just-uploaded (garbage, since their host
-            // transform is NULL for ND==2 -- see assign_modeling_case.c's
-            // append_par calls) device buffers with the correct
-            // GPU-computed values, then reads them back to host because
-            // res_scale() (residuals.c) reads rip/rkp's *host* gl_par
-            // directly. No explicit lsize: matches savebnd's launch
-            // (Init_OpenCL.c, below), which also leaves it to
+            // rip/rjp/rkp/muipkp/muipjp/mujpkp's just-uploaded (garbage,
+            // since their host transform is NULL -- see
+            // assign_modeling_case.c's append_par calls) device buffers
+            // with the correct GPU-computed values, then reads them back
+            // to host because res_scale() (residuals.c) reads rip/rkp's
+            // *host* gl_par directly. All kernels launch with wdim=3
+            // (gsize[1]=1 for ND==2, since average_params.cl's kernels are
+            // dimension-generic and always read a gidy) -- matches
+            // PARNY's build-time value from clprogram.c's
+            // get_build_options. No explicit lsize: matches savebnd's
+            // launch (Init_OpenCL.c, below), which also leaves it to
             // prog_launch's own defaults.
-            if (!state && m->ND==2){
+            if (!state && (m->ND==2 || m->ND==3)){
+                int par_NY = (m->ND==3) ? di->N[1] : 1;
+                int par_NX = (m->ND==3) ? di->N[2] : di->N[1];
+
                 di->par_avg.rip=m->par_avg.rip;
                 di->par_avg.rkp=m->par_avg.rkp;
                 di->par_avg.muipkp=m->par_avg.muipkp;
                 __GUARD prog_create(m, di, &di->par_avg.rip);
                 __GUARD prog_create(m, di, &di->par_avg.rkp);
                 __GUARD prog_create(m, di, &di->par_avg.muipkp);
-                di->par_avg.rip.wdim=2;
+                di->par_avg.rip.wdim=3;
                 di->par_avg.rip.gsize[0]=di->N[0];
-                di->par_avg.rip.gsize[1]=di->N[1];
-                di->par_avg.rkp.wdim=2;
+                di->par_avg.rip.gsize[1]=par_NY;
+                di->par_avg.rip.gsize[2]=par_NX;
+                di->par_avg.rkp.wdim=3;
                 di->par_avg.rkp.gsize[0]=di->N[0];
-                di->par_avg.rkp.gsize[1]=di->N[1];
-                di->par_avg.muipkp.wdim=2;
+                di->par_avg.rkp.gsize[1]=par_NY;
+                di->par_avg.rkp.gsize[2]=par_NX;
+                di->par_avg.muipkp.wdim=3;
                 di->par_avg.muipkp.gsize[0]=di->N[0];
-                di->par_avg.muipkp.gsize[1]=di->N[1];
+                di->par_avg.muipkp.gsize[1]=par_NY;
+                di->par_avg.muipkp.gsize[2]=par_NX;
 
                 __GUARD prog_launch(&di->queue, &di->par_avg.rip);
                 __GUARD prog_launch(&di->queue, &di->par_avg.rkp);
@@ -833,6 +843,40 @@ int Init_CUDA(model * m, device ** dev)  {
                 __GUARD clbuf_read(&di->queue, &rip_par->cl_par);
                 __GUARD clbuf_read(&di->queue, &rkp_par->cl_par);
                 __GUARD clbuf_read(&di->queue, &muipkp_par->cl_par);
+
+                if (m->ND==3){
+                    di->par_avg.rjp=m->par_avg.rjp;
+                    di->par_avg.muipjp=m->par_avg.muipjp;
+                    di->par_avg.mujpkp=m->par_avg.mujpkp;
+                    __GUARD prog_create(m, di, &di->par_avg.rjp);
+                    __GUARD prog_create(m, di, &di->par_avg.muipjp);
+                    __GUARD prog_create(m, di, &di->par_avg.mujpkp);
+                    di->par_avg.rjp.wdim=3;
+                    di->par_avg.rjp.gsize[0]=di->N[0];
+                    di->par_avg.rjp.gsize[1]=par_NY;
+                    di->par_avg.rjp.gsize[2]=par_NX;
+                    di->par_avg.muipjp.wdim=3;
+                    di->par_avg.muipjp.gsize[0]=di->N[0];
+                    di->par_avg.muipjp.gsize[1]=par_NY;
+                    di->par_avg.muipjp.gsize[2]=par_NX;
+                    di->par_avg.mujpkp.wdim=3;
+                    di->par_avg.mujpkp.gsize[0]=di->N[0];
+                    di->par_avg.mujpkp.gsize[1]=par_NY;
+                    di->par_avg.mujpkp.gsize[2]=par_NX;
+
+                    __GUARD prog_launch(&di->queue, &di->par_avg.rjp);
+                    __GUARD prog_launch(&di->queue, &di->par_avg.muipjp);
+                    __GUARD prog_launch(&di->queue, &di->par_avg.mujpkp);
+
+                    parameter * rjp_par = get_par(di->pars, di->npars, "rjp");
+                    parameter * muipjp_par = get_par(di->pars, di->npars,
+                                                     "muipjp");
+                    parameter * mujpkp_par = get_par(di->pars, di->npars,
+                                                     "mujpkp");
+                    __GUARD clbuf_read(&di->queue, &rjp_par->cl_par);
+                    __GUARD clbuf_read(&di->queue, &muipjp_par->cl_par);
+                    __GUARD clbuf_read(&di->queue, &mujpkp_par->cl_par);
+                }
             }
 
         }
