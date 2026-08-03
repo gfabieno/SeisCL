@@ -28,21 +28,24 @@
   as rip/rkp) are the same mechanical extension, not yet done.
 
   Unlike the interior update_v/update_s kernels, this operates on the raw
-  N-sized parameter arrays (pin/pout), NOT the FDORDER-padded wavefield-sized
-  arrays -- so NZ/NX are taken as explicit runtime arguments here rather than
-  the NZ/NX build-time -D macros other kernels rely on (those are sized for
-  the padded wavefield arrays, would be wrong for these).
+  N-sized parameter arrays (in/out), NOT the FDORDER-padded wavefield-sized
+  arrays -- so it uses PARNZ/PARNX (added to get_build_options in
+  src/clprogram.c specifically for this kernel), not the NZ/NX macros other
+  kernels rely on (those are sized for the padded wavefield arrays and would
+  be wrong here).
 
-  This kernel is meant to run once at model-upload time, replacing the
-  host-side ave_arithmetic_rho()/ave_harmonic_mu() computation and its
-  associated host-to-device transfer of the derived rip/rkp/muipkp arrays --
-  only the raw M/mu/rho would need uploading. NOT YET WIRED into
-  assign_modeling_case.c/Init_OpenCL.c's kernel registration/launch
-  scheduling (a materially larger change touching the live simulation
-  pipeline); validated standalone against the CPU reference instead (see
-  notes/vacuum-freesurface-plan.md, Phase 8). */
+  Runs once at model-upload time (Init_CUDA/Init_OpenCL in
+  src/Init_OpenCL.c, right after the raw M/mu/rho parameter buffers are
+  uploaded), replacing the host-side ave_arithmetic_rho()/ave_harmonic_mu()
+  computation for ND==2 -- see assign_modeling_case.c's append_par calls for
+  "rip"/"rkp"/"muipkp" (transform=NULL for ND==2, so Init_model()'s
+  transform loop skips the CPU computation and this kernel is the only
+  thing that fills them) and the read-back to host in Init_OpenCL.c
+  immediately after the kernel launch (res_scale() in residuals.c reads
+  rip/rkp's *host* gl_par directly, so it must stay valid even though the
+  computation itself now happens on-device). */
 
-FUNDEF void ave_rip(GLOBARG float *rho, GLOBARG float *rip, int NZ, int NX)
+FUNDEF void ave_rip(GLOBARG float *rho, GLOBARG float *rip)
 {
 #ifdef __OPENCL_VERSION__
     int gidz = get_global_id(0);
@@ -51,14 +54,14 @@ FUNDEF void ave_rip(GLOBARG float *rho, GLOBARG float *rip, int NZ, int NX)
     int gidz = blockIdx.x * blockDim.x + threadIdx.x;
     int gidx = blockIdx.y * blockDim.y + threadIdx.y;
 #endif
-    if (gidz >= NZ || gidx >= NX) return;
+    if (gidz >= PARNZ || gidx >= PARNX) return;
 
-    int ind1 = gidx * NZ + gidz;
-    if (gidx == NX - 1) {
+    int ind1 = gidx * PARNZ + gidz;
+    if (gidx == PARNX - 1) {
         rip[ind1] = rho[ind1];
         return;
     }
-    int ind2 = (gidx + 1) * NZ + gidz;
+    int ind2 = (gidx + 1) * PARNZ + gidz;
     // Same eq. 6 zero-guard as ave_arithmetic_rho (assign_modeling_case.c):
     // both vacuum -> 0; one vacuum -> twice the solid neighbor's buoyancy;
     // both solid -> harmonic-of-density combination.
@@ -73,7 +76,7 @@ FUNDEF void ave_rip(GLOBARG float *rho, GLOBARG float *rip, int NZ, int NX)
     }
 }
 
-FUNDEF void ave_rkp(GLOBARG float *rho, GLOBARG float *rkp, int NZ, int NX)
+FUNDEF void ave_rkp(GLOBARG float *rho, GLOBARG float *rkp)
 {
 #ifdef __OPENCL_VERSION__
     int gidz = get_global_id(0);
@@ -82,14 +85,14 @@ FUNDEF void ave_rkp(GLOBARG float *rho, GLOBARG float *rkp, int NZ, int NX)
     int gidz = blockIdx.x * blockDim.x + threadIdx.x;
     int gidx = blockIdx.y * blockDim.y + threadIdx.y;
 #endif
-    if (gidz >= NZ || gidx >= NX) return;
+    if (gidz >= PARNZ || gidx >= PARNX) return;
 
-    int ind1 = gidx * NZ + gidz;
-    if (gidz == NZ - 1) {
+    int ind1 = gidx * PARNZ + gidz;
+    if (gidz == PARNZ - 1) {
         rkp[ind1] = rho[ind1];
         return;
     }
-    int ind2 = gidx * NZ + (gidz + 1);
+    int ind2 = gidx * PARNZ + (gidz + 1);
     if (rho[ind1] == 0.0f && rho[ind2] == 0.0f) {
         rkp[ind1] = 0.0f;
     } else if (rho[ind1] == 0.0f) {
@@ -101,7 +104,7 @@ FUNDEF void ave_rkp(GLOBARG float *rho, GLOBARG float *rkp, int NZ, int NX)
     }
 }
 
-FUNDEF void ave_muipkp(GLOBARG float *mu, GLOBARG float *muipkp, int NZ, int NX)
+FUNDEF void ave_muipkp(GLOBARG float *mu, GLOBARG float *muipkp)
 {
 #ifdef __OPENCL_VERSION__
     int gidz = get_global_id(0);
@@ -110,16 +113,16 @@ FUNDEF void ave_muipkp(GLOBARG float *mu, GLOBARG float *muipkp, int NZ, int NX)
     int gidz = blockIdx.x * blockDim.x + threadIdx.x;
     int gidx = blockIdx.y * blockDim.y + threadIdx.y;
 #endif
-    if (gidz >= NZ || gidx >= NX) return;
+    if (gidz >= PARNZ || gidx >= PARNX) return;
 
-    int ind1 = gidx * NZ + gidz;
-    if (gidx == NX - 1 || gidz == NZ - 1) {
+    int ind1 = gidx * PARNZ + gidz;
+    if (gidx == PARNX - 1 || gidz == PARNZ - 1) {
         muipkp[ind1] = mu[ind1];
         return;
     }
-    int ind2 = (gidx + 1) * NZ + gidz;
-    int ind3 = gidx * NZ + (gidz + 1);
-    int ind4 = (gidx + 1) * NZ + (gidz + 1);
+    int ind2 = (gidx + 1) * PARNZ + gidz;
+    int ind3 = gidx * PARNZ + (gidz + 1);
+    int ind4 = (gidx + 1) * PARNZ + (gidz + 1);
     // Same eq. 8 zero-guard as ave_harmonic_mu (assign_modeling_case.c):
     // zero if any of the 4 contributing nodes is vacuum.
     if (mu[ind1] == 0.0f || mu[ind2] == 0.0f ||

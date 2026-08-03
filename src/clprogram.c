@@ -335,7 +335,7 @@ char *get_build_options(device *dev,
             "-D BACK_PROP_TYPE=%d -D COMM12=%d -D NTNYQ=%d -D DTNYQ=%d "
             "-D VARSOUT=%d -D RESOUT=%d  -D RMSOUT=%d -D MOVOUT=%d "
             "-D GRADOUT=%d -D HOUT=%d -D GRADSRCOUT=%d -D DIRPROP=%d "
-            "-D RESTYPE=%d -D FP16=%d",
+            "-D RESTYPE=%d -D FP16=%d -D PARNZ=%d -D PARNX=%d",
             (*m).NDIM, (*dev).OFFSET, (*m).FDOH, (*m).dt/(*m).dh, (*m).dh,
             (*m).dt, (*m).dt/2.0, (*m).NT, (*m).NAB, (*dev).NBND,
             (*dev).LOCAL_OFF, (*m).L, (*dev).DEVID, (*m).NUM_DEVICES,
@@ -344,8 +344,8 @@ char *get_build_options(device *dev,
             (*m).BACK_PROP_TYPE, comm, (*m).NTNYQ, (*m).DTNYQ,
             (*m).VARSOUT, (*m).RESOUT, (*m).RMSOUT, (*m).MOVOUT,
             (*m).GRADOUT, (*m).HOUT, (*m).GRADSRCOUT, DIRPROP, (*m).restype,
-            (*m).FP16) ;
-    
+            (*m).FP16, (*dev).N[0], (*dev).N[1]) ;
+
     strcat(build_options,src2);
     
     //Make it all uppercase
@@ -566,7 +566,16 @@ int get_build_options(device *dev,
     sprintf(build_options[*n-1],"-D DIRPROP=%d",DIRPROP);
     *n+=1;
     sprintf(build_options[*n-1],"-D RESTYPE=%d",(*m).restype);
-    
+    // Raw (unpadded) per-dimension grid size, matching the material
+    // parameter arrays' actual layout (num_ele = prod(N), no FDORDER) --
+    // distinct from the NZ/NX/etc. macros above, which are sized for the
+    // FDORDER-padded wavefield arrays and would be wrong here. Used by
+    // src/average_params.cl (see notes/vacuum-freesurface-plan.md, Phase 8).
+    *n+=1;
+    sprintf(build_options[*n-1],"-D PARNZ=%d",(*dev).N[0]);
+    *n+=1;
+    sprintf(build_options[*n-1],"-D PARNX=%d",(*dev).N[1]);
+
     return state;
 }
 
@@ -721,9 +730,13 @@ int prog_create(model * m,
     
     
     #else
+    // 64, not 50: a typical 2D elastic config already uses 46 of the
+    // previous 50 slots (measured), leaving too little headroom for any
+    // future -D option addition -- get_build_options has no bounds check
+    // on *n, so overflowing this silently corrupts heap memory.
     char ** build_options=NULL;
-        GMALLOC(build_options, sizeof(char*)*50);
-    for (i=0;i<50;i++){
+    GMALLOC(build_options, sizeof(char*)*64);
+    for (i=0;i<64;i++){
         GMALLOC(build_options[i], sizeof(char)*500);
     }
     state= get_build_options(dev,

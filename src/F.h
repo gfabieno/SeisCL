@@ -338,6 +338,18 @@ typedef struct gradients {
 
 } gradients;
 
+/* _____GPU port of the staggered-grid material-parameter averaging_______
+   (src/average_params.cl -- ave_rip/ave_rkp/ave_muipkp), replacing the CPU
+   loop in assign_modeling_case.c's ave_arithmetic_rho()/ave_harmonic_mu()
+   for the 2D elastic case. See notes/vacuum-freesurface-plan.md, Phase 8.*/
+typedef struct param_avg {
+
+    clprogram rip;
+    clprogram rkp;
+    clprogram muipkp;
+
+} param_avg;
+
 
 /* _____________Structure that holds all information of a device _____________*/
 typedef struct device {
@@ -380,6 +392,7 @@ typedef struct device {
     sources_records src_recs;
     gradients grads;
     boundary_conditions bnd_cnds;
+    param_avg par_avg;
     
     CONTEXT context;
     CONTEXT * context_ptr;
@@ -410,6 +423,7 @@ typedef struct model {
     sources_records src_recs;
     gradients grads;
     boundary_conditions bnd_cnds;
+    param_avg par_avg;
 
     int NXP;
     int NT;

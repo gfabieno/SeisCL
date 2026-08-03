@@ -789,10 +789,52 @@ int Init_CUDA(model * m, device ** dev)  {
                         di->pars[i].cl_H.size=sizeof(float)*parsize;
                         __GUARD clbuf_create(di->context_ptr, &di->pars[i].cl_H);
                     }
-                    
+
                 }
             }
-            
+
+            // GPU port of the material-parameter averaging (2D elastic
+            // only -- see src/average_params.cl and
+            // notes/vacuum-freesurface-plan.md, Phase 8). M/mu/rho are
+            // already on-device above (uploaded in their final,
+            // post-Init_model()-transform units); this overwrites
+            // rip/rkp/muipkp's just-uploaded (garbage, since their host
+            // transform is NULL for ND==2 -- see assign_modeling_case.c's
+            // append_par calls) device buffers with the correct
+            // GPU-computed values, then reads them back to host because
+            // res_scale() (residuals.c) reads rip/rkp's *host* gl_par
+            // directly. No explicit lsize: matches savebnd's launch
+            // (Init_OpenCL.c, below), which also leaves it to
+            // prog_launch's own defaults.
+            if (!state && m->ND==2){
+                di->par_avg.rip=m->par_avg.rip;
+                di->par_avg.rkp=m->par_avg.rkp;
+                di->par_avg.muipkp=m->par_avg.muipkp;
+                __GUARD prog_create(m, di, &di->par_avg.rip);
+                __GUARD prog_create(m, di, &di->par_avg.rkp);
+                __GUARD prog_create(m, di, &di->par_avg.muipkp);
+                di->par_avg.rip.wdim=2;
+                di->par_avg.rip.gsize[0]=di->N[0];
+                di->par_avg.rip.gsize[1]=di->N[1];
+                di->par_avg.rkp.wdim=2;
+                di->par_avg.rkp.gsize[0]=di->N[0];
+                di->par_avg.rkp.gsize[1]=di->N[1];
+                di->par_avg.muipkp.wdim=2;
+                di->par_avg.muipkp.gsize[0]=di->N[0];
+                di->par_avg.muipkp.gsize[1]=di->N[1];
+
+                __GUARD prog_launch(&di->queue, &di->par_avg.rip);
+                __GUARD prog_launch(&di->queue, &di->par_avg.rkp);
+                __GUARD prog_launch(&di->queue, &di->par_avg.muipkp);
+
+                parameter * rip_par = get_par(di->pars, di->npars, "rip");
+                parameter * rkp_par = get_par(di->pars, di->npars, "rkp");
+                parameter * muipkp_par = get_par(di->pars, di->npars, "muipkp");
+                __GUARD clbuf_read(&di->queue, &rip_par->cl_par);
+                __GUARD clbuf_read(&di->queue, &rkp_par->cl_par);
+                __GUARD clbuf_read(&di->queue, &muipkp_par->cl_par);
+            }
+
         }
         
         //Set the sources and receivers structure for this device

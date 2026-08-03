@@ -11,6 +11,7 @@
 
 /*Loading files autmatically created by the makefile that contain the *.cl kernels in a c string.
  This way, no .cl file need to be read and there is no need to be in the executable directory to execute SeisCL.*/
+#include "average_params.hcl"
 #include "savebnd2D.hcl"
 #include "savebnd3D.hcl"
 #include "surface2D.hcl"
@@ -1043,6 +1044,22 @@ int assign_modeling_case(model * m){
     if ((m->GRADOUT || m->INPUTRES) && m->BACK_PROP_TYPE==1){
         __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd, 1, headers);
     }
+    /*GPU port of the staggered-grid material-parameter averaging (2D
+      elastic only -- see src/average_params.cl and
+      notes/vacuum-freesurface-plan.md, Phase 8). Replaces the CPU
+      ave_arithmetic_rho()/ave_harmonic_mu() computation for "rip"/"rkp"/
+      "muipkp" below (their transform is NULL for ND==2, so Init_model()'s
+      transform loop skips them and this kernel is the only thing that
+      fills them). Only needs header_CUDACL_source (headers count 1, like
+      savebnd above) -- no FD stencil or CPML macros.*/
+    if (m->ND==2){
+        __GUARD prog_source(&m->par_avg.rip, "ave_rip", average_params_source,
+                            1, headers);
+        __GUARD prog_source(&m->par_avg.rkp, "ave_rkp", average_params_source,
+                            1, headers);
+        __GUARD prog_source(&m->par_avg.muipkp, "ave_muipkp",
+                            average_params_source, 1, headers);
+    }
     /*v1 constraint for the improved vacuum formulation (FREESURF==2):
       GRADOUT is not supported yet. Two independent NaN sources were found:
       (1) the compliance-based adjoint gradient (BACK_PROP_TYPE==1,
@@ -1085,14 +1102,21 @@ int assign_modeling_case(model * m){
         }
     }
     if (m->ND!=21){
-        __GUARD append_par(m, &ind, "rip", NULL, &rip);
+        // ND==2: rip/rkp/muipkp are computed on-device instead (see the
+        // par_avg kernel registration above) -- transform=NULL so
+        // Init_model()'s transform loop leaves their raw host gl_par
+        // alone; Init_OpenCL.c reads the GPU-computed values back to host
+        // right after launching the kernel, since res_scale()
+        // (residuals.c) reads rip/rkp's *host* gl_par directly.
+        __GUARD append_par(m, &ind, "rip", NULL, (m->ND==2) ? NULL : &rip);
         if (m->ND==3){
             __GUARD append_par(m, &ind, "rjp", NULL, &rjp);
         }
-        __GUARD append_par(m, &ind, "rkp", NULL, &rkp);
+        __GUARD append_par(m, &ind, "rkp", NULL, (m->ND==2) ? NULL : &rkp);
     }
     if (m->ND==2 || m->ND==3){
-        __GUARD append_par(m, &ind, "muipkp", NULL, &muipkp);
+        __GUARD append_par(m, &ind, "muipkp", NULL,
+                           (m->ND==2) ? NULL : &muipkp);
     }
     if (m->ND==3){
         __GUARD append_par(m, &ind, "muipjp", NULL, &muipjp);
