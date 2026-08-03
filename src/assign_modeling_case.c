@@ -879,11 +879,18 @@ int assign_modeling_case(model * m){
             fprintf(stderr,"Error: back_prop_type=2 requires a non-empty "
                            "gradfreqs\n");
         }
-        if (m->FP16>1){
+        if (m->FP16>0){
             state=1;
-            fprintf(stderr,"Error: back_prop_type=2 does not support FP16>1: "
-                           "the savefreqs kernel reads the wavefield buffers "
-                           "as float, but they are packed half\n");
+            fprintf(stderr,"Error: back_prop_type=2 does not support FP16>0. "
+                           "FP16>1 packs the wavefield as half, which the "
+                           "savefreqs kernel reads as float. FP16==1 keeps "
+                           "float precision but stores it as float2, so "
+                           "get_build_options halves NZ (clprogram.c) while "
+                           "grad_dft2D.cl uses NZ as the full scalar padded "
+                           "extent -- the correlation then covers and strides "
+                           "only half the grid. Measured: the FP16=1 gradient "
+                           "is uncorrelated with the FP16=0 one (cos ~0.00 on "
+                           "all three parameters), not merely less precise\n");
         }
 
     }
