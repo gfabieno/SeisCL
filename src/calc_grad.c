@@ -1058,16 +1058,46 @@ int unpack_par_fp16(model * m) {
     return state;
 }
 
-/* Undo the internal non-dimensionalization, for the parameters *and* their
-   gradients: parameters go back to physical units (rho from buoyancy, M and
-   mu from their dt/dh scaling, both times 2^-par_scale) and the gradients
-   lose the dt the time integration put in. Purely about units -- no
-   parameterization here. */
-int unscale_par_grad(model * m) {
+/* Parameters back to physical units: rho from buoyancy, M and mu from their
+   dt/dh scaling, both times 2^-par_scale. Every path needs this before
+   chain_rule_par_type(), which evaluates its Jacobians at the physical
+   values. */
+int unscale_par(model * m) {
     int state=0;
     int i, num_ele=0;
 
     float * rho = get_par(m->pars, m->npars, "rho")->gl_par;
+    num_ele = get_par(m->pars, m->npars, "rho")->num_ele;
+    float * M = get_par(m->pars, m->npars, "M")->gl_par;
+    float * mu = get_par(m->pars, m->npars, "mu")->gl_par;
+
+    int scaler=m->par_scale;
+
+    for (i=0;i<num_ele;i++){
+        rho[i]= 1.0/rho[i]*m->dt/m->dh*powf(2,-scaler);
+    }
+    if (M){
+        for (i=0;i<num_ele;i++){
+            M[i]*=m->dh/m->dt*powf(2,-scaler);
+        }
+    }
+    if (mu){
+        for (i=0;i<num_ele;i++){
+            mu[i]*=m->dh/m->dt*powf(2,-scaler);
+        }
+    }
+    return state;
+}
+
+/* Drop the dt the time integration put into the gradient. Separate from
+   unscale_par() because it is *not* universal: BACK_PROP_TYPE==2 accumulates
+   its gradient from frequency-domain spectra with its own normalization
+   (dftnorm/DTNYQ) and must not be given this factor, while still needing the
+   parameters unscaled above. */
+int unscale_grad(model * m) {
+    int state=0;
+    int i, num_ele=0;
+
     float * gradrho = get_par(m->pars, m->npars, "rho")->gl_grad;
     num_ele = get_par(m->pars, m->npars, "rho")->num_ele;
     float * M = get_par(m->pars, m->npars, "M")->gl_par;
@@ -1075,21 +1105,16 @@ int unscale_par_grad(model * m) {
     float * mu = get_par(m->pars, m->npars, "mu")->gl_par;
     float * gradmu = get_par(m->pars, m->npars, "mu")->gl_grad;
 
-    int scaler=m->par_scale;
-
     for (i=0;i<num_ele;i++){
-        rho[i]= 1.0/rho[i]*m->dt/m->dh*powf(2,-scaler);
         gradrho[i]/=m->dt;
     }
     if (M){
         for (i=0;i<num_ele;i++){
-            M[i]*=m->dh/m->dt*powf(2,-scaler);
             gradM[i]/=m->dt;
         }
     }
     if (mu){
         for (i=0;i<num_ele;i++){
-            mu[i]*=m->dh/m->dt*powf(2,-scaler);
             gradmu[i]/=m->dt;
         }
     }
@@ -1204,7 +1229,8 @@ int chain_rule_par_type(model * m) {
 int transf_grad(model * m) {
     int state=0;
     __GUARD unpack_par_fp16(m);
-    __GUARD unscale_par_grad(m);
+    __GUARD unscale_par(m);
+    __GUARD unscale_grad(m);
     __GUARD chain_rule_par_type(m);
     
     
