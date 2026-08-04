@@ -257,6 +257,11 @@ typedef struct parameter{
 
 int calc_grad(struct model * m, struct device * dev);
 int transf_grad(struct model * m);
+/* transf_grad's three jobs, separately: storage format, units, and
+   parameterization. See calc_grad.c for why they are not one function. */
+int unpack_par_fp16(struct model * m);
+int unscale_par_grad(struct model * m);
+int chain_rule_par_type(struct model * m);
 
 /* ____Structure for constant vectors broadcasted to all devices______*/
 typedef struct constants{

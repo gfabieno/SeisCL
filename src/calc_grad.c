@@ -1029,25 +1029,23 @@ int calc_grad(struct model * m, struct device * dev){
 }
 #endif
 
-int transf_grad(model * m) {
-    //TODO perform forward and back transform to replace Init_model and trans_grad
-    int state=0;
-    int i, j, num_ele=0;
-    half * hpar;
-    
-    float * rho = get_par(m->pars, m->npars, "rho")->gl_par;
-    float * gradrho = get_par(m->pars, m->npars, "rho")->gl_grad;
-    float * Hrho = get_par(m->pars, m->npars, "rho")->gl_H;
-    num_ele = get_par(m->pars, m->npars, "rho")->num_ele;
-    float * M = get_par(m->pars, m->npars, "M")->gl_par;
-    float * gradM = get_par(m->pars, m->npars, "M")->gl_grad;
-    float * HM = get_par(m->pars, m->npars, "M")->gl_H;
-    float * mu = get_par(m->pars, m->npars, "mu")->gl_par;
-    float * gradmu = get_par(m->pars, m->npars, "mu")->gl_grad;
-    float * Hmu = get_par(m->pars, m->npars, "mu")->gl_H;
+/* unpack_par_fp16, unscale_par_grad and chain_rule_par_type used to be one
+   function. They are three unrelated jobs -- storage format, units, and
+   parameterization -- and fusing them made it impossible to say which of them
+   a given caller wanted. BACK_PROP_TYPE==2 in particular needs the
+   parameterization but not the scaling (its correlation kernel already
+   converts to physical units on the device), and the forthcoming
+   material-averaging transpose has to run *between* the scaling and the
+   parameterization. Keeping them separate is what makes those compositions
+   expressible; transf_grad() below is simply all three in the original order,
+   so existing callers are unaffected. */
 
-    int scaler=m->par_scale;
-    
+/* FP16>1 stores the parameters as half in the same buffer. Expand in place,
+   backwards, so the wider floats do not overwrite unread halves. */
+int unpack_par_fp16(model * m) {
+    int state=0;
+    int i, j;
+    half * hpar;
     if (m->FP16>1){
         for (i=0;i<m->npars;i++){
             hpar = (half*)m->pars[i].gl_par;
@@ -1057,7 +1055,28 @@ int transf_grad(model * m) {
             
         }
     }
-    
+    return state;
+}
+
+/* Undo the internal non-dimensionalization, for the parameters *and* their
+   gradients: parameters go back to physical units (rho from buoyancy, M and
+   mu from their dt/dh scaling, both times 2^-par_scale) and the gradients
+   lose the dt the time integration put in. Purely about units -- no
+   parameterization here. */
+int unscale_par_grad(model * m) {
+    int state=0;
+    int i, num_ele=0;
+
+    float * rho = get_par(m->pars, m->npars, "rho")->gl_par;
+    float * gradrho = get_par(m->pars, m->npars, "rho")->gl_grad;
+    num_ele = get_par(m->pars, m->npars, "rho")->num_ele;
+    float * M = get_par(m->pars, m->npars, "M")->gl_par;
+    float * gradM = get_par(m->pars, m->npars, "M")->gl_grad;
+    float * mu = get_par(m->pars, m->npars, "mu")->gl_par;
+    float * gradmu = get_par(m->pars, m->npars, "mu")->gl_grad;
+
+    int scaler=m->par_scale;
+
     for (i=0;i<num_ele;i++){
         rho[i]= 1.0/rho[i]*m->dt/m->dh*powf(2,-scaler);
         gradrho[i]/=m->dt;
@@ -1074,6 +1093,28 @@ int transf_grad(model * m) {
             gradmu[i]/=m->dt;
         }
     }
+    return state;
+}
+
+/* Map the internal (M, mu, rho) gradient onto m->par_type. Expects physical
+   units, i.e. unscale_par_grad() already run (and, once it exists, the
+   material-averaging transpose too -- that maps the staggered gradients onto
+   the cell-centred ones, which is a different chain rule and belongs before
+   this one). */
+int chain_rule_par_type(model * m) {
+    int state=0;
+    int i, num_ele=0;
+
+    float * rho = get_par(m->pars, m->npars, "rho")->gl_par;
+    float * gradrho = get_par(m->pars, m->npars, "rho")->gl_grad;
+    float * Hrho = get_par(m->pars, m->npars, "rho")->gl_H;
+    num_ele = get_par(m->pars, m->npars, "rho")->num_ele;
+    float * M = get_par(m->pars, m->npars, "M")->gl_par;
+    float * gradM = get_par(m->pars, m->npars, "M")->gl_grad;
+    float * HM = get_par(m->pars, m->npars, "M")->gl_H;
+    float * mu = get_par(m->pars, m->npars, "mu")->gl_par;
+    float * gradmu = get_par(m->pars, m->npars, "mu")->gl_grad;
+    float * Hmu = get_par(m->pars, m->npars, "mu")->gl_H;
 
     if (m->par_type==0){
 
@@ -1156,6 +1197,15 @@ int transf_grad(model * m) {
         fprintf(stdout,"Warning: Gradiant transformation not implemented: ");
         fprintf(stdout,"Outputting grad for M,mu,rho parametrization\n");
     }
+    return state;
+}
+
+/* The original composition: storage, then units, then parameterization. */
+int transf_grad(model * m) {
+    int state=0;
+    __GUARD unpack_par_fp16(m);
+    __GUARD unscale_par_grad(m);
+    __GUARD chain_rule_par_type(m);
     
     
     
