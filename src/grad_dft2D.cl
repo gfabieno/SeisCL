@@ -166,28 +166,44 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
     double den = (NDd*M_p - 2.0*(NDd-1.0)*mu_p);
     den = den*den;
 
-    /* grad_coefelast_0, L==0. c[1], c[5..15], c[17], c[21..23] are zero. */
-    double c0=0.0, c2=0.0, c3=0.0, c4=0.0;
-    double c16=0.0, c18=0.0, c19=0.0, c20=0.0;
+    /* Coefficients of the *internal* (M, mu, rho) gradient. Each internal
+     * gradient depends on one group of correlations and nothing else:
+     *
+     *   dJ/dM   <- the trace correlation      d0
+     *   dJ/dmu  <- the shear correlations     d2, d3, d4
+     *   dJ/drho <- the velocity correlation   d8
+     *
+     * The (vp, vs, rho) chain rule used to be folded into every coefficient
+     * (c0 = 2*sqrt(rho*M)/den is already d/dvp), which coupled the three:
+     * grho carried -c16*d0 - c18*d2 + c19*d3 - c20*d4, so the trace and shear
+     * correlations leaked into the density gradient and could not be told
+     * apart from a genuine density sensitivity. It is now applied once, after
+     * the frequency loop, exactly as transf_grad()'s par_type==0 block does
+     * for BACK_PROP_TYPE==1 -- which already emits the internal gradient and
+     * is why its gradrho is the pure velocity term.
+     *
+     * Decoupling is also what makes the missing material-averaging transpose
+     * insertable: Gmu belongs at the muipkp positions and Grho at the
+     * rip/rkp ones, and they cannot be scattered separately while both are
+     * pre-mixed into one number. See
+     * notes/material-averaging-gradient-review.md. */
+    double iden=0.0, imu2=0.0, i3den=0.0, i2ndmu2=0.0;
     if (den>0.0){
-        c0  = 2.0*sqrt(rho_p*M_p)/den;
-        c16 = M_p/rho_p/den;
+        iden = 1.0/den;
         /* Fluid cells drop every shear-related coefficient. Guarded with a
          * branch, not a select: 1/(mu*mu) is inf at mu==0 and would poison the
          * result under fast math even though it is multiplied by zero. */
         if (mu_p>=1.0){
-            c2  = 2.0*sqrt(rho_p*mu_p)/(mu_p*mu_p);
-            c3  = 2.0*sqrt(rho_p*mu_p)*(NDd+1.0)/3.0/den;
-            c4  = 2.0*sqrt(rho_p*mu_p)/(2.0*NDd*mu_p*mu_p);
-            c18 = mu_p/rho_p/(mu_p*mu_p);
-            c19 = mu_p/rho_p*(NDd+1.0)/3.0/den;
-            c20 = mu_p/rho_p/(2.0*NDd*mu_p*mu_p);
+            imu2    = 1.0/(mu_p*mu_p);
+            i3den   = (NDd+1.0)/3.0*iden;
+            i2ndmu2 = imu2/(2.0*NDd);
         }
     }
 
-    double gM=0.0, gmu=0.0, grho=0.0;
+    /* Internal accumulators. */
+    double GM=0.0, Gmu=0.0, Grho=0.0;
 #if HOUT==1
-    double hM=0.0, hmu=0.0, hrho=0.0;
+    double HMi=0.0, Hmui=0.0, Hrhoi=0.0;
 #endif
 
     for (f=0; f<NFREQS; f++){
@@ -238,18 +254,38 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
                            + (double)Vx.y*(double)Vx.y)
                           + ((double)Vz.x*(double)Vz.x
                            + (double)Vz.y*(double)Vz.y))/dftnorm;
-            hM   += c0*h0;
-            hmu  += c2*h2 - c3*h3 + c4*h4;
-            hrho += h8 - c16*h0 - c18*h2 + c19*h3 - c20*h4;
+            HMi   += h0*iden;
+            Hmui  += h2*imu2 - h3*i3den + h4*i2ndmu2;
+            Hrhoi += h8;
         }
 #endif
-        gM   += -c0*d0;
-        gmu  += -c2*d2 + c3*d3 - c4*d4;
-        /* The c16..c20 group is the parameterization chain rule and carries the
-         * same signs as gM and gmu above, matching transf_grad's
-         * gradrho += M/rho*gradM + mu/rho*gradmu for BACK_PROP_TYPE==1. */
-        grho += -d8 - c16*d0 - c18*d2 + c19*d3 - c20*d4;
+        GM   += -d0*iden;
+        Gmu  += -d2*imu2 + d3*i3den - d4*i2ndmu2;
+        Grho += -d8;
     }
+
+    /* Parameterization chain rule, (M, mu, rho) -> (vp, vs, rho). Identical
+     * expressions to transf_grad()'s par_type==0 block; applied here because
+     * the DFT path does not run transf_grad (time_stepping.c). When the
+     * engine is switched over to emitting the internal gradient (todo.md
+     * item 2), this block is what moves out.
+     *
+     * 1/rho_p is guarded: rho_p is already forced to 0 in a vacuum cell
+     * above, and the old c16 = M_p/rho_p/den divided by it unguarded, giving
+     * inf there. Everything else is arithmetically identical to the previous
+     * coefficient form. */
+    double irho = (rho_p>0.0) ? 1.0/rho_p : 0.0;
+    double gM   = 2.0*sqrt(rho_p*M_p)*GM;
+    double gmu  = 2.0*sqrt(rho_p*mu_p)*Gmu;
+    double grho = Grho + M_p*irho*GM + mu_p*irho*Gmu;
+#if HOUT==1
+    /* The Hessian keeps its own sign pattern -- it differs from the
+     * gradient's in the velocity term, chosen so the result stays positive
+     * (see the transcription note above). */
+    double hM   = 2.0*sqrt(rho_p*M_p)*HMi;
+    double hmu  = 2.0*sqrt(rho_p*mu_p)*Hmui;
+    double hrho = Hrhoi - M_p*irho*HMi - mu_p*irho*Hmui;
+#endif
 
     gradM[gid]   += (float)gM;
     gradmu[gid]  += (float)gmu;

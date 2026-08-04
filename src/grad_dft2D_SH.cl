@@ -103,14 +103,17 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
     double sc_ss = pow(2.0, -(double)src_scale - (double)res_scale);
     double sc_vv = sc_ss*pow(2.0, 2.0*(double)par_scale);
 
-    /* grad_coefelast_0_SH. Vacuum and fluid cells contribute nothing. */
-    double c0=0.0, c4=0.0;
+    /* Coefficient of the *internal* (mu, rho) gradient. dJ/dmu comes from the
+     * shear correlation d0 alone and dJ/drho from the velocity correlation d2
+     * alone; the (vs, rho) chain rule is applied once after the loop rather
+     * than folded in. See the longer note in grad_dft2D.cl. Vacuum and fluid
+     * cells contribute nothing. */
+    double imu2=0.0;
     if (rho_p>0.0 && mu_p>=1.0){
-        c0 = 2.0*sqrt(rho_p*mu_p)/(mu_p*mu_p);
-        c4 = mu_p/rho_p/(mu_p*mu_p);
+        imu2 = 1.0/(mu_p*mu_p);
     }
 
-    double gmu=0.0, grho=0.0;
+    double Gmu=0.0, Grho=0.0;
 
     for (f=0; f<NFREQS; f++){
 
@@ -121,11 +124,15 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
                      + itreal(fsyz[id], fsyz_f[id]))/dftnorm;
         double d2 = sc_vv*w*itreal(fvy[id], fvy_f[id])/dftnorm;
 
-        gmu  += -c0*d0;
-        /* c4 is vs^2 times the internal coefficient of d0, so it carries the
-         * same sign as gmu -- see the equivalent group in grad_dft2D.cl. */
-        grho += -d2 - c4*d0;
+        Gmu  += -d0*imu2;
+        Grho += -d2;
     }
+
+    /* Parameterization chain rule, (mu, rho) -> (vs, rho), matching
+     * transf_grad()'s par_type==0 block. */
+    double irho = (rho_p>0.0) ? 1.0/rho_p : 0.0;
+    double gmu  = 2.0*sqrt(rho_p*mu_p)*Gmu;
+    double grho = Grho + mu_p*irho*Gmu;
 
     gradmu[gid]  += (float)gmu;
     gradrho[gid] += (float)grho;
