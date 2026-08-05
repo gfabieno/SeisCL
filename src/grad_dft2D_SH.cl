@@ -128,12 +128,8 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         Grho += -d2;
     }
 
-    /* Parameterization chain rule, (mu, rho) -> (vs, rho), matching
-     * transf_grad()'s par_type==0 block. */
-    double irho = (rho_p>0.0) ? 1.0/rho_p : 0.0;
-    double gmu  = 2.0*sqrt(rho_p*mu_p)*Gmu;
-    double grho = Grho + mu_p*irho*Gmu;
-
-    gradmu[gid]  += (float)gmu;
-    gradrho[gid] += (float)grho;
+    /* Internal (mu, rho) gradient only -- chain_rule_par_type() on the host
+     * applies the parameterization. See grad_dft2D.cl. */
+    gradmu[gid]  += (float)Gmu;
+    gradrho[gid] += (float)Grho;
 }

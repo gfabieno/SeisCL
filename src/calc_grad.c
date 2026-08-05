@@ -424,15 +424,30 @@ int calc_grad(model * m, device * dev)  {
         }
     }
     
-    // Choose the right parameters depending on the dimensions
+    /* The correlation always emits the *internal* (M, mu, rho) gradient; the
+       parameterization chain rule is chain_rule_par_type()'s job, run once
+       after the shot loop. The _1 family is exactly the _0 family with the
+       chain-rule factors stripped (compare grad_coefelast_1 with
+       grad_coefelast_0: c[0] loses its 2*sqrt(rho*M), and c[16..23] -- which
+       were c[0..7] again, times M/rho or mu/rho -- disappear), so par_type==0
+       simply selects it too.
+
+       This removes a whole bug class rather than a single bug. The c[16..23]
+       group had to be kept sign-consistent with the gradM/gradmu expressions
+       by hand, and was not: the elastic block carries a documented fix for
+       exactly that, while the viscoelastic block above it still had the
+       opposite signs -- the third instance in this file of a fix applied to
+       one branch and never ported to its twin. Deriving the density
+       contribution from gradM/gradmu in one place makes the two impossible to
+       disagree. */
     if (m->ND!=21){
-        if (m->par_type==0){
+        if (m->par_type==0 || m->par_type==1){
             if (m->L>0)
-                c_calc=&grad_coefvisc_0;
+                c_calc=&grad_coefvisc_1;
             else
-                c_calc=&grad_coefelast_0;
+                c_calc=&grad_coefelast_1;
         }
-        else if (m->par_type==1){
+        else if (0){
             if (m->L>0)
                 c_calc=&grad_coefvisc_1;
             else
@@ -450,13 +465,13 @@ int calc_grad(model * m, device * dev)  {
         }
     }
     else if (m->ND==21){
-        if (m->par_type==0){
+        if (m->par_type==0 || m->par_type==1){
             if (m->L>0)
-                c_calc=&grad_coefvisc_0_SH;
+                c_calc=&grad_coefvisc_1_SH;
             else
-                c_calc=&grad_coefelast_0_SH;
+                c_calc=&grad_coefelast_1_SH;
         }
-        else if (m->par_type==1){
+        else if (0){
             if (m->L>0)
                 c_calc=&grad_coefvisc_1_SH;
             else
@@ -733,15 +748,14 @@ int calc_grad(model * m, device * dev)  {
                                              +c[15]*dot[7];
                         }
                         
-                         gradrho[indm]+=-dot[8]
-                                        +c[16]*dot[0]
-                                        -c[17]*dot[1]
-                                        +c[18]*dot[2]
-                                        -c[19]*dot[3]
-                                        +c[20]*dot[4]
-                                        -c[21]*dot[5]
-                                        +c[22]*dot[6]
-                                        -c[23]*dot[7];
+                    /* Density gets the velocity correlation and nothing
+                     * else. The parameterization's dependence of M and mu on
+                     * rho is chain_rule_par_type()'s job now (gradrho +=
+                     * M/rho*gradM + mu/rho*gradmu), derived from the very
+                     * numbers accumulated above instead of from a parallel
+                     * c[16..23] group that had to be kept sign-consistent by
+                     * hand. */
+                         gradrho[indm]+=-dot[8];
 
                     }
                     
@@ -875,29 +889,14 @@ int calc_grad(model * m, device * dev)  {
                                         +c[15]*dot[7];
                     }
                     
-                    /* The c[16..23] group is the parameterization chain rule:
-                     * for par_type=0, M = rho*vp^2 and mu = rho*vs^2 both depend
-                     * on rho, so d(J)/d(rho) at fixed vp,vs picks up
-                     * vp^2*gradM + vs^2*gradmu on top of the density kernel
-                     * -dot[8]. c[16] is vp^2/den and c[18..20] carry the mu/rho
-                     * = vs^2 factor, so these terms must enter with the *same*
-                     * signs as the gradM and gradmu expressions above -- which
-                     * is what transf_grad does for back_prop_type=1
-                     * (calc_grad.c:1036-1041: gradrho += M/rho*gradM and
-                     * += mu/rho*gradmu, both positive). The group was negated,
-                     * which left gradrho anti-correlated with the time-domain
-                     * gradient (cos=-0.64) while gradrho in the (M,mu,rho)
-                     * parameterization -- where this group is absent -- agreed
-                     * at cos=0.99. */
-                    gradrho[indm]+=-dot[8]
-                                    -c[16]*dot[0]
-                                    +c[17]*dot[1]
-                                    -c[18]*dot[2]
-                                    +c[19]*dot[3]
-                                    -c[20]*dot[4]
-                                    +c[21]*dot[5]
-                                    -c[22]*dot[6]
-                                    +c[23]*dot[7];
+                    /* Density gets the velocity correlation and nothing
+                     * else. The parameterization's dependence of M and mu on
+                     * rho is chain_rule_par_type()'s job now (gradrho +=
+                     * M/rho*gradM + mu/rho*gradmu), derived from the very
+                     * numbers accumulated above instead of from a parallel
+                     * c[16..23] group that had to be kept sign-consistent by
+                     * hand. */
+                    gradrho[indm]+=-dot[8];
                     
                     if(m->HOUT){
                         dot[1]=0;dot[5]=0;dot[6]=0;dot[7]=0;
@@ -951,15 +950,9 @@ int calc_grad(model * m, device * dev)  {
                                         -c[15]*dot[7];
                         }
                         
-                        Hrho[indm]+=dot[8]
-                                    -c[16]*dot[0]
-                                    +c[17]*dot[1]
-                                    -c[18]*dot[2]
-                                    +c[19]*dot[3]
-                                    -c[20]*dot[4]
-                                    +c[21]*dot[5]
-                                    -c[22]*dot[6]
-                                    +c[23]*dot[7];
+                        /* As for the gradient: chain_rule_par_type()
+                         * carries M and mu's rho-dependence over. */
+                        Hrho[indm]+=dot[8];
                         
                     }
                     
@@ -1006,11 +999,8 @@ int calc_grad(model * m, device * dev)  {
                         gradtaus[indm]+=-c[2]*dot[0]+c[3]*dot[1];
                     }
                     
-                    /* Same chain-rule sign as the P-SV case: c[4] is
-                     * (mu/rho)/mu^2 = vs^2 * (internal coefficient of dot[0]),
-                     * so it must carry the same sign as gradmu's -c[0]*dot[0],
-                     * matching transf_grad's gradrho += mu/rho*gradmu. */
-                    gradrho[indm]+=-dot[2] -c[4]*dot[0]+c[5]*dot[1]  ;
+                    /* Velocity correlation only -- see the P-SV block. */
+                    gradrho[indm]+=-dot[2];
                     
                 }
             }

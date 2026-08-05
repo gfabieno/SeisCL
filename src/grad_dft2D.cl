@@ -264,35 +264,18 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         Grho += -d8;
     }
 
-    /* Parameterization chain rule, (M, mu, rho) -> (vp, vs, rho). Identical
-     * expressions to transf_grad()'s par_type==0 block; applied here because
-     * the DFT path does not run transf_grad (time_stepping.c). When the
-     * engine is switched over to emitting the internal gradient (todo.md
-     * item 2), this block is what moves out.
-     *
-     * 1/rho_p is guarded: rho_p is already forced to 0 in a vacuum cell
-     * above, and the old c16 = M_p/rho_p/den divided by it unguarded, giving
-     * inf there. Everything else is arithmetically identical to the previous
-     * coefficient form. */
-    double irho = (rho_p>0.0) ? 1.0/rho_p : 0.0;
-    double gM   = 2.0*sqrt(rho_p*M_p)*GM;
-    double gmu  = 2.0*sqrt(rho_p*mu_p)*Gmu;
-    double grho = Grho + M_p*irho*GM + mu_p*irho*Gmu;
+    /* The internal (M, mu, rho) gradient is the kernel's whole output. The
+     * parameterization chain rule now runs once on the host
+     * (chain_rule_par_type, called from time_stepping.c for this
+     * back_prop_type), which is also where the host reference calc_grad()
+     * leaves it -- so device and host share one convention and
+     * SEISCL_DFT_CHECK compares like with like. */
+    gradM[gid]   += (float)GM;
+    gradmu[gid]  += (float)Gmu;
+    gradrho[gid] += (float)Grho;
 #if HOUT==1
-    /* The Hessian keeps its own sign pattern -- it differs from the
-     * gradient's in the velocity term, chosen so the result stays positive
-     * (see the transcription note above). */
-    double hM   = 2.0*sqrt(rho_p*M_p)*HMi;
-    double hmu  = 2.0*sqrt(rho_p*mu_p)*Hmui;
-    double hrho = Hrhoi - M_p*irho*HMi - mu_p*irho*Hmui;
-#endif
-
-    gradM[gid]   += (float)gM;
-    gradmu[gid]  += (float)gmu;
-    gradrho[gid] += (float)grho;
-#if HOUT==1
-    HM[gid]   += (float)hM;
-    Hmu[gid]  += (float)hmu;
-    Hrho[gid] += (float)hrho;
+    HM[gid]   += (float)HMi;
+    Hmu[gid]  += (float)Hmui;
+    Hrho[gid] += (float)Hrhoi;
 #endif
 }
