@@ -1253,6 +1253,7 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
                because chain_rule_par_type evaluates its Jacobians at physical
                values. */
             __GUARD unpack_par_fp16(m);
+            __GUARD average_grad_transpose(m);
             __GUARD unscale_par(m);
             __GUARD chain_rule_par_type(m);
         }

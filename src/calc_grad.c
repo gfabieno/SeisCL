@@ -379,6 +379,11 @@ int calc_grad(model * m, device * dev)  {
     int i,j,k,f,l, n;
     float df,freq,ND, al,w0;
     double c[24]={0}, dot[17]={0};
+    /* Coefficient of the sxz correlation, evaluated at muipkp rather than the
+       cell-centred mu. Declared out here, alongside c[], because the
+       coefficients are computed in one block and consumed in the frequency
+       loop that follows it. */
+    double imuipkp2=0.0;
     float * tausigl=NULL;
     cl_float2 sxxyyzz, sxxyyzzr, sxx_myyzz, syy_mxxzz, szz_mxxyy;
     cl_float2 rxxyyzz, rxxyyzzr, rxx_myyzz, ryy_mxxzz, rzz_mxxyy;
@@ -595,6 +600,8 @@ int calc_grad(model * m, device * dev)  {
     float *rho=NULL, *gradrho=NULL, *Hrho=NULL;
     float *M=NULL, *gradM=NULL, *HM=NULL;
     float *mu=NULL, *gradmu=NULL, *Hmu=NULL;
+    float *muipkp=NULL, *gradmuipkp=NULL;
+    float *gradrip=NULL, *gradrkp=NULL;
     float *taup=NULL, *gradtaup=NULL, *Htaup=NULL;
     float *taus=NULL, *gradtaus=NULL, *Htaus=NULL;
     
@@ -613,6 +620,16 @@ int calc_grad(model * m, device * dev)  {
             mu=dev->pars[i].cl_par.host;
             gradmu=dev->pars[i].cl_grad.host;
             Hmu=dev->pars[i].cl_H.host;
+        }
+        if (strcmp(dev->pars[i].name,"muipkp")==0){
+            muipkp=dev->pars[i].cl_par.host;
+            gradmuipkp=dev->pars[i].cl_grad.host;
+        }
+        if (strcmp(dev->pars[i].name,"rip")==0){
+            gradrip=dev->pars[i].cl_grad.host;
+        }
+        if (strcmp(dev->pars[i].name,"rkp")==0){
+            gradrkp=dev->pars[i].cl_grad.host;
         }
         if (strcmp(dev->pars[i].name,"taup")==0){
             taup=dev->pars[i].cl_par.host;
@@ -788,6 +805,13 @@ int calc_grad(model * m, device * dev)  {
                                  : 0.0;
                     double M_p   = M  ? M[indm]*dhdt*s2  : 0.0;
                     double mu_p  = mu ? mu[indm]*dhdt*s2 : 0.0;
+                    /* sxz is driven by muipkp, not the cell-centred mu, so
+                     * its correlation's coefficient is evaluated here and its
+                     * gradient stored at that staggered slot. Mirrors
+                     * grad_dft2D.cl. */
+                    double muipkp_p = muipkp ? muipkp[indm]*dhdt*s2 : 0.0;
+                    imuipkp2 = (muipkp_p>=1.0)
+                             ? 1.0/(muipkp_p*muipkp_p) : 0.0;
                     double taup_p = (m->L>0 && taup) ? taup[indm] : 0.0;
                     double taus_p = (m->L>0 && taus) ? taus[indm] : 0.0;
                     /* Vacuum cells (M == mu == rho == 0) contribute nothing,
@@ -865,18 +889,23 @@ int calc_grad(model * m, device * dev)  {
                     dot[4]=freq*(+cl_itreal( fsxxr[indfd], sxx_mzz )
                                  +cl_itreal( fszzr[indfd], szz_mxx ))/dftnorm;
 
-                    dot[8]=freq*(cl_itreal( fvxr[indfd], fvx[indfd] ) + cl_itreal( fvzr[indfd], fvz[indfd] ))/dftnorm;
+                    /* vx sits at the rip position, vz at rkp: different
+                     * parameters, so they are not summed. */
+                    dot[8]=freq*cl_itreal( fvxr[indfd], fvx[indfd] )/dftnorm;
+                    dot[9]=freq*cl_itreal( fvzr[indfd], fvz[indfd] )/dftnorm;
                     
                     
                     gradM[indm]+= -c[0]*dot[0]
                                   +c[1]*dot[1];
 
-                    gradmu[indm]+=-c[2]*dot[2]
-                                 +c[3]*dot[3]
+                    gradmu[indm]+= +c[3]*dot[3]
                                  -c[4]*dot[4]
                                  +c[5]*dot[5]
                                  -c[6]*dot[6]
                                  +c[7]*dot[7];
+                    if (gradmuipkp) gradmuipkp[indm]+= -imuipkp2*dot[2];
+                    if (gradrip) gradrip[indm]+= -dot[8];
+                    if (gradrkp) gradrkp[indm]+= -dot[9];
                     
                     if (m->L>0){
                         gradtaup[indm]+= -c[8]*dot[0]
@@ -889,14 +918,10 @@ int calc_grad(model * m, device * dev)  {
                                         +c[15]*dot[7];
                     }
                     
-                    /* Density gets the velocity correlation and nothing
-                     * else. The parameterization's dependence of M and mu on
-                     * rho is chain_rule_par_type()'s job now (gradrho +=
-                     * M/rho*gradM + mu/rho*gradmu), derived from the very
-                     * numbers accumulated above instead of from a parallel
-                     * c[16..23] group that had to be kept sign-consistent by
-                     * hand. */
-                    gradrho[indm]+=-dot[8];
+                    /* gradrho gets no correlation term: density enters the
+                     * physics only through rip/rkp, accumulated above. It is
+                     * filled by average_grad_transpose and then by
+                     * chain_rule_par_type's M/rho and mu/rho terms. */
                     
                     if(m->HOUT){
                         dot[1]=0;dot[5]=0;dot[6]=0;dot[7]=0;
@@ -1018,6 +1043,223 @@ int calc_grad(struct model * m, struct device * dev){
     return 0;
 }
 #endif
+
+/* ---------------------------------------------------------------------------
+   Transpose of the material-parameter averaging.
+
+   The FD physics is evaluated at staggered, averaged parameters (rip/rjp/rkp
+   from the buoyancy, muipkp/muipjp/mujpkp from mu, tausipkp/... from taus), so
+   that is where the correlation accumulates its gradient. Mapping those back
+   onto the cell-centred parameters the user inverts for is the transpose of
+   the averaging operator's Jacobian.
+
+   Written as a scatter, mirroring the forward routines in
+   assign_modeling_case.c loop for loop -- including the trailing copy region
+   each of them ends with, where the Jacobian is 1 rather than the averaging
+   formula. Specified and dot-tested independently in
+   SeisCL/tests/dot_prod_average.py.
+
+   Must run *before* unscale_par(): the Jacobians are evaluated at the stored
+   (internal) parameter values, which unscale_par overwrites. It commutes with
+   unscale_grad(), which is a uniform factor on a linear operator.
+   --------------------------------------------------------------------------*/
+
+static void grad_T_arithmetic_rho(float * pin, float * gin, float * gout,
+                                  int * N, int ndim, int * dir){
+    int i,j,k;
+    int NX, NY, NZ;
+    int NX0=0, NY0=0, NZ0=0;
+    int ind1, ind2;
+    double avg, s;
+    if (ndim==3){ NX=N[2]; NY=N[1]; NZ=N[0]; }
+    else        { NX=N[1]; NY=1;    NZ=N[0]; }
+
+    /* pout = 2/(1/p1 + 1/p2)  =>  d(pout)/d(p_j) = (pout^2/2)/p_j^2 */
+    for (k=0;k<NZ-dir[0];k++){
+        for (j=0;j<NY-dir[1];j++){
+            for (i=0;i<NX-dir[2];i++){
+                ind1 = (i  )*NY*NZ+(j)*NZ+(k);
+                ind2 = (i+dir[2])*NY*NZ+(j+dir[1])*NZ+(k+dir[0]);
+                s = 1.0/pin[ind1] + 1.0/pin[ind2];
+                if (s==0.0) continue;
+                avg = 2.0/s;
+                gout[ind1] += gin[ind1]*0.5*avg*avg/(pin[ind1]*pin[ind1]);
+                gout[ind2] += gin[ind1]*0.5*avg*avg/(pin[ind2]*pin[ind2]);
+            }
+        }
+    }
+    if (dir[2]==1)      NX0=NX-1;
+    else if (dir[1]==1) NY0=NY-1;
+    if (dir[0]==1)      NZ0=NZ-1;
+    for (k=NZ0;k<NZ;k++){
+        for (j=NY0;j<NY;j++){
+            for (i=NX0;i<NX;i++){
+                ind1 = (i  )*NY*NZ+(j)*NZ+(k);
+                gout[ind1] += gin[ind1];
+            }
+        }
+    }
+}
+
+static void grad_T_harmonic_mu(float * pin, float * gin, float * gout,
+                               int * N, int ndim, int (*dir)[3]){
+    int i,j,k,d;
+    int NX, NY, NZ;
+    int NX0=0, NY0=0, NZ0=0;
+    int ind[4];
+    double avg, s;
+    if (ndim==3){ NX=N[2]; NY=N[1]; NZ=N[0]; }
+    else        { NX=N[1]; NY=1;    NZ=N[0]; }
+
+    /* pout = 4/sum(1/p_j)  =>  d(pout)/d(p_j) = (pout^2/4)/p_j^2, and all four
+       are zero in a vacuum cell, where ave_harmonic_mu forces pout to 0. */
+    for (k=0;k<NZ-dir[0][0]-dir[1][0];k++){
+        for (j=0;j<NY-dir[0][1]-dir[1][1];j++){
+            for (i=0;i<NX-dir[0][2]-dir[1][2];i++){
+                ind[0] = (i)*NY*NZ+(j)*NZ+(k);
+                ind[1] = (i+dir[0][2])*NY*NZ+(j+dir[0][1])*NZ+(k+dir[0][0]);
+                ind[2] = (i+dir[1][2])*NY*NZ+(j+dir[1][1])*NZ+(k+dir[1][0]);
+                ind[3] = (i+dir[0][2]+dir[1][2])*NY*NZ
+                        +(j+dir[0][1]+dir[1][1])*NZ
+                        +(k+dir[0][0]+dir[1][0]);
+                if (pin[ind[0]]==0 || pin[ind[1]]==0
+                    || pin[ind[2]]==0 || pin[ind[3]]==0){
+                    continue;
+                }
+                s = 1.0/pin[ind[0]] + 1.0/pin[ind[1]]
+                  + 1.0/pin[ind[2]] + 1.0/pin[ind[3]];
+                if (s==0.0) continue;
+                avg = 4.0/s;
+                for (d=0;d<4;d++){
+                    gout[ind[d]] += gin[ind[0]]*0.25*avg*avg
+                                    /(pin[ind[d]]*pin[ind[d]]);
+                }
+            }
+        }
+    }
+    for (d=0;d<2;d++){
+        NX0=0; NY0=0; NZ0=0;
+        if (dir[d][2]==1)      NX0=NX-1;
+        else if (dir[d][1]==1) NY0=NY-1;
+        if (dir[d][0]==1)      NZ0=NZ-1;
+        for (k=NZ0;k<NZ;k++){
+            for (j=NY0;j<NY;j++){
+                for (i=NX0;i<NX;i++){
+                    ind[0] = (i)*NY*NZ+(j)*NZ+(k);
+                    gout[ind[0]] += gin[ind[0]];
+                }
+            }
+        }
+    }
+}
+
+static void grad_T_arithmetic_tau(float * gin, float * gout,
+                                  int * N, int ndim, int (*dir)[3]){
+    int i,j,k,d;
+    int NX, NY, NZ;
+    int NX0=0, NY0=0, NZ0=0;
+    int ind[4];
+    if (ndim==3){ NX=N[2]; NY=N[1]; NZ=N[0]; }
+    else        { NX=N[1]; NY=1;    NZ=N[0]; }
+
+    /* Plain 4-point arithmetic mean: every Jacobian entry is 0.25. */
+    for (k=0;k<NZ-dir[0][0]-dir[1][0];k++){
+        for (j=0;j<NY-dir[0][1]-dir[1][1];j++){
+            for (i=0;i<NX-dir[0][2]-dir[1][2];i++){
+                ind[0] = (i)*NY*NZ+(j)*NZ+(k);
+                ind[1] = (i+dir[0][2])*NY*NZ+(j+dir[0][1])*NZ+(k+dir[0][0]);
+                ind[2] = (i+dir[1][2])*NY*NZ+(j+dir[1][1])*NZ+(k+dir[1][0]);
+                ind[3] = (i+dir[0][2]+dir[1][2])*NY*NZ
+                        +(j+dir[0][1]+dir[1][1])*NZ
+                        +(k+dir[0][0]+dir[1][0]);
+                for (d=0;d<4;d++){
+                    gout[ind[d]] += 0.25*gin[ind[0]];
+                }
+            }
+        }
+    }
+    for (d=0;d<2;d++){
+        NX0=0; NY0=0; NZ0=0;
+        if (dir[d][2]==1)      NX0=NX-1;
+        else if (dir[d][1]==1) NY0=NY-1;
+        if (dir[d][0]==1)      NZ0=NZ-1;
+        for (k=NZ0;k<NZ;k++){
+            for (j=NY0;j<NY;j++){
+                for (i=NX0;i<NX;i++){
+                    ind[0] = (i)*NY*NZ+(j)*NZ+(k);
+                    gout[ind[0]] += gin[ind[0]];
+                }
+            }
+        }
+    }
+}
+
+/* One helper so a missing parameter (SH has no M, elastic has no taus, ...)
+   is skipped rather than dereferenced. */
+static float * par_grad(model * m, const char * name, float ** value){
+    parameter * p = get_par(m->pars, m->npars, name);
+    if (!p || !p->gl_grad) return NULL;
+    if (value) *value = p->gl_par;
+    return p->gl_grad;
+}
+
+int average_grad_transpose(model * m) {
+    int state=0;
+    float * gsrc; float * psrc;
+    float * gavg; float * pavg;
+    int d1[3];
+    int d2[2][3];
+
+    /* buoyancy -> rip / rjp / rkp */
+    gsrc = par_grad(m, "rho", &psrc);
+    if (gsrc){
+        gavg = par_grad(m, "rip", &pavg);
+        if (gavg){ d1[0]=0; d1[1]=0; d1[2]=1;
+            grad_T_arithmetic_rho(psrc, gavg, gsrc, m->N, m->NDIM, d1); }
+        gavg = par_grad(m, "rjp", &pavg);
+        if (gavg){ d1[0]=0; d1[1]=1; d1[2]=0;
+            grad_T_arithmetic_rho(psrc, gavg, gsrc, m->N, m->NDIM, d1); }
+        gavg = par_grad(m, "rkp", &pavg);
+        if (gavg){ d1[0]=1; d1[1]=0; d1[2]=0;
+            grad_T_arithmetic_rho(psrc, gavg, gsrc, m->N, m->NDIM, d1); }
+    }
+
+    /* mu -> muipkp / muipjp / mujpkp */
+    gsrc = par_grad(m, "mu", &psrc);
+    if (gsrc){
+        gavg = par_grad(m, "muipkp", &pavg);
+        if (gavg){ d2[0][0]=0; d2[0][1]=0; d2[0][2]=1;
+                   d2[1][0]=1; d2[1][1]=0; d2[1][2]=0;
+            grad_T_harmonic_mu(psrc, gavg, gsrc, m->N, m->NDIM, d2); }
+        gavg = par_grad(m, "mujpkp", &pavg);
+        if (gavg){ d2[0][0]=0; d2[0][1]=1; d2[0][2]=0;
+                   d2[1][0]=1; d2[1][1]=0; d2[1][2]=0;
+            grad_T_harmonic_mu(psrc, gavg, gsrc, m->N, m->NDIM, d2); }
+        gavg = par_grad(m, "muipjp", &pavg);
+        if (gavg){ d2[0][0]=0; d2[0][1]=0; d2[0][2]=1;
+                   d2[1][0]=0; d2[1][1]=1; d2[1][2]=0;
+            grad_T_harmonic_mu(psrc, gavg, gsrc, m->N, m->NDIM, d2); }
+    }
+
+    /* taus -> tausipkp / tausipjp / tausjpkp */
+    gsrc = par_grad(m, "taus", &psrc);
+    if (gsrc){
+        gavg = par_grad(m, "tausipkp", &pavg);
+        if (gavg){ d2[0][0]=0; d2[0][1]=0; d2[0][2]=1;
+                   d2[1][0]=1; d2[1][1]=0; d2[1][2]=0;
+            grad_T_arithmetic_tau(gavg, gsrc, m->N, m->NDIM, d2); }
+        gavg = par_grad(m, "tausjpkp", &pavg);
+        if (gavg){ d2[0][0]=0; d2[0][1]=1; d2[0][2]=0;
+                   d2[1][0]=1; d2[1][1]=0; d2[1][2]=0;
+            grad_T_arithmetic_tau(gavg, gsrc, m->N, m->NDIM, d2); }
+        gavg = par_grad(m, "tausipjp", &pavg);
+        if (gavg){ d2[0][0]=0; d2[0][1]=0; d2[0][2]=1;
+                   d2[1][0]=0; d2[1][1]=1; d2[1][2]=0;
+            grad_T_arithmetic_tau(gavg, gsrc, m->N, m->NDIM, d2); }
+    }
+
+    return state;
+}
 
 /* unpack_par_fp16, unscale_par_grad and chain_rule_par_type used to be one
    function. They are three unrelated jobs -- storage format, units, and
@@ -1219,6 +1461,7 @@ int chain_rule_par_type(model * m) {
 int transf_grad(model * m) {
     int state=0;
     __GUARD unpack_par_fp16(m);
+    __GUARD average_grad_transpose(m);
     __GUARD unscale_par(m);
     __GUARD unscale_grad(m);
     __GUARD chain_rule_par_type(m);
