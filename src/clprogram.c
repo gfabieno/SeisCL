@@ -310,7 +310,18 @@ char *get_build_options(device *dev,
                 sprintf(src,"-D N%s=%d ",m->N_names[i],(*dev).N[i]+m->FDORDER);
             }
             strcat(build_options,src);
-            
+
+        }
+        /* Scalar (unvectorized) padded extents. N<dim> above is halved on the
+           fastest axis whenever FP16>0, because the update kernels address the
+           wavefield as float2/half2. Kernels that address it one scalar element
+           at a time -- the DFT gradient correlation, whose spectra are one
+           float2 per *scalar* element (Init_OpenCL.c's cl_fvar sizing) -- need
+           the true extent, and cannot recover it as 2*N<dim> when
+           N[i]+FDORDER is odd. */
+        for (i=0;i<m->NDIM;i++){
+            sprintf(src,"-D N%sS=%d ",m->N_names[i],(*dev).N[i]+m->FDORDER);
+            strcat(build_options,src);
         }
     }
     else{
@@ -502,6 +513,12 @@ int get_build_options(device *dev,
                 sprintf(build_options[*n-1],"-D N%s=%d ",
                         m->N_names[i],(*dev).N[i]+m->FDORDER);
             }
+        }
+        /* Scalar (unvectorized) padded extents -- see the OpenCL branch. */
+        for (i=0;i<m->NDIM;i++){
+            *n+=1;
+            sprintf(build_options[*n-1],"-D N%sS=%d ",
+                    m->N_names[i],(*dev).N[i]+m->FDORDER);
         }
     }
     else{

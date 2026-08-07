@@ -879,12 +879,15 @@ int assign_modeling_case(model * m){
             fprintf(stderr,"Error: back_prop_type=2 requires a non-empty "
                            "gradfreqs\n");
         }
-        if (m->FP16>1){
-            state=1;
-            fprintf(stderr,"Error: back_prop_type=2 does not support FP16>1: "
-                           "the savefreqs kernel reads the wavefield buffers "
-                           "as float, but they are packed half\n");
-        }
+        /* All FP16 levels are supported. savefreqs types the wavefield as
+           half when FP16>1 and converts on load; the correlation kernels do
+           the same for the parameter buffers (Init_OpenCL.c halves cl_par.size
+           too), index with the scalar extents NZS/NXS rather than the
+           float2-halved NZ/NX, and undo the wavefield scaling with
+           src_scale/res_scale/par_scale. Everything downstream of the load is
+           float/double -- half is a storage format here, never a compute one.
+           A small accuracy cost at FP16>1 is expected from the half storage
+           itself. */
 
     }
     /* Only par_type=0, (vp, vs, rho), is supported by the engine. The other

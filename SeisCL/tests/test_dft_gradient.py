@@ -757,6 +757,124 @@ def test_hessian_read_in_every_param_type():
             "host calc_grad rather than return the zeroed buffer." % ptype)
 
 
+def test_dft_gradient_every_fp16_level():
+    """The DFT gradient agrees with FP16=0 at every FP16 level.
+
+    Three distinct things have to be right for this to pass, and each of them
+    was wrong at some point:
+
+    * Indexing. get_build_options halves N on the fastest axis whenever
+      FP16>0, because the update kernels address the wavefield as float2/half2.
+      The correlation is scalar -- savefreqs writes one float2 spectrum entry
+      per *scalar* element -- so it indexes with NZS/NXS instead. Using NZ/NX
+      covered half the grid and gave cos ~0.00.
+    * Storage type. At FP16>1 both the wavefield *and* the parameter buffers
+      hold half (Init_OpenCL.c halves cl_var.size and cl_par.size). Reading
+      either as float gives garbage; both are loaded as half and converted.
+      cl_grad/cl_H are never halved, so the outputs stay float.
+    * Scaling. FP16>0 keeps the wavefield in scaled units, undone here with
+      src_scale/res_scale/par_scale.
+
+    A homogeneous model would not catch the first two: an indexing or scaling
+    error on a constant model is a spatially constant factor, which cos cannot
+    see. Hence the heterogeneous model, as in T3.
+
+    Tolerances differ by level on purpose. FP16=1 is FP32-vectorized -- same
+    bytes, so it must agree to fp32 round-off. FP16=2/3 store half, which
+    genuinely costs accuracy.
+
+    On why FP16>1 is not held to cos > 0.999: the remaining gap is in the
+    *adjoint wavefield*, not in anything the DFT path owns. Comparing the
+    accumulated spectra directly at FP16=2 vs FP16=0 on this model
+    (dft-work/diag_fp16_spectra.py) gives
+
+        forward  vx/vz/sxx/szz/sxz   cos = 0.999999   (savefreqs is exact)
+        adjoint  vx 0.99979  vz 0.99994
+        adjoint  sxx 0.99745  szz 0.99615  sxz 0.97633
+
+    and gradvs -- whose d2 term is exactly itreal(Axz, Fxz) -- comes out at
+    cos 0.9758, tracking the adjoint sxz number. So savefreqs, the scalar
+    half loads and the power-of-two scaling are all correct; what degrades is
+    the half-precision adjoint field itself, driven by a spiky
+    residual source rather than a smooth wavelet. Tightening this test means
+    improving that field (res_scale is picked from the *velocity* residual
+    max, which need not suit the shear stress), not the correlation kernel.
+    The forward-spectrum agreement above is the part this code is
+    responsible for, and it is exact.
+    """
+    wd = workdir("fp16_levels")
+    s0 = make_seiscl(wd)
+    nz, nx = int(s0.N[0]), int(s0.N[1])
+    zz, xx = np.meshgrid(np.arange(nz), np.arange(nx), indexing="ij")
+    params = {
+        "vp": 2000.0 + 600.0 * np.sin(2 * np.pi * xx / nx)
+                     * np.cos(np.pi * zz / nz) + 4.0 * zz,
+        "vs": 1200.0 + 250.0 * np.cos(2 * np.pi * xx / nx) + 2.0 * zz,
+        "rho": 2000.0 + 300.0 * np.sin(np.pi * zz / nz),
+    }
+    params = {k: v.astype(np.float64) for k, v in params.items()}
+    true_params = {k: v.copy() for k, v in params.items()}
+    true_params["vp"][nz // 2 - 5:nz // 2 + 5, nx // 2 - 5:nx // 2 + 5] += 300.0
+    din = make_observed(s0, params=true_params)
+
+    freqs = [11.0, 19.0, 27.0]
+
+    def grad_at(fp16):
+        s = make_seiscl(wd, gradout=1, back_prop_type=2, FP16=fp16,
+                        gradfreqs=np.asarray(freqs, dtype=float))
+        s.file_din = din
+        s.set_forward(s.src_pos_all[3, :], params, withgrad=True)
+        s.execute()
+        return s, s.read_grad()
+
+    s_ref, ref = grad_at(0)
+    # |cos-1| tolerance, relative-difference tolerance
+    tols = {1: (1e-6, 1e-3), 2: (0.03, 0.30), 3: (0.03, 0.30)}
+    worst = {}
+    for fp16, (cos_tol, rel_tol) in tols.items():
+        try:
+            _, got = grad_at(fp16)
+        except SeisCLError as exc:
+            # FP16>1 is CUDA-only, and has always been: header_FD_fp16.cl
+            # expands __h22f2/__f22h2 to the CUDA intrinsics __half22float2 /
+            # __float22half2_rn, which OpenCL has no declaration for, so every
+            # update_*_half2 kernel fails to build. Nothing to do with the DFT
+            # path -- back_prop_type=1 at FP16=2 fails identically on an
+            # OpenCL build. Skip rather than assert a pre-existing limitation.
+            if "CL_BUILD_PROGRAM_FAILURE" in str(exc) and fp16 > 1:
+                print("  FP16=%d skipped: half2 kernels are CUDA-only on this "
+                      "build (__half22float2 is not an OpenCL function)" % fp16)
+                continue
+            raise
+        for i, nm in enumerate(("vp", "vs", "rho")):
+            a = _interior(s_ref, ref[i]).astype(np.float64).ravel()
+            b = _interior(s_ref, got[i]).astype(np.float64).ravel()
+            na, nb = np.linalg.norm(a), np.linalg.norm(b)
+            assert na > 0 and nb > 0, (
+                "FP16=%d grad%s is identically zero" % (fp16, nm))
+            cos = float(a @ b / (na * nb))
+            rel = float(np.linalg.norm(a - b) / na)
+            print("  FP16=%d %-4s cos=%.8f rel=%.4g" % (fp16, nm, cos, rel))
+            assert abs(cos - 1.0) < cos_tol, (
+                "FP16=%d grad%s direction differs from FP16=0 (cos=%.6f). "
+                "Half storage plus the half-precision adjoint field costs a "
+                "few percent here; a cos far below that (say < 0.9) means an "
+                "indexing or storage-type error instead -- reading a half "
+                "buffer as float, or indexing with the float2-halved NZ/NX. "
+                "Compare the spectra with dft-work/diag_fp16_spectra.py to "
+                "tell the two apart: savefreqs agrees to cos 0.999999 when "
+                "only the adjoint field is at fault."
+                % (fp16, nm, cos))
+            assert rel < rel_tol, (
+                "FP16=%d grad%s differs from FP16=0 by %.4g (tol %.4g). With "
+                "cos ~1 this is a magnitude error, i.e. the power-of-two "
+                "wavefield scaling (src_scale/res_scale/par_scale)."
+                % (fp16, nm, rel, rel_tol))
+            worst[fp16] = max(worst.get(fp16, 0.0), rel)
+    print("  worst relative difference per level: %s"
+          % {k: "%.4g" % v for k, v in sorted(worst.items())})
+
+
 TESTS = [
     test_dft_forward_spectrum_vs_numpy,
     test_dft_forward_spectrum_multifreq,
@@ -768,6 +886,7 @@ TESTS = [
     test_finite_difference_python_objective,
     test_engine_rejects_nonzero_par_type,
     test_hessian_read_in_every_param_type,
+    test_dft_gradient_every_fp16_level,
     test_dense_dft_matches_backprop,
 ]
 

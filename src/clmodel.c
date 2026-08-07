@@ -61,7 +61,25 @@ int append_par(model * m,
     
     //Allocate memory of parameters
     GMALLOC(m->pars[*ind].gl_par, sizeof(float)*m->pars[*ind].num_ele);
-    if (m->GRADOUT && m->pars[*ind].to_read){
+    /* to_grad means "this parameter has a gradient buffer that takes part in
+       the computation", which is not the same thing as "the user asked for
+       it in the output file". It used to be gated on to_read, conflating the
+       two, so the *averaged* staggered parameters (rip/rkp/muipkp/... , all
+       registered with to_read==NULL because they are derived rather than read
+       from HDF5) got no gradient buffer at all -- and therefore were never
+       zeroed by gradinit, never read back, and never reduced across MPI
+       groups. That is why update_adjs2D.cl's gradmuipkp argument binds to a
+       real device buffer and yet is dead.
+
+       Those parameters are exactly where the physics evaluates its
+       coefficients, so they are where the gradient has to be accumulated
+       before the material-averaging chain rule maps it back onto the
+       cell-centred M/mu/rho (see
+       notes/material-averaging-gradient-review.md). Every parameter now gets
+       a buffer; what the output file contains is selected on to_read at
+       write time instead (writehdf5.c), which is also what supplies the
+       dataset name. */
+    if (m->GRADOUT){
         m->pars[*ind].to_grad=1;
         GMALLOC(m->pars[*ind].gl_grad, sizeof(float)*m->pars[*ind].num_ele);
         if (m->HOUT){

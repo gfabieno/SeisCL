@@ -34,10 +34,25 @@
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 #endif
 
-#define NZM (NZ - 2*FDOH)
-#define NXM (NX - 2*FDOH)
-#define NPAD (NX*NZ)
-#define indf(f,i,k) ((f)*NPAD + ((i)+FDOH)*NZ + ((k)+FDOH))
+/* NZS/NXS, not NZ/NX: the scalar padded extents. See grad_dft2D.cl. */
+#define NZM (NZS - 2*FDOH)
+#define NXM (NXS - 2*FDOH)
+#define NPAD (NXS*NZS)
+#define indf(f,i,k) ((f)*NPAD + ((i)+FDOH)*NZS + ((k)+FDOH))
+
+/* Scalar half load for the parameter buffers when FP16>1 -- see the long
+ * comment in grad_dft2D.cl for why this is not __pprec/__pconv. */
+#if FP16>1
+    #define PARARG half
+    #ifdef __OPENCL_VERSION__
+        #define PARCONV(x) (x)
+    #else
+        #define PARCONV(x) __half2float(x)
+    #endif
+#else
+    #define PARARG float
+    #define PARCONV(x) (x)
+#endif
 
 LFUNDEF double itreal(float2 a, float2 b)
 {
@@ -54,7 +69,10 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
                           GLOBARG float2 * fsyz_f,
                           GLOBARG float2 * fvy,
                           GLOBARG float2 * fsxy,
-                          GLOBARG float2 * fsyz)
+                          GLOBARG float2 * fsyz,
+                          int src_scale,
+                          int res_scale,
+                          int par_scale)
 {
 
     #ifdef __OPENCL_VERSION__
@@ -70,39 +88,48 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
     int k = gid - i*NZM;
     int f;
 
-    double s2    = pow(2.0, -(double)PARSCALE);
+    double s2    = pow(2.0, -(double)par_scale);
     double dhdt  = (double)DH/(double)DT;
-    double lrho  = (double)rho[gid];
+    double lrho  = (double)PARCONV(rho[gid]);
     double rho_p = (lrho!=0.0) ? (1.0/lrho)*((double)DT/(double)DH)*s2 : 0.0;
-    double mu_p  = (double)mu[gid]*dhdt*s2;
+    double mu_p  = (double)PARCONV(mu[gid])*dhdt*s2;
 
     double dftdf  = 1.0/((double)NTNYQ*(double)DT*(double)DTNYQ);
     double dftnorm = (double)NTNYQ*(double)DTNYQ;
 
-    /* grad_coefelast_0_SH. Vacuum and fluid cells contribute nothing. */
-    double c0=0.0, c4=0.0;
+    /* Undo the FP16>0 wavefield scaling before applying the physical-unit
+     * coefficients -- see the long comment in grad_dft2D.cl. vy carries
+     * par_scale (set_par_scale scales vx/vy/vz only), the stresses carry 0. */
+    double sc_ss = pow(2.0, -(double)src_scale - (double)res_scale);
+    double sc_vv = sc_ss*pow(2.0, 2.0*(double)par_scale);
+
+    /* Coefficient of the *internal* (mu, rho) gradient. dJ/dmu comes from the
+     * shear correlation d0 alone and dJ/drho from the velocity correlation d2
+     * alone; the (vs, rho) chain rule is applied once after the loop rather
+     * than folded in. See the longer note in grad_dft2D.cl. Vacuum and fluid
+     * cells contribute nothing. */
+    double imu2=0.0;
     if (rho_p>0.0 && mu_p>=1.0){
-        c0 = 2.0*sqrt(rho_p*mu_p)/(mu_p*mu_p);
-        c4 = mu_p/rho_p/(mu_p*mu_p);
+        imu2 = 1.0/(mu_p*mu_p);
     }
 
-    double gmu=0.0, grho=0.0;
+    double Gmu=0.0, Grho=0.0;
 
     for (f=0; f<NFREQS; f++){
 
         double w = 2.0*3.14159265358979323846*dftdf*(double)gradfreqsn[f];
         int id = indf(f,i,k);
 
-        double d0 = w*(itreal(fsxy[id], fsxy_f[id])
+        double d0 = sc_ss*w*(itreal(fsxy[id], fsxy_f[id])
                      + itreal(fsyz[id], fsyz_f[id]))/dftnorm;
-        double d2 = w*itreal(fvy[id], fvy_f[id])/dftnorm;
+        double d2 = sc_vv*w*itreal(fvy[id], fvy_f[id])/dftnorm;
 
-        gmu  += -c0*d0;
-        /* c4 is vs^2 times the internal coefficient of d0, so it carries the
-         * same sign as gmu -- see the equivalent group in grad_dft2D.cl. */
-        grho += -d2 - c4*d0;
+        Gmu  += -d0*imu2;
+        Grho += -d2;
     }
 
-    gradmu[gid]  += (float)gmu;
-    gradrho[gid] += (float)grho;
+    /* Internal (mu, rho) gradient only -- chain_rule_par_type() on the host
+     * applies the parameterization. See grad_dft2D.cl. */
+    gradmu[gid]  += (float)Gmu;
+    gradrho[gid] += (float)Grho;
 }

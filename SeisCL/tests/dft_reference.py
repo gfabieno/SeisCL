@@ -62,7 +62,42 @@ def gradient_2d_elastic(fwd, adj, M, mu, rho, bins, ntnyq, dtnyq, dt,
     df = 1.0 / ntnyq / dt / dtnyq
     # Parseval factor is 1/(NTNYQ*DTNYQ), not 1/NTNYQ -- see calc_grad.c.
     dftnorm = float(ntnyq) * float(dtnyq)
-    c = grad_coef_elast_0(M, mu, rho, ND)
+
+    # The correlation is evaluated at the parameter the physics actually uses:
+    # sxz is driven by muipkp and the two velocity components by rip/rkp
+    # (update_s2D.cl / update_v2D.cl). The averaging and its transpose come
+    # from dot_prod_average, which dot-tests them independently of anything
+    # here -- that is the part of this reference that is *not* a transcription
+    # of the kernel. Both operators are scale invariant (a harmonic mean and
+    # the ratio muipkp^2/mu_j^2), so running them on physical values rather
+    # than the engine's internally scaled ones gives the same answer.
+    from dot_prod_average import (ave_harmonic_mu, ave_arithmetic_rho,
+                                  ave_harmonic_mu_T, ave_arithmetic_rho_T)
+    N2 = (nz, nx)
+    DIR_IPKP = [[0, 0, 1], [1, 0, 0]]
+    DIR_IP = [0, 0, 1]
+    DIR_KP = [1, 0, 0]
+
+    def _fwd(op, arr, dirs):
+        return op(np.asarray(arr, dtype=np.float64).T.ravel(),
+                  N2, dirs).reshape(nx, nz).T
+
+    def _T(op, y, arr, dirs):
+        return op(np.asarray(y, dtype=np.float64).T.ravel(),
+                  np.asarray(arr, dtype=np.float64).T.ravel(),
+                  N2, dirs).reshape(nx, nz).T
+
+    muipkp = _fwd(ave_harmonic_mu, mu, DIR_IPKP)
+    buoy = 1.0 / rho
+    with np.errstate(divide="ignore", invalid="ignore"):
+        imuipkp2 = np.where(muipkp > 0, 1.0 / (muipkp * muipkp), 0.0)
+
+    den = (ND * M - 2.0 * (ND - 1.0) * mu) ** 2
+    with np.errstate(divide="ignore", invalid="ignore"):
+        iden = np.where(den > 0, 1.0 / den, 0.0)
+        imu2 = np.where(mu > 0, 1.0 / (mu * mu), 0.0)
+    i3den = (ND + 1.0) / 3.0 * iden
+    i2ndmu2 = imu2 / (2.0 * ND)
 
     sl = (slice(fdoh, fdoh + nz), slice(fdoh, fdoh + nx))
 
@@ -74,7 +109,9 @@ def gradient_2d_elastic(fwd, adj, M, mu, rho, bins, ntnyq, dtnyq, dt,
 
     gM = np.zeros((nz, nx), dtype=np.float64)
     gmu = np.zeros((nz, nx), dtype=np.float64)
-    grho = np.zeros((nz, nx), dtype=np.float64)
+    gmuipkp = np.zeros((nz, nx), dtype=np.float64)
+    grip = np.zeros((nz, nx), dtype=np.float64)
+    grkp = np.zeros((nz, nx), dtype=np.float64)
 
     for j, b in enumerate(bins):
         w = 2.0 * np.pi * df * float(b)
@@ -93,17 +130,29 @@ def gradient_2d_elastic(fwd, adj, M, mu, rho, bins, ntnyq, dtnyq, dt,
         d2 = w * _itreal(asxz, fsxz) / dftnorm
         d3 = d0
         d4 = w * (_itreal(asxx, sxx_mzz) + _itreal(aszz, szz_mxx)) / dftnorm
-        d8 = w * (_itreal(avx, fvx) + _itreal(avz, fvz)) / dftnorm
+        # vx sits at the rip position, vz at rkp: different parameters, so the
+        # two must not be summed before the correlation is stored.
+        d8x = w * _itreal(avx, fvx) / dftnorm
+        d8z = w * _itreal(avz, fvz) / dftnorm
 
-        gM += -c[0] * d0
-        gmu += -c[2] * d2 + c[3] * d3 - c[4] * d4
-        # The c[16..20] chain-rule group carries the *same* signs as the gradM
-        # and gradmu expressions above: for par_type=0 both M and mu depend on
-        # rho, so gradrho picks up vp^2*gradM + vs^2*gradmu (both positive, as
-        # transf_grad does for back_prop_type=1 at calc_grad.c:1036-1041) on top
-        # of the density kernel -d8.
-        grho += (-d8 - c[16] * d0 - c[18] * d2 + c[19] * d3 - c[20] * d4)
+        gM += -d0 * iden
+        gmu += d3 * i3den - d4 * i2ndmu2      # sxx/szz: cell-centred mu
+        gmuipkp += -d2 * imuipkp2             # sxz: the averaged mu
+        grip += -d8x
+        grkp += -d8z
 
-    # calc_grad already applies the param_type=0 chain rule through c[], so
-    # these are gradients with respect to (vp, vs, rho) directly.
-    return {"vp": gM, "vs": gmu, "rho": grho}
+    # Averaging transpose: fold the staggered gradients back onto the
+    # cell-centred parameters. Density enters the physics only through
+    # rip/rkp, so grho has no term of its own.
+    gmu = gmu + _T(ave_harmonic_mu_T, gmuipkp, mu, DIR_IPKP)
+    grho = (_T(ave_arithmetic_rho_T, grip, buoy, DIR_IP)
+            + _T(ave_arithmetic_rho_T, grkp, buoy, DIR_KP))
+
+    # Parameterization chain rule, (M, mu, rho) -> (vp, vs, rho), as
+    # chain_rule_par_type does on the host.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        irho = np.where(rho > 0, 1.0 / rho, 0.0)
+    gvp = 2.0 * np.sqrt(rho * M) * gM
+    gvs = 2.0 * np.sqrt(rho * mu) * gmu
+    gvrho = grho + M * irho * gM + mu * irho * gmu
+    return {"vp": gvp, "vs": gvs, "rho": gvrho}

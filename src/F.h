@@ -257,6 +257,16 @@ typedef struct parameter{
 
 int calc_grad(struct model * m, struct device * dev);
 int transf_grad(struct model * m);
+/* transf_grad's three jobs, separately: storage format, units, and
+   parameterization. See calc_grad.c for why they are not one function. */
+int unpack_par_fp16(struct model * m);
+int unscale_par(struct model * m);
+int unscale_grad(struct model * m);
+int chain_rule_par_type(struct model * m);
+/* Transpose of the material-parameter averaging: folds the staggered
+   gradients (rip/rkp/muipkp/...) back onto the cell-centred ones. Runs before
+   unscale_par, whose output its Jacobians would otherwise be evaluated at. */
+int average_grad_transpose(struct model * m);
 
 /* ____Structure for constant vectors broadcasted to all devices______*/
 typedef struct constants{
