@@ -903,9 +903,24 @@ int calc_grad(model * m, device * dev)  {
                                  +c[5]*dot[5]
                                  -c[6]*dot[6]
                                  +c[7]*dot[7];
-                    if (gradmuipkp) gradmuipkp[indm]+= -imuipkp2*dot[2];
-                    if (gradrip) gradrip[indm]+= -dot[8];
-                    if (gradrkp) gradrkp[indm]+= -dot[9];
+                    /* The staggered split is elastic-only for now. imuipkp2
+                       is 1/muipkp^2, which equals c[2] only when L==0; the
+                       viscoelastic c[2] is (1+al*taus)/(muipkp^2*(1+L*taus)),
+                       and its taus twin c[10] would likewise have to go to a
+                       tausipkp slot rather than to gradtaus. Doing that needs
+                       the averaged taus as well, so until then L>0 keeps the
+                       pre-existing cell-centred accumulation -- which is also
+                       what grad_dft2D_visc.cl does, so device and host stay
+                       comparable under SEISCL_DFT_CHECK. */
+                    if (m->L==0){
+                        if (gradmuipkp) gradmuipkp[indm]+= -imuipkp2*dot[2];
+                        if (gradrip) gradrip[indm]+= -dot[8];
+                        if (gradrkp) gradrkp[indm]+= -dot[9];
+                    }
+                    else {
+                        gradmu[indm]  += -c[2]*dot[2];
+                        gradrho[indm] += -(dot[8]+dot[9]);
+                    }
                     
                     if (m->L>0){
                         gradtaup[indm]+= -c[8]*dot[0]

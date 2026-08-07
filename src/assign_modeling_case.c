@@ -13,6 +13,7 @@
  This way, no .cl file need to be read and there is no need to be in the executable directory to execute SeisCL.*/
 #include "grad_dft2D.hcl"
 #include "grad_dft2D_SH.hcl"
+#include "grad_dft2D_visc.hcl"
 #include "savebnd2D.hcl"
 #include "savebnd3D.hcl"
 #include "surface2D.hcl"
@@ -1035,11 +1036,21 @@ int assign_modeling_case(model * m){
     }
     /* On-device DFT gradient correlation. 2D P-SV elastic only for now; other
      * cases keep the host calc_grad, which the OpenCL build still provides. */
-    if (m->GRADOUT && m->BACK_PROP_TYPE==2 && m->L==0){
+    if (m->GRADOUT && m->BACK_PROP_TYPE==2){
         const char * graddft = NULL;
-        if (m->ND==2)       graddft = grad_dft2D_source;
-        else if (m->ND==21) graddft = grad_dft2D_SH_source;
-        /* ND==3 and L>0 still use the host calc_grad. */
+        if (m->L==0){
+            if (m->ND==2)       graddft = grad_dft2D_source;
+            else if (m->ND==21) graddft = grad_dft2D_SH_source;
+        }
+        else {
+            /* Viscoelastic. Without this the L>0 case fell back to the host
+               calc_grad(), which is #ifdef __SEISCL__ and a no-op stub under
+               CUDA -- so the gradient came back identically zero, silently,
+               and SeisCL.torch (CUDA-only) could not do viscoelastic FWI at
+               all. 2D P-SV only for now; SH and 3D still use the host. */
+            if (m->ND==2)       graddft = grad_dft2D_visc_source;
+        }
+        /* ND==3, and SH/3D viscoelastic, still use the host calc_grad. */
         if (graddft){
             if (m->ND==21 && m->HOUT){
                 state=1;
