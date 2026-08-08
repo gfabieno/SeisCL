@@ -338,8 +338,21 @@ FUNDEF void update_s(int offcomm, int nt,
             leta[l]=eta[l];
         }
         
-        f=lm*(1.0+ (float)LVE*ltausipjp);
-        d=lmu*ltaus;
+        /* Was `f=lm*(1.0+LVE*ltausipjp)` with both `lm` and `ltausipjp`
+           undeclared -- SH viscoelastic has never compiled, so this line was
+           never exercised. The locals the block actually reads are lmu and
+           ltaus, and the shear-stress terms of the P-SV kernel give the
+           intended form directly: update_s2D.cl uses
+           fipkp = lmuipkp*(1+LVE*ltausipkp) for sxz, and SH's elastic branch
+           above uses f = mu, so the viscoelastic f is mu times the same
+           relaxation factor.
+
+           `d` likewise gets the /DT that P-SV's dipkp = lmuipkp*ltausipkp/DT
+           carries: it multiplies vyx/vyz in exactly the same memory-variable
+           recursion below (rxy = b*(rxy*c - eta*(d*vyx))), so the two have to
+           agree dimensionally. */
+        f=lmu*(1.0+ (float)LVE*ltaus);
+        d=lmu*ltaus/DT;
         
 #endif
     }

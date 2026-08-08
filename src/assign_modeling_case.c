@@ -14,6 +14,7 @@
 #include "grad_dft2D.hcl"
 #include "grad_dft2D_SH.hcl"
 #include "grad_dft2D_visc.hcl"
+#include "grad_dft2D_SH_visc.hcl"
 #include "savebnd2D.hcl"
 #include "savebnd3D.hcl"
 #include "surface2D.hcl"
@@ -1049,6 +1050,7 @@ int assign_modeling_case(model * m){
                and SeisCL.torch (CUDA-only) could not do viscoelastic FWI at
                all. 2D P-SV only for now; SH and 3D still use the host. */
             if (m->ND==2)       graddft = grad_dft2D_visc_source;
+            else if (m->ND==21) graddft = grad_dft2D_SH_visc_source;
         }
         /* ND==3, and SH/3D viscoelastic, still use the host calc_grad. */
         if (graddft){
