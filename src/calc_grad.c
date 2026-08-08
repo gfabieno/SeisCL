@@ -657,33 +657,57 @@ int calc_grad(model * m, device * dev)  {
         for (i=0;i<NX;i++){
             for (j=0;j<NY;j++){
                 for (k=0;k<NZ;k++){
+                    indm=i*NY*NZ+j*NZ+k;
+
+                    /* Undo the internal non-dimensionalization before feeding
+                     * the grad_coef* formulas, which are expressions in the
+                     * *physical* stiffnesses and density -- cl_par.host holds
+                     * the internally non-dimensionalized values. This mirrors
+                     * the ND==2 branch below (calc_grad.c, "Undo the
+                     * transform" comment) and the on-device grad_dft3D.cl
+                     * kernel, both of which already do this. The ND==3 host
+                     * branch never got this fix because back_prop_type=2 had
+                     * no 3D path to exercise it until grad_dft3D.cl; without
+                     * it this reference disagrees with the (correct) device
+                     * kernel by a scale factor that depends on par_scale,
+                     * dh, dt and the local density -- not a clean constant,
+                     * which is what made it look like a device-kernel bug at
+                     * first. */
+                    double s2 = pow(2.0, -(double)m->par_scale);
+                    double dhdt = (double)m->dh/(double)m->dt;
+                    double rho_p = (rho[indm]!=0.0)
+                                 ? (1.0/rho[indm])*((double)m->dt/(double)m->dh)*s2
+                                 : 0.0;
+                    double M_p   = M  ? M[indm]*dhdt*s2  : 0.0;
+                    double mu_p  = mu ? mu[indm]*dhdt*s2 : 0.0;
+                    double taup_p = (m->L>0 && taup) ? taup[indm] : 0.0;
+                    double taus_p = (m->L>0 && taus) ? taus[indm] : 0.0;
+                    /* Vacuum cells (M == mu == rho == 0): skip rather than
+                     * evaluate, same guard and same reason as ND==2 -- see
+                     * ../notes/back-prop-type1-zero-material-nan.md. */
+                    double den_p = ND*M_p - 2.0*(ND-1.0)*mu_p;
+                    if (!(rho_p>0.0) || !(den_p*den_p>0.0)){
+                        for (n=0;n<24;n++) c[n]=0;
+                    }
+                    else{
+                        c_calc(&c, M_p, mu_p, taup_p, taus_p, rho_p, ND, m->L, al);
+                        /* Fluid cells: drop every shear-related coefficient.
+                         * Tested on the physical mu, not the scaled one. */
+                        if (mu_p<1.0){
+                            for (n=2;n<8;n++)   c[n]=0;
+                            for (n=10;n<16;n++) c[n]=0;
+                            for (n=18;n<24;n++) c[n]=0;
+                        }
+                    }
+
                     for (f=0;f<m->NFREQS;f++){
 
                         indfd= f*(NX+m->FDORDER)*(NY+m->FDORDER)*(NZ+m->FDORDER)
                              +(i+m->FDOH)*(NY+m->FDORDER)*(NZ+m->FDORDER)
                              +(j+m->FDOH)*(NZ+m->FDORDER)
                              +(k+m->FDOH);
-                        indm=i*NY*NZ+j*NZ+k;
 
                         freq=2.0*PI*df* gradfreqsn[f];
-                        
-                        if (m->L>0)
-                            c_calc(&c,M[indm], mu[indm], taup[indm], taus[indm], rho[indm], ND,m->L,al);
-                        else
-                            c_calc(&c,M[indm], mu[indm], 0, 0, rho[indm], ND,m->L,al);
-                        
-                        if (mu[indm]<1){
-                            for (n=2;n<8;n++){
-                                c[n]=0;
-                            }
-                            for (n=10;n<16;n++){
-                                c[n]=0;
-                            }
-                            for (n=18;n<24;n++){
-                                c[n]=0;
-                            }
-
-                        }
 
                         dot[1]=0;dot[5]=0;dot[6]=0;dot[7]=0;
                         for (l=0;l<m->L;l++){
@@ -709,9 +733,18 @@ int calc_grad(model * m, device * dev)  {
                             
                             rxxyyzz=    cl_add(frxx[indL], fryy[indL], frzz[indL]);
                             rxxyyzzr=   cl_add(frxxr[indL], fryyr[indL], frzzr[indL]);
+                            /* Each memory variable's own stress minus the sum
+                             * of the other two, matching sxx_myyzz/syy_mxxzz/
+                             * szz_mxxyy below. Previously all three lines
+                             * were copy-pasted as cl_diff(frxx,fryy,frzz)
+                             * (todo item 6 / notes/3d-gradient-findings.md),
+                             * so ryy_mxxzz and rzz_mxxyy silently held the
+                             * same value as rxx_myyzz. Unreachable except
+                             * through calc_grad's L>0 (viscoelastic) DFT
+                             * path, which has no on-device kernel yet. */
                             rxx_myyzz= cl_diff(frxx[indL], fryy[indL], frzz[indL]);
-                            ryy_mxxzz= cl_diff(frxx[indL], fryy[indL], frzz[indL]);
-                            rzz_mxxyy= cl_diff(frxx[indL], fryy[indL], frzz[indL]);
+                            ryy_mxxzz= cl_diff(fryy[indL], frxx[indL], frzz[indL]);
+                            rzz_mxxyy= cl_diff(frzz[indL], frxx[indL], fryy[indL]);
                             dot[1]+=cl_rm( rxxyyzzr, rxxyyzz, tausigl[l],freq )/dftnorm;
                             
                             dot[5]+=(+cl_rm( frxyr[indL], frxy[indL] , tausigl[l],freq)
@@ -769,9 +802,18 @@ int calc_grad(model * m, device * dev)  {
                      * else. The parameterization's dependence of M and mu on
                      * rho is chain_rule_par_type()'s job now (gradrho +=
                      * M/rho*gradM + mu/rho*gradmu), derived from the very
-                     * numbers accumulated above instead of from a parallel
-                     * c[16..23] group that had to be kept sign-consistent by
-                     * hand. */
+                     * numbers accumulated above.
+                     *
+                     * This replaces a parallel c[16..23] group that had to be
+                     * kept sign-consistent with gradM/gradmu by hand, and was
+                     * not: the ND==2 branch carried a fix that this ND==3 one
+                     * never received, found by comparing grad_dft3D.cl
+                     * against this host oracle (gradvp/gradvs matched to fp32
+                     * while gradrho did not, isolated to exactly this group --
+                     * notes/3d-gradient-findings.md, "Item 6"). Deriving it in
+                     * one place makes that class of divergence impossible; the
+                     * _1 coefficient family the selection now uses does not
+                     * define c[16..23] at all. */
                          gradrho[indm]+=-dot[8];
 
                     }

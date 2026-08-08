@@ -156,3 +156,80 @@ def gradient_2d_elastic(fwd, adj, M, mu, rho, bins, ntnyq, dtnyq, dt,
     gvs = 2.0 * np.sqrt(rho * mu) * gmu
     gvrho = grho + M * irho * gM + mu * irho * gmu
     return {"vp": gvp, "vs": gvs, "rho": gvrho}
+
+
+def gradient_3d_elastic(fwd, adj, M, mu, rho, bins, ntnyq, dtnyq, dt,
+                        fdoh, nz, ny, nx, ND=3.0):
+    """3D extension of gradient_2d_elastic. Same coefficients (already generic
+    in ND), dot products extended to the extra field components (vy, syy,
+    sxy, syz), transcribed from src/grad_dft3D.cl / calc_grad.c's ND==3
+    branch. cl_diff(a,b,c) = a-b-c (calc_grad.c:46): each of
+    sxx_myyzz/syy_mxxzz/szz_mxxyy drops its own component from the sum of all
+    three.
+
+    :param fwd: dict var -> (NZpad, NYpad, NXpad, NFREQS) forward spectrum
+    :param adj: dict var -> same, adjoint spectrum
+    :param M, mu, rho: physical stiffness/density arrays, shape (nz, ny, nx)
+    :param bins: gradfreqsn, integer DFT bin indices
+    :return: dict with 'vp', 'vs', 'rho', each (nz, ny, nx)
+    """
+    df = 1.0 / ntnyq / dt / dtnyq
+    dftnorm = float(ntnyq) * float(dtnyq)
+    # Internal (M, mu, rho) coefficients: grad_coef_elast_0 with the
+    # parameterization chain rule factored out, matching grad_dft3D.cl and
+    # calc_grad.c's _1 family. The chain rule is applied once at the end.
+    den = (ND * M - 2.0 * (ND - 1.0) * mu) ** 2
+    with np.errstate(divide="ignore", invalid="ignore"):
+        iden = np.where(den > 0, 1.0 / den, 0.0)
+        imu2 = np.where(mu > 0, 1.0 / (mu * mu), 0.0)
+    i3den = (ND + 1.0) / 3.0 * iden
+    i2ndmu2 = imu2 / (2.0 * ND)
+
+    sl = (slice(fdoh, fdoh + nz), slice(fdoh, fdoh + ny), slice(fdoh, fdoh + nx))
+
+    def F(v):
+        return fwd[v][sl].astype(np.complex128)
+
+    def A(v):
+        return adj[v][sl].astype(np.complex128)
+
+    gM = np.zeros((nz, ny, nx), dtype=np.float64)
+    gmu = np.zeros((nz, ny, nx), dtype=np.float64)
+    grho = np.zeros((nz, ny, nx), dtype=np.float64)
+
+    for j, b in enumerate(bins):
+        w = 2.0 * np.pi * df * float(b)
+
+        fsxx, fsyy, fszz = F("sxx")[..., j], F("syy")[..., j], F("szz")[..., j]
+        fsxy, fsxz, fsyz = F("sxy")[..., j], F("sxz")[..., j], F("syz")[..., j]
+        asxx, asyy, aszz = A("sxx")[..., j], A("syy")[..., j], A("szz")[..., j]
+        asxy, asxz, asyz = A("sxy")[..., j], A("sxz")[..., j], A("syz")[..., j]
+        fvx, fvy, fvz = F("vx")[..., j], F("vy")[..., j], F("vz")[..., j]
+        avx, avy, avz = A("vx")[..., j], A("vy")[..., j], A("vz")[..., j]
+
+        sppp = fsxx + fsyy + fszz
+        spppr = asxx + asyy + aszz
+        sxx_myyzz = fsxx - fsyy - fszz
+        syy_mxxzz = fsyy - fsxx - fszz
+        szz_mxxyy = fszz - fsxx - fsyy
+
+        d0 = w * _itreal(spppr, sppp) / dftnorm
+        d2 = w * (_itreal(asxy, fsxy) + _itreal(asxz, fsxz)
+                  + _itreal(asyz, fsyz)) / dftnorm
+        d3 = d0
+        d4 = w * (_itreal(asxx, sxx_myyzz) + _itreal(asyy, syy_mxxzz)
+                  + _itreal(aszz, szz_mxxyy)) / dftnorm
+        d8 = w * (_itreal(avx, fvx) + _itreal(avy, fvy)
+                  + _itreal(avz, fvz)) / dftnorm
+
+        gM += -d0 * iden
+        gmu += -d2 * imu2 + d3 * i3den - d4 * i2ndmu2
+        grho += -d8
+
+    # Parameterization chain rule, (M, mu, rho) -> (vp, vs, rho), as
+    # chain_rule_par_type does on the host.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        irho = np.where(rho > 0, 1.0 / rho, 0.0)
+    return {"vp": 2.0 * np.sqrt(rho * M) * gM,
+            "vs": 2.0 * np.sqrt(rho * mu) * gmu,
+            "rho": grho + M * irho * gM + mu * irho * gmu}

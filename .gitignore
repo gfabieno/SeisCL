@@ -51,5 +51,4 @@ build*/
 # local test working dirs
 SeisCL/tests/_dftwork/
 cudacheck.py
-_wd/
-build-ocl/
+_wd*/

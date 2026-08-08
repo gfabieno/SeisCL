@@ -20,7 +20,20 @@ import os
 from shutil import copyfile
 import h5py as h5
 import matplotlib
-matplotlib.use('TkAgg')
+# TkAgg needs a display; fall back to the headless Agg backend so this module
+# can be imported (and its assert-based tests run) on a server with no X
+# server, e.g. under gradient_common.run_tests() or CI. matplotlib.use()
+# itself does not always fail without a display -- Tk only errors out later,
+# at figure-creation time -- so check DISPLAY explicitly rather than relying
+# on an exception here. Plotting still works with Agg, it just cannot pop up
+# an interactive window, which is irrelevant unless --plot 1 is passed.
+if os.environ.get('DISPLAY'):
+    try:
+        matplotlib.use('TkAgg')
+    except Exception:
+        matplotlib.use('Agg')
+else:
+    matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 plt.interactive(False)
 import sys
@@ -28,6 +41,11 @@ import sys
 from SeisCL import SeisCL
 from SeisCL.analytical.viscoelastic import viscoelastic_3D, viscoelastic_2D
 from SeisCL.analytical import garvin2, lamb3D
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
+from gradient_common import run_tests  # noqa: E402
 
 
 def ricker_wavelet(f0, NT, dt ):
@@ -163,6 +181,9 @@ def compare_data(data_fd, analytic, offset, dt, testname, tol=6e-2, plots=1):
         print("failed (RMSE %e)" % err)
     else:
         print("passed (RMSE %e)" % err)
+    assert err <= tol, (
+        "%s: RMSE %e exceeds tolerance %e against the analytical solution"
+        % (testname, err, tol))
 
     if plots:
 
@@ -460,6 +481,35 @@ def homogeneous_test(testname, vp=3500, vs=2000, rho=2000, taup=0, taus=0, L=1,
                  plots=plots)
 
 
+# Zero-argument test_* functions, in the same style as test_dft_gradient.py /
+# gradient_common.run_tests(): a real assert (raised inside compare_data),
+# no plots, no display required. This is what makes these part of the
+# standard test suite rather than a script that must be run and eyeballed --
+# a genuine regression fails loudly instead of printing "failed" and
+# returning 0. Grid size matches define_SeisCL's/homogeneous_test's own
+# default (N=300); nab=112 is tuned for that size (see the ValueError on a
+# smaller N in prepare_data -- offmax goes negative and the receiver line is
+# empty).
+def test_elastic_3d_inline():
+    homogeneous_test(testname="elastic_3D_inline", testtype="inline",
+                     plots=False)
+
+
+def test_elastic_3d_crossline():
+    homogeneous_test(testname="elastic_3D_crossline", testtype="crossline",
+                     plots=False)
+
+
+def test_viscoelastic_3d_inline():
+    homogeneous_test(testname="viscoelastic_3D_inline", testtype="inline",
+                     plots=False, taup=0.1, taus=0.1)
+
+
+def test_viscoelastic_3d_crossline():
+    homogeneous_test(testname="viscoelastic_3D_crossline",
+                     testtype="crossline", plots=False, taup=0.1, taus=0.1)
+
+
 if __name__ == "__main__":
     """
     Launch different tests to check the numerical accuracy of the FD solution.
@@ -480,7 +530,10 @@ if __name__ == "__main__":
     parser.add_argument("--test",
                         type=str,
                         default='all',
-                        help="Name of the test to run, default to all"
+                        help="Name of the test to run, default to all. "
+                             "'standard' runs only the assert-based 3D "
+                             "elastic/viscoelastic subset with a PASS/FAIL "
+                             "exit code (see gradient_common.run_tests)."
                         )
     parser.add_argument("--N",
                         type=int,
@@ -495,6 +548,22 @@ if __name__ == "__main__":
 
     # Parse the input for training parameters
     args, unparsed = parser.parse_known_args()
+
+    if args.test == "standard":
+        # The assert-based, no-plot, PASS/FAIL-table subset -- same
+        # convention as test_dft_gradient.py's run_tests(). This is what
+        # makes "3D elastic/viscoelastic vs. the analytical solution" part of
+        # the standard test suite rather than a script someone has to run and
+        # eyeball: a real regression exits nonzero instead of printing
+        # "failed" and continuing. Only the four 3D homogeneous-space tests
+        # (elastic + viscoelastic, inline + crossline); Lamb3D/Garvin2D/2D
+        # remain reachable through --test <name> for manual/plotted runs.
+        sys.exit(run_tests([
+            test_elastic_3d_inline,
+            test_elastic_3d_crossline,
+            test_viscoelastic_3d_inline,
+            test_viscoelastic_3d_crossline,
+        ]))
 
     name = "Lamb3D_inline"
     if args.test == name or args.test == "all":
