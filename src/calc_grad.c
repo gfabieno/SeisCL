@@ -728,7 +728,14 @@ int calc_grad(model * m, device * dev)  {
                             fsyyr[indfd]=cl_diff2(fsyyr[indfd], cl_integral(fryyr[indL],freq));
                             fsxzr[indfd]=cl_diff2(fsxzr[indfd], cl_integral(frxzr[indL],freq));
                             fsxyr[indfd]=cl_diff2(fsxyr[indfd], cl_integral(frxyr[indL],freq));
-                            fsyzr[indfd]=cl_diff2(fsyzr[indfd], cl_integral(fryz[indL],freq));
+                            /* fryzr, not fryz: the adjoint syz must be corrected with the
+                             * *adjoint* memory variable. The other five lines
+                             * above use their r-suffixed spectrum; this one was
+                             * copy-pasted from the forward block. Same class as
+                             * the rxx_myyzz/ryy_mxxzz/rzz_mxxyy paste fixed just
+                             * below, and unreachable until a 3D viscoelastic DFT
+                             * gradient existed to exercise it. */
+                            fsyzr[indfd]=cl_diff2(fsyzr[indfd], cl_integral(fryzr[indL],freq));
                             
                             
                             rxxyyzz=    cl_add(frxx[indL], fryy[indL], frzz[indL]);

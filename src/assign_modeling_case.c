@@ -16,6 +16,7 @@
 #include "grad_dft2D_visc.hcl"
 #include "grad_dft2D_SH_visc.hcl"
 #include "grad_dft3D.hcl"
+#include "grad_dft3D_visc.hcl"
 #include "savebnd2D.hcl"
 #include "savebnd3D.hcl"
 #include "surface2D.hcl"
@@ -1080,9 +1081,10 @@ int assign_modeling_case(model * m){
                calc_grad(), which is #ifdef __SEISCL__ and a no-op stub under
                CUDA -- so the gradient came back identically zero, silently,
                and SeisCL.torch (CUDA-only) could not do viscoelastic FWI at
-               all. 3D viscoelastic still uses the host. */
+               all. */
             if (m->ND==2)       graddft = grad_dft2D_visc_source;
             else if (m->ND==21) graddft = grad_dft2D_SH_visc_source;
+            else if (m->ND==3)  graddft = grad_dft3D_visc_source;
         }
         if (graddft){
             if (m->ND==21 && m->HOUT){
