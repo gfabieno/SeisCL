@@ -346,7 +346,7 @@ char *get_build_options(device *dev,
             "-D BACK_PROP_TYPE=%d -D COMM12=%d -D NTNYQ=%d -D DTNYQ=%d "
             "-D VARSOUT=%d -D RESOUT=%d  -D RMSOUT=%d -D MOVOUT=%d "
             "-D GRADOUT=%d -D HOUT=%d -D GRADSRCOUT=%d -D DIRPROP=%d "
-            "-D RESTYPE=%d -D FP16=%d -D PARSCALE=%d",
+            "-D RESTYPE=%d -D FP16=%d -D PARSCALE=%d -D FREQ0=%9.9ff",
             (*m).NDIM, (*dev).OFFSET, (*m).FDOH, (*m).dt/(*m).dh, (*m).dh,
             (*m).dt, (*m).dt/2.0, (*m).NT, (*m).NAB, (*dev).NBND,
             (*dev).LOCAL_OFF, (*m).L, (*dev).DEVID, (*m).NUM_DEVICES,
@@ -355,7 +355,7 @@ char *get_build_options(device *dev,
             (*m).BACK_PROP_TYPE, comm, (*m).NTNYQ, (*m).DTNYQ,
             (*m).VARSOUT, (*m).RESOUT, (*m).RMSOUT, (*m).MOVOUT,
             (*m).GRADOUT, (*m).HOUT, (*m).GRADSRCOUT, DIRPROP, (*m).restype,
-            (*m).FP16, (*m).par_scale) ;
+            (*m).FP16, (*m).par_scale, (*m).f0) ;
     
     strcat(build_options,src2);
     
@@ -536,6 +536,10 @@ int get_build_options(device *dev,
     sprintf(build_options[*n-1],"-D FP16=%d ",(*m).FP16);
     GMALLOC(build_options[*n], sizeof(char)*30); *n+=1;
     sprintf(build_options[*n-1],"-D PARSCALE=%d ",(*m).par_scale);
+    /* f0: the viscoelastic gradient needs it to rebuild the
+       phase-velocity factor alpha -- see grad_dft2D_visc.cl. */
+    GMALLOC(build_options[*n], sizeof(char)*30); *n+=1;
+    sprintf(build_options[*n-1],"-D FREQ0=%9.9ff ",(*m).f0);
     
     *n+=1;
     sprintf(build_options[*n-1],"-D NDIM=%d ",(*m).NDIM);

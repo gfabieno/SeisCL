@@ -129,7 +129,24 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
     double sc_vv = sc_ss*pow(2.0, 2.0*(double)par_scale);
 
     const double Ld = (double)LVE;
-    const double al = 0.0;   /* calc_grad.c's only assignment */
+    /* The GSLS phase-velocity normalization. M()/mu() (assign_modeling_case.c)
+     * divide the stored moduli by (1 + alpha*tau) so that the phase velocity
+     * at f0 equals the vp/vs the user supplied -- the elastic convention. The
+     * gradient with respect to tau at fixed vp therefore has to carry that
+     * dependence, and it enters the coefficients as calc_grad.c's `al`:
+     *
+     *     al = sum_l r^2/(1+r^2),   r = f0/FL[l]
+     *
+     * It is NOT zero. calc_grad.c initialises `al=0` and then accumulates
+     * into it a few lines later, which is easy to miss; hardcoding 0 here
+     * scaled the c[8]/c[10]/c[11]/c[12] group -- i.e. gradtaup and gradtaus --
+     * by exactly (1-al), verified against the host oracle at f0/FL = 0.5, 1
+     * and 2. */
+    double al = 0.0;
+    for (l=0; l<LVE; l++){
+        double r = (double)FREQ0/(double)FL[l];
+        al += r*r/(1.0 + r*r);
+    }
 
     /* grad_coefvisc_1_SH: the internal (mu, taus) coefficients. */
     double c0=0.0, c1=0.0, c2=0.0, c3=0.0;
