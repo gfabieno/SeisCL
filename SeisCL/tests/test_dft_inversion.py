@@ -111,10 +111,16 @@ class Inversion:
     def fun(self, x, withgrad=True):
         """(J, [grad], h0) for slbfgs; J alone when withgrad=False.
 
-        The gradient path runs the engine twice, not three times: the
-        `withgrad=True` forward already writes the seismograms *and* the
-        boundary checkpoint, so its output serves as d_mod and no separate
-        modelling run is needed.
+        Two engine calls, in this order: a plain forward for d_mod, then ONE
+        gradient call. back_prop_type=2 re-runs the forward pass internally, so
+        unlike back_prop_type=1 it does not need the two-call checkpoint
+        protocol -- see test_dft_gradient.py:666-670.
+
+        Do NOT execute() the `withgrad=True` forward before set_backward():
+        inputres=1 makes that call demand a residuals file that only
+        set_backward() writes, so it either fails outright or, if a stale
+        SeisCL_res.mat is left in the workdir, silently computes the gradient
+        from the PREVIOUS iteration's residuals.
         """
         params = self.params(x)
         self.nfev += 1
@@ -125,12 +131,15 @@ class Inversion:
                 s.execute()
                 return s.misfit(s.read_data(), dobs=self.dobs)[0]
 
+            s = gc.make_seiscl(self.wd, seisout=2)
+            s.set_forward(s.src_pos_all[3, :], params, withgrad=False)
+            s.execute()
+            J, res = s.misfit(s.read_data(), dobs=self.dobs)
+
             g = gc.make_seiscl(self.wd, gradout=1, back_prop_type=2,
                                inputres=1, gradfreqs=self.gradfreqs)
             g.file_din = self.din
             g.set_forward(g.src_pos_all[3, :], params, withgrad=True)
-            g.execute()
-            J, res = g.misfit(g.read_data(), dobs=self.dobs)
             g.set_backward(residuals=res)
             g.execute()
         except SeisCLError:
