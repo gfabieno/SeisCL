@@ -72,7 +72,11 @@ setup(name='SeisCL',
                         'numpy',
                         'h5py',
                         'scipy'],
-      extras_require={'torch': ['torch']},
+      # 'invert' pulls the stochastic L-BFGS used by tests/test_dft_inversion.py.
+      # Not a hard dependency: nothing in the engine or the wrapper needs it,
+      # and that test skips itself if it is absent.
+      extras_require={'torch': ['torch'],
+                      'invert': ['slbfgs']},
       ext_modules=ext_modules,
       cmdclass=cmdclass,
       zip_safe=False)
