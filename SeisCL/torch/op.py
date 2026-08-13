@@ -98,9 +98,13 @@ def seiscl_forward(cfg, params, src, src_pos, rec_pos, output_fields=None):
         Scalar run configuration (grid size, dt, dh, absorbing boundary,
         param_type, ...).
     params : dict[str, torch.Tensor]
-        Flat (prod(cfg.N),) float32 CPU tensors, keyed by the engine's
+        Flat (prod(cfg.N),) float32 tensors, keyed by the engine's
         *internal* parameter names -- "M", "mu", "rho" (add "taup"/"taus"
-        if cfg.L>0) -- regardless of cfg.par_type. par_type changes how the
+        if cfg.L>0) -- regardless of cfg.par_type. CUDA tensors are
+        accepted and copied down automatically, which is a convenience
+        rather than a fast path: the engine applies its parameter
+        transforms on the host before uploading, so the values pass
+        through host memory either way. par_type changes how the
         raw values under "M"/"mu" are interpreted, not the dict keys: for
         par_type=0 they're vp/vs in m/s. This differs from SeisCL.py's own
         `params` dict, which uses "vp"/"vs"/"rho" for par_type=0 (matching
@@ -110,6 +114,7 @@ def seiscl_forward(cfg, params, src, src_pos, rec_pos, output_fields=None):
     src, src_pos, rec_pos : torch.Tensor
         Source wavelets [allns, NT] and geometry [allns, 5] / [allng, 8],
         same convention as SeisCL.py's src_all/src_pos_all/rec_pos_all.
+        These must be CPU tensors.
     output_fields : list[str], optional
         Which fields to record seismograms for (e.g. ["vx", "vz"],
         matching SeisCL.py's seisout=1 default for 2D). Defaults to every

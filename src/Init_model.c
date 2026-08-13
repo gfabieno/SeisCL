@@ -37,7 +37,16 @@
 
 
 
-int Init_model(model * m) {
+/* Recompute every host-side parameter value that depends on the raw values
+ * the caller supplied: scaling, the per-parameter transforms (e.g. squaring
+ * vp/vs into Lame parameters for par_type=0), the stability check, and the
+ * FP16 conversions. Allocation-free and idempotent with respect to a fresh
+ * set of raw values, so the PyTorch binding (SeisCL/torch/engine_handle.cpp)
+ * can call it on its own to refresh a reused engine without going through
+ * Init_model()'s allocation. Split out of Init_model() so both callers share
+ * one implementation.
+ */
+int Init_model_values(model * m) {
 
     int state=0;
     int i,j,t;
@@ -58,7 +67,6 @@ int Init_model(model * m) {
     }
     __GUARD m->check_stability( (void*) m);
 
-    GMALLOC(m->src_recs.src_scales, sizeof(int)*m->src_recs.ns);
     float srcmax;
     if (m->FP16!=0){
         //TODO review scaler constant
@@ -88,16 +96,28 @@ int Init_model(model * m) {
             for (j=0;j<m->pars[i].num_ele;j++){
                 m->pars[i].gl_par[j] =half_to_float(float_to_half_full_rtne(m->pars[i].gl_par[j]));
             }
-            
+
         }
     }
-    
-   
+
+    return state;
+
+}
+
+int Init_model(model * m) {
+
+    int state=0;
+
+    GMALLOC(m->src_recs.src_scales, sizeof(int)*m->src_recs.ns);
+    if (state) return state;
+
+    state = Init_model_values(m);
+
     #ifndef __NOMPI__
     if (state && m->MPI_INIT==1)
         MPI_Bcast( &state, 1, MPI_INT, m->GID, MPI_COMM_WORLD );
     #endif
-    
+
     return state;
 
 }
