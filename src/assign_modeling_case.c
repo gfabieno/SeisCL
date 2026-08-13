@@ -101,7 +101,7 @@ void ave_arithmetic_rho(float * pin, float * pout, int * N, int ndim, int  *dir)
     
     
 }
-void ave_arithmetic_tau(float *pin, float *pout, int *N, int ndim, int (*dir)[3]) {
+void ave_arithmetic_tau(float *pin, float *pout, int *N, int ndim, int dir[][3]) {
     
     int i,j,k;
     int NX, NY, NZ;
@@ -176,7 +176,7 @@ void ave_arithmetic_tau(float *pin, float *pout, int *N, int ndim, int (*dir)[3]
     
 }
 
-void ave_harmonic_mu(float * pin, float * pout, int * N, int ndim, int (*dir)[3]) {
+void ave_harmonic_mu(float * pin, float * pout, int * N, int ndim, int dir[][3]) {
     
     int i,j,k;
     int NX, NY, NZ;

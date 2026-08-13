@@ -21,17 +21,22 @@
 #include "F.h"
 
 // Write float matrix compatible with .mat v7.3 format
-void writetomat(hid_t* file_id,
-                const char *var,
-                float * varptr,
-                int NDIMs,
-                hsize_t dims[] ){
-    
+/* Shared implementation of writetomat() and writetomat_nocomp(): identical
+ * except for the gzip level applied to newly created datasets. deflate<0
+ * writes the dataset uncompressed and unchunked.
+ */
+static void writetomat_level(hid_t* file_id,
+                             const char *var,
+                             float * varptr,
+                             int NDIMs,
+                             hsize_t dims[],
+                             int deflate ){
+
     hid_t dataspace_id=0, dataset_id=0, attribute_id=0;
     hid_t    plist_id;
     hsize_t  cdims[MAX_DIMS];
     int ii;
-    
+
     for (ii=0;ii<NDIMs;ii++){
         cdims[ii]=8;
     }
@@ -44,13 +49,15 @@ void writetomat(hid_t* file_id,
         dataspace_id = H5Screate_simple(NDIMs, dims, NULL);
         
         plist_id  = H5Pcreate (H5P_DATASET_CREATE);
-        for (ii=0;ii<NDIMs;ii++){
-            cdims[ii]=cdims[ii]<dims[ii]?cdims[ii]:dims[ii];
+        if (deflate >= 0){
+            for (ii=0;ii<NDIMs;ii++){
+                cdims[ii]=cdims[ii]<dims[ii]?cdims[ii]:dims[ii];
+            }
+            cdims[0]=dims[0];
+            H5Pset_chunk (plist_id, NDIMs, cdims);
+            H5Pset_deflate (plist_id, deflate);
         }
-        cdims[0]=dims[0];
-        H5Pset_chunk (plist_id, NDIMs, cdims);
-        H5Pset_deflate (plist_id, 6);
-        
+
         dataset_id = H5Dcreate2(*file_id,
                                 var,
                                 H5T_IEEE_F32LE,
@@ -89,9 +96,31 @@ void writetomat(hid_t* file_id,
                  H5P_DEFAULT,
                  varptr);
         H5Dclose(dataset_id);
-        
+
     }
-    
+
+}
+
+void writetomat(hid_t* file_id,
+                const char *var,
+                float * varptr,
+                int NDIMs,
+                hsize_t dims[] ){
+    writetomat_level(file_id, var, varptr, NDIMs, dims, 6);
+}
+
+/* Same, without compression. For data that is written and read back
+ * immediately and then discarded -- the boundary-wavefield checkpoint
+ * (time_stepping.c's checkpoint_d2h/checkpoint_h2d) -- where gzip costs far
+ * more than the bytes it saves: measured 782 ms compressed vs 10 ms
+ * uncompressed for a 10 MB checkpoint, on a file deleted milliseconds later.
+ */
+void writetomat_nocomp(hid_t* file_id,
+                       const char *var,
+                       float * varptr,
+                       int NDIMs,
+                       hsize_t dims[] ){
+    writetomat_level(file_id, var, varptr, NDIMs, dims, -1);
 }
 
 //Write double matrix compatible with .mat v7.3 format
@@ -163,6 +192,56 @@ void writetomatd(hid_t* file_id,
 }
 
 // Create HDF5 file, compatible with .mat v7.3 format
+/* An HDF5 file that lives entirely in RAM (core driver, no backing store).
+ * Used for the boundary checkpoint of a multi-shot gradient run, where every
+ * shot's wavefield has to survive between the forward and the adjoint pass
+ * but never needs to reach disk. Deliberately reuses the ordinary file
+ * machinery -- same datasets, same names, same read/write calls -- so only
+ * the storage differs. No MATLAB userblock: nothing will ever open this as
+ * a .mat file.
+ */
+hid_t create_file_core(const char *name){
+    hid_t file_id=0, fapl_id=0;
+
+    fapl_id = H5Pcreate(H5P_FILE_ACCESS);
+    /* 16 MB growth increment; backing_store=0 means nothing touches disk. */
+    H5Pset_fapl_core(fapl_id, 16*1024*1024, 0);
+    file_id = H5Fcreate(name, H5F_ACC_TRUNC, H5P_DEFAULT, fapl_id);
+    H5Pclose(fapl_id);
+
+    return file_id;
+}
+
+/* Spill an in-RAM checkpoint to a real file, for when the engine that holds
+ * it is about to be reused and its image would otherwise be lost. */
+int checkpoint_image_to_disk(hid_t file_id, const char *filename){
+    ssize_t len;
+    void *buf = NULL;
+    FILE *fp;
+    size_t written;
+
+    if (file_id <= 0) return 1;
+    H5Fflush(file_id, H5F_SCOPE_LOCAL);
+    len = H5Fget_file_image(file_id, NULL, 0);
+    if (len <= 0) return 1;
+    buf = malloc((size_t)len);
+    if (!buf) return 1;
+    if (H5Fget_file_image(file_id, buf, (size_t)len) < 0){
+        free(buf);
+        return 1;
+    }
+    fp = fopen(filename, "wb");
+    if (!fp){
+        free(buf);
+        return 1;
+    }
+    written = fwrite(buf, 1, (size_t)len, fp);
+    fclose(fp);
+    free(buf);
+
+    return written == (size_t)len ? 0 : 1;
+}
+
 hid_t create_file(const char *filename){
     FILE * fp;
     hid_t       file_id=0, fcpl_id=0;

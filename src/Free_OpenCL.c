@@ -304,7 +304,10 @@ void device_free(device * dev){
     if (dev->queuecomm) QUEUEFREE(dev->queuecomm);
     if (dev->cuda_null) MEMFREE(dev->cuda_null);
     #ifndef __SEISCL__
-    if (dev->context) cuCtxDestroy(dev->context);
+    // Release, not destroy: connect_devices() retained the device's primary
+    // context, which is shared with anything else in this process using CUDA
+    // (e.g. PyTorch). Destroying it would pull it out from under them.
+    if (dev->context) cuDevicePrimaryCtxRelease(dev->cudev);
     #endif
     
 }

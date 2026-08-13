@@ -36,7 +36,9 @@ if os.environ.get('SEISCL_BUILD_TORCH') == '1':
     ext_modules = [
         CUDAExtension(
             name='SeisCL.torch._C',
-            sources=['SeisCL/torch/bindings.cpp'],
+            sources=['SeisCL/torch/bindings.cpp',
+                     'SeisCL/torch/engine_handle.cpp',
+                     'SeisCL/torch/engine_cache.cpp'],
             include_dirs=include_dirs,
             library_dirs=library_dirs,
             libraries=['seiscl_core', 'hdf5', 'hdf5_hl', 'cuda', 'nvrtc'],
@@ -72,7 +74,11 @@ setup(name='SeisCL',
                         'numpy',
                         'h5py',
                         'scipy'],
-      extras_require={'torch': ['torch']},
+      # 'invert' pulls the stochastic L-BFGS used by tests/test_dft_inversion.py.
+      # Not a hard dependency: nothing in the engine or the wrapper needs it,
+      # and that test skips itself if it is absent.
+      extras_require={'torch': ['torch'],
+                      'invert': ['slbfgs']},
       ext_modules=ext_modules,
       cmdclass=cmdclass,
       zip_safe=False)

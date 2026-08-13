@@ -267,13 +267,15 @@ int checkpoint_d2h(model * m, device ** dev, hid_t file_id, int s){
             if ((*dev)[d].vars[i].cl_buf1.host){
                 dims[0] = (*dev)[d].vars[i].cl_buf1.size / sizeof(float);
                 sprintf(name, "src%d_dev%d_%s_buf1h", s, d, (*dev)[d].vars[i].name);
-                writetomat(&file_id, name, (*dev)[d].vars[i].cl_buf1.host,
+                if (!m->SKIP_CHECKPOINT_FILE)
+                    writetomat_nocomp(&file_id, name, (*dev)[d].vars[i].cl_buf1.host,
                            1, dims);
             }
             if ((*dev)[d].vars[i].cl_buf2.host){
                 dims[0] = (*dev)[d].vars[i].cl_buf2.size / sizeof(float);
                 sprintf(name, "src%d_dev%d_%s_buf2h", s, d, (*dev)[d].vars[i].name);
-                writetomat(&file_id, name, (*dev)[d].vars[i].cl_buf2.host,
+                if (!m->SKIP_CHECKPOINT_FILE)
+                    writetomat_nocomp(&file_id, name, (*dev)[d].vars[i].cl_buf2.host,
                            1, dims);
             }
         }
@@ -301,7 +303,8 @@ int checkpoint_d2h(model * m, device ** dev, hid_t file_id, int s){
             if ((*dev)[d].vars[i].cl_var.host){
                 dims[0] = (*dev)[d].vars[i].num_ele;
                 sprintf(name, "src%d_dev%d_%s", s, d, (*dev)[d].vars[i].name);
-                writetomat(&file_id, name, (*dev)[d].vars[i].cl_var.host,
+                if (!m->SKIP_CHECKPOINT_FILE)
+                    writetomat_nocomp(&file_id, name, (*dev)[d].vars[i].cl_var.host,
                            1, dims);
             }
 
@@ -309,7 +312,8 @@ int checkpoint_d2h(model * m, device ** dev, hid_t file_id, int s){
                 dims[0] = (*dev)[d].vars[i].cl_varbnd.sizepin / sizeof(float);
                 sprintf(name, "src%d_dev%d_%s_bnd", s, d,
                         (*dev)[d].vars[i].name);
-                writetomat(&file_id, name, (*dev)[d].vars[i].cl_varbnd.host,
+                if (!m->SKIP_CHECKPOINT_FILE)
+                    writetomat_nocomp(&file_id, name, (*dev)[d].vars[i].cl_varbnd.host,
                            1, dims);
             }
 
@@ -317,18 +321,54 @@ int checkpoint_d2h(model * m, device ** dev, hid_t file_id, int s){
                 dims[0] = (*dev)[d].vars[i].cl_buf1.size / sizeof(float);
                 sprintf(name, "src%d_dev%d_%s_buf1d", s, d,
                         (*dev)[d].vars[i].name);
-                writetomat(&file_id, name, (*dev)[d].vars[i].cl_buf1.host,
+                if (!m->SKIP_CHECKPOINT_FILE)
+                    writetomat_nocomp(&file_id, name, (*dev)[d].vars[i].cl_buf1.host,
                            1, dims);
             }
             if ((*dev)[d].vars[i].cl_buf2.host){
                 dims[0] = (*dev)[d].vars[i].cl_buf2.size / sizeof(float);
                 sprintf(name, "src%d_dev%d_%s_buf2d", s, d,
                         (*dev)[d].vars[i].name);
-                writetomat(&file_id, name, (*dev)[d].vars[i].cl_buf2.host,
+                if (!m->SKIP_CHECKPOINT_FILE)
+                    writetomat_nocomp(&file_id, name, (*dev)[d].vars[i].cl_buf2.host,
                            1, dims);
             }
         }
     }
+
+    return state;
+}
+
+/* Write the boundary checkpoint that a SKIP_CHECKPOINT_FILE forward pass
+ * deliberately did not write, for the single shot currently resident in the
+ * device/host buffers. Lets a caller that skipped the file on the assumption
+ * its own backward pass would follow immediately change its mind -- e.g.
+ * because another forward is about to overwrite those buffers -- without
+ * having to redo the forward pass. Single-shot only, for the same reason the
+ * skip itself is: checkpoint_d2h() runs per shot inside the shot loop, so
+ * only the last shot's wavefield is ever in memory.
+ */
+int checkpoint_flush(model * m, device ** dev, const char * path) {
+
+    int state = 0;
+    int skip;
+    hid_t file_id;
+
+    if (m->src_recs.smax - m->src_recs.smin != 1) return 1;
+
+    remove(path);
+    file_id = create_file(path);
+    if (file_id < 0) return 1;
+
+    /* checkpoint_d2h() honours SKIP_CHECKPOINT_FILE, which is still set from
+     * the forward pass that chose to keep the checkpoint in memory. Clear it
+     * for the duration, or we would create the file and write nothing to it. */
+    skip = m->SKIP_CHECKPOINT_FILE;
+    m->SKIP_CHECKPOINT_FILE = 0;
+    state = checkpoint_d2h(m, dev, file_id, m->src_recs.smin);
+    m->SKIP_CHECKPOINT_FILE = skip;
+
+    H5Fclose(file_id);
 
     return state;
 }
@@ -349,8 +389,10 @@ int checkpoint_h2d(model * m, device ** dev, hid_t file_id, int s) {
             if ((*dev)[d].vars[i].cl_var.host){
                 sprintf(name, "src%d_dev%d_%s", s, d, (*dev)[d].vars[i].name);
                 dims[0] = (*dev)[d].vars[i].num_ele;
-                __GUARD checkexists(file_id, name);
-                __GUARD readvar(file_id,
+                if (!m->SKIP_CHECKPOINT_FILE)
+                    __GUARD checkexists(file_id, name);
+                if (!m->SKIP_CHECKPOINT_FILE)
+                    __GUARD readvar(file_id,
                                 H5T_NATIVE_FLOAT,
                                 name,
                                 (*dev)[d].vars[i].cl_var.host);
@@ -361,7 +403,8 @@ int checkpoint_h2d(model * m, device ** dev, hid_t file_id, int s) {
                 sprintf(name, "src%d_dev%d_%s_bnd", s, d,
                         (*dev)[d].vars[i].name);
                 dims[0] = (*dev)[d].vars[i].cl_varbnd.sizepin / sizeof(float);
-                __GUARD readvar(file_id,
+                if (!m->SKIP_CHECKPOINT_FILE)
+                    __GUARD readvar(file_id,
                                 H5T_NATIVE_FLOAT,
                                 name,
                                 (*dev)[d].vars[i].cl_varbnd.host);
@@ -371,7 +414,8 @@ int checkpoint_h2d(model * m, device ** dev, hid_t file_id, int s) {
                 dims[0] = (*dev)[d].vars[i].cl_buf1.size / sizeof(float);
                 sprintf(name, "src%d_dev%d_%s_buf1d", s, d,
                         (*dev)[d].vars[i].name);
-                __GUARD readvar(file_id,
+                if (!m->SKIP_CHECKPOINT_FILE)
+                    __GUARD readvar(file_id,
                                 H5T_NATIVE_FLOAT,
                                 name,
                                 (*dev)[d].vars[i].cl_buf1.host);
@@ -388,7 +432,8 @@ int checkpoint_h2d(model * m, device ** dev, hid_t file_id, int s) {
                 dims[0] = (*dev)[d].vars[i].cl_buf2.size / sizeof(float);
                 sprintf(name, "src%d_dev%d_%s_buf2d", s, d,
                         (*dev)[d].vars[i].name);
-                __GUARD readvar(file_id,
+                if (!m->SKIP_CHECKPOINT_FILE)
+                    __GUARD readvar(file_id,
                                 H5T_NATIVE_FLOAT,
                                 name,
                                 (*dev)[d].vars[i].cl_buf2.host);
@@ -410,7 +455,8 @@ int checkpoint_h2d(model * m, device ** dev, hid_t file_id, int s) {
                 dims[0] = (*dev)[d].vars[i].cl_buf1.size / sizeof(float);
                 sprintf(name, "src%d_dev%d_%s_buf1h", s, d,
                         (*dev)[d].vars[i].name);
-                __GUARD readvar(file_id,
+                if (!m->SKIP_CHECKPOINT_FILE)
+                    __GUARD readvar(file_id,
                                 H5T_NATIVE_FLOAT,
                                 name,
                                 (*dev)[d].vars[i].cl_buf1.host);
@@ -420,7 +466,8 @@ int checkpoint_h2d(model * m, device ** dev, hid_t file_id, int s) {
                 dims[0] = (*dev)[d].vars[i].cl_buf2.size / sizeof(float);
                 sprintf(name, "src%d_dev%d_%s_buf2h", s, d,
                         (*dev)[d].vars[i].name);
-                __GUARD readvar(file_id,
+                if (!m->SKIP_CHECKPOINT_FILE)
+                    __GUARD readvar(file_id,
                                 H5T_NATIVE_FLOAT,
                                 name,
                                 (*dev)[d].vars[i].cl_buf2.host);
@@ -917,19 +964,40 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
      * are not checkpointed. For the DFT path the forward pass is simply re-run
      * below: one extra propagation, but obviously correct and no new state. */
     //Initialize checkpoint file
-    if (m->INPUTRES==1 && m->GRADOUT==0 && m->BACK_PROP_TYPE==1){
-        state = remove(files.checkpoint);
-        if (errno == ENOENT)
-            state = 0;
-        else if (state){
-            perror("Could not delete checkpoint file");
+    /* BACK_PROP_TYPE==1 only: the DFT path has no checkpoint (see above).
+     * The in-memory image and the SKIP_CHECKPOINT_FILE flag come from devel. */
+    if (m->INPUTRES==1 && m->GRADOUT==0 && m->BACK_PROP_TYPE==1
+        && !m->SKIP_CHECKPOINT_FILE){
+        if (m->CKPT_IN_MEMORY){
+            /* Discard any image left by an earlier forward pass and start a
+             * fresh one; it stays open for the adjoint pass to read. */
+            if (m->CKPT_FILE_ID > 0){
+                H5Fclose(m->CKPT_FILE_ID);
+                m->CKPT_FILE_ID = 0;
             }
-        if (!state){
-            file_id = create_file(files.checkpoint);
+            m->CKPT_FILE_ID = create_file_core(files.checkpoint);
+            file_id = m->CKPT_FILE_ID;
+        }
+        else {
+            state = remove(files.checkpoint);
+            if (errno == ENOENT)
+                state = 0;
+            else if (state){
+                perror("Could not delete checkpoint file");
+                }
+            if (!state){
+                file_id = create_file(files.checkpoint);
+            }
         }
     }
-    if (m->INPUTRES==1 && m->GRADOUT==1 && m->BACK_PROP_TYPE==1){
-        file_id = H5Fopen(files.checkpoint, H5F_ACC_RDWR, H5P_DEFAULT);
+    if (m->INPUTRES==1 && m->GRADOUT==1 && m->BACK_PROP_TYPE==1
+        && !m->SKIP_CHECKPOINT_FILE){
+        if (m->CKPT_IN_MEMORY){
+            file_id = m->CKPT_FILE_ID;
+        }
+        else {
+            file_id = H5Fopen(files.checkpoint, H5F_ACC_RDWR, H5P_DEFAULT);
+        }
     }
     // Main loop over shots of this group
     for (s= m->src_recs.smin;s< m->src_recs.smax;s++){
@@ -1259,7 +1327,11 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
         }
     }
 
-    if (file_id) H5Fclose(file_id);
+    /* A RAM-backed checkpoint has to outlive this call so the adjoint pass
+     * can read it, so it is left open and owned by the caller. */
+    if (file_id && !(m->CKPT_IN_MEMORY && file_id == m->CKPT_FILE_ID)){
+        H5Fclose(file_id);
+    }
 
     #ifndef __NOMPI__
     if (state && m->MPI_INIT==1)
