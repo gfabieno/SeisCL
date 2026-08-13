@@ -46,3 +46,4 @@ cl2cstring
 build/
 docs/_build/
 .venv*/
+*.so

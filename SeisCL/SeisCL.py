@@ -528,7 +528,7 @@ class SeisCL:
             cmd += ' -w ' + workdir + ' '
             cmd += '--user $(id -u):$(id -g) '
             cmd += self.docker_name + ' '
-        
+
         cmd += self.progname
         cmd += ' ' + workdir + '/' + self.file
         cmd += ' ' + self.file_din
