@@ -1060,7 +1060,17 @@ int kernel_savefreqs(device * dev,
     strcat(temp, FUNDEF"void savefreqs("GLOBARG"float * gradfreqsn, int nt, ");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].for_grad){
-            strcat(temp, GLOBARG"float * ");
+            /* FP16>1 stores the wavefield as half; <=1 keeps one float per
+               scalar element (FP16==1 is float2-vectorized, same bytes).
+               Mirrors kernel_varout's argument typing above. The spectra
+               stay float2 either way -- Init_OpenCL.c sizes cl_fvar from
+               num_ele regardless of FP16 -- so only the read below changes. */
+            if (dev->FP16<=1){
+                strcat(temp, GLOBARG"float * ");
+            }
+            else{
+                strcat(temp, GLOBARG"half * ");
+            }
             strcat(temp, vars[i].name);
             strcat(temp, ", ");
             strcat(temp, GLOBARG"float2 * f");
@@ -1105,8 +1115,23 @@ int kernel_savefreqs(device * dev,
             strcat(temp, "    l");
             strcat(temp, vars[i].name);
             strcat(temp, "=");
+            /* OpenCL enables cl_khr_fp16 (header_CUDACL.cl), so a half load
+               converts implicitly; CUDA needs the explicit intrinsic. Same
+               split kernel_varout uses. */
+            #ifdef __SEISCL__
             strcat(temp, vars[i].name);
             strcat(temp, "[gid];\n");
+            #else
+            if (dev->FP16>1){
+                strcat(temp, "__half2float(");
+                strcat(temp, vars[i].name);
+                strcat(temp, "[gid]);\n");
+            }
+            else{
+                strcat(temp, vars[i].name);
+                strcat(temp, "[gid];\n");
+            }
+            #endif
         }
     }
 

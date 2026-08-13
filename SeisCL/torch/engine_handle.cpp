@@ -105,6 +105,12 @@ void apply_config(model &m, const Config &cfg, int gradout, int inputres) {
     m.pref_device_type = static_cast<DEVICE_TYPE>(cfg.pref_device_type);
 
     if (cfg.BACK_PROP_TYPE != 1 && cfg.BACK_PROP_TYPE != 2) {
+        // 1 = boundary storage, 2 = DFT/frequency domain. This branch
+        // supersedes dft-gradient's blanket rejection of 2: gradfreqs is now
+        // populated, so the DFT path can produce a gradient here. The
+        // INPUTRES=1 two-call checkpoint protocol still applies to
+        // BACK_PROP_TYPE==1 only -- BACK_PROP_TYPE==2 re-runs the forward
+        // pass instead (src/time_stepping.c).
         throw std::invalid_argument(
             "cfg.BACK_PROP_TYPE must be 1 (boundary storage) or 2 (DFT)");
     }

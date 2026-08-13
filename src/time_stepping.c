@@ -964,6 +964,8 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
      * are not checkpointed. For the DFT path the forward pass is simply re-run
      * below: one extra propagation, but obviously correct and no new state. */
     //Initialize checkpoint file
+    /* BACK_PROP_TYPE==1 only: the DFT path has no checkpoint (see above).
+     * The in-memory image and the SKIP_CHECKPOINT_FILE flag come from devel. */
     if (m->INPUTRES==1 && m->GRADOUT==0 && m->BACK_PROP_TYPE==1
         && !m->SKIP_CHECKPOINT_FILE){
         if (m->CKPT_IN_MEMORY){
