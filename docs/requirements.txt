@@ -32,3 +32,6 @@ pypandoc-binary
 # that is not at the start of the pattern became a hard re.error in 3.11.
 # The examples are now a plain nbsphinx toctree: docs/notebooks/examples/index.rst.
 # sphinx-gallery and `image` were only pulled in for that gallery.
+# nbsphinx imports lxml.html.clean, which lxml >= 5 split into its own
+# package. Without this the docs build dies in extension loading.
+lxml_html_clean
