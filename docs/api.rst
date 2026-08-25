@@ -40,9 +40,9 @@ pip-installable backend -- the engine must be compiled first (see
 .. note::
 
    This subpackage is opt-in and requires both a CUDA GPU and the compiled
-   extension (``cmake .. -DBUILD_TORCH_CORE=1`` followed by
-   ``SEISCL_BUILD_TORCH=1 pip install -e .[torch]``). Importing
-   ``SeisCL.SeisCL`` does not depend on it.
+   extension (``cmake .. -DBUILD_TORCH_CORE=1``, then ``cmake --build .``,
+   then ``SEISCL_BUILD_TORCH=1 SEISCL_CORE_DIR=build pip install
+   -e .[torch]``). Importing ``SeisCL.SeisCL`` does not depend on it.
 
    Current limitations: CUDA only; host (CPU) tensors only; only
    ``BACK_PROP_TYPE = 1`` (boundary-storage gradient); no source-wavelet
@@ -115,7 +115,7 @@ gradient call. All attributes are read/write; defaults are shown below.
      - Meaning
    * - ``N``
      - *(unset)*
-     - Grid size, ``[NZ, NX]`` in 2D or ``[NZ, NX, NY]`` in 3D. Required.
+     - Grid size, ``[NZ, NX]`` in 2D or ``[NZ, NY, NX]`` in 3D. Required.
    * - ``ND``
      - ``2``
      - 3: 3D elastic, 2: 2D P-SV, 21: 2D SH, 22: 2D acoustic.
