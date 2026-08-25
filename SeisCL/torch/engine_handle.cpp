@@ -97,13 +97,15 @@ void apply_config(model &m, const Config &cfg, int gradout, int inputres) {
     m.nmax_dev = cfg.nmax_dev;
     m.pref_device_type = static_cast<DEVICE_TYPE>(cfg.pref_device_type);
 
-    if (inputres && cfg.BACK_PROP_TYPE != 1) {
-        // The checkpoint file this binding relies on for the INPUTRES=1
-        // two-call protocol is only written by save_bnd() when
-        // BACK_PROP_TYPE==1 (src/time_stepping.c:798-800,
-        // src/assign_modeling_case.c:952). BACK_PROP_TYPE==2 (DFT/
-        // frequency-domain gradient) also needs a "gradfreqs" constants
-        // array this binding doesn't populate -- unsupported for now.
+    if (cfg.BACK_PROP_TYPE != 1) {
+        // BACK_PROP_TYPE==2 (DFT/frequency-domain gradient) needs a
+        // "gradfreqs" constants array this binding does not populate, so
+        // NFREQS would be 0. Rejected unconditionally rather than only for
+        // inputres=1: without gradfreqs the DFT path cannot produce a
+        // gradient at all, whichever protocol is used. The checkpoint file
+        // the INPUTRES=1 two-call protocol relies on is likewise only
+        // written by save_bnd() when BACK_PROP_TYPE==1
+        // (src/time_stepping.c:798-800, src/assign_modeling_case.c:952).
         throw std::invalid_argument(
             "SeisCL/torch currently only supports cfg.BACK_PROP_TYPE=1 "
             "(boundary-storage gradient)");

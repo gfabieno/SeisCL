@@ -786,11 +786,18 @@ int Init_CUDA(model * m, device ** dev)  {
                     }
                     __GUARD clbuf_create(di->context_ptr,&di->pars[i].cl_par);
                     __GUARD clbuf_send(&di->queue,&di->pars[i].cl_par);
-                    if (m->GRADOUT && m->BACK_PROP_TYPE==1){
+                    /* Also for BACK_PROP_TYPE==2 now: the DFT correlation
+                     * accumulates into the same device gradient buffer as the
+                     * boundary-saving path, so both share one output path. */
+                    if (m->GRADOUT){
                         di->pars[i].cl_grad.size=sizeof(float)*parsize;
                         __GUARD clbuf_create(di->context_ptr, &di->pars[i].cl_grad);
                     }
-                    if (m->HOUT && m->BACK_PROP_TYPE==1){
+                    /* Created for both back_prop_types: the gradinit kernel,
+                     * which now runs for both, zeroes these buffers, so they
+                     * must exist. For BACK_PROP_TYPE==2 the host calc_grad
+                     * fills cl_H.host directly and no readback is needed. */
+                    if (m->HOUT){
                         di->pars[i].cl_H.size=sizeof(float)*parsize;
                         __GUARD clbuf_create(di->context_ptr, &di->pars[i].cl_H);
                     }
@@ -893,6 +900,12 @@ int Init_CUDA(model * m, device ** dev)  {
                 di->vars[i].cl_fvar_adj.size= di->vars[i].cl_fvar.size;
                 GMALLOC(di->vars[i].cl_fvar_adj.host,di->vars[i].cl_fvar.size);
                 di->vars[i].cl_fvar_adj.free_host=1;
+                /* Second device buffer holding the forward spectrum, so both
+                 * spectra are resident and the correlation can run on the
+                 * device. Doubles the DFT memory; see the pre-flight check
+                 * below. */
+                di->vars[i].cl_fvar_f.size= di->vars[i].cl_fvar.size;
+                __GUARD clbuf_create(di->context_ptr,&di->vars[i].cl_fvar_f);
             }
             
             // If we want the movie, allocate memory for variables
@@ -1134,16 +1147,16 @@ int Init_CUDA(model * m, device ** dev)  {
                                      m->BACK_PROP_TYPE);
             __GUARD prog_create(m, di,  &di->src_recs.residuals);
             
+            /* The gradient-zeroing kernel is needed by both methods now:
+             * the DFT correlation accumulates into the same cl_grad buffers. */
+            __GUARD kernel_gradinit(di, di->pars, &di->grads.init);
+            __GUARD prog_create(m, di,  &di->grads.init);
+
             if (m->BACK_PROP_TYPE==1){
                 __GUARD kernel_varinit(di,m,
                                        di->vars_adj,
                                        &di->bnd_cnds.init_adj, 1);
                 __GUARD prog_create(m, di,  &di->bnd_cnds.init_adj);
-                
-                
-                __GUARD kernel_gradinit(di, di->pars, &di->grads.init);
-                __GUARD prog_create(m, di,  &di->grads.init);
-                
             }
             else if(m->BACK_PROP_TYPE==2){
                 __GUARD kernel_initsavefreqs(di, di->vars,
@@ -1153,7 +1166,16 @@ int Init_CUDA(model * m, device ** dev)  {
                 
                 kernel_savefreqs(di, di->vars, &di->grads.savefreqs);
                 __GUARD prog_create(m, di,  &di->grads.savefreqs);
-                
+
+                /* On-device correlation. Only created by
+                 * assign_modeling_case for the supported case (2D P-SV,
+                 * elastic); otherwise the host calc_grad is used. */
+                if (m->grads.calc_grad.src[0]){
+                    di->grads.calc_grad=m->grads.calc_grad;
+                    __GUARD prog_create(m, di,  &di->grads.calc_grad);
+                    di->grads.calc_grad.wdim=1;
+                    di->grads.calc_grad.gsize[0]=parsize;
+                }
             }
             
             if (m->GRADSRCOUT){

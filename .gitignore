@@ -42,6 +42,10 @@ docs/_build/
 *.ipynb_checkpoints
 SeisCL_MPI
 cl2cstring
-# Build artifacts
-build/
+# out-of-source build trees
+build*/
 *.so
+
+# local test working dirs
+SeisCL/tests/_dftwork/
+cudacheck.py

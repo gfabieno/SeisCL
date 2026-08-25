@@ -93,6 +93,7 @@ struct filenames {
     char movout[1024];
     char res[1024];
     char checkpoint[1024];
+    char dftout[1024];
 };
 
 
@@ -132,6 +133,7 @@ CL_INT clbuf_readto(QUEUE *inqueue,
                  void * ptr);
 
 CL_INT clbuf_create(CONTEXT *incontext, clbuf * buf);
+CL_INT clbuf_copy(QUEUE *inqueue, clbuf * src, clbuf * dst);
 
 CL_INT clbuf_create_pin(CONTEXT *incontext, QUEUE *inqueue,clbuf * buf);
 
@@ -197,8 +199,12 @@ typedef struct variable{
     clbuf cl_var;
     clbuf cl_varout;
     clbuf cl_varbnd;
-    clbuf cl_fvar;
-    clbuf cl_fvar_adj;
+    clbuf cl_fvar;      /* adjoint DFT spectrum (device + host mirror) */
+    clbuf cl_fvar_f;    /* forward DFT spectrum, device side (BACK_PROP_TYPE==2
+                         * with the on-device correlation). Kept resident so the
+                         * correlation can run on the device instead of round
+                         * tripping both spectra over PCIe. */
+    clbuf cl_fvar_adj;  /* host-only mirror of the adjoint spectrum */
     clbuf cl_buf1;
     clbuf cl_buf2;
     clbuf cl_var_res;
@@ -335,6 +341,7 @@ typedef struct gradients {
     clprogram savefreqs;
     clprogram initsavefreqs;
     clprogram savebnd;
+    clprogram calc_grad;   /* on-device DFT correlation (BACK_PROP_TYPE==2) */
 
 } gradients;
 
@@ -423,6 +430,13 @@ typedef struct model {
     int MOVOUT;
     int RESOUT;
     int RMSOUT;
+    /* Debug: dump the raw forward and adjoint DFT wavefield buffers
+     * (BACK_PROP_TYPE==2 only) so they can be checked against a reference DFT
+     * independently of the gradient correlation. Single device, single shot. */
+    int DFTOUT;
+    /* Oversampling factor of max(gradfreqs) at which savefreqs accumulates.
+     * Default 64, which is what the hardcoded 0.0156 used to give. */
+    float dft_osamp;
     int INPUTRES;
     /* Skip the HDF5 boundary checkpoint entirely, on both the writing
      * (GRADOUT=0) and reading (GRADOUT=1) leg of the INPUTRES=1 two-call

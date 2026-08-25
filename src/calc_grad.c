@@ -401,6 +401,14 @@ int calc_grad(model * m, device * dev)  {
     
     ND=(float)m->ND;
     df=1.0/m->NTNYQ/m->dt/m->DTNYQ;
+    /* Parseval normalization for the frequency-domain dot products. With
+     * A_k = sum_n a_n * dteff * exp(-2i.pi.kn/N) and dteff = DTNYQ*dt,
+     * sum_n a_n b_n dteff = (1/(N*dteff)) sum_k A_k conj(B_k), so the factor is
+     * 1/(NTNYQ*DTNYQ*dt), not 1/NTNYQ. The missing DTNYQ was invisible while
+     * DTNYQ was always 1, but it scales the whole gradient linearly with DTNYQ:
+     * measured error was exactly DTNYQ-1 across a dft_osamp sweep. Any run with
+     * a low fmax or a small dt, where DTNYQ > 1, was affected. */
+    double dftnorm = (double)m->NTNYQ*(double)m->DTNYQ;
     
     w0=2.0*PI*m->f0;
     al=0;
@@ -672,15 +680,15 @@ int calc_grad(model * m, device * dev)  {
                             rxx_myyzz= cl_diff(frxx[indL], fryy[indL], frzz[indL]);
                             ryy_mxxzz= cl_diff(frxx[indL], fryy[indL], frzz[indL]);
                             rzz_mxxyy= cl_diff(frxx[indL], fryy[indL], frzz[indL]);
-                            dot[1]+=cl_rm( rxxyyzzr, rxxyyzz, tausigl[l],freq )/m->NTNYQ;
+                            dot[1]+=cl_rm( rxxyyzzr, rxxyyzz, tausigl[l],freq )/dftnorm;
                             
                             dot[5]+=(+cl_rm( frxyr[indL], frxy[indL] , tausigl[l],freq)
                                      +cl_rm( frxzr[indL], frxz[indL] , tausigl[l],freq)
-                                     +cl_rm( fryzr[indL], fryz[indL] , tausigl[l],freq))/m->NTNYQ;
+                                     +cl_rm( fryzr[indL], fryz[indL] , tausigl[l],freq))/dftnorm;
                             dot[6]=dot[1];
                             dot[7]+=(+cl_rm( frxxr[indL], rxx_myyzz , tausigl[l],freq)
                                      +cl_rm( fryyr[indL], ryy_mxxzz , tausigl[l],freq)
-                                     +cl_rm( frzzr[indL], rzz_mxxyy , tausigl[l],freq))/m->NTNYQ;
+                                     +cl_rm( frzzr[indL], rzz_mxxyy , tausigl[l],freq))/dftnorm;
                         }
                         
                         sxxyyzz=    cl_add(fsxx[indfd], fsyy[indfd], fszz[indfd]);
@@ -689,21 +697,21 @@ int calc_grad(model * m, device * dev)  {
                         syy_mxxzz= cl_diff(fsyy[indfd], fsxx[indfd], fszz[indfd]);
                         szz_mxxyy= cl_diff(fszz[indfd], fsxx[indfd], fsyy[indfd]);
 
-                        dot[0]=freq*cl_itreal( sxxyyzzr, sxxyyzz )/m->NTNYQ;
+                        dot[0]=freq*cl_itreal( sxxyyzzr, sxxyyzz )/dftnorm;
                         dot[2]=freq*(+cl_itreal( fsxyr[indfd], fsxy[indfd] )
                                      +cl_itreal( fsxzr[indfd], fsxz[indfd] )
-                                     +cl_itreal( fsyzr[indfd], fsyz[indfd] ))/m->NTNYQ;
+                                     +cl_itreal( fsyzr[indfd], fsyz[indfd] ))/dftnorm;
                         dot[3]=dot[0];
                         dot[4]=freq*(+cl_itreal( fsxxr[indfd], sxx_myyzz )
                                      +cl_itreal( fsyyr[indfd], syy_mxxzz )
-                                     +cl_itreal( fszzr[indfd], szz_mxxyy ))/m->NTNYQ;
+                                     +cl_itreal( fszzr[indfd], szz_mxxyy ))/dftnorm;
 
                         
                         dot[8]=freq*(
                                      cl_itreal( fvxr[indfd], fvx[indfd] ) +
                                      cl_itreal( fvyr[indfd], fvy[indfd] ) +
                                      cl_itreal( fvzr[indfd], fvz[indfd] )
-                                     )/m->NTNYQ;
+                                     )/dftnorm;
                         
                         gradM[indm]+=   -c[0]*dot[0]
                                         +c[1]*dot[1];
@@ -746,32 +754,63 @@ int calc_grad(model * m, device * dev)  {
         
         for (i=0;i<NX;i++){
             for (k=0;k<NZ;k++){
+                /* The grad_coef* formulas are expressions in the *physical*
+                 * stiffnesses and density, but cl_par.host holds the internally
+                 * non-dimensionalized parameters. Feeding those in directly made
+                 * every coefficient wrong, and -- because the formulas are
+                 * nonlinear (sqrt, 1/mu^2) -- wrong by a *different* factor per
+                 * coefficient: with par_scale==0 the c[0]/c[2] group came out 5x
+                 * too large while c[16] came out 4e14x too large, so gradvp and
+                 * gradvs were off by a clean constant while gradrho was garbage.
+                 * Undo the transform, using the same relations transf_grad()
+                 * applies in reverse (calc_grad.c:1004-1019).
+                 * Hoisted out of the frequency loop: none of this depends on f. */
+                indm=i*NZ+k;
+                {
+                    double s2 = pow(2.0, -(double)m->par_scale);
+                    double dhdt = (double)m->dh/(double)m->dt;
+                    double rho_p = (rho[indm]!=0.0)
+                                 ? (1.0/rho[indm])*((double)m->dt/(double)m->dh)*s2
+                                 : 0.0;
+                    double M_p   = M  ? M[indm]*dhdt*s2  : 0.0;
+                    double mu_p  = mu ? mu[indm]*dhdt*s2 : 0.0;
+                    double taup_p = (m->L>0 && taup) ? taup[indm] : 0.0;
+                    double taus_p = (m->L>0 && taus) ? taus[indm] : 0.0;
+                    /* Vacuum cells (M == mu == rho == 0) contribute nothing,
+                     * and must be skipped rather than evaluated: the coefficient
+                     * formulas divide by rho and by (ND*M-2(ND-1)mu)^2, so a
+                     * zero cell yields 0/0 = NaN which then propagates through
+                     * the whole gradient. The device kernel is already immune
+                     * because its (ND*M-2(ND-1)mu)^2 > 0 guard short-circuits
+                     * there; this keeps the host reference in step, so
+                     * SEISCL_DFT_CHECK does not compare against NaN. See
+                     * ../notes/back-prop-type1-zero-material-nan.md, which
+                     * root-causes the same class of failure in transf_grad()
+                     * for BACK_PROP_TYPE==1. */
+                    double den_p = ND*M_p - 2.0*(ND-1.0)*mu_p;
+                    if (!(rho_p>0.0) || !(den_p*den_p>0.0)){
+                        for (n=0;n<24;n++) c[n]=0;
+                    }
+                    else{
+                    c_calc(&c, M_p, mu_p, taup_p, taus_p, rho_p, ND, m->L, al);
+
+                    /* Fluid cells: drop every shear-related coefficient. Tested
+                     * on the physical mu, not the scaled one. */
+                    if (mu_p<1.0){
+                        for (n=2;n<8;n++)   c[n]=0;
+                        for (n=10;n<16;n++) c[n]=0;
+                        for (n=18;n<24;n++) c[n]=0;
+                    }
+                    }
+                }
                 for (f=0;f<m->NFREQS;f++){
-                    
+
                     indfd= f*(NX+m->FDORDER)*(NZ+m->FDORDER)
                          +(i+m->FDOH)*(NZ+m->FDORDER)
                          +(k+m->FDOH);
-                    indm=i*NZ+k;
-                    
+
                     freq=2.0*PI*df* gradfreqsn[f];
-                    if (m->L>0)
-                        c_calc(&c,M[indm], mu[indm], taup[indm], taus[indm], rho[indm], ND,m->L,al);
-                    else
-                        c_calc(&c,M[indm], mu[indm], 0, 0, rho[indm], ND,m->L,al);
-                    
-                    if (mu[indm]<1){
-                        for (n=2;n<8;n++){
-                            c[n]=0;
-                        }
-                        for (n=10;n<16;n++){
-                            c[n]=0;
-                        }
-                        for (n=18;n<24;n++){
-                            c[n]=0;
-                        }
-                        
-                    }
-                    
+
                     dot[1]=0;dot[5]=0;dot[6]=0;dot[7]=0;
                     for (l=0;l<m->L;l++){
                         indL= f*(NX+m->FDORDER)*(NZ+m->FDORDER)*m->L
@@ -791,12 +830,12 @@ int calc_grad(model * m, device * dev)  {
                         rxx_mzz= cl_diff2(frxx[indL], frzz[indL]);
                         rzz_mxx= cl_diff2(frzz[indL], frxx[indL]);
                         
-                        dot[1]+=cl_rm( rxxzzr, rxxzz, tausigl[l],freq )/m->NTNYQ;
+                        dot[1]+=cl_rm( rxxzzr, rxxzz, tausigl[l],freq )/dftnorm;
                         
-                        dot[5]+=(cl_rm( frxzr[indL], frxz[indL] , tausigl[l],freq) )/m->NTNYQ;
+                        dot[5]+=(cl_rm( frxzr[indL], frxz[indL] , tausigl[l],freq) )/dftnorm;
                         dot[6]=dot[1];
                         dot[7]+=(+cl_rm( frxxr[indL], rxx_mzz , tausigl[l],freq)
-                                 +cl_rm( frzzr[indL], rzz_mxx , tausigl[l],freq))/m->NTNYQ;
+                                 +cl_rm( frzzr[indL], rzz_mxx , tausigl[l],freq))/dftnorm;
                         
                     }
                     sxxzz=    cl_add2(fsxx[indfd], fszz[indfd]);
@@ -806,13 +845,13 @@ int calc_grad(model * m, device * dev)  {
                     
 
                     
-                    dot[0]=freq*cl_itreal( sxxzzr, sxxzz )/m->NTNYQ;
-                    dot[2]=freq* ( cl_itreal( fsxzr[indfd], fsxz[indfd])  )/m->NTNYQ;
+                    dot[0]=freq*cl_itreal( sxxzzr, sxxzz )/dftnorm;
+                    dot[2]=freq* ( cl_itreal( fsxzr[indfd], fsxz[indfd])  )/dftnorm;
                     dot[3]=dot[0];
                     dot[4]=freq*(+cl_itreal( fsxxr[indfd], sxx_mzz )
-                                 +cl_itreal( fszzr[indfd], szz_mxx ))/m->NTNYQ;
+                                 +cl_itreal( fszzr[indfd], szz_mxx ))/dftnorm;
 
-                    dot[8]=freq*(cl_itreal( fvxr[indfd], fvx[indfd] ) + cl_itreal( fvzr[indfd], fvz[indfd] ))/m->NTNYQ;
+                    dot[8]=freq*(cl_itreal( fvxr[indfd], fvx[indfd] ) + cl_itreal( fvzr[indfd], fvz[indfd] ))/dftnorm;
                     
                     
                     gradM[indm]+= -c[0]*dot[0]
@@ -836,15 +875,29 @@ int calc_grad(model * m, device * dev)  {
                                         +c[15]*dot[7];
                     }
                     
+                    /* The c[16..23] group is the parameterization chain rule:
+                     * for par_type=0, M = rho*vp^2 and mu = rho*vs^2 both depend
+                     * on rho, so d(J)/d(rho) at fixed vp,vs picks up
+                     * vp^2*gradM + vs^2*gradmu on top of the density kernel
+                     * -dot[8]. c[16] is vp^2/den and c[18..20] carry the mu/rho
+                     * = vs^2 factor, so these terms must enter with the *same*
+                     * signs as the gradM and gradmu expressions above -- which
+                     * is what transf_grad does for back_prop_type=1
+                     * (calc_grad.c:1036-1041: gradrho += M/rho*gradM and
+                     * += mu/rho*gradmu, both positive). The group was negated,
+                     * which left gradrho anti-correlated with the time-domain
+                     * gradient (cos=-0.64) while gradrho in the (M,mu,rho)
+                     * parameterization -- where this group is absent -- agreed
+                     * at cos=0.99. */
                     gradrho[indm]+=-dot[8]
-                                    +c[16]*dot[0]
-                                    -c[17]*dot[1]
-                                    +c[18]*dot[2]
-                                    -c[19]*dot[3]
-                                    +c[20]*dot[4]
-                                    -c[21]*dot[5]
-                                    +c[22]*dot[6]
-                                    -c[23]*dot[7];
+                                    -c[16]*dot[0]
+                                    +c[17]*dot[1]
+                                    -c[18]*dot[2]
+                                    +c[19]*dot[3]
+                                    -c[20]*dot[4]
+                                    +c[21]*dot[5]
+                                    -c[22]*dot[6]
+                                    +c[23]*dot[7];
                     
                     if(m->HOUT){
                         dot[1]=0;dot[5]=0;dot[6]=0;dot[7]=0;
@@ -858,11 +911,11 @@ int calc_grad(model * m, device * dev)  {
                             rxx_mzz= cl_diff2(frxx[indL], frzz[indL]);
                             rzz_mxx= cl_diff2(frzz[indL], frxx[indL]);
                             
-                            dot[1]+=cl_norm(cl_add2( rxxzz, cl_derivative(rxxzz, freq*tausigl[l])) )/m->NTNYQ;
-                            dot[5]+=cl_norm(cl_add2( frxz[indL], cl_derivative(frxz[indL], freq*tausigl[l])) )/m->NTNYQ;
+                            dot[1]+=cl_norm(cl_add2( rxxzz, cl_derivative(rxxzz, freq*tausigl[l])) )/dftnorm;
+                            dot[5]+=cl_norm(cl_add2( frxz[indL], cl_derivative(frxz[indL], freq*tausigl[l])) )/dftnorm;
                             dot[6]=dot[1];
                             dot[7]+=(cl_norm(cl_add2( rxx_mzz, cl_derivative(rxx_mzz, freq*tausigl[l])) )
-                                    +cl_norm(cl_add2( rzz_mxx, cl_derivative(rzz_mxx, freq*tausigl[l])) ))/m->NTNYQ;
+                                    +cl_norm(cl_add2( rzz_mxx, cl_derivative(rzz_mxx, freq*tausigl[l])) ))/dftnorm;
                             
                         }
                         sxxzz=    cl_add2(fsxx[indfd], fszz[indfd]);
@@ -870,13 +923,13 @@ int calc_grad(model * m, device * dev)  {
                         szz_mxx= cl_diff2(fszz[indfd], fsxx[indfd]);
                         
                         
-                        dot[0]=cl_norm(cl_derivative(sxxzz, freq))/m->NTNYQ;
-                        dot[2]=cl_norm(cl_derivative(fsxz[indfd], freq))/m->NTNYQ;
+                        dot[0]=cl_norm(cl_derivative(sxxzz, freq))/dftnorm;
+                        dot[2]=cl_norm(cl_derivative(fsxz[indfd], freq))/dftnorm;
                         dot[3]=dot[0];
                         dot[4]=(cl_norm(cl_derivative(sxx_mzz, freq))
-                                    +cl_norm(cl_derivative(szz_mxx, freq)))/m->NTNYQ;
+                                    +cl_norm(cl_derivative(szz_mxx, freq)))/dftnorm;
                         dot[8]=(cl_norm(cl_derivative(fvx[indfd], freq))
-                                +cl_norm(cl_derivative(fvz[indfd], freq)))/m->NTNYQ;
+                                +cl_norm(cl_derivative(fvz[indfd], freq)))/dftnorm;
                         
                         HM[indm]+=   c[0]*dot[0]
                                     -c[1]*dot[1];
@@ -934,17 +987,17 @@ int calc_grad(model * m, device * dev)  {
                         c_calc(&c,M[indm], mu[indm], 0, 0, rho[indm], ND,m->L,al);
                     
                     
-                    dot[0]=freq*(cl_itreal(fsxyr[indfd],fsxy[indfd])+ cl_itreal(fsyzr[indfd],fsyz[indfd]) )/m->NTNYQ;
+                    dot[0]=freq*(cl_itreal(fsxyr[indfd],fsxy[indfd])+ cl_itreal(fsyzr[indfd],fsyz[indfd]) )/dftnorm;
 
                     for (l=0;l<m->L;l++){
                         indL= f*(NX+m->FDORDER)*(NZ+m->FDORDER)*m->L
                         +l*(NX+m->FDORDER)*(NZ+m->FDORDER)
                         +(i+m->FDOH)*(NZ+m->FDORDER)
                         +(k+m->FDOH);
-                        dot[1]=(cl_rm( frxyr[indL], frxy[indL],tausigl[l],freq )+cl_rm( fryzr[indL], fryz[indL],tausigl[l],freq ))/m->NTNYQ;
+                        dot[1]=(cl_rm( frxyr[indL], frxy[indL],tausigl[l],freq )+cl_rm( fryzr[indL], fryz[indL],tausigl[l],freq ))/dftnorm;
                     }
                     
-                    dot[2]=freq*(cl_itreal( fvyr[indfd], fvy[indfd] ))/m->NTNYQ;
+                    dot[2]=freq*(cl_itreal( fvyr[indfd], fvy[indfd] ))/dftnorm;
                     
 
                     gradmu[indm]+=-c[0]*dot[0]+c[1]*dot[1];
@@ -953,7 +1006,11 @@ int calc_grad(model * m, device * dev)  {
                         gradtaus[indm]+=-c[2]*dot[0]+c[3]*dot[1];
                     }
                     
-                    gradrho[indm]+=-dot[2] +c[4]*dot[0]-c[5]*dot[1]  ;
+                    /* Same chain-rule sign as the P-SV case: c[4] is
+                     * (mu/rho)/mu^2 = vs^2 * (internal coefficient of dot[0]),
+                     * so it must carry the same sign as gradmu's -c[0]*dot[0],
+                     * matching transf_grad's gradrho += mu/rho*gradmu. */
+                    gradrho[indm]+=-dot[2] -c[4]*dot[0]+c[5]*dot[1]  ;
                     
                 }
             }
