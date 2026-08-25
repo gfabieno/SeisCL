@@ -142,28 +142,34 @@ class SeisCL:
                                  by the stiffness tensor Cijkl so that signals
                                  are injected as stress-rate (Pa/s).
 
-        Source units and scaling
-        -----------------------
+        **Source units and scaling**
 
-        NOTE: SeisCL solves the first-order velocity–stress elastic (or acoustic)
-        wave equations in the form:
+        NOTE: SeisCL solves the first-order velocity-stress elastic (or
+        acoustic) wave equations in the form::
 
             ∂t v_i  = (1/ρ) ∂j σ_ij   + s_vi
             ∂t σ_ij = λ δ_ij ∂k v_k  + μ (∂i v_j + ∂j v_i) + s_σij
 
-        In the current SeisCL implementation, `s_vi` and `s_σij`
-        are inserted directly into the right-hand side of these equations without
-        unit normalization. As a result, reciprocity is not respected. To ensure reciprocity, the user should apply the following conversions:
-            - For deformation rate density s_σ (1/s) (source_type=3-8, 100)
-                s_σij = -λ Tr(s_ij)δ_ij   + 2μ s_ij
-            - For volume force density (N) (source_type=0,1,2)
-                s_vi = (1/ρ) s_i / (dh^3)
+        In the current SeisCL implementation, ``s_vi`` and ``s_σij`` are
+        inserted directly into the right-hand side of these equations without
+        unit normalization. As a result, reciprocity is not respected. To
+        ensure reciprocity, the user should apply the following conversions:
 
-        This scaling solves the reciprocal wave equation given by:
+        - For deformation rate density s_σ (1/s) (source_type=3-8, 100)::
+
+              s_σij = -λ Tr(s_ij)δ_ij   + 2μ s_ij
+
+        - For volume force density (N) (source_type=0,1,2)::
+
+              s_vi = (1/ρ) s_i / (dh^3)
+
+        This scaling solves the reciprocal wave equation given by::
+
             ρ∂t v_i - ∂j σ_ij = si
             -sijkl ∂t σ_ij + (∂i v_j + ∂j v_i)/2 = s_ij
-        with the compliance tensor sijkl defined as the inverse of the stiffness,
-        here cijkl = λ δ_ij δ_kl + μ (δ_ik δ_jl + δ_il δ_jk).
+
+        with the compliance tensor sijkl defined as the inverse of the
+        stiffness, here cijkl = λ δ_ij δ_kl + μ (δ_ik δ_jl + δ_il δ_jk).
 
         Parameters defining the Boundary conditions
 

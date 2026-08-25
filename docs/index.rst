@@ -56,13 +56,14 @@
    :maxdepth: 1
    :caption: Deep Learning:
 
+   notebooks/DeepLearning/SeisCLinPyTorch
    notebooks/DeepLearning/SeisCLinTensorflow
 
 .. toctree::
    :maxdepth: 1
    :caption: Examples:
 
-   gallery/index.rst
+   notebooks/examples/index
 
 .. toctree::
    :maxdepth: 1
