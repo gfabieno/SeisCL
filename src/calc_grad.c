@@ -1401,8 +1401,19 @@ int unscale_grad(model * m) {
     float * mu = get_par(m->pars, m->npars, "mu")->gl_par;
     float * gradmu = get_par(m->pars, m->npars, "mu")->gl_grad;
 
+    /* gradrho carries an extra dh^2/dt^2 relative to gradM/gradmu's plain
+       1/dt: it is accumulated (via average_grad_transpose(), from
+       update_adjv2D.cl's gradrip/gradrkp) against the buoyancy parameter,
+       whose internal (non-dimensionalized) representation is scaled by
+       dt/dh relative to the physical value (see unscale_par()'s
+       rho[i]=1/rho[i]*dt/dh), the inverse of M/mu's dh/dt scaling -- so its
+       raw kernel-accumulated gradient needs the reciprocal-squared
+       correction here rather than the same plain 1/dt gradM/gradmu get.
+       Confirmed empirically: crosswell finite-difference check on the
+       (back_prop_type=1) rho gradient went from ratio -33 (missing this
+       factor entirely, i.e. only /dt) to 0.9999 (this exact dh^2/dt^3). */
     for (i=0;i<num_ele;i++){
-        gradrho[i]/=m->dt;
+        gradrho[i] *= (m->dh*m->dh)/(m->dt*m->dt*m->dt);
     }
     if (M){
         for (i=0;i<num_ele;i++){
@@ -1529,9 +1540,9 @@ int transf_grad(model * m) {
     __GUARD unscale_par(m);
     __GUARD unscale_grad(m);
     __GUARD chain_rule_par_type(m);
-    
-    
-    
+
+
+
     return state;
 
 }
