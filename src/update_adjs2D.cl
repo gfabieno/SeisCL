@@ -46,7 +46,7 @@ FUNDEF void update_adjs(int offcomm,
                           GLOBARG float * RESTRICT psi_vx_x,            GLOBARG float * RESTRICT psi_vx_z,
                           GLOBARG float * RESTRICT psi_vz_x,            GLOBARG float * RESTRICT psi_vz_z,
                           GLOBARG const float * RESTRICT gradrho,       GLOBARG float * RESTRICT gradM,           GLOBARG float * RESTRICT gradmu,
-                          GLOBARG const float * RESTRICT gradmuipkp,    GLOBARG const float * RESTRICT gradtaup,  GLOBARG const float * RESTRICT gradtaus,
+                          GLOBARG float * RESTRICT gradmuipkp,          GLOBARG const float * RESTRICT gradtaup,  GLOBARG const float * RESTRICT gradtaus,
                           GLOBARG const float * RESTRICT gradtausipkp,  GLOBARG const float * RESTRICT gradsrc,
                           GLOBARG const float * RESTRICT Hrho,          GLOBARG float * RESTRICT HM,              GLOBARG float * RESTRICT Hmu,
                           GLOBARG const float * RESTRICT Htaup,         GLOBARG const float * RESTRICT Htaus,     GLOBARG const float * RESTRICT Hsrc,
@@ -443,13 +443,21 @@ FUNDEF void update_adjs(int offcomm,
         float c1=1.0/( (2.0*lM-2.0*lmu)*(2.0*lM-2.0*lmu) );
 
 
-        float c3=1.0/(lmu*lmu);
-        float c5=0.25*c3;
+        // The sxz/shear term is evaluated at the muipkp (staggered) position,
+        // not the cell-centred mu used by c1/c5's sxx/szz terms -- matching
+        // grad_dft2D.cl's imuipkp2 = 1/(muipkp*muipkp). Kept in its own
+        // gradmuipkp accumulator (not folded into gradmu) so
+        // average_grad_transpose() (calc_grad.c) can apply the harmonic-mean
+        // averaging Jacobian to it separately, mirroring grad_dft2D.cl's
+        // Gmu/Gmuipkp split.
+        float c3=1.0/(fipkp*fipkp);
+        float c5=0.25/(lmu*lmu);
 
         float dM=c1*( sxx[indv]+szz[indv] )*( lsxx+lszz );
 
         gradM[indp]+=-dM;
-        gradmu[indp]+=-c3*(sxz[indv]*lsxz)+dM-c5*(  (sxx[indv]-szz[indv])*(lsxx-lszz)  );
+        gradmuipkp[indp]+=-c3*(sxz[indv]*lsxz);
+        gradmu[indp]+=dM-c5*(  (sxx[indv]-szz[indv])*(lsxx-lszz)  );
 
         #if HOUT==1
             float dMH=c1*(sxx[indv]+szz[indv])*(sxx[indv]+szz[indv]);
