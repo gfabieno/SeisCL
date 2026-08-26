@@ -280,6 +280,91 @@ def test_dft_gradient_vs_numpy_heterogeneous():
         "parameters instead of physical ones." % worst)
 
 
+def _grad_and_dft_3d(wd, params, gradfreqs, din, **cfg):
+    from gradient_common import make_seiscl_3d
+    s = make_seiscl_3d(wd, gradout=1, back_prop_type=2, dftout=1,
+                       gradfreqs=np.asarray(gradfreqs, dtype=float), **cfg)
+    s.file_din = din
+    s.set_forward(s.src_pos_all[3, :], params, withgrad=True)
+    s.execute()
+    return s, s.read_dft(), s.read_grad()
+
+
+def _numpy_reference_3d(s, d, params):
+    from dft_reference import gradient_3d_elastic
+    nz, ny, nx = int(s.N[0]), int(s.N[1]), int(s.N[2])
+    rho = params["rho"]
+    M = rho * params["vp"] ** 2
+    mu = rho * params["vs"] ** 2
+    fwd = {k[2:]: v for k, v in d.items() if k.startswith("f_")}
+    adj = {k[2:]: v for k, v in d.items() if k.startswith("a_")}
+    return gradient_3d_elastic(fwd, adj, M, mu, rho, d["gradfreqsn"],
+                               d["NTNYQ"], d["DTNYQ"], s.dt,
+                               d["FDORDER"] // 2, nz, ny, nx)
+
+
+def _interior_3d(s, a):
+    nab = s.nab
+    nz, ny, nx = int(s.N[0]), int(s.N[1]), int(s.N[2])
+    return a[nab:nz - nab, nab:ny - nab, nab:nx - nab].ravel()
+
+
+def test_dft_gradient_vs_numpy_heterogeneous_3d():
+    """3D counterpart of T3: grad_dft3D.cl vs. a float64 numpy reference.
+
+    Same rationale as the 2D T3 (see its docstring): a heterogeneous model is
+    required, otherwise a scaling bug in the grad_coef* coefficients is
+    indistinguishable from a convention difference.
+
+    This test (comparing the device kernel to an independent numpy
+    transcription of the same formula) passed for all three parameters from
+    the start, including gradrho -- both use the same, correct sign for the
+    c[16..23] chain-rule group. It was cross-checking the device kernel
+    against the *host* calc_grad() oracle (SEISCL_DFT_CHECK, a separate
+    mechanism, see test_device_kernel_matches_host_oracle) that caught two
+    real, independent, pre-existing bugs in calc_grad()'s ND==3 branch:
+    the missing "undo internal non-dimensionalization" step (ND==2 already
+    had it) and the gradrho chain-rule group carrying the old, wrong sign
+    (ND==2 already had that fix too, from the original 2D DFT work -- see
+    the identical comment on the ND==2 gradrho accumulation a few hundred
+    lines below in calc_grad.c). Both were never ported to ND==3 because
+    nothing had ever exercised back_prop_type=2 in 3D before grad_dft3D.cl
+    existed to make it worth trying. See notes/3d-gradient-findings.md,
+    "Item 6", for the full account.
+    """
+    from gradient_common import make_seiscl_3d, with_anomaly_3d, make_observed
+    wd = workdir("t3_3d_hetero")
+    s0 = make_seiscl_3d(wd)
+    nz, ny, nx = int(s0.N[0]), int(s0.N[1]), int(s0.N[2])
+    zz, yy, xx = np.meshgrid(np.arange(nz), np.arange(ny), np.arange(nx),
+                             indexing="ij")
+    params = {
+        "vp": 3500.0 + 300.0 * np.sin(2 * np.pi * zz / 40),
+        "vs": 2000.0 + 200.0 * np.cos(2 * np.pi * yy / 35),
+        "rho": 2000.0 + 100.0 * np.sin(2 * np.pi * xx / 30),
+    }
+    params = {k: v.astype(np.float64) for k, v in params.items()}
+    true_params = with_anomaly_3d(s0)
+    din = make_observed(s0, params=true_params)
+
+    s, d, g = _grad_and_dft_3d(wd, params, [2.0, 4.0, 6.0, 8.0], din)
+    ref = _numpy_reference_3d(s, d, params)
+
+    worst = 0.0
+    for i, nm in enumerate(("vp", "vs", "rho")):
+        a, b = _interior_3d(s, ref[nm]), _interior_3d(s, g[i])
+        na, nb = np.linalg.norm(a), np.linalg.norm(b)
+        assert nb > 0, "SeisCL grad%s is identically zero" % nm
+        cos = float(a @ b / (na * nb))
+        alpha = float(a @ b / (b @ b))
+        rel = float(np.linalg.norm(a - alpha * b) / na)
+        print("  %-4s cos=%.8f alpha=%.6e resid=%.3e" % (nm, cos, alpha, rel))
+        worst = max(worst, abs(cos - 1.0), abs(alpha - 1.0))
+    assert worst < 1e-4, (
+        "3D DFT gradient disagrees with the float64 reference (worst "
+        "|cos-1| or |alpha-1| = %.3e)." % worst)
+
+
 def test_dense_dft_matches_backprop():
     """T2: with every DFT bin selected, the DFT gradient matches back_prop_type=1.
 
@@ -411,6 +496,67 @@ def test_device_kernel_matches_host_oracle():
         assert rel < 1e-5 and abs(cos - 1.0) < 1e-6, (
             "device kernel disagrees with the host reference for grad%s: "
             "cos=%.8f reldiff=%.3e" % (nm, cos, rel))
+
+
+def test_device_kernel_matches_host_oracle_3d():
+    """3D counterpart of T6: grad_dft3D.cl reproduces the host calc_grad()
+    ND==3 reference (SEISCL_DFT_HOST=1), on the OpenCL build.
+
+    This is the permanent guard on both src/grad_dft3D.cl and calc_grad()'s
+    ND==3 branch. It is what actually caught the two ND==3 host-reference
+    bugs described in test_dft_gradient_vs_numpy_heterogeneous_3d's
+    docstring: the numpy-reference test alone would not have, since a numpy
+    transcription and calc_grad()'s ND==2 branch (which the transcription
+    was modeled on) could in principle share a mistake, but comparing
+    against the *actual* ND==3 C code is what is being guarded here.
+    """
+    from gradient_common import make_seiscl_3d, homogeneous_3d
+    wd = workdir("t6_3d_devhost")
+    s0 = make_seiscl_3d(wd)
+    params = homogeneous_3d(s0)
+    true_params = {k: v.copy() for k, v in params.items()}
+    nz, ny, nx = int(s0.N[0]), int(s0.N[1]), int(s0.N[2])
+    sl = (slice(nz // 2 - 5, nz // 2 + 5), slice(ny // 2 - 5, ny // 2 + 5),
+          slice(nx // 2 - 5, nx // 2 + 5))
+    true_params["vp"][sl] += 300.0
+    din = make_observed(s0, params=true_params)
+
+    def run(host):
+        if host:
+            os.environ["SEISCL_DFT_HOST"] = "1"
+        else:
+            os.environ.pop("SEISCL_DFT_HOST", None)
+        try:
+            s = make_seiscl_3d(wd, gradout=1, back_prop_type=2,
+                               gradfreqs=np.array([2.0, 4.0, 6.0]))
+            s.file_din = din
+            s.set_forward(s.src_pos_all[3, :], params, withgrad=True)
+            s.execute()
+            return s, s.read_grad()
+        finally:
+            os.environ.pop("SEISCL_DFT_HOST", None)
+
+    s, g_dev = run(host=False)
+    _, g_host = run(host=True)
+
+    for i, nm in enumerate(("vp", "vs", "rho")):
+        a, b = _interior_3d(s, g_host[i]), _interior_3d(s, g_dev[i])
+        na, nb = np.linalg.norm(a), np.linalg.norm(b)
+        assert nb > 0, (
+            "the device DFT correlation produced an identically zero grad%s"
+            % nm)
+        if na == 0:
+            raise SkipTest(
+                "the host calc_grad reference returned zero, so this build "
+                "has no host implementation to compare against. Run this "
+                "test against the OpenCL build.")
+        cos = float(a @ b / (na * nb))
+        rel = float(np.abs(a - b).max() / np.abs(a).max())
+        print("  %-4s cos=%.8f reldiff=%.3e" % (nm, cos, rel))
+        assert rel < 1e-5 and abs(cos - 1.0) < 1e-6, (
+            "device kernel disagrees with the ND==3 host reference for "
+            "grad%s: cos=%.8f reldiff=%.3e" % (nm, cos, rel))
+
 
 def test_dft_osamp_convergence():
     """T8: how far the savefreqs oversampling can be relaxed.
@@ -832,7 +978,20 @@ def test_dft_gradient_every_fp16_level():
     tols = {1: (1e-6, 1e-3), 2: (0.03, 0.30), 3: (0.03, 0.30)}
     worst = {}
     for fp16, (cos_tol, rel_tol) in tols.items():
-        _, got = grad_at(fp16)
+        try:
+            _, got = grad_at(fp16)
+        except SeisCLError as exc:
+            # FP16>1 is CUDA-only, and has always been: header_FD_fp16.cl
+            # expands __h22f2/__f22h2 to the CUDA intrinsics __half22float2 /
+            # __float22half2_rn, which OpenCL has no declaration for, so every
+            # update_*_half2 kernel fails to build. Nothing to do with the DFT
+            # path -- back_prop_type=1 at FP16=2 fails identically on an
+            # OpenCL build. Skip rather than assert a pre-existing limitation.
+            if "CL_BUILD_PROGRAM_FAILURE" in str(exc) and fp16 > 1:
+                print("  FP16=%d skipped: half2 kernels are CUDA-only on this "
+                      "build (__half22float2 is not an OpenCL function)" % fp16)
+                continue
+            raise
         for i, nm in enumerate(("vp", "vs", "rho")):
             a = _interior(s_ref, ref[i]).astype(np.float64).ravel()
             b = _interior(s_ref, got[i]).astype(np.float64).ravel()
@@ -867,7 +1026,9 @@ TESTS = [
     test_dft_forward_spectrum_multifreq,
     test_dft_padded_tail_is_accumulated,
     test_dft_gradient_vs_numpy_heterogeneous,
+    test_dft_gradient_vs_numpy_heterogeneous_3d,
     test_device_kernel_matches_host_oracle,
+    test_device_kernel_matches_host_oracle_3d,
     test_dft_osamp_convergence,
     test_param_type_chain_rule,
     test_finite_difference_python_objective,

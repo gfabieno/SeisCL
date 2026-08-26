@@ -52,3 +52,8 @@ build*/
 # local test working dirs
 SeisCL/tests/_dftwork/
 cudacheck.py
+_wd*/
+
+# docs/builders/ generates the notebooks (see notes/docs-status.md) but is
+# caught by the build*/ rule above -- keep it.
+!docs/builders/

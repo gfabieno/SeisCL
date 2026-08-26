@@ -1313,6 +1313,21 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
         if (m->BACK_PROP_TYPE==1){
             __GUARD transf_grad(m);
         }
+        else if (m->BACK_PROP_TYPE==2){
+            /* Same three steps as transf_grad minus unscale_grad: the
+               correlation normalizes with dftnorm/DTNYQ and never picks up
+               the dt the time integration puts into the boundary-storage
+               gradient, so dividing by it here would be a spurious global
+               factor -- and a global factor is exactly what the
+               finite-difference acceptance test, which measures ratio
+               *spread*, cannot see. The parameters still have to be unscaled,
+               because chain_rule_par_type evaluates its Jacobians at physical
+               values. */
+            __GUARD unpack_par_fp16(m);
+            __GUARD average_grad_transpose(m);
+            __GUARD unscale_par(m);
+            __GUARD chain_rule_par_type(m);
+        }
     }
 
     /* A RAM-backed checkpoint has to outlive this call so the adjoint pass

@@ -13,6 +13,10 @@
  This way, no .cl file need to be read and there is no need to be in the executable directory to execute SeisCL.*/
 #include "grad_dft2D.hcl"
 #include "grad_dft2D_SH.hcl"
+#include "grad_dft2D_visc.hcl"
+#include "grad_dft2D_SH_visc.hcl"
+#include "grad_dft3D.hcl"
+#include "grad_dft3D_visc.hcl"
 #include "savebnd2D.hcl"
 #include "savebnd3D.hcl"
 #include "surface2D.hcl"
@@ -920,6 +924,35 @@ int assign_modeling_case(model * m){
                        "assigned\n");
     }
 
+    /* BACK_PROP_TYPE==1 reconstructs the forward wavefield by re-running the
+     * simulation backward in time from the saved domain-boundary values. For
+     * a viscoelastic (L>0) medium the forward equations are dissipative, so
+     * running them backward in time is not merely inaccurate but
+     * unconditionally unstable: the attenuation that damps the forward
+     * simulation amplifies the reconstruction error at the same rate running
+     * in reverse, and it blows up regardless of time step or model size. This
+     * is a property of the method, not a bug to fix here. It also means
+     * gradtaup/gradtaus were never implemented for BACK_PROP_TYPE==1 (in
+     * either 2D or 3D: both update_adjs2D.cl and update_adjs3D.cl declare
+     * them as read-only kernel arguments, and transf_grad() in calc_grad.c
+     * has no taup/taus branch) -- there was no point wiring up gradients that
+     * the reconstructed wavefield feeding them cannot be trusted to produce.
+     * BACK_PROP_TYPE==2 does not reconstruct the wavefield this way (it
+     * correlates spectra accumulated during the single forward pass), so it
+     * is unaffected once it supports L>0 (todo item 6). */
+    if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1 && m->L>0){
+        state=1;
+        fprintf(stderr,"Error: back_prop_type=1 cannot compute a gradient for "
+                       "a viscoelastic model (L=%d>0): it reconstructs the "
+                       "forward wavefield by backpropagating in time, which "
+                       "is unconditionally unstable for a dissipative "
+                       "(attenuating) medium -- the reconstruction error "
+                       "grows exponentially, independent of the vp/vs/rho "
+                       "gradient's own correctness. Use back_prop_type=2 "
+                       "once it supports L>0, or a fully-checkpointed "
+                       "(non-reconstructing) gradient method.\n", m->L);
+    }
+
     /* Definition of each seismic modeling case that has been implemented */
     const char * updatev;
     const char * updates;
@@ -1033,13 +1066,26 @@ int assign_modeling_case(model * m){
                                 "surface_adj", surface_adj, 2, headers);
         }
     }
-    /* On-device DFT gradient correlation. 2D P-SV elastic only for now; other
-     * cases keep the host calc_grad, which the OpenCL build still provides. */
-    if (m->GRADOUT && m->BACK_PROP_TYPE==2 && m->L==0){
+    /* On-device DFT gradient correlation. Elastic: 2D P-SV, SH and 3D.
+       Viscoelastic: 2D P-SV and SH. Everything else keeps the host
+       calc_grad, which only the OpenCL build provides. */
+    if (m->GRADOUT && m->BACK_PROP_TYPE==2){
         const char * graddft = NULL;
-        if (m->ND==2)       graddft = grad_dft2D_source;
-        else if (m->ND==21) graddft = grad_dft2D_SH_source;
-        /* ND==3 and L>0 still use the host calc_grad. */
+        if (m->L==0){
+            if (m->ND==2)       graddft = grad_dft2D_source;
+            else if (m->ND==21) graddft = grad_dft2D_SH_source;
+            else if (m->ND==3)  graddft = grad_dft3D_source;
+        }
+        else {
+            /* Viscoelastic. Without this the L>0 case fell back to the host
+               calc_grad(), which is #ifdef __SEISCL__ and a no-op stub under
+               CUDA -- so the gradient came back identically zero, silently,
+               and SeisCL.torch (CUDA-only) could not do viscoelastic FWI at
+               all. */
+            if (m->ND==2)       graddft = grad_dft2D_visc_source;
+            else if (m->ND==21) graddft = grad_dft2D_SH_visc_source;
+            else if (m->ND==3)  graddft = grad_dft3D_visc_source;
+        }
         if (graddft){
             if (m->ND==21 && m->HOUT){
                 state=1;
