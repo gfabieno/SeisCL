@@ -1393,6 +1393,19 @@ int unscale_par(model * m) {
 int unscale_grad(model * m) {
     int state=0;
     int i, num_ele=0;
+    /* FP16>0 stores the wavefield in scaled units (par_scale, see
+       unscale_par()'s powf(2,-scaler) on M/mu/rho). The raw kernel-
+       accumulated gradient inherits that same scaling from the forward and
+       adjoint wavefields it correlates, and is otherwise never corrected for
+       it (unlike the parameters). Confirmed empirically: at FP16=1 with
+       par_scale=-20, the crosswell finite-difference check showed the
+       returned gradient uniformly 2^20 too large across vp/vs/rho alike
+       (ratio ~1048564/1048515/1050131 vs the expected ~1) -- consistent with
+       a single powf(2, par_scale) factor missing here, not a per-parameter
+       bug. At FP16=0, par_scale=0 and this is a no-op, which is why it went
+       unnoticed until back_prop_type=1 was checked at FP16>0 for the first
+       time. */
+    float scale2 = powf(2.0f, (float)m->par_scale);
 
     float * gradrho = get_par(m->pars, m->npars, "rho")->gl_grad;
     num_ele = get_par(m->pars, m->npars, "rho")->num_ele;
@@ -1413,16 +1426,16 @@ int unscale_grad(model * m) {
        (back_prop_type=1) rho gradient went from ratio -33 (missing this
        factor entirely, i.e. only /dt) to 0.9999 (this exact dh^2/dt^3). */
     for (i=0;i<num_ele;i++){
-        gradrho[i] *= (m->dh*m->dh)/(m->dt*m->dt*m->dt);
+        gradrho[i] *= (m->dh*m->dh)/(m->dt*m->dt*m->dt)*scale2;
     }
     if (M){
         for (i=0;i<num_ele;i++){
-            gradM[i]/=m->dt;
+            gradM[i] *= scale2/m->dt;
         }
     }
     if (mu){
         for (i=0;i<num_ele;i++){
-            gradmu[i]/=m->dt;
+            gradmu[i] *= scale2/m->dt;
         }
     }
     return state;
