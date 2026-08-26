@@ -46,6 +46,7 @@ FUNDEF void update_adjv(int offcomm,
                           GLOBARG float * RESTRICT psi_sxx_x,       GLOBARG float * RESTRICT psi_sxz_x,
                           GLOBARG float * RESTRICT psi_sxz_z,       GLOBARG float * RESTRICT psi_szz_z,
                           GLOBARG float * RESTRICT gradrho,         GLOBARG const float * RESTRICT gradsrc,
+                          GLOBARG float * RESTRICT gradrip,         GLOBARG float * RESTRICT gradrkp,
                           GLOBARG float * RESTRICT Hrho,            GLOBARG const float * RESTRICT Hsrc,
                           LOCARG)
 {
@@ -323,8 +324,9 @@ FUNDEF void update_adjv(int offcomm,
     
 // Density gradient calculation on the fly
 #if BACK_PROP_TYPE==1
-    gradrho[indp]+=-vx[indv]*lvx-vz[indv]*lvz;
-    
+    gradrip[indp]+=-vx[indv]*lvx;
+    gradrkp[indp]+=-vz[indv]*lvz;
+
 //#if HOUT==1
 //    Hrho[indp]+= pown(vx[indv],2)+pown(vz[indv],2);
 //#endif
