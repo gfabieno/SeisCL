@@ -697,9 +697,18 @@ FUNDEF void update_adjs(int offcomm,
     float gfipkp=muipkp[indp];
     float gfipjp=muipjp[indp];
     float gfjpkp=mujpkp[indp];
-    float c3xz=1.0/gfipkp/gfipkp;
-    float c3xy=1.0/gfipjp/gfipjp;
-    float c3yz=1.0/gfjpkp/gfjpkp;
+    // Fluid/padding cells (staggered mu==0, e.g. muipkp/muipjp/mujpkp can
+    // legitimately be 0 at domain-edge ghost positions even where the
+    // cell-centred lmu is not) must drop the shear coefficient entirely,
+    // matching grad_dft2D.cl's mu_p>=1.0 guard -- 1/0 gives Inf, and
+    // Inf*0 (whenever the correlated stress happens to be exactly 0 at
+    // that same cell) gives NaN, which silently poisons the whole
+    // gradmuipkp/gradmuipjp/gradmujpkp buffer through the += accumulation.
+    // Confirmed via instrumentation: muipkp[indp] is 0 at 4032/262144
+    // cells for this test model.
+    float c3xz = (gfipkp>=1.0) ? 1.0/gfipkp/gfipkp : 0.0;
+    float c3xy = (gfipjp>=1.0) ? 1.0/gfipjp/gfipjp : 0.0;
+    float c3yz = (gfjpkp>=1.0) ? 1.0/gfjpkp/gfjpkp : 0.0;
     float c5=1.0/6.0/lmu/lmu;
 
     float dM=c1*( sxx[indv]+syy[indv]+szz[indv] )*( lsxx+lsyy+lszz );
