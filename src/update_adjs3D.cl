@@ -684,9 +684,22 @@ FUNDEF void update_adjs(int offcomm,
     // the three 3D shear planes. Kept in their own gradmu{ipkp,ipjp,jpkp}
     // accumulators so average_grad_transpose() (calc_grad.c) can apply the
     // harmonic-mean averaging Jacobian to each separately.
-    float c3xz=1.0/fipkp/fipkp;
-    float c3xy=1.0/fipjp/fipjp;
-    float c3yz=1.0/fjpkp/fjpkp;
+    // Read the staggered mu values directly from the parameter buffers
+    // rather than reusing fipkp/fipjp/fjpkp -- those locals are only
+    // (re)assigned inside the forward-reconstruction branch above, so
+    // reading the raw buffer here is the safer choice regardless. This did
+    // NOT fix the NaN gradmuipkp/gradmuipjp/gradmujpkp observed via
+    // instrumentation (average_grad_transpose() dump, host-side
+    // muipkp[indp] is confirmed nonzero/sane at this same index) -- the
+    // real cause is still open, see notes/todo.md item 1's 3D section.
+    // Kept because it removes one real risk (stale locals) even though it
+    // is not the fix; do not assume this is done.
+    float gfipkp=muipkp[indp];
+    float gfipjp=muipjp[indp];
+    float gfjpkp=mujpkp[indp];
+    float c3xz=1.0/gfipkp/gfipkp;
+    float c3xy=1.0/gfipjp/gfipjp;
+    float c3yz=1.0/gfjpkp/gfjpkp;
     float c5=1.0/6.0/lmu/lmu;
 
     float dM=c1*( sxx[indv]+syy[indv]+szz[indv] )*( lsxx+lsyy+lszz );
