@@ -41,6 +41,7 @@ FUNDEF void update_adjv(int offcomm,
                         GLOBARG __prec2 *psi_sxx_x, GLOBARG __prec2 *psi_sxz_x,
                         GLOBARG __prec2 *psi_sxz_z, GLOBARG __prec2 *psi_szz_z,
                         GLOBARG __gprec *gradrho, GLOBARG __gprec *Hrho,
+                        GLOBARG __gprec *gradrip, GLOBARG __gprec *gradrkp,
                         int res_scale, int src_scale, int par_scale, LOCARG2)
 {
     
@@ -335,13 +336,19 @@ FUNDEF void update_adjv(int offcomm,
     vxr[indv] = __f22h2(lvxr);
     vzr[indv] = __f22h2(lvzr);
 
-    // Density gradient calculation on the fly
+    // Density gradient calculation on the fly. vx/vz sit at the rip/rkp
+    // staggered positions (update_v2D.cl), so their contributions are kept
+    // in separate gradrip/gradrkp accumulators -- not summed into
+    // cell-centred gradrho -- so average_grad_transpose() (calc_grad.c) can
+    // apply the buoyancy averaging Jacobian to each separately, mirroring
+    // grad_dft2D.cl's Grip/Grkp split and update_adjv2D.cl's FP32 fix.
     #if BACK_PROP_TYPE==1
     lvxr=(sxxr_x1+sxzr_z2)*lrip;
     lvzr=(szzr_z1+sxzr_x2)*lrkp;
 
-    gradrho[indp]=gradrho[indp] - scalefun(__h22f2c(lvx) * __h22f2c(lvxr) +
-                                           __h22f2c(lvz) * __h22f2c(lvzr),
+    gradrip[indp]=gradrip[indp] - scalefun(__h22f2c(lvx) * __h22f2c(lvxr),
+                                           2*par_scale -src_scale - res_scale);
+    gradrkp[indp]=gradrkp[indp] - scalefun(__h22f2c(lvz) * __h22f2c(lvzr),
                                            2*par_scale -src_scale - res_scale);
     #if HOUT==1
         Hrho[indp]= Hrho[indp] - scalefun(__h22f2c(lvx) * __h22f2c(lvx) +

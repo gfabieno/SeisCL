@@ -42,7 +42,8 @@ FUNDEF void update_adjs(int offcomm,
                         GLOBARG __prec2 *psi_vx_x,  GLOBARG __prec2 *psi_vx_z,
                         GLOBARG __prec2 *psi_vz_x,  GLOBARG __prec2 *psi_vz_z,
                         GLOBARG __gprec *gradrho, GLOBARG __gprec *gradM,
-                        GLOBARG __gprec *gradmu,  GLOBARG __gprec *Hrho,
+                        GLOBARG __gprec *gradmu,  GLOBARG __gprec *gradmuipkp,
+                        GLOBARG __gprec *Hrho,
                         GLOBARG __gprec *HM,      GLOBARG  __gprec *Hmu,
                         int res_scale, int src_scale, int par_scale, LOCARG2)
 {
@@ -346,8 +347,14 @@ FUNDEF void update_adjs(int offcomm,
         #if RESTYPE==0
         //TODO review scaling
         __gprec c1=__h22f2c(1.0f/((2.0f*lM-2.0f*lmu)*(2.0f*lM-2.0f*lmu)));
-        __gprec c3=__h22f2c(1.0f/(lmu*lmu));
-        __gprec c5=0.25f*c3;
+        // The sxz/shear term is evaluated at the muipkp (staggered) position,
+        // not the cell-centred mu used by c1/c5's sxx/szz terms -- matching
+        // grad_dft2D.cl's imuipkp2 = 1/(muipkp*muipkp) and update_adjs2D.cl's
+        // FP32 fix. Kept in its own gradmuipkp accumulator so
+        // average_grad_transpose() can apply the harmonic-mean averaging
+        // Jacobian to it separately.
+        __gprec c3=__h22f2c(1.0f/(lmuipkp*lmuipkp));
+        __gprec c5=__h22f2c(0.25f/(lmu*lmu));
 
         lsxzr=lmuipkp * (vxr_z1+vzr_x1);
         lsxxr=lM*(vxr_x2+vzr_z2) - 2.0f * lmu * vzr_z2;
@@ -355,9 +362,11 @@ FUNDEF void update_adjs(int offcomm,
 
         __gprec dM=c1*( (lsxx+lszz )*( lsxxr+lszzr ));
         gradM[indp]=gradM[indp]-scalefun(dM, 2*par_scale-src_scale - res_scale);
+        gradmuipkp[indp]=gradmuipkp[indp]
+                        + scalefun(-c3*(lsxz*lsxzr),
+                                   2*par_scale-src_scale - res_scale);
         gradmu[indp]=gradmu[indp] \
-                        + scalefun(-c3*(lsxz*lsxzr)
-                                   +dM
+                        + scalefun(dM
                                    -c5*(((lsxx-lszz)*(lsxxr-lszzr))),
                                    2*par_scale-src_scale - res_scale);
 

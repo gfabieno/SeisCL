@@ -63,6 +63,7 @@ FUNDEF void update_adjs(int offcomm,
                           GLOBARG float * RESTRICT psi_vy_x,        GLOBARG float * RESTRICT psi_vy_y,        GLOBARG float * RESTRICT psi_vy_z,
                           GLOBARG float * RESTRICT psi_vz_x,        GLOBARG float * RESTRICT psi_vz_y,        GLOBARG float * RESTRICT psi_vz_z,
                           GLOBARG const float * RESTRICT gradrho,   GLOBARG float * RESTRICT gradM,           GLOBARG float * RESTRICT gradmu,
+                          GLOBARG float * RESTRICT gradmuipkp,      GLOBARG float * RESTRICT gradmuipjp,      GLOBARG float * RESTRICT gradmujpkp,
                           GLOBARG const float * RESTRICT gradtaup,  GLOBARG const float * RESTRICT gradtaus,  GLOBARG const float * RESTRICT gradsrc,
                           GLOBARG const float * RESTRICT Hrho,      GLOBARG float * RESTRICT HM,              GLOBARG float * RESTRICT Hmu,
                           GLOBARG const float * RESTRICT Htaup,     GLOBARG const float * RESTRICT Htaus,     GLOBARG const float * RESTRICT Hsrc,
@@ -677,20 +678,30 @@ FUNDEF void update_adjs(int offcomm,
 #if BACK_PROP_TYPE==1
     #if RESTYPE==0
     float c1=1.0/(3.0*lM-4.0*lmu)/(3.0*lM-4.0*lmu);
-    float c3=1.0/lmu/lmu;
-    float c5=1.0/6.0*c3;
+    // Each shear term is evaluated at its own staggered mu position
+    // (fipkp/fipjp/fjpkp), not the cell-centred lmu the diagonal (c5) term
+    // uses -- matching grad_dft2D.cl's Gmu/Gmuipkp split, generalized to
+    // the three 3D shear planes. Kept in their own gradmu{ipkp,ipjp,jpkp}
+    // accumulators so average_grad_transpose() (calc_grad.c) can apply the
+    // harmonic-mean averaging Jacobian to each separately.
+    float c3xz=1.0/fipkp/fipkp;
+    float c3xy=1.0/fipjp/fipjp;
+    float c3yz=1.0/fjpkp/fjpkp;
+    float c5=1.0/6.0/lmu/lmu;
 
     float dM=c1*( sxx[indv]+syy[indv]+szz[indv] )*( lsxx+lsyy+lszz );
 
     gradM[indp]+=-dM;
-    gradmu[indp]+=-c3*(sxz[indv]*lsxz +sxy[indv]*lsxy +syz[indv]*lsyz )
-        + 4.0/3*dM-c5*(lsxx*(2.0*sxx[indv]- syy[indv]-szz[indv] )
+    gradmuipkp[indp]+=-c3xz*(sxz[indv]*lsxz);
+    gradmuipjp[indp]+=-c3xy*(sxy[indv]*lsxy);
+    gradmujpkp[indp]+=-c3yz*(syz[indv]*lsyz);
+    gradmu[indp]+= 4.0/3*dM-c5*(lsxx*(2.0*sxx[indv]- syy[indv]-szz[indv] )
                       +lsyy*(2.0*syy[indv]- sxx[indv]-szz[indv] )
                       +lszz*(2.0*szz[indv]- sxx[indv]-syy[indv] ));
     #if HOUT==1
     float dMH=c1*(sxx[indv]+syy[indv]+szz[indv])*(sxx[indv]+syy[indv]+szz[indv]);
     HM[indp]+= dMH;
-    Hmu[indp]+=c3*(sxz[indv]*sxz[indv]+sxy[indv]*sxy[indv]+syz[indv]*syz[indv])
+    Hmu[indp]+=c3xz*sxz[indv]*sxz[indv]+c3xy*sxy[indv]*sxy[indv]+c3yz*syz[indv]*syz[indv]
                     - 4.0/3*dM
                     +c5*( (2.0*sxx[indv]- syy[indv]-szz[indv])*(2.0*sxx[indv]- syy[indv]-szz[indv]))
                          +(2.0*syy[indv]- sxx[indv]-szz[indv])*(2.0*syy[indv]- sxx[indv]-szz[indv])
