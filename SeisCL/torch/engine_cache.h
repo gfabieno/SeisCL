@@ -35,7 +35,16 @@ class EngineCache {
     // the resolved field names, which is only known once the engine is built
     // -- without this a forward asking for everything and the backward
     // supplying residuals by name would never match.
-    void rekey(const CacheKey &from, const CacheKey &to);
+    //
+    // If a handle already occupies `to`, it is displaced rather than
+    // destroyed here, and returned to the caller. A displaced handle may
+    // have pending_valid set -- its forward ran but its matching backward
+    // has not, and the boundary wavefield for that run exists only in this
+    // handle's buffers -- so the caller must flush it (see EngineHandle's
+    // pending_ckpt) before letting the returned handle go out of scope, or
+    // that backward call can no longer recover its wavefield.
+    std::unique_ptr<EngineHandle> rekey(const CacheKey &from,
+                                        const CacheKey &to);
 
     // Note that the most recently used entry is never trimmed, since the
     // in-flight call holds a raw pointer to it. Setting the size to 0

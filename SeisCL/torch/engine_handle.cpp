@@ -122,6 +122,15 @@ void apply_config(model &m, const Config &cfg, int gradout, int inputres) {
     m.NFREQS = static_cast<int>(cfg.gradfreqs.size());
     m.dft_osamp = cfg.dft_osamp;
     m.tmin = cfg.tmin;
+    // Same check as the standalone HDF5 path (src/read_hdf5.c, "tmax<tmin").
+    // Left unguarded, NTNYQ = (tmax-tmin+DTNYQ-1)/DTNYQ (Init_cst(), via
+    // assign_modeling_case.c) goes to zero or negative, corrupting the DFT
+    // buffer sizing instead of failing here with a clear message.
+    if (m.tmin > m.tmax) {
+        throw std::invalid_argument(
+            "cfg.tmin must not be greater than the modeled interval "
+            "(cfg.NT)");
+    }
     if (cfg.BACK_PROP_TYPE == 2 && m.NFREQS == 0) {
         // assign_modeling_case() divides by max(gradfreqs) -- with an empty
         // list the DFT path silently produces no gradient at all.
@@ -330,8 +339,20 @@ int engine_refresh_srcrec(EngineHandle &h, torch::Tensor &src,
     require_cpu(src_pos, "src_pos");
     require_cpu(rec_pos, "rec_pos");
 
+    // Same validation as the build path (set_srcrec() above): the fixed-size
+    // memcpys below trust these shapes, and a reused handle skips
+    // seiscl_set_srcrec()'s own checks entirely.
+    if (src_pos.dim() != 2 || src_pos.size(1) != 5) {
+        throw std::invalid_argument("src_pos must have shape [allns, 5]");
+    }
+    if (rec_pos.dim() != 2 || rec_pos.size(1) != 8) {
+        throw std::invalid_argument("rec_pos must have shape [allng, 8]");
+    }
     int allns = static_cast<int>(src_pos.size(0));
     int allng = static_cast<int>(rec_pos.size(0));
+    if (src.numel() != static_cast<int64_t>(allns) * h.m.NT) {
+        throw std::invalid_argument("src must have shape [allns, NT]");
+    }
     sources_records &sr = h.m.src_recs;
 
     // The per-shot counts are part of the cache key, so a reused handle has

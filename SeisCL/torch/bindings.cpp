@@ -266,6 +266,31 @@ py::dict collect_grads(model &m) {
     return result;
 }
 
+// A handle's pending checkpoint (see EngineHandle::pending_valid) is the
+// only copy of a forward pass whose backward has not run yet -- for a
+// single-shot run it lives solely in this handle's own buffers. Call this
+// before anything overwrites those buffers (another forward reusing the
+// handle, a rekey displacing it, or a backward call restoring a *different*
+// checkpoint into it), or that pending forward's data is lost outright and
+// its own eventual backward call can no longer recover it. A no-op if
+// nothing is pending.
+void flush_pending_checkpoint(EngineHandle &h) {
+    if (!h.pending_valid) return;
+    int flushed;
+    if (h.m.CKPT_IN_MEMORY && h.m.CKPT_FILE_ID > 0) {
+        flushed = checkpoint_image_to_disk(h.m.CKPT_FILE_ID,
+                                           h.pending_ckpt.c_str());
+    } else {
+        flushed = checkpoint_flush(&h.m, &h.dev, h.pending_ckpt.c_str());
+    }
+    h.pending_valid = false;
+    if (flushed) {
+        throw std::runtime_error(
+            "failed to flush a pending SeisCL checkpoint to " +
+            h.pending_ckpt);
+    }
+}
+
 // Build on a miss, refresh on a hit. Any failure evicts the handle rather
 // than leaving a half-built or stale one for the next call to reuse.
 // build_gradout is what the engine is *built* for -- it decides which
@@ -318,7 +343,16 @@ EngineHandle *prepare_engine(const Config &cfg, const CacheKey &key,
         std::sort(resolved.begin(), resolved.end());
         CacheKey resolved_key = key;
         resolved_key.output_fields = resolved;
-        cache.rekey(key, resolved_key);
+        std::unique_ptr<EngineHandle> displaced =
+            cache.rekey(key, resolved_key);
+
+        // The displaced handle's own forward already ran and (since it is
+        // pending_valid) its matching backward has not -- its boundary
+        // wavefield exists only in the buffers we are about to free via
+        // this unique_ptr's destructor. Flush it to disk first, exactly as
+        // run_forward() does when about to overwrite its own handle's
+        // buffers with a new forward pass.
+        if (displaced) flush_pending_checkpoint(*displaced);
     }
     return h;
 }
@@ -368,21 +402,12 @@ py::dict run_forward(const Config &cfg, const py::dict &params,
     // have its buffers overwritten. Persist its checkpoint now, so that
     // backward can still fall back to the file.
     if (h->pending_valid && h->pending_ckpt != checkpoint_path) {
-        int flushed;
-        if (h->m.CKPT_IN_MEMORY && h->m.CKPT_FILE_ID > 0) {
-            flushed = checkpoint_image_to_disk(h->m.CKPT_FILE_ID,
-                                               h->pending_ckpt.c_str());
-        } else {
-            flushed = checkpoint_flush(&h->m, &h->dev,
-                                       h->pending_ckpt.c_str());
-        }
-        if (flushed) {
+        try {
+            flush_pending_checkpoint(*h);
+        } catch (...) {
             global_engine_cache().evict(key);
-            throw std::runtime_error(
-                "failed to flush a pending SeisCL checkpoint to " +
-                h->pending_ckpt);
+            throw;
         }
-        h->pending_valid = false;
     }
 
     h->m.SKIP_CHECKPOINT_FILE = skip_file ? 1 : 0;
@@ -476,6 +501,22 @@ py::dict run_backward(const Config &cfg, const py::dict &params,
     } catch (...) {
         global_engine_cache().evict(key);
         throw;
+    }
+
+    // This handle may be resident with a *different* call's still-pending
+    // checkpoint -- e.g. two differentiable forwards sharing this exact
+    // CacheKey ran before either backward did, and the cache only has room
+    // for one handle per key. Restoring this call's own checkpoint below
+    // (or finding it already resident, for a single-shot from_memory hit)
+    // is about to overwrite these buffers either way, so flush the other
+    // one first or its own eventual backward call loses it outright.
+    if (h->pending_valid && h->pending_ckpt != checkpoint_path) {
+        try {
+            flush_pending_checkpoint(*h);
+        } catch (...) {
+            global_engine_cache().evict(key);
+            throw;
+        }
     }
 
     // If this is the handle the matching forward ran on and nothing has

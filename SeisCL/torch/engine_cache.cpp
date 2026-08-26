@@ -31,23 +31,32 @@ void EngineCache::evict(const CacheKey &key) {
     lru_.remove(key);
 }
 
-void EngineCache::rekey(const CacheKey &from, const CacheKey &to) {
+std::unique_ptr<EngineHandle> EngineCache::rekey(const CacheKey &from,
+                                                 const CacheKey &to) {
     std::lock_guard<std::mutex> lock(mu_);
-    if (from == to) return;
+    if (from == to) return nullptr;
     auto it = handles_.find(from);
-    if (it == handles_.end()) return;
+    if (it == handles_.end()) return nullptr;
 
     std::unique_ptr<EngineHandle> handle = std::move(it->second);
     handles_.erase(it);
     lru_.remove(from);
 
-    // Any handle already sitting on the destination key is superseded.
-    handles_.erase(to);
-    lru_.remove(to);
+    // Any handle already sitting on the destination key is displaced, not
+    // destroyed here -- see the header comment on why the caller must check
+    // pending_valid on what this returns.
+    std::unique_ptr<EngineHandle> displaced;
+    auto dst = handles_.find(to);
+    if (dst != handles_.end()) {
+        displaced = std::move(dst->second);
+        handles_.erase(dst);
+        lru_.remove(to);
+    }
 
     handle->key = to;
     handles_.emplace(to, std::move(handle));
     lru_.push_front(to);
+    return displaced;
 }
 
 void EngineCache::set_max_size(std::size_t n) {

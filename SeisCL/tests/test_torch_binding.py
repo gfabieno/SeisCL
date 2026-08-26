@@ -259,6 +259,44 @@ def test_cuda_params_accepted():
     print("Testing: torch_cuda_params_accepted ....... passed")
 
 
+def test_cuda_gradient_returned_on_param_device():
+    """A CUDA-resident, differentiable parameter gets its gradient back on
+    the same CUDA device, not on the CPU.
+
+    collect_grads() (bindings.cpp) always builds its result from the
+    engine's host gl_grad buffers, since set_params() copies any CUDA input
+    down to host before it reaches the engine. torch.autograd.Function
+    requires a returned gradient to be on the same device as its input, so
+    without moving it back in op.py's backward(), this raised
+    "RuntimeError: function ... returned an invalid gradient ... expected
+    device cuda:0 but got device cpu" instead of producing a gradient.
+    """
+    if not torch.cuda.is_available():
+        print("Testing: torch_cuda_gradient_returned_on_param_device "
+              "....... skipped (no CUDA)")
+        return
+    clear_engine_cache()
+    reference = _grad_of(VP)
+
+    clear_engine_cache()
+    cfg = _make_config()
+    src, src_pos, rec_pos = _simple_geometry()
+    nz, nx = N
+    M = torch.full((nz * nx,), VP, dtype=torch.float32,
+                   device="cuda").requires_grad_(True)
+    mu = torch.full((nz * nx,), VS, dtype=torch.float32, device="cuda")
+    rho = torch.full((nz * nx,), RHO, dtype=torch.float32, device="cuda")
+    data = seiscl_forward(cfg, {"M": M, "mu": mu, "rho": rho},
+                          src, src_pos, rec_pos, output_fields=["vx"])
+    (0.5 * (data["vx"] ** 2).sum()).backward()
+
+    assert M.grad.is_cuda, "gradient for a CUDA parameter came back on CPU"
+    assert torch.equal(M.grad.cpu(), reference), \
+        "CUDA-parameter gradient differs from the CPU-parameter reference"
+    print("Testing: torch_cuda_gradient_returned_on_param_device "
+          "....... passed")
+
+
 def test_cache_hit_matches_fresh_build():
     """A reused engine gives the same answer as a freshly built one.
 
@@ -334,6 +372,36 @@ def test_cache_is_actually_used():
     clear_engine_cache()
     assert engine_cache_size() == 0
     print("Testing: torch_cache_is_actually_used ....... passed")
+
+
+def test_cache_hit_rejects_wrong_src_length():
+    """A malformed src on a *reused* engine is a clean error, not an
+    out-of-bounds read.
+
+    engine_build()'s miss path validates src.numel() == allns*NT before
+    seiscl_set_srcrec(); engine_refresh_srcrec(), the cache-hit counterpart,
+    did the same fixed-size memcpy with no such check -- a short src tensor
+    was read past its own allocation.
+    """
+    cfg = _make_config()
+    src, src_pos, rec_pos = _simple_geometry()
+    params = _homogeneous_params()
+
+    clear_engine_cache()
+    seiscl_forward(cfg, params, src, src_pos, rec_pos,
+                   output_fields=["vx"])  # cache miss: builds the engine
+
+    bad_src = src[:, :-1]  # same geometry/cache key, one sample short
+    try:
+        seiscl_forward(cfg, params, bad_src, src_pos, rec_pos,
+                       output_fields=["vx"])  # cache hit: refresh path
+    except (ValueError, RuntimeError) as e:
+        assert "src must have shape" in str(e), f"unexpected error: {e}"
+        print("Testing: torch_cache_hit_rejects_wrong_src_length "
+              "....... passed")
+        return
+    raise AssertionError(
+        "a cache-hit call accepted a src tensor of the wrong length")
 
 
 def _grad_of(vp_value, other_forward_vp=None):
@@ -414,6 +482,50 @@ def test_checkpoint_survives_cache_clear():
         return
     raise AssertionError(
         "backward() silently produced a gradient after its engine was dropped")
+
+
+def test_pending_checkpoint_survives_rekey():
+    """Two differentiable forwards, output_fields left at its default (an
+    empty list resolved to "every declared field" once the engine is
+    built), called back-to-back before either backward -- the "ordinary
+    summed-loss" pattern of accumulating several forward passes before one
+    combined loss.backward().
+
+    Both calls share the same cfg/geometry, so both start out keyed under
+    the same (as yet unresolved) empty-output-fields CacheKey. The first
+    call's handle gets rekeyed onto the resolved key once its fields are
+    known, and is left there with pending_valid=True (its checkpoint lives
+    only in its own buffers, single-shot). The second call's own handle,
+    built fresh under the same empty key, then rekeys onto that identical
+    resolved key -- displacing the first handle. Without flushing that
+    displaced handle's pending checkpoint first, its buffers are freed
+    outright, and the first call's backward() can recover it from neither
+    the (evicted) handle nor a checkpoint file that was never written.
+    """
+    clear_engine_cache()
+    cfg = _make_config()
+    src, src_pos, rec_pos = _simple_geometry()
+    nz, nx = N
+    mu = torch.full((nz * nx,), VS, dtype=torch.float32)
+    rho = torch.full((nz * nx,), RHO, dtype=torch.float32)
+
+    M1 = torch.full((nz * nx,), VP, dtype=torch.float32).requires_grad_(True)
+    data1 = seiscl_forward(cfg, {"M": M1, "mu": mu, "rho": rho},
+                           src, src_pos, rec_pos)  # output_fields=None
+    loss1 = 0.5 * (data1["vx"] ** 2).sum()
+
+    M2 = torch.full((nz * nx,), VP + 300.0,
+                    dtype=torch.float32).requires_grad_(True)
+    data2 = seiscl_forward(cfg, {"M": M2, "mu": mu, "rho": rho},
+                           src, src_pos, rec_pos)  # output_fields=None
+    loss2 = 0.5 * (data2["vx"] ** 2).sum()
+
+    loss1.backward()
+    loss2.backward()
+
+    assert torch.isfinite(M1.grad).all() and M1.grad.abs().max() > 0
+    assert torch.isfinite(M2.grad).all() and M2.grad.abs().max() > 0
+    print("Testing: torch_pending_checkpoint_survives_rekey ....... passed")
 
 
 def _multishot_geometry(nshot, nrec=6):
@@ -555,6 +667,30 @@ def test_dft_requires_gradfreqs():
     raise AssertionError("back_prop_type=2 accepted an empty gradfreqs")
 
 
+def test_dft_tmin_beyond_modeled_interval_rejected():
+    """cfg.tmin past the modeled interval is a clean error, not a corrupted
+    DFT buffer size.
+
+    The standalone HDF5 path (read_hdf5.c) rejects tmin > tmax. The binding
+    had no equivalent check: NTNYQ = (tmax-tmin+DTNYQ-1)/DTNYQ
+    (assign_modeling_case.c) goes to zero or negative instead.
+    """
+    cfg = _make_config()
+    cfg.BACK_PROP_TYPE = 2
+    cfg.gradfreqs = [10.0, 20.0]
+    cfg.tmin = NT + 10  # past cfg.NT
+    src, src_pos, rec_pos = _simple_geometry(nrec=2)
+    try:
+        seiscl_forward(cfg, _homogeneous_params(), src, src_pos, rec_pos,
+                       output_fields=["vx"])
+    except (ValueError, RuntimeError) as e:
+        assert "tmin" in str(e), f"unexpected error: {e}"
+        print("Testing: torch_dft_tmin_beyond_modeled_interval_rejected "
+              "....... passed")
+        return
+    raise AssertionError("cfg.tmin beyond cfg.NT was silently accepted")
+
+
 if __name__ == "__main__":
     if not _TORCH_AVAILABLE:
         print("SeisCL.torch not importable (torch extra not installed) "
@@ -565,12 +701,16 @@ if __name__ == "__main__":
         test_gradient_finite_difference()
         test_cuda_geometry_rejected()
         test_cuda_params_accepted()
+        test_cuda_gradient_returned_on_param_device()
         test_cache_is_actually_used()
         test_cache_hit_matches_fresh_build()
         test_cache_shape_change_and_back()
         test_cache_eviction_correctness()
+        test_cache_hit_rejects_wrong_src_length()
         test_checkpoint_survives_interleaved_forward()
         test_checkpoint_survives_cache_clear()
+        test_pending_checkpoint_survives_rekey()
         test_multishot_gradient_both_checkpoint_policies()
         test_dft_requires_gradfreqs()
         test_dft_gradient_through_inputres()
+        test_dft_tmin_beyond_modeled_interval_rejected()
