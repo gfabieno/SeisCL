@@ -35,6 +35,26 @@ BASE = dict(N=np.array([60, 60]), ND=2, dh=10, dt=1e-3, NT=256, FDORDER=8,
 
 VP, VS, RHO = 2000.0, 1200.0, 2000.0
 
+# The absolute source amplitude only sets the scale of the data/gradient
+# (both scale with amplitude), never their direction or any cos/ratio
+# comparison -- but see the fix note below for why it stopped being merely
+# cosmetic.
+#
+# Was implicit (SeisCL's own default unit-amplitude ricker_wavelet()) until
+# 2026-08-27, when the residuals.c dh/dt fix for notes/todo.md item 0c
+# shrank every trans_vars ("p") residual-to-adjoint-source conversion by
+# ~1e8 (correctly -- that removed a wrong (dh/dt)^2 factor). This suite's
+# pressure-channel gradients (all of gradient_common.BASE/BASE_3D use
+# seisout=2) went from a comfortable ~1e-4..1e-7 to ~1e-19..1e-27 at unit
+# amplitude -- squaring the smaller values inside np.linalg.norm()
+# underflows float32 to exactly 0.0, which every "assert nb > 0, ...
+# identically zero" check in this file's tests then (correctly) caught, as
+# a false "gradient is zero" failure. An explicit amplitude, matching
+# ComputingGradient.ipynb's own SRC_SCALE, restores headroom without
+# changing anything relative (cos, alpha, ratio) that the tests actually
+# check.
+SRC_SCALE = 1e6
+
 
 def workdir(name):
     d = os.path.join(os.environ.get("SEISCL_TEST_WORKDIR",
@@ -59,7 +79,10 @@ def make_seiscl(wd, **overrides):
     s.rec_pos_all = np.stack([xr, np.zeros(nr), np.full(nr, z0),
                               np.zeros(nr), np.arange(1, nr + 1, dtype=float),
                               np.zeros(nr), np.zeros(nr), np.zeros(nr)])
-    s.src_all = None
+    # An explicit amplitude, not the default (unit) ricker_wavelet(). See
+    # SRC_SCALE below for why this matters after the residuals.c dh/dt fix
+    # (notes/todo.md item 0c).
+    s.src_all = SRC_SCALE * s.ricker_wavelet().reshape(-1, 1)
     return s
 
 
@@ -88,7 +111,7 @@ def make_seiscl_3d(wd, **overrides):
     s.rec_pos_all = np.stack([xr, np.full(nr, y0), np.full(nr, z0),
                               np.zeros(nr), np.arange(1, nr + 1, dtype=float),
                               np.zeros(nr), np.zeros(nr), np.zeros(nr)])
-    s.src_all = None
+    s.src_all = SRC_SCALE * s.ricker_wavelet().reshape(-1, 1)
     return s
 
 

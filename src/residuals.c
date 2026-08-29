@@ -492,10 +492,19 @@ int res_scale(model * m, int s)
                     par = get_par(m->pars, m->npars, "rkp")->gl_par;
                 }
                 for (g=0;g<nrec;g++){
-                    
+
+                    /* Was rec_pos[s][0+8*g] for all three of x/y/z (copied
+                     * from the same index) -- correct only for a receiver
+                     * exactly on the x axis at y=z=0. The trans_vars ("p")
+                     * branch below has always used the correct 0/1/2
+                     * indices; this branch didn't match it. Currently masked
+                     * in test_gradient_fd.py because that test's background
+                     * model is homogeneous at every receiver depth, so
+                     * sampling the wrong (but still-uniform) cell reads the
+                     * same buoyancy value regardless. */
                     x = m->src_recs.rec_pos[s][0+8*g]/m->dh;
-                    y = m->src_recs.rec_pos[s][0+8*g]/m->dh;
-                    z = m->src_recs.rec_pos[s][0+8*g]/m->dh;
+                    y = m->src_recs.rec_pos[s][1+8*g]/m->dh;
+                    z = m->src_recs.rec_pos[s][2+8*g]/m->dh;
                     if (m->NDIM==2){
                         pos = x*m->N[0]+z;
                     }
@@ -542,14 +551,40 @@ int res_scale(model * m, int s)
                     else {
                         pos = x*m->N[0]*m->N[1]+y*m->N[0]+z;
                     }
+                    /* dt/dh here, not dh/dt: unlike the vx/vy/vz branch above
+                     * (which inverts parscal via 1/parscal before use, so it
+                     * needs the reciprocal ratio dh/dt), this branch
+                     * multiplies by parscal directly, so it needs dt/dh from
+                     * the start. Using dh/dt here left every pressure-
+                     * residual back_prop_type=1 gradient miscalibrated by
+                     * (dh/dt)^2 -- confirmed by scaling dh and dt
+                     * independently and observing the miscalibration scale
+                     * as (dh/dt)^2 exactly (notes/todo.md item 0c). */
+                    /* Exponent on the FP16 par_scale term is
+                     * back_prop_type-dependent -- confirmed empirically,
+                     * not derived from first principles (notes/todo.md
+                     * item 0e). back_prop_type=1 needs -2*scaler: its
+                     * unscale_grad() later multiplies the whole gradient by
+                     * a *single* extra powf(2,par_scale), so the adjoint
+                     * source itself must carry the other factor of
+                     * 2^-par_scale for the round trip to cancel -- measured
+                     * directly (FP16=1 ratio 0.978/1.021/0.999, matching
+                     * FP16=0 to 4 digits, vs ~1e-6 or ~1e-19 for the two
+                     * single-power alternatives tried first).
+                     * back_prop_type=2 never calls unscale_grad(), and
+                     * changing this from the original single -scaler broke
+                     * test_dft_gradient_every_fp16_level (which needs
+                     * FP16=1 proportional to FP16=0, not just internally
+                     * consistent) -- so it keeps the single power. */
+                    float scaler2 = (m->BACK_PROP_TYPE==1) ? 2.0f*scaler : (float)scaler;
                     if (m->FP16>1){
                         parscal = half_to_float( ((half*)par)[pos] )
                         -half_to_float( ((half*)par2)[pos] );
-                        parscal = -2.0*(parscal)*m->dh/m->dt*powf(2,-scaler);
+                        parscal = -2.0*(parscal)*m->dt/m->dh*powf(2,-scaler2);
                     }
                     else{
                         parscal = -2.0*(par[pos]-par2[pos])
-                        *m->dh/m->dt*powf(2,-scaler);
+                        *m->dt/m->dh*powf(2,-scaler2);
                     }
                     for (t=0;t<tmax;t++){
                         m->trans_vars[i].gl_var_res[s][g*NT+t]*=parscal*m->dt;
