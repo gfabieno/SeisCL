@@ -501,7 +501,8 @@ int res_scale(model * m, int s)
                      * in test_gradient_fd.py because that test's background
                      * model is homogeneous at every receiver depth, so
                      * sampling the wrong (but still-uniform) cell reads the
-                     * same buoyancy value regardless. */
+                     * same buoyancy value regardless. Independently found
+                     * and fixed the same way in SeisCL-freesurface. */
                     x = m->src_recs.rec_pos[s][0+8*g]/m->dh;
                     y = m->src_recs.rec_pos[s][1+8*g]/m->dh;
                     z = m->src_recs.rec_pos[s][2+8*g]/m->dh;
@@ -575,7 +576,9 @@ int res_scale(model * m, int s)
                      * changing this from the original single -scaler broke
                      * test_dft_gradient_every_fp16_level (which needs
                      * FP16=1 proportional to FP16=0, not just internally
-                     * consistent) -- so it keeps the single power. */
+                     * consistent) -- so it keeps the single power.
+                     * Independently found and fixed the same way in
+                     * SeisCL-freesurface. */
                     float scaler2 = (m->BACK_PROP_TYPE==1) ? 2.0f*scaler : (float)scaler;
                     if (m->FP16>1){
                         parscal = half_to_float( ((half*)par)[pos] )

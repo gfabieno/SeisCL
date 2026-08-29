@@ -467,13 +467,43 @@ FUNDEF void update_adjs(int offcomm,
     #endif
     
     #if RESTYPE==1
-        float dM=( sxx[indv]+szz[indv] )*( lsxx+lszz );
+        /* Missing the c1=1/(2M-2mu)^2 normalization RESTYPE==0 has just
+         * above -- gradM here was off from a correctly-calibrated gradient
+         * by that entire factor (confirmed: FD ratios of order 1e12-1e14,
+         * not ~1, stable across eps -- a real, consistent direction, just
+         * unnormalized). Not simply re-added unguarded: c1 divides by
+         * (M-mu), which is exactly 0 in FREESURF==2's vacuum band, and
+         * avoiding exactly that division is why RESTYPE==1 exists at all
+         * (see the v1-constraint comment above, in assign_modeling_case.c).
+         * Guarded the same way as the other zero-material guards in this
+         * codebase (e.g. the 3D shear-gradient NaN fix on notes/todo.md
+         * item 1): zero the coefficient instead of dividing when the
+         * denominator is degenerate, rather than computing Inf/NaN and
+         * hoping it gets cropped away. */
+        float fMmu = 2.0*lM-2.0*lmu;
+        float c1 = (fMmu!=0.0) ? 1.0/(fMmu*fMmu) : 0.0;
+        float dM=c1*( sxx[indv]+szz[indv] )*( lsxx+lszz );
 
         gradM[indp]+=-dM;
         #if HOUT==1
-        float dMH= (sxx[indv]+szz[indv])*(sxx[indv]+szz[indv]);
+        float dMH= c1*(sxx[indv]+szz[indv])*(sxx[indv]+szz[indv]);
         HM[indp]+= dMH;
 
+        #endif
+
+        /* gradmu was never computed at all here (only gradM, above) --
+         * the same missing-normalization pattern as c1, for the same
+         * documented reason (RESTYPE==0's c3=1/mu^2 divides by zero in
+         * the vacuum band). Added with the same zero-guard as c1;
+         * gradmuipkp (the sxz-only staggered contribution RESTYPE==0
+         * doesn't split out either way) is intentionally still not
+         * computed here -- out of scope for this pass, matches item 1's
+         * material-averaging work being separate from this fix. */
+        float c3 = (lmu!=0.0) ? 1.0/(lmu*lmu) : 0.0;
+        float c5 = 0.25*c3;
+        gradmu[indp]+=-c3*(sxz[indv]*lsxz)+dM-c5*( (sxx[indv]-szz[indv])*(lsxx-lszz) );
+        #if HOUT==1
+        Hmu[indp]+=c3*sxz[indv]*sxz[indv]-dM+c5*(sxx[indv]-szz[indv])*(sxx[indv]-szz[indv]);
         #endif
     #endif
 

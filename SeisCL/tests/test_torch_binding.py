@@ -29,7 +29,7 @@ NT = 200
 VP, VS, RHO = 2000.0, 1200.0, 2000.0
 
 
-def _make_config():
+def _make_config(freesurf=0, restype=0):
     cfg = Config()
     cfg.N = N
     cfg.ND = 2
@@ -37,11 +37,12 @@ def _make_config():
     cfg.dt = DT
     cfg.NT = NT
     cfg.FDORDER = 8
-    cfg.FREESURF = 0
+    cfg.FREESURF = freesurf
     cfg.NAB = 10
     cfg.ABS_TYPE = 2
     cfg.par_type = 0
     cfg.f0 = 25.0
+    cfg.restype = restype
     return cfg
 
 
@@ -59,9 +60,15 @@ def _homogeneous_params():
     }
 
 
-def test_forward_smoke():
-    """Forward modeling runs end-to-end and produces finite, nonzero output."""
-    cfg = _make_config()
+def test_forward_smoke(freesurf=0):
+    """Forward modeling runs end-to-end and produces finite, nonzero output.
+
+    Parametrized over freesurf so the stress-image method (1) and the
+    improved vacuum formulation (2, see notes/vacuum-freesurface-plan.md)
+    get the same basic coverage as the default (0) -- previously only
+    freesurf=0 was ever exercised through this binding.
+    """
+    cfg = _make_config(freesurf=freesurf)
     nx = N[1]
     sx, sz = nx // 2 * DH, N[0] // 2 * DH
     src_pos = torch.tensor([[sx, 0.0, sz, 0.0, 0.0]], dtype=torch.float32)
@@ -81,7 +88,7 @@ def test_forward_smoke():
     for name, d in data.items():
         assert torch.isfinite(d).all(), f"{name} has non-finite values"
     assert data["vx"].abs().max() > 0, "vx is identically zero"
-    print("Testing: torch_forward_smoke ....... passed")
+    print(f"Testing: torch_forward_smoke (freesurf={freesurf}) ....... passed")
 
 
 def test_forward_parity():
@@ -136,10 +143,31 @@ def test_forward_parity():
           f"({int(significant.sum())} traces checked)")
 
 
-def test_gradient_finite_difference():
-    """Adjoint gradient (backward()) matches a central finite difference."""
+def test_gradient_finite_difference(freesurf=0, restype=0):
+    """Adjoint gradient (backward()) matches a central finite difference.
+
+    Parametrized over freesurf/restype: previously this only ever ran with
+    freesurf=0, restype=0 (the default), so neither the stress-image method
+    (freesurf=1) nor the improved vacuum formulation (freesurf=2) had ever
+    been gradient-checked through the autograd path at all. freesurf=2
+    requires restype=1 in this version (see
+    notes/vacuum-freesurface-plan.md, Phase 3 -- BACK_PROP_TYPE=1's default
+    compliance-based gradient divides by the raw, zeroed-in-vacuum M/mu).
+
+    restype=1 ("cross-correlation of traces" costfunction, per
+    SeisCL.py's docstring, vs. restype=0's "l2 cost") does NOT reduce to
+    the gradient of loss=0.5*sum(vx**2) used below -- tried both that and
+    a loss=sum(vx*fixed_target) variant (a natural guess for what a
+    cross-correlation costfunction's gradient should be); neither matches
+    the finite difference (the FD comes out ~0 while the analytic gradient
+    is large, for both). What restype=1's gradient actually corresponds to
+    numerically is an open question -- not investigated further here, out
+    of scope for the free-surface work. So for freesurf=2 (which forces
+    restype=1) this only checks finiteness and correct vacuum-band
+    cropping, not FD agreement; freesurf in {0,1} keep the full FD check.
+    """
     torch.manual_seed(0)
-    cfg = _make_config()
+    cfg = _make_config(freesurf=freesurf, restype=restype)
     nz, nx = N
     M0 = torch.full((nz * nx,), VP, dtype=torch.float32)
     mu0 = torch.full((nz * nx,), VS, dtype=torch.float32)
@@ -167,6 +195,20 @@ def test_gradient_finite_difference():
     loss(M, mu).backward()
     grad_M = M.grad
 
+    if restype == 1:
+        assert torch.isfinite(grad_M).all(), "gradM has non-finite values"
+        fdoh = cfg.FDORDER // 2
+        vacuum_thickness = min(fdoh, nz)
+        # gl_par/gl_grad are X-slowest/Z-fastest flat (grad[x*NZ+z], see
+        # SeisCL/torch/bindings.cpp's crop_boundary_2d comment) -- reshape
+        # as (nx, nz), not (nz, nx), to slice a z-band correctly.
+        band = grad_M.reshape(nx, nz)[:, :vacuum_thickness]
+        assert (band == 0).all(), "vacuum-band gradM should be exactly 0"
+        print("Testing: torch_gradient_finite_difference "
+              f"(freesurf={freesurf}, restype={restype}) -- finiteness + "
+              "crop only (see docstring) ....... passed")
+        return
+
     # Central finite difference on a few entries near the source, where
     # sensitivity is largest and easiest to resolve in float32.
     idx = [39 * nx + 39, 39 * nx + 41, 41 * nx + 39]
@@ -181,7 +223,8 @@ def test_gradient_finite_difference():
         rel_diff = abs(fd - analytic) / (abs(analytic) + 1e-30)
         assert rel_diff < 0.01, (f"param {i}: analytic={analytic:.6g} "
                                   f"fd={fd:.6g} rel_diff={rel_diff:.4f}")
-    print("Testing: torch_gradient_finite_difference ....... passed")
+    print("Testing: torch_gradient_finite_difference "
+          f"(freesurf={freesurf}, restype={restype}) ....... passed")
 
 
 def _simple_geometry(nrec=10):
@@ -697,8 +740,12 @@ if __name__ == "__main__":
               "-- skipping SeisCL/torch binding tests")
     else:
         test_forward_smoke()
+        test_forward_smoke(freesurf=1)
+        test_forward_smoke(freesurf=2)
         test_forward_parity()
         test_gradient_finite_difference()
+        test_gradient_finite_difference(freesurf=1)
+        test_gradient_finite_difference(freesurf=2, restype=1)
         test_cuda_geometry_rejected()
         test_cuda_params_accepted()
         test_cuda_gradient_returned_on_param_device()

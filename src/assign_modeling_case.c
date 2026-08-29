@@ -17,6 +17,7 @@
 #include "grad_dft2D_SH_visc.hcl"
 #include "grad_dft3D.hcl"
 #include "grad_dft3D_visc.hcl"
+#include "average_params.hcl"
 #include "savebnd2D.hcl"
 #include "savebnd3D.hcl"
 #include "surface2D.hcl"
@@ -79,7 +80,27 @@ void ave_arithmetic_rho(float * pin, float * pout, int * N, int ndim, int  *dir)
             for (i=0;i<NX-dir[2];i++){
                 ind1 = (i  )*NY*NZ+(j)*NZ+(k);
                 ind2 = (i+dir[2])*NY*NZ+(j+dir[1])*NZ+(k+dir[0]);
-                pout[ind1]=2/(1.0/pin[ind1] + 1.0/pin[ind2]);
+                // eq. 6, piecewise: both nodes vacuum (buoyancy 0) -> 0;
+                // exactly one vacuum -> twice the solid neighbor's
+                // buoyancy (2/(0+1/pin)=2*pin); both solid -> the usual
+                // harmonic-of-density combination. Written this way
+                // (rather than relying on 1/0 -> +inf -> 1/inf -> 0
+                // round-tripping back to the right answer) so the vacuum
+                // region (FREESURF==2) is handled explicitly and doesn't
+                // depend on IEEE inf/nan semantics surviving compiler
+                // flags such as -ffast-math.
+                if (pin[ind1]==0 && pin[ind2]==0){
+                    pout[ind1] = 0;
+                }
+                else if (pin[ind1]==0){
+                    pout[ind1] = 2*pin[ind2];
+                }
+                else if (pin[ind2]==0){
+                    pout[ind1] = 2*pin[ind1];
+                }
+                else{
+                    pout[ind1]=2/(1.0/pin[ind1] + 1.0/pin[ind2]);
+                }
             }
         }
     }
@@ -263,7 +284,69 @@ void ave_harmonic_mu(float * pin, float * pout, int * N, int ndim, int dir[][3])
     
 }
 
-/*Functions to define the transformations requires for each parameter 
+/*Improved vacuum free-surface formulation (FREESURF==2, Zeng et al., 2012,
+  doi:10.1190/geo2011-0067.1): zero the raw material parameters in the top
+  FDOH-thick band so that band acts as vacuum. NAB (the absorbing-boundary
+  width) is irrelevant here -- it only matters for the *other* edges; CPML
+  is already disabled on the top edge for any nonzero FREESURF regardless
+  of NAB (update_v2D.cl's #if FREESURF==0 guards). FDOH is the right
+  thickness because the interior update kernels never independently update
+  grid rows z<FDOH at all (mirroring FREESURF==1's surface kernel, which
+  operates at exactly gidz=FDOH) -- those rows only ever get *read* as
+  stencil neighbors, so FDOH is both necessary and sufficient, matching
+  where FREESURF==1's own surface sits (z=FDOH), not NAB+FDOH deep into the
+  domain. Must run before any parameter transform (M(), mu(), rho(), and
+  the rip/rjp/rkp/muipkp... averaging transforms below), since those
+  consume gl_par in place and the averaging transforms rely on seeing true
+  zeros to satisfy the traction-free condition (see
+  ave_arithmetic_rho/ave_harmonic_mu).*/
+void set_freesurf2_vacuum(void * mptr){
+
+    model * m = (model *) mptr;
+    if (m->FREESURF!=2){
+        return;
+    }
+
+    int NZ = m->N[0];
+    int NY = (m->NDIM==3) ? m->N[1] : 1;
+    int NX = (m->NDIM==3) ? m->N[2] : m->N[1];
+
+    int vacuum_thickness = m->FDOH;
+    if (vacuum_thickness>NZ){
+        vacuum_thickness=NZ;
+    }
+
+    int x,y,z,ind;
+    float * par;
+
+    if (m->ND!=21){
+        par = get_par(m->pars, m->npars, "M")->gl_par;
+        for (x=0;x<NX;x++)
+            for (y=0;y<NY;y++)
+                for (z=0;z<vacuum_thickness;z++){
+                    ind = x*NY*NZ+y*NZ+z;
+                    par[ind]=0;
+                }
+    }
+    if (m->ND!=22){
+        par = get_par(m->pars, m->npars, "mu")->gl_par;
+        for (x=0;x<NX;x++)
+            for (y=0;y<NY;y++)
+                for (z=0;z<vacuum_thickness;z++){
+                    ind = x*NY*NZ+y*NZ+z;
+                    par[ind]=0;
+                }
+    }
+    par = get_par(m->pars, m->npars, "rho")->gl_par;
+    for (x=0;x<NX;x++)
+        for (y=0;y<NY;y++)
+            for (z=0;z<vacuum_thickness;z++){
+                ind = x*NY*NZ+y*NZ+z;
+                par[ind]=0;
+            }
+}
+
+/*Functions to define the transformations requires for each parameter
   and constant */
 void mu(void * mptr){
     
@@ -420,7 +503,16 @@ void rho(void * mptr){
     int i;
     int num_ele = get_par(m->pars, m->npars, "rho")->num_ele;
     for (i=0;i<num_ele;i++){
-        rho[i]=1.0/rho[i]*m->dt/m->dh*powf(2,-scaler);
+        /*A zero density marks a vacuum cell (improved vacuum free-surface
+          formulation, FREESURF==2): keep its buoyancy exactly zero instead
+          of 1/0, so the arithmetic averaging in ave_arithmetic_rho below
+          can rely on seeing true zeros rather than +inf.*/
+        if (rho[i]==0){
+            rho[i]=0;
+        }
+        else{
+            rho[i]=1.0/rho[i]*m->dt/m->dh*powf(2,-scaler);
+        }
     }
 }
 
@@ -1059,7 +1151,7 @@ int assign_modeling_case(model * m){
         __GUARD append_update(m->ups_adj, &ind, "update_adjv", updatev_adj, nheaders, headers);
         __GUARD append_update(m->ups_adj, &ind, "update_adjs", updates_adj, nheaders, headers);
     }
-    if (m->FREESURF){
+    if (m->FREESURF==1){
         __GUARD prog_source(&m->bnd_cnds.surf, "freesurface", surface, 2, headers);
         if (m->GRADOUT){
             __GUARD prog_source(&m->bnd_cnds.surf_adj,
@@ -1100,6 +1192,63 @@ int assign_modeling_case(model * m){
     if ((m->GRADOUT || m->INPUTRES) && m->BACK_PROP_TYPE==1){
         __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd, 1, headers);
     }
+    /*GPU port of the staggered-grid material-parameter averaging (elastic
+      only -- see src/average_params.cl and
+      notes/vacuum-freesurface-plan.md, Phase 8). Replaces the CPU
+      ave_arithmetic_rho()/ave_harmonic_mu() computation for "rip"/"rkp"/
+      "muipkp" (ND==2 and ND==3) and "rjp"/"muipjp"/"mujpkp" (ND==3 only)
+      below (their transform is NULL, so Init_model()'s transform loop
+      skips them and this kernel is the only thing that fills them). Only
+      needs header_CUDACL_source (headers count 1, like savebnd above) --
+      no FD stencil or CPML macros.*/
+    if (m->ND==2 || m->ND==3){
+        __GUARD prog_source(&m->par_avg.rip, "ave_rip", average_params_source,
+                            1, headers);
+        __GUARD prog_source(&m->par_avg.rkp, "ave_rkp", average_params_source,
+                            1, headers);
+        __GUARD prog_source(&m->par_avg.muipkp, "ave_muipkp",
+                            average_params_source, 1, headers);
+    }
+    if (m->ND==3){
+        __GUARD prog_source(&m->par_avg.rjp, "ave_rjp", average_params_source,
+                            1, headers);
+        __GUARD prog_source(&m->par_avg.muipjp, "ave_muipjp",
+                            average_params_source, 1, headers);
+        __GUARD prog_source(&m->par_avg.mujpkp, "ave_mujpkp",
+                            average_params_source, 1, headers);
+    }
+    /*v1 constraint for the improved vacuum formulation (FREESURF==2):
+      GRADOUT is not supported yet. Two independent NaN sources were found:
+      (1) the compliance-based adjoint gradient (BACK_PROP_TYPE==1,
+      RESTYPE==0) divides by the raw, zeroed-in-vacuum M/mu at
+      update_adjs2D.cl -- avoided by RESTYPE==1, which has no such division.
+      (2) BACK_PROP_TYPE==1's boundary-saving reconstruction (see
+      header_injectbnd.cl's FDOH+NAB shell) itself produces NaN gradients in
+      an FDOH-wide column at the domain edges (x in [NAB, NAB+FDOH)) as soon
+      as *any* grid cell anywhere in the model has M==mu==rho==0 -- this is
+      NOT specific to FREESURF==2 or to RESTYPE: reproduced with FREESURF==0
+      and manually-zeroed input parameters, so it is a pre-existing SeisCL
+      limitation of BACK_PROP_TYPE==1 (also affecting e.g. an acoustic
+      water layer with mu==0 today) that RESTYPE==1 does not avoid.
+      (3) BACK_PROP_TYPE==2 (frequency domain) reaches calc_grad.c's
+      coefficient routines, which divide by the same raw M/mu/rho the
+      vacuum band zeroes -- also NaN, by a third independent mechanism.
+      Fixing any of these is out of scope here, so the only gradient
+      configuration this version supports with FREESURF==2 is
+      BACK_PROP_TYPE==1 together with RESTYPE==1 (validated end to end:
+      finite, correctly cropped, sensible-magnitude gradM). Everything
+      else is rejected rather than silently returning NaN -- note this
+      must be an allowlist, not a BACK_PROP_TYPE==1-only check, or
+      BACK_PROP_TYPE==2 slips through into (3)
+      (see notes/vacuum-freesurface-plan.md, Phase 3).*/
+    if (m->FREESURF==2 && m->GRADOUT
+        && !(m->BACK_PROP_TYPE==1 && m->restype==1)){
+        state=1;
+        fprintf(stderr,
+                "Error: FREESURF=2 (improved vacuum formulation) with "
+                "GRADOUT requires BACK_PROP_TYPE=1 and restype=1 in this "
+                "version -- see notes/vacuum-freesurface-plan.md, Phase 3 \n");
+    }
     
     /*___________________Assign material parameters__________________________ */
     
@@ -1120,18 +1269,26 @@ int assign_modeling_case(model * m){
         }
     }
     if (m->ND!=21){
-        __GUARD append_par(m, &ind, "rip", NULL, &rip);
+        // ND==2 and ND==3: rip/rjp/rkp/muipkp/muipjp/mujpkp are computed
+        // on-device instead (see the par_avg kernel registration above) --
+        // transform=NULL so Init_model()'s transform loop leaves their raw
+        // host gl_par alone; Init_OpenCL.c reads the GPU-computed values
+        // back to host right after launching the kernel, since res_scale()
+        // (residuals.c) reads rip/rkp's *host* gl_par directly.
+        __GUARD append_par(m, &ind, "rip", NULL,
+                           (m->ND==2 || m->ND==3) ? NULL : &rip);
         if (m->ND==3){
-            __GUARD append_par(m, &ind, "rjp", NULL, &rjp);
+            __GUARD append_par(m, &ind, "rjp", NULL, NULL);
         }
-        __GUARD append_par(m, &ind, "rkp", NULL, &rkp);
+        __GUARD append_par(m, &ind, "rkp", NULL,
+                           (m->ND==2 || m->ND==3) ? NULL : &rkp);
     }
     if (m->ND==2 || m->ND==3){
-        __GUARD append_par(m, &ind, "muipkp", NULL, &muipkp);
+        __GUARD append_par(m, &ind, "muipkp", NULL, NULL);
     }
     if (m->ND==3){
-        __GUARD append_par(m, &ind, "muipjp", NULL, &muipjp);
-        __GUARD append_par(m, &ind, "mujpkp", NULL, &mujpkp);
+        __GUARD append_par(m, &ind, "muipjp", NULL, NULL);
+        __GUARD append_par(m, &ind, "mujpkp", NULL, NULL);
     }
     if (m->L>0){
         if (m->ND==2 || m->ND==3){

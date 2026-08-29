@@ -299,7 +299,8 @@ char *get_build_options(device *dev,
     int i;
     static char build_options [6000]={0};
     char src[50];
-    
+    int parny, parnx;
+
     build_options[0]=0;
     if (m->N_names[0]){
         for (i=0;i<m->NDIM;i++){
@@ -337,6 +338,15 @@ char *get_build_options(device *dev,
         
     }
     
+    // Raw (unpadded) per-dimension grid size for src/average_params.cl (see
+    // notes/vacuum-freesurface-plan.md, Phase 8) -- distinct from the N%d/N%s
+    // macros above, which are FDORDER-padded wavefield sizes. dev->N is
+    // [NZ,NX] for 2D and [NZ,NY,NX] for 3D; PARNY is unused (left at 1) for
+    // 2D's own kernels but still emitted unconditionally to keep this call
+    // simple.
+    parny = (m->NDIM==3) ? (*dev).N[1] : 1;
+    parnx = (m->NDIM==3) ? (*dev).N[2] : (*dev).N[1];
+
     char src2[2000];
     sprintf(src2,"-I ./ -D NDIM=%d -D OFFSET=%d -D FDOH=%d -D DTDH=%9.9f -D DH=%9.9ff "
             "-D DT=%9.9ff -D DT2=%9.9ff -D NT=%d -D NAB=%d -D NBND=%d "
@@ -346,7 +356,8 @@ char *get_build_options(device *dev,
             "-D BACK_PROP_TYPE=%d -D COMM12=%d -D NTNYQ=%d -D DTNYQ=%d "
             "-D VARSOUT=%d -D RESOUT=%d  -D RMSOUT=%d -D MOVOUT=%d "
             "-D GRADOUT=%d -D HOUT=%d -D GRADSRCOUT=%d -D DIRPROP=%d "
-            "-D RESTYPE=%d -D FP16=%d -D PARSCALE=%d -D FREQ0=%9.9ff",
+            "-D RESTYPE=%d -D FP16=%d -D PARSCALE=%d -D FREQ0=%9.9ff "
+            "-D PARNZ=%d -D PARNY=%d -D PARNX=%d",
             (*m).NDIM, (*dev).OFFSET, (*m).FDOH, (*m).dt/(*m).dh, (*m).dh,
             (*m).dt, (*m).dt/2.0, (*m).NT, (*m).NAB, (*dev).NBND,
             (*dev).LOCAL_OFF, (*m).L, (*dev).DEVID, (*m).NUM_DEVICES,
@@ -355,8 +366,10 @@ char *get_build_options(device *dev,
             (*m).BACK_PROP_TYPE, comm, (*m).NTNYQ, (*m).DTNYQ,
             (*m).VARSOUT, (*m).RESOUT, (*m).RMSOUT, (*m).MOVOUT,
             (*m).GRADOUT, (*m).HOUT, (*m).GRADSRCOUT, DIRPROP, (*m).restype,
-            (*m).FP16, (*m).par_scale, (*m).f0) ;
-    
+            (*m).FP16, (*m).par_scale, (*m).f0,
+            (*dev).N[0], parny, parnx) ;
+
+
     strcat(build_options,src2);
     
     //Make it all uppercase
@@ -609,7 +622,21 @@ int get_build_options(device *dev,
     sprintf(build_options[*n-1],"-D DIRPROP=%d",DIRPROP);
     *n+=1;
     sprintf(build_options[*n-1],"-D RESTYPE=%d",(*m).restype);
-    
+    // Raw (unpadded) per-dimension grid size, matching the material
+    // parameter arrays' actual layout (num_ele = prod(N), no FDORDER) --
+    // distinct from the NZ/NX/etc. macros above, which are sized for the
+    // FDORDER-padded wavefield arrays and would be wrong here. Used by
+    // src/average_params.cl (see notes/vacuum-freesurface-plan.md, Phase 8).
+    // dev->N is [NZ,NX] for 2D and [NZ,NY,NX] for 3D; PARNY is unused (left
+    // at 1) for 2D's own kernels.
+    *n+=1;
+    sprintf(build_options[*n-1],"-D PARNZ=%d",(*dev).N[0]);
+    *n+=1;
+    sprintf(build_options[*n-1],"-D PARNY=%d",(m->NDIM==3) ? (*dev).N[1] : 1);
+    *n+=1;
+    sprintf(build_options[*n-1],"-D PARNX=%d",
+            (m->NDIM==3) ? (*dev).N[2] : (*dev).N[1]);
+
     return state;
 }
 
@@ -764,10 +791,12 @@ int prog_create(model * m,
     
     
     #else
+    // 64, not 50: a typical 2D elastic config already uses 46 of the
+    // previous 50 slots (measured), leaving too little headroom for any
+    // future -D option addition -- get_build_options has no bounds check
+    // on *n, so overflowing this silently corrupts heap memory.
     char ** build_options=NULL;
-        /* 64, not 50: the option count is already in the low 40s and silently
-         * running off the end of this array is a nasty failure mode. */
-        GMALLOC(build_options, sizeof(char*)*64);
+    GMALLOC(build_options, sizeof(char*)*64);
     for (i=0;i<64;i++){
         GMALLOC(build_options[i], sizeof(char)*500);
     }

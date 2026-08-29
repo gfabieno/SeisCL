@@ -242,9 +242,20 @@ py::dict collect_data(model &m) {
 void crop_boundary_2d(float *grad, const model &m) {
     if (m.NDIM != 2) return;
     int nz = m.N[0], nx = m.N[1], nab = m.NAB;
+    // FREESURF==0's top band is cropped for the general reason (NAB is a
+    // real absorbing-boundary layer there; BACK_PROP_TYPE=1 gradients are
+    // inaccurate in it). FREESURF==1 has its own accurate free-surface
+    // gradient handling right up to z=0, no crop needed. FREESURF==2's
+    // vacuum band (set_freesurf2_vacuum, assign_modeling_case.c) is only
+    // FDOH deep -- NAB does not apply to that edge at all once a free
+    // surface is active (CPML is already disabled there regardless of
+    // NAB) -- but those FDOH rows hold physically meaningless nonzero
+    // gradient values (no real material to invert for), so they still
+    // need masking, just a much thinner band than FREESURF==0's.
+    int ztop = (m.FREESURF == 2) ? m.FDOH : nab;
     for (int x = 0; x < nx; x++) {
         for (int z = 0; z < nz; z++) {
-            bool in_boundary = (m.FREESURF == 0 && z < nab) || z >= nz - nab ||
+            bool in_boundary = (m.FREESURF != 1 && z < ztop) || z >= nz - nab ||
                                x < nab || x >= nx - nab;
             if (in_boundary) grad[x * nz + z] = 0.0f;
         }

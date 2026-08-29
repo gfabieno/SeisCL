@@ -1370,7 +1370,22 @@ int unscale_par(model * m) {
     int scaler=m->par_scale;
 
     for (i=0;i<num_ele;i++){
-        rho[i]= 1.0/rho[i]*m->dt/m->dh*powf(2,-scaler);
+        /* A zero buoyancy marks a vacuum cell (rho() in
+           assign_modeling_case.c keeps it exactly 0, not 1/0, for the same
+           reason -- see set_freesurf2_vacuum). Guard the inverse here too:
+           unguarded, 1.0/0.0 gives +inf, which the sqrt(rho[i]*M[i])-style
+           multiplications a few lines below turn into inf*0=NaN even though
+           the physical density (and M/mu) are genuinely, correctly zero
+           there. Ported from SeisCL-freesurface (notes/back-prop-type1-
+           zero-material-nan.md), which found and fixed this in its
+           (then-unsplit) transf_grad() -- this is that same site, now in
+           unscale_par() after the unscale_par/unscale_grad split. */
+        if (rho[i]==0){
+            rho[i]=0;
+        }
+        else{
+            rho[i]= 1.0/rho[i]*m->dt/m->dh*powf(2,-scaler);
+        }
     }
     if (M){
         for (i=0;i<num_ele;i++){
@@ -1464,6 +1479,13 @@ int chain_rule_par_type(model * m) {
     if (m->par_type==0){
 
         for (i=0;i<num_ele;i++){
+            /*rho[i]==0 marks a vacuum cell (M[i]==mu[i]==0 there too) --
+              there is no real material to compute a density sensitivity
+              for, so leave gradrho[i] as accumulated rather than divide
+              0/0.*/
+            if (rho[i]==0){
+                continue;
+            }
             gradrho[i]= gradrho[i]+M[i]/rho[i]*gradM[i];
             if (mu[i]>0){
                 gradrho[i]= gradrho[i]+mu[i]/rho[i]*gradmu[i];
@@ -1471,6 +1493,9 @@ int chain_rule_par_type(model * m) {
         }
         if (Hrho){
             for (i=0;i<num_ele;i++){
+                if (rho[i]==0){
+                    continue;
+                }
                 Hrho[i]= Hrho[i]+M[i]/rho[i]*HM[i];
                 if (mu[i]>0){
                     Hrho[i]= Hrho[i]+mu[i]/rho[i]*Hmu[i];
@@ -1503,6 +1528,14 @@ int chain_rule_par_type(model * m) {
     }
     else if (m->par_type==2){
         for (i=0;i<num_ele;i++){
+            /*See the matching par_type==0 comment above: rho[i]==0 is a
+              vacuum cell, skip rather than divide 0/0. par_type==2 divides
+              by rho[i] even more than par_type==0 (M[i]/rho[i] appears
+              inside the gradM/gradmu sqrt() too, not just gradrho), so
+              every one of those sites needs the same guard.*/
+            if (rho[i]==0){
+                continue;
+            }
             gradrho[i]= gradrho[i]+M[i]/rho[i]*gradM[i];
             if (mu[i]>0){
                 gradrho[i]= gradrho[i]+mu[i]/rho[i]*gradmu[i];
@@ -1511,6 +1544,9 @@ int chain_rule_par_type(model * m) {
 
         if (Hrho){
             for (i=0;i<num_ele;i++){
+                if (rho[i]==0){
+                    continue;
+                }
                 Hrho[i]= Hrho[i]+M[i]/rho[i]*HM[i];
                 if (mu[i]>0){
                     Hrho[i]= Hrho[i]+mu[i]/rho[i]*Hmu[i];
@@ -1519,22 +1555,26 @@ int chain_rule_par_type(model * m) {
         }
         if (M){
             for (i=0;i<num_ele;i++){
-                gradM[i]  = 2.0*sqrt((double)M[i]/(double)rho[i])*gradM[i];
+                gradM[i]  = rho[i]==0 ? 0
+                          : 2.0*sqrt((double)M[i]/(double)rho[i])*gradM[i];
             }
         }
         if (HM){
             for (i=0;i<num_ele;i++){
-                HM[i]  = 2.0*sqrt((double)M[i]/(double)rho[i])*HM[i];
+                HM[i]  = rho[i]==0 ? 0
+                       : 2.0*sqrt((double)M[i]/(double)rho[i])*HM[i];
             }
         }
         if (mu){
             for (i=0;i<num_ele;i++){
-                gradmu[i] = 2.0*sqrt((double)mu[i]/(double)rho[i])*gradmu[i];
+                gradmu[i] = rho[i]==0 ? 0
+                          : 2.0*sqrt((double)mu[i]/(double)rho[i])*gradmu[i];
             }
         }
         if (Hmu){
             for (i=0;i<num_ele;i++){
-                Hmu[i] = 2.0*sqrt((double)mu[i]/(double)rho[i])*Hmu[i];
+                Hmu[i] = rho[i]==0 ? 0
+                       : 2.0*sqrt((double)mu[i]/(double)rho[i])*Hmu[i];
             }
         }
     }
