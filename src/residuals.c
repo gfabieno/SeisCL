@@ -483,10 +483,15 @@ int res_scale(model * m, int s)
                     par = get_par(m->pars, m->npars, "rkp")->gl_par;
                 }
                 for (g=0;g<nrec;g++){
-                    
+
+                    /* Was rec_pos[s][0+8*g] for all three of x/y/z (ported
+                     * fix from SeisCL-dft, notes/todo.md item 0c) -- correct
+                     * only for a receiver exactly on the x axis at y=z=0.
+                     * The trans_vars ("p") branch below already used the
+                     * correct 0/1/2 indices. */
                     x = m->src_recs.rec_pos[s][0+8*g]/m->dh;
-                    y = m->src_recs.rec_pos[s][0+8*g]/m->dh;
-                    z = m->src_recs.rec_pos[s][0+8*g]/m->dh;
+                    y = m->src_recs.rec_pos[s][1+8*g]/m->dh;
+                    z = m->src_recs.rec_pos[s][2+8*g]/m->dh;
                     if (m->NDIM==2){
                         pos = x*m->N[0]+z;
                     }
@@ -527,14 +532,30 @@ int res_scale(model * m, int s)
                     else {
                         pos = x*m->N[0]*m->N[1]+y*m->N[0]+z;
                     }
+                    /* Ported from SeisCL-dft/dft-gradient (notes/todo.md
+                     * items 0c and 0e), confirmed by this session's own FD
+                     * testing to be the same bug here (ratio ~1.5e8, the
+                     * exact (dh/dt)^2 signature): unlike the vx/vz branch
+                     * above (which inverts parscal via 1/parscal, needing
+                     * dh/dt), this branch multiplies by parscal directly
+                     * and needs the reciprocal dt/dh from the start. The
+                     * FP16 exponent is also back_prop_type-dependent:
+                     * back_prop_type=1's unscale_grad() applies one extra
+                     * powf(2,par_scale) that back_prop_type=2 never gets,
+                     * so the adjoint source needs the other factor of
+                     * 2^-par_scale (i.e. -2*scaler, not -scaler) only for
+                     * back_prop_type=1. */
+                    {
+                    float scaler2 = (m->BACK_PROP_TYPE==1) ? 2.0f*scaler : (float)scaler;
                     if (m->FP16>1){
                         parscal = half_to_float( ((half*)par)[pos] )
                         -half_to_float( ((half*)par2)[pos] );
-                        parscal = -2.0*(parscal)*m->dh/m->dt*powf(2,-scaler);
+                        parscal = -2.0*(parscal)*m->dt/m->dh*powf(2,-scaler2);
                     }
                     else{
                         parscal = -2.0*(par[pos]-par2[pos])
-                        *m->dh/m->dt*powf(2,-scaler);
+                        *m->dt/m->dh*powf(2,-scaler2);
+                    }
                     }
                     for (t=0;t<tmax;t++){
                         m->trans_vars[i].gl_var_res[s][g*NT+t]*=parscal*m->dt;

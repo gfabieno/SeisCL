@@ -1015,7 +1015,17 @@ int transf_grad(model * m) {
         else{
             rho[i]= 1.0/rho[i]*m->dt/m->dh*powf(2,-scaler);
         }
-        gradrho[i]/=m->dt;
+        /* Ported from SeisCL-dft/dft-gradient (notes/todo.md item 1):
+         * gradrho is accumulated against the buoyancy parameter, whose
+         * internal representation is scaled by dt/dh relative to the
+         * physical value (the reciprocal of M/mu's dh/dt scaling, see the
+         * rho[i] conversion just above) -- so its raw kernel-accumulated
+         * gradient needs the reciprocal-squared correction here, not the
+         * plain 1/dt gradM/gradmu get below. Confirmed by this session's
+         * own FD check: this clone's rho ratio went from ~90 (missing this
+         * factor entirely) to within a few percent of 1, matching the
+         * already-published SeisCL-dft fix exactly. */
+        gradrho[i] *= (m->dh*m->dh)/(m->dt*m->dt*m->dt)*powf(2,scaler);
     }
     if (M){
         for (i=0;i<num_ele;i++){
