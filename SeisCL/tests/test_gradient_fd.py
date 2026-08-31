@@ -86,6 +86,13 @@ import numpy as np
 from gradient_common import workdir, run_tests, SkipTest, SeisCLError
 from SeisCL.SeisCL import SeisCL
 
+# Set by --plot (see __main__): a directory to save FD-check diagnostic
+# figures into -- initial model, true model (both with source/receiver
+# positions overlaid), observed vs. modelled data, and the gradient --
+# instead of only printing the FD/ratio table. None (the default) plots
+# nothing, so a normal run stays headless and does not need matplotlib.
+PLOT_DIR = None
+
 
 # ---------------------------------------------------------------------------
 # The standard crosswell geometry -- see the module docstring for why these
@@ -206,17 +213,27 @@ def _make_observed(s, ids, params):
     return dobs, din
 
 
-def _forward_misfit(make, ids, params, din, dobs):
-    """J(m) and its residual, both computed in Python (SeisCL.misfit())."""
+def _forward_misfit(make, ids, params, din, dobs, return_data=False):
+    """J(m) and its residual, both computed in Python (SeisCL.misfit()).
+
+    :param return_data: also return the modelled data (SeisCL.read_data()'s
+        list of arrays) as a third element -- only needed for --plot's
+        observed-vs-modelled figure, so kept opt-in rather than changing
+        every caller's unpacking.
+    """
     s = make()
     s.file_din = din
     s.set_forward(ids, params, withgrad=False)
     s.execute()
-    J, res = s.misfit(s.read_data(), dobs=dobs)
+    dmod = s.read_data()
+    J, res = s.misfit(dmod, dobs=dobs)
+    if return_data:
+        return J, res, dmod
     return J, res
 
 
-def _gradient(make, ids, params, din, dobs, back_prop_type, grad_cfg):
+def _gradient(make, ids, params, din, dobs, back_prop_type, grad_cfg,
+              return_data=False):
     """The adjoint-state gradient, via the residual-injection protocol
     documented in ComputingGradient.ipynb sections 4 and 7:
 
@@ -232,8 +249,16 @@ def _gradient(make, ids, params, din, dobs, back_prop_type, grad_cfg):
     Either way the residual injected is d(m) - dobs at the SAME m, computed
     by a separate, plain forward pass through SeisCL.misfit() -- never the
     engine's own rms/residual output (see module docstring).
+
+    :param return_data: also return the modelled data at `params` (the same
+        pass that produces `res`) as a fourth element -- see
+        _forward_misfit's return_data.
     """
-    J, res = _forward_misfit(make, ids, params, din, dobs)
+    if return_data:
+        J, res, dmod = _forward_misfit(make, ids, params, din, dobs,
+                                       return_data=True)
+    else:
+        J, res = _forward_misfit(make, ids, params, din, dobs)
     if back_prop_type == 1:
         s = make(gradout=1, back_prop_type=1, **grad_cfg)
         s.file_din = din
@@ -249,7 +274,103 @@ def _gradient(make, ids, params, din, dobs, back_prop_type, grad_cfg):
         s.set_backward(residuals=res)
         s.execute()
     grad = s.read_grad()
+    if return_data:
+        return J, grad, s, dmod
     return J, grad, s
+
+
+def _slice2d(arr):
+    """A plottable (z, x) slice of a model/gradient array: as-is in 2D, a
+    mid-y slice in 3D (this file's geometries keep source/receivers/anomaly
+    at a single y, so one slice shows the whole story)."""
+    return arr[:, arr.shape[1] // 2, :] if arr.ndim == 3 else arr
+
+
+def _add_src_rec(ax, s0):
+    """Overlay source (star) and receivers (triangles) on a (x, z) model
+    plot, in the same metres units as `ax`'s extent. Position rows are
+    always [x, y, z, ...] (row 1 is 0 for 2D), so plotting rows 0 and 2
+    works unchanged in both dimensionalities."""
+    src, rec = s0.src_pos_all, s0.rec_pos_all
+    ax.scatter(src[0], src[2], marker="*", s=220, c="yellow",
+              edgecolors="k", linewidths=0.8, label="source", zorder=5)
+    ax.scatter(rec[0], rec[2], marker="v", s=50, c="cyan",
+              edgecolors="k", linewidths=0.8, label="receivers", zorder=5)
+    ax.legend(loc="upper right", fontsize=7, framealpha=0.8)
+    ax.set_xlabel("x (m)")
+    ax.set_ylabel("z (m)")
+
+
+def _save_fd_plots(name, s0, sgrad, params_init, params_true, dobs, dmod,
+                   grad):
+    """Save four diagnostic figures for one fd_check() case into PLOT_DIR:
+    the initial model, the true model (both with source/receiver positions
+    overlaid), observed vs. modelled data, and the gradient. Written to
+    disk only (Agg backend) -- never shown -- so this is safe to run
+    unattended and does not need a display.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    os.makedirs(PLOT_DIR, exist_ok=True)
+    safe = "".join(c if c.isalnum() else "_" for c in name).strip("_")
+    while "__" in safe:
+        safe = safe.replace("__", "_")
+
+    nz, nx = int(s0.N[0]), int(s0.N[-1])
+    extent = [0.0, nx * s0.dh, nz * s0.dh, 0.0]
+
+    def plot_model(params, tag, title):
+        fig, axes = plt.subplots(1, len(params), figsize=(5 * len(params), 4),
+                                 squeeze=False)
+        for ax, (pname, arr) in zip(axes[0], params.items()):
+            im = ax.imshow(_slice2d(arr), extent=extent, aspect="auto",
+                           cmap="viridis")
+            fig.colorbar(im, ax=ax, shrink=0.85)
+            ax.set_title(pname)
+            _add_src_rec(ax, s0)
+        fig.suptitle("%s -- %s" % (name, title))
+        fig.tight_layout()
+        fig.savefig(os.path.join(PLOT_DIR, "%s_%s.png" % (safe, tag)), dpi=120)
+        plt.close(fig)
+
+    plot_model(params_init, "model_init", "initial model")
+    plot_model(params_true, "model_true", "true model")
+
+    nch = len(dobs)
+    fig, axes = plt.subplots(nch, 2, figsize=(9, 4 * nch), squeeze=False)
+    for c in range(nch):
+        vmax = np.abs(dobs[c]).max()
+        vmax = vmax if vmax > 0 else 1.0
+        for ax, arr, tag in ((axes[c][0], dobs[c], "observed (true model)"),
+                             (axes[c][1], dmod[c], "modelled (init model)")):
+            ax.imshow(arr, aspect="auto", cmap="gray", vmin=-vmax, vmax=vmax)
+            ax.set_title("%s ch%d" % (tag, c))
+            ax.set_xlabel("receiver #")
+            ax.set_ylabel("time sample")
+    fig.suptitle("%s -- data" % name)
+    fig.tight_layout()
+    fig.savefig(os.path.join(PLOT_DIR, "%s_data.png" % safe), dpi=120)
+    plt.close(fig)
+
+    fig, axes = plt.subplots(1, len(sgrad.params),
+                             figsize=(5 * len(sgrad.params), 4), squeeze=False)
+    for ax, pname, g in zip(axes[0], sgrad.params, grad):
+        vmax = np.abs(g).max()
+        vmax = vmax if vmax > 0 else 1.0
+        im = ax.imshow(_slice2d(g), extent=extent, aspect="auto",
+                       cmap="seismic", vmin=-vmax, vmax=vmax)
+        fig.colorbar(im, ax=ax, shrink=0.85)
+        ax.set_title("grad %s" % pname)
+        _add_src_rec(ax, s0)
+    fig.suptitle("%s -- gradient" % name)
+    fig.tight_layout()
+    fig.savefig(os.path.join(PLOT_DIR, "%s_gradient.png" % safe), dpi=120)
+    plt.close(fig)
+
+    print("  saved plots: %s/%s_{model_init,model_true,data,gradient}.png"
+         % (PLOT_DIR, safe))
 
 
 _DEFAULT_EPS = {"vp": 5.0, "vs": 5.0, "rho": 5.0, "taup": 0.005, "taus": 0.005}
@@ -274,8 +395,23 @@ def fd_check(name, make, ids, params_init, params_true, patch,
     s0 = make()
     dobs, din = _make_observed(s0, ids, params_true)
 
-    J0, grad, sgrad = _gradient(make, ids, params_init, din, dobs,
-                                back_prop_type, grad_cfg)
+    want_data = PLOT_DIR is not None
+    if want_data:
+        J0, grad, sgrad, dmod = _gradient(make, ids, params_init, din, dobs,
+                                          back_prop_type, grad_cfg,
+                                          return_data=True)
+    else:
+        J0, grad, sgrad = _gradient(make, ids, params_init, din, dobs,
+                                    back_prop_type, grad_cfg)
+
+    if want_data:
+        try:
+            _save_fd_plots(name, s0, sgrad, params_init, params_true,
+                           dobs, dmod, grad)
+        except Exception as e:  # noqa: BLE001 - a plotting bug must never
+            # hide or replace the actual FD-check result below.
+            print("  WARNING: --plot failed for %r: %s: %s"
+                 % (name, type(e).__name__, e))
 
     dm = np.zeros(s0.N, dtype=np.float64)
     dm[patch] = 1.0
@@ -706,5 +842,20 @@ XFAIL = {
 }
 
 if __name__ == "__main__":
+    import argparse
     import sys
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--plot", metavar="DIR", nargs="?", const="fd_check_plots",
+        default=None,
+        help="Save diagnostic figures (initial model, true model -- both "
+             "with source/receiver positions, observed vs. modelled data, "
+             "and the gradient) for every case into DIR (default: "
+             "'fd_check_plots' in the current directory) instead of only "
+             "printing the FD/ratio table. Figures are written to disk "
+             "only, never displayed.")
+    args = parser.parse_args()
+    PLOT_DIR = args.plot
+
     sys.exit(run_tests(TESTS, xfail=XFAIL))
