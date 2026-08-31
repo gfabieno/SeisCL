@@ -503,7 +503,8 @@ def _run_2d_elastic(seisout, back_prop_type, calibrated, tol=0.02,
     if back_prop_type == 2:
         df = 1.0 / (NT * DT)
         grad_cfg = dict(gradfreqs=df * np.arange(4, 40, 4))
-    fd_check("2D elastic (seisout=%d)" % seisout, make, ids, init, true,
+    fd_check("2D elastic (seisout=%d, bpt=%d)" % (seisout, back_prop_type),
+            make, ids, init, true,
             patch, back_prop_type=back_prop_type, grad_cfg=grad_cfg,
             calibrated=calibrated, tol=tol, spread_tol=spread_tol)
 
@@ -663,7 +664,8 @@ def _run_3d_elastic(seisout, back_prop_type, calibrated, tol=0.05,
     if back_prop_type == 2:
         df = 1.0 / (NT * DT)
         grad_cfg = dict(gradfreqs=df * np.arange(4, 40, 4))
-    fd_check("3D elastic (seisout=%d)" % seisout, make, ids, init, true,
+    fd_check("3D elastic (seisout=%d, bpt=%d)" % (seisout, back_prop_type),
+            make, ids, init, true,
             patch, back_prop_type=back_prop_type, grad_cfg=grad_cfg,
             calibrated=calibrated, tol=tol, spread_tol=spread_tol)
 
