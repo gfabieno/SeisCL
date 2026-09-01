@@ -357,9 +357,18 @@ def _save_fd_plots(name, s0, sgrad, params_init, params_true, dobs, dmod,
     fig, axes = plt.subplots(1, len(sgrad.params),
                              figsize=(5 * len(sgrad.params), 4), squeeze=False)
     for ax, pname, g in zip(axes[0], sgrad.params, grad):
-        vmax = np.abs(g).max()
+        gslice = _slice2d(g)
+        # Clip to the 1st/99th percentile, not the raw max: the near-source
+        # cells (item "wrong sign at sources", notes/todo.md) are usually
+        # far larger in magnitude than the actual anomaly sensitivity, so a
+        # max-based scale saturates the whole plot white except a tiny spot
+        # at the source. Percentile clipping deliberately saturates
+        # (dims) that spot instead, trading its true amplitude for contrast
+        # everywhere else, which is what these figures are for.
+        lo, hi = np.percentile(gslice, [1, 99])
+        vmax = max(abs(lo), abs(hi))
         vmax = vmax if vmax > 0 else 1.0
-        im = ax.imshow(_slice2d(g), extent=extent, aspect="auto",
+        im = ax.imshow(gslice, extent=extent, aspect="auto",
                        cmap="seismic", vmin=-vmax, vmax=vmax)
         fig.colorbar(im, ax=ax, shrink=0.85)
         ax.set_title("grad %s" % pname)
