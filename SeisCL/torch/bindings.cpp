@@ -232,32 +232,66 @@ py::dict collect_data(model &m) {
     return result;
 }
 
-// Zero the NAB-wide absorbing-boundary strip, matching SeisCL.py's cropgrad
-// default (SeisCL.py:639-646) -- boundary-storage-method gradients
-// (BACK_PROP_TYPE=1) are inaccurate in this region. 2D only, matching the
-// scope of SeisCL.py's own cropgrad implementation (its slicing doesn't
-// correctly handle a 3D array either). Internal layout is X-slowest/
-// Z-fastest flat (gl_par[x*NZ+z], see src/Init_model.c's indexing macros),
-// matching what SeisCL.py's write_model() produces via np.transpose().
-void crop_boundary_2d(float *grad, const model &m) {
-    if (m.NDIM != 2) return;
-    int nz = m.N[0], nx = m.N[1], nab = m.NAB;
-    // FREESURF==0's top band is cropped for the general reason (NAB is a
-    // real absorbing-boundary layer there; BACK_PROP_TYPE=1 gradients are
-    // inaccurate in it). FREESURF==1 has its own accurate free-surface
-    // gradient handling right up to z=0, no crop needed. FREESURF==2's
-    // vacuum band (set_freesurf2_vacuum, assign_modeling_case.c) is only
-    // FDOH deep -- NAB does not apply to that edge at all once a free
-    // surface is active (CPML is already disabled there regardless of
-    // NAB) -- but those FDOH rows hold physically meaningless nonzero
-    // gradient values (no real material to invert for), so they still
-    // need masking, just a much thinner band than FREESURF==0's.
+// Zero the NAB-wide absorbing-boundary strip, matching SeisCL.py's
+// _crop_boundary() (SeisCL/SeisCL.py) -- see that function's docstring for
+// the full derivation; summarized here.
+//
+// Whether cropping is actually needed -- not just whether NAB rows exist --
+// depends on *why* the boundary's gradient would be wrong, which differs by
+// BACK_PROP_TYPE:
+//  - BACK_PROP_TYPE==1 reconstructs the forward wavefield from a saved
+//    boundary checkpoint by undoing each timestep's raw update, but never
+//    divides back out the absorbing boundary's own damping (Cerjan's taper
+//    multiply, or CPML's memory-variable recursion) that the forward pass
+//    applied at that cell -- so the "reconstructed" field inside the
+//    absorbing band silently diverges from the true one as backpropagation
+//    proceeds, regardless of ABS_TYPE. Always cropped.
+//  - BACK_PROP_TYPE==2 (DFT) never reconstructs anything: both the forward
+//    and adjoint fields are computed by real time-stepping over the entire
+//    grid. For ABS_TYPE==2 (Cerjan), a taper is just a real per-cell
+//    multiply -- its own adjoint -- so the gradient inside the tapered band
+//    is numerically valid there (only physically less interesting). Not
+//    cropped by default. ABS_TYPE==1 (CPML) is a more delicate
+//    discrete-adjoint question, not verified the same way, so it stays
+//    cropped by default regardless of BACK_PROP_TYPE.
+//
+// Internal layout has no FDOH/NAB padding, matching update_adj{v,s}{2D,3D}.cl's
+// `indp` addressing: X-slowest/Z-fastest flat in 2D (gl_par[x*NZ+z]), and
+// X-slowest/Y-middle/Z-fastest in 3D (gl_par[x*(NY*NZ)+y*NZ+z]) -- matching
+// what SeisCL.py's write_model() produces via np.transpose().
+void crop_boundary(float *grad, const model &m) {
+    if (m.BACK_PROP_TYPE != 1 && m.ABS_TYPE != 1) return;
+    int nab = m.NAB;
+    // FREESURF==0's top band is cropped for the general reason above.
+    // FREESURF==1 has its own accurate free-surface gradient handling right
+    // up to z=0, no crop needed. FREESURF==2's vacuum band
+    // (set_freesurf2_vacuum, assign_modeling_case.c) is only FDOH deep --
+    // NAB does not apply to that edge at all once a free surface is active
+    // (CPML is already disabled there regardless of NAB) -- but those FDOH
+    // rows hold physically meaningless nonzero gradient values (no real
+    // material to invert for), so they still need masking, just a much
+    // thinner band than FREESURF==0's.
     int ztop = (m.FREESURF == 2) ? m.FDOH : nab;
-    for (int x = 0; x < nx; x++) {
-        for (int z = 0; z < nz; z++) {
-            bool in_boundary = (m.FREESURF != 1 && z < ztop) || z >= nz - nab ||
-                               x < nab || x >= nx - nab;
-            if (in_boundary) grad[x * nz + z] = 0.0f;
+    if (m.NDIM == 2) {
+        int nz = m.N[0], nx = m.N[1];
+        for (int x = 0; x < nx; x++) {
+            for (int z = 0; z < nz; z++) {
+                bool in_boundary = (m.FREESURF != 1 && z < ztop) || z >= nz - nab ||
+                                   x < nab || x >= nx - nab;
+                if (in_boundary) grad[x * nz + z] = 0.0f;
+            }
+        }
+    } else if (m.NDIM == 3) {
+        int nz = m.N[0], ny = m.N[1], nx = m.N[2];
+        for (int x = 0; x < nx; x++) {
+            for (int y = 0; y < ny; y++) {
+                for (int z = 0; z < nz; z++) {
+                    bool in_boundary = (m.FREESURF != 1 && z < ztop) ||
+                                       z >= nz - nab || y < nab || y >= ny - nab ||
+                                       x < nab || x >= nx - nab;
+                    if (in_boundary) grad[x * (ny * nz) + y * nz + z] = 0.0f;
+                }
+            }
         }
     }
 }
@@ -266,7 +300,7 @@ py::dict collect_grads(model &m) {
     py::dict result;
     for (int i = 0; i < m.npars; i++) {
         if (m.pars[i].to_grad && m.pars[i].gl_grad) {
-            crop_boundary_2d(m.pars[i].gl_grad, m);
+            crop_boundary(m.pars[i].gl_grad, m);
             torch::Tensor g = torch::from_blob(m.pars[i].gl_grad,
                                                {m.pars[i].num_ele},
                                                torch::kFloat32)
