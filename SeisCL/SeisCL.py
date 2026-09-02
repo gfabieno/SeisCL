@@ -628,9 +628,75 @@ class SeisCL:
                 
         if not output:
             raise SeisCLError('Could not read movie: variables not found')
-            
+
         return output
-    
+
+    def _crop_boundary(self, output):
+        """Zero the `nab`-deep absorbing-boundary band, in place, on every
+        array in `output` -- shared by read_grad() and read_Hessian(), which
+        need the exact same crop.
+
+        Whether cropping is actually needed, not just requested via
+        `cropgrad`, depends on *why* the boundary's gradient would be wrong,
+        which differs by `back_prop_type`:
+
+        - `back_prop_type=1` reconstructs the forward wavefield from a
+          saved boundary checkpoint by literally undoing each timestep's
+          raw update (`update_adj{v,s}{2D,3D}.cl`'s `BACK_PROP_TYPE==1`
+          branch does `vx[indv] -= lvx`, `sxx[indv] -= lsxx`, etc.) -- but
+          it never divides out the absorbing boundary's own damping
+          (Cerjan's `taper[...]` multiply, or CPML's memory-variable
+          recursion) that the *forward* pass applied at that same cell.
+          Absorption is lossy/non-invertible by construction, so inside the
+          `nab`-deep band the "reconstructed" forward field silently
+          diverges from the true one as backpropagation proceeds -- and any
+          gradient correlating it against the (correctly computed) adjoint
+          field there is invalid. This applies regardless of `abs_type`, so
+          it is always cropped.
+        - `back_prop_type=2` (the DFT path) never reconstructs anything: the
+          true forward field's spectrum is accumulated during one genuine
+          forward pass over the *entire* grid (`kernel_savefreqs` has no
+          `NAB`-based exclusion), and the adjoint field is likewise computed
+          by real time-stepping, not inversion. For `abs_type=2` (Cerjan), a
+          taper is just a real per-cell multiplication -- its own adjoint --
+          so correlating the two genuine fields inside the tapered band is
+          numerically valid (only physically less interesting: it reflects
+          sensitivity within an artificially damped medium). This case is
+          therefore NOT cropped by default. `abs_type=1` (CPML) is a more
+          delicate discrete-adjoint question (its memory-variable recursion
+          is not a simple self-adjoint operator, and has not been verified
+          the way Cerjan has here) -- kept cropped by default out of
+          caution.
+        """
+        do_crop = self.back_prop_type == 1 or self.abs_type == 1
+        if not do_crop:
+            return
+        nab = self.nab
+        for o in output:
+            threed = o.ndim == 3
+            if self.freesurf != 1:
+                # freesurf==0: no free surface, top nab rows are real PML,
+                # the BACK_PROP_TYPE=1/CPML boundary-inaccuracy crop above
+                # applies (nab deep). freesurf==2: improved vacuum
+                # formulation -- nab does NOT apply to this edge (CPML is
+                # already disabled there for any nonzero freesurf,
+                # regardless of nab); the vacuum band itself is only fdoh
+                # deep (set_freesurf2_vacuum, assign_modeling_case.c) but
+                # still has no real material to invert for (see
+                # notes/vacuum-freesurface-plan.md, Phase 3), so mask that
+                # instead.
+                ztop = self.FDORDER // 2 if self.freesurf == 2 else nab
+                o[:ztop] = 0
+            o[-nab:] = 0
+            if threed:
+                o[:, :nab, :] = 0
+                o[:, -nab:, :] = 0
+                o[:, :, :nab] = 0
+                o[:, :, -nab:] = 0
+            else:
+                o[:, :nab] = 0
+                o[:, -nab:] = 0
+
     def read_grad(self, workdir=None, param_names=None, filename=None):
         """
 
@@ -666,23 +732,7 @@ class SeisCL:
             raise SeisCLError('Could not read grad')
         output = [np.transpose(mat[v]) for v in toread]
         if self.cropgrad:
-            for o in output:
-                if self.freesurf != 1:
-                    # freesurf==0: no free surface, top nab rows are real
-                    # PML, general BACK_PROP_TYPE=1 boundary-inaccuracy
-                    # crop applies (nab deep). freesurf==2: improved vacuum
-                    # formulation - nab does NOT apply to this edge (CPML is
-                    # already disabled there for any nonzero freesurf,
-                    # regardless of nab); the vacuum band itself is only
-                    # fdoh deep (set_freesurf2_vacuum,
-                    # assign_modeling_case.c) but still has no real material
-                    # to invert for (see notes/vacuum-freesurface-plan.md,
-                    # Phase 3), so mask that instead.
-                    ztop = self.FDORDER // 2 if self.freesurf == 2 else self.nab
-                    o[:ztop, :] = 0
-                o[-self.nab:, :] = 0
-                o[:, :self.nab] = 0
-                o[:, -self.nab:] = 0
+            self._crop_boundary(output)
         if self.param_type != 0 and not explicit:
             if getattr(self, "_last_params", None) is None:
                 raise SeisCLError(
@@ -771,23 +821,7 @@ class SeisCL:
                 'made with Hout=1?' % (missing, filename, sorted(mat.keys())))
         output = [np.transpose(mat[v]) for v in toread]
         if self.cropgrad:
-            for o in output:
-                if self.freesurf != 1:
-                    # freesurf==0: no free surface, top nab rows are real
-                    # PML, general BACK_PROP_TYPE=1 boundary-inaccuracy
-                    # crop applies (nab deep). freesurf==2: improved vacuum
-                    # formulation - nab does NOT apply to this edge (CPML is
-                    # already disabled there for any nonzero freesurf,
-                    # regardless of nab); the vacuum band itself is only
-                    # fdoh deep (set_freesurf2_vacuum,
-                    # assign_modeling_case.c) but still has no real material
-                    # to invert for (see notes/vacuum-freesurface-plan.md,
-                    # Phase 3), so mask that instead.
-                    ztop = self.FDORDER // 2 if self.freesurf == 2 else self.nab
-                    o[:ztop, :] = 0
-                o[-self.nab:, :] = 0
-                o[:, :self.nab] = 0
-                o[:, -self.nab:] = 0
+            self._crop_boundary(output)
         if self.param_type != 0 and not explicit:
             if getattr(self, "_last_params", None) is None:
                 raise SeisCLError(
