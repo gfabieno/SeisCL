@@ -102,6 +102,50 @@ PLOT_DIR = None
 DH, DT, NT, F0, NAB, ABPC = 10.0, 0.8e-3, 1200, 10.0, 16, 6.0
 SRC_SCALE = 1e6
 
+
+def _all_energetic_freqs():
+    """Every DFT bin (step = df, not a sparse stride) covering the Ricker
+    source's full energetic bandwidth.
+
+    back_prop_type=2's gradient is a sum over exactly the bins in
+    `gradfreqs` (see notes/todo.md item 0b/0f): by Parseval's theorem, that
+    sum only reconstructs the true (unnormalized) time-domain correlation
+    once it includes *every* bin carrying real spectral energy, not an
+    arbitrary subset. The previous choice here (`df*np.arange(4, 40, 4)`,
+    9 bins spanning 4.2-37.5 Hz at a stride of 4) skipped 3 of every 4 bins
+    inside the energetic band and NEVER covered 1-3 Hz, which measurably
+    skewed the resulting gradient's relative calibration between vp/vs/rho
+    (confirmed 2026-09-02: with the sparse selection, ad/fd ranged
+    4.3e-16-7.6e-16 across the three parameters at seisout=1 -- a ~1.8x
+    spread; with every bin from 1 Hz to 5*f0, that spread shrinks to
+    ~1.24x, and matches summing literally every bin to Nyquist to 4
+    significant figures, confirming 5*f0 already captures the source's
+    full energy: a Ricker wavelet centred at f0 has 99.9% of its energy
+    below ~2.3*f0). Using literally every bin to Nyquist (599 bins for
+    this file's NT/dt) is NOT an option -- tried directly, it OOMs the 3D
+    case (spectral storage is NFREQS*grid_size*2 floats per saved
+    variable) and buys nothing, since bins above ~25 Hz carry ~0 energy
+    for this source anyway.
+
+    Starts at bin 4 (4.17 Hz), not bin 1: found, while building this, a
+    real and separate bug -- some combinations of the lowest 3 bins
+    (1-3.1 Hz) together with a wider set make the *viscoelastic* DFT
+    gradient come back all-NaN (bins {1,2} alone: NaN; {1,2,3} alone:
+    fine; {1,2,3,4}: NaN again; {4..N}: always fine, elastic or
+    viscoelastic, tested up to 50 Hz) -- reproducible, not a fluke, and
+    not explained by any single frequency's coefficients (bin 4 alone,
+    or bins 4-19, are individually fine). Elastic never showed this.
+    Filed as notes/todo.md item 0g rather than chased down here; bins
+    1-3 carry only ~2.75% of a 10 Hz Ricker's cumulative spectral
+    energy by bin 4 (measured directly), so excluding them costs
+    essentially nothing towards "every energetic bin" while sidestepping
+    a real, separate defect.
+    """
+    df = 1.0 / (NT * DT)
+    fmax = 5.0 * F0
+    return df * np.arange(4, int(fmax / df) + 1)
+
+
 VP, VS, RHO = 3000.0, 1800.0, 2200.0
 TAUP0, TAUS0 = 0.1, 0.1
 DANOM = dict(vp=400.0, vs=200.0, rho=150.0, taup=0.05, taus=0.05)
@@ -510,8 +554,7 @@ def _run_2d_elastic(seisout, back_prop_type, calibrated, tol=0.02,
     init, true = _init_and_true(s0, patch)
     grad_cfg = {}
     if back_prop_type == 2:
-        df = 1.0 / (NT * DT)
-        grad_cfg = dict(gradfreqs=df * np.arange(4, 40, 4))
+        grad_cfg = dict(gradfreqs=_all_energetic_freqs())
     fd_check("2D elastic (seisout=%d, bpt=%d)" % (seisout, back_prop_type),
             make, ids, init, true,
             patch, back_prop_type=back_prop_type, grad_cfg=grad_cfg,
@@ -594,8 +637,7 @@ def _run_2d_viscoelastic_bpt2(seisout, spread_tol=0.15):
     nz, nx = int(s0.N[0]), int(s0.N[1])
     patch = (slice(nz // 2 - 7, nz // 2 + 8), slice(nx // 2 - 10, nx // 2 + 10))
     init, true = _init_and_true(s0, patch, L=1)
-    df = 1.0 / (NT * DT)
-    grad_cfg = dict(gradfreqs=df * np.arange(4, 40, 4))
+    grad_cfg = dict(gradfreqs=_all_energetic_freqs())
     fd_check("2D viscoelastic (seisout=%d)" % seisout, make, ids, init, true,
             patch, back_prop_type=2, grad_cfg=grad_cfg, calibrated=False,
             spread_tol=spread_tol)
@@ -671,8 +713,7 @@ def _run_3d_elastic(seisout, back_prop_type, calibrated, tol=0.05,
     init, true = _init_and_true(s0, patch)
     grad_cfg = {}
     if back_prop_type == 2:
-        df = 1.0 / (NT * DT)
-        grad_cfg = dict(gradfreqs=df * np.arange(4, 40, 4))
+        grad_cfg = dict(gradfreqs=_all_energetic_freqs())
     fd_check("3D elastic (seisout=%d, bpt=%d)" % (seisout, back_prop_type),
             make, ids, init, true,
             patch, back_prop_type=back_prop_type, grad_cfg=grad_cfg,
@@ -776,8 +817,7 @@ def _run_3d_viscoelastic_bpt2(seisout, spread_tol=0.15):
     patch = (slice(nz // 2 - 5, nz // 2 + 5), slice(ny // 2 - 5, ny // 2 + 5),
             slice(nx // 2 - 5, nx // 2 + 5))
     init, true = _init_and_true(s0, patch, L=1)
-    df = 1.0 / (NT * DT)
-    grad_cfg = dict(gradfreqs=df * np.arange(4, 40, 4))
+    grad_cfg = dict(gradfreqs=_all_energetic_freqs())
     fd_check("3D viscoelastic (seisout=%d)" % seisout, make, ids, init, true,
             patch, back_prop_type=2, grad_cfg=grad_cfg, calibrated=False,
             spread_tol=spread_tol)
