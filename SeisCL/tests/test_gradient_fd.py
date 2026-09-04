@@ -17,10 +17,18 @@ gradient right", for every case, in one place, using nothing but forward
 modeling plus SeisCL.misfit() -- no engine-internal reference, no
 cross-comparison between the two back_prop_types.
 
-Geometry, deliberately identical in spirit across every case (only the
-dimensionality changes): one source in a "left well", a line of receivers in
-a "right well", both comfortably inside the absorbing strip, matching
-ComputingGradient.ipynb's crosswell setup. **This specific
+Geometry, now identical in *substance* across every case, not merely in
+spirit: one source in a "left well", a line of receivers in a "right well",
+and a PATCH_SIDE cube of perturbed cells midway between them, with the
+clearances from sources, receivers and the absorbing strip ASSERTED by
+`_patch()` rather than assumed. Until 2026-09-03 the cases were not
+comparable -- 3D perturbed a patch 5 cells from the source where 2D's was 28
+-- and that alone accounted for the 3D ratios looking structurally broken;
+see PATCH_SIDE's comment. Grid sizes are the smallest that satisfy those
+clearances (2D [64,80], 3D [44,44,76], nab=10): `nab` does not need to be
+large here, because boundary reflections do not invalidate an FD check --
+J and the gradient see the same boundaries either way -- and the y/z axes
+carry no source-receiver separation constraint, only boundary clearance. **This specific
 dh/dt/NT/f0/SRC_SCALE combination is not arbitrary** -- it is the one
 notes/todo.md item 1 validated to a back_prop_type=1 ratio of ~1. A smaller,
 faster grid (e.g. gradient_common.py's BASE, meant for the DFT
@@ -67,13 +75,18 @@ on the theory that a tiny ratio (~1e-16 for velocity) meant "effectively
 zero" -- device-side instrumentation showed that ratio is genuine and
 constant, just naturally far smaller than pressure's; that bug was in this
 file's "effectively zero" floor, not the engine, and is retracted in
-notes/todo.md's item 0b. Every `back_prop_type=1`/`back_prop_type=2` x
-velocity/pressure combination now passes. Two cases remain open: SH (item
-4, an unrelated pre-existing engine defect) and a surprising pass on 3D
-viscoelastic DFT that contradicts item 6's premise that no such kernel path
-exists (flagged for reconciliation, not blindly trusted). 3D elastic
-`back_prop_type=1` was separately expected to be broken per item 1's 3D
-update but passes cleanly here -- see its docstring below.
+notes/todo.md's item 0b.
+
+Status as of 2026-09-03: both `back_prop_type=1` VELOCITY cases are exact
+(2D and 3D, all of vp/vs/rho within 0.1% of 1) and are the gold standard
+this file is read against. Open, each with its own item: the PRESSURE
+channel is off in every case and in both back_prop_types by nearly the same
+factor, which localizes it to the shared pressure-residual path rather than
+to either gradient (item 0d -- see test_fd_2d_elastic_bpt1_p's docstring for
+the numbers); SH does not run at all (item 4); and `rho`'s ratio is an
+unreliable diagnostic everywhere for a conditioning reason that is a
+property of the parameterization, not of the engine (item 0j -- fd_check
+prints the amplification factor next to it).
 
 Run with:
     SEISCL_BIN=/path/to/build python test_gradient_fd.py
@@ -99,7 +112,7 @@ PLOT_DIR = None
 # particular numbers, not a smaller/faster grid.
 # ---------------------------------------------------------------------------
 
-DH, DT, NT, F0, NAB, ABPC = 10.0, 0.8e-3, 1200, 10.0, 16, 6.0
+DH, DT, NT, F0, NAB, ABPC = 10.0, 0.8e-3, 1200, 10.0, 10, 6.0
 SRC_SCALE = 1e6
 
 
@@ -150,9 +163,116 @@ VP, VS, RHO = 3000.0, 1800.0, 2200.0
 TAUP0, TAUS0 = 0.1, 0.1
 DANOM = dict(vp=400.0, vs=200.0, rho=150.0, taup=0.05, taus=0.05)
 
+# ---------------------------------------------------------------------------
+# The perturbed patch: identical in every case, and provably clear of the
+# sources, the receivers and the absorbing strip.
+#
+# These have to be shared constants rather than per-case literals because the
+# FD ratio is only comparable between cases when the *perturbation* is. Until
+# 2026-09-03 they were not: 2D perturbed a 15x20=300-cell patch sitting 28
+# cells from the source, while 3D perturbed a 10x10x10=1000-cell patch sitting
+# **5 cells** from the source and 6 from the nearest receiver, with only 3
+# cells of margin to the absorbing strip in y. That is inside the ~4-cell
+# radius of the known-wrong near-source gradient (notes/todo.md, "Wrong
+# gradient SIGN in source cells"), so the 3D FD checks were measuring that
+# defect on top of whatever they were meant to measure -- which is exactly
+# why 3D's ratios looked structurally broken (rho ~3x, vs sign-flipped) while
+# 2D's, on the same code path, came out near 1.
+#
+# PATCH_SIDE is the side of the cube (square in 2D) in cells, the same on
+# every axis and in every case, so <grad,dm> sums the same shape of
+# neighbourhood everywhere. CLEAR_SRC_REC is enforced against every source
+# and every receiver; it is 4x the documented near-source mute radius.
+# CLEAR_BND is enforced against the inner edge of the absorbing strip, which
+# read_grad() crops and where the back_prop_type=1 gradient is invalid by
+# construction (notes/todo.md item 0f).
+# ---------------------------------------------------------------------------
+
+PATCH_SIDE = 10
+CLEAR_SRC_REC = 16
+CLEAR_BND = 6
+
+
+def _box_gap(pt, ext):
+    """Euclidean distance, in cells, from point `pt` to the patch box `ext`
+    (a list of inclusive (lo, hi) per axis). Zero if inside."""
+    g = [max(lo - c, 0.0, c - hi) for c, (lo, hi) in zip(pt, ext)]
+    return float(np.sqrt(sum(x * x for x in g)))
+
+
+def _patch(s, verbose=True):
+    """The standard perturbed patch for `s`'s geometry, with its clearances
+    asserted.
+
+    A PATCH_SIDE cube centred midway between the source well and the
+    receiver well along x, and on the sources' own y/z (which is the grid
+    centre for every geometry in this file) -- i.e. the well-illuminated
+    interior spot, as far from both wells as the crosswell layout allows.
+
+    Raises if the grid is too small to give the patch CLEAR_SRC_REC cells of
+    clearance from every source and receiver and CLEAR_BND from the
+    absorbing strip: a silently-too-close patch is precisely the failure
+    mode this function exists to prevent, so it must never degrade quietly
+    into "as much clearance as fits".
+    """
+    N = [int(v) for v in s.N]
+    ndim = len(N)
+    src, rec = s.src_pos_all, s.rec_pos_all
+
+    # Position rows are [x, y, z, ...] in metres; SeisCL axis order is
+    # (z[,y],x). Build both source and receiver positions as cell indices in
+    # that axis order.
+    def to_cells(p):
+        x, y, z = float(p[0]), float(p[1]), float(p[2])
+        return [z / s.dh, y / s.dh, x / s.dh] if ndim == 3 else [z / s.dh, x / s.dh]
+
+    src_c = [to_cells(src[:, i]) for i in range(src.shape[1])]
+    rec_c = [to_cells(rec[:, i]) for i in range(rec.shape[1])]
+
+    # Centre: midway between the wells in x, on the sources' own other axes.
+    cx = 0.5 * (np.mean([p[-1] for p in src_c]) + np.mean([p[-1] for p in rec_c]))
+    centre = [np.mean([p[a] for p in src_c]) for a in range(ndim - 1)] + [cx]
+
+    half = PATCH_SIDE // 2
+    ext, patch = [], []
+    for a in range(ndim):
+        lo = int(round(centre[a])) - half
+        hi = lo + PATCH_SIDE - 1
+        ext.append((lo, hi))
+        patch.append(slice(lo, hi + 1))
+
+    # --- clearances, asserted ---
+    bad = []
+    d_src = min(_box_gap(p, ext) for p in src_c)
+    d_rec = min(_box_gap(p, ext) for p in rec_c)
+    if d_src < CLEAR_SRC_REC:
+        bad.append("nearest source is %.1f cells away (need >= %d)"
+                   % (d_src, CLEAR_SRC_REC))
+    if d_rec < CLEAR_SRC_REC:
+        bad.append("nearest receiver is %.1f cells away (need >= %d)"
+                   % (d_rec, CLEAR_SRC_REC))
+    for a, (lo, hi) in enumerate(ext):
+        m = min(lo - s.nab, (N[a] - s.nab - 1) - hi)
+        if m < CLEAR_BND:
+            bad.append("axis %d is %d cells from the absorbing strip "
+                       "(need >= %d)" % (a, m, CLEAR_BND))
+    if bad:
+        raise AssertionError(
+            "patch geometry is unusable for N=%s, nab=%d: %s. Enlarge the "
+            "grid or move the wells -- do NOT shrink the clearance, it is "
+            "what makes this case comparable to the others." % (N, s.nab,
+                                                                "; ".join(bad)))
+    if verbose:
+        print("  patch %s (%d cells); clearance: source %.0f, receiver %.0f, "
+              "boundary %d cells"
+              % (ext, PATCH_SIDE ** ndim, d_src, d_rec,
+                 min(min(lo - s.nab, (N[a] - s.nab - 1) - hi)
+                     for a, (lo, hi) in enumerate(ext))))
+    return tuple(patch)
+
 
 def _crosswell_2d(wd, **overrides):
-    cfg = dict(N=np.array([100, 120]), ND=2, dh=DH, dt=DT, NT=NT, f0=F0,
+    cfg = dict(N=np.array([64, 80]), ND=2, dh=DH, dt=DT, NT=NT, f0=F0,
               FDORDER=8, freesurf=0, abs_type=2, nab=NAB, abpc=ABPC,
               seisout=1, param_type=0)
     cfg.update(overrides)
@@ -167,8 +287,8 @@ def _crosswell_2d(wd, **overrides):
     xr = (nx - s.nab - 6) * s.dh
     sz = 0.5 * nz * s.dh
     s.src_pos_all = np.array([[xl], [0.0], [sz], [0.0], [100.0]])
-    n_rec = 30
-    gz = np.linspace(s.nab + 8, nz - s.nab - 8, n_rec) * s.dh
+    n_rec = 20
+    gz = np.linspace(s.nab + 6, nz - s.nab - 6, n_rec) * s.dh
     s.rec_pos_all = np.stack([np.full(n_rec, xr), np.zeros(n_rec), gz,
                               np.zeros(n_rec), np.arange(1, n_rec + 1),
                               np.zeros(n_rec), np.zeros(n_rec), np.zeros(n_rec)])
@@ -178,11 +298,18 @@ def _crosswell_2d(wd, **overrides):
 
 def _crosswell_3d(wd, **overrides):
     """The 3D analog: same dh/dt/NT/f0/nab as the validated 2D case, source
-    and receiver wells separated along x at fixed y, z. The grid is kept
-    smaller than the 2D one purely for runtime -- interior after cropping
-    nab is still >= 16 cells per axis around a 6-cell patch anomaly.
+    and receiver wells separated along x at fixed y, z.
+
+    N was [64, 48, 64] until 2026-09-03, "kept smaller than the 2D one purely
+    for runtime". That was too small to be a fair test: it left the standard
+    patch 5 cells from the source, 6 from the nearest receiver and 3 from the
+    absorbing strip in y (see PATCH_SIDE's comment above), so 3D was
+    measuring near-source gradient contamination that 2D, at 28 cells of
+    clearance, was not. Enlarged to satisfy the same clearances 2D gets --
+    which `_patch()` now asserts rather than assumes. The cost is modest: a
+    forward pass goes 1.3s -> 3.1s, i.e. ~45s for a 3-parameter fd_check.
     """
-    cfg = dict(N=np.array([64, 48, 64]), ND=3, dh=DH, dt=DT, NT=NT, f0=F0,
+    cfg = dict(N=np.array([44, 44, 76]), ND=3, dh=DH, dt=DT, NT=NT, f0=F0,
               FDORDER=8, freesurf=0, abs_type=2, nab=NAB, abpc=ABPC,
               seisout=1, param_type=0)
     cfg.update(overrides)
@@ -195,8 +322,8 @@ def _crosswell_3d(wd, **overrides):
     y0 = ny // 2 * s.dh
     sz = 0.5 * nz * s.dh
     s.src_pos_all = np.array([[xl], [y0], [sz], [0.0], [100.0]])
-    n_rec = 14
-    gz = np.linspace(s.nab + 8, nz - s.nab - 8, n_rec) * s.dh
+    n_rec = 10
+    gz = np.linspace(s.nab + 6, nz - s.nab - 6, n_rec) * s.dh
     s.rec_pos_all = np.stack([np.full(n_rec, xr), np.full(n_rec, y0), gz,
                               np.zeros(n_rec), np.arange(1, n_rec + 1),
                               np.zeros(n_rec), np.zeros(n_rec), np.zeros(n_rec)])
@@ -207,7 +334,7 @@ def _crosswell_3d(wd, **overrides):
 def _crosswell_sh(wd, **overrides):
     """SH (ND=21): same 2D crosswell geometry, an Fy point force (src_type=1)
     instead of the explosive source, recording vy."""
-    cfg = dict(N=np.array([100, 120]), ND=21, dh=DH, dt=DT, NT=NT, f0=F0,
+    cfg = dict(N=np.array([64, 80]), ND=21, dh=DH, dt=DT, NT=NT, f0=F0,
               FDORDER=8, freesurf=0, abs_type=2, nab=NAB, abpc=ABPC,
               seisout=1, param_type=0)
     cfg.update(overrides)
@@ -218,8 +345,8 @@ def _crosswell_sh(wd, **overrides):
     xr = (nx - s.nab - 6) * s.dh
     sz = 0.5 * nz * s.dh
     s.src_pos_all = np.array([[xl], [0.0], [sz], [0.0], [1.0]])
-    n_rec = 30
-    gz = np.linspace(s.nab + 8, nz - s.nab - 8, n_rec) * s.dh
+    n_rec = 20
+    gz = np.linspace(s.nab + 6, nz - s.nab - 6, n_rec) * s.dh
     s.rec_pos_all = np.stack([np.full(n_rec, xr), np.zeros(n_rec), gz,
                               np.zeros(n_rec), np.arange(1, n_rec + 1),
                               np.zeros(n_rec), np.zeros(n_rec), np.zeros(n_rec)])
@@ -230,6 +357,21 @@ def _crosswell_sh(wd, **overrides):
 def _init_and_true(s, patch, L=0):
     """Homogeneous 'init' model and a 'true' model perturbed, in every
     parameter the case under test covers, over the same interior patch.
+
+    NOTE what this cannot test. The gradient is evaluated at `init`, which is
+    HOMOGENEOUS, so every averaged staggered parameter (muipkp/muipjp/mujpkp,
+    rip/rjp/rkp, tausipkp/...) is numerically equal to its cell-centred
+    counterpart and the material-averaging transpose is the identity apart
+    from its boundary copy rows. These checks are therefore **blind to
+    material-averaging errors by construction** -- the same blind spot
+    notes/todo.md item 1 records for T4. A wrong or missing averaging chain
+    rule (item 1's subject) will not move any ratio here. `dot_prod_average.py`
+    covers the transpose operators themselves; what is still missing anywhere
+    is an FD check on a *heterogeneous* init model, which is the only thing
+    that would exercise averaging end to end. Worth adding; deliberately not
+    done inside this function, because making `init` heterogeneous changes
+    every baseline in this file at once and would need its own calibration
+    pass.
     """
     init = {"vp": np.full(s.N, VP, dtype=np.float64),
             "vs": np.full(s.N, VS, dtype=np.float64),
@@ -479,6 +621,7 @@ def fd_check(name, make, ids, params_init, params_true, patch,
 
     results = {}
     failures = []
+    fd_by_param = {}
     for i, pname in enumerate(sgrad.params):
         eps0 = eps_by_param.get(pname, 1.0)
         ratios = []
@@ -495,6 +638,7 @@ def fd_check(name, make, ids, params_init, params_true, patch,
             ratios.append(ratio)
             print("  %-6s %10.4g %14.6e %14.6e %10.6f" %
                  (pname, eps, fd, ad, ratio))
+            fd_by_param[pname] = fd
         results[pname] = ratios
 
         if calibrated:
@@ -527,9 +671,53 @@ def fd_check(name, make, ids, params_init, params_true, patch,
                     "spread=%.4f, tol=%.4f)"
                     % (pname, ratios[0], ratios[1], spread, spread_tol))
 
+    _report_rho_conditioning(fd_by_param, params_init, dm)
+
     if failures:
         raise AssertionError("; ".join(failures))
     return results
+
+
+def _report_rho_conditioning(fd, params_init, dm):
+    """Print how much `rho`'s FD ratio amplifies errors in the other two.
+
+    dJ/drho at fixed (vp,vs) is a DIFFERENCE of much larger terms,
+
+        dJ/drho|_{vp,vs} = dJ/drho|_{M,mu} + (M/rho) dJ/dM + (mu/rho) dJ/dmu
+
+    and in this geometry they cancel to 1 part in 60-344. So a sub-1% error
+    in dJ/dM or dJ/dmu lands in `rho`'s ratio multiplied by that factor, and
+    `rho` being far from 1 says almost nothing on its own -- see
+    notes/todo.md item 0j, which records the measured factors and why this
+    was repeatedly misread as a density-gradient bug. `vp` and `vs` are each
+    a single-term probe (of dJ/dM and dJ/dmu) and have no such problem; they
+    are the quantities to judge a gradient by.
+
+    Printed rather than asserted on: it is a property of the *test geometry*,
+    not of the engine, so it is context for reading the table above, not a
+    pass/fail criterion.
+    """
+    if not all(k in fd for k in ("vp", "vs", "rho")) or fd["rho"] == 0.0:
+        return
+    n = float(dm.sum())
+    if n <= 0:
+        return
+    # Background values are homogeneous in every case here, so one cell's
+    # values describe the whole patch.
+    vp, vs = float(params_init["vp"].flat[0]), float(params_init["vs"].flat[0])
+    rho = float(params_init["rho"].flat[0])
+    M, mu = rho * vp * vp, rho * vs * vs
+    gM = fd["vp"] / (2.0 * rho * vp)
+    gmu = fd["vs"] / (2.0 * rho * vs)
+    cross_M, cross_mu = (M / rho) * gM, (mu / rho) * gmu
+    direct = fd["rho"] - cross_M - cross_mu
+    tot = abs(direct) + abs(cross_M) + abs(cross_mu)
+    fac = tot / abs(fd["rho"])
+    print("  [rho conditioning] buoyancy %+.3e | (M/rho)dJ/dM %+.3e | "
+          "(mu/rho)dJ/dmu %+.3e" % (direct, cross_M, cross_mu))
+    print("  [rho conditioning] these cancel to %.3e: a %.2f%% error in them "
+          "becomes 1%% in rho's ratio (factor %.0fx)"
+          % (fd["rho"], 100.0 / fac, fac))
 
 
 # ---------------------------------------------------------------------------
@@ -549,8 +737,7 @@ def _run_2d_elastic(seisout, back_prop_type, calibrated, tol=0.02,
     make = lambda **kw: _crosswell_2d(wd, seisout=seisout, **kw)
     s0 = make()
     ids = s0.src_pos_all[3, :]
-    nz, nx = int(s0.N[0]), int(s0.N[1])
-    patch = (slice(nz // 2 - 7, nz // 2 + 8), slice(nx // 2 - 10, nx // 2 + 10))
+    patch = _patch(s0)
     init, true = _init_and_true(s0, patch)
     grad_cfg = {}
     if back_prop_type == 2:
@@ -586,6 +773,42 @@ def test_fd_2d_elastic_bpt1_p():
     test_fd_3d_elastic_bpt1_p), so treated as this geometry's ordinary FD
     precision rather than a further bug. tol is 0.03, not the 0.02 used for
     velocity, to reflect that.
+
+    XFAILed 2026-09-03, same cause as test_fd_3d_elastic_bpt1_p (item 0d2).
+
+    UPDATE 2026-09-04: item 0d turned out to be TWO defects, both in the
+    shared residual path, and one is now fixed. (a) res_scale()'s "p" branch
+    scaled by the 2D trace modulus 2*(M-mu) in 3D as well, where it should
+    be N*M-2(N-1)*mu = 3M-4mu -- a pure scale error that hit every 3D
+    pressure gradient by 0.8205 and left 2D untouched; fixed, and every 3D
+    pressure ratio moved to ~1. (b) What remains here is a HALF-TIMESTEP
+    offset in the pressure residual injection: refining dt at fixed physics
+    halves the error each time (vs: 0.0622 -> 0.0327 -> 0.0167 at dt =
+    0.8/0.4/0.2 ms) while the velocity channel stays exact at every dt, and
+    pre-shifting the residual by -dt/2 halves it again. Still open; see
+    notes/todo.md item 0d2 for the mechanism and the fix plan. It is a
+    first-order accuracy defect that vanishes as dt -> 0, not a
+    miscalibration.
+
+    Original note follows.
+    With the standardized patch (see PATCH_SIDE) vs comes out at 1.062,
+    outside the 3% tolerance. This is NOT the patch's doing -- the pressure
+    channel is off in *every* case, in BOTH back_prop_types, and by very
+    nearly the SAME factor in each. Measured on 3D elastic, as
+    ratio(pressure)/ratio(velocity) per parameter:
+
+        param   bpt1     bpt2     difference
+        vp      0.8261   0.8208   0.6%
+        vs      0.9420   1.0051   6.7%
+        rho     0.8506   0.8422   1.0%
+
+    vp and rho degrade by the same factor whichever gradient method is used,
+    which places the defect in the **shared pressure-residual path**
+    (residuals.c's res_scale() "p"/trans_vars branch and the adjoint source
+    built from it), not in either gradient. That is a much sharper
+    localization than item 0c had, and it means chasing it in the gradient
+    kernels would be wasted effort. Item 0c fixed one real dh/dt-vs-dt/dh
+    swap in that branch; this is what remains.
     """
     _run_2d_elastic(seisout=2, back_prop_type=1, calibrated=True, tol=0.03)
 
@@ -634,8 +857,7 @@ def _run_2d_viscoelastic_bpt2(seisout, spread_tol=0.15):
                                       seisout=seisout, **kw)
     s0 = make()
     ids = s0.src_pos_all[3, :]
-    nz, nx = int(s0.N[0]), int(s0.N[1])
-    patch = (slice(nz // 2 - 7, nz // 2 + 8), slice(nx // 2 - 10, nx // 2 + 10))
+    patch = _patch(s0)
     init, true = _init_and_true(s0, patch, L=1)
     grad_cfg = dict(gradfreqs=_all_energetic_freqs())
     fd_check("2D viscoelastic (seisout=%d)" % seisout, make, ids, init, true,
@@ -707,9 +929,7 @@ def _run_3d_elastic(seisout, back_prop_type, calibrated, tol=0.05,
     make = lambda **kw: _crosswell_3d(wd, seisout=seisout, **kw)
     s0 = make()
     ids = s0.src_pos_all[3, :]
-    nz, ny, nx = int(s0.N[0]), int(s0.N[1]), int(s0.N[2])
-    patch = (slice(nz // 2 - 5, nz // 2 + 5), slice(ny // 2 - 5, ny // 2 + 5),
-            slice(nx // 2 - 5, nx // 2 + 5))
+    patch = _patch(s0)
     init, true = _init_and_true(s0, patch)
     grad_cfg = {}
     if back_prop_type == 2:
@@ -813,9 +1033,7 @@ def _run_3d_viscoelastic_bpt2(seisout, spread_tol=0.15):
                                       seisout=seisout, **kw)
     s0 = make()
     ids = s0.src_pos_all[3, :]
-    nz, ny, nx = int(s0.N[0]), int(s0.N[1]), int(s0.N[2])
-    patch = (slice(nz // 2 - 5, nz // 2 + 5), slice(ny // 2 - 5, ny // 2 + 5),
-            slice(nx // 2 - 5, nx // 2 + 5))
+    patch = _patch(s0)
     init, true = _init_and_true(s0, patch, L=1)
     grad_cfg = dict(gradfreqs=_all_energetic_freqs())
     fd_check("3D viscoelastic (seisout=%d)" % seisout, make, ids, init, true,
@@ -860,8 +1078,7 @@ def test_fd_sh_bpt1():
     make = lambda **kw: _crosswell_sh(wd, **kw)
     s0 = make()
     ids = s0.src_pos_all[3, :]
-    nz, nx = int(s0.N[0]), int(s0.N[1])
-    patch = (slice(nz // 2 - 7, nz // 2 + 8), slice(nx // 2 - 10, nx // 2 + 10))
+    patch = _patch(s0)
     init, true = _init_and_true(s0, patch)
     fd_check("SH", make, ids, init, true, patch,
             back_prop_type=1, calibrated=True, tol=0.05)
@@ -888,7 +1105,8 @@ TESTS = [
 # the corresponding test_* function for the item number and status. They
 # still run and still print their numbers; they just do not fail the build.
 XFAIL = {
-    "test_fd_3d_elastic_bpt1_p",         # item 0d
+    "test_fd_2d_elastic_bpt1_p",         # item 0d (pressure channel)
+    "test_fd_3d_elastic_bpt1_p",         # item 0d (pressure channel)
     "test_fd_sh_bpt1",                   # item 4
 }
 

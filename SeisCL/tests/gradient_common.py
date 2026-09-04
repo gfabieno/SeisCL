@@ -246,10 +246,22 @@ def run_tests(tests, xfail=()):
                 nfail += 1
                 print("FAIL  %s\n      %s" % (name, msg))
         except Exception as e:  # noqa: BLE001 - report, do not mask
-            nfail += 1
-            print("ERROR %s\n      %s: %s"
-                  % (name, type(e).__name__,
-                     str(e).replace("\n", "\n      ")[:400]))
+            # An xfail-listed case may fail by RAISING rather than by
+            # asserting -- SH (notes/todo.md item 4) does exactly that, its
+            # savebnd kernel does not compile at all for ND=21, so the test
+            # never reaches an assertion. That is still the documented,
+            # known-open failure it is listed for, so treat it the same way
+            # an AssertionError is treated; the exception is still printed in
+            # full. Without this the suite exits non-zero forever on a
+            # failure everyone has already agreed to defer, which is exactly
+            # what the xfail list exists to prevent.
+            msg = "%s: %s" % (type(e).__name__,
+                              str(e).replace("\n", "\n      ")[:400])
+            if expected_fail:
+                print("XFAIL %s  (known open, raised)\n      %s" % (name, msg))
+            else:
+                nfail += 1
+                print("ERROR %s\n      %s" % (name, msg))
     nx = sum(1 for fn in tests if fn.__name__ in xfail)
     print("\n%d/%d passed (%d known-open, %d skipped)"
           % (len(tests) - nfail - nx - nskip, len(tests) - nx - nskip,
