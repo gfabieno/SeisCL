@@ -580,15 +580,39 @@ int res_scale(model * m, int s)
                      * Independently found and fixed the same way in
                      * SeisCL-freesurface. */
                     float scaler2 = (m->BACK_PROP_TYPE==1) ? 2.0f*scaler : (float)scaler;
+                    /* The trace-of-stress modulus, N*M - 2(N-1)*mu.
+                     *
+                     * "p" is the average of the N normal stresses, and the
+                     * stress update (update_s{2D,3D}.cl, elastic g=M, f=2mu)
+                     * gives their sum directly:
+                     *   2D  sxx+szz         = (2M - 2mu)*theta
+                     *   3D  sxx+syy+szz     = (3M - 4mu)*theta
+                     * i.e. (N*M - 2(N-1)*mu)*theta -- the same combination
+                     * that appears as `den` throughout the gradient
+                     * coefficients (grad_coefelast_1's
+                     * 1/pow(ND*M-2*(ND-1)*mu,2)).
+                     *
+                     * This was hardcoded as -2.0*(M-mu), which IS
+                     * N*M-2(N-1)*mu at N=2 but not at N=3 -- the 2D relation
+                     * used in 3D. Every 3D pressure-output gradient was
+                     * therefore scaled by 2(M-mu)/(3M-4mu); at this test
+                     * suite's vp/vs/rho that is 0.82051, against a measured
+                     * pressure/velocity ratio of 0.82077 (back_prop_type=2)
+                     * and 0.82610 (back_prop_type=1) -- see notes/todo.md
+                     * item 0d. Being in the shared residual path, it hit
+                     * BOTH back_prop_types by the same factor, which is what
+                     * localized it here rather than in either gradient.
+                     * 2D is algebraically unchanged. */
+                    float NDf = (float)m->NDIM;
+                    float trmod;
                     if (m->FP16>1){
-                        parscal = half_to_float( ((half*)par)[pos] )
-                        -half_to_float( ((half*)par2)[pos] );
-                        parscal = -2.0*(parscal)*m->dt/m->dh*powf(2,-scaler2);
+                        trmod = NDf*half_to_float( ((half*)par)[pos] )
+                        -2.0f*(NDf-1.0f)*half_to_float( ((half*)par2)[pos] );
                     }
                     else{
-                        parscal = -2.0*(par[pos]-par2[pos])
-                        *m->dt/m->dh*powf(2,-scaler2);
+                        trmod = NDf*par[pos] - 2.0f*(NDf-1.0f)*par2[pos];
                     }
+                    parscal = -trmod*m->dt/m->dh*powf(2,-scaler2);
                     for (t=0;t<tmax;t++){
                         m->trans_vars[i].gl_var_res[s][g*NT+t]*=parscal*m->dt;
                     }
