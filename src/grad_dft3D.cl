@@ -23,21 +23,29 @@
  * formulas (grad_coefelast_0's c[0..4]/c[16..20] are already generic in ND,
  * so they are unchanged), the only difference is the dot products sum over
  * the extra field components (vy, syy, sxy, syz) that 3D has and 2D does not.
- * Cross-checked term by term against the host calc_grad() ND==3, L==0 branch
- * (calc_grad.c:623-747): dot[0]/dot[2]/dot[4]/dot[8] there are exactly d0/d2/
- * d4/d8 here, and cl_diff(a,b,c)=a-b-c (calc_grad.c:46) matches the sign of
- * the sxx_myyzz/syy_mxxzz/szz_mxxyy combinations used for d4.
+ * Cross-checked term by term against the host calc_grad() ND==3, L==0 branch:
+ * dot[0]/dot[4] there are exactly d0/d4 here, dot[2] is d2xy+d2xz+d2yz, and
+ * dot[8] is d8x+d8y+d8z, and calc_grad.c's cl_dev(a,b,c,N-1) = (N-1)*a-b-c
+ * matches the sxx_myyzz/syy_mxxzz/szz_mxxyy combinations used for d4.
  *
  * One work item per model cell. See grad_dft2D.cl for the full rationale
  * (replaces the host calc_grad() for this case, everything in double
  * precision since this runs once per shot rather than once per time step).
  *
- * L>0 (viscoelastic) is not handled here -- it needs the memory-variable
- * correlation terms (dot[1],dot[5..7]) and calc_grad.c's own ND==3 L>0
- * branch has a known copy-paste bug (calc_grad.c:672-674: rxx_myyzz,
- * ryy_mxxzz and rzz_mxxyy are all assigned the same expression) that would
- * need fixing first. assign_modeling_case.c only selects this kernel when
- * L==0.
+ * Each shear plane (sxy/sxz/syz) is driven by its own staggered mu --
+ * muipjp/muipkp/mujpkp -- not by the cell-centred mu, so its correlation's
+ * coefficient is evaluated at that staggered position and its gradient
+ * stored there, mirroring grad_dft2D.cl's muipkp handling. Likewise each
+ * velocity component (vx/vy/vz) sits at rip/rjp/rkp, not at a cell-centred
+ * rho: gradrho gets no correlation term at all, exactly as in 2D.
+ * average_grad_transpose() folds all six staggered gradients back onto the
+ * cell-centred mu/rho. This is what makes the density (and shear-plane mu)
+ * gradient in the 3D DFT path agree with the FD test -- previously they were
+ * evaluated with the cell-centred coefficients and never routed through the
+ * averaging transpose at all (notes/3d-gradient-findings.md, "Item 6").
+ *
+ * L>0 (viscoelastic) is not handled here -- see grad_dft3D_visc.cl.
+ * assign_modeling_case.c only selects this kernel when L==0.
  */
 
 #ifdef __OPENCL_VERSION__
@@ -76,13 +84,30 @@ LFUNDEF double itreal(float2 a, float2 b)
     return (double)a.y*(double)b.x - (double)a.x*(double)b.y;
 }
 
+/* grad_coefelast_1's c[2]=1/mu^2, evaluated at whichever staggered mu drives
+ * that shear plane rather than the cell-centred one. See grad_dft2D.cl's
+ * imuipkp2 for the 2D precedent. */
+LFUNDEF double imu2_stag(double mu_s)
+{
+    return (mu_s>=1.0) ? 1.0/(mu_s*mu_s) : 0.0;
+}
+
 FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
                           GLOBARG PARARG * M,
                           GLOBARG PARARG * mu,
                           GLOBARG PARARG * rho,
+                          GLOBARG PARARG * muipjp,
+                          GLOBARG PARARG * muipkp,
+                          GLOBARG PARARG * mujpkp,
                           GLOBARG float * gradM,
                           GLOBARG float * gradmu,
                           GLOBARG float * gradrho,
+                          GLOBARG float * gradmuipjp,
+                          GLOBARG float * gradmuipkp,
+                          GLOBARG float * gradmujpkp,
+                          GLOBARG float * gradrip,
+                          GLOBARG float * gradrjp,
+                          GLOBARG float * gradrkp,
                           GLOBARG float * HM,
                           GLOBARG float * Hmu,
                           GLOBARG float * Hrho,
@@ -132,6 +157,13 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
     double rho_p = (lrho!=0.0) ? (1.0/lrho)*((double)DT/(double)DH)*s2 : 0.0;
     double M_p   = (double)PARCONV(M[gid])*dhdt*s2;
     double mu_p  = (double)PARCONV(mu[gid])*dhdt*s2;
+    /* Each shear plane's own staggered mu -- see the file header. */
+    double muipjp_p = (double)PARCONV(muipjp[gid])*dhdt*s2;
+    double muipkp_p = (double)PARCONV(muipkp[gid])*dhdt*s2;
+    double mujpkp_p = (double)PARCONV(mujpkp[gid])*dhdt*s2;
+    double imuipjp2 = imu2_stag(muipjp_p);
+    double imuipkp2 = imu2_stag(muipkp_p);
+    double imujpkp2 = imu2_stag(mujpkp_p);
 
     /* df = 1/(NTNYQ*dt*DTNYQ), from defines that already exist. */
     double dftdf = 1.0/((double)NTNYQ*(double)DT*(double)DTNYQ);
@@ -158,7 +190,9 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         }
     }
 
-    double gM=0.0, gmu=0.0, grho=0.0;
+    double gM=0.0, gmu=0.0;
+    double gmuipjp=0.0, gmuipkp=0.0, gmujpkp=0.0;
+    double grip=0.0, grjp=0.0, grkp=0.0;
 #if HOUT==1
     double hM=0.0, hmu=0.0, hrho=0.0;
 #endif
@@ -173,26 +207,42 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         float2 Axx = fsxx[id],   Ayy = fsyy[id],   Azz = fszz[id];
         float2 Axy = fsxy[id],   Axz = fsxz[id],   Ayz = fsyz[id];
 
-        /* cl_diff(a,b,c) = a-b-c (calc_grad.c:46); cl_add sums all three. */
         float2 Fpp, App;
         Fpp.x = Fxx.x + Fyy.x + Fzz.x;  Fpp.y = Fxx.y + Fyy.y + Fzz.y;
         App.x = Axx.x + Ayy.x + Azz.x;  App.y = Axx.y + Ayy.y + Azz.y;
 
+        /* The deviatoric combination of the published P4 (eq. A2d):
+         * (N-1)*own - other - other, i.e. the diagonal term carries the
+         * weight (N-1) = 2 in 3D, not 1. This read `Fxx.x - Fyy.x - Fzz.x`
+         * until 2026-09-03 -- the 2D form (where N-1 == 1) transcribed
+         * unchanged into 3D, matching calc_grad.c's then-equally-wrong
+         * cl_diff. See cl_dev()'s comment in calc_grad.c and notes/todo.md
+         * item 0i; back_prop_type=1's update_adjs3D.cl always had the 2.0. */
+        double ndm1 = NDd - 1.0;
         float2 Fxx_myyzz, Fyy_mxxzz, Fzz_mxxyy;
-        Fxx_myyzz.x = Fxx.x - Fyy.x - Fzz.x;  Fxx_myyzz.y = Fxx.y - Fyy.y - Fzz.y;
-        Fyy_mxxzz.x = Fyy.x - Fxx.x - Fzz.x;  Fyy_mxxzz.y = Fyy.y - Fxx.y - Fzz.y;
-        Fzz_mxxyy.x = Fzz.x - Fxx.x - Fyy.x;  Fzz_mxxyy.y = Fzz.y - Fxx.y - Fyy.y;
+        Fxx_myyzz.x = (float)(ndm1*Fxx.x) - Fyy.x - Fzz.x;
+        Fxx_myyzz.y = (float)(ndm1*Fxx.y) - Fyy.y - Fzz.y;
+        Fyy_mxxzz.x = (float)(ndm1*Fyy.x) - Fxx.x - Fzz.x;
+        Fyy_mxxzz.y = (float)(ndm1*Fyy.y) - Fxx.y - Fzz.y;
+        Fzz_mxxyy.x = (float)(ndm1*Fzz.x) - Fxx.x - Fyy.x;
+        Fzz_mxxyy.y = (float)(ndm1*Fzz.y) - Fxx.y - Fyy.y;
 
         double d0 = w*itreal(App, Fpp)/dftnorm;
-        double d2 = w*(itreal(Axy, Fxy) + itreal(Axz, Fxz) + itreal(Ayz, Fyz))
-                    /dftnorm;
+        /* Kept apart per shear plane -- sxy/sxz/syz are each driven by a
+         * different staggered mu, so they cannot be summed before the
+         * coefficient is applied. */
+        double d2xy = w*itreal(Axy, Fxy)/dftnorm;
+        double d2xz = w*itreal(Axz, Fxz)/dftnorm;
+        double d2yz = w*itreal(Ayz, Fyz)/dftnorm;
         double d3 = d0;
         double d4 = w*(itreal(Axx, Fxx_myyzz)
                      + itreal(Ayy, Fyy_mxxzz)
                      + itreal(Azz, Fzz_mxxyy))/dftnorm;
-        double d8 = w*(itreal(fvx[id], fvx_f[id])
-                     + itreal(fvy[id], fvy_f[id])
-                     + itreal(fvz[id], fvz_f[id]))/dftnorm;
+        /* vx/vy/vz sit at rip/rjp/rkp respectively (update_v3D.cl): different
+         * parameters, so kept apart rather than summed. */
+        double d8x = w*itreal(fvx[id], fvx_f[id])/dftnorm;
+        double d8y = w*itreal(fvy[id], fvy_f[id])/dftnorm;
+        double d8z = w*itreal(fvz[id], fvz_f[id])/dftnorm;
 
 #if HOUT==1
         /* Approximate (Gauss-Newton style) Hessian diagonal, same pattern as
@@ -224,15 +274,29 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         }
 #endif
         gM   += -d0*iden;
-        gmu  += -d2*imu2 + d3*i3den - d4*i2ndmu2;
-        /* Density gets the velocity correlation only; chain_rule_par_type()
-         * supplies M and mu's rho-dependence on the host. */
-        grho += -d8;
+        gmu  += d3*i3den - d4*i2ndmu2;         /* sxx/syy/szz: cell-centred mu */
+        gmuipjp += -d2xy*imuipjp2;             /* sxy: the averaged mu */
+        gmuipkp += -d2xz*imuipkp2;             /* sxz: the averaged mu */
+        gmujpkp += -d2yz*imujpkp2;             /* syz: the averaged mu */
+        grip += -d8x;
+        grjp += -d8y;
+        grkp += -d8z;
     }
 
-    gradM[gid]   += (float)gM;
-    gradmu[gid]  += (float)gmu;
-    gradrho[gid] += (float)grho;
+    /* The internal (M, mu, rho) gradient is the kernel's whole output; the
+     * parameterization chain rule runs once on the host
+     * (chain_rule_par_type). gradrho gets no correlation term at all:
+     * density enters the physics only through rip/rjp/rkp, filled by
+     * average_grad_transpose() along with gradmuipjp/muipkp/mujpkp -- see
+     * grad_dft2D.cl. */
+    gradM[gid]      += (float)gM;
+    gradmu[gid]     += (float)gmu;
+    gradmuipjp[gid] += (float)gmuipjp;
+    gradmuipkp[gid] += (float)gmuipkp;
+    gradmujpkp[gid] += (float)gmujpkp;
+    gradrip[gid]    += (float)grip;
+    gradrjp[gid]    += (float)grjp;
+    gradrkp[gid]    += (float)grkp;
 #if HOUT==1
     HM[gid]   += (float)hM;
     Hmu[gid]  += (float)hmu;
