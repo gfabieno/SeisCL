@@ -1314,16 +1314,18 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
             __GUARD transf_grad(m);
         }
         else if (m->BACK_PROP_TYPE==2){
-            /* Same three steps as transf_grad minus unscale_grad: the
-               correlation normalizes with dftnorm/DTNYQ and never picks up
-               the dt the time integration puts into the boundary-storage
-               gradient, so dividing by it here would be a spurious global
-               factor -- and a global factor is exactly what the
-               finite-difference acceptance test, which measures ratio
-               *spread*, cannot see. The parameters still have to be unscaled,
-               because chain_rule_par_type evaluates its Jacobians at physical
+            /* Same steps as transf_grad, but unscale_grad_dft() in place of
+               unscale_grad(): the frequency-domain correlation's own missing
+               unit-conversion factor is *not* the same as the time-domain
+               boundary-storage gradient's (derived in unscale_grad_dft()'s
+               own docstring, calc_grad.c -- notes/todo.md item 0h). Applied
+               before average_grad_transpose(): it is a uniform per-cell
+               scalar, so it commutes with the (linear) averaging operator.
+               The parameters still have to be unscaled, because
+               chain_rule_par_type evaluates its Jacobians at physical
                values. */
             __GUARD unpack_par_fp16(m);
+            __GUARD unscale_grad_dft(m);
             __GUARD average_grad_transpose(m);
             __GUARD unscale_par(m);
             __GUARD chain_rule_par_type(m);

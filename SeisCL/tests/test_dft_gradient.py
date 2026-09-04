@@ -219,7 +219,7 @@ def _numpy_reference(s, d, params):
     adj = {k[2:]: v for k, v in d.items() if k.startswith("a_")}
     return gradient_2d_elastic(fwd, adj, M, mu, rho, d["gradfreqsn"],
                                d["NTNYQ"], d["DTNYQ"], s.dt,
-                               d["FDORDER"] // 2, nz, nx)
+                               d["FDORDER"] // 2, nz, nx, dh=s.dh)
 
 
 def _interior(s, a):
@@ -300,7 +300,7 @@ def _numpy_reference_3d(s, d, params):
     adj = {k[2:]: v for k, v in d.items() if k.startswith("a_")}
     return gradient_3d_elastic(fwd, adj, M, mu, rho, d["gradfreqsn"],
                                d["NTNYQ"], d["DTNYQ"], s.dt,
-                               d["FDORDER"] // 2, nz, ny, nx)
+                               d["FDORDER"] // 2, nz, ny, nx, dh=s.dh)
 
 
 def _interior_3d(s, a):

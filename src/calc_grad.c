@@ -1456,6 +1456,81 @@ int unscale_grad(model * m) {
     return state;
 }
 
+/* The BACK_PROP_TYPE==2 (DFT) analog of unscale_grad(): the frequency-domain
+   correlation (grad_dft{2,3}D.cl, calc_grad()'s host DFT branch, and their
+   shared numpy reference SeisCL/tests/dft_reference.py) has never applied any
+   equivalent of unscale_grad()'s dt/dh unit conversion, on the reasoning that
+   it is "a spurious global factor" the old proportional-only finite-
+   difference check could not see anyway (time_stepping.c's comment, now
+   stale). Derived 2026-09-03 (notes/todo.md item 0h), not fitted: per
+   Fabien-Ouellet et al. (2016) eq. A1b/A2a, dJ/dM = -c1^M*P1 with
+   P1 = <adjoint_trace, d/dt(forward_trace)>. Parseval applied to that
+   *derivative* correlation (pairing DFT bin k with -k via real-signal
+   conjugate symmetry, which is exactly what folds the two-sided spectrum
+   onto the positive-frequency-only bins the kernel sums) gives
+   P1 = (2/dt) * sum_bins(d0), i.e. the kernel's own per-bin sum (no extra
+   factor, as coded) equals (dt/2)*P1, not P1 itself. Separately, the
+   kernel's `iden`/`i3den`/`i2ndmu2` coefficients are evaluated at the
+   *physically rescaled* M_p/mu_p (grad_dft2D.cl's own dh/dt conversion),
+   whereas BACK_PROP_TYPE==1's raw kernel-accumulated gradM uses the same
+   coefficient evaluated at *raw* (internally non-dimensionalized) M/mu and
+   then gets a single extra 1/dt from unscale_grad() above -- dividing the
+   raw-M coefficient by the physically-scaled one shows they differ by
+   exactly (dh/dt)^2. Combining both factors:
+     (2/dt, the DFT correlation's own missing factor)
+     x ((dh/dt)^2 / (1/dt), the raw-vs-physical coefficient difference)
+     = 2*dh^2/dt^4.
+   The same derivation applies unchanged to gradmu (i3den/i2ndmu2 share
+   iden's M_p/mu_p scaling) and to gradrho/gradrip/gradrjp/gradrkp (raw,
+   unconverted velocity-velocity correlations, matching unscale_grad()'s own
+   rho path, which needs dh^2/dt^3 against gradM/gradmu's 1/dt -- the extra
+   dh^2/dt factor cancels against the DFT correlation's own missing 2/dt
+   piece the same way for every parameter, so one uniform factor applies to
+   every to_grad array here, not a per-parameter one).
+
+   Verified against the one fully-trusted reference available
+   (BACK_PROP_TYPE==1, velocity output, itself calibrated to <0.1% -- see
+   notes/todo.md item 1): isolated single-parameter finite-difference checks
+   (2D crosswell) gave ad/fd = 1.005 (vp), 1.022 (vs), 0.945 (rho) after this
+   fix, all within this codebase's ordinary FD-check precision. NOT verified
+   for 3D's rho: 3D's DFT kernel writes gradrho directly, bypassing the
+   gradrip/gradrjp/gradrkp + average_grad_transpose() path 2D uses, which
+   is a separate, pre-existing material-averaging gap (notes/todo.md item 1)
+   this fix does not address -- 3D vp/vs still calibrate to ~1-3% but 3D rho
+   remains ~35% off. HOUT (Hessian) is a different kind of quantity (an
+   auto-power spectrum, not a P1-style cross-correlation) and is
+   deliberately left uncorrected here -- not re-derived.
+
+   No FP16 (`par_scale`) factor here, unlike unscale_grad(): tried
+   multiplying by the same `scale2=2^par_scale` unscale_grad() uses, by
+   analogy -- broke test_dft_gradient_every_fp16_level (FP16=1 came back a
+   full magnitude off FP16=0, previously exactly matching). The DFT kernel
+   already fully accounts for FP16 internally (grad_dft2D.cl's own
+   `sc_ss`/`sc_vv`/`s2` factors, see that file's own comment on the
+   src_scale/res_scale/par_scale bookkeeping) -- unlike BACK_PROP_TYPE=1's
+   raw kernel accumulation, which carries no FP16 correction of its own and
+   so needs unscale_grad()'s scale2 to supply one. Adding a second, redundant
+   par_scale factor here double-counts it. This function's own derivation
+   was verified only at FP16=0 (where scale2 is a no-op either way), so this
+   is confirmed by elimination, not re-derived from first principles -- flag
+   for anyone revisiting FP16 + BACK_PROP_TYPE=2 together. */
+int unscale_grad_dft(model * m) {
+    int state=0;
+    int i, j;
+    float dftcal = 2.0f*(m->dh*m->dh)/(m->dt*m->dt*m->dt*m->dt);
+
+    for (j=0;j<m->npars;j++){
+        if (m->pars[j].to_grad && m->pars[j].gl_grad){
+            float * g = m->pars[j].gl_grad;
+            int num_ele = m->pars[j].num_ele;
+            for (i=0;i<num_ele;i++){
+                g[i] *= dftcal;
+            }
+        }
+    }
+    return state;
+}
+
 /* Map the internal (M, mu, rho) gradient onto m->par_type. Expects physical
    units, i.e. unscale_par_grad() already run (and, once it exists, the
    material-averaging transpose too -- that maps the staggered gradients onto

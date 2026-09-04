@@ -50,7 +50,7 @@ def _itreal(a, b):
 
 
 def gradient_2d_elastic(fwd, adj, M, mu, rho, bins, ntnyq, dtnyq, dt,
-                        fdoh, nz, nx, ND=2.0):
+                        fdoh, nz, nx, ND=2.0, dh=None):
     """Reference (gradvp, gradvs, gradrho) from the dumped DFT spectra.
 
     :param fwd: dict var -> (NZpad, NXpad, NFREQS) forward spectrum
@@ -148,6 +148,16 @@ def gradient_2d_elastic(fwd, adj, M, mu, rho, bins, ntnyq, dtnyq, dt,
     grho = (_T(ave_arithmetic_rho_T, grip, buoy, DIR_IP)
             + _T(ave_arithmetic_rho_T, grkp, buoy, DIR_KP))
 
+    # Absolute-scale correction -- see calc_grad.c's unscale_grad_dft() for
+    # the full derivation (notes/todo.md item 0h). A uniform scalar, so
+    # applying it here (after the averaging transpose) rather than to
+    # gM/gmu/gmuipkp/grip/grkp beforehand (as the C code does) gives the
+    # same result -- it commutes with that linear operator.
+    dftcal = 2.0 * dh * dh / (dt * dt * dt * dt)
+    gM *= dftcal
+    gmu *= dftcal
+    grho *= dftcal
+
     # Parameterization chain rule, (M, mu, rho) -> (vp, vs, rho), as
     # chain_rule_par_type does on the host.
     with np.errstate(divide="ignore", invalid="ignore"):
@@ -159,7 +169,7 @@ def gradient_2d_elastic(fwd, adj, M, mu, rho, bins, ntnyq, dtnyq, dt,
 
 
 def gradient_3d_elastic(fwd, adj, M, mu, rho, bins, ntnyq, dtnyq, dt,
-                        fdoh, nz, ny, nx, ND=3.0):
+                        fdoh, nz, ny, nx, ND=3.0, dh=None):
     """3D extension of gradient_2d_elastic. Same coefficients (already generic
     in ND), dot products extended to the extra field components (vy, syy,
     sxy, syz), transcribed from src/grad_dft3D.cl / calc_grad.c's ND==3
@@ -225,6 +235,14 @@ def gradient_3d_elastic(fwd, adj, M, mu, rho, bins, ntnyq, dtnyq, dt,
         gM += -d0 * iden
         gmu += -d2 * imu2 + d3 * i3den - d4 * i2ndmu2
         grho += -d8
+
+    # Absolute-scale correction -- see gradient_2d_elastic's identical block
+    # (and calc_grad.c's unscale_grad_dft()) for the full derivation
+    # (notes/todo.md item 0h).
+    dftcal = 2.0 * dh * dh / (dt * dt * dt * dt)
+    gM *= dftcal
+    gmu *= dftcal
+    grho *= dftcal
 
     # Parameterization chain rule, (M, mu, rho) -> (vp, vs, rho), as
     # chain_rule_par_type does on the host.
