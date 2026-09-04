@@ -85,15 +85,22 @@ residual path (notes/todo.md item 0d2): res_scale() was applying the 2D
 trace modulus in 3D, and the pressure adjoint source was injected one sample
 early.
 
-Still open, each with its own item: SH does not run at all (item 4, an
-unrelated engine defect); `rho`'s ratio is an unreliable diagnostic for a
-conditioning reason that is a property of the parameterization, not of the
-engine (item 0j -- fd_check prints the amplification factor next to it); and
-`back_prop_type=2` with PRESSURE output now shows a timing offset of its own
-(item 0d3), previously masked by cancellation with the residual one. Its
-velocity output is bit-identical and its pressure output is still within a
-few percent for the elastic cases, so that is a refinement to chase, not a
-regression.
+READ THE RATIOS WITH THEIR CONDITIONING. `rho` and `taup` are both
+DIFFERENCES of much larger terms in this parameterization -- `rho` because
+dJ/drho|_{vp,vs} subtracts the M and mu chain-rule terms, `taup` because
+M() stores M = rho*vp^2/(1+alpha*taup) so M depends on taup at fixed vp.
+Their FD ratios therefore amplify small errors enormously (measured: 238x
+for `rho`, 6x for `taup`), and a ratio far from 1 in either says almost
+nothing on its own. fd_check prints the amplification factor next to both.
+`vp` and `vs` are single-term probes and have no such problem -- judge a
+gradient by those. See notes/todo.md items 0j and 0d3.
+
+Concretely, on this geometry `back_prop_type=2` differs from the exact
+`back_prop_type=1` by a uniform 1-3% per cell (median per-cell ratio 1.000),
+and every alarming-looking bpt2 number reduces to that once divided by its
+conditioning: `rho` 0.508 -> 0.12%, `taup` 0.838 -> 2.6%.
+
+Still open: SH does not run at all (item 4, an unrelated engine defect).
 
 Run with:
     SEISCL_BIN=/path/to/build python test_gradient_fd.py
@@ -112,6 +119,9 @@ from SeisCL.SeisCL import SeisCL
 # instead of only printing the FD/ratio table. None (the default) plots
 # nothing, so a normal run stays headless and does not need matplotlib.
 PLOT_DIR = None
+
+# FL of the case under test, set by fd_check; see _report_rho_conditioning.
+FL_USED = None
 
 
 # ---------------------------------------------------------------------------
@@ -594,6 +604,11 @@ def fd_check(name, make, ids, params_init, params_true, patch,
     grad_cfg = dict(grad_cfg or {})
     eps_by_param = dict(_DEFAULT_EPS, **(eps_by_param or {}))
 
+    # Remembered for _report_rho_conditioning's taup branch, which needs the
+    # GSLS alpha = sum_l r^2/(1+r^2), r = f0/FL_l.
+    global FL_USED
+    FL_USED = getattr(make(), "FL", None)
+
     s0 = make()
     dobs, din = _make_observed(s0, ids, params_true)
 
@@ -725,6 +740,26 @@ def _report_rho_conditioning(fd, params_init, dm):
     print("  [rho conditioning] these cancel to %.3e: a %.2f%% error in them "
           "becomes 1%% in rho's ratio (factor %.0fx)"
           % (fd["rho"], 100.0 / fac, fac))
+
+    # taup has the SAME problem, for the same reason: M() stores
+    # M = rho*vp^2/(1+alpha*taup), so M depends on taup at fixed vp and
+    # dJ/dtaup|_{vp,vs,rho} is again a difference of larger terms. Measured
+    # factor ~6x on this geometry, which turns the DFT path's ordinary 2.6%
+    # into an alarming-looking 16%. Same trap, one item later.
+    if "taup" in fd and fd["taup"] != 0.0 and TAUP0 > 0:
+        al = sum((F0 / f) ** 2 / (1.0 + (F0 / f) ** 2)
+                 for f in np.atleast_1d(FL_USED) if f > 0) if FL_USED is not None else 0.0
+        if al > 0:
+            Mn = rho * vp * vp / (1.0 + al * TAUP0)
+            gM2 = fd["vp"] / (2.0 * rho * vp / (1.0 + al * TAUP0))
+            cross_t = -Mn * al / (1.0 + al * TAUP0) * gM2
+            direct_t = fd["taup"] - cross_t
+            ft = (abs(direct_t) + abs(cross_t)) / abs(fd["taup"])
+            print("  [taup conditioning] direct %+.3e | (dM/dtaup)dJ/dM %+.3e"
+                  % (direct_t, cross_t))
+            print("  [taup conditioning] cancel to %.3e: a %.2f%% error becomes "
+                  "1%% in taup's ratio (factor %.0fx)"
+                  % (fd["taup"], 100.0 / ft, ft))
 
 
 # ---------------------------------------------------------------------------
