@@ -613,6 +613,47 @@ int res_scale(model * m, int s)
                         trmod = NDf*par[pos] - 2.0f*(NDf-1.0f)*par2[pos];
                     }
                     parscal = -trmod*m->dt/m->dh*powf(2,-scaler2);
+
+                    /* Delay the pressure adjoint source by one sample.
+                     *
+                     * The forward loop records a seismogram AFTER the whole
+                     * update, but the two outputs are produced at different
+                     * points of it: vx/vy/vz by update_v and the normal
+                     * stresses (hence "p") by update_s, which runs second and
+                     * consumes the velocities update_v just wrote. The
+                     * adjoint runs the pair in the reverse order, so the
+                     * stress half of the adjoint source belongs one sample
+                     * later than the velocity half. It was injected at the
+                     * same index as velocity, i.e. one sample early.
+                     *
+                     * Measured on the 2D elastic back_prop_type=1 FD check
+                     * (which must give exactly 1), shifting the pressure
+                     * residual by k samples:
+                     *     k=0    vp 0.99316  vs 1.06221  rho 1.01561
+                     *     k=1    vp 0.99998  vs 1.00010  rho 1.00021
+                     *     k=2    vp 1.00122  vs 0.93256  rho 0.97999
+                     * i.e. the error changes sign between k=1 and k=2 and is
+                     * a clean zero at k=1, landing on the velocity channel's
+                     * own accuracy. Applying the same shift to the VELOCITY
+                     * residual instead breaks it (vs 0.99994 -> 1.03563),
+                     * confirming the offset is specific to the stress half.
+                     * Before this, the defect showed up as an error
+                     * proportional to dt in every pressure-output gradient
+                     * (vs: 0.062/0.033/0.017 at dt = 0.8/0.4/0.2 ms) -- see
+                     * notes/todo.md item 0d2.
+                     *
+                     * Done here rather than in the injection kernel because
+                     * it is a property of the residual's time indexing, not
+                     * of where the kernel is launched: injecting at a
+                     * different point of the adjoint iteration provably
+                     * changes nothing, since update_adjs only accumulates
+                     * into the adjoint stress and never reads it. */
+                    for (t=tmax-1;t>0;t--){
+                        m->trans_vars[i].gl_var_res[s][g*NT+t] =
+                            m->trans_vars[i].gl_var_res[s][g*NT+t-1];
+                    }
+                    m->trans_vars[i].gl_var_res[s][g*NT] = 0.0f;
+
                     for (t=0;t<tmax;t++){
                         m->trans_vars[i].gl_var_res[s][g*NT+t]*=parscal*m->dt;
                     }

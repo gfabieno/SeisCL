@@ -77,16 +77,23 @@ constant, just naturally far smaller than pressure's; that bug was in this
 file's "effectively zero" floor, not the engine, and is retracted in
 notes/todo.md's item 0b.
 
-Status as of 2026-09-03: both `back_prop_type=1` VELOCITY cases are exact
-(2D and 3D, all of vp/vs/rho within 0.1% of 1) and are the gold standard
-this file is read against. Open, each with its own item: the PRESSURE
-channel is off in every case and in both back_prop_types by nearly the same
-factor, which localizes it to the shared pressure-residual path rather than
-to either gradient (item 0d -- see test_fd_2d_elastic_bpt1_p's docstring for
-the numbers); SH does not run at all (item 4); and `rho`'s ratio is an
-unreliable diagnostic everywhere for a conditioning reason that is a
-property of the parameterization, not of the engine (item 0j -- fd_check
-prints the amplification factor next to it).
+Status as of 2026-09-04: EVERY `back_prop_type=1` case is now exact -- both
+dimensions, both output channels, all of vp/vs/rho within 0.1% of 1. That is
+the gold standard this file is read against, and it is the first time the
+pressure channel has met it. Getting there took two fixes in the shared
+residual path (notes/todo.md item 0d2): res_scale() was applying the 2D
+trace modulus in 3D, and the pressure adjoint source was injected one sample
+early.
+
+Still open, each with its own item: SH does not run at all (item 4, an
+unrelated engine defect); `rho`'s ratio is an unreliable diagnostic for a
+conditioning reason that is a property of the parameterization, not of the
+engine (item 0j -- fd_check prints the amplification factor next to it); and
+`back_prop_type=2` with PRESSURE output now shows a timing offset of its own
+(item 0d3), previously masked by cancellation with the residual one. Its
+velocity output is bit-identical and its pressure output is still within a
+few percent for the elastic cases, so that is a refinement to chase, not a
+regression.
 
 Run with:
     SEISCL_BIN=/path/to/build python test_gradient_fd.py
@@ -774,21 +781,25 @@ def test_fd_2d_elastic_bpt1_p():
     precision rather than a further bug. tol is 0.03, not the 0.02 used for
     velocity, to reflect that.
 
-    XFAILed 2026-09-03, same cause as test_fd_3d_elastic_bpt1_p (item 0d2).
-
-    UPDATE 2026-09-04: item 0d turned out to be TWO defects, both in the
-    shared residual path, and one is now fixed. (a) res_scale()'s "p" branch
+    UPDATE 2026-09-04: FIXED, both of them. Item 0d turned out to be TWO
+    defects, both in the shared residual path. (a) res_scale()'s "p" branch
     scaled by the 2D trace modulus 2*(M-mu) in 3D as well, where it should
     be N*M-2(N-1)*mu = 3M-4mu -- a pure scale error that hit every 3D
     pressure gradient by 0.8205 and left 2D untouched; fixed, and every 3D
-    pressure ratio moved to ~1. (b) What remains here is a HALF-TIMESTEP
-    offset in the pressure residual injection: refining dt at fixed physics
-    halves the error each time (vs: 0.0622 -> 0.0327 -> 0.0167 at dt =
-    0.8/0.4/0.2 ms) while the velocity channel stays exact at every dt, and
-    pre-shifting the residual by -dt/2 halves it again. Still open; see
-    notes/todo.md item 0d2 for the mechanism and the fix plan. It is a
-    first-order accuracy defect that vanishes as dt -> 0, not a
-    miscalibration.
+    pressure ratio moved to ~1. (b) The pressure adjoint source was
+    injected one FULL SAMPLE early. The forward records a seismogram after
+    the whole update, but vx/vy/vz come from update_v and the normal
+    stresses (hence "p") from update_s, which runs second; the adjoint runs
+    the pair in reverse order, so the stress half belongs one sample later
+    than the velocity half. res_scale() now delays the trans_vars residual
+    by one sample. Found via dt-refinement (the error was exactly
+    proportional to dt) and confirmed by an integer-shift scan whose error
+    changes sign between k=1 and k=2 with a clean zero at k=1; applying the
+    same shift to the VELOCITY residual instead breaks it, so the offset is
+    specific to the stress half. See notes/todo.md item 0d2.
+
+    Both back_prop_type=1 pressure cases are now exact (2D 1.0000/1.0001/
+    1.0002, 3D 1.0000/1.0001/0.9997) and are no longer XFAILed.
 
     Original note follows.
     With the standardized patch (see PATCH_SIDE) vs comes out at 1.062,
@@ -1105,8 +1116,6 @@ TESTS = [
 # the corresponding test_* function for the item number and status. They
 # still run and still print their numbers; they just do not fail the build.
 XFAIL = {
-    "test_fd_2d_elastic_bpt1_p",         # item 0d (pressure channel)
-    "test_fd_3d_elastic_bpt1_p",         # item 0d (pressure channel)
     "test_fd_sh_bpt1",                   # item 4
 }
 
