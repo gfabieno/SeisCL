@@ -141,6 +141,20 @@ def fd_solution(seis, fileout, vp=3500, vs=2000, rho=2000, taup=0, taus=0,
         taup_a = np.zeros(N) + taup
         taus_a = np.zeros(N) + taus
 
+        # freesurf=2 (improved vacuum formulation, Zeng et al. 2012): the
+        # VACUUM IS PART OF THE MODEL, not something the engine adds. The
+        # caller zeroes vp/vs/rho above the interface and those nodes are then
+        # updated like any interior node; the traction-free condition comes out
+        # of the parameter averaging. The engine used to carve this band itself
+        # whenever freesurf==2, which contradicted the method (and threw away
+        # its main advantage -- arbitrary topography is just a different set of
+        # zeros). Here the interface is flat at z = FDOH, which is what the
+        # surf_z offsets in the callers assume.
+        if getattr(seis, "freesurf", 0) == 2:
+            fdoh = seis.FDORDER // 2
+            for a in (vp_a, vs_a, rho_a, taup_a, taus_a):
+                a[:fdoh, ...] = 0
+
         seis.set_forward(seis.src_pos_all[3, :],
                          {"vp": vp_a, "rho": rho_a, "vs": vs_a,
                           "taup": taup_a, "taus": taus_a}, withgrad=False)
@@ -294,9 +308,9 @@ def lamb3D_test(testtype = "inline", vp=3500, vs=2000, rho=2000, taup=0, taus=0,
     
     sx = (nab + nbuf) * dh
     sy = N // 2 * dh
-    # freesurf==2's free surface sits at z=nab+fdoh (the vacuum band's
-    # depth, see set_freesurf2_vacuum in assign_modeling_case.c), not z=0
-    # like freesurf==1 -- offset so source/receivers stay "on the surface"
+    # freesurf==2's free surface sits at the bottom of the vacuum band that
+    # fd_solution() writes into the model (z = FDOH), not at z=0 like
+    # freesurf==1 -- offset so source/receivers stay "on the surface"
     # for either method.
     surf_z = (seis.FDORDER // 2) * dh if freesurf == 2 else 0
     sz = 0 * sx + surf_z
@@ -382,7 +396,7 @@ def garvin2D_test(vp=3500, vs=2000, rho=2000, taup=0, taus=0,N=300,
 
     sx = (nab + nbuf) * dh
     sy = 0
-    # freesurf==2's free surface sits at z=nab+fdoh, not z=0 -- see the
+    # freesurf==2's free surface sits at z=FDOH, not z=0 -- see the
     # matching comment in lamb3D_test.
     surf_z = (seis.FDORDER // 2) * dh if freesurf == 2 else 0
     sz = dh * 10 + surf_z

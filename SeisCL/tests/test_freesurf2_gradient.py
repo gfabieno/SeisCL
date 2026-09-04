@@ -81,6 +81,16 @@ def _make(wd, freesurf, seisout, **overrides):
 def _init_and_true(s, patch):
     init = {"vp": np.full(s.N, VP), "vs": np.full(s.N, VS),
             "rho": np.full(s.N, RHO)}
+    # freesurf=2: the vacuum belongs to the MODEL, not to the engine. The
+    # user zeroes the material above the interface and those nodes are
+    # updated like interior ones; the traction-free condition comes out of
+    # the parameter averaging (Zeng et al. 2012). The engine used to carve
+    # this band itself, which contradicted the method -- see the note where
+    # set_freesurf2_vacuum() used to live in assign_modeling_case.c.
+    if getattr(s, "freesurf", 0) == 2:
+        fdoh = s.FDORDER // 2
+        for a in init.values():
+            a[:fdoh, ...] = 0
     true = {k: v.copy() for k, v in init.items()}
     true["vp"][patch] += 400.0
     true["vs"][patch] += 200.0

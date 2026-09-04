@@ -53,12 +53,6 @@ int Init_model_values(model * m) {
     half * hpar;
 
 
-    /*Zero material parameters in the top boundary band for the improved
-      vacuum free-surface formulation, before any parameter transform or
-      scaling reads them (see set_freesurf2_vacuum in
-      assign_modeling_case.c).*/
-    set_freesurf2_vacuum( (void*) m);
-
     __GUARD m->set_par_scale( (void*) m);
     for (i=0;i<m->npars;i++){
         if (m->pars[i].transform !=NULL){

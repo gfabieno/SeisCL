@@ -681,10 +681,13 @@ class SeisCL:
                 # formulation -- nab does NOT apply to this edge (CPML is
                 # already disabled there for any nonzero freesurf,
                 # regardless of nab); the vacuum band itself is only fdoh
-                # deep (set_freesurf2_vacuum, assign_modeling_case.c) but
-                # still has no real material to invert for (see
-                # notes/vacuum-freesurface-plan.md, Phase 3), so mask that
-                # instead.
+                # deep BY CONVENTION -- with freesurf=2 the vacuum is part
+                # of the model the caller supplies, not something the engine
+                # creates, so this is an assumption about that model rather
+                # than a fact about the engine. It matches what the tests
+                # build. A caller using topography (a non-flat vacuum) should
+                # mask on where the material is actually zero instead; see
+                # notes/vacuum-freesurface-plan.md, Phase 3.
                 ztop = self.FDORDER // 2 if self.freesurf == 2 else nab
                 o[:ztop] = 0
             o[-nab:] = 0
@@ -1124,9 +1127,9 @@ class SeisCL:
             if self.freesurf == 1 and dim == 0:
                 nmin = 0
             elif self.freesurf == 2 and dim == 0:
-                # the vacuum band (set_freesurf2_vacuum,
-                # assign_modeling_case.c) is fdoh deep -- nab does not
-                # apply to this edge once a free surface is active.
+                # the vacuum band is fdoh deep by convention (the caller
+                # supplies it; the engine does not create it) -- nab does
+                # not apply to this edge once a free surface is active.
                 nmin = self.FDORDER // 2
             else:
                 nmin = self.nab

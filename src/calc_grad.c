@@ -1478,7 +1478,8 @@ int unscale_par(model * m) {
     for (i=0;i<num_ele;i++){
         /* A zero buoyancy marks a vacuum cell (rho() in
            assign_modeling_case.c keeps it exactly 0, not 1/0, for the same
-           reason -- see set_freesurf2_vacuum). Guard the inverse here too:
+           reason -- a vacuum cell comes from the user's model). Guard the
+           inverse here too:
            unguarded, 1.0/0.0 gives +inf, which the sqrt(rho[i]*M[i])-style
            multiplications a few lines below turn into inf*0=NaN even though
            the physical density (and M/mu) are genuinely, correctly zero

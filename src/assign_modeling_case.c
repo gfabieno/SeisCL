@@ -284,67 +284,31 @@ void ave_harmonic_mu(float * pin, float * pout, int * N, int ndim, int dir[][3])
     
 }
 
-/*Improved vacuum free-surface formulation (FREESURF==2, Zeng et al., 2012,
-  doi:10.1190/geo2011-0067.1): zero the raw material parameters in the top
-  FDOH-thick band so that band acts as vacuum. NAB (the absorbing-boundary
-  width) is irrelevant here -- it only matters for the *other* edges; CPML
-  is already disabled on the top edge for any nonzero FREESURF regardless
-  of NAB (update_v2D.cl's #if FREESURF==0 guards). FDOH is the right
-  thickness because the interior update kernels never independently update
-  grid rows z<FDOH at all (mirroring FREESURF==1's surface kernel, which
-  operates at exactly gidz=FDOH) -- those rows only ever get *read* as
-  stencil neighbors, so FDOH is both necessary and sufficient, matching
-  where FREESURF==1's own surface sits (z=FDOH), not NAB+FDOH deep into the
-  domain. Must run before any parameter transform (M(), mu(), rho(), and
-  the rip/rjp/rkp/muipkp... averaging transforms below), since those
-  consume gl_par in place and the averaging transforms rely on seeing true
-  zeros to satisfy the traction-free condition (see
-  ave_arithmetic_rho/ave_harmonic_mu).*/
-void set_freesurf2_vacuum(void * mptr){
+/* NOTE: SeisCL does not create a free surface itself.
 
-    model * m = (model *) mptr;
-    if (m->FREESURF!=2){
-        return;
-    }
+   There used to be a set_freesurf2_vacuum() here that zeroed M/mu/rho in the
+   top FDOH-thick band whenever FREESURF==2, i.e. the engine manufactured the
+   vacuum. That is not what the improved vacuum formulation says
+   (Zeng et al. 2012, doi:10.1190/geo2011-0067.1 --
+   papers/pdfs/zeng_2012_geophysics-improved-vacuum-freesurface.pdf): the
+   whole point of the method is that a free surface needs NO special-cased
+   boundary code at all. The user supplies a model with vp=vs=rho=0 wherever
+   the vacuum is, those nodes are then updated exactly like interior nodes,
+   and the traction-free condition falls out of the parameter averaging
+   (ave_arithmetic_rho / ave_harmonic_mu above, the paper's eq. 6-8). Baking a
+   fixed flat band into the engine also threw away the method's main
+   advantage, which is that arbitrary topography and internal discontinuities
+   need no extra handling -- they are just more zeros in the input model.
 
-    int NZ = m->N[0];
-    int NY = (m->NDIM==3) ? m->N[1] : 1;
-    int NX = (m->NDIM==3) ? m->N[2] : m->N[1];
+   FREESURF==2 therefore has exactly one job left, and it needs no code here:
+   disabling the absorbing boundary on the TOP edge so the vacuum is not
+   damped. That is already done at compile time by the `#if FREESURF==0`
+   guards around both the CPML (ABS_TYPE==1) and Cerjan (ABS_TYPE==2)
+   top-edge blocks in update_v*.cl / update_s*.cl.
 
-    int vacuum_thickness = m->FDOH;
-    if (vacuum_thickness>NZ){
-        vacuum_thickness=NZ;
-    }
-
-    int x,y,z,ind;
-    float * par;
-
-    if (m->ND!=21){
-        par = get_par(m->pars, m->npars, "M")->gl_par;
-        for (x=0;x<NX;x++)
-            for (y=0;y<NY;y++)
-                for (z=0;z<vacuum_thickness;z++){
-                    ind = x*NY*NZ+y*NZ+z;
-                    par[ind]=0;
-                }
-    }
-    if (m->ND!=22){
-        par = get_par(m->pars, m->npars, "mu")->gl_par;
-        for (x=0;x<NX;x++)
-            for (y=0;y<NY;y++)
-                for (z=0;z<vacuum_thickness;z++){
-                    ind = x*NY*NZ+y*NZ+z;
-                    par[ind]=0;
-                }
-    }
-    par = get_par(m->pars, m->npars, "rho")->gl_par;
-    for (x=0;x<NX;x++)
-        for (y=0;y<NY;y++)
-            for (z=0;z<vacuum_thickness;z++){
-                ind = x*NY*NZ+y*NZ+z;
-                par[ind]=0;
-            }
-}
+   What DOES belong in the engine, and stays: the handling of zero-material
+   cells wherever they occur -- the averaging above, and the vacuum guards in
+   calc_grad.c. Those work on the user's zeros, whatever shape they take. */
 
 /*Functions to define the transformations requires for each parameter
   and constant */
@@ -1217,39 +1181,32 @@ int assign_modeling_case(model * m){
         __GUARD prog_source(&m->par_avg.mujpkp, "ave_mujpkp",
                             average_params_source, 1, headers);
     }
-    /*v1 constraint for the improved vacuum formulation (FREESURF==2):
-      GRADOUT is not supported yet. Two independent NaN sources were found:
-      (1) the compliance-based adjoint gradient (BACK_PROP_TYPE==1,
-      RESTYPE==0) divides by the raw, zeroed-in-vacuum M/mu at
-      update_adjs2D.cl -- avoided by RESTYPE==1, which has no such division.
-      (2) BACK_PROP_TYPE==1's boundary-saving reconstruction (see
-      header_injectbnd.cl's FDOH+NAB shell) itself produces NaN gradients in
-      an FDOH-wide column at the domain edges (x in [NAB, NAB+FDOH)) as soon
-      as *any* grid cell anywhere in the model has M==mu==rho==0 -- this is
-      NOT specific to FREESURF==2 or to RESTYPE: reproduced with FREESURF==0
-      and manually-zeroed input parameters, so it is a pre-existing SeisCL
-      limitation of BACK_PROP_TYPE==1 (also affecting e.g. an acoustic
-      water layer with mu==0 today) that RESTYPE==1 does not avoid.
-      (3) BACK_PROP_TYPE==2 (frequency domain) reaches calc_grad.c's
-      coefficient routines, which divide by the same raw M/mu/rho the
-      vacuum band zeroes -- also NaN, by a third independent mechanism.
-      Fixing any of these is out of scope here, so the only gradient
-      configuration this version supports with FREESURF==2 is
-      BACK_PROP_TYPE==1 together with RESTYPE==1 (validated end to end:
-      finite, correctly cropped, sensible-magnitude gradM). Everything
-      else is rejected rather than silently returning NaN -- note this
-      must be an allowlist, not a BACK_PROP_TYPE==1-only check, or
-      BACK_PROP_TYPE==2 slips through into (3)
-      (see notes/vacuum-freesurface-plan.md, Phase 3).*/
-    if (m->FREESURF==2 && m->GRADOUT
-        && !(m->BACK_PROP_TYPE==1 && m->restype==1)){
-        state=1;
-        fprintf(stderr,
-                "Error: FREESURF=2 (improved vacuum formulation) with "
-                "GRADOUT requires BACK_PROP_TYPE=1 and restype=1 in this "
-                "version -- see notes/vacuum-freesurface-plan.md, Phase 3 \n");
-    }
-    
+    /* There is deliberately no FREESURF==2 gradient restriction here.
+
+       There used to be one rejecting FREESURF==2 + GRADOUT unless
+       (BACK_PROP_TYPE==1 && restype==1), because the vacuum band the engine
+       itself used to zero produced NaN gradients three different ways. Now
+       that the engine no longer creates that band, keying a restriction on
+       FREESURF==2 tests the wrong thing in both directions: it would reject
+       a perfectly ordinary FREESURF==2 run on a fully solid model (nothing
+       is zero, nothing can divide by zero), while still letting through a
+       FREESURF==0 run on a model the user zeroed, which carries exactly the
+       same risk.
+
+       The real condition is "the model contains zero-material cells", and
+       that is a pre-existing SeisCL property independent of FREESURF -- it
+       already applies to any acoustic/water layer with mu==0. The
+       divide-by-zero sites it used to guard have since been given their own
+       guards where they belong: transf_grad()'s 1/rho (see
+       notes/back-prop-type1-zero-material-nan.md) and calc_grad.c's
+       coefficient routines, which skip cells with rho==0 or
+       (ND*M-2(ND-1)mu)^2==0 rather than evaluating 0/0. What remains
+       unguarded is BACK_PROP_TYPE==1's boundary-reconstruction shell
+       (header_injectbnd.cl), which the old comment itself recorded as NOT
+       specific to FREESURF==2 -- tracked in notes/vacuum-freesurface-plan.md
+       rather than papered over with a flag check that does not correspond to
+       it. */
+
     /*___________________Assign material parameters__________________________ */
     
     m->npars=14;

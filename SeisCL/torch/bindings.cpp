@@ -265,7 +265,7 @@ void crop_boundary(float *grad, const model &m) {
     // FREESURF==0's top band is cropped for the general reason above.
     // FREESURF==1 has its own accurate free-surface gradient handling right
     // up to z=0, no crop needed. FREESURF==2's vacuum band
-    // (set_freesurf2_vacuum, assign_modeling_case.c) is only FDOH deep --
+    // (supplied by the caller in the model, not created by the engine) is only FDOH deep --
     // NAB does not apply to that edge at all once a free surface is active
     // (CPML is already disabled there regardless of NAB) -- but those FDOH
     // rows hold physically meaningless nonzero gradient values (no real
