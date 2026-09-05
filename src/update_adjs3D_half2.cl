@@ -56,6 +56,8 @@ FUNDEF void update_adjs(int offcomm,
                         GLOBARG __gprec *gradM,  GLOBARG __gprec *gradmu,
                         GLOBARG __gprec *HM,     GLOBARG __gprec *Hmu,
                         int res_scale, int src_scale, int par_scale,
+                        GLOBARG float *src, GLOBARG float *src_pos,
+                        int nsrc, int nt,
                         LOCARG2)
 {
 
@@ -537,6 +539,44 @@ FUNDEF void update_adjs(int offcomm,
                                 +lsyyr*(2.0f*lsyy-lsxx-lszz)
                                 +lszzr*(2.0f*lszz-lsxx-lsyy)),
                             2*par_scale-src_scale - res_scale);
+
+    /* Source term of the misfit gradient -- GJI 2017 eq. (26a); see
+     * update_adjs2D.cl for the derivation and update_adjs2D_half2.cl for the
+     * vectorized form. N=3 here, so the mu side carries the same 4/3 =
+     * c2mu/c1M = (N+1)/3 factor the dM term above does. lsxxr/lsyyr/lszzr are
+     * the adjoint INCREMENT at this point, so the adjoint FIELD is re-read
+     * from global memory. */
+    #if GRADOUT==1
+    if (nsrc>0){
+        for (int srci=0; srci<nsrc; srci++){
+            if ((int)src_pos[4+5*srci]==100){
+                int si  = (int)(src_pos[0+5*srci]/DH)+FDOH;
+                int sj  = (int)(src_pos[1+5*srci]/DH)+FDOH;
+                int skf = (int)(src_pos[2+5*srci]/DH)+FDOH;
+                if (si==gidx && sj==gidy && (skf/DIV)==gidz){
+                    #if FP16==0
+                    float samp = DT*src[srci*NT+nt];
+                    #elif defined(__OPENCL_VERSION__)
+                    float samp = ldexp(DT*src[srci*NT+nt], src_scale);
+                    #else
+                    float samp = scalbnf(DT*src[srci*NT+nt], src_scale);
+                    #endif
+                    __gprec psitr = __h22f2(sxxr[indv]) + __h22f2(syyr[indv])
+                                  + __h22f2(szzr[indv]);
+                    __gprec Csrc  = c1*psitr*samp;
+                    #if DIV==2
+                    if ((skf%DIV)==0) Csrc.y = 0.0f; else Csrc.x = 0.0f;
+                    #endif
+                    gradM[indp]  = gradM[indp]
+                        + scalefun(Csrc, 2*par_scale-src_scale-res_scale);
+                    gradmu[indp] = gradmu[indp]
+                        - scalefun(4.0f/3.0f*Csrc,
+                                   2*par_scale-src_scale-res_scale);
+                }
+            }
+        }
+    }
+    #endif
 
     #if HOUT==1
     dM=c1*( lsxx+lsyy+lszz )*( lsxx+lsyy+lszz );

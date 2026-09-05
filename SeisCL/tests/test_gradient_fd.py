@@ -1181,10 +1181,13 @@ def _srccell_model(wd, ND=2, **over):
     return s, zs
 
 
-def _fd_at_source_cell(ND, tol=0.01):
+def _fd_at_source_cell(ND, tol=0.01, bpt=1, fp16=0, extra=None):
     vp, vs, rho = 2000.0, 1200.0, 2000.0
-    wd = workdir("srccell_%dd" % ND)
-    mk = lambda **kw: _srccell_model(wd, ND=ND, **kw)
+    wd = workdir("srccell_%dd_b%d_f%d" % (ND, bpt, fp16))
+    base = dict(extra or {})
+    if fp16:
+        base["FP16"] = fp16
+    mk = lambda **kw: _srccell_model(wd, ND=ND, **dict(base, **kw))
     s0, zs = mk()
     start = {"vp": np.full(s0.N, vp), "vs": np.full(s0.N, vs),
              "rho": np.full(s0.N, rho)}
@@ -1197,6 +1200,7 @@ def _fd_at_source_cell(ND, tol=0.01):
         true["vp"][mid[0] + 8:mid[0] + 14, mid[1] - 3:mid[1] + 3,
                    mid[2] - 3:mid[2] + 3] += 300.0
         cell = (zs, mid[1], mid[2])
+    g0NT, g0DT, g0F0 = int(s0.NT), float(s0.dt), float(s0.f0)
     s0.set_forward(s0.src_pos_all[3, :], true, withgrad=False)
     s0.execute()
     dobs = [np.asarray(a, np.float64) for a in s0.read_data()]
@@ -1210,7 +1214,15 @@ def _fd_at_source_cell(ND, tol=0.01):
         t.execute()
         return t.misfit(t.read_data(), dobs=dobs)[0]
 
-    g, _ = mk(gradout=1, back_prop_type=1)
+    gcfg = {}
+    if bpt == 2:
+        # Build the bin set from THIS model's NT/dt, not the module-level ones:
+        # gradfreqs are Hz, and a set built for a different NT*dt lands on
+        # non-integer DFT bins, where the basis is not orthogonal and the
+        # gradient is garbage. (Cost real debugging time.)
+        dfm = 1.0 / (int(g0NT) * float(g0DT))
+        gcfg["gradfreqs"] = dfm * np.arange(4, int(5.0 * float(g0F0) / dfm) + 1)
+    g, _ = mk(gradout=1, back_prop_type=bpt, **gcfg)
     g.file_din = din
     g.set_forward(g.src_pos_all[3, :], start, withgrad=True)
     g.execute()
@@ -1218,7 +1230,7 @@ def _fd_at_source_cell(ND, tol=0.01):
              for nm, a in zip(g.params, g.read_grad())}
 
     print("=== %dD elastic, gradient AT THE SOURCE CELL %s "
-          "(back_prop_type=1) ===" % (ND, cell))
+          "(back_prop_type=%d, FP16=%d) ===" % (ND, cell, bpt, fp16))
     print("%-6s %14s %14s %10s" % ("param", "FD", "<g,dm>", "ratio"))
     bad = []
     for par in ("vp", "rho"):
@@ -1238,8 +1250,8 @@ def _fd_at_source_cell(ND, tol=0.01):
     if bad:
         raise AssertionError(
             "source-cell gradient off by more than %.0f%%: %s. This is the "
-            "eq. (26a) source term in update_adjs%dD.cl -- see "
-            "notes/todo.md." % (100 * tol, ", ".join(bad), ND))
+            "eq. (26a) source term -- see notes/todo.md."
+            % (100 * tol, ", ".join(bad)))
 
 
 def test_fd_2d_srccell_bpt1():
@@ -1254,6 +1266,30 @@ def test_fd_2d_srccell_bpt1():
 def test_fd_3d_srccell_bpt1():
     """3D elastic back_prop_type=1, perturbing the SOURCE CELL itself."""
     _fd_at_source_cell(3)
+
+
+def test_fd_2d_srccell_bpt1_fp16():
+    """Same, at FP16=1 -- a SEPARATE kernel.
+
+    assign_modeling_case.c routes FP16==0 to update_adjs2D.cl and *everything
+    else* to update_adjs2D_half2.cl, so the FP16=0 cases above do not cover
+    the half2 path at all. There DIV=2 z-cells share one work item and the
+    correction has to land in the source's lane only.
+    """
+    _fd_at_source_cell(2, fp16=1)
+
+
+def test_fd_2d_srccell_bpt2():
+    """2D elastic back_prop_type=2 (DFT), perturbing the SOURCE CELL.
+
+    Looser tolerance than the bpt1 cases on purpose: back_prop_type=2 is the
+    uncalibrated path (see the module docstring and the other bpt2 cases,
+    which only require eps-independence), and its INTERIOR cells sit a few
+    percent off FD in this geometry too. What this guards is that the source
+    cell is no worse than the interior -- without the eq. (26a) term and the
+    savefreqs source restoration it is off by hundreds of percent.
+    """
+    _fd_at_source_cell(2, tol=0.10, bpt=2)
 
 
 TESTS = [
@@ -1273,6 +1309,8 @@ TESTS = [
     test_fd_sh_bpt1,
     test_fd_2d_srccell_bpt1,
     test_fd_3d_srccell_bpt1,
+    test_fd_2d_srccell_bpt1_fp16,
+    test_fd_2d_srccell_bpt2,
 ]
 
 # Known-open failures, each tracked in notes/todo.md -- see the docstring of

@@ -79,6 +79,22 @@
     #define PARCONV(x) (x)
 #endif
 
+#ifdef __OPENCL_VERSION__
+    #define COSPIF(x) cospi(x)
+    #define SINPIF(x) sinpi(x)
+#else
+    #define COSPIF(x) cospif(x)
+    #define SINPIF(x) sinpif(x)
+#endif
+
+/* itreal(a,b) = Re(conj(a)*i*b), the form <sigma~, dt sigma> needs.  The
+ * eq. (26a) source term <sigma~, s> has no time derivative and so needs the
+ * plain Re(conj(a)*b). */
+LFUNDEF double rreal(float2 a, float2 b)
+{
+    return (double)a.x*(double)b.x + (double)a.y*(double)b.y;
+}
+
 LFUNDEF double itreal(float2 a, float2 b)
 {
     return (double)a.y*(double)b.x - (double)a.x*(double)b.y;
@@ -129,6 +145,9 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
                           GLOBARG float2 * fsxy,
                           GLOBARG float2 * fsxz,
                           GLOBARG float2 * fsyz,
+                          GLOBARG float * src,
+                          GLOBARG float * src_pos,
+                          int nsrc,
                           int src_scale,
                           int res_scale,
                           int par_scale)
@@ -190,6 +209,17 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         }
     }
 
+    /* Which source, if any, sits in this cell (eq. 26a source term). */
+    int ssrc = -1;
+    for (int q=0; q<nsrc; q++){
+        if ((int)src_pos[4+5*q]==100
+            && (int)(src_pos[0+5*q]/DH)==i
+            && (int)(src_pos[1+5*q]/DH)==j
+            && (int)(src_pos[2+5*q]/DH)==k){
+            ssrc = q; break;
+        }
+    }
+
     double gM=0.0, gmu=0.0;
     double gmuipjp=0.0, gmuipkp=0.0, gmujpkp=0.0;
     double grip=0.0, grjp=0.0, grkp=0.0;
@@ -202,6 +232,25 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         double w = 2.0*3.14159265358979323846*dftdf*(double)gradfreqsn[f];
         int id = indf(f,i,j,k);
 
+        /* S(w): transform of the injected source in savefreqs' convention;
+         * see grad_dft2D.cl for the derivation and the two distinct weights. */
+        float2 S; S.x = 0.0f; S.y = 0.0f;
+        if (ssrc>=0){
+            for (int t=0; t<NT; t++){
+                float ang = 2.0f*gradfreqsn[f]*(float)(t-TMIN)
+                            /((float)NTNYQ*(float)DTNYQ);
+                #if FP16==0
+                float amp = DT*src[ssrc*NT+t];
+                #elif defined(__OPENCL_VERSION__)
+                float amp = ldexp(DT*src[ssrc*NT+t], src_scale);
+                #else
+                float amp = scalbnf(DT*src[ssrc*NT+t], src_scale);
+                #endif
+                S.x +=  amp*COSPIF(ang);
+                S.y += -amp*SINPIF(ang);
+            }
+        }
+
         float2 Fxx = fsxx_f[id], Fyy = fsyy_f[id], Fzz = fszz_f[id];
         float2 Fxy = fsxy_f[id], Fxz = fsxz_f[id], Fyz = fsyz_f[id];
         float2 Axx = fsxx[id],   Ayy = fsyy[id],   Azz = fszz[id];
@@ -209,6 +258,15 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
 
         float2 Fpp, App;
         Fpp.x = Fxx.x + Fyy.x + Fzz.x;  Fpp.y = Fxx.y + Fyy.y + Fzz.y;
+        /* savefreqs runs BEFORE the source injection (time_stepping.c), so the
+         * stored forward spectrum lacks this step's source while
+         * BACK_PROP_TYPE==1 correlates the field after it. Restore it with
+         * savefreqs' own per-sample field weight DT*DTNYQ. Only the trace is
+         * affected: an isotropic source adds equally to sxx,syy,szz, so the
+         * deviatoric combinations and the shear planes are untouched, which is
+         * why Fxx/Fyy/Fzz themselves are left alone. */
+        Fpp.x += (float)((double)DT*(double)DTNYQ)*S.x;
+        Fpp.y += (float)((double)DT*(double)DTNYQ)*S.y;
         App.x = Axx.x + Ayy.x + Azz.x;  App.y = Axx.y + Ayy.y + Azz.y;
 
         /* The deviatoric combination of the published P4 (eq. A2d):
@@ -227,7 +285,8 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         Fzz_mxxyy.x = (float)(ndm1*Fzz.x) - Fxx.x - Fyy.x;
         Fzz_mxxyy.y = (float)(ndm1*Fzz.y) - Fxx.y - Fyy.y;
 
-        double d0 = w*itreal(App, Fpp)/dftnorm;
+        /* P1 with the eq. (26a) bracket intact: <sigma~, dt sigma - s>. */
+        double d0 = (w*itreal(App, Fpp) - rreal(App, S))/dftnorm;
         /* Kept apart per shear plane -- sxy/sxz/syz are each driven by a
          * different staggered mu, so they cannot be summed before the
          * coefficient is applied. */

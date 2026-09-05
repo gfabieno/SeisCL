@@ -45,7 +45,9 @@ FUNDEF void update_adjs(int offcomm,
                         GLOBARG __gprec *gradmu,  GLOBARG __gprec *gradmuipkp,
                         GLOBARG __gprec *Hrho,
                         GLOBARG __gprec *HM,      GLOBARG  __gprec *Hmu,
-                        int res_scale, int src_scale, int par_scale, LOCARG2)
+                        int res_scale, int src_scale, int par_scale,
+                        GLOBARG float *src, GLOBARG float *src_pos,
+                        int nsrc, int nt, LOCARG2)
 {
 
     //Local memory
@@ -369,6 +371,49 @@ FUNDEF void update_adjs(int offcomm,
                         + scalefun(dM
                                    -c5*(((lsxx-lszz)*(lsxxr-lszzr))),
                                    2*par_scale-src_scale - res_scale);
+
+        /* Source term of the misfit gradient -- GJI 2017 eq. (26a). The
+         * accumulation above is the (A phi' + B phi) side of eq. (6) only:
+         * Appendix A writes P1 against dt(sigma), dropping the bracket's
+         * "- s", which leaves a spurious <psi, T dLambda^-1/dm T s> in cells
+         * holding a source. See update_adjs2D.cl for the derivation; this is
+         * the same term, vectorized.
+         *
+         * lsxxr/lszzr have been reassigned above to the adjoint INCREMENT, so
+         * the adjoint FIELD (which <sigma~,s> needs -- that term is never
+         * integrated by parts) is re-read from global memory, where it was
+         * written a few lines earlier.
+         *
+         * DIV z-cells share one work item, but a source sits in exactly one
+         * of them, so the correction is written into that lane only. */
+        #if GRADOUT==1
+        if (nsrc>0){
+            for (int srci=0; srci<nsrc; srci++){
+                if ((int)src_pos[4+5*srci]==100){
+                    int si  = (int)(src_pos[0+5*srci]/DH)+FDOH;
+                    int skf = (int)(src_pos[2+5*srci]/DH)+FDOH;
+                    if (si==gidx && (skf/DIV)==gidz){
+                        #if FP16==0
+                        float samp = DT*src[srci*NT+nt];
+                        #elif defined(__OPENCL_VERSION__)
+                        float samp = ldexp(DT*src[srci*NT+nt], src_scale);
+                        #else
+                        float samp = scalbnf(DT*src[srci*NT+nt], src_scale);
+                        #endif
+                        __gprec psitr = __h22f2(sxxr[indv]) + __h22f2(szzr[indv]);
+                        __gprec Csrc  = c1*psitr*samp;
+                        #if DIV==2
+                        if ((skf%DIV)==0) Csrc.y = 0.0f; else Csrc.x = 0.0f;
+                        #endif
+                        gradM[indp]  = gradM[indp]
+                            + scalefun(Csrc, 2*par_scale-src_scale-res_scale);
+                        gradmu[indp] = gradmu[indp]
+                            - scalefun(Csrc, 2*par_scale-src_scale-res_scale);
+                    }
+                }
+            }
+        }
+        #endif
 
 
         #if HOUT==1

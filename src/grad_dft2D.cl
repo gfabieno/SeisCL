@@ -64,9 +64,26 @@
 #define NPAD (NXS*NZS)
 #define indf(f,i,k) ((f)*NPAD + ((i)+FDOH)*NZS + ((k)+FDOH))
 
+#ifdef __OPENCL_VERSION__
+    #define COSPIF(x) cospi(x)
+    #define SINPIF(x) sinpi(x)
+#else
+    #define COSPIF(x) cospif(x)
+    #define SINPIF(x) sinpif(x)
+#endif
+
 LFUNDEF double itreal(float2 a, float2 b)
 {
     return (double)a.y*(double)b.x - (double)a.x*(double)b.y;
+}
+
+/* itreal(a,b) is Re(conj(a)*i*b), which is what the <sigma~, dt sigma>
+ * correlations need (dt <-> i*w).  The source term of eq. (26a) is
+ * <sigma~, s> with no time derivative, so it needs the plain
+ * Re(conj(a)*b) instead -- the same product without the i. */
+LFUNDEF double rreal(float2 a, float2 b)
+{
+    return (double)a.x*(double)b.x + (double)a.y*(double)b.y;
 }
 
 /* Parameter buffers are stored as half when FP16>1 (Init_OpenCL.c halves
@@ -118,6 +135,9 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
                           GLOBARG float2 * fsxx,
                           GLOBARG float2 * fszz,
                           GLOBARG float2 * fsxz,
+                          GLOBARG float * src,
+                          GLOBARG float * src_pos,
+                          int nsrc,
                           int src_scale,
                           int res_scale,
                           int par_scale)
@@ -219,6 +239,28 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
      * and rip/rkp for the two velocity components. The averaging transpose
      * (average_grad_transpose) folds the staggered ones back onto the
      * cell-centred mu and rho afterwards. */
+    /* Source term of the misfit gradient -- GJI 2017 eq. (26a), thesis
+     * eq. (3.51). The correlations below are the (A phi' + B phi) side of
+     * eq. (6); Appendix A writes them against dt(sigma), i.e. with the "- s"
+     * of the bracket dropped, so the gradient carries a spurious
+     * <psi, T dLambda^-1/dm T s> in cells that contain a source. See
+     * update_adjs2D.cl for the full derivation of the time-domain twin of
+     * this term, and notes/todo.md.
+     *
+     * Only P1 (d0) is affected: an isotropic source injects amp/n2ave into
+     * each normal stress, so P4's deviatoric combination
+     * (N-1)s_ii - sum_{j!=i} s_jj vanishes, and it touches neither the shear
+     * correlation (d2) nor the velocity one (d8). */
+    int ssrc = -1;
+    for (int q=0; q<nsrc; q++){
+        if ((int)src_pos[4+5*q]==100
+            && (int)(src_pos[0+5*q]/DH)==i
+            && (int)(src_pos[2+5*q]/DH)==k){
+            ssrc = q;
+            break;
+        }
+    }
+
     double GM=0.0, Gmu=0.0, Gmuipkp=0.0, Grip=0.0, Grkp=0.0;
 #if HOUT==1
     double HMi=0.0, Hmui=0.0, Hmuipkpi=0.0, Hripi=0.0, Hrkpi=0.0;
@@ -229,16 +271,63 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         double w = 2.0*3.14159265358979323846*dftdf*(double)gradfreqsn[f];
         int id = indf(f,i,k);
 
+        /* S(w): the transform of the injected source, in savefreqs'
+         * convention (kernel_savefreqs) -- weight DT*DTNYQ, phase
+         * ang = 2*gradfreqsn[f]*nt/NTNYQ with nt the SAMPLED index
+         * (t-TMIN)/DTNYQ. The source acts at every full-rate step, so the sum
+         * runs over all NT of them (its own weight DT is already inside
+         * `amp`); sampling it every DTNYQ would alias. Built from the same
+         * expression kernel_sources() injects, so it carries src_scale
+         * exactly as Fpp does and the shared sc_ss removes both. */
+        float2 S; S.x = 0.0f; S.y = 0.0f;
+        if (ssrc>=0){
+            for (int t=0; t<NT; t++){
+                float ang = 2.0f*gradfreqsn[f]*(float)(t-TMIN)
+                            /((float)NTNYQ*(float)DTNYQ);
+                #if FP16==0
+                float amp = DT*src[ssrc*NT+t];
+                #elif defined(__OPENCL_VERSION__)
+                float amp = ldexp(DT*src[ssrc*NT+t], src_scale);
+                #else
+                float amp = scalbnf(DT*src[ssrc*NT+t], src_scale);
+                #endif
+                S.x +=  amp*COSPIF(ang);
+                S.y += -amp*SINPIF(ang);
+            }
+        }
+
         float2 Fxx = fsxx_f[id], Fzz = fszz_f[id], Fxz = fsxz_f[id];
         float2 Axx = fsxx[id],   Azz = fszz[id],   Axz = fsxz[id];
 
         float2 Fpp, App, Fmm, Fmz;
         Fpp.x = Fxx.x + Fzz.x;  Fpp.y = Fxx.y + Fzz.y;   /* fwd  sxx+szz */
+        /* savefreqs runs BEFORE the source injection in the forward loop
+         * (time_stepping.c: savefreqs -> sources -> update_grid), so the
+         * stored forward spectrum is the field *before* this step's source
+         * was added, while BACK_PROP_TYPE==1 correlates the field *after*
+         * it. Restore the injected source here, otherwise the trace
+         * correlation is missing the source's own contribution in source
+         * cells -- a defect independent of, and on top of, the eq. (26a)
+         * term below. Only the trace is affected: an isotropic source adds
+         * the same amount to sxx and szz, so Fmm/Fmz (differences) and Fxz
+         * are untouched, which is why S is added to Fpp alone. */
+        /* Two different weights, deliberately. S is the transform of the
+         * source as a RATE, sum_t amp(t) exp(-i.theta) = integral s e^-iwt dt,
+         * which is what the eq. (26a) term <sigma~,s> needs. Adding it to a
+         * FIELD spectrum instead needs savefreqs' own per-sample weight
+         * DT*DTNYQ, because Fpp accumulates sigma(t)*DT*DTNYQ per sample and
+         * the per-step field increment the source produces is amp(t). */
+        Fpp.x += (float)((double)DT*(double)DTNYQ)*S.x;
+        Fpp.y += (float)((double)DT*(double)DTNYQ)*S.y;
         App.x = Axx.x + Azz.x;  App.y = Axx.y + Azz.y;   /* adj  sxx+szz */
         Fmm.x = Fxx.x - Fzz.x;  Fmm.y = Fxx.y - Fzz.y;   /* fwd  sxx-szz */
         Fmz.x = Fzz.x - Fxx.x;  Fmz.y = Fzz.y - Fxx.y;   /* fwd  szz-sxx */
 
-        double d0 = sc_ss*w*itreal(App, Fpp)/dftnorm;
+        /* d0 is P1 = <sigma~_kk, dt sigma_kk - s_kk> (eq. A2a with the
+         * bracket of eq. 26a intact): the w*itreal term is <sigma~, dt sigma>
+         * (dt <-> i*w) on the source-restored forward field, and rreal is the
+         * eq. (26a) source term, which carries no time derivative. */
+        double d0 = sc_ss*(w*itreal(App, Fpp) - rreal(App, S))/dftnorm;
         double d2 = sc_ss*w*itreal(Axz, Fxz)/dftnorm;
         double d3 = d0;
         double d4 = sc_ss*w*(itreal(Axx, Fmm) + itreal(Azz, Fmz))/dftnorm;

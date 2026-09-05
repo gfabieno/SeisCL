@@ -357,7 +357,7 @@ char *get_build_options(device *dev,
             "-D VARSOUT=%d -D RESOUT=%d  -D RMSOUT=%d -D MOVOUT=%d "
             "-D GRADOUT=%d -D HOUT=%d -D GRADSRCOUT=%d -D DIRPROP=%d "
             "-D RESTYPE=%d -D FP16=%d -D PARSCALE=%d -D FREQ0=%9.9ff "
-            "-D PARNZ=%d -D PARNY=%d -D PARNX=%d",
+            "-D PARNZ=%d -D PARNY=%d -D PARNX=%d -D TMIN=%d",
             (*m).NDIM, (*dev).OFFSET, (*m).FDOH, (*m).dt/(*m).dh, (*m).dh,
             (*m).dt, (*m).dt/2.0, (*m).NT, (*m).NAB, (*dev).NBND,
             (*dev).LOCAL_OFF, (*m).L, (*dev).DEVID, (*m).NUM_DEVICES,
@@ -367,7 +367,7 @@ char *get_build_options(device *dev,
             (*m).VARSOUT, (*m).RESOUT, (*m).RMSOUT, (*m).MOVOUT,
             (*m).GRADOUT, (*m).HOUT, (*m).GRADSRCOUT, DIRPROP, (*m).restype,
             (*m).FP16, (*m).par_scale, (*m).f0,
-            (*dev).N[0], parny, parnx) ;
+            (*dev).N[0], parny, parnx, (*m).tmin) ;
 
 
     strcat(build_options,src2);
@@ -622,6 +622,12 @@ int get_build_options(device *dev,
     sprintf(build_options[*n-1],"-D DIRPROP=%d",DIRPROP);
     *n+=1;
     sprintf(build_options[*n-1],"-D RESTYPE=%d",(*m).restype);
+    *n+=1;
+    /* First time step of the gradient window. savefreqs phases its DFT
+       against the SAMPLED index (t-tmin)/DTNYQ, so any kernel that has to
+       build a spectrum of its own on the same convention -- calc_grad_dft's
+       source term, eq. (26a) -- needs tmin. */
+    sprintf(build_options[*n-1],"-D TMIN=%d",(*m).tmin);
     // Raw (unpadded) per-dimension grid size, matching the material
     // parameter arrays' actual layout (num_ele = prod(N), no FDORDER) --
     // distinct from the NZ/NX/etc. macros above, which are sized for the
@@ -796,8 +802,11 @@ int prog_create(model * m,
     // future -D option addition -- get_build_options has no bounds check
     // on *n, so overflowing this silently corrupts heap memory.
     char ** build_options=NULL;
-    GMALLOC(build_options, sizeof(char*)*64);
-    for (i=0;i<64;i++){
+    /* 64 was already close to the ~50 options get_build_options() emits (more
+       in 3D, which adds per-dimension ones), and the comment above says an
+       overflow corrupts the heap silently. Widened when TMIN was added. */
+    GMALLOC(build_options, sizeof(char*)*96);
+    for (i=0;i<96;i++){
         GMALLOC(build_options[i], sizeof(char)*500);
     }
     state= get_build_options(dev,
