@@ -563,9 +563,32 @@ int kernel_sources(model * m,
     }
     
     
+    /* Each variable is stored in its OWN scaled units at FP16>0:
+     * set_par_scale() gives vx/vy/vz a scaler equal to par_scale and leaves the
+     * stresses at 0, and kernel_varout() recovers a stored value as
+     * ldexp(var, -src_scale + var->scaler) -- i.e.
+     *     stored = physical * 2^(src_scale - scaler).
+     * `amp` above carries 2^src_scale only, which is right for a stress
+     * (scaler==0) but too large by 2^scaler for a velocity. Injecting it raw
+     * therefore left FORCE sources mis-scaled by 2^par_scale at FP16>0 (~2^33
+     * for a typical model) while pressure sources were fine -- the gradient
+     * and the seismograms both came back on the wrong scale, and no amount of
+     * unscaling downstream could recover it because the forward run itself had
+     * the wrong source. Undo the variable's scaler here. */
     for (i=0;i<dev->nvars;i++){
         
         if (tosources[i]){
+            char ampstr[64];
+            if (dev->FP16>0 && vars[i].scaler!=0){
+                #ifdef __SEISCL__
+                sprintf(ampstr, "ldexp(amp, %d)", -vars[i].scaler);
+                #else
+                sprintf(ampstr, "scalbnf(amp, %d)", -vars[i].scaler);
+                #endif
+            }
+            else{
+                sprintf(ampstr, "amp");
+            }
             if (ntypes>1){
                 sprintf(temp2,"    if (source_type==%d)\n", src_codes[i]);
                 strcat(temp, temp2);
@@ -575,13 +598,17 @@ int kernel_sources(model * m,
             strcat(temp, vars[i].name);
             strcat(temp, posstr);
             if (dev->FP16<=1){
-                strcat(temp, "+=amp;\n");
+                strcat(temp, "+=");
+                strcat(temp, ampstr);
+                strcat(temp, ";\n");
             }
             else{
                 strcat(temp, "=__float2half(__half2float(");
                 strcat(temp, vars[i].name);
                 strcat(temp, posstr);
-                strcat(temp, ")+amp);\n");
+                strcat(temp, ")+");
+                strcat(temp, ampstr);
+                strcat(temp, ");\n");
             }
 
             

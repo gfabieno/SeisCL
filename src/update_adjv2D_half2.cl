@@ -369,12 +369,25 @@ FUNDEF void update_adjv(int offcomm,
                 int si  = (int)(src_pos[0+5*srci]/DH)+FDOH;
                 int skf = (int)(src_pos[2+5*srci]/DH)+FDOH;
                 if (si==gidx && (skf/DIV)==gidz){
+                    /* The VELOCITY variables are stored with their own
+                     * scaler (= par_scale; set_par_scale()), so the injected
+                     * amplitude kernel_sources() adds is
+                     * ldexp(DT*src, src_scale - par_scale), not just
+                     * src_scale. <v~,s> pairs the adjoint velocity FIELD --
+                     * which carries 2^(res_scale-par_scale) -- against that,
+                     * and the scalefun() below removes
+                     * 2*par_scale-src_scale-res_scale from the product, so
+                     * samp must carry the par_scale too. Using plain
+                     * src_scale here made the term 2^par_scale too small
+                     * (~2^-33), i.e. silently absent, at FP16>0. */
                     #if FP16==0
                     float samp = DT*src[srci*NT+nt];
                     #elif defined(__OPENCL_VERSION__)
-                    float samp = ldexp(DT*src[srci*NT+nt], src_scale);
+                    float samp = ldexp(DT*src[srci*NT+nt],
+                                       src_scale - par_scale);
                     #else
-                    float samp = scalbnf(DT*src[srci*NT+nt], src_scale);
+                    float samp = scalbnf(DT*src[srci*NT+nt],
+                                         src_scale - par_scale);
                     #endif
                     __gprec psi = (st==0) ? __h22f2(vxr[indv])
                                           : __h22f2(vzr[indv]);

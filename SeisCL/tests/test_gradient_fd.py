@@ -1301,12 +1301,13 @@ def test_fd_3d_srccell_force():
     _fd_at_source_cell(3, srctype=2.0)
 
 
-def _srccell_force_grad(fp16):
-    """The gradient (not a ratio) at a force source cell, for FP16 comparison."""
+def _srccell_grad(fp16, srctype):
+    """The raw gradient at a source cell -- for comparing PHYSICAL units."""
     vp, vs, rho = 2000.0, 1200.0, 2000.0
-    wd = workdir("srccell_force_g_f%d" % fp16)
+    wd = workdir("srccell_units_f%d_s%d" % (fp16, int(srctype)))
     base = {} if fp16 == 0 else {"FP16": fp16}
-    mk = lambda **k: _srccell_model(wd, ND=2, srctype=2.0, **dict(base, **k))
+    mk = lambda **k: _srccell_model(wd, ND=2, srctype=srctype,
+                                    **dict(base, **k))
     s0, zs = mk()
     nz, nx = int(s0.N[0]), int(s0.N[1])
     start = {"vp": np.full(s0.N, vp), "vs": np.full(s0.N, vs),
@@ -1322,37 +1323,59 @@ def _srccell_force_grad(fp16):
     g.set_forward(g.src_pos_all[3, :], start, withgrad=True)
     g.execute()
     G = {nm: np.asarray(a, np.float64) for nm, a in zip(g.params, g.read_grad())}
-    return {p_: float(G[p_][zs, nx // 2]) for p_ in ("vp", "rho")}
+    return (float(np.abs(dobs[0]).max()),
+            {p_: float(G[p_][zs, nx // 2]) for p_ in ("vp", "rho")})
 
 
-def test_fd_2d_srccell_force_fp16():
-    """Force source at FP16=1, and FP16=2 checked a different way.
+def test_fd_fp16_physical_units():
+    """FP16>0 must return data and gradient in the SAME PHYSICAL UNITS as
+    FP16=0 -- not merely proportional to them.
 
-    FP16>0 uses update_adjv2D_half2.cl, a separate kernel from the FP16=0 one,
-    where DIV=2 z-cells share a work item and the correction has to land in the
-    source's lane only.
+    Every variable is stored in its own scaled units at FP16>0: set_par_scale()
+    gives vx/vy/vz a scaler equal to par_scale and leaves the stresses at 0, and
+    kernel_varout() recovers a stored value as
+    ldexp(var, -src_scale + var->scaler), i.e. stored = physical *
+    2^(src_scale - scaler). kernel_sources() used to inject an amplitude
+    carrying 2^src_scale alone into BOTH, which is right for a stress and too
+    large by 2^scaler for a velocity -- so FORCE sources came out mis-scaled by
+    2^par_scale (~2^33) at FP16>0 while pressure sources were fine. Nothing
+    downstream could undo it, because the forward run itself had the wrong
+    source.
 
-    FP16=1 is checked against FD as usual. FP16=2 is NOT: half precision
-    changes the forward misfit itself, so its FD is not the derivative of what
-    the gradient computes -- it comes out with the wrong magnitude and even the
-    wrong sign here, while the gradient is fine. So FP16=2's GRADIENT is
-    compared against FP16=1's instead, which is the meaningful check.
+    This checks the raw values, since a ratio-based test cannot see a uniform
+    scale error at all.
+
+    FP16=2 is checked for a pressure source only: a force source at FP16=2
+    NaNs for ANY amplitude (tested down to SRC_SCALE=1), because the correctly
+    scaled velocity field does not fit in half. That is a limitation of
+    set_par_scale()'s single Mmax-derived scaler, not of the source term -- see
+    notes/todo.md. It looked stable before this fix only because the source was
+    then 2^33 too small, i.e. effectively absent.
     """
-    _fd_at_source_cell(2, tol=0.06, srctype=2.0, fp16=1)
-    g1 = _srccell_force_grad(1)
-    g2 = _srccell_force_grad(2)
-    print("=== force source cell, FP16=2 gradient vs FP16=1 gradient ===")
     bad = []
-    for par in ("vp", "rho"):
-        rel = g2[par] / g1[par] if g1[par] else float("nan")
-        print("  %-4s FP16=1 %13.6e   FP16=2 %13.6e   ratio %8.4f"
-              % (par, g1[par], g2[par], rel))
-        if not abs(rel - 1.0) <= 0.03:
-            bad.append("%s %.4f" % (par, rel))
+    for label, st, levels in (("pressure", 100.0, (1, 2)),
+                              ("force Fz", 2.0, (1,))):
+        d0, g0 = _srccell_grad(0, st)
+        for fp in levels:
+            d1, g1 = _srccell_grad(fp, st)
+            tol = 0.002 if fp == 1 else 0.02
+            print("=== %s source, FP16=%d vs FP16=0 (physical units) ==="
+                  % (label, fp))
+            print("  |d|max  %13.5e vs %13.5e   ratio %8.5f"
+                  % (d1, d0, d1 / d0))
+            if not abs(d1 / d0 - 1.0) <= tol:
+                bad.append("%s FP16=%d data %.5f" % (label, fp, d1 / d0))
+            for par in ("vp", "rho"):
+                r = g1[par] / g0[par] if g0[par] else float("nan")
+                print("  grad %-4s %13.5e vs %13.5e   ratio %8.5f"
+                      % (par, g1[par], g0[par], r))
+                if not abs(r - 1.0) <= tol:
+                    bad.append("%s FP16=%d %s %.5f" % (label, fp, par, r))
     if bad:
         raise AssertionError(
-            "FP16=2 force-source gradient disagrees with FP16=1: %s -- see "
-            "update_adjv2D_half2.cl and notes/todo.md." % ", ".join(bad))
+            "FP16>0 is not in the same physical units as FP16=0: %s. See "
+            "kernel_sources() in automatic_kernels.c and the source term in "
+            "update_adjv*_half2.cl -- notes/todo.md." % ", ".join(bad))
 
 
 def test_fd_2d_srccell_force_bpt2():
@@ -1536,7 +1559,7 @@ TESTS = [
     test_fd_3d_srccell_force,
     test_fd_2d_srccell_visco_bpt2,
     test_fd_2d_srccell_force_bpt2,
-    test_fd_2d_srccell_force_fp16,
+    test_fd_fp16_physical_units,
 ]
 
 # Known-open failures, each tracked in notes/todo.md -- see the docstring of
