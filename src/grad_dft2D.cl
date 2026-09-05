@@ -250,13 +250,24 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
      * Only P1 (d0) is affected: an isotropic source injects amp/n2ave into
      * each normal stress, so P4's deviatoric combination
      * (N-1)s_ii - sum_{j!=i} s_jj vanishes, and it touches neither the shear
-     * correlation (d2) nor the velocity one (d8). */
-    int ssrc = -1;
+     * correlation (d2) nor the velocity one (d8).
+     *
+     * A FORCE source is the mirror case: it enters the velocity block only, so
+     * it corrects d8x/d8z (and hence gradrip/gradrkp -- the STAGGERED buoyancy
+     * slots, which is what lets average_grad_transpose() apply the averaging
+     * Jacobian) and leaves every stress correlation alone. The two types are
+     * mutually exclusive, hence the single sstype below.
+     *
+     * Types index kernel_sources()'s src_names[] = {vx,vy,vz,p,...}: 0 = force
+     * in x, 2 = force in z, 100 = the "p" trans_var. */
+    int ssrc = -1, sstype = -1;
     for (int q=0; q<nsrc; q++){
-        if ((int)src_pos[4+5*q]==100
+        int st = (int)src_pos[4+5*q];
+        if ((st==100 || st==0 || st==2)
             && (int)(src_pos[0+5*q]/DH)==i
             && (int)(src_pos[2+5*q]/DH)==k){
             ssrc = q;
+            sstype = st;
             break;
         }
     }
@@ -317,8 +328,10 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
          * FIELD spectrum instead needs savefreqs' own per-sample weight
          * DT*DTNYQ, because Fpp accumulates sigma(t)*DT*DTNYQ per sample and
          * the per-step field increment the source produces is amp(t). */
-        Fpp.x += (float)((double)DT*(double)DTNYQ)*S.x;
-        Fpp.y += (float)((double)DT*(double)DTNYQ)*S.y;
+        if (sstype==100){
+            Fpp.x += (float)((double)DT*(double)DTNYQ)*S.x;
+            Fpp.y += (float)((double)DT*(double)DTNYQ)*S.y;
+        }
         App.x = Axx.x + Azz.x;  App.y = Axx.y + Azz.y;   /* adj  sxx+szz */
         Fmm.x = Fxx.x - Fzz.x;  Fmm.y = Fxx.y - Fzz.y;   /* fwd  sxx-szz */
         Fmz.x = Fzz.x - Fxx.x;  Fmz.y = Fzz.y - Fxx.y;   /* fwd  szz-sxx */
@@ -327,15 +340,34 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
          * bracket of eq. 26a intact): the w*itreal term is <sigma~, dt sigma>
          * (dt <-> i*w) on the source-restored forward field, and rreal is the
          * eq. (26a) source term, which carries no time derivative. */
-        double d0 = sc_ss*(w*itreal(App, Fpp) - rreal(App, S))/dftnorm;
+        double d0 = sc_ss*(w*itreal(App, Fpp)
+                           - (sstype==100 ? rreal(App, S) : 0.0))/dftnorm;
         double d2 = sc_ss*w*itreal(Axz, Fxz)/dftnorm;
         double d3 = d0;
         double d4 = sc_ss*w*(itreal(Axx, Fmm) + itreal(Azz, Fmz))/dftnorm;
         /* vx sits at the rip position and vz at the rkp one (update_v2D.cl),
          * so the two components carry different parameters and must not be
          * summed before the correlation is stored. */
-        double d8x = sc_vv*w*itreal(fvx[id], fvx_f[id])/dftnorm;
-        double d8z = sc_vv*w*itreal(fvz[id], fvz_f[id])/dftnorm;
+        /* Velocity block: the same two corrections as the trace above, for a
+         * FORCE source. savefreqs omits the injection here too, so the forward
+         * velocity spectrum gets the source restored with the FIELD weight
+         * DT*DTNYQ (the generated kernel adds `amp` straight into vx/vz, no
+         * material factor), and the eq. (26a) term itself is the rate-weighted
+         * rreal. dJ/drho has no c-factor at all (A1a). */
+        float2 Fvx = fvx_f[id], Fvz = fvz_f[id];
+        float2 Avx = fvx[id],   Avz = fvz[id];
+        if (sstype==0){
+            Fvx.x += (float)((double)DT*(double)DTNYQ)*S.x;
+            Fvx.y += (float)((double)DT*(double)DTNYQ)*S.y;
+        }
+        else if (sstype==2){
+            Fvz.x += (float)((double)DT*(double)DTNYQ)*S.x;
+            Fvz.y += (float)((double)DT*(double)DTNYQ)*S.y;
+        }
+        double d8x = sc_vv*(w*itreal(Avx, Fvx)
+                            - (sstype==0 ? rreal(Avx, S) : 0.0))/dftnorm;
+        double d8z = sc_vv*(w*itreal(Avz, Fvz)
+                            - (sstype==2 ? rreal(Avz, S) : 0.0))/dftnorm;
 
 #if HOUT==1
         /* Approximate (Gauss-Newton style) Hessian diagonal, transcribed from

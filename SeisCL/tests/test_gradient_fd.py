@@ -1301,6 +1301,78 @@ def test_fd_3d_srccell_force():
     _fd_at_source_cell(3, srctype=2.0)
 
 
+def test_fd_2d_srccell_force_bpt2():
+    """FORCE source in the DFT path, perturbing the SOURCE CELL.
+
+    Checks the DENSITY channel only, and against the interior rather than
+    against 1, for two separate reasons:
+
+    * back_prop_type=2 is the uncalibrated path, so its interior is the right
+      yardstick (see test_fd_2d_srccell_bpt2);
+    * dJ/dvp at a FORCE source cell carries a pre-existing bpt2 defect that
+      has nothing to do with the source term -- it measures 0.709 whether the
+      eq. (26a) velocity term is enabled or not (verified by toggling it), and
+      is unchanged by summing every DFT bin to Nyquist, so it is neither this
+      term nor band-limiting. It is recorded in notes/todo.md; do not let it
+      creep into this test.
+
+    A force source enters only the velocity block, so the density channel is
+    exactly what it should move: without the term the ratio here is 1.74.
+    """
+    vp, vs, rho = 2000.0, 1200.0, 2000.0
+    wd = workdir("srccell_2d_force_bpt2")
+    mk = lambda **k: _srccell_model(wd, ND=2, srctype=2.0, **k)
+    s0, zs = mk()
+    dfm = 1.0 / (int(s0.NT) * float(s0.dt))
+    fr = dfm * np.arange(4, int(5.0 * float(s0.f0) / dfm) + 1)
+    nz, nx = int(s0.N[0]), int(s0.N[1])
+    start = {"vp": np.full(s0.N, vp), "vs": np.full(s0.N, vs),
+             "rho": np.full(s0.N, rho)}
+    true = {k: np.array(v) for k, v in start.items()}
+    true["vp"][nz // 2 + 12:nz // 2 + 22, nx // 2 - 5:nx // 2 + 5] += 300.0
+    s0.set_forward(s0.src_pos_all[3, :], true, withgrad=False)
+    s0.execute()
+    dobs = [np.asarray(a, np.float64) for a in s0.read_data()]
+    s0.write_data({"p": dobs[0]}, filename="SeisCL_din.mat")
+    din = os.path.join(s0.workdir, "SeisCL_din.mat")
+    xs = nx // 2
+
+    def misfit(p):
+        t, _ = mk()
+        t.file_din = din
+        t.set_forward(t.src_pos_all[3, :], p, withgrad=False)
+        t.execute()
+        return t.misfit(t.read_data(), dobs=dobs)[0]
+
+    g, _ = mk(gradout=1, back_prop_type=2, gradfreqs=fr)
+    g.file_din = din
+    g.set_forward(g.src_pos_all[3, :], start, withgrad=True)
+    g.execute()
+    G = {nm: np.asarray(a, np.float64)
+         for nm, a in zip(g.params, g.read_grad())}
+    print("=== 2D elastic FORCE source AT THE SOURCE CELL "
+          "(back_prop_type=2, density channel) ===")
+    print("%-6s %-9s %14s %14s %9s" % ("param", "cell", "FD", "<g,dm>", "ratio"))
+    r = {}
+    for tag, z in (("SOURCE", zs), ("interior", zs + 8)):
+        v = np.zeros_like(G["rho"])
+        v[z, xs] = 1.0
+        gv = float((G["rho"] * v).sum())
+        pp = {k: np.array(a) for k, a in start.items()}
+        pm = {k: np.array(a) for k, a in start.items()}
+        pp["rho"] = pp["rho"] + v
+        pm["rho"] = pm["rho"] - v
+        fd = (misfit(pp) - misfit(pm)) / 2.0
+        r[tag] = fd / gv if gv else float("nan")
+        print("%-6s %-9s %14.6e %14.6e %9.4f" % ("rho", tag, fd, gv, r[tag]))
+    rel = r["SOURCE"] / r["interior"]
+    if not abs(rel - 1.0) <= 0.18:
+        raise AssertionError(
+            "DFT force-source density gradient inconsistent with the interior "
+            "(source/interior %.4f). This is the eq. (26a) velocity-block term "
+            "in grad_dft2D.cl -- see notes/todo.md." % rel)
+
+
 def test_fd_2d_srccell_visco_bpt2():
     """VISCOELASTIC source cell, back_prop_type=2.
 
@@ -1409,6 +1481,7 @@ TESTS = [
     test_fd_2d_srccell_force,
     test_fd_3d_srccell_force,
     test_fd_2d_srccell_visco_bpt2,
+    test_fd_2d_srccell_force_bpt2,
 ]
 
 # Known-open failures, each tracked in notes/todo.md -- see the docstring of

@@ -210,13 +210,19 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
     }
 
     /* Which source, if any, sits in this cell (eq. 26a source term). */
-    int ssrc = -1;
+    /* A FORCE source is the mirror case: velocity block only, so it
+     * corrects d8x/d8y/d8z (hence the STAGGERED buoyancy slots) and
+     * leaves every stress correlation alone. The two are mutually
+     * exclusive. Types index kernel_sources()'s src_names[] =
+     * {vx,vy,vz,p,...}; 100 is the "p" trans_var. */
+    int ssrc = -1, sstype = -1;
     for (int q=0; q<nsrc; q++){
-        if ((int)src_pos[4+5*q]==100
+        int st = (int)src_pos[4+5*q];
+        if ((st==100 || st==0 || st==1 || st==2)
             && (int)(src_pos[0+5*q]/DH)==i
             && (int)(src_pos[1+5*q]/DH)==j
             && (int)(src_pos[2+5*q]/DH)==k){
-            ssrc = q; break;
+            ssrc = q; sstype = st; break;
         }
     }
 
@@ -265,8 +271,10 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
          * affected: an isotropic source adds equally to sxx,syy,szz, so the
          * deviatoric combinations and the shear planes are untouched, which is
          * why Fxx/Fyy/Fzz themselves are left alone. */
-        Fpp.x += (float)((double)DT*(double)DTNYQ)*S.x;
-        Fpp.y += (float)((double)DT*(double)DTNYQ)*S.y;
+        if (sstype==100){
+            Fpp.x += (float)((double)DT*(double)DTNYQ)*S.x;
+            Fpp.y += (float)((double)DT*(double)DTNYQ)*S.y;
+        }
         App.x = Axx.x + Ayy.x + Azz.x;  App.y = Axx.y + Ayy.y + Azz.y;
 
         /* The deviatoric combination of the published P4 (eq. A2d):
@@ -286,7 +294,7 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         Fzz_mxxyy.y = (float)(ndm1*Fzz.y) - Fxx.y - Fyy.y;
 
         /* P1 with the eq. (26a) bracket intact: <sigma~, dt sigma - s>. */
-        double d0 = (w*itreal(App, Fpp) - rreal(App, S))/dftnorm;
+        double d0 = (w*itreal(App, Fpp) - (sstype==100 ? rreal(App, S) : 0.0))/dftnorm;
         /* Kept apart per shear plane -- sxy/sxz/syz are each driven by a
          * different staggered mu, so they cannot be summed before the
          * coefficient is applied. */
@@ -299,9 +307,26 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
                      + itreal(Azz, Fzz_mxxyy))/dftnorm;
         /* vx/vy/vz sit at rip/rjp/rkp respectively (update_v3D.cl): different
          * parameters, so kept apart rather than summed. */
-        double d8x = w*itreal(fvx[id], fvx_f[id])/dftnorm;
-        double d8y = w*itreal(fvy[id], fvy_f[id])/dftnorm;
-        double d8z = w*itreal(fvz[id], fvz_f[id])/dftnorm;
+        /* Velocity block: a FORCE source's eq. (26a) term, mirroring the
+         * trace above. savefreqs omits the injection here too, so the forward
+         * velocity spectrum gets the source restored with the FIELD weight
+         * DT*DTNYQ (kernel_sources() adds `amp` straight into vx/vy/vz, with
+         * no material factor), and the eq. (26a) term itself is the
+         * rate-weighted rreal. dJ/drho has no c-factor (A1a). Each component
+         * feeds its own STAGGERED buoyancy slot, which is what lets
+         * average_grad_transpose() apply the averaging Jacobian. */
+        float2 Fvx = fvx_f[id], Avx = fvx[id];
+        float2 Fvy = fvy_f[id], Avy = fvy[id];
+        float2 Fvz = fvz_f[id], Avz = fvz[id];
+        if (sstype==0){ Fvx.x += (float)((double)DT*(double)DTNYQ)*S.x; Fvx.y += (float)((double)DT*(double)DTNYQ)*S.y; }
+        if (sstype==1){ Fvy.x += (float)((double)DT*(double)DTNYQ)*S.x; Fvy.y += (float)((double)DT*(double)DTNYQ)*S.y; }
+        if (sstype==2){ Fvz.x += (float)((double)DT*(double)DTNYQ)*S.x; Fvz.y += (float)((double)DT*(double)DTNYQ)*S.y; }
+        double d8x = (w*itreal(Avx, Fvx)
+                     - (sstype==0 ? rreal(Avx, S) : 0.0))/dftnorm;
+        double d8y = (w*itreal(Avy, Fvy)
+                     - (sstype==1 ? rreal(Avy, S) : 0.0))/dftnorm;
+        double d8z = (w*itreal(Avz, Fvz)
+                     - (sstype==2 ? rreal(Avz, S) : 0.0))/dftnorm;
 
 #if HOUT==1
         /* Approximate (Gauss-Newton style) Hessian diagonal, same pattern as

@@ -285,12 +285,18 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
     }
 
     /* Which source, if any, sits in this cell (eq. 26a source term). */
-    int ssrc = -1;
+    /* A FORCE source is the mirror case: velocity block only, so it
+     * corrects d8x/d8y/d8z (hence the STAGGERED buoyancy slots) and
+     * leaves every stress correlation alone. The two are mutually
+     * exclusive. Types index kernel_sources()'s src_names[] =
+     * {vx,vy,vz,p,...}; 100 is the "p" trans_var. */
+    int ssrc = -1, sstype = -1;
     for (int q=0; q<nsrc; q++){
-        if ((int)src_pos[4+5*q]==100
+        int st = (int)src_pos[4+5*q];
+        if ((st==100 || st==0 || st==1 || st==2)
             && (int)(src_pos[0+5*q]/DH)==i
             && (int)(src_pos[2+5*q]/DH)==k){
-            ssrc = q; break;
+            ssrc = q; sstype = st; break;
         }
     }
 
@@ -371,8 +377,10 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
          * savefreqs' own per-sample FIELD weight DT*DTNYQ -- a different
          * scaling from S's use in the eq. (26a) term below, where S is the
          * source as a RATE. Only the trace is affected. */
-        Fpp.x += (float)((double)DT*(double)DTNYQ)*S.x;
-        Fpp.y += (float)((double)DT*(double)DTNYQ)*S.y;
+        if (sstype==100){
+            Fpp.x += (float)((double)DT*(double)DTNYQ)*S.x;
+            Fpp.y += (float)((double)DT*(double)DTNYQ)*S.y;
+        }
         App.x = Axx.x + Azz.x;  App.y = Axx.y + Azz.y;
         Fmm.x = Fxx.x - Fzz.x;  Fmm.y = Fxx.y - Fzz.y;
         Fmz.x = Fzz.x - Fxx.x;  Fmz.y = Fzz.y - Fxx.y;
@@ -380,14 +388,28 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         /* P1 with the eq. (26a) bracket intact: <sigma~, dt sigma - s>.
          * d0 also feeds gradtaup (c1taup) and gradtaus (c2taus) via d3,
          * exactly as A1c/A1e reuse P1, so they are corrected too. */
-        double d0 = sc_ss*(w*itreal(App, Fpp) - rreal(App, S))/dftnorm;
+        double d0 = sc_ss*(w*itreal(App, Fpp) - (sstype==100 ? rreal(App, S) : 0.0))/dftnorm;
         double d2 = sc_ss*w*itreal(Axz, Fxz)/dftnorm;
         double d3 = d0;
         double d4 = sc_ss*w*(itreal(Axx, Fmm) + itreal(Azz, Fmz))/dftnorm;
         /* vx sits at rip, vz at rkp: different parameters, so kept apart
          * rather than summed, same as grad_dft2D.cl. */
-        double d8x = sc_vv*w*itreal(fvx[id], fvx_f[id])/dftnorm;
-        double d8z = sc_vv*w*itreal(fvz[id], fvz_f[id])/dftnorm;
+        /* Velocity block: a FORCE source's eq. (26a) term, mirroring the
+         * trace above. savefreqs omits the injection here too, so the forward
+         * velocity spectrum gets the source restored with the FIELD weight
+         * DT*DTNYQ (kernel_sources() adds `amp` straight into vx/vy/vz, with
+         * no material factor), and the eq. (26a) term itself is the
+         * rate-weighted rreal. dJ/drho has no c-factor (A1a). Each component
+         * feeds its own STAGGERED buoyancy slot, which is what lets
+         * average_grad_transpose() apply the averaging Jacobian. */
+        float2 Fvx = fvx_f[id], Avx = fvx[id];
+        float2 Fvz = fvz_f[id], Avz = fvz[id];
+        if (sstype==0){ Fvx.x += (float)((double)DT*(double)DTNYQ)*S.x; Fvx.y += (float)((double)DT*(double)DTNYQ)*S.y; }
+        if (sstype==2){ Fvz.x += (float)((double)DT*(double)DTNYQ)*S.x; Fvz.y += (float)((double)DT*(double)DTNYQ)*S.y; }
+        double d8x = sc_vv*(w*itreal(Avx, Fvx)
+                     - (sstype==0 ? rreal(Avx, S) : 0.0))/dftnorm;
+        double d8z = sc_vv*(w*itreal(Avz, Fvz)
+                     - (sstype==2 ? rreal(Avz, S) : 0.0))/dftnorm;
 
         GM   += -c0*d0 + c1*d1;
         Gmu  += c3*d3 - c4*d4 - c6*d6 + c7*d7;
