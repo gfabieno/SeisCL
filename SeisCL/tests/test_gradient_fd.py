@@ -1301,6 +1301,60 @@ def test_fd_3d_srccell_force():
     _fd_at_source_cell(3, srctype=2.0)
 
 
+def _srccell_force_grad(fp16):
+    """The gradient (not a ratio) at a force source cell, for FP16 comparison."""
+    vp, vs, rho = 2000.0, 1200.0, 2000.0
+    wd = workdir("srccell_force_g_f%d" % fp16)
+    base = {} if fp16 == 0 else {"FP16": fp16}
+    mk = lambda **k: _srccell_model(wd, ND=2, srctype=2.0, **dict(base, **k))
+    s0, zs = mk()
+    nz, nx = int(s0.N[0]), int(s0.N[1])
+    start = {"vp": np.full(s0.N, vp), "vs": np.full(s0.N, vs),
+             "rho": np.full(s0.N, rho)}
+    true = {k: np.array(v) for k, v in start.items()}
+    true["vp"][nz // 2 + 12:nz // 2 + 22, nx // 2 - 5:nx // 2 + 5] += 300.0
+    s0.set_forward(s0.src_pos_all[3, :], true, withgrad=False)
+    s0.execute()
+    dobs = [np.asarray(a, np.float64) for a in s0.read_data()]
+    s0.write_data({"p": dobs[0]}, filename="SeisCL_din.mat")
+    g, _ = mk(gradout=1, back_prop_type=1)
+    g.file_din = os.path.join(s0.workdir, "SeisCL_din.mat")
+    g.set_forward(g.src_pos_all[3, :], start, withgrad=True)
+    g.execute()
+    G = {nm: np.asarray(a, np.float64) for nm, a in zip(g.params, g.read_grad())}
+    return {p_: float(G[p_][zs, nx // 2]) for p_ in ("vp", "rho")}
+
+
+def test_fd_2d_srccell_force_fp16():
+    """Force source at FP16=1, and FP16=2 checked a different way.
+
+    FP16>0 uses update_adjv2D_half2.cl, a separate kernel from the FP16=0 one,
+    where DIV=2 z-cells share a work item and the correction has to land in the
+    source's lane only.
+
+    FP16=1 is checked against FD as usual. FP16=2 is NOT: half precision
+    changes the forward misfit itself, so its FD is not the derivative of what
+    the gradient computes -- it comes out with the wrong magnitude and even the
+    wrong sign here, while the gradient is fine. So FP16=2's GRADIENT is
+    compared against FP16=1's instead, which is the meaningful check.
+    """
+    _fd_at_source_cell(2, tol=0.06, srctype=2.0, fp16=1)
+    g1 = _srccell_force_grad(1)
+    g2 = _srccell_force_grad(2)
+    print("=== force source cell, FP16=2 gradient vs FP16=1 gradient ===")
+    bad = []
+    for par in ("vp", "rho"):
+        rel = g2[par] / g1[par] if g1[par] else float("nan")
+        print("  %-4s FP16=1 %13.6e   FP16=2 %13.6e   ratio %8.4f"
+              % (par, g1[par], g2[par], rel))
+        if not abs(rel - 1.0) <= 0.03:
+            bad.append("%s %.4f" % (par, rel))
+    if bad:
+        raise AssertionError(
+            "FP16=2 force-source gradient disagrees with FP16=1: %s -- see "
+            "update_adjv2D_half2.cl and notes/todo.md." % ", ".join(bad))
+
+
 def test_fd_2d_srccell_force_bpt2():
     """FORCE source in the DFT path, perturbing the SOURCE CELL.
 
@@ -1482,6 +1536,7 @@ TESTS = [
     test_fd_3d_srccell_force,
     test_fd_2d_srccell_visco_bpt2,
     test_fd_2d_srccell_force_bpt2,
+    test_fd_2d_srccell_force_fp16,
 ]
 
 # Known-open failures, each tracked in notes/todo.md -- see the docstring of

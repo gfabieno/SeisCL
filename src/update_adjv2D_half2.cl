@@ -42,7 +42,9 @@ FUNDEF void update_adjv(int offcomm,
                         GLOBARG __prec2 *psi_sxz_z, GLOBARG __prec2 *psi_szz_z,
                         GLOBARG __gprec *gradrho, GLOBARG __gprec *Hrho,
                         GLOBARG __gprec *gradrip, GLOBARG __gprec *gradrkp,
-                        int res_scale, int src_scale, int par_scale, LOCARG2)
+                        int res_scale, int src_scale, int par_scale,
+                        GLOBARG float *src, GLOBARG float *src_pos,
+                        int nsrc, int nt, LOCARG2)
 {
     
     //Local memory
@@ -350,6 +352,45 @@ FUNDEF void update_adjv(int offcomm,
                                            2*par_scale -src_scale - res_scale);
     gradrkp[indp]=gradrkp[indp] - scalefun(__h22f2c(lvz) * __h22f2c(lvzr),
                                            2*par_scale -src_scale - res_scale);
+
+    /* Source term of the misfit gradient -- GJI 2017 eq. (26a) -- for a FORCE
+     * source; see update_adjv2D.cl for the derivation and
+     * update_adjs2D_half2.cl for the vectorized form. lvxr/lvzr are the
+     * adjoint INCREMENT by this point, so the adjoint FIELD is re-read from
+     * global memory. DIV z-cells share a work item, so the correction lands in
+     * the source's lane only. Each component keeps to its own STAGGERED
+     * buoyancy accumulator, which is what lets average_grad_transpose() apply
+     * the averaging Jacobian. */
+    #if GRADOUT==1
+    if (nsrc>0){
+        for (int srci=0; srci<nsrc; srci++){
+            int st = (int)src_pos[4+5*srci];
+            if (st==0 || st==2){
+                int si  = (int)(src_pos[0+5*srci]/DH)+FDOH;
+                int skf = (int)(src_pos[2+5*srci]/DH)+FDOH;
+                if (si==gidx && (skf/DIV)==gidz){
+                    #if FP16==0
+                    float samp = DT*src[srci*NT+nt];
+                    #elif defined(__OPENCL_VERSION__)
+                    float samp = ldexp(DT*src[srci*NT+nt], src_scale);
+                    #else
+                    float samp = scalbnf(DT*src[srci*NT+nt], src_scale);
+                    #endif
+                    __gprec psi = (st==0) ? __h22f2(vxr[indv])
+                                          : __h22f2(vzr[indv]);
+                    __gprec Csrc = psi*samp;
+                    #if DIV==2
+                    if ((skf%DIV)==0) Csrc.y = 0.0f; else Csrc.x = 0.0f;
+                    #endif
+                    __gprec sc = scalefun(Csrc,
+                                          2*par_scale-src_scale-res_scale);
+                    if (st==0) gradrip[indp] = gradrip[indp] + sc;
+                    else       gradrkp[indp] = gradrkp[indp] + sc;
+                }
+            }
+        }
+    }
+    #endif
     #if HOUT==1
         Hrho[indp]= Hrho[indp] - scalefun(__h22f2c(lvx) * __h22f2c(lvx) +
                                           __h22f2c(lvz) * __h22f2c(lvz),
