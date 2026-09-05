@@ -53,7 +53,9 @@ FUNDEF void update_adjv(int offcomm,
                           GLOBARG float * RESTRICT psi_syz_y,       GLOBARG float * RESTRICT psi_syz_z,       GLOBARG float * RESTRICT psi_szz_z,
                           LOCARG,                                   GLOBARG float * RESTRICT gradrho,         GLOBARG const float * RESTRICT gradsrc,
                           GLOBARG float * RESTRICT gradrip,         GLOBARG float * RESTRICT gradrjp,         GLOBARG float * RESTRICT gradrkp,
-                          GLOBARG const float * RESTRICT Hrho,      GLOBARG const float * RESTRICT Hsrc)
+                          GLOBARG const float * RESTRICT Hrho,      GLOBARG const float * RESTRICT Hsrc,
+                          GLOBARG const float * RESTRICT src,       GLOBARG const float * RESTRICT src_pos,
+                          int nsrc,                                 int nt)
 {
     LOCDEF
     
@@ -482,6 +484,33 @@ FUNDEF void update_adjv(int offcomm,
     gradrip[indp]+=-vx[indv]*lvx;
     gradrjp[indp]+=-vy[indv]*lvy;
     gradrkp[indp]+=-vz[indv]*lvz;
+
+    /* Source term of the misfit gradient -- GJI 2017 eq. (26a) -- for a FORCE
+     * source; see update_adjv2D.cl for the derivation. Each component lands in
+     * its OWN staggered buoyancy accumulator (vx at rip, vy at rjp, vz at rkp)
+     * so average_grad_transpose() can apply the averaging Jacobian; writing it
+     * into the cell-centred gradrho would skip that and place the sensitivity
+     * at the wrong point. Coefficient 1 -- (A1a) has no c-factor.
+     * Types index kernel_sources()'s src_names[] = {vx,vy,vz,p,...}.
+     * No src_scale: this file is compiled only at FP16==0. */
+    #if GRADOUT==1
+    if (nsrc>0){
+        for (int srci=0; srci<nsrc; srci++){
+            int st = (int)src_pos[4+5*srci];
+            if (st>=0 && st<=2){
+                int si=(int)(src_pos[0+5*srci]/DH)+FDOH;
+                int sj=(int)(src_pos[1+5*srci]/DH)+FDOH;
+                int sk=(int)(src_pos[2+5*srci]/DH)+FDOH;
+                if (si==gidx && sj==gidy && sk==gidz){
+                    float samp = DT*src[srci*NT+nt];
+                    if      (st==0) gradrip[indp] += vxr[indv]*samp;
+                    else if (st==1) gradrjp[indp] += vyr[indv]*samp;
+                    else            gradrkp[indp] += vzr[indv]*samp;
+                }
+            }
+        }
+    }
+    #endif
 
 #if HOUT==1
     Hrho[inp])+= pown(vx[indv],2)+pown(vy[indv],2)+pown(vz[indv],2);

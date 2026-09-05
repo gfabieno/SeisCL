@@ -79,6 +79,22 @@
     #define PARCONV(x) (x)
 #endif
 
+#ifdef __OPENCL_VERSION__
+    #define COSPIF(x) cospi(x)
+    #define SINPIF(x) sinpi(x)
+#else
+    #define COSPIF(x) cospif(x)
+    #define SINPIF(x) sinpif(x)
+#endif
+
+/* itreal(a,b) = Re(conj(a)*i*b), the form <sigma~, dt sigma> needs (dt <-> i*w).
+ * The eq. (26a) source term <sigma~, s> has no time derivative and so needs the
+ * plain Re(conj(a)*b). */
+LFUNDEF double rreal(float2 a, float2 b)
+{
+    return (double)a.x*(double)b.x + (double)a.y*(double)b.y;
+}
+
 LFUNDEF double itreal(float2 a, float2 b)
 {
     return (double)a.y*(double)b.x - (double)a.x*(double)b.y;
@@ -157,6 +173,9 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
                           GLOBARG float2 * frxx,
                           GLOBARG float2 * frzz,
                           GLOBARG float2 * frxz,
+                          GLOBARG float * src,
+                          GLOBARG float * src_pos,
+                          int nsrc,
                           int src_scale,
                           int res_scale,
                           int par_scale)
@@ -265,6 +284,16 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
 
     }
 
+    /* Which source, if any, sits in this cell (eq. 26a source term). */
+    int ssrc = -1;
+    for (int q=0; q<nsrc; q++){
+        if ((int)src_pos[4+5*q]==100
+            && (int)(src_pos[0+5*q]/DH)==i
+            && (int)(src_pos[2+5*q]/DH)==k){
+            ssrc = q; break;
+        }
+    }
+
     double GM=0.0, Gmu=0.0, Gtaup=0.0, Gtaus=0.0;
     double Gmuipkp=0.0, Grip=0.0, Grkp=0.0, Gtausipkp=0.0;
 
@@ -315,12 +344,43 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         double d6 = d1;
 
         float2 Fpp, App, Fmm, Fmz;
+        /* S(w): transform of the injected source, savefreqs' convention.
+         * See grad_dft2D.cl for the derivation and why the two uses below take
+         * DIFFERENT weights. */
+        float2 S; S.x = 0.0f; S.y = 0.0f;
+        if (ssrc>=0){
+            for (int t=0; t<NT; t++){
+                float ang = 2.0f*gradfreqsn[f]*(float)(t-TMIN)
+                            /((float)NTNYQ*(float)DTNYQ);
+                #if FP16==0
+                float amp = DT*src[ssrc*NT+t];
+                #elif defined(__OPENCL_VERSION__)
+                float amp = ldexp(DT*src[ssrc*NT+t], src_scale);
+                #else
+                float amp = scalbnf(DT*src[ssrc*NT+t], src_scale);
+                #endif
+                S.x +=  amp*COSPIF(ang);
+                S.y += -amp*SINPIF(ang);
+            }
+        }
+
         Fpp.x = Fxx.x + Fzz.x;  Fpp.y = Fxx.y + Fzz.y;
+        /* savefreqs runs BEFORE the source injection (time_stepping.c), so the
+         * stored forward spectrum lacks this step's source while
+         * BACK_PROP_TYPE==1 correlates the field after it. Restore it with
+         * savefreqs' own per-sample FIELD weight DT*DTNYQ -- a different
+         * scaling from S's use in the eq. (26a) term below, where S is the
+         * source as a RATE. Only the trace is affected. */
+        Fpp.x += (float)((double)DT*(double)DTNYQ)*S.x;
+        Fpp.y += (float)((double)DT*(double)DTNYQ)*S.y;
         App.x = Axx.x + Azz.x;  App.y = Axx.y + Azz.y;
         Fmm.x = Fxx.x - Fzz.x;  Fmm.y = Fxx.y - Fzz.y;
         Fmz.x = Fzz.x - Fxx.x;  Fmz.y = Fzz.y - Fxx.y;
 
-        double d0 = sc_ss*w*itreal(App, Fpp)/dftnorm;
+        /* P1 with the eq. (26a) bracket intact: <sigma~, dt sigma - s>.
+         * d0 also feeds gradtaup (c1taup) and gradtaus (c2taus) via d3,
+         * exactly as A1c/A1e reuse P1, so they are corrected too. */
+        double d0 = sc_ss*(w*itreal(App, Fpp) - rreal(App, S))/dftnorm;
         double d2 = sc_ss*w*itreal(Axz, Fxz)/dftnorm;
         double d3 = d0;
         double d4 = sc_ss*w*(itreal(Axx, Fmm) + itreal(Azz, Fmz))/dftnorm;

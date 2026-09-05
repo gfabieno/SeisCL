@@ -48,6 +48,8 @@ FUNDEF void update_adjv(int offcomm,
                           GLOBARG float * RESTRICT gradrho,         GLOBARG const float * RESTRICT gradsrc,
                           GLOBARG float * RESTRICT gradrip,         GLOBARG float * RESTRICT gradrkp,
                           GLOBARG float * RESTRICT Hrho,            GLOBARG const float * RESTRICT Hsrc,
+                          GLOBARG const float * RESTRICT src,       GLOBARG const float * RESTRICT src_pos,
+                          int nsrc,                                 int nt,
                           LOCARG)
 {
 
@@ -326,6 +328,48 @@ FUNDEF void update_adjv(int offcomm,
 #if BACK_PROP_TYPE==1
     gradrip[indp]+=-vx[indv]*lvx;
     gradrkp[indp]+=-vz[indv]*lvz;
+
+    /* Source term of the misfit gradient -- GJI 2017 eq. (26a) -- for a FORCE
+     * source. The accumulation just above is the (A phi' + B phi) side of
+     * eq. (6) only: eq. (A1a) writes dJ/drho as <v~, dt v>, i.e. with the
+     * bracket's "- s" dropped, so a spurious <psi, T dLambda^-1/dm T s>
+     * survives in cells holding a source. update_adjs2D.cl carries the same
+     * term for a pressure source; this is its velocity-block twin.
+     *
+     * A pressure source (type 100) enters only the stress block and a force
+     * source only the velocity block, so the two are mutually exclusive and
+     * neither leaks into the other's parameters.
+     *
+     * The coefficient is 1: (A1a) has no c-factor, and the `rip` inside lvx is
+     * how the adjoint velocity equation computes dt(v~), not a coefficient.
+     * What matters for the averaging is WHERE this lands -- vx lives at the
+     * rip position and vz at the rkp one, so each goes to its own STAGGERED
+     * buoyancy accumulator and average_grad_transpose() applies the averaging
+     * Jacobian afterwards. Writing it into a cell-centred gradrho instead
+     * would skip that Jacobian and put the sensitivity at the wrong point.
+     *
+     * Source type is the index into kernel_sources()'s src_names[] =
+     * {"vx","vy","vz","p",...}, so 0 = force in x and 2 = force in z here. */
+    #if GRADOUT==1
+    if (nsrc>0){
+        for (int srci=0; srci<nsrc; srci++){
+            int st = (int)src_pos[4+5*srci];
+            if (st==0 || st==2){
+                int si=(int)(src_pos[0+5*srci]/DH)+FDOH;
+                int sk=(int)(src_pos[2+5*srci]/DH)+FDOH;
+                if (si==gidx && sk==gidz){
+                    /* No src_scale here: assign_modeling_case.c compiles
+                     * this file only at FP16==0, where src_scale is 0 and
+                     * kernel_sources()'s amp is plainly DT*src. The half2
+                     * kernels are the FP16>0 path. */
+                    float samp = DT*src[srci*NT+nt];
+                    if (st==0) gradrip[indp] += vxr[indv]*samp;
+                    else       gradrkp[indp] += vzr[indv]*samp;
+                }
+            }
+        }
+    }
+    #endif
 
 //#if HOUT==1
 //    Hrho[indp]+= pown(vx[indv],2)+pown(vz[indv],2);

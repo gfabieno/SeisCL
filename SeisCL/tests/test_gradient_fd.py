@@ -1148,7 +1148,7 @@ def test_fd_sh_bpt1():
 # meaningful. That trap cost most of the debugging time; do not "simplify"
 # this back onto the shared geometry.
 
-def _srccell_model(wd, ND=2, **over):
+def _srccell_model(wd, ND=2, srctype=100.0, **over):
     """Clean geometry for a source-cell check: source mid-domain, receiver
     line far from it, everything well inside the absorbing layer."""
     if ND == 2:
@@ -1169,8 +1169,10 @@ def _srccell_model(wd, ND=2, **over):
         nz, ny, nx = (int(v) for v in s.N)
         zs = nz // 2
         ny_mid = ny // 2 * s.dh
+    # srctype indexes kernel_sources()'s src_names[] = {vx,vy,vz,p,...}:
+    # 100 is the "p" trans_var (a pressure source), 0/1/2 are force sources.
     s.src_pos_all = np.stack([[nx // 2 * s.dh], [ny_mid], [zs * s.dh],
-                              [0.], [100.]])
+                              [0.], [float(srctype)]])
     nr = 8
     zr = (nz - s.nab - 6) * s.dh
     xr = np.linspace((s.nab + 6) * s.dh, (nx - s.nab - 6) * s.dh, nr)
@@ -1181,13 +1183,13 @@ def _srccell_model(wd, ND=2, **over):
     return s, zs
 
 
-def _fd_at_source_cell(ND, tol=0.01, bpt=1, fp16=0, extra=None):
+def _fd_at_source_cell(ND, tol=0.01, bpt=1, fp16=0, srctype=100.0, extra=None):
     vp, vs, rho = 2000.0, 1200.0, 2000.0
-    wd = workdir("srccell_%dd_b%d_f%d" % (ND, bpt, fp16))
+    wd = workdir("srccell_%dd_b%d_f%d_s%d" % (ND, bpt, fp16, int(srctype)))
     base = dict(extra or {})
     if fp16:
         base["FP16"] = fp16
-    mk = lambda **kw: _srccell_model(wd, ND=ND, **dict(base, **kw))
+    mk = lambda **kw: _srccell_model(wd, ND=ND, srctype=srctype, **dict(base, **kw))
     s0, zs = mk()
     start = {"vp": np.full(s0.N, vp), "vs": np.full(s0.N, vs),
              "rho": np.full(s0.N, rho)}
@@ -1230,7 +1232,8 @@ def _fd_at_source_cell(ND, tol=0.01, bpt=1, fp16=0, extra=None):
              for nm, a in zip(g.params, g.read_grad())}
 
     print("=== %dD elastic, gradient AT THE SOURCE CELL %s "
-          "(back_prop_type=%d, FP16=%d) ===" % (ND, cell, bpt, fp16))
+          "(back_prop_type=%d, FP16=%d, srctype=%d) ==="
+          % (ND, cell, bpt, fp16, int(srctype)))
     print("%-6s %14s %14s %10s" % ("param", "FD", "<g,dm>", "ratio"))
     bad = []
     for par in ("vp", "rho"):
@@ -1279,6 +1282,98 @@ def test_fd_2d_srccell_bpt1_fp16():
     _fd_at_source_cell(2, fp16=1)
 
 
+def test_fd_2d_srccell_force():
+    """A FORCE source (type 2, Fz) instead of a pressure one.
+
+    A pressure source enters only the stress block and a force source only the
+    velocity block, so they exercise different halves of eq. (26a): this one
+    lands in dJ/drho via (A1a), and specifically in the STAGGERED buoyancy
+    accumulators (vx at rip, vz at rkp), not the cell-centred gradrho -- that
+    is what lets average_grad_transpose() apply the averaging Jacobian to it.
+    Without the term the density ratio here is 1.54, not 1.00, while vp is
+    untouched either way (the two source types do not leak into each other).
+    """
+    _fd_at_source_cell(2, srctype=2.0)
+
+
+def test_fd_3d_srccell_force():
+    """3D force source (type 2, Fz); see test_fd_2d_srccell_force."""
+    _fd_at_source_cell(3, srctype=2.0)
+
+
+def test_fd_2d_srccell_visco_bpt2():
+    """VISCOELASTIC source cell, back_prop_type=2.
+
+    back_prop_type=1 is rejected for L>0 (its backpropagation is
+    unconditionally unstable for a dissipative medium), so bpt2 is the only
+    viscoelastic path and there is no exact reference to compare against. What
+    this checks instead is INTERNAL consistency: the source cell's FD/adjoint
+    ratio against an interior cell's from the same run. If the eq. (26a) term
+    is right the two agree, whatever bpt2's overall calibration happens to be
+    -- and gradtaup/gradtaus have a known calibration error of their own
+    (todo.md item 0d3) that this deliberately does not re-test.
+
+    In the viscoelastic kernels P1 also carries c1taup and c2taus (A1c/A1e),
+    so correcting d0 corrects gradtaup and gradtaus along with gradM/gradmu.
+    """
+    F0v = 25.0
+    wd = workdir("srccell_2d_visco")
+    mk = lambda **k: _srccell_model(wd, ND=2, L=1, FL=np.array([F0v]), **k)
+    s0, zs = mk()
+    dfm = 1.0 / (int(s0.NT) * float(s0.dt))
+    fr = dfm * np.arange(4, int(5.0 * F0v / dfm) + 1)
+    nz, nx = int(s0.N[0]), int(s0.N[1])
+    start = {"vp": np.full(s0.N, 2000.0), "vs": np.full(s0.N, 1200.0),
+             "rho": np.full(s0.N, 2000.0), "taup": np.full(s0.N, 0.02),
+             "taus": np.full(s0.N, 0.02)}
+    true = {k: np.array(v) for k, v in start.items()}
+    true["vp"][nz // 2 + 12:nz // 2 + 22, nx // 2 - 5:nx // 2 + 5] += 300.0
+    s0.set_forward(s0.src_pos_all[3, :], true, withgrad=False)
+    s0.execute()
+    dobs = [np.asarray(a, np.float64) for a in s0.read_data()]
+    s0.write_data({"p": dobs[0]}, filename="SeisCL_din.mat")
+    din = os.path.join(s0.workdir, "SeisCL_din.mat")
+    xs = nx // 2
+
+    def misfit(p):
+        t, _ = mk()
+        t.file_din = din
+        t.set_forward(t.src_pos_all[3, :], p, withgrad=False)
+        t.execute()
+        return t.misfit(t.read_data(), dobs=dobs)[0]
+
+    g, _ = mk(gradout=1, back_prop_type=2, gradfreqs=fr)
+    g.file_din = din
+    g.set_forward(g.src_pos_all[3, :], start, withgrad=True)
+    g.execute()
+    G = {nm: np.asarray(a, np.float64)
+         for nm, a in zip(g.params, g.read_grad())}
+    print("=== 2D viscoelastic (L=1) AT THE SOURCE CELL (back_prop_type=2) ===")
+    print("%-6s %-9s %14s %14s %9s" % ("param", "cell", "FD", "<g,dm>", "ratio"))
+    bad = []
+    for par, eps in (("vp", 1.0), ("rho", 1.0)):
+        r = {}
+        for tag, z in (("SOURCE", zs), ("interior", zs + 8)):
+            v = np.zeros_like(G[par])
+            v[z, xs] = 1.0
+            gv = float((G[par] * v).sum()) * eps
+            pp = {k: np.array(a) for k, a in start.items()}
+            pm = {k: np.array(a) for k, a in start.items()}
+            pp[par] = pp[par] + eps * v
+            pm[par] = pm[par] - eps * v
+            fd = (misfit(pp) - misfit(pm)) / 2.0
+            r[tag] = fd / gv if gv else float("nan")
+            print("%-6s %-9s %14.6e %14.6e %9.4f" % (par, tag, fd, gv, r[tag]))
+        rel = r["SOURCE"] / r["interior"]
+        if not abs(rel - 1.0) <= 0.12:
+            bad.append("%s source/interior %.4f" % (par, rel))
+    if bad:
+        raise AssertionError(
+            "viscoelastic source cell inconsistent with the interior: %s. "
+            "This is the eq. (26a) source term in grad_dft2D_visc.cl -- see "
+            "notes/todo.md." % ", ".join(bad))
+
+
 def test_fd_2d_srccell_bpt2():
     """2D elastic back_prop_type=2 (DFT), perturbing the SOURCE CELL.
 
@@ -1311,6 +1406,9 @@ TESTS = [
     test_fd_3d_srccell_bpt1,
     test_fd_2d_srccell_bpt1_fp16,
     test_fd_2d_srccell_bpt2,
+    test_fd_2d_srccell_force,
+    test_fd_3d_srccell_force,
+    test_fd_2d_srccell_visco_bpt2,
 ]
 
 # Known-open failures, each tracked in notes/todo.md -- see the docstring of
