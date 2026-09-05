@@ -1130,6 +1130,132 @@ def test_fd_sh_bpt1():
             back_prop_type=1, calibrated=True, tol=0.05)
 
 
+# ---------------------------------------------------------------------------
+# Source-cell gradient (notes/todo.md, "the source-cell gradient")
+# ---------------------------------------------------------------------------
+#
+# Every other case in this file deliberately keeps the perturbed patch >=16
+# cells clear of the sources (_patch's CLEAR_SRC_REC), so none of them can see
+# the source term of eq. (26a) at all -- the whole suite passed both before
+# and after that term was implemented. This case perturbs the SOURCE CELL
+# ITSELF, which is the only way the term is exercised.
+#
+# It needs its own geometry, not the shared crosswell one: make_seiscl()-style
+# setups here put the receiver line at the SAME depth as the source and the
+# source a few cells from the absorbing layer, and on such a geometry even a
+# correct source-cell gradient measures 2-18% off (one configuration comes out
+# inverted). Source mid-domain, receivers well away, is what makes the check
+# meaningful. That trap cost most of the debugging time; do not "simplify"
+# this back onto the shared geometry.
+
+def _srccell_model(wd, ND=2, **over):
+    """Clean geometry for a source-cell check: source mid-domain, receiver
+    line far from it, everything well inside the absorbing layer."""
+    if ND == 2:
+        cfg = dict(N=np.array([96, 96]), ND=2, dh=10, dt=1e-3, NT=256,
+                   FDORDER=8, freesurf=0, abs_type=2, nab=16, f0=25,
+                   seisout=2, param_type=0)
+    else:
+        cfg = dict(N=np.array([48, 48, 48]), ND=3, dh=10, dt=8e-4, NT=500,
+                   FDORDER=8, freesurf=0, abs_type=2, nab=8, f0=25,
+                   seisout=2, param_type=0)
+    cfg.update(over)
+    s = SeisCL(workdir=wd, **cfg)
+    if ND == 2:
+        nz, nx = int(s.N[0]), int(s.N[1])
+        zs, ys = nz // 2, 0.0
+        ny_mid = 0.0
+    else:
+        nz, ny, nx = (int(v) for v in s.N)
+        zs = nz // 2
+        ny_mid = ny // 2 * s.dh
+    s.src_pos_all = np.stack([[nx // 2 * s.dh], [ny_mid], [zs * s.dh],
+                              [0.], [100.]])
+    nr = 8
+    zr = (nz - s.nab - 6) * s.dh
+    xr = np.linspace((s.nab + 6) * s.dh, (nx - s.nab - 6) * s.dh, nr)
+    s.rec_pos_all = np.stack([xr, np.full(nr, ny_mid), np.full(nr, zr),
+                              np.zeros(nr), np.arange(1, nr + 1, dtype=float),
+                              np.zeros(nr), np.zeros(nr), np.zeros(nr)])
+    s.src_all = SRC_SCALE * s.ricker_wavelet().reshape(-1, 1)
+    return s, zs
+
+
+def _fd_at_source_cell(ND, tol=0.01):
+    vp, vs, rho = 2000.0, 1200.0, 2000.0
+    wd = workdir("srccell_%dd" % ND)
+    mk = lambda **kw: _srccell_model(wd, ND=ND, **kw)
+    s0, zs = mk()
+    start = {"vp": np.full(s0.N, vp), "vs": np.full(s0.N, vs),
+             "rho": np.full(s0.N, rho)}
+    true = {k: np.array(v) for k, v in start.items()}
+    mid = [int(v) // 2 for v in s0.N]
+    if ND == 2:
+        true["vp"][mid[0] + 12:mid[0] + 22, mid[1] - 5:mid[1] + 5] += 300.0
+        cell = (zs, mid[1])
+    else:
+        true["vp"][mid[0] + 8:mid[0] + 14, mid[1] - 3:mid[1] + 3,
+                   mid[2] - 3:mid[2] + 3] += 300.0
+        cell = (zs, mid[1], mid[2])
+    s0.set_forward(s0.src_pos_all[3, :], true, withgrad=False)
+    s0.execute()
+    dobs = [np.asarray(a, np.float64) for a in s0.read_data()]
+    s0.write_data({"p": dobs[0]}, filename="SeisCL_din.mat")
+    din = os.path.join(s0.workdir, "SeisCL_din.mat")
+
+    def misfit(p):
+        t, _ = mk()
+        t.file_din = din
+        t.set_forward(t.src_pos_all[3, :], p, withgrad=False)
+        t.execute()
+        return t.misfit(t.read_data(), dobs=dobs)[0]
+
+    g, _ = mk(gradout=1, back_prop_type=1)
+    g.file_din = din
+    g.set_forward(g.src_pos_all[3, :], start, withgrad=True)
+    g.execute()
+    grads = {nm: np.asarray(a, np.float64)
+             for nm, a in zip(g.params, g.read_grad())}
+
+    print("=== %dD elastic, gradient AT THE SOURCE CELL %s "
+          "(back_prop_type=1) ===" % (ND, cell))
+    print("%-6s %14s %14s %10s" % ("param", "FD", "<g,dm>", "ratio"))
+    bad = []
+    for par in ("vp", "rho"):
+        G = grads[par]
+        v = np.zeros_like(G)
+        v[cell] = 1.0
+        gv = float((G * v).sum())
+        pp = {k: np.array(a) for k, a in start.items()}
+        pm = {k: np.array(a) for k, a in start.items()}
+        pp[par] = pp[par] + v
+        pm[par] = pm[par] - v
+        fd = (misfit(pp) - misfit(pm)) / 2.0
+        ratio = fd / gv if gv else float("nan")
+        print("%-6s %14.6e %14.6e %10.4f" % (par, fd, gv, ratio))
+        if not abs(ratio - 1.0) <= tol:
+            bad.append("%s ratio %.4f" % (par, ratio))
+    if bad:
+        raise AssertionError(
+            "source-cell gradient off by more than %.0f%%: %s. This is the "
+            "eq. (26a) source term in update_adjs%dD.cl -- see "
+            "notes/todo.md." % (100 * tol, ", ".join(bad), ND))
+
+
+def test_fd_2d_srccell_bpt1():
+    """2D elastic back_prop_type=1, perturbing the SOURCE CELL itself.
+
+    Guards the eq. (26a) source term: without it this ratio is about -6.5,
+    not 1. No other case in this file perturbs a source cell.
+    """
+    _fd_at_source_cell(2)
+
+
+def test_fd_3d_srccell_bpt1():
+    """3D elastic back_prop_type=1, perturbing the SOURCE CELL itself."""
+    _fd_at_source_cell(3)
+
+
 TESTS = [
     test_fd_2d_elastic_bpt1_vel,
     test_fd_2d_elastic_bpt1_p,
@@ -1145,6 +1271,8 @@ TESTS = [
     test_fd_3d_viscoelastic_bpt2_vel,
     test_fd_3d_viscoelastic_bpt2_p,
     test_fd_sh_bpt1,
+    test_fd_2d_srccell_bpt1,
+    test_fd_3d_srccell_bpt1,
 ]
 
 # Known-open failures, each tracked in notes/todo.md -- see the docstring of

@@ -67,6 +67,9 @@ FUNDEF void update_adjs(int offcomm,
                           GLOBARG const float * RESTRICT gradtaup,  GLOBARG const float * RESTRICT gradtaus,  GLOBARG const float * RESTRICT gradsrc,
                           GLOBARG const float * RESTRICT Hrho,      GLOBARG float * RESTRICT HM,              GLOBARG float * RESTRICT Hmu,
                           GLOBARG const float * RESTRICT Htaup,     GLOBARG const float * RESTRICT Htaus,     GLOBARG const float * RESTRICT Hsrc,
+                          GLOBARG const float * RESTRICT src,       GLOBARG const float * RESTRICT src_pos,
+                          int nsrc,                                 int nt,
+                          int src_scale,
                           LOCARG)
 {
     
@@ -720,6 +723,46 @@ FUNDEF void update_adjs(int offcomm,
     gradmu[indp]+= 4.0/3*dM-c5*(lsxx*(2.0*sxx[indv]- syy[indv]-szz[indv] )
                       +lsyy*(2.0*syy[indv]- sxx[indv]-szz[indv] )
                       +lszz*(2.0*szz[indv]- sxx[indv]-syy[indv] ));
+
+    /* Source term of the misfit gradient -- GJI 2017 eq. (26a), thesis
+     * eq. (3.51).  See update_adjs2D.cl for the full derivation; this is the
+     * same term with N=3.  The accumulation above is the (A phi' + B phi)
+     * part only, so the "- s" of the bracket survives as a purely local
+     *     +c1M * <sigma~_kk , s_kk>
+     * that is nonzero only in cells containing a source.
+     *
+     * Coefficients follow the same appendix rows the code already uses:
+     * c1M = b1^2 = c1 (eq. A4a at L=0) for M, and c2mu = (N+1)/3 * b1^2 for
+     * mu -- which is exactly the 4.0/3*dM factor above, so the mu side of
+     * the correction carries the same 4/3.
+     *
+     * Only P1 is affected: an isotropic source injects amp/n2ave into each
+     * of sxx,syy,szz, so the deviatoric combination
+     * (N-1)s_ii - sum_{j!=i} s_jj vanishes and the c5 term above is
+     * untouched, as are the shear planes and dJ/drho. */
+    #if GRADOUT==1
+    if (nsrc>0){
+        for (int srci=0; srci<nsrc; srci++){
+            if ((int)src_pos[4+5*srci]==100){
+                int si=(int)(src_pos[0+5*srci]/DH)+FDOH;
+                int sj=(int)(src_pos[1+5*srci]/DH)+FDOH;
+                int sk=(int)(src_pos[2+5*srci]/DH)+FDOH;
+                if (si==gidx && sj==gidy && sk==gidz){
+                    #if FP16==0
+                    float samp = DT*src[srci*NT+nt];
+                    #elif defined(__SEISCL__)
+                    float samp = ldexp(DT*src[srci*NT+nt], src_scale);
+                    #else
+                    float samp = scalbnf(DT*src[srci*NT+nt], src_scale);
+                    #endif
+                    float Csrc = c1*( sxxr[indv]+syyr[indv]+szzr[indv] )*samp;
+                    gradM[indp]  += Csrc;
+                    gradmu[indp] += -4.0/3*Csrc;
+                }
+            }
+        }
+    }
+    #endif
     #if HOUT==1
     float dMH=c1*(sxx[indv]+syy[indv]+szz[indv])*(sxx[indv]+syy[indv]+szz[indv]);
     HM[indp]+= dMH;

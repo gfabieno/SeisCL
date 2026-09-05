@@ -50,6 +50,9 @@ FUNDEF void update_adjs(int offcomm,
                           GLOBARG const float * RESTRICT gradtausipkp,  GLOBARG const float * RESTRICT gradsrc,
                           GLOBARG const float * RESTRICT Hrho,          GLOBARG float * RESTRICT HM,              GLOBARG float * RESTRICT Hmu,
                           GLOBARG const float * RESTRICT Htaup,         GLOBARG const float * RESTRICT Htaus,     GLOBARG const float * RESTRICT Hsrc,
+                          GLOBARG const float * RESTRICT src,           GLOBARG const float * RESTRICT src_pos,
+                          int nsrc,                                     int nt,
+                          int src_scale,
                           LOCARG)
 {
 
@@ -458,6 +461,68 @@ FUNDEF void update_adjs(int offcomm,
         gradM[indp]+=-dM;
         gradmuipkp[indp]+=-c3*(sxz[indv]*lsxz);
         gradmu[indp]+=dM-c5*(  (sxx[indv]-szz[indv])*(lsxx-lszz)  );
+
+        /* Source term of the misfit gradient -- GJI 2017 eq. (26a), thesis
+         * eq. (3.51):
+         *
+         *     dJ/dm = -<psi, T dLambda^-1/dm T (A phi' + B phi - s)>
+         *
+         * The accumulation just above is the (A phi' + B phi) part only: it
+         * is the discrete form of -c1M*P1 with P1 = <sigma~_kk, dt sigma_kk>
+         * (eq. A2a), obtained by parts -- in reverse time the adjoint
+         * increment is d(sigma~) = -dt*dt(sigma~), so
+         * sum_t (-dM) = +c1<sigma,dt sigma~> = -c1<sigma~,dt sigma> = -c1M*P1.
+         * The "- s" in the bracket never gets integrated by parts, so it
+         * survives as a separate, purely local term
+         *
+         *     +c1M * <sigma~_kk , s_kk>
+         *
+         * which the correlation cannot produce and which is nonzero ONLY in
+         * cells containing a source. That is exactly the observed symptom:
+         * a wrong gradient confined to source cells.
+         *
+         * Only P1 is affected. An isotropic (pressure) source injects the
+         * same amp/n2ave into each normal stress, so in P4's deviatoric
+         * combination (N-1)s_ii - sum_{j!=i} s_jj = (N-1)s - (N-1)s = 0, and
+         * it touches neither the shear stresses (P3) nor the velocities
+         * (dJ/drho), so no other dot product picks it up.
+         *
+         * s_kk is the TRACE of the injected source. kernel_sources() (see
+         * automatic_kernels.c) injects amp/n2ave into each of sxx,szz for the
+         * "p" trans_var, so the trace receives exactly amp -- with pdir=+1,
+         * the FORWARD sign, even though this kernel runs in the adjoint pass
+         * where the re-injection that undoes the forward source uses pdir=-1.
+         * DT is already inside amp, matching dM's adjoint increment which
+         * carries its own dt through the dt/dh-scaled moduli, so the two
+         * terms are in the same units. */
+        #if GRADOUT==1
+        if (nsrc>0){
+            for (int srci=0; srci<nsrc; srci++){
+                if ((int)src_pos[4+5*srci]==100){
+                    int si=(int)(src_pos[0+5*srci]/DH)+FDOH;
+                    int sk=(int)(src_pos[2+5*srci]/DH)+FDOH;
+                    if (si==gidx && sk==gidz){
+                        #if FP16==0
+                        float samp = DT*src[srci*NT+nt];
+                        #elif defined(__SEISCL__)
+                        float samp = ldexp(DT*src[srci*NT+nt], src_scale);
+                        #else
+                        float samp = scalbnf(DT*src[srci*NT+nt], src_scale);
+                        #endif
+                        /* The adjoint FIELD (after this step's update), not
+                         * the increment dM pairs against: <sigma~,s> is the one
+                         * term of the bracket that is never integrated by
+                         * parts.  Checked against the two neighbouring
+                         * conventions (before the update, and the midpoint);
+                         * this one is the exact match. */
+                        float Csrc = c1*( sxxr[indv]+szzr[indv] )*samp;
+                        gradM[indp]  += Csrc;
+                        gradmu[indp] += -Csrc;
+                    }
+                }
+            }
+        }
+        #endif
 
         #if HOUT==1
             float dMH=c1*(sxx[indv]+szz[indv])*(sxx[indv]+szz[indv]);
