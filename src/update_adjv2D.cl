@@ -50,6 +50,8 @@ FUNDEF void update_adjv(int offcomm,
                           GLOBARG float * RESTRICT Hrho,            GLOBARG const float * RESTRICT Hsrc,
                           GLOBARG const float * RESTRICT src,       GLOBARG const float * RESTRICT src_pos,
                           int nsrc,                                 int nt,
+                          GLOBARG const float * RESTRICT vxout,     GLOBARG const float * RESTRICT vzout,
+                          GLOBARG const float * RESTRICT rec_pos,   int nrec,
                           LOCARG)
 {
 
@@ -326,8 +328,28 @@ FUNDEF void update_adjv(int offcomm,
     
 // Density gradient calculation on the fly
 #if BACK_PROP_TYPE==1
-    gradrip[indp]+=-vx[indv]*lvx;
-    gradrkp[indp]+=-vz[indv]*lvz;
+    /* Same residual term as update_adjs2D.cl's, for VELOCITY receivers. The
+     * reverse loop injects the residual before update_grid_adj, so the adjoint
+     * increment is res(t) + lvx(t) and lvx alone drops res(t) -- nonzero only
+     * in receiver cells. A pressure receiver injects into the stresses and is
+     * handled there; a velocity receiver injects into vx/vz and belongs here,
+     * in the STAGGERED buoyancy accumulators. Compiled only when vx/vy/vz are
+     * outputs, since otherwise vxout/vzout are not live buffers. */
+    float rvx = 0.0f, rvz = 0.0f;
+    #if GRADOUT==1 && VELOUT==1
+    if (nrec>0){
+        for (int g=0; g<nrec; g++){
+            int ri=(int)(rec_pos[0+8*g]/DH)+FDOH;
+            int rk=(int)(rec_pos[2+8*g]/DH)+FDOH;
+            if (ri==gidx && rk==gidz){
+                rvx += vxout[NT*g+nt];
+                rvz += vzout[NT*g+nt];
+            }
+        }
+    }
+    #endif
+    gradrip[indp]+=-vx[indv]*(lvx+rvx);
+    gradrkp[indp]+=-vz[indv]*(lvz+rvz);
 
     /* Source term of the misfit gradient -- GJI 2017 eq. (26a) -- for a FORCE
      * source. The accumulation just above is the (A phi' + B phi) side of

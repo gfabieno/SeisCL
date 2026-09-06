@@ -344,6 +344,22 @@ char *get_build_options(device *dev,
     // [NZ,NX] for 2D and [NZ,NY,NX] for 3D; PARNY is unused (left at 1) for
     // 2D's own kernels but still emitted unconditionally to keep this call
     // simple.
+    /* Which variable the RESIDUALS are injected into, so the gradient kernels
+       can read the right `*out` buffer -- reading `pout` when the "p" trans_var
+       is not an output binds to a placeholder and faults. */
+    int presout = 0, velout = 0;
+    for (i=0;i<(*dev).ntvars;i++){
+        if (strcmp((*dev).trans_vars[i].name,"p")==0 && (*dev).trans_vars[i].to_output)
+            presout = 1;
+    }
+    for (i=0;i<(*dev).nvars;i++){
+        if ((*dev).vars[i].to_output
+            && (strcmp((*dev).vars[i].name,"vx")==0
+                || strcmp((*dev).vars[i].name,"vy")==0
+                || strcmp((*dev).vars[i].name,"vz")==0))
+            velout = 1;
+    }
+
     parny = (m->NDIM==3) ? (*dev).N[1] : 1;
     parnx = (m->NDIM==3) ? (*dev).N[2] : (*dev).N[1];
 
@@ -357,7 +373,8 @@ char *get_build_options(device *dev,
             "-D VARSOUT=%d -D RESOUT=%d  -D RMSOUT=%d -D MOVOUT=%d "
             "-D GRADOUT=%d -D HOUT=%d -D GRADSRCOUT=%d -D DIRPROP=%d "
             "-D RESTYPE=%d -D FP16=%d -D PARSCALE=%d -D FREQ0=%9.9ff "
-            "-D PARNZ=%d -D PARNY=%d -D PARNX=%d -D TMIN=%d",
+            "-D PARNZ=%d -D PARNY=%d -D PARNX=%d -D TMIN=%d "
+            "-D PRESOUT=%d -D VELOUT=%d",
             (*m).NDIM, (*dev).OFFSET, (*m).FDOH, (*m).dt/(*m).dh, (*m).dh,
             (*m).dt, (*m).dt/2.0, (*m).NT, (*m).NAB, (*dev).NBND,
             (*dev).LOCAL_OFF, (*m).L, (*dev).DEVID, (*m).NUM_DEVICES,
@@ -367,7 +384,7 @@ char *get_build_options(device *dev,
             (*m).VARSOUT, (*m).RESOUT, (*m).RMSOUT, (*m).MOVOUT,
             (*m).GRADOUT, (*m).HOUT, (*m).GRADSRCOUT, DIRPROP, (*m).restype,
             (*m).FP16, (*m).par_scale, (*m).f0,
-            (*dev).N[0], parny, parnx, (*m).tmin) ;
+            (*dev).N[0], parny, parnx, (*m).tmin, presout, velout) ;
 
 
     strcat(build_options,src2);
@@ -500,6 +517,21 @@ int get_build_options(device *dev,
 {
     int state=0;
     int i;
+    /* See the same computation in the OpenCL option string above: which
+       variable the residuals are injected into, so the gradient kernels read a
+       live `*out` buffer. */
+    int presout = 0, velout = 0;
+    for (i=0;i<(*dev).ntvars;i++){
+        if (strcmp((*dev).trans_vars[i].name,"p")==0 && (*dev).trans_vars[i].to_output)
+            presout = 1;
+    }
+    for (i=0;i<(*dev).nvars;i++){
+        if ((*dev).vars[i].to_output
+            && (strcmp((*dev).vars[i].name,"vx")==0
+                || strcmp((*dev).vars[i].name,"vy")==0
+                || strcmp((*dev).vars[i].name,"vz")==0))
+            velout = 1;
+    }
     
     *n=0;
     
@@ -628,6 +660,10 @@ int get_build_options(device *dev,
        build a spectrum of its own on the same convention -- calc_grad_dft's
        source term, eq. (26a) -- needs tmin. */
     sprintf(build_options[*n-1],"-D TMIN=%d",(*m).tmin);
+    *n+=1;
+    sprintf(build_options[*n-1],"-D PRESOUT=%d",presout);
+    *n+=1;
+    sprintf(build_options[*n-1],"-D VELOUT=%d",velout);
     // Raw (unpadded) per-dimension grid size, matching the material
     // parameter arrays' actual layout (num_ele = prod(N), no FDORDER) --
     // distinct from the NZ/NX/etc. macros above, which are sized for the
