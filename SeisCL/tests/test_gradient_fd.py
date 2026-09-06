@@ -1345,16 +1345,17 @@ def test_fd_fp16_physical_units():
     This checks the raw values, since a ratio-based test cannot see a uniform
     scale error at all.
 
-    FP16=2 is checked for a pressure source only: a force source at FP16=2
-    NaNs for ANY amplitude (tested down to SRC_SCALE=1), because the correctly
-    scaled velocity field does not fit in half. That is a limitation of
-    set_par_scale()'s single Mmax-derived scaler, not of the source term -- see
-    notes/todo.md. It looked stable before this fix only because the source was
-    then 2^33 too small, i.e. effectively absent.
+    The same reasoning applies to `src_scale` itself (es of eq. 6 in
+    Fabien-Ouellet 2020): it normalizes the injected amplitude to ~1 only for a
+    source going into a variable stored at scaler 0. A source injected into
+    vx/vy/vz lands as ~2^(-par_scale), which at FP16=2 is far past half's 65504
+    and NaN'd for ANY amplitude. Init_model.c now offsets es by the target
+    variable's scaler, which is why FP16=2 is checked for BOTH source types
+    here.
     """
     bad = []
     for label, st, levels in (("pressure", 100.0, (1, 2)),
-                              ("force Fz", 2.0, (1,))):
+                              ("force Fz", 2.0, (1, 2))):
         d0, g0 = _srccell_grad(0, st)
         for fp in levels:
             d1, g1 = _srccell_grad(fp, st)
