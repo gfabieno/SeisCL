@@ -236,6 +236,26 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
     for (f=0; f<NFREQS; f++){
 
         double w = 2.0*3.14159265358979323846*dftdf*(double)gradfreqsn[f];
+        /* Exact discrete equivalent of BACK_PROP_TYPE==1's quadrature.
+         *
+         * bpt1 accumulates sum_t phi(t)*[psi(t) - psi(t+1)], i.e. it pairs the
+         * forward field at an integer step against an adjoint INCREMENT
+         * spanning t->t+1. Shifting psi by one sample multiplies its spectrum
+         * by exp(i*w*dt), so the exact frequency-domain equivalent carries
+         *     1 - exp(-i*w*dt) = 2*sin^2(w*dt/2) + i*sin(w*dt),
+         * which is sdt*itreal(.) + s2dt*rreal(.) below.
+         *
+         * Using a plain `w` instead keeps only the imaginary half and
+         * mis-scales it: it is the CONTINUUM derivative, not the scheme's. The
+         * dropped rreal term is O(w*dt) relative -- 41% of the itreal term at
+         * 125 Hz for dt=1e-3 -- and being FIRST order it does not vanish under
+         * refinement the way a symbol error would. It showed up as a large
+         * error confined to source cells, where the field is impulsive and the
+         * two halves nearly cancel: measured src/bpt1 = 1.4054 (2D force) and
+         * 0.8040 (3D pressure), both halving exactly when dt was halved. */
+        double wdt  = w*(double)DT;
+        double sdt  = sin(wdt)/(double)DT;
+        double s2dt = 2.0*sin(0.5*wdt)*sin(0.5*wdt)/(double)DT;
         int id = indf(f,i,j,k);
 
         /* S(w): transform of the injected source in savefreqs' convention;
@@ -294,17 +314,17 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         Fzz_mxxyy.y = (float)(ndm1*Fzz.y) - Fxx.y - Fyy.y;
 
         /* P1 with the eq. (26a) bracket intact: <sigma~, dt sigma - s>. */
-        double d0 = (w*itreal(App, Fpp) - (sstype==100 ? rreal(App, S) : 0.0))/dftnorm;
+        double d0 = ((sdt*itreal(App, Fpp) + s2dt*rreal(App, Fpp)) - (sstype==100 ? rreal(App, S) : 0.0))/dftnorm;
         /* Kept apart per shear plane -- sxy/sxz/syz are each driven by a
          * different staggered mu, so they cannot be summed before the
          * coefficient is applied. */
-        double d2xy = w*itreal(Axy, Fxy)/dftnorm;
-        double d2xz = w*itreal(Axz, Fxz)/dftnorm;
-        double d2yz = w*itreal(Ayz, Fyz)/dftnorm;
+        double d2xy = (sdt*itreal(Axy, Fxy) + s2dt*rreal(Axy, Fxy))/dftnorm;
+        double d2xz = (sdt*itreal(Axz, Fxz) + s2dt*rreal(Axz, Fxz))/dftnorm;
+        double d2yz = (sdt*itreal(Ayz, Fyz) + s2dt*rreal(Ayz, Fyz))/dftnorm;
         double d3 = d0;
-        double d4 = w*(itreal(Axx, Fxx_myyzz)
-                     + itreal(Ayy, Fyy_mxxzz)
-                     + itreal(Azz, Fzz_mxxyy))/dftnorm;
+        double d4 = ((sdt*itreal(Axx, Fxx_myyzz) + s2dt*rreal(Axx, Fxx_myyzz))
+                     + (sdt*itreal(Ayy, Fyy_mxxzz) + s2dt*rreal(Ayy, Fyy_mxxzz))
+                     + (sdt*itreal(Azz, Fzz_mxxyy) + s2dt*rreal(Azz, Fzz_mxxyy)))/dftnorm;
         /* vx/vy/vz sit at rip/rjp/rkp respectively (update_v3D.cl): different
          * parameters, so kept apart rather than summed. */
         /* Velocity block: a FORCE source's eq. (26a) term, mirroring the
@@ -321,11 +341,11 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         if (sstype==0){ Fvx.x += (float)((double)DT*(double)DTNYQ)*S.x; Fvx.y += (float)((double)DT*(double)DTNYQ)*S.y; }
         if (sstype==1){ Fvy.x += (float)((double)DT*(double)DTNYQ)*S.x; Fvy.y += (float)((double)DT*(double)DTNYQ)*S.y; }
         if (sstype==2){ Fvz.x += (float)((double)DT*(double)DTNYQ)*S.x; Fvz.y += (float)((double)DT*(double)DTNYQ)*S.y; }
-        double d8x = (w*itreal(Avx, Fvx)
+        double d8x = ((sdt*itreal(Avx, Fvx) + s2dt*rreal(Avx, Fvx))
                      - (sstype==0 ? rreal(Avx, S) : 0.0))/dftnorm;
-        double d8y = (w*itreal(Avy, Fvy)
+        double d8y = ((sdt*itreal(Avy, Fvy) + s2dt*rreal(Avy, Fvy))
                      - (sstype==1 ? rreal(Avy, S) : 0.0))/dftnorm;
-        double d8z = (w*itreal(Avz, Fvz)
+        double d8z = ((sdt*itreal(Avz, Fvz) + s2dt*rreal(Avz, Fvz))
                      - (sstype==2 ? rreal(Avz, S) : 0.0))/dftnorm;
 
 #if HOUT==1

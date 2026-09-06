@@ -342,6 +342,26 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
     for (f=0; f<NFREQS; f++){
 
         double w = 2.0*3.14159265358979323846*dftdf*(double)gradfreqsn[f];
+        /* Exact discrete equivalent of BACK_PROP_TYPE==1's quadrature.
+         *
+         * bpt1 accumulates sum_t phi(t)*[psi(t) - psi(t+1)], i.e. it pairs the
+         * forward field at an integer step against an adjoint INCREMENT
+         * spanning t->t+1. Shifting psi by one sample multiplies its spectrum
+         * by exp(i*w*dt), so the exact frequency-domain equivalent carries
+         *     1 - exp(-i*w*dt) = 2*sin^2(w*dt/2) + i*sin(w*dt),
+         * which is sdt*itreal(.) + s2dt*rreal(.) below.
+         *
+         * Using a plain `w` instead keeps only the imaginary half and
+         * mis-scales it: it is the CONTINUUM derivative, not the scheme's. The
+         * dropped rreal term is O(w*dt) relative -- 41% of the itreal term at
+         * 125 Hz for dt=1e-3 -- and being FIRST order it does not vanish under
+         * refinement the way a symbol error would. It showed up as a large
+         * error confined to source cells, where the field is impulsive and the
+         * two halves nearly cancel: measured src/bpt1 = 1.4054 (2D force) and
+         * 0.8040 (3D pressure), both halving exactly when dt was halved. */
+        double wdt  = w*(double)DT;
+        double sdt  = sin(wdt)/(double)DT;
+        double s2dt = 2.0*sin(0.5*wdt)*sin(0.5*wdt)/(double)DT;
         int id = indf(f,i,j,k);
 
         float2 Fxx = fsxx_f[id], Fyy = fsyy_f[id], Fzz = fszz_f[id];
@@ -434,14 +454,15 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         /* P1 with the eq. (26a) bracket intact: <sigma~, dt sigma - s>.
          * d0 also feeds gradtaup (c1taup) and gradtaus (c2taus) via d3,
          * exactly as A1c/A1e reuse P1, so they are corrected too. */
-        double d0 = sc_ss*(w*itreal(Spp_a, Spp_f) - (sstype==100 ? rreal(Spp_a, S) : 0.0))/dftnorm;
+        double d0 = sc_ss*((sdt*itreal(Spp_a, Spp_f) + s2dt*rreal(Spp_a, Spp_f)) - (sstype==100 ? rreal(Spp_a, S) : 0.0))/dftnorm;
         /* Kept apart per shear plane -- see the file header. */
-        double d2xy = sc_ss*w*itreal(Axy, Fxy)/dftnorm;
-        double d2xz = sc_ss*w*itreal(Axz, Fxz)/dftnorm;
-        double d2yz = sc_ss*w*itreal(Ayz, Fyz)/dftnorm;
+        double d2xy = sc_ss*(sdt*itreal(Axy, Fxy) + s2dt*rreal(Axy, Fxy))/dftnorm;
+        double d2xz = sc_ss*(sdt*itreal(Axz, Fxz) + s2dt*rreal(Axz, Fxz))/dftnorm;
+        double d2yz = sc_ss*(sdt*itreal(Ayz, Fyz) + s2dt*rreal(Ayz, Fyz))/dftnorm;
         double d3 = d0;
-        double d4 = sc_ss*w*(itreal(Axx, Sxx_m) + itreal(Ayy, Syy_m)
-                           + itreal(Azz, Szz_m))/dftnorm;
+        double d4 = sc_ss*((sdt*itreal(Axx, Sxx_m) + s2dt*rreal(Axx, Sxx_m))
+                     + (sdt*itreal(Ayy, Syy_m) + s2dt*rreal(Ayy, Syy_m))
+                     + (sdt*itreal(Azz, Szz_m) + s2dt*rreal(Azz, Szz_m)))/dftnorm;
         /* vx/vy/vz sit at rip/rjp/rkp respectively: kept apart rather than
          * summed, same as grad_dft3D.cl. */
         /* Velocity block: a FORCE source's eq. (26a) term, mirroring the
@@ -458,11 +479,11 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         if (sstype==0){ Fvx.x += (float)((double)DT*(double)DTNYQ)*S.x; Fvx.y += (float)((double)DT*(double)DTNYQ)*S.y; }
         if (sstype==1){ Fvy.x += (float)((double)DT*(double)DTNYQ)*S.x; Fvy.y += (float)((double)DT*(double)DTNYQ)*S.y; }
         if (sstype==2){ Fvz.x += (float)((double)DT*(double)DTNYQ)*S.x; Fvz.y += (float)((double)DT*(double)DTNYQ)*S.y; }
-        double d8x = sc_vv*(w*itreal(Avx, Fvx)
+        double d8x = sc_vv*((sdt*itreal(Avx, Fvx) + s2dt*rreal(Avx, Fvx))
                      - (sstype==0 ? rreal(Avx, S) : 0.0))/dftnorm;
-        double d8y = sc_vv*(w*itreal(Avy, Fvy)
+        double d8y = sc_vv*((sdt*itreal(Avy, Fvy) + s2dt*rreal(Avy, Fvy))
                      - (sstype==1 ? rreal(Avy, S) : 0.0))/dftnorm;
-        double d8z = sc_vv*(w*itreal(Avz, Fvz)
+        double d8z = sc_vv*((sdt*itreal(Avz, Fvz) + s2dt*rreal(Avz, Fvz))
                      - (sstype==2 ? rreal(Avz, S) : 0.0))/dftnorm;
 
         GM   += -c0*d0 + c1*d1;
