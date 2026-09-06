@@ -92,18 +92,43 @@ LFUNDEF double itreal(float2 a, float2 b)
 }
 
 /* calc_grad.c's cl_rm. */
+/* calc_grad.c's cl_rm: Re(conj(a)*(tausig + 1/(i*w))*b), i.e. <r~, tausig*r + R>
+ * with R the alternative memory variable dt(R) = r (thesis eq. 3.16). That IS
+ * A2b's <R~, (1+tausig*dt)r> integrated by parts, using r~ = -dt(R~)
+ * (thesis eq. 3.33) -- so the operator itself was never wrong.
+ *
+ * What was wrong is the DISCRETIZATION. The memory variables are advanced by
+ * CRANK-NICOLSON (thesis eq. 2.47), not by the leapfrog centred differences
+ * the stresses and velocities use, and CN is the bilinear (Tustin) transform:
+ *     i*w  <->  i*(2/dt)*tan(w*dt/2),
+ * so the discrete integral is
+ *     1/(i*w)  <->  -i*(dt/2)*cot(w*dt/2).
+ * That is PURELY IMAGINARY -- CN introduces no real part -- so only 1/w is
+ * replaced and tausig is untouched. (An earlier attempt used the inverse of
+ * the leapfrog forward-difference operator instead, which does carry a real
+ * part, and made taup/taus worse: interior 1.4436 -> 1.9555.)
+ *
+ * The leapfrog variables keep their own symbol (see sdt/s2dt in the d-terms):
+ * two discretizations, two symbols. */
 LFUNDEF double rmreal(float2 a, float2 b, double tausig, double w)
 {
+    double th  = 0.5*w*(double)DT;
+    double iwd = 0.5*(double)DT*cos(th)/sin(th);   /* discrete 1/w */
     return tausig*((double)a.x*(double)b.x + (double)a.y*(double)b.y)
-         + ((double)a.x*(double)b.y - (double)a.y*(double)b.x)/w;
+         + ((double)a.x*(double)b.y - (double)a.y*(double)b.x)*iwd;
 }
 
 /* calc_grad.c's cl_integral: divide by i*w. */
+/* calc_grad.c's cl_integral: a/(i*w). Crank-Nicolson's discrete integral is
+ * -i*(dt/2)*cot(w*dt/2) -- same form, warped frequency, no real part. See
+ * rmreal above. */
 LFUNDEF float2 integ(float2 a, double w)
 {
+    double th  = 0.5*w*(double)DT;
+    double iwd = 0.5*(double)DT*cos(th)/sin(th);   /* discrete 1/w */
     float2 o;
-    o.x = (float)((double)a.y/w);
-    o.y = (float)(-(double)a.x/w);
+    o.x = (float)((double)a.y*iwd);
+    o.y = (float)(-(double)a.x*iwd);
     return o;
 }
 
