@@ -122,6 +122,20 @@ LFUNDEF double rmreal(float2 a, float2 b, double tausig, double w)
 /* calc_grad.c's cl_integral: a/(i*w). Crank-Nicolson's discrete integral is
  * -i*(dt/2)*cot(w*dt/2) -- same form, warped frequency, no real part. See
  * rmreal above. */
+#ifndef HSGN
+#define HSGN (-1.0)
+#endif
+LFUNDEF float2 halfstep(float2 a, double w, double sgn)
+{
+    double th = 0.5*w*(double)DT;
+    double cr = cos(th)*cos(th);
+    double ci = sgn*sin(th)*cos(th);
+    float2 o;
+    o.x = (float)((double)a.x*cr - (double)a.y*ci);
+    o.y = (float)((double)a.x*ci + (double)a.y*cr);
+    return o;
+}
+
 LFUNDEF float2 integ(float2 a, double w)
 {
     double th  = 0.5*w*(double)DT;
@@ -401,8 +415,12 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
             int il = indr(f,l,i,j,k);
             double tausig = 1.0/(2.0*3.14159265358979323846*(double)FL[l]);
 
-            float2 Rxx_f = frxx_f[il], Ryy_f = fryy_f[il], Rzz_f = frzz_f[il];
-            float2 Rxy_f = frxy_f[il], Rxz_f = frxz_f[il], Ryz_f = fryz_f[il];
+            float2 Rxx_f = halfstep(frxx_f[il], w, HSGN);
+            float2 Ryy_f = halfstep(fryy_f[il], w, HSGN);
+            float2 Rzz_f = halfstep(frzz_f[il], w, HSGN);
+            float2 Rxy_f = halfstep(frxy_f[il], w, HSGN);
+            float2 Rxz_f = halfstep(frxz_f[il], w, HSGN);
+            float2 Ryz_f = halfstep(fryz_f[il], w, HSGN);
             float2 Rxx_a = frxx[il],   Ryy_a = fryy[il],   Rzz_a = frzz[il];
             float2 Rxy_a = frxy[il],   Rxz_a = frxz[il],   Ryz_a = fryz[il];
 

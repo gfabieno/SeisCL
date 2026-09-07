@@ -131,6 +131,27 @@ LFUNDEF double rmreal(float2 a, float2 b, double tausig, double w)
 /* calc_grad.c's cl_integral: a/(i*w). Crank-Nicolson's discrete integral is
  * -i*(dt/2)*cot(w*dt/2) -- same form, warped frequency, no real part. See
  * rmreal above. */
+/* The memory variable enters the stress as the AVERAGE (r^n + r^{n+1})/2 (see
+ * update_s2D.cl: DT2*sum(r) is added both before and after the update), whose
+ * symbol is
+ *     (1+z)/2 = cos(th)*e^{-i*th},   th = w*dt/2,  z = e^{-i*w*dt}
+ * while savefreqs DFTs r at INTEGER steps and therefore stores plain R. The
+ * stored spectrum has to be corrected by that factor before it is correlated.
+ * SEISCL_HALFSTEP_SGN flips the sign of the phase for the time-reversed field. */
+#ifndef HSGN
+#define HSGN (-1.0)
+#endif
+LFUNDEF float2 halfstep(float2 a, double w, double sgn)
+{
+    double th = 0.5*w*(double)DT;
+    double cr = cos(th)*cos(th);
+    double ci = sgn*sin(th)*cos(th);
+    float2 o;
+    o.x = (float)((double)a.x*cr - (double)a.y*ci);
+    o.y = (float)((double)a.x*ci + (double)a.y*cr);
+    return o;
+}
+
 LFUNDEF float2 integ(float2 a, double w)
 {
     double th  = 0.5*w*(double)DT;
@@ -363,7 +384,9 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
             /* tausig = 1/(2*pi*FL[l]), calc_grad.c's tausigl. */
             double tausig = 1.0/(2.0*3.14159265358979323846*(double)FL[l]);
 
-            float2 Rxx_f = frxx_f[il], Rzz_f = frzz_f[il], Rxz_f = frxz_f[il];
+            float2 Rxx_f = halfstep(frxx_f[il], w, HSGN);
+            float2 Rzz_f = halfstep(frzz_f[il], w, HSGN);
+            float2 Rxz_f = halfstep(frxz_f[il], w, HSGN);
             float2 Rxx_a = frxx[il],   Rzz_a = frzz[il],   Rxz_a = frxz[il];
 
             /* The stored stress spectrum still contains the memory-variable
