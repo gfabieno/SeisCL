@@ -386,7 +386,8 @@ FUNDEF void update_adjs(int offcomm,
         //those variables change sign in reverse time
         b=1.0/(1.0+(leta[l]*0.5));
         c=1.0-(leta[l]*0.5);
-
+        /* Per-mechanism index; omitting it broke LVE>1. notes/todo.md 0d6. */
+        indr = l*NX*NZ + gidx*NZ+gidz;
         rxzr[indr]=b*(rxzr[indr]*c-leta[l]*(dipkp*(vxzr+vzxr)));
         rxxr[indr]=b*(rxxr[indr]*c-leta[l]*((e*(vxxr+vzzr))-(d*vzzr)));
         rzzr[indr]=b*(rzzr[indr]*c-leta[l]*((e*(vxxr+vzzr))-(d*vxxr)));

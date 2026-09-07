@@ -71,6 +71,16 @@
 #define MAX_DIMS 10
 #define MAX_KERNELS 100
 #define MAX_KERN_STR 200000
+/* Cap for the CACHED COMPILED BINARY (PTX/cubin) that prog_read_file()
+ * reads back, which is a different thing from the kernel SOURCE and much
+ * larger. It used to share MAX_KERN_STR, and the 3D viscoelastic adjoint
+ * kernel's PTX sits just under 200000 -- adding a few statements to
+ * update_adjs3D.cl pushed it over and every 3D viscoelastic run died with
+ * "Kernel file is too long". MAX_KERN_STR itself cannot simply be raised:
+ * it sizes a char[] INSIDE every clprogram struct (see src[] below), so
+ * enlarging it multiplies across every program and breaks the run.
+ * prog_read_file() mallocs, so this one is free to be generous. */
+#define MAX_KERN_BIN 4000000
 #define BLOCK_SIZE 256
 #define MAX_FD_ORDER 12
 //#define __DEBUGGING__

@@ -174,8 +174,8 @@ int prog_read_file(char **output, size_t *size, const char *name) {
     fseek(fp, 0, SEEK_END);
     *size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
-    if (*size > MAX_KERN_STR){
-        fprintf(stderr,"Error: Kernel file is too long, change MAX_KERN_STR value in F.h\n");
+    if (*size > MAX_KERN_BIN){
+        fprintf(stderr,"Error: cached kernel binary too long, raise MAX_KERN_BIN in F.h\n");
         return -1;
     }
     

@@ -586,6 +586,7 @@ FUNDEF void update_adjs(int offcomm,
         c=1.0-(leta[l]*0.5);
         indr = l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz;
 
+        /* r* out, r*r const in; same buffer under bpt2. See notes/todo.md 0d6. */
         rxy[indr]=b*(rxyr[indr]*c-leta[l]*(dipjp*vxyyxr));
         ryz[indr]=b*(ryzr[indr]*c-leta[l]*(djpkp*vyzzyr));
         rxz[indr]=b*(rxzr[indr]*c-leta[l]*(dipkp*vxzzxr));
@@ -593,12 +594,13 @@ FUNDEF void update_adjs(int offcomm,
         ryy[indr]=b*(ryyr[indr]*c-leta[l]*((e*vxxyyzzr)-(d*vxxzzr)));
         rzz[indr]=b*(rzzr[indr]*c-leta[l]*((e*vxxyyzzr)-(d*vxxyyr)));
 
-        sumrxy=rxyr[indr];
-        sumryz=ryzr[indr];
-        sumrxz=rxzr[indr];
-        sumrxx=rxxr[indr];
-        sumryy=ryyr[indr];
-        sumrzz=rzzr[indr];
+        /* += , not = : the sum runs over mechanisms (LVE>1). notes/todo.md 0d6. */
+        sumrxy+=rxyr[indr];
+        sumryz+=ryzr[indr];
+        sumrxz+=rxzr[indr];
+        sumrxx+=rxxr[indr];
+        sumryy+=ryyr[indr];
+        sumrzz+=rzzr[indr];
     }
 
     /* and now the components of the stress tensor are
