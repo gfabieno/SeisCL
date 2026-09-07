@@ -605,12 +605,27 @@ int res_scale(model * m, int s)
                      * 2D is algebraically unchanged. */
                     float NDf = (float)m->NDIM;
                     float trmod;
+                    /* The adjoint stress source is Psi^0 applied to the misfit
+                     * derivative (thesis eq. 3.33), i.e. the UNRELAXED trace
+                     * modulus. M/mu as stored are the RELAXED ones: the update
+                     * kernels form g = M*(1+L*taup) and f = 2*mu*(1+L*taus)
+                     * before using them. Using the stored values here left the
+                     * viscoelastic adjoint source short by (1+L*tau) -- exactly
+                     * 1 when L==0, which is why every elastic case was correct
+                     * and only the viscoelastic gradient drifted with tau. */
+                    float ltp = 1.0f, lts = 1.0f;
+                    if (m->L > 0){
+                        float * taup_a = get_par(m->pars,m->npars,"taup")->gl_par;
+                        float * taus_a = get_par(m->pars,m->npars,"taus")->gl_par;
+                        if (taup_a) ltp = 1.0f + (float)m->L*taup_a[pos];
+                        if (taus_a) lts = 1.0f + (float)m->L*taus_a[pos];
+                    }
                     if (m->FP16>1){
-                        trmod = NDf*half_to_float( ((half*)par)[pos] )
-                        -2.0f*(NDf-1.0f)*half_to_float( ((half*)par2)[pos] );
+                        trmod = NDf*half_to_float( ((half*)par)[pos] )*ltp
+                        -2.0f*(NDf-1.0f)*half_to_float( ((half*)par2)[pos] )*lts;
                     }
                     else{
-                        trmod = NDf*par[pos] - 2.0f*(NDf-1.0f)*par2[pos];
+                        trmod = NDf*par[pos]*ltp - 2.0f*(NDf-1.0f)*par2[pos]*lts;
                     }
                     parscal = -trmod*m->dt/m->dh*powf(2,-scaler2);
 
