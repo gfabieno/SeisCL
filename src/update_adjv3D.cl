@@ -55,7 +55,10 @@ FUNDEF void update_adjv(int offcomm,
                           GLOBARG float * RESTRICT gradrip,         GLOBARG float * RESTRICT gradrjp,         GLOBARG float * RESTRICT gradrkp,
                           GLOBARG const float * RESTRICT Hrho,      GLOBARG const float * RESTRICT Hsrc,
                           GLOBARG const float * RESTRICT src,       GLOBARG const float * RESTRICT src_pos,
-                          int nsrc,                                 int nt)
+                          int nsrc,                                 int nt,
+                          GLOBARG const float * RESTRICT vxout,     GLOBARG const float * RESTRICT vyout,
+                          GLOBARG const float * RESTRICT vzout,     GLOBARG const float * RESTRICT rec_pos,
+                          int nrec)
 {
     LOCDEF
     
@@ -481,9 +484,27 @@ FUNDEF void update_adjv(int offcomm,
 
 // Density gradient calculation on the fly
 #if BACK_PROP_TYPE==1
-    gradrip[indp]+=-vx[indv]*lvx;
-    gradrjp[indp]+=-vy[indv]*lvy;
-    gradrkp[indp]+=-vz[indv]*lvz;
+    /* Residual term at receiver cells for VELOCITY receivers -- the mirror of
+     * update_adjs3D.cl's, landing in each component's own STAGGERED buoyancy
+     * accumulator. See update_adjv2D.cl. */
+    float rvx = 0.0f, rvy = 0.0f, rvz = 0.0f;
+    #if GRADOUT==1 && VELOUT==1
+    if (nrec>0){
+        for (int g=0; g<nrec; g++){
+            int ri=(int)(rec_pos[0+8*g]/DH)+FDOH;
+            int rj=(int)(rec_pos[1+8*g]/DH)+FDOH;
+            int rk=(int)(rec_pos[2+8*g]/DH)+FDOH;
+            if (ri==gidx && rj==gidy && rk==gidz){
+                rvx += vxout[NT*g+nt];
+                rvy += vyout[NT*g+nt];
+                rvz += vzout[NT*g+nt];
+            }
+        }
+    }
+    #endif
+    gradrip[indp]+=-vx[indv]*(lvx+rvx);
+    gradrjp[indp]+=-vy[indv]*(lvy+rvy);
+    gradrkp[indp]+=-vz[indv]*(lvz+rvz);
 
     /* Source term of the misfit gradient -- GJI 2017 eq. (26a) -- for a FORCE
      * source; see update_adjv2D.cl for the derivation. Each component lands in

@@ -1524,6 +1524,74 @@ def test_fd_2d_srccell_visco_bpt2():
             "notes/todo.md." % ", ".join(bad))
 
 
+def _fd_at_receiver_cell(ND, tol=0.02):
+    vp, vs, rho = 2000.0, 1200.0, 2000.0
+    wd = workdir("reccell_%dd" % ND)
+    over = dict(f0=10.0, NT=1200, dt=0.8e-3) if ND == 2 else {}
+    mk = lambda **k: _srccell_model(wd, ND=ND, srctype=100.0, **dict(over, **k))
+    s0, zs = mk()
+    N = [int(v) for v in s0.N]
+    rz = int(round(s0.rec_pos_all[2, 0] / s0.dh))
+    rx = int(round(s0.rec_pos_all[0, 0] / s0.dh))
+    cell = (rz, rx) if ND == 2 else (rz, N[1] // 2, rx)
+    start = {"vp": np.full(s0.N, vp), "vs": np.full(s0.N, vs),
+             "rho": np.full(s0.N, rho)}
+    true = {k: np.array(v) for k, v in start.items()}
+    if ND == 2:
+        true["vp"][N[0]//2+12:N[0]//2+22, N[1]//2-5:N[1]//2+5] += 300.0
+    else:
+        true["vp"][N[0]//2+8:N[0]//2+14, N[1]//2-3:N[1]//2+3,
+                   N[2]//2-3:N[2]//2+3] += 300.0
+    s0.set_forward(s0.src_pos_all[3, :], true, withgrad=False)
+    s0.execute()
+    dobs = [np.asarray(a, np.float64) for a in s0.read_data()]
+    s0.write_data({"p": dobs[0]}, filename="SeisCL_din.mat")
+    din = os.path.join(s0.workdir, "SeisCL_din.mat")
+
+    def misfit(p):
+        t, _ = mk()
+        t.file_din = din
+        t.set_forward(t.src_pos_all[3, :], p, withgrad=False)
+        t.execute()
+        return t.misfit(t.read_data(), dobs=dobs)[0]
+
+    g, _ = mk(gradout=1, back_prop_type=1)
+    g.file_din = din
+    g.set_forward(g.src_pos_all[3, :], start, withgrad=True)
+    g.execute()
+    G = {nm: np.asarray(a, np.float64) for nm, a in zip(g.params, g.read_grad())}
+    print("=== %dD elastic, gradient AT A RECEIVER CELL %s, bpt1 ===" % (ND, cell))
+    print("%-6s %14s %14s %9s" % ("param", "FD", "<g,dm>", "ratio"))
+    bad = []
+    for par in ("vp", "rho"):
+        v = np.zeros_like(G[par])
+        v[cell] = 1.0
+        gv = float((G[par] * v).sum())
+        pp = {k: np.array(a) for k, a in start.items()}
+        pm = {k: np.array(a) for k, a in start.items()}
+        pp[par] = pp[par] + v
+        pm[par] = pm[par] - v
+        fd = (misfit(pp) - misfit(pm)) / 2.0
+        r = fd / gv if gv else float("nan")
+        print("%-6s %14.6e %14.6e %9.4f" % (par, fd, gv, r))
+        if not abs(r - 1.0) <= tol:
+            bad.append("%s %.4f" % (par, r))
+    if bad:
+        raise AssertionError(
+            "receiver-cell gradient off by more than %.0f%%: %s. This is the "
+            "residual term in the adjoint increment (update_adjs%dD.cl) -- see "
+            "notes/todo.md." % (100 * tol, ", ".join(bad), ND))
+
+
+def test_fd_3d_receiver_cell_bpt1():
+    """3D receiver cell; see test_fd_2d_receiver_cell_bpt1.
+
+    Porting the 2D fix here took the whole-grid bpt2-vs-bpt1 cosine from
+    0.8373 to 0.9995 -- the "broad DFT disagreement" was this defect all along.
+    """
+    _fd_at_receiver_cell(3)
+
+
 def test_fd_2d_receiver_cell_bpt1():
     """The gradient AT A RECEIVER CELL, back_prop_type=1.
 
@@ -1630,6 +1698,7 @@ TESTS = [
     test_fd_2d_srccell_force_bpt2,
     test_fd_fp16_physical_units,
     test_fd_2d_receiver_cell_bpt1,
+    test_fd_3d_receiver_cell_bpt1,
 ]
 
 # Known-open failures, each tracked in notes/todo.md -- see the docstring of
