@@ -1257,6 +1257,231 @@ def _fd_at_source_cell(ND, tol=0.01, bpt=1, fp16=0, srctype=100.0, extra=None):
             % (100 * tol, ", ".join(bad)))
 
 
+# ---------------------------------------------------------------------------
+# Heterogeneous random-direction FD check -- the strongest gradient test here.
+#
+# Every other FD check in this file perturbs either a compact box or a single
+# cell of an otherwise HOMOGENEOUS model. That cannot validate the material
+# averaging, for a specific reason: SeisCL averages mu HARMONICALLY onto the
+# staggered muipkp/muipjp/mujpkp, and rho and taus ARITHMETICALLY onto
+# rip/rjp/rkp and tausipkp/... On a homogeneous background those two averages
+# have the SAME Jacobian (1/4 per contributing cell in 2D), so a homogeneous
+# test scores identically whether average_grad_transpose() applies the harmonic
+# transpose, the arithmetic one, or mixes them up. Only a background that
+# actually varies cell to cell separates them.
+#
+# So this check uses BOTH a heterogeneous random background AND a random
+# perturbation direction covering every cell OUTSIDE THE ABSORBING LAYER --
+# source and receiver cells included, which the compact-box checks
+# deliberately avoid. (Perturbing inside the CPML is not a valid FD check;
+# see _interior_mask.) That makes it the
+# one test here that exercises, simultaneously: the averaging transposes on a
+# background where they differ, the eq. (26a) source-cell term, the receiver
+# residual term, and every cross-parameter coupling.
+#
+# The direction is drawn from a seeded Generator so a failure is reproducible.
+# Both the per-parameter rows (which localize a failure) and the "all" row
+# (which perturbs everything at once, and so also catches errors that cancel
+# between parameters) are reported.
+
+
+# Perturbation size per parameter, in physical units. Small enough for the
+# second-order FD error to stay well under the tolerance, large enough to stay
+# clear of float noise in the misfit.
+_HET_EPS = {"vp": 5.0, "vs": 5.0, "rho": 5.0, "taup": 2e-3, "taus": 2e-3}
+
+
+def _interior_mask(s, margin=2):
+    """1 strictly inside the absorbing layer, 0 in it and within `margin`
+    cells of it.
+
+    Both the random background and the random perturbation are confined to
+    this region. Perturbing inside the CPML is not a valid FD check -- the
+    absorbing layer is not part of the physical model, its "sensitivity" is
+    an artefact of the damping profile, and the two-sided FD there measures
+    the boundary condition rather than the medium. A random *background* in
+    the CPML is just as bad for a different reason: the profile is designed
+    against a locally smooth medium, so randomising it degrades the
+    absorption and puts reflections into both J(m+) and J(m-).
+
+    The source (mid-domain) and the receiver line (nab+6 from the far edge)
+    both sit inside this region, so they ARE perturbed -- which is the point
+    of the check."""
+    shape = tuple(int(v) for v in s.N)
+    nab = int(s.nab)
+    keep = nab + margin
+    m = np.zeros(shape)
+    if len(shape) == 2:
+        m[keep:shape[0] - keep, keep:shape[1] - keep] = 1.0
+    else:
+        m[keep:shape[0] - keep, keep:shape[1] - keep,
+          keep:shape[2] - keep] = 1.0
+    return m
+
+
+def _hetero_params(shape, seed, L, mask, spread=0.12):
+    """A heterogeneous random background, varying only where `mask` is 1 and
+    held at the uniform base value elsewhere (i.e. through the absorbing
+    layer). `spread` is the fractional half-width, so vp lands in +-12% of
+    2000 m/s: enough variation that the harmonic and arithmetic averages
+    genuinely differ, while staying stable (CFL) and physical (vp/vs ratio)
+    everywhere."""
+    rng = np.random.default_rng(seed)
+    def f(base, sp):
+        return base * (1.0 + sp * mask * (2.0 * rng.random(shape) - 1.0))
+    p = {"vp": f(2000.0, spread), "vs": f(1200.0, spread),
+         "rho": f(2000.0, spread)}
+    if L:
+        # tau varies more strongly -- it is the parameter whose averaging
+        # (arithmetic, onto tausipkp) is under test.
+        p["taup"] = f(0.02, 0.5)
+        p["taus"] = f(0.02, 0.5)
+    return p
+
+
+def _fd_hetero(ND, bpt, L=0, srctype=100.0, fp16=0, seed=20260907, tol=0.05):
+    names = ("vp", "vs", "rho") + (("taup", "taus") if L else ())
+    tag = "%dd_b%d_L%d_s%d_f%d" % (ND, bpt, L, int(srctype), fp16)
+    wd = workdir("hetero_" + tag)
+    over = {}
+    if L:
+        over["L"] = L
+        # L=2 uses a geometrically symmetric pair about f0, the physically
+        # sensible choice; L=1 sits at f0.
+        over["FL"] = np.array([25.0]) if L == 1 else np.array([12.5, 50.0])
+    if fp16:
+        over["FP16"] = fp16
+    mk = lambda **kw: _srccell_model(wd, ND=ND, srctype=srctype,
+                                     **dict(over, **kw))
+    s0, _zs = mk()
+    shape = tuple(int(v) for v in s0.N)
+    g0NT, g0DT, g0F0 = int(s0.NT), float(s0.dt), float(s0.f0)
+
+    mask = _interior_mask(s0)
+    init = _hetero_params(shape, seed, L, mask)
+    true = _hetero_params(shape, seed + 1000, L, mask)
+
+    s0.set_forward(s0.src_pos_all[3, :], true, withgrad=False)
+    s0.execute()
+    dobs = [np.asarray(a, np.float64) for a in s0.read_data()]
+    s0.write_data({"p": dobs[0]}, filename="SeisCL_din.mat")
+    din = os.path.join(s0.workdir, "SeisCL_din.mat")
+
+    def misfit(p):
+        t, _ = mk()
+        t.file_din = din
+        t.set_forward(t.src_pos_all[3, :], p, withgrad=False)
+        t.execute()
+        return t.misfit(t.read_data(), dobs=dobs)[0]
+
+    gcfg = {}
+    if bpt == 2:
+        dfm = 1.0 / (g0NT * g0DT)
+        gcfg["gradfreqs"] = dfm * np.arange(4, int(5.0 * g0F0 / dfm) + 1)
+    g, _ = mk(gradout=1, back_prop_type=bpt, **gcfg)
+    g.file_din = din
+    g.set_forward(g.src_pos_all[3, :], init, withgrad=True)
+    g.execute()
+    grads = {nm: np.asarray(a, np.float64)
+             for nm, a in zip(g.params, g.read_grad())}
+
+    # One seeded random direction per parameter, covering every cell.
+    rng = np.random.default_rng(seed + 7)
+    dm = {p: mask * (2.0 * rng.random(shape) - 1.0) for p in names}
+
+    def fd_and_dot(active):
+        """Two-sided FD along the directions in `active`, and the matching
+        <grad, dm> summed over those parameters."""
+        pp = {k: np.array(v) for k, v in init.items()}
+        pm = {k: np.array(v) for k, v in init.items()}
+        dot = 0.0
+        for p in active:
+            step = _HET_EPS[p] * dm[p]
+            pp[p] = pp[p] + step
+            pm[p] = pm[p] - step
+            dot += float((grads[p] * step).sum())
+        return (misfit(pp) - misfit(pm)) / 2.0, dot
+
+    print("=== %dD %s, heterogeneous RANDOM perturbation over every cell "
+          "(back_prop_type=%d, L=%d, srctype=%d, FP16=%d, seed=%d) ==="
+          % (ND, "viscoelastic" if L else "elastic", bpt, L, int(srctype),
+             fp16, seed))
+    srci = tuple(int(round(float(s0.src_pos_all[i, 0]) / float(s0.dh)))
+                 for i in ((2, 0) if ND == 2 else (2, 1, 0)))
+    print("    grid %s, %d of %d cells perturbed (absorbing layer excluded, "
+          "nab=%d); source cell %s in mask: %s"
+          % (list(shape), int(mask.sum()), int(np.prod(shape)), int(s0.nab),
+             srci, bool(mask[srci])))
+    print("%-8s %14s %14s %10s" % ("param", "FD", "<g,dm>", "ratio"))
+    bad = []
+    for p in names + ("all",):
+        active = names if p == "all" else (p,)
+        fd, dot = fd_and_dot(active)
+        ratio = fd / dot if dot else float("nan")
+        print("%-8s %14.6e %14.6e %10.4f" % (p, fd, dot, ratio))
+        if not abs(ratio - 1.0) <= tol:
+            bad.append("%s %.4f" % (p, ratio))
+    if bad:
+        raise AssertionError(
+            "heterogeneous random FD off by more than %.0f%%: %s. On a varying "
+            "background this is usually the material-averaging transpose "
+            "(harmonic for mu, arithmetic for rho/taus) -- see "
+            "average_grad_transpose() and notes/todo.md."
+            % (100 * tol, ", ".join(bad)))
+
+
+def test_fd_hetero_2d_elastic_bpt1():
+    """2D elastic, back_prop_type=1, random heterogeneous model and random
+    perturbation of every interior cell. Validates the harmonic mu / arithmetic
+    rho averaging transposes on a background where the two actually differ.
+
+    XFAIL, item 0e: ratios vp 1.0463 / vs 0.9195 / rho 0.1813, and they are
+    eps-INDEPENDENT over a 16x range, so this is a gradient error and not an FD
+    linearization artefact. 3D elastic passes the same check at 1.0001."""
+    _fd_hetero(2, bpt=1)
+
+
+def test_fd_hetero_2d_elastic_bpt2():
+    """As above for the DFT gradient."""
+    _fd_hetero(2, bpt=2)
+
+
+def test_fd_hetero_2d_force_bpt1():
+    """Force source (srctype=2): dJ/drho at the source cell goes through the
+    STAGGERED buoyancy, so this exercises the rip/rkp averaging Jacobian
+    together with the force-source eq. (26a) term."""
+    _fd_hetero(2, bpt=1, srctype=2.0)
+
+
+def test_fd_hetero_2d_visco_L1():
+    """2D viscoelastic, one mechanism. Adds taup/taus, whose staggered
+    tausipkp is averaged ARITHMETICALLY while muipkp is averaged
+    HARMONICALLY -- indistinguishable on a homogeneous background."""
+    _fd_hetero(2, bpt=2, L=1, tol=0.08)
+
+
+def test_fd_hetero_2d_visco_L2():
+    """2D viscoelastic with TWO relaxation mechanisms. L>1 was broken until the
+    adjoint memory-variable fixes (missing per-mechanism index in
+    update_adjs2D.cl); every other viscoelastic test here runs L=1, where that
+    bug is invisible because the stale index happens to be 0."""
+    _fd_hetero(2, bpt=2, L=2, tol=0.08)
+
+
+def test_fd_hetero_3d_elastic_bpt1():
+    """3D elastic: three staggered shear moduli (muipkp/muipjp/mujpkp) and
+    three buoyancies, so the averaging transposes have more ways to be wrong
+    than in 2D."""
+    _fd_hetero(3, bpt=1)
+
+
+def test_fd_hetero_3d_visco_L2():
+    """3D viscoelastic, two mechanisms -- covers the update_adjs3D.cl fixes
+    (adjoint arrays written instead of the forward reconstruction ones, and
+    the mechanism sums accumulated rather than assigned)."""
+    _fd_hetero(3, bpt=2, L=2, tol=0.08)
+
+
 def test_fd_2d_srccell_bpt1():
     """2D elastic back_prop_type=1, perturbing the SOURCE CELL itself.
 
@@ -1699,6 +1924,13 @@ TESTS = [
     test_fd_fp16_physical_units,
     test_fd_2d_receiver_cell_bpt1,
     test_fd_3d_receiver_cell_bpt1,
+    test_fd_hetero_2d_elastic_bpt1,
+    test_fd_hetero_2d_elastic_bpt2,
+    test_fd_hetero_2d_force_bpt1,
+    test_fd_hetero_2d_visco_L1,
+    test_fd_hetero_2d_visco_L2,
+    test_fd_hetero_3d_elastic_bpt1,
+    test_fd_hetero_3d_visco_L2,
 ]
 
 # Known-open failures, each tracked in notes/todo.md -- see the docstring of
@@ -1706,6 +1938,17 @@ TESTS = [
 # still run and still print their numbers; they just do not fail the build.
 XFAIL = {
     "test_fd_sh_bpt1",                   # item 4
+    # item 0e: the 2D gradient does not match FD on a HETEROGENEOUS background.
+    # These are deliberately left failing rather than tuned to pass -- they are
+    # reporting a real defect that every homogeneous check in this file misses.
+    # 3D elastic passes the same check, so this is 2D-specific. FD nonlinearity
+    # and an array-transpose have both been tested and refuted; see notes.
+    "test_fd_hetero_2d_elastic_bpt1",    # item 0e
+    "test_fd_hetero_2d_elastic_bpt2",    # item 0e
+    "test_fd_hetero_2d_force_bpt1",      # item 0e
+    "test_fd_hetero_2d_visco_L1",        # item 0e
+    "test_fd_hetero_2d_visco_L2",        # item 0e
+    "test_fd_hetero_3d_visco_L2",        # item 0e (3D elastic passes)
 }
 
 if __name__ == "__main__":
