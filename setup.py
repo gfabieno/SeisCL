@@ -33,6 +33,17 @@ if os.environ.get('SEISCL_BUILD_TORCH') == '1':
     if hdf5_lib_dir:
         library_dirs.append(hdf5_lib_dir)
 
+    # libhdf5/libhdf5_hl commonly live off a non-standard path (e.g. the
+    # openmpi-packaged HDF5 used on this project's dev machine, see
+    # CLAUDE.md) that isn't in the dynamic linker's default search path or
+    # ldconfig cache -- unlike libcuda/libnvrtc, which are. Without an
+    # rpath, importing the built extension needs LD_LIBRARY_PATH set at
+    # runtime, in every shell/notebook kernel that imports it, forever. Bake
+    # the path in at link time instead so `pip install` alone is sufficient.
+    extra_link_args = []
+    if hdf5_lib_dir:
+        extra_link_args.append('-Wl,-rpath,' + os.path.abspath(hdf5_lib_dir))
+
     ext_modules = [
         CUDAExtension(
             name='SeisCL.torch._C',
@@ -42,6 +53,7 @@ if os.environ.get('SEISCL_BUILD_TORCH') == '1':
             include_dirs=include_dirs,
             library_dirs=library_dirs,
             libraries=['seiscl_core', 'hdf5', 'hdf5_hl', 'cuda', 'nvrtc'],
+            extra_link_args=extra_link_args,
             # seiscl_core (CMakeLists.txt's BUILD_TORCH_CORE target) is
             # compiled with __NOMPI__, which changes the layout of the
             # `model` struct (F.h:446-448, an MPI_Comm field appears only

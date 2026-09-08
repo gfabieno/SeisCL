@@ -44,6 +44,8 @@ SeisCL_MPI
 cl2cstring
 # out-of-source build trees (build/, build-cuda/, build-ocl/, ...)
 build*/
+# env artifacts
+.venv*/
 *.so
 
 # docs/builders/ generates the notebooks (see notes/docs-status.md) but is
