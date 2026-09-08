@@ -1429,8 +1429,8 @@ def _fd_hetero(ND, bpt, L=0, srctype=100.0, fp16=0, seed=20260907, tol=0.10):
             dot += float((grads[p] * step).sum())
         return (misfit(pp) - misfit(pm)) / 2.0, dot
 
-    print("=== %dD %s, heterogeneous RANDOM perturbation over every cell "
-          "(back_prop_type=%d, L=%d, srctype=%d, FP16=%d, seed=%d) ==="
+    print("=== %dD %s, heterogeneous RANDOM perturbation of every INTERIOR "
+          "cell (back_prop_type=%d, L=%d, srctype=%d, FP16=%d, seed=%d) ==="
           % (ND, "viscoelastic" if L else "elastic", bpt, L, int(srctype),
              fp16, seed))
     srci = tuple(int(round(float(s0.src_pos_all[i, 0]) / float(s0.dh)))
