@@ -63,9 +63,15 @@ FUNDEF void update_adjs(int offcomm,
                           GLOBARG float * RESTRICT psi_vy_x,        GLOBARG float * RESTRICT psi_vy_y,        GLOBARG float * RESTRICT psi_vy_z,
                           GLOBARG float * RESTRICT psi_vz_x,        GLOBARG float * RESTRICT psi_vz_y,        GLOBARG float * RESTRICT psi_vz_z,
                           GLOBARG const float * RESTRICT gradrho,   GLOBARG float * RESTRICT gradM,           GLOBARG float * RESTRICT gradmu,
+                          GLOBARG float * RESTRICT gradmuipkp,      GLOBARG float * RESTRICT gradmuipjp,      GLOBARG float * RESTRICT gradmujpkp,
                           GLOBARG const float * RESTRICT gradtaup,  GLOBARG const float * RESTRICT gradtaus,  GLOBARG const float * RESTRICT gradsrc,
                           GLOBARG const float * RESTRICT Hrho,      GLOBARG float * RESTRICT HM,              GLOBARG float * RESTRICT Hmu,
                           GLOBARG const float * RESTRICT Htaup,     GLOBARG const float * RESTRICT Htaus,     GLOBARG const float * RESTRICT Hsrc,
+                          GLOBARG const float * RESTRICT src,       GLOBARG const float * RESTRICT src_pos,
+                          int nsrc,                                 int nt,
+                          int src_scale,
+                          GLOBARG const float * RESTRICT pout,      GLOBARG const float * RESTRICT rec_pos,
+                          int nrec,                                 int res_scale,
                           LOCARG)
 {
     
@@ -580,6 +586,7 @@ FUNDEF void update_adjs(int offcomm,
         c=1.0-(leta[l]*0.5);
         indr = l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz;
 
+        /* r* out, r*r const in; same buffer under bpt2. See notes/todo.md 0d6. */
         rxy[indr]=b*(rxyr[indr]*c-leta[l]*(dipjp*vxyyxr));
         ryz[indr]=b*(ryzr[indr]*c-leta[l]*(djpkp*vyzzyr));
         rxz[indr]=b*(rxzr[indr]*c-leta[l]*(dipkp*vxzzxr));
@@ -587,12 +594,13 @@ FUNDEF void update_adjs(int offcomm,
         ryy[indr]=b*(ryyr[indr]*c-leta[l]*((e*vxxyyzzr)-(d*vxxzzr)));
         rzz[indr]=b*(rzzr[indr]*c-leta[l]*((e*vxxyyzzr)-(d*vxxyyr)));
 
-        sumrxy=rxyr[indr];
-        sumryz=ryzr[indr];
-        sumrxz=rxzr[indr];
-        sumrxx=rxxr[indr];
-        sumryy=ryyr[indr];
-        sumrzz=rzzr[indr];
+        /* += , not = : the sum runs over mechanisms (LVE>1). notes/todo.md 0d6. */
+        sumrxy+=rxyr[indr];
+        sumryz+=ryzr[indr];
+        sumrxz+=rxzr[indr];
+        sumrxx+=rxxr[indr];
+        sumryy+=ryyr[indr];
+        sumrzz+=rzzr[indr];
     }
 
     /* and now the components of the stress tensor are
@@ -677,20 +685,118 @@ FUNDEF void update_adjs(int offcomm,
 #if BACK_PROP_TYPE==1
     #if RESTYPE==0
     float c1=1.0/(3.0*lM-4.0*lmu)/(3.0*lM-4.0*lmu);
-    float c3=1.0/lmu/lmu;
-    float c5=1.0/6.0*c3;
+    // Each shear term is evaluated at its own staggered mu position
+    // (fipkp/fipjp/fjpkp), not the cell-centred lmu the diagonal (c5) term
+    // uses -- matching grad_dft2D.cl's Gmu/Gmuipkp split, generalized to
+    // the three 3D shear planes. Kept in their own gradmu{ipkp,ipjp,jpkp}
+    // accumulators so average_grad_transpose() (calc_grad.c) can apply the
+    // harmonic-mean averaging Jacobian to each separately.
+    // Read the staggered mu values directly from the parameter buffers
+    // rather than reusing fipkp/fipjp/fjpkp -- those locals are only
+    // (re)assigned inside the forward-reconstruction branch above, so
+    // reading the raw buffer here is the safer choice regardless. This did
+    // NOT fix the NaN gradmuipkp/gradmuipjp/gradmujpkp observed via
+    // instrumentation (average_grad_transpose() dump, host-side
+    // muipkp[indp] is confirmed nonzero/sane at this same index) -- the
+    // real cause is still open, see notes/todo.md item 1's 3D section.
+    // Kept because it removes one real risk (stale locals) even though it
+    // is not the fix; do not assume this is done.
+    float gfipkp=muipkp[indp];
+    float gfipjp=muipjp[indp];
+    float gfjpkp=mujpkp[indp];
+    // Fluid/padding cells (staggered mu==0, e.g. muipkp/muipjp/mujpkp can
+    // legitimately be 0 at domain-edge ghost positions even where the
+    // cell-centred lmu is not) must drop the shear coefficient entirely,
+    // matching grad_dft2D.cl's mu_p>=1.0 guard -- 1/0 gives Inf, and
+    // Inf*0 (whenever the correlated stress happens to be exactly 0 at
+    // that same cell) gives NaN, which silently poisons the whole
+    // gradmuipkp/gradmuipjp/gradmujpkp buffer through the += accumulation.
+    // Confirmed via instrumentation: muipkp[indp] is 0 at 4032/262144
+    // cells for this test model.
+    float c3xz = (gfipkp>=1.0) ? 1.0/gfipkp/gfipkp : 0.0;
+    float c3xy = (gfipjp>=1.0) ? 1.0/gfipjp/gfipjp : 0.0;
+    float c3yz = (gfjpkp>=1.0) ? 1.0/gfjpkp/gfjpkp : 0.0;
+    float c5=1.0/6.0/lmu/lmu;
 
-    float dM=c1*( sxx[indv]+syy[indv]+szz[indv] )*( lsxx+lsyy+lszz );
+    /* Residual term at RECEIVER cells -- see update_adjs2D.cl for the
+     * derivation. The reverse loop injects the residual before
+     * update_grid_adj, so d(sigma~) = res + lsxx and lsxx alone drops res.
+     * An isotropic "p" residual is split equally over sxx,syy,szz, so the
+     * TRACE receives exactly pout[NT*g+nt] and the deviatoric/shear terms are
+     * untouched. */
+    float restr = 0.0f;
+    #if GRADOUT==1 && PRESOUT==1
+    if (nrec>0){
+        for (int g=0; g<nrec; g++){
+            int ri=(int)(rec_pos[0+8*g]/DH)+FDOH;
+            int rj=(int)(rec_pos[1+8*g]/DH)+FDOH;
+            int rk=(int)(rec_pos[2+8*g]/DH)+FDOH;
+            if (ri==gidx && rj==gidy && rk==gidz){
+                #if FP16==0
+                restr += pout[NT*g+nt];
+                #elif defined(__SEISCL__)
+                restr += ldexp(pout[NT*g+nt], res_scale);
+                #else
+                restr += scalbnf(pout[NT*g+nt], res_scale);
+                #endif
+            }
+        }
+    }
+    #endif
+
+    float dM=c1*( sxx[indv]+syy[indv]+szz[indv] )*( lsxx+lsyy+lszz+restr );
 
     gradM[indp]+=-dM;
-    gradmu[indp]+=-c3*(sxz[indv]*lsxz +sxy[indv]*lsxy +syz[indv]*lsyz )
-        + 4.0/3*dM-c5*(lsxx*(2.0*sxx[indv]- syy[indv]-szz[indv] )
+    gradmuipkp[indp]+=-c3xz*(sxz[indv]*lsxz);
+    gradmuipjp[indp]+=-c3xy*(sxy[indv]*lsxy);
+    gradmujpkp[indp]+=-c3yz*(syz[indv]*lsyz);
+    gradmu[indp]+= 4.0/3*dM-c5*(lsxx*(2.0*sxx[indv]- syy[indv]-szz[indv] )
                       +lsyy*(2.0*syy[indv]- sxx[indv]-szz[indv] )
                       +lszz*(2.0*szz[indv]- sxx[indv]-syy[indv] ));
+
+    /* Source term of the misfit gradient -- GJI 2017 eq. (26a), thesis
+     * eq. (3.51).  See update_adjs2D.cl for the full derivation; this is the
+     * same term with N=3.  The accumulation above is the (A phi' + B phi)
+     * part only, so the "- s" of the bracket survives as a purely local
+     *     +c1M * <sigma~_kk , s_kk>
+     * that is nonzero only in cells containing a source.
+     *
+     * Coefficients follow the same appendix rows the code already uses:
+     * c1M = b1^2 = c1 (eq. A4a at L=0) for M, and c2mu = (N+1)/3 * b1^2 for
+     * mu -- which is exactly the 4.0/3*dM factor above, so the mu side of
+     * the correction carries the same 4/3.
+     *
+     * Only P1 is affected: an isotropic source injects amp/n2ave into each
+     * of sxx,syy,szz, so the deviatoric combination
+     * (N-1)s_ii - sum_{j!=i} s_jj vanishes and the c5 term above is
+     * untouched, as are the shear planes and dJ/drho. */
+    #if GRADOUT==1
+    if (nsrc>0){
+        for (int srci=0; srci<nsrc; srci++){
+            if ((int)src_pos[4+5*srci]==100){
+                int si=(int)(src_pos[0+5*srci]/DH)+FDOH;
+                int sj=(int)(src_pos[1+5*srci]/DH)+FDOH;
+                int sk=(int)(src_pos[2+5*srci]/DH)+FDOH;
+                if (si==gidx && sj==gidy && sk==gidz){
+                    #if FP16==0
+                    float samp = DT*src[srci*NT+nt];
+                    #elif defined(__SEISCL__)
+                    float samp = ldexp(DT*src[srci*NT+nt], src_scale);
+                    #else
+                    float samp = scalbnf(DT*src[srci*NT+nt], src_scale);
+                    #endif
+                    float Csrc = c1*( sxxr[indv]+syyr[indv]+szzr[indv] )*samp;
+                    gradM[indp]  += Csrc;
+                    gradmu[indp] += -4.0/3*Csrc;
+                }
+            }
+        }
+    }
+    #endif
     #if HOUT==1
     float dMH=c1*(sxx[indv]+syy[indv]+szz[indv])*(sxx[indv]+syy[indv]+szz[indv]);
     HM[indp]+= dMH;
-    Hmu[indp]+=c3*(sxz[indv]*sxz[indv]+sxy[indv]*sxy[indv]+syz[indv]*syz[indv])
+    Hmu[indp]+=c3xz*sxz[indv]*sxz[indv]+c3xy*sxy[indv]*sxy[indv]+c3yz*syz[indv]*syz[indv]
                     - 4.0/3*dM
                     +c5*( (2.0*sxx[indv]- syy[indv]-szz[indv])*(2.0*sxx[indv]- syy[indv]-szz[indv]))
                          +(2.0*syy[indv]- sxx[indv]-szz[indv])*(2.0*syy[indv]- sxx[indv]-szz[indv])

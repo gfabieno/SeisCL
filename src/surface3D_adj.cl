@@ -37,10 +37,18 @@ FUNDEF void surface_adj(GLOBARG __prec *vxr,   GLOBARG __prec *vyr,
                         GLOBARG __prec *taus,  GLOBARG __prec *taup,
                         GLOBARG float *eta)
 {
-    /*Indice definition */
+    /*Indice definition. gsize[0]=N[1] (Y extent), gsize[1]=N[2] (X extent)
+     * (Init_OpenCL.c), and both backends map gsize[i] to hardware axis i
+     * identically (clEnqueueNDRangeKernel / cuLaunchKernel in clprogram.c),
+     * so axis 0 must always land on gidy and axis 1 on gidx -- matching
+     * surface3D.cl's (forward) convention below. The OpenCL branch here used
+     * to swap them (get_global_id(0) -> gidx), disagreeing with both its own
+     * CUDA branch and the forward kernel; harmless on a cubic, x/y-symmetric
+     * grid, but a real backend-dependent transpose of the free-surface
+     * adjoint correction otherwise. See notes/3d-gradient-findings.md. */
     #ifdef __OPENCL_VERSION__
-    int gidx = get_global_id(0) + FDOH;
-    int gidy = get_global_id(1) + FDOH;
+    int gidy = get_global_id(0) + FDOH;
+    int gidx = get_global_id(1) + FDOH;
     #else
     int gidy = blockIdx.x*blockDim.x + threadIdx.x + FDOH;
     int gidx = blockIdx.y*blockDim.y + threadIdx.y + FDOH;
@@ -62,7 +70,7 @@ FUNDEF void surface_adj(GLOBARG __prec *vxr,   GLOBARG __prec *vyr,
     //Read variables in register
     lszz = -szzr[indv(gidz,gidy,gidx)];
     lsxx = -sxxr[indv(gidz,gidy,gidx)];
-    lsyy = -sxxr[indv(gidz,gidy,gidx)];
+    lsyy = -syyr[indv(gidz,gidy,gidx)];
     lmu = mu[indp(gidz,gidy,gidx)];
     lM = M[indp(gidz,gidy,gidx)];
     

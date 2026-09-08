@@ -82,6 +82,7 @@ void variable_freeCL(device *dev, variable * var){
     clbuf_free(dev, &var->cl_varout);
     clbuf_free(dev, &var->cl_varbnd);
     clbuf_free(dev, &var->cl_fvar);
+    clbuf_free(dev, &var->cl_fvar_f);
     clbuf_free(dev, &var->cl_fvar_adj);
     clbuf_free(dev, &var->cl_buf1);
     clbuf_free(dev, &var->cl_buf2);
@@ -93,6 +94,7 @@ void variable_adj_freeCL(device *dev, variable * var){
     clbuf_free(dev, &var->cl_var);
     clbuf_free(dev, &var->cl_varbnd);
     clbuf_free(dev, &var->cl_fvar);
+    clbuf_free(dev, &var->cl_fvar_f);
     clbuf_free(dev, &var->cl_fvar_adj);
     clbuf_free(dev, &var->cl_buf1);
     clbuf_free(dev, &var->cl_buf2);
@@ -234,6 +236,7 @@ void gradients_freeCL(gradients * grad){
     clprogram_freeCL(&grad->savefreqs);
     clprogram_freeCL(&grad->initsavefreqs);
     clprogram_freeCL(&grad->savebnd);
+    clprogram_freeCL(&grad->calc_grad);
     
 }
 
@@ -243,6 +246,7 @@ void gradients_freeGL(gradients * grad){
     clprogram_freeGL(&grad->savefreqs);
     clprogram_freeGL(&grad->initsavefreqs);
     clprogram_freeGL(&grad->savebnd);
+    clprogram_freeGL(&grad->calc_grad);
     
 }
 

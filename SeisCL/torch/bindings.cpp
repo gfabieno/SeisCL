@@ -171,6 +171,9 @@ CacheKey make_cache_key(const Config &cfg, int allns, int allng,
     k.GRADSRCOUT = cfg.GRADSRCOUT;
     k.HOUT = cfg.HOUT;
     k.BACK_PROP_TYPE = cfg.BACK_PROP_TYPE;
+    k.gradfreqs = cfg.gradfreqs;
+    k.dft_osamp = cfg.dft_osamp;
+    k.tmin = cfg.tmin;
     k.nmax_dev = cfg.nmax_dev;
     k.pref_device_type = cfg.pref_device_type;
     k.allns = allns;
@@ -230,21 +233,66 @@ py::dict collect_data(model &m) {
     return result;
 }
 
-// Zero the NAB-wide absorbing-boundary strip, matching SeisCL.py's cropgrad
-// default (SeisCL.py:639-646) -- boundary-storage-method gradients
-// (BACK_PROP_TYPE=1) are inaccurate in this region. 2D only, matching the
-// scope of SeisCL.py's own cropgrad implementation (its slicing doesn't
-// correctly handle a 3D array either). Internal layout is X-slowest/
-// Z-fastest flat (gl_par[x*NZ+z], see src/Init_model.c's indexing macros),
-// matching what SeisCL.py's write_model() produces via np.transpose().
-void crop_boundary_2d(float *grad, const model &m) {
-    if (m.NDIM != 2) return;
-    int nz = m.N[0], nx = m.N[1], nab = m.NAB;
-    for (int x = 0; x < nx; x++) {
-        for (int z = 0; z < nz; z++) {
-            bool in_boundary = (m.FREESURF == 0 && z < nab) || z >= nz - nab ||
-                               x < nab || x >= nx - nab;
-            if (in_boundary) grad[x * nz + z] = 0.0f;
+// Zero the NAB-wide absorbing-boundary strip, matching SeisCL.py's
+// _crop_boundary() (SeisCL/SeisCL.py) -- see that function's docstring for
+// the full derivation; summarized here.
+//
+// Whether cropping is actually needed -- not just whether NAB rows exist --
+// depends on *why* the boundary's gradient would be wrong, which differs by
+// BACK_PROP_TYPE:
+//  - BACK_PROP_TYPE==1 reconstructs the forward wavefield from a saved
+//    boundary checkpoint by undoing each timestep's raw update, but never
+//    divides back out the absorbing boundary's own damping (Cerjan's taper
+//    multiply, or CPML's memory-variable recursion) that the forward pass
+//    applied at that cell -- so the "reconstructed" field inside the
+//    absorbing band silently diverges from the true one as backpropagation
+//    proceeds, regardless of ABS_TYPE. Always cropped.
+//  - BACK_PROP_TYPE==2 (DFT) never reconstructs anything: both the forward
+//    and adjoint fields are computed by real time-stepping over the entire
+//    grid. For ABS_TYPE==2 (Cerjan), a taper is just a real per-cell
+//    multiply -- its own adjoint -- so the gradient inside the tapered band
+//    is numerically valid there (only physically less interesting). Not
+//    cropped by default. ABS_TYPE==1 (CPML) is a more delicate
+//    discrete-adjoint question, not verified the same way, so it stays
+//    cropped by default regardless of BACK_PROP_TYPE.
+//
+// Internal layout has no FDOH/NAB padding, matching update_adj{v,s}{2D,3D}.cl's
+// `indp` addressing: X-slowest/Z-fastest flat in 2D (gl_par[x*NZ+z]), and
+// X-slowest/Y-middle/Z-fastest in 3D (gl_par[x*(NY*NZ)+y*NZ+z]) -- matching
+// what SeisCL.py's write_model() produces via np.transpose().
+void crop_boundary(float *grad, const model &m) {
+    if (m.BACK_PROP_TYPE != 1 && m.ABS_TYPE != 1) return;
+    int nab = m.NAB;
+    // FREESURF==0's top band is cropped for the general reason above.
+    // FREESURF==1 has its own accurate free-surface gradient handling right
+    // up to z=0, no crop needed. FREESURF==2's vacuum band
+    // (supplied by the caller in the model, not created by the engine) is only FDOH deep --
+    // NAB does not apply to that edge at all once a free surface is active
+    // (CPML is already disabled there regardless of NAB) -- but those FDOH
+    // rows hold physically meaningless nonzero gradient values (no real
+    // material to invert for), so they still need masking, just a much
+    // thinner band than FREESURF==0's.
+    int ztop = (m.FREESURF == 2) ? m.FDOH : nab;
+    if (m.NDIM == 2) {
+        int nz = m.N[0], nx = m.N[1];
+        for (int x = 0; x < nx; x++) {
+            for (int z = 0; z < nz; z++) {
+                bool in_boundary = (m.FREESURF != 1 && z < ztop) || z >= nz - nab ||
+                                   x < nab || x >= nx - nab;
+                if (in_boundary) grad[x * nz + z] = 0.0f;
+            }
+        }
+    } else if (m.NDIM == 3) {
+        int nz = m.N[0], ny = m.N[1], nx = m.N[2];
+        for (int x = 0; x < nx; x++) {
+            for (int y = 0; y < ny; y++) {
+                for (int z = 0; z < nz; z++) {
+                    bool in_boundary = (m.FREESURF != 1 && z < ztop) ||
+                                       z >= nz - nab || y < nab || y >= ny - nab ||
+                                       x < nab || x >= nx - nab;
+                    if (in_boundary) grad[x * (ny * nz) + y * nz + z] = 0.0f;
+                }
+            }
         }
     }
 }
@@ -253,7 +301,7 @@ py::dict collect_grads(model &m) {
     py::dict result;
     for (int i = 0; i < m.npars; i++) {
         if (m.pars[i].to_grad && m.pars[i].gl_grad) {
-            crop_boundary_2d(m.pars[i].gl_grad, m);
+            crop_boundary(m.pars[i].gl_grad, m);
             torch::Tensor g = torch::from_blob(m.pars[i].gl_grad,
                                                {m.pars[i].num_ele},
                                                torch::kFloat32)
@@ -262,6 +310,31 @@ py::dict collect_grads(model &m) {
         }
     }
     return result;
+}
+
+// A handle's pending checkpoint (see EngineHandle::pending_valid) is the
+// only copy of a forward pass whose backward has not run yet -- for a
+// single-shot run it lives solely in this handle's own buffers. Call this
+// before anything overwrites those buffers (another forward reusing the
+// handle, a rekey displacing it, or a backward call restoring a *different*
+// checkpoint into it), or that pending forward's data is lost outright and
+// its own eventual backward call can no longer recover it. A no-op if
+// nothing is pending.
+void flush_pending_checkpoint(EngineHandle &h) {
+    if (!h.pending_valid) return;
+    int flushed;
+    if (h.m.CKPT_IN_MEMORY && h.m.CKPT_FILE_ID > 0) {
+        flushed = checkpoint_image_to_disk(h.m.CKPT_FILE_ID,
+                                           h.pending_ckpt.c_str());
+    } else {
+        flushed = checkpoint_flush(&h.m, &h.dev, h.pending_ckpt.c_str());
+    }
+    h.pending_valid = false;
+    if (flushed) {
+        throw std::runtime_error(
+            "failed to flush a pending SeisCL checkpoint to " +
+            h.pending_ckpt);
+    }
 }
 
 // Build on a miss, refresh on a hit. Any failure evicts the handle rather
@@ -316,7 +389,16 @@ EngineHandle *prepare_engine(const Config &cfg, const CacheKey &key,
         std::sort(resolved.begin(), resolved.end());
         CacheKey resolved_key = key;
         resolved_key.output_fields = resolved;
-        cache.rekey(key, resolved_key);
+        std::unique_ptr<EngineHandle> displaced =
+            cache.rekey(key, resolved_key);
+
+        // The displaced handle's own forward already ran and (since it is
+        // pending_valid) its matching backward has not -- its boundary
+        // wavefield exists only in the buffers we are about to free via
+        // this unique_ptr's destructor. Flush it to disk first, exactly as
+        // run_forward() does when about to overwrite its own handle's
+        // buffers with a new forward pass.
+        if (displaced) flush_pending_checkpoint(*displaced);
     }
     return h;
 }
@@ -345,14 +427,18 @@ py::dict run_forward(const Config &cfg, const py::dict &params,
     // through HDF5. Multi-shot runs still need the file: checkpoint_d2h()
     // runs per shot inside the shot loop, so only the last shot is ever
     // resident.
-    bool skip_file = has_checkpoint && h->m.src_recs.ns == 1;
+    // BACK_PROP_TYPE=2 keeps no checkpoint at all: its adjoint call
+    // re-runs the forward pass to refill the frequency buffers, so
+    // there is nothing to hand over or spill.
+    bool uses_checkpoint = has_checkpoint && cfg.BACK_PROP_TYPE == 1;
+    bool skip_file = uses_checkpoint && h->m.src_recs.ns == 1;
 
     // More than one shot: every shot's wavefield has to survive until the
     // adjoint pass, which the shared buffers cannot do on their own (they
     // are reused per shot). Keep the per-shot datasets, but back them with
     // RAM rather than disk when they fit.
     bool in_memory = false;
-    if (has_checkpoint && !skip_file) {
+    if (uses_checkpoint && !skip_file) {
         std::size_t bytes =
             checkpoint_bytes_per_shot(*h) * h->m.src_recs.ns;
         in_memory = checkpoint_fits_in_memory(bytes);
@@ -362,21 +448,12 @@ py::dict run_forward(const Config &cfg, const py::dict &params,
     // have its buffers overwritten. Persist its checkpoint now, so that
     // backward can still fall back to the file.
     if (h->pending_valid && h->pending_ckpt != checkpoint_path) {
-        int flushed;
-        if (h->m.CKPT_IN_MEMORY && h->m.CKPT_FILE_ID > 0) {
-            flushed = checkpoint_image_to_disk(h->m.CKPT_FILE_ID,
-                                               h->pending_ckpt.c_str());
-        } else {
-            flushed = checkpoint_flush(&h->m, &h->dev,
-                                       h->pending_ckpt.c_str());
-        }
-        if (flushed) {
+        try {
+            flush_pending_checkpoint(*h);
+        } catch (...) {
             global_engine_cache().evict(key);
-            throw std::runtime_error(
-                "failed to flush a pending SeisCL checkpoint to " +
-                h->pending_ckpt);
+            throw;
         }
-        h->pending_valid = false;
     }
 
     h->m.SKIP_CHECKPOINT_FILE = skip_file ? 1 : 0;
@@ -472,17 +549,37 @@ py::dict run_backward(const Config &cfg, const py::dict &params,
         throw;
     }
 
+    // This handle may be resident with a *different* call's still-pending
+    // checkpoint -- e.g. two differentiable forwards sharing this exact
+    // CacheKey ran before either backward did, and the cache only has room
+    // for one handle per key. Restoring this call's own checkpoint below
+    // (or finding it already resident, for a single-shot from_memory hit)
+    // is about to overwrite these buffers either way, so flush the other
+    // one first or its own eventual backward call loses it outright.
+    if (h->pending_valid && h->pending_ckpt != checkpoint_path) {
+        try {
+            flush_pending_checkpoint(*h);
+        } catch (...) {
+            global_engine_cache().evict(key);
+            throw;
+        }
+    }
+
     // If this is the handle the matching forward ran on and nothing has
     // overwritten its buffers since, the boundary wavefield is already where
     // the adjoint pass needs it. Otherwise fall back to the file, which the
     // forward either wrote itself or had flushed to it.
+    // BACK_PROP_TYPE=2 never writes a checkpoint -- time_stepping() re-runs
+    // the forward pass on this call instead -- so there is nothing to locate.
+    bool uses_checkpoint = cfg.BACK_PROP_TYPE == 1;
     bool from_memory =
-        h->pending_valid && h->pending_ckpt == checkpoint_path;
+        !uses_checkpoint ||
+        (h->pending_valid && h->pending_ckpt == checkpoint_path);
     // Single shot keeps the wavefield in the engine's own buffers; multiple
     // shots keep the per-shot datasets in a RAM-backed HDF5 file.
-    bool via_ram_file = from_memory && h->m.CKPT_IN_MEMORY &&
-                        h->m.CKPT_FILE_ID > 0;
-    if (!from_memory) {
+    bool via_ram_file = uses_checkpoint && from_memory &&
+                        h->m.CKPT_IN_MEMORY && h->m.CKPT_FILE_ID > 0;
+    if (uses_checkpoint && !from_memory) {
         std::ifstream f(checkpoint_path.c_str());
         if (!f.good()) {
             throw std::runtime_error(
@@ -493,7 +590,8 @@ py::dict run_backward(const Config &cfg, const py::dict &params,
         // Whatever the forward did, this run must read the real file.
         h->m.CKPT_IN_MEMORY = 0;
     }
-    h->m.SKIP_CHECKPOINT_FILE = (from_memory && !via_ram_file) ? 1 : 0;
+    h->m.SKIP_CHECKPOINT_FILE =
+        (uses_checkpoint && from_memory && !via_ram_file) ? 1 : 0;
 
     struct filenames files;
     std::memset(&files, 0, sizeof(files));
@@ -544,6 +642,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         .def_readwrite("GRADSRCOUT", &Config::GRADSRCOUT)
         .def_readwrite("HOUT", &Config::HOUT)
         .def_readwrite("BACK_PROP_TYPE", &Config::BACK_PROP_TYPE)
+        .def_readwrite("gradfreqs", &Config::gradfreqs)
+        .def_readwrite("dft_osamp", &Config::dft_osamp)
+        .def_readwrite("tmin", &Config::tmin)
         .def_readwrite("nmax_dev", &Config::nmax_dev)
         .def_readwrite("pref_device_type", &Config::pref_device_type);
 

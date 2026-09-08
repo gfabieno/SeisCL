@@ -477,16 +477,35 @@ int res_scale(model * m, int s)
                     par = get_par(m->pars, m->npars, "rip")->gl_par;
                 }
                 else if (strcmp(m->vars[i].name,"vy")==0){
-                    par = get_par(m->pars, m->npars, "rjp")->gl_par;
+                    /* 2D SH has no staggered buoyancy at all: rip/rjp/rkp are
+                     * appended only for ND!=21 (assign_modeling_case.c:1073),
+                     * and update_v2D_SH takes plain rho. Looking up "rjp" here
+                     * returned a zeroed struct -- get_par returns the address
+                     * of a local when the name is unknown -- so gl_par was
+                     * NULL and any SH run with gradout, rmsout or resout
+                     * segfaulted in the line below, for either
+                     * back_prop_type. */
+                    par = get_par(m->pars, m->npars,
+                                  m->ND==21 ? "rho" : "rjp")->gl_par;
                 }
                 else {
                     par = get_par(m->pars, m->npars, "rkp")->gl_par;
                 }
                 for (g=0;g<nrec;g++){
-                    
+
+                    /* Was rec_pos[s][0+8*g] for all three of x/y/z (copied
+                     * from the same index) -- correct only for a receiver
+                     * exactly on the x axis at y=z=0. The trans_vars ("p")
+                     * branch below has always used the correct 0/1/2
+                     * indices; this branch didn't match it. Currently masked
+                     * in test_gradient_fd.py because that test's background
+                     * model is homogeneous at every receiver depth, so
+                     * sampling the wrong (but still-uniform) cell reads the
+                     * same buoyancy value regardless. Independently found
+                     * and fixed the same way in SeisCL-freesurface. */
                     x = m->src_recs.rec_pos[s][0+8*g]/m->dh;
-                    y = m->src_recs.rec_pos[s][0+8*g]/m->dh;
-                    z = m->src_recs.rec_pos[s][0+8*g]/m->dh;
+                    y = m->src_recs.rec_pos[s][1+8*g]/m->dh;
+                    z = m->src_recs.rec_pos[s][2+8*g]/m->dh;
                     if (m->NDIM==2){
                         pos = x*m->N[0]+z;
                     }
@@ -498,6 +517,12 @@ int res_scale(model * m, int s)
                         parscal = 1.0/parscal*m->dh/m->dt*powf(2,scaler);
                     }
                     else{
+                        if (!par){
+                            fprintf(stderr,"Error: res_scale: no buoyancy "
+                                           "parameter for variable %s\n",
+                                    m->vars[i].name);
+                            return 1;
+                        }
                         parscal = 1.0/par[pos]*m->dh/m->dt*powf(2,scaler);
                     }
                     for (t=0;t<tmax;t++){
@@ -527,15 +552,123 @@ int res_scale(model * m, int s)
                     else {
                         pos = x*m->N[0]*m->N[1]+y*m->N[0]+z;
                     }
+                    /* dt/dh here, not dh/dt: unlike the vx/vy/vz branch above
+                     * (which inverts parscal via 1/parscal before use, so it
+                     * needs the reciprocal ratio dh/dt), this branch
+                     * multiplies by parscal directly, so it needs dt/dh from
+                     * the start. Using dh/dt here left every pressure-
+                     * residual back_prop_type=1 gradient miscalibrated by
+                     * (dh/dt)^2 -- confirmed by scaling dh and dt
+                     * independently and observing the miscalibration scale
+                     * as (dh/dt)^2 exactly (notes/todo.md item 0c). */
+                    /* Exponent on the FP16 par_scale term is
+                     * back_prop_type-dependent -- confirmed empirically,
+                     * not derived from first principles (notes/todo.md
+                     * item 0e). back_prop_type=1 needs -2*scaler: its
+                     * unscale_grad() later multiplies the whole gradient by
+                     * a *single* extra powf(2,par_scale), so the adjoint
+                     * source itself must carry the other factor of
+                     * 2^-par_scale for the round trip to cancel -- measured
+                     * directly (FP16=1 ratio 0.978/1.021/0.999, matching
+                     * FP16=0 to 4 digits, vs ~1e-6 or ~1e-19 for the two
+                     * single-power alternatives tried first).
+                     * back_prop_type=2 never calls unscale_grad(), and
+                     * changing this from the original single -scaler broke
+                     * test_dft_gradient_every_fp16_level (which needs
+                     * FP16=1 proportional to FP16=0, not just internally
+                     * consistent) -- so it keeps the single power.
+                     * Independently found and fixed the same way in
+                     * SeisCL-freesurface. */
+                    float scaler2 = (m->BACK_PROP_TYPE==1) ? 2.0f*scaler : (float)scaler;
+                    /* The trace-of-stress modulus, N*M - 2(N-1)*mu.
+                     *
+                     * "p" is the average of the N normal stresses, and the
+                     * stress update (update_s{2D,3D}.cl, elastic g=M, f=2mu)
+                     * gives their sum directly:
+                     *   2D  sxx+szz         = (2M - 2mu)*theta
+                     *   3D  sxx+syy+szz     = (3M - 4mu)*theta
+                     * i.e. (N*M - 2(N-1)*mu)*theta -- the same combination
+                     * that appears as `den` throughout the gradient
+                     * coefficients (grad_coefelast_1's
+                     * 1/pow(ND*M-2*(ND-1)*mu,2)).
+                     *
+                     * This was hardcoded as -2.0*(M-mu), which IS
+                     * N*M-2(N-1)*mu at N=2 but not at N=3 -- the 2D relation
+                     * used in 3D. Every 3D pressure-output gradient was
+                     * therefore scaled by 2(M-mu)/(3M-4mu); at this test
+                     * suite's vp/vs/rho that is 0.82051, against a measured
+                     * pressure/velocity ratio of 0.82077 (back_prop_type=2)
+                     * and 0.82610 (back_prop_type=1) -- see notes/todo.md
+                     * item 0d. Being in the shared residual path, it hit
+                     * BOTH back_prop_types by the same factor, which is what
+                     * localized it here rather than in either gradient.
+                     * 2D is algebraically unchanged. */
+                    float NDf = (float)m->NDIM;
+                    float trmod;
+                    /* The adjoint stress source is Psi^0 applied to the misfit
+                     * derivative (thesis eq. 3.33), i.e. the UNRELAXED trace
+                     * modulus. M/mu as stored are the RELAXED ones: the update
+                     * kernels form g = M*(1+L*taup) and f = 2*mu*(1+L*taus)
+                     * before using them. Using the stored values here left the
+                     * viscoelastic adjoint source short by (1+L*tau) -- exactly
+                     * 1 when L==0, which is why every elastic case was correct
+                     * and only the viscoelastic gradient drifted with tau. */
+                    float ltp = 1.0f, lts = 1.0f;
+                    if (m->L > 0){
+                        float * taup_a = get_par(m->pars,m->npars,"taup")->gl_par;
+                        float * taus_a = get_par(m->pars,m->npars,"taus")->gl_par;
+                        if (taup_a) ltp = 1.0f + (float)m->L*taup_a[pos];
+                        if (taus_a) lts = 1.0f + (float)m->L*taus_a[pos];
+                    }
                     if (m->FP16>1){
-                        parscal = half_to_float( ((half*)par)[pos] )
-                        -half_to_float( ((half*)par2)[pos] );
-                        parscal = -2.0*(parscal)*m->dh/m->dt*powf(2,-scaler);
+                        trmod = NDf*half_to_float( ((half*)par)[pos] )*ltp
+                        -2.0f*(NDf-1.0f)*half_to_float( ((half*)par2)[pos] )*lts;
                     }
                     else{
-                        parscal = -2.0*(par[pos]-par2[pos])
-                        *m->dh/m->dt*powf(2,-scaler);
+                        trmod = NDf*par[pos]*ltp - 2.0f*(NDf-1.0f)*par2[pos]*lts;
                     }
+                    parscal = -trmod*m->dt/m->dh*powf(2,-scaler2);
+
+                    /* Delay the pressure adjoint source by one sample.
+                     *
+                     * The forward loop records a seismogram AFTER the whole
+                     * update, but the two outputs are produced at different
+                     * points of it: vx/vy/vz by update_v and the normal
+                     * stresses (hence "p") by update_s, which runs second and
+                     * consumes the velocities update_v just wrote. The
+                     * adjoint runs the pair in the reverse order, so the
+                     * stress half of the adjoint source belongs one sample
+                     * later than the velocity half. It was injected at the
+                     * same index as velocity, i.e. one sample early.
+                     *
+                     * Measured on the 2D elastic back_prop_type=1 FD check
+                     * (which must give exactly 1), shifting the pressure
+                     * residual by k samples:
+                     *     k=0    vp 0.99316  vs 1.06221  rho 1.01561
+                     *     k=1    vp 0.99998  vs 1.00010  rho 1.00021
+                     *     k=2    vp 1.00122  vs 0.93256  rho 0.97999
+                     * i.e. the error changes sign between k=1 and k=2 and is
+                     * a clean zero at k=1, landing on the velocity channel's
+                     * own accuracy. Applying the same shift to the VELOCITY
+                     * residual instead breaks it (vs 0.99994 -> 1.03563),
+                     * confirming the offset is specific to the stress half.
+                     * Before this, the defect showed up as an error
+                     * proportional to dt in every pressure-output gradient
+                     * (vs: 0.062/0.033/0.017 at dt = 0.8/0.4/0.2 ms) -- see
+                     * notes/todo.md item 0d2.
+                     *
+                     * Done here rather than in the injection kernel because
+                     * it is a property of the residual's time indexing, not
+                     * of where the kernel is launched: injecting at a
+                     * different point of the adjoint iteration provably
+                     * changes nothing, since update_adjs only accumulates
+                     * into the adjoint stress and never reads it. */
+                    for (t=tmax-1;t>0;t--){
+                        m->trans_vars[i].gl_var_res[s][g*NT+t] =
+                            m->trans_vars[i].gl_var_res[s][g*NT+t-1];
+                    }
+                    m->trans_vars[i].gl_var_res[s][g*NT] = 0.0f;
+
                     for (t=0;t<tmax;t++){
                         m->trans_vars[i].gl_var_res[s][g*NT+t]*=parscal*m->dt;
                     }

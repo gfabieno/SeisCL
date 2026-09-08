@@ -71,6 +71,16 @@
 #define MAX_DIMS 10
 #define MAX_KERNELS 100
 #define MAX_KERN_STR 200000
+/* Cap for the CACHED COMPILED BINARY (PTX/cubin) that prog_read_file()
+ * reads back, which is a different thing from the kernel SOURCE and much
+ * larger. It used to share MAX_KERN_STR, and the 3D viscoelastic adjoint
+ * kernel's PTX sits just under 200000 -- adding a few statements to
+ * update_adjs3D.cl pushed it over and every 3D viscoelastic run died with
+ * "Kernel file is too long". MAX_KERN_STR itself cannot simply be raised:
+ * it sizes a char[] INSIDE every clprogram struct (see src[] below), so
+ * enlarging it multiplies across every program and breaks the run.
+ * prog_read_file() mallocs, so this one is free to be generous. */
+#define MAX_KERN_BIN 4000000
 #define BLOCK_SIZE 256
 #define MAX_FD_ORDER 12
 //#define __DEBUGGING__
@@ -93,6 +103,7 @@ struct filenames {
     char movout[1024];
     char res[1024];
     char checkpoint[1024];
+    char dftout[1024];
 };
 
 
@@ -132,6 +143,7 @@ CL_INT clbuf_readto(QUEUE *inqueue,
                  void * ptr);
 
 CL_INT clbuf_create(CONTEXT *incontext, clbuf * buf);
+CL_INT clbuf_copy(QUEUE *inqueue, clbuf * src, clbuf * dst);
 
 CL_INT clbuf_create_pin(CONTEXT *incontext, QUEUE *inqueue,clbuf * buf);
 
@@ -197,8 +209,12 @@ typedef struct variable{
     clbuf cl_var;
     clbuf cl_varout;
     clbuf cl_varbnd;
-    clbuf cl_fvar;
-    clbuf cl_fvar_adj;
+    clbuf cl_fvar;      /* adjoint DFT spectrum (device + host mirror) */
+    clbuf cl_fvar_f;    /* forward DFT spectrum, device side (BACK_PROP_TYPE==2
+                         * with the on-device correlation). Kept resident so the
+                         * correlation can run on the device instead of round
+                         * tripping both spectra over PCIe. */
+    clbuf cl_fvar_adj;  /* host-only mirror of the adjoint spectrum */
     clbuf cl_buf1;
     clbuf cl_buf2;
     clbuf cl_var_res;
@@ -251,6 +267,17 @@ typedef struct parameter{
 
 int calc_grad(struct model * m, struct device * dev);
 int transf_grad(struct model * m);
+/* transf_grad's three jobs, separately: storage format, units, and
+   parameterization. See calc_grad.c for why they are not one function. */
+int unpack_par_fp16(struct model * m);
+int unscale_par(struct model * m);
+int unscale_grad(struct model * m);
+int unscale_grad_dft(struct model * m);
+int chain_rule_par_type(struct model * m);
+/* Transpose of the material-parameter averaging: folds the staggered
+   gradients (rip/rkp/muipkp/...) back onto the cell-centred ones. Runs before
+   unscale_par, whose output its Jacobians would otherwise be evaluated at. */
+int average_grad_transpose(struct model * m);
 
 /* ____Structure for constant vectors broadcasted to all devices______*/
 typedef struct constants{
@@ -335,8 +362,24 @@ typedef struct gradients {
     clprogram savefreqs;
     clprogram initsavefreqs;
     clprogram savebnd;
+    clprogram calc_grad;   /* on-device DFT correlation (BACK_PROP_TYPE==2) */
 
 } gradients;
+
+/* _____GPU port of the staggered-grid material-parameter averaging_______
+   (src/average_params.cl -- ave_rip/ave_rkp/ave_muipkp), replacing the CPU
+   loop in assign_modeling_case.c's ave_arithmetic_rho()/ave_harmonic_mu()
+   for the 2D elastic case. See notes/vacuum-freesurface-plan.md, Phase 8.*/
+typedef struct param_avg {
+
+    clprogram rip;
+    clprogram rjp;
+    clprogram rkp;
+    clprogram muipkp;
+    clprogram muipjp;
+    clprogram mujpkp;
+
+} param_avg;
 
 
 /* _____________Structure that holds all information of a device _____________*/
@@ -380,6 +423,7 @@ typedef struct device {
     sources_records src_recs;
     gradients grads;
     boundary_conditions bnd_cnds;
+    param_avg par_avg;
     
     CONTEXT context;
     CONTEXT * context_ptr;
@@ -410,6 +454,7 @@ typedef struct model {
     sources_records src_recs;
     gradients grads;
     boundary_conditions bnd_cnds;
+    param_avg par_avg;
 
     int NXP;
     int NT;
@@ -423,6 +468,13 @@ typedef struct model {
     int MOVOUT;
     int RESOUT;
     int RMSOUT;
+    /* Debug: dump the raw forward and adjoint DFT wavefield buffers
+     * (BACK_PROP_TYPE==2 only) so they can be checked against a reference DFT
+     * independently of the gradient correlation. Single device, single shot. */
+    int DFTOUT;
+    /* Oversampling factor of max(gradfreqs) at which savefreqs accumulates.
+     * Default 64, which is what the hardcoded 0.0156 used to give. */
+    float dft_osamp;
     int INPUTRES;
     /* Skip the HDF5 boundary checkpoint entirely, on both the writing
      * (GRADOUT=0) and reading (GRADOUT=1) leg of the INPUTRES=1 two-call

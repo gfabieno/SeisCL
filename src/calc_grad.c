@@ -42,12 +42,27 @@ cl_add(cl_float2 a, cl_float2 b, cl_float2 c)
     output.s[1]=a.s[1]+b.s[1]+c.s[1];
     return output;
 }
+/* The deviatoric combination of the published P4 (eq. A2d) and P6 (A2f):
+   (N-1)*a - b - c, i.e. one normal component minus the sum of the other two,
+   with its OWN term weighted by (N-1) -- see
+   papers/pdfs/fabien-ouellet_2017_viscoelastic-fwi-adjoint.pdf, Appendix A.
+
+   The weight is (N-1), NOT 1. This was `a - b - c` until 2026-09-03, which
+   is correct only in 2D (N-1 == 1) and silently wrong in 3D, where it halves
+   the diagonal term of dJ/dmu's (and dJ/dtaus') P4/P6 contribution. Every
+   3D DFT implementation shared the same expression -- host, both device
+   kernels and the numpy reference -- so device-vs-host and device-vs-numpy
+   cross-checks all agreed with each other and none could see it; only an
+   FD-of-the-misfit check could, and did (notes/todo.md item 0i).
+   back_prop_type=1's update_adjs3D.cl always had it right
+   ("2.0*sxx[indv]-syy[indv]-szz[indv]"), which is why 3D bpt1 passes the FD
+   check and 3D bpt2 did not. */
 static inline cl_float2
-cl_diff(cl_float2 a, cl_float2 b, cl_float2 c)
+cl_dev(cl_float2 a, cl_float2 b, cl_float2 c, float ndm1)
 {
     cl_float2 output;
-    output.s[0]=a.s[0]-b.s[0]-c.s[0];
-    output.s[1]=a.s[1]-b.s[1]-c.s[1];
+    output.s[0]=ndm1*a.s[0]-b.s[0]-c.s[0];
+    output.s[1]=ndm1*a.s[1]-b.s[1]-c.s[1];
     return output;
 }
 
@@ -195,15 +210,42 @@ int grad_coefvisc_1(double (*c)[24],float M, float mu, float taup, float taus, f
     return 1;
 }
 int grad_coefelast_1(double (*c)[24],float M, float mu, float taup, float taus, float rho, float ND, float L, float al){
-    
+
     (*c)[0]= 1.0/pow(ND*M-2.0*(ND-1.0)*mu,2.0);
-    
+
     (*c)[2]= 1.0/( mu*mu);
     (*c)[3]= (ND+1.0)/3.0/pow(ND*M-2.0*(ND-1.0)*mu,2.0);
     (*c)[4]= 1.0/( 2*ND*mu*mu );
-    
-    
+
+
     return 1;
+}
+
+/* grad_coefvisc_1's c[2]/c[5]/c[10]/c[13] group -- the shear-stress
+   correlation's own coefficients -- depends only on mu and taus, never on M
+   or taup. The physics evaluates the shear stress at a staggered position
+   (muipkp in 2D; muipjp/muipkp/mujpkp per shear plane in 3D), so this must be
+   evaluated there too, not at the cell-centred mu/taus that the rest of the
+   c[] array uses -- see notes/material-averaging-gradient-review.md. At L==0
+   there is no taus at all (taus_s passed as 0): this collapses to
+   grad_coefelast_1's c[2]=1/mu^2 with c5=c10=c13=0, so one function serves
+   both the elastic and viscoelastic DFT gradient. */
+static void shear_stag_coef(double mu_s, double taus_s, double al, double L,
+                             double *c2, double *c5, double *c10, double *c13){
+    *c2=0.0; *c5=0.0; *c10=0.0; *c13=0.0;
+    if (mu_s>=1.0){
+        if (L>0.0 && taus_s!=0.0){
+            double Lst  = 1.0+L*taus_s;
+            double ist  = 1.0+al*taus_s;
+            double imu2 = 1.0/(mu_s*mu_s);
+            *c2  = ist*imu2/Lst;
+            *c5  = ist*imu2/taus_s;
+            *c10 = (L-al)/(mu_s*Lst*Lst);
+            *c13 = 1.0/(mu_s*taus_s*taus_s);
+        } else {
+            *c2 = 1.0/(mu_s*mu_s);
+        }
+    }
 }
 int grad_coefvisc_2(double (*c)[24],float M, float mu, float taup, float taus, float rho, float ND, float L, float al){
     
@@ -379,6 +421,12 @@ int calc_grad(model * m, device * dev)  {
     int i,j,k,f,l, n;
     float df,freq,ND, al,w0;
     double c[24]={0}, dot[17]={0};
+    /* Coefficients of the sxz correlation (elastic-form and memory-form),
+       evaluated at muipkp/tausipkp rather than the cell-centred mu/taus.
+       Declared out here, alongside c[], because the ND==2 branch computes
+       them in an inner block scoped apart from the frequency loop that
+       consumes them (see the "Undo the transform" comment there). */
+    double c2xz=0.0, c5xz=0.0, c10xz=0.0, c13xz=0.0;
     float * tausigl=NULL;
     cl_float2 sxxyyzz, sxxyyzzr, sxx_myyzz, syy_mxxzz, szz_mxxyy;
     cl_float2 rxxyyzz, rxxyyzzr, rxx_myyzz, ryy_mxxzz, rzz_mxxyy;
@@ -401,6 +449,14 @@ int calc_grad(model * m, device * dev)  {
     
     ND=(float)m->ND;
     df=1.0/m->NTNYQ/m->dt/m->DTNYQ;
+    /* Parseval normalization for the frequency-domain dot products. With
+     * A_k = sum_n a_n * dteff * exp(-2i.pi.kn/N) and dteff = DTNYQ*dt,
+     * sum_n a_n b_n dteff = (1/(N*dteff)) sum_k A_k conj(B_k), so the factor is
+     * 1/(NTNYQ*DTNYQ*dt), not 1/NTNYQ. The missing DTNYQ was invisible while
+     * DTNYQ was always 1, but it scales the whole gradient linearly with DTNYQ:
+     * measured error was exactly DTNYQ-1 across a dft_osamp sweep. Any run with
+     * a low fmax or a small dt, where DTNYQ > 1, was affected. */
+    double dftnorm = (double)m->NTNYQ*(double)m->DTNYQ;
     
     w0=2.0*PI*m->f0;
     al=0;
@@ -416,15 +472,30 @@ int calc_grad(model * m, device * dev)  {
         }
     }
     
-    // Choose the right parameters depending on the dimensions
+    /* The correlation always emits the *internal* (M, mu, rho) gradient; the
+       parameterization chain rule is chain_rule_par_type()'s job, run once
+       after the shot loop. The _1 family is exactly the _0 family with the
+       chain-rule factors stripped (compare grad_coefelast_1 with
+       grad_coefelast_0: c[0] loses its 2*sqrt(rho*M), and c[16..23] -- which
+       were c[0..7] again, times M/rho or mu/rho -- disappear), so par_type==0
+       simply selects it too.
+
+       This removes a whole bug class rather than a single bug. The c[16..23]
+       group had to be kept sign-consistent with the gradM/gradmu expressions
+       by hand, and was not: the elastic block carries a documented fix for
+       exactly that, while the viscoelastic block above it still had the
+       opposite signs -- the third instance in this file of a fix applied to
+       one branch and never ported to its twin. Deriving the density
+       contribution from gradM/gradmu in one place makes the two impossible to
+       disagree. */
     if (m->ND!=21){
-        if (m->par_type==0){
+        if (m->par_type==0 || m->par_type==1){
             if (m->L>0)
-                c_calc=&grad_coefvisc_0;
+                c_calc=&grad_coefvisc_1;
             else
-                c_calc=&grad_coefelast_0;
+                c_calc=&grad_coefelast_1;
         }
-        else if (m->par_type==1){
+        else if (0){
             if (m->L>0)
                 c_calc=&grad_coefvisc_1;
             else
@@ -442,13 +513,13 @@ int calc_grad(model * m, device * dev)  {
         }
     }
     else if (m->ND==21){
-        if (m->par_type==0){
+        if (m->par_type==0 || m->par_type==1){
             if (m->L>0)
-                c_calc=&grad_coefvisc_0_SH;
+                c_calc=&grad_coefvisc_1_SH;
             else
-                c_calc=&grad_coefelast_0_SH;
+                c_calc=&grad_coefelast_1_SH;
         }
-        else if (m->par_type==1){
+        else if (0){
             if (m->L>0)
                 c_calc=&grad_coefvisc_1_SH;
             else
@@ -572,9 +643,16 @@ int calc_grad(model * m, device * dev)  {
     float *rho=NULL, *gradrho=NULL, *Hrho=NULL;
     float *M=NULL, *gradM=NULL, *HM=NULL;
     float *mu=NULL, *gradmu=NULL, *Hmu=NULL;
+    float *muipkp=NULL, *gradmuipkp=NULL;
+    float *muipjp=NULL, *gradmuipjp=NULL;
+    float *mujpkp=NULL, *gradmujpkp=NULL;
+    float *gradrip=NULL, *gradrjp=NULL, *gradrkp=NULL;
     float *taup=NULL, *gradtaup=NULL, *Htaup=NULL;
     float *taus=NULL, *gradtaus=NULL, *Htaus=NULL;
-    
+    float *tausipkp=NULL, *gradtausipkp=NULL;
+    float *tausipjp=NULL, *gradtausipjp=NULL;
+    float *tausjpkp=NULL, *gradtausjpkp=NULL;
+
     for (i=0;i<m->npars;i++){
         if (strcmp(dev->pars[i].name,"rho")==0){
             rho=dev->pars[i].cl_par.host;
@@ -591,6 +669,27 @@ int calc_grad(model * m, device * dev)  {
             gradmu=dev->pars[i].cl_grad.host;
             Hmu=dev->pars[i].cl_H.host;
         }
+        if (strcmp(dev->pars[i].name,"muipkp")==0){
+            muipkp=dev->pars[i].cl_par.host;
+            gradmuipkp=dev->pars[i].cl_grad.host;
+        }
+        if (strcmp(dev->pars[i].name,"muipjp")==0){
+            muipjp=dev->pars[i].cl_par.host;
+            gradmuipjp=dev->pars[i].cl_grad.host;
+        }
+        if (strcmp(dev->pars[i].name,"mujpkp")==0){
+            mujpkp=dev->pars[i].cl_par.host;
+            gradmujpkp=dev->pars[i].cl_grad.host;
+        }
+        if (strcmp(dev->pars[i].name,"rip")==0){
+            gradrip=dev->pars[i].cl_grad.host;
+        }
+        if (strcmp(dev->pars[i].name,"rjp")==0){
+            gradrjp=dev->pars[i].cl_grad.host;
+        }
+        if (strcmp(dev->pars[i].name,"rkp")==0){
+            gradrkp=dev->pars[i].cl_grad.host;
+        }
         if (strcmp(dev->pars[i].name,"taup")==0){
             taup=dev->pars[i].cl_par.host;
             gradtaup=dev->pars[i].cl_grad.host;
@@ -600,6 +699,18 @@ int calc_grad(model * m, device * dev)  {
             taus=dev->pars[i].cl_par.host;
             gradtaus=dev->pars[i].cl_grad.host;
             Htaus=dev->pars[i].cl_H.host;
+        }
+        if (strcmp(dev->pars[i].name,"tausipkp")==0){
+            tausipkp=dev->pars[i].cl_par.host;
+            gradtausipkp=dev->pars[i].cl_grad.host;
+        }
+        if (strcmp(dev->pars[i].name,"tausipjp")==0){
+            tausipjp=dev->pars[i].cl_par.host;
+            gradtausipjp=dev->pars[i].cl_grad.host;
+        }
+        if (strcmp(dev->pars[i].name,"tausjpkp")==0){
+            tausjpkp=dev->pars[i].cl_par.host;
+            gradtausjpkp=dev->pars[i].cl_grad.host;
         }
     }
     
@@ -617,35 +728,80 @@ int calc_grad(model * m, device * dev)  {
         for (i=0;i<NX;i++){
             for (j=0;j<NY;j++){
                 for (k=0;k<NZ;k++){
+                    indm=i*NY*NZ+j*NZ+k;
+
+                    /* Undo the internal non-dimensionalization before feeding
+                     * the grad_coef* formulas, which are expressions in the
+                     * *physical* stiffnesses and density -- cl_par.host holds
+                     * the internally non-dimensionalized values. This mirrors
+                     * the ND==2 branch below (calc_grad.c, "Undo the
+                     * transform" comment) and the on-device grad_dft3D.cl
+                     * kernel, both of which already do this. The ND==3 host
+                     * branch never got this fix because back_prop_type=2 had
+                     * no 3D path to exercise it until grad_dft3D.cl; without
+                     * it this reference disagrees with the (correct) device
+                     * kernel by a scale factor that depends on par_scale,
+                     * dh, dt and the local density -- not a clean constant,
+                     * which is what made it look like a device-kernel bug at
+                     * first. */
+                    double s2 = pow(2.0, -(double)m->par_scale);
+                    double dhdt = (double)m->dh/(double)m->dt;
+                    double rho_p = (rho[indm]!=0.0)
+                                 ? (1.0/rho[indm])*((double)m->dt/(double)m->dh)*s2
+                                 : 0.0;
+                    double M_p   = M  ? M[indm]*dhdt*s2  : 0.0;
+                    double mu_p  = mu ? mu[indm]*dhdt*s2 : 0.0;
+                    double taup_p = (m->L>0 && taup) ? taup[indm] : 0.0;
+                    double taus_p = (m->L>0 && taus) ? taus[indm] : 0.0;
+                    /* The three shear planes are each driven by their own
+                     * staggered mu (and, viscoelastically, taus) -- muipjp
+                     * for sxy, muipkp for sxz, mujpkp for syz -- not by the
+                     * cell-centred mu_p/taus_p above. Mirrors the ND==2
+                     * branch's muipkp_p handling and grad_dft3D.cl. */
+                    double muipjp_p = muipjp ? muipjp[indm]*dhdt*s2 : 0.0;
+                    double muipkp_p = muipkp ? muipkp[indm]*dhdt*s2 : 0.0;
+                    double mujpkp_p = mujpkp ? mujpkp[indm]*dhdt*s2 : 0.0;
+                    double tausipjp_p = (m->L>0 && tausipjp) ? tausipjp[indm] : 0.0;
+                    double tausipkp_p = (m->L>0 && tausipkp) ? tausipkp[indm] : 0.0;
+                    double tausjpkp_p = (m->L>0 && tausjpkp) ? tausjpkp[indm] : 0.0;
+                    double c2xy,c5xy,c10xy,c13xy;
+                    double c2xz,c5xz,c10xz,c13xz;
+                    double c2yz,c5yz,c10yz,c13yz;
+                    shear_stag_coef(muipjp_p, tausipjp_p, al, (double)m->L,
+                                     &c2xy, &c5xy, &c10xy, &c13xy);
+                    shear_stag_coef(muipkp_p, tausipkp_p, al, (double)m->L,
+                                     &c2xz, &c5xz, &c10xz, &c13xz);
+                    shear_stag_coef(mujpkp_p, tausjpkp_p, al, (double)m->L,
+                                     &c2yz, &c5yz, &c10yz, &c13yz);
+                    /* Vacuum cells (M == mu == rho == 0): skip rather than
+                     * evaluate, same guard and same reason as ND==2 -- see
+                     * ../notes/back-prop-type1-zero-material-nan.md. */
+                    double den_p = ND*M_p - 2.0*(ND-1.0)*mu_p;
+                    if (!(rho_p>0.0) || !(den_p*den_p>0.0)){
+                        for (n=0;n<24;n++) c[n]=0;
+                    }
+                    else{
+                        c_calc(&c, M_p, mu_p, taup_p, taus_p, rho_p, ND, m->L, al);
+                        /* Fluid cells: drop every shear-related coefficient.
+                         * Tested on the physical mu, not the scaled one. */
+                        if (mu_p<1.0){
+                            for (n=2;n<8;n++)   c[n]=0;
+                            for (n=10;n<16;n++) c[n]=0;
+                            for (n=18;n<24;n++) c[n]=0;
+                        }
+                    }
+
                     for (f=0;f<m->NFREQS;f++){
 
                         indfd= f*(NX+m->FDORDER)*(NY+m->FDORDER)*(NZ+m->FDORDER)
                              +(i+m->FDOH)*(NY+m->FDORDER)*(NZ+m->FDORDER)
                              +(j+m->FDOH)*(NZ+m->FDORDER)
                              +(k+m->FDOH);
-                        indm=i*NY*NZ+j*NZ+k;
 
                         freq=2.0*PI*df* gradfreqsn[f];
-                        
-                        if (m->L>0)
-                            c_calc(&c,M[indm], mu[indm], taup[indm], taus[indm], rho[indm], ND,m->L,al);
-                        else
-                            c_calc(&c,M[indm], mu[indm], 0, 0, rho[indm], ND,m->L,al);
-                        
-                        if (mu[indm]<1){
-                            for (n=2;n<8;n++){
-                                c[n]=0;
-                            }
-                            for (n=10;n<16;n++){
-                                c[n]=0;
-                            }
-                            for (n=18;n<24;n++){
-                                c[n]=0;
-                            }
 
-                        }
-
-                        dot[1]=0;dot[5]=0;dot[6]=0;dot[7]=0;
+                        dot[1]=0;dot[6]=0;dot[7]=0;
+                        double dot5xy=0.0, dot5xz=0.0, dot5yz=0.0;
                         for (l=0;l<m->L;l++){
                             indL= f*(NX+m->FDORDER)*(NY+m->FDORDER)*(NZ+m->FDORDER)*m->L
                                 +l*(NX+m->FDORDER)*(NY+m->FDORDER)*(NZ+m->FDORDER)
@@ -658,120 +814,206 @@ int calc_grad(model * m, device * dev)  {
                             fsxz[indfd]=cl_diff2(fsxz[indfd], cl_integral(frxz[indL],freq));
                             fsxy[indfd]=cl_diff2(fsxy[indfd], cl_integral(frxy[indL],freq));
                             fsyz[indfd]=cl_diff2(fsyz[indfd], cl_integral(fryz[indL],freq));
-                            
+
                             fsxxr[indfd]=cl_diff2(fsxxr[indfd], cl_integral(frxxr[indL],freq));
                             fszzr[indfd]=cl_diff2(fszzr[indfd], cl_integral(frzzr[indL],freq));
                             fsyyr[indfd]=cl_diff2(fsyyr[indfd], cl_integral(fryyr[indL],freq));
                             fsxzr[indfd]=cl_diff2(fsxzr[indfd], cl_integral(frxzr[indL],freq));
                             fsxyr[indfd]=cl_diff2(fsxyr[indfd], cl_integral(frxyr[indL],freq));
-                            fsyzr[indfd]=cl_diff2(fsyzr[indfd], cl_integral(fryz[indL],freq));
-                            
-                            
+                            /* fryzr, not fryz: the adjoint syz must be corrected with the
+                             * *adjoint* memory variable. The other five lines
+                             * above use their r-suffixed spectrum; this one was
+                             * copy-pasted from the forward block. Same class as
+                             * the rxx_myyzz/ryy_mxxzz/rzz_mxxyy paste fixed just
+                             * below, and unreachable until a 3D viscoelastic DFT
+                             * gradient existed to exercise it. */
+                            fsyzr[indfd]=cl_diff2(fsyzr[indfd], cl_integral(fryzr[indL],freq));
+
+
                             rxxyyzz=    cl_add(frxx[indL], fryy[indL], frzz[indL]);
                             rxxyyzzr=   cl_add(frxxr[indL], fryyr[indL], frzzr[indL]);
-                            rxx_myyzz= cl_diff(frxx[indL], fryy[indL], frzz[indL]);
-                            ryy_mxxzz= cl_diff(frxx[indL], fryy[indL], frzz[indL]);
-                            rzz_mxxyy= cl_diff(frxx[indL], fryy[indL], frzz[indL]);
-                            dot[1]+=cl_rm( rxxyyzzr, rxxyyzz, tausigl[l],freq )/m->NTNYQ;
-                            
-                            dot[5]+=(+cl_rm( frxyr[indL], frxy[indL] , tausigl[l],freq)
-                                     +cl_rm( frxzr[indL], frxz[indL] , tausigl[l],freq)
-                                     +cl_rm( fryzr[indL], fryz[indL] , tausigl[l],freq))/m->NTNYQ;
+                            /* Each memory variable's own stress minus the sum
+                             * of the other two, matching sxx_myyzz/syy_mxxzz/
+                             * szz_mxxyy below. Previously all three lines
+                             * were copy-pasted as cl_diff(frxx,fryy,frzz)
+                             * (todo item 6 / notes/3d-gradient-findings.md),
+                             * so ryy_mxxzz and rzz_mxxyy silently held the
+                             * same value as rxx_myyzz. Unreachable except
+                             * through calc_grad's L>0 (viscoelastic) DFT
+                             * path, which has no on-device kernel yet. */
+                            rxx_myyzz= cl_dev(frxx[indL], fryy[indL], frzz[indL], ND-1.0f);
+                            ryy_mxxzz= cl_dev(fryy[indL], frxx[indL], frzz[indL], ND-1.0f);
+                            rzz_mxxyy= cl_dev(frzz[indL], frxx[indL], fryy[indL], ND-1.0f);
+                            dot[1]+=cl_rm( rxxyyzzr, rxxyyzz, tausigl[l],freq )/dftnorm;
+
+                            /* Each shear plane's own memory-variable
+                             * correlation, kept apart -- it goes with that
+                             * plane's staggered muipjp/muipkp/mujpkp below,
+                             * not to a single cell-centred gradmu term. */
+                            dot5xy+=cl_rm( frxyr[indL], frxy[indL] , tausigl[l],freq)/dftnorm;
+                            dot5xz+=cl_rm( frxzr[indL], frxz[indL] , tausigl[l],freq)/dftnorm;
+                            dot5yz+=cl_rm( fryzr[indL], fryz[indL] , tausigl[l],freq)/dftnorm;
                             dot[6]=dot[1];
                             dot[7]+=(+cl_rm( frxxr[indL], rxx_myyzz , tausigl[l],freq)
                                      +cl_rm( fryyr[indL], ryy_mxxzz , tausigl[l],freq)
-                                     +cl_rm( frzzr[indL], rzz_mxxyy , tausigl[l],freq))/m->NTNYQ;
+                                     +cl_rm( frzzr[indL], rzz_mxxyy , tausigl[l],freq))/dftnorm;
                         }
-                        
+
                         sxxyyzz=    cl_add(fsxx[indfd], fsyy[indfd], fszz[indfd]);
                         sxxyyzzr=   cl_add(fsxxr[indfd],fsyyr[indfd],fszzr[indfd]);
-                        sxx_myyzz= cl_diff(fsxx[indfd], fsyy[indfd], fszz[indfd]);
-                        syy_mxxzz= cl_diff(fsyy[indfd], fsxx[indfd], fszz[indfd]);
-                        szz_mxxyy= cl_diff(fszz[indfd], fsxx[indfd], fsyy[indfd]);
+                        sxx_myyzz= cl_dev(fsxx[indfd], fsyy[indfd], fszz[indfd], ND-1.0f);
+                        syy_mxxzz= cl_dev(fsyy[indfd], fsxx[indfd], fszz[indfd], ND-1.0f);
+                        szz_mxxyy= cl_dev(fszz[indfd], fsxx[indfd], fsyy[indfd], ND-1.0f);
 
-                        dot[0]=freq*cl_itreal( sxxyyzzr, sxxyyzz )/m->NTNYQ;
-                        dot[2]=freq*(+cl_itreal( fsxyr[indfd], fsxy[indfd] )
-                                     +cl_itreal( fsxzr[indfd], fsxz[indfd] )
-                                     +cl_itreal( fsyzr[indfd], fsyz[indfd] ))/m->NTNYQ;
+                        dot[0]=freq*cl_itreal( sxxyyzzr, sxxyyzz )/dftnorm;
+                        /* Each shear plane's elastic-form correlation, kept
+                         * apart for the same reason as dot5xy/xz/yz above:
+                         * sxy is driven by muipjp, sxz by muipkp, syz by
+                         * mujpkp, three different staggered slots. */
+                        double dot2xy=freq*cl_itreal( fsxyr[indfd], fsxy[indfd] )/dftnorm;
+                        double dot2xz=freq*cl_itreal( fsxzr[indfd], fsxz[indfd] )/dftnorm;
+                        double dot2yz=freq*cl_itreal( fsyzr[indfd], fsyz[indfd] )/dftnorm;
                         dot[3]=dot[0];
                         dot[4]=freq*(+cl_itreal( fsxxr[indfd], sxx_myyzz )
                                      +cl_itreal( fsyyr[indfd], syy_mxxzz )
-                                     +cl_itreal( fszzr[indfd], szz_mxxyy ))/m->NTNYQ;
+                                     +cl_itreal( fszzr[indfd], szz_mxxyy ))/dftnorm;
 
-                        
-                        dot[8]=freq*(
-                                     cl_itreal( fvxr[indfd], fvx[indfd] ) +
-                                     cl_itreal( fvyr[indfd], fvy[indfd] ) +
-                                     cl_itreal( fvzr[indfd], fvz[indfd] )
-                                     )/m->NTNYQ;
-                        
+                        /* vx sits at rip, vy at rjp, vz at rkp (update_v3D.cl):
+                         * different parameters, so kept apart rather than
+                         * summed into one dot product. */
+                        double dot8x=freq*cl_itreal( fvxr[indfd], fvx[indfd] )/dftnorm;
+                        double dot8y=freq*cl_itreal( fvyr[indfd], fvy[indfd] )/dftnorm;
+                        double dot8z=freq*cl_itreal( fvzr[indfd], fvz[indfd] )/dftnorm;
+
                         gradM[indm]+=   -c[0]*dot[0]
                                         +c[1]*dot[1];
-                        gradmu[indm]+=  -c[2]*dot[2]
-                                        +c[3]*dot[3]
+                        gradmu[indm]+=  +c[3]*dot[3]
                                         -c[4]*dot[4]
-                                        +c[5]*dot[5]
                                         -c[6]*dot[6]
                                         +c[7]*dot[7];
-                        
+                        /* The shear correlations (elastic-form dot2** and
+                         * memory-form dot5**) go to the staggered mu the
+                         * physics actually used, not to the cell-centred
+                         * gradmu above -- same split grad_dft2D.cl already
+                         * does for muipkp in 2D. average_grad_transpose()
+                         * folds them back onto the cell-centred mu. */
+                        if (gradmuipjp) gradmuipjp[indm]+= -c2xy*dot2xy +c5xy*dot5xy;
+                        if (gradmuipkp) gradmuipkp[indm]+= -c2xz*dot2xz +c5xz*dot5xz;
+                        if (gradmujpkp) gradmujpkp[indm]+= -c2yz*dot2yz +c5yz*dot5yz;
+                        /* Density gets only the velocity correlation, split
+                         * onto rip/rjp/rkp the same way -- not the
+                         * cell-centred gradrho. The parameterization's
+                         * dependence of M and mu on rho is
+                         * chain_rule_par_type()'s job (gradrho += M/rho*gradM
+                         * + mu/rho*gradmu), and average_grad_transpose() folds
+                         * rip/rjp/rkp back onto the cell-centred rho.
+                         *
+                         * This replaces a parallel c[16..23] group that had to
+                         * be kept sign-consistent with gradM/gradmu by hand,
+                         * and was not: the ND==2 branch carried a fix that
+                         * this ND==3 one never received, found by comparing
+                         * grad_dft3D.cl against this host oracle (gradvp/
+                         * gradvs matched to fp32 while gradrho did not,
+                         * isolated to exactly this group --
+                         * notes/3d-gradient-findings.md, "Item 6"). Deriving
+                         * it in one place makes that class of divergence
+                         * impossible; the _1 coefficient family the selection
+                         * now uses does not define c[16..23] at all. */
+                        if (gradrip) gradrip[indm]+= -dot8x;
+                        if (gradrjp) gradrjp[indm]+= -dot8y;
+                        if (gradrkp) gradrkp[indm]+= -dot8z;
+
                         if (m->L>0){
                              gradtaup[indm]+=-c[8]*dot[0]
                                              +c[9]*dot[1];
-                             gradtaus[indm]+=-c[10]*dot[2]
-                                             +c[11]*dot[3]
+                             gradtaus[indm]+=+c[11]*dot[3]
                                              -c[12]*dot[4]
-                                             +c[13]*dot[5]
                                              -c[14]*dot[6]
                                              +c[15]*dot[7];
+                             if (gradtausipjp) gradtausipjp[indm]+= -c10xy*dot2xy +c13xy*dot5xy;
+                             if (gradtausipkp) gradtausipkp[indm]+= -c10xz*dot2xz +c13xz*dot5xz;
+                             if (gradtausjpkp) gradtausjpkp[indm]+= -c10yz*dot2yz +c13yz*dot5yz;
                         }
-                        
-                         gradrho[indm]+=-dot[8]
-                                        +c[16]*dot[0]
-                                        -c[17]*dot[1]
-                                        +c[18]*dot[2]
-                                        -c[19]*dot[3]
-                                        +c[20]*dot[4]
-                                        -c[21]*dot[5]
-                                        +c[22]*dot[6]
-                                        -c[23]*dot[7];
 
                     }
-                    
+
                 }
             }
         }
-        
+
     }
     else if (ND==2){
         
         for (i=0;i<NX;i++){
             for (k=0;k<NZ;k++){
+                /* The grad_coef* formulas are expressions in the *physical*
+                 * stiffnesses and density, but cl_par.host holds the internally
+                 * non-dimensionalized parameters. Feeding those in directly made
+                 * every coefficient wrong, and -- because the formulas are
+                 * nonlinear (sqrt, 1/mu^2) -- wrong by a *different* factor per
+                 * coefficient: with par_scale==0 the c[0]/c[2] group came out 5x
+                 * too large while c[16] came out 4e14x too large, so gradvp and
+                 * gradvs were off by a clean constant while gradrho was garbage.
+                 * Undo the transform, using the same relations transf_grad()
+                 * applies in reverse (calc_grad.c:1004-1019).
+                 * Hoisted out of the frequency loop: none of this depends on f. */
+                indm=i*NZ+k;
+                {
+                    double s2 = pow(2.0, -(double)m->par_scale);
+                    double dhdt = (double)m->dh/(double)m->dt;
+                    double rho_p = (rho[indm]!=0.0)
+                                 ? (1.0/rho[indm])*((double)m->dt/(double)m->dh)*s2
+                                 : 0.0;
+                    double M_p   = M  ? M[indm]*dhdt*s2  : 0.0;
+                    double mu_p  = mu ? mu[indm]*dhdt*s2 : 0.0;
+                    /* sxz is driven by muipkp (and, viscoelastically,
+                     * tausipkp), not the cell-centred mu/taus, so its
+                     * correlation's coefficients are evaluated here and its
+                     * gradient stored at that staggered slot. Mirrors
+                     * grad_dft2D.cl. shear_stag_coef reduces to 1/muipkp^2
+                     * at L==0, so this serves both the elastic and
+                     * viscoelastic case. */
+                    double muipkp_p = muipkp ? muipkp[indm]*dhdt*s2 : 0.0;
+                    double tausipkp_p = (m->L>0 && tausipkp) ? tausipkp[indm] : 0.0;
+                    shear_stag_coef(muipkp_p, tausipkp_p, al, (double)m->L,
+                                     &c2xz, &c5xz, &c10xz, &c13xz);
+                    double taup_p = (m->L>0 && taup) ? taup[indm] : 0.0;
+                    double taus_p = (m->L>0 && taus) ? taus[indm] : 0.0;
+                    /* Vacuum cells (M == mu == rho == 0) contribute nothing,
+                     * and must be skipped rather than evaluated: the coefficient
+                     * formulas divide by rho and by (ND*M-2(ND-1)mu)^2, so a
+                     * zero cell yields 0/0 = NaN which then propagates through
+                     * the whole gradient. The device kernel is already immune
+                     * because its (ND*M-2(ND-1)mu)^2 > 0 guard short-circuits
+                     * there; this keeps the host reference in step, so
+                     * SEISCL_DFT_CHECK does not compare against NaN. See
+                     * ../notes/back-prop-type1-zero-material-nan.md, which
+                     * root-causes the same class of failure in transf_grad()
+                     * for BACK_PROP_TYPE==1. */
+                    double den_p = ND*M_p - 2.0*(ND-1.0)*mu_p;
+                    if (!(rho_p>0.0) || !(den_p*den_p>0.0)){
+                        for (n=0;n<24;n++) c[n]=0;
+                    }
+                    else{
+                    c_calc(&c, M_p, mu_p, taup_p, taus_p, rho_p, ND, m->L, al);
+
+                    /* Fluid cells: drop every shear-related coefficient. Tested
+                     * on the physical mu, not the scaled one. */
+                    if (mu_p<1.0){
+                        for (n=2;n<8;n++)   c[n]=0;
+                        for (n=10;n<16;n++) c[n]=0;
+                        for (n=18;n<24;n++) c[n]=0;
+                    }
+                    }
+                }
                 for (f=0;f<m->NFREQS;f++){
-                    
+
                     indfd= f*(NX+m->FDORDER)*(NZ+m->FDORDER)
                          +(i+m->FDOH)*(NZ+m->FDORDER)
                          +(k+m->FDOH);
-                    indm=i*NZ+k;
-                    
+
                     freq=2.0*PI*df* gradfreqsn[f];
-                    if (m->L>0)
-                        c_calc(&c,M[indm], mu[indm], taup[indm], taus[indm], rho[indm], ND,m->L,al);
-                    else
-                        c_calc(&c,M[indm], mu[indm], 0, 0, rho[indm], ND,m->L,al);
-                    
-                    if (mu[indm]<1){
-                        for (n=2;n<8;n++){
-                            c[n]=0;
-                        }
-                        for (n=10;n<16;n++){
-                            c[n]=0;
-                        }
-                        for (n=18;n<24;n++){
-                            c[n]=0;
-                        }
-                        
-                    }
-                    
+
                     dot[1]=0;dot[5]=0;dot[6]=0;dot[7]=0;
                     for (l=0;l<m->L;l++){
                         indL= f*(NX+m->FDORDER)*(NZ+m->FDORDER)*m->L
@@ -791,12 +1033,12 @@ int calc_grad(model * m, device * dev)  {
                         rxx_mzz= cl_diff2(frxx[indL], frzz[indL]);
                         rzz_mxx= cl_diff2(frzz[indL], frxx[indL]);
                         
-                        dot[1]+=cl_rm( rxxzzr, rxxzz, tausigl[l],freq )/m->NTNYQ;
+                        dot[1]+=cl_rm( rxxzzr, rxxzz, tausigl[l],freq )/dftnorm;
                         
-                        dot[5]+=(cl_rm( frxzr[indL], frxz[indL] , tausigl[l],freq) )/m->NTNYQ;
+                        dot[5]+=(cl_rm( frxzr[indL], frxz[indL] , tausigl[l],freq) )/dftnorm;
                         dot[6]=dot[1];
                         dot[7]+=(+cl_rm( frxxr[indL], rxx_mzz , tausigl[l],freq)
-                                 +cl_rm( frzzr[indL], rzz_mxx , tausigl[l],freq))/m->NTNYQ;
+                                 +cl_rm( frzzr[indL], rzz_mxx , tausigl[l],freq))/dftnorm;
                         
                     }
                     sxxzz=    cl_add2(fsxx[indfd], fszz[indfd]);
@@ -806,45 +1048,50 @@ int calc_grad(model * m, device * dev)  {
                     
 
                     
-                    dot[0]=freq*cl_itreal( sxxzzr, sxxzz )/m->NTNYQ;
-                    dot[2]=freq* ( cl_itreal( fsxzr[indfd], fsxz[indfd])  )/m->NTNYQ;
+                    dot[0]=freq*cl_itreal( sxxzzr, sxxzz )/dftnorm;
+                    dot[2]=freq* ( cl_itreal( fsxzr[indfd], fsxz[indfd])  )/dftnorm;
                     dot[3]=dot[0];
                     dot[4]=freq*(+cl_itreal( fsxxr[indfd], sxx_mzz )
-                                 +cl_itreal( fszzr[indfd], szz_mxx ))/m->NTNYQ;
+                                 +cl_itreal( fszzr[indfd], szz_mxx ))/dftnorm;
 
-                    dot[8]=freq*(cl_itreal( fvxr[indfd], fvx[indfd] ) + cl_itreal( fvzr[indfd], fvz[indfd] ))/m->NTNYQ;
+                    /* vx sits at the rip position, vz at rkp: different
+                     * parameters, so they are not summed. */
+                    dot[8]=freq*cl_itreal( fvxr[indfd], fvx[indfd] )/dftnorm;
+                    dot[9]=freq*cl_itreal( fvzr[indfd], fvz[indfd] )/dftnorm;
                     
                     
                     gradM[indm]+= -c[0]*dot[0]
                                   +c[1]*dot[1];
 
-                    gradmu[indm]+=-c[2]*dot[2]
-                                 +c[3]*dot[3]
+                    gradmu[indm]+= +c[3]*dot[3]
                                  -c[4]*dot[4]
-                                 +c[5]*dot[5]
                                  -c[6]*dot[6]
                                  +c[7]*dot[7];
-                    
+                    /* The shear correlations (elastic-form dot[2] and
+                       memory-form dot[5]) go to the staggered muipkp, not to
+                       the cell-centred gradmu above -- evaluated with
+                       c2xz/c5xz, which already used muipkp_p/tausipkp_p, so
+                       this is correct for both L==0 and L>0.
+                       average_grad_transpose() folds gradmuipkp back onto
+                       the cell-centred mu. */
+                    if (gradmuipkp) gradmuipkp[indm]+= -c2xz*dot[2] +c5xz*dot[5];
+                    if (gradrip) gradrip[indm]+= -dot[8];
+                    if (gradrkp) gradrkp[indm]+= -dot[9];
+
                     if (m->L>0){
                         gradtaup[indm]+= -c[8]*dot[0]
                                         +c[9]*dot[1];
-                        gradtaus[indm]+= -c[10]*dot[2]
-                                        +c[11]*dot[3]
+                        gradtaus[indm]+= +c[11]*dot[3]
                                         -c[12]*dot[4]
-                                        +c[13]*dot[5]
                                         -c[14]*dot[6]
                                         +c[15]*dot[7];
+                        if (gradtausipkp) gradtausipkp[indm]+= -c10xz*dot[2] +c13xz*dot[5];
                     }
                     
-                    gradrho[indm]+=-dot[8]
-                                    +c[16]*dot[0]
-                                    -c[17]*dot[1]
-                                    +c[18]*dot[2]
-                                    -c[19]*dot[3]
-                                    +c[20]*dot[4]
-                                    -c[21]*dot[5]
-                                    +c[22]*dot[6]
-                                    -c[23]*dot[7];
+                    /* gradrho gets no correlation term: density enters the
+                     * physics only through rip/rkp, accumulated above. It is
+                     * filled by average_grad_transpose and then by
+                     * chain_rule_par_type's M/rho and mu/rho terms. */
                     
                     if(m->HOUT){
                         dot[1]=0;dot[5]=0;dot[6]=0;dot[7]=0;
@@ -858,11 +1105,11 @@ int calc_grad(model * m, device * dev)  {
                             rxx_mzz= cl_diff2(frxx[indL], frzz[indL]);
                             rzz_mxx= cl_diff2(frzz[indL], frxx[indL]);
                             
-                            dot[1]+=cl_norm(cl_add2( rxxzz, cl_derivative(rxxzz, freq*tausigl[l])) )/m->NTNYQ;
-                            dot[5]+=cl_norm(cl_add2( frxz[indL], cl_derivative(frxz[indL], freq*tausigl[l])) )/m->NTNYQ;
+                            dot[1]+=cl_norm(cl_add2( rxxzz, cl_derivative(rxxzz, freq*tausigl[l])) )/dftnorm;
+                            dot[5]+=cl_norm(cl_add2( frxz[indL], cl_derivative(frxz[indL], freq*tausigl[l])) )/dftnorm;
                             dot[6]=dot[1];
                             dot[7]+=(cl_norm(cl_add2( rxx_mzz, cl_derivative(rxx_mzz, freq*tausigl[l])) )
-                                    +cl_norm(cl_add2( rzz_mxx, cl_derivative(rzz_mxx, freq*tausigl[l])) ))/m->NTNYQ;
+                                    +cl_norm(cl_add2( rzz_mxx, cl_derivative(rzz_mxx, freq*tausigl[l])) ))/dftnorm;
                             
                         }
                         sxxzz=    cl_add2(fsxx[indfd], fszz[indfd]);
@@ -870,13 +1117,13 @@ int calc_grad(model * m, device * dev)  {
                         szz_mxx= cl_diff2(fszz[indfd], fsxx[indfd]);
                         
                         
-                        dot[0]=cl_norm(cl_derivative(sxxzz, freq))/m->NTNYQ;
-                        dot[2]=cl_norm(cl_derivative(fsxz[indfd], freq))/m->NTNYQ;
+                        dot[0]=cl_norm(cl_derivative(sxxzz, freq))/dftnorm;
+                        dot[2]=cl_norm(cl_derivative(fsxz[indfd], freq))/dftnorm;
                         dot[3]=dot[0];
                         dot[4]=(cl_norm(cl_derivative(sxx_mzz, freq))
-                                    +cl_norm(cl_derivative(szz_mxx, freq)))/m->NTNYQ;
+                                    +cl_norm(cl_derivative(szz_mxx, freq)))/dftnorm;
                         dot[8]=(cl_norm(cl_derivative(fvx[indfd], freq))
-                                +cl_norm(cl_derivative(fvz[indfd], freq)))/m->NTNYQ;
+                                +cl_norm(cl_derivative(fvz[indfd], freq)))/dftnorm;
                         
                         HM[indm]+=   c[0]*dot[0]
                                     -c[1]*dot[1];
@@ -898,15 +1145,9 @@ int calc_grad(model * m, device * dev)  {
                                         -c[15]*dot[7];
                         }
                         
-                        Hrho[indm]+=dot[8]
-                                    -c[16]*dot[0]
-                                    +c[17]*dot[1]
-                                    -c[18]*dot[2]
-                                    +c[19]*dot[3]
-                                    -c[20]*dot[4]
-                                    +c[21]*dot[5]
-                                    -c[22]*dot[6]
-                                    +c[23]*dot[7];
+                        /* As for the gradient: chain_rule_par_type()
+                         * carries M and mu's rho-dependence over. */
+                        Hrho[indm]+=dot[8];
                         
                     }
                     
@@ -934,17 +1175,17 @@ int calc_grad(model * m, device * dev)  {
                         c_calc(&c,M[indm], mu[indm], 0, 0, rho[indm], ND,m->L,al);
                     
                     
-                    dot[0]=freq*(cl_itreal(fsxyr[indfd],fsxy[indfd])+ cl_itreal(fsyzr[indfd],fsyz[indfd]) )/m->NTNYQ;
+                    dot[0]=freq*(cl_itreal(fsxyr[indfd],fsxy[indfd])+ cl_itreal(fsyzr[indfd],fsyz[indfd]) )/dftnorm;
 
                     for (l=0;l<m->L;l++){
                         indL= f*(NX+m->FDORDER)*(NZ+m->FDORDER)*m->L
                         +l*(NX+m->FDORDER)*(NZ+m->FDORDER)
                         +(i+m->FDOH)*(NZ+m->FDORDER)
                         +(k+m->FDOH);
-                        dot[1]=(cl_rm( frxyr[indL], frxy[indL],tausigl[l],freq )+cl_rm( fryzr[indL], fryz[indL],tausigl[l],freq ))/m->NTNYQ;
+                        dot[1]=(cl_rm( frxyr[indL], frxy[indL],tausigl[l],freq )+cl_rm( fryzr[indL], fryz[indL],tausigl[l],freq ))/dftnorm;
                     }
                     
-                    dot[2]=freq*(cl_itreal( fvyr[indfd], fvy[indfd] ))/m->NTNYQ;
+                    dot[2]=freq*(cl_itreal( fvyr[indfd], fvy[indfd] ))/dftnorm;
                     
 
                     gradmu[indm]+=-c[0]*dot[0]+c[1]*dot[1];
@@ -953,7 +1194,8 @@ int calc_grad(model * m, device * dev)  {
                         gradtaus[indm]+=-c[2]*dot[0]+c[3]*dot[1];
                     }
                     
-                    gradrho[indm]+=-dot[2] +c[4]*dot[0]-c[5]*dot[1]  ;
+                    /* Velocity correlation only -- see the P-SV block. */
+                    gradrho[indm]+=-dot[2];
                     
                 }
             }
@@ -972,12 +1214,488 @@ int calc_grad(struct model * m, struct device * dev){
 }
 #endif
 
-int transf_grad(model * m) {
-    //TODO perform forward and back transform to replace Init_model and trans_grad
+/* ---------------------------------------------------------------------------
+   Transpose of the material-parameter averaging.
+
+   The FD physics is evaluated at staggered, averaged parameters (rip/rjp/rkp
+   from the buoyancy, muipkp/muipjp/mujpkp from mu, tausipkp/... from taus), so
+   that is where the correlation accumulates its gradient. Mapping those back
+   onto the cell-centred parameters the user inverts for is the transpose of
+   the averaging operator's Jacobian.
+
+   Written as a scatter, mirroring the forward routines in
+   assign_modeling_case.c loop for loop -- including the trailing copy region
+   each of them ends with, where the Jacobian is 1 rather than the averaging
+   formula. Specified and dot-tested independently in
+   SeisCL/tests/dot_prod_average.py.
+
+   Must run *before* unscale_par(): the Jacobians are evaluated at the stored
+   (internal) parameter values, which unscale_par overwrites. It commutes with
+   unscale_grad(), which is a uniform factor on a linear operator.
+   --------------------------------------------------------------------------*/
+
+static void grad_T_arithmetic_rho(float * pin, float * gin, float * gout,
+                                  int * N, int ndim, int * dir){
+    int i,j,k;
+    int NX, NY, NZ;
+    int NX0=0, NY0=0, NZ0=0;
+    int ind1, ind2;
+    double avg, s;
+    if (ndim==3){ NX=N[2]; NY=N[1]; NZ=N[0]; }
+    else        { NX=N[1]; NY=1;    NZ=N[0]; }
+
+    /* pout = 2/(1/p1 + 1/p2)  =>  d(pout)/d(p_j) = (pout^2/2)/p_j^2 */
+    for (k=0;k<NZ-dir[0];k++){
+        for (j=0;j<NY-dir[1];j++){
+            for (i=0;i<NX-dir[2];i++){
+                ind1 = (i  )*NY*NZ+(j)*NZ+(k);
+                ind2 = (i+dir[2])*NY*NZ+(j+dir[1])*NZ+(k+dir[0]);
+                s = 1.0/pin[ind1] + 1.0/pin[ind2];
+                if (s==0.0) continue;
+                avg = 2.0/s;
+                gout[ind1] += gin[ind1]*0.5*avg*avg/(pin[ind1]*pin[ind1]);
+                gout[ind2] += gin[ind1]*0.5*avg*avg/(pin[ind2]*pin[ind2]);
+            }
+        }
+    }
+    if (dir[2]==1)      NX0=NX-1;
+    else if (dir[1]==1) NY0=NY-1;
+    if (dir[0]==1)      NZ0=NZ-1;
+    for (k=NZ0;k<NZ;k++){
+        for (j=NY0;j<NY;j++){
+            for (i=NX0;i<NX;i++){
+                ind1 = (i  )*NY*NZ+(j)*NZ+(k);
+                gout[ind1] += gin[ind1];
+            }
+        }
+    }
+}
+
+static void grad_T_harmonic_mu(float * pin, float * gin, float * gout,
+                               int * N, int ndim, int (*dir)[3]){
+    int i,j,k,d;
+    int NX, NY, NZ;
+    int NX0=0, NY0=0, NZ0=0;
+    int ind[4];
+    double avg, s;
+    if (ndim==3){ NX=N[2]; NY=N[1]; NZ=N[0]; }
+    else        { NX=N[1]; NY=1;    NZ=N[0]; }
+
+    /* pout = 4/sum(1/p_j)  =>  d(pout)/d(p_j) = (pout^2/4)/p_j^2, and all four
+       are zero in a vacuum cell, where ave_harmonic_mu forces pout to 0. */
+    for (k=0;k<NZ-dir[0][0]-dir[1][0];k++){
+        for (j=0;j<NY-dir[0][1]-dir[1][1];j++){
+            for (i=0;i<NX-dir[0][2]-dir[1][2];i++){
+                ind[0] = (i)*NY*NZ+(j)*NZ+(k);
+                ind[1] = (i+dir[0][2])*NY*NZ+(j+dir[0][1])*NZ+(k+dir[0][0]);
+                ind[2] = (i+dir[1][2])*NY*NZ+(j+dir[1][1])*NZ+(k+dir[1][0]);
+                ind[3] = (i+dir[0][2]+dir[1][2])*NY*NZ
+                        +(j+dir[0][1]+dir[1][1])*NZ
+                        +(k+dir[0][0]+dir[1][0]);
+                if (pin[ind[0]]==0 || pin[ind[1]]==0
+                    || pin[ind[2]]==0 || pin[ind[3]]==0){
+                    continue;
+                }
+                s = 1.0/pin[ind[0]] + 1.0/pin[ind[1]]
+                  + 1.0/pin[ind[2]] + 1.0/pin[ind[3]];
+                if (s==0.0) continue;
+                avg = 4.0/s;
+                for (d=0;d<4;d++){
+                    gout[ind[d]] += gin[ind[0]]*0.25*avg*avg
+                                    /(pin[ind[d]]*pin[ind[d]]);
+                }
+            }
+        }
+    }
+    for (d=0;d<2;d++){
+        NX0=0; NY0=0; NZ0=0;
+        if (dir[d][2]==1)      NX0=NX-1;
+        else if (dir[d][1]==1) NY0=NY-1;
+        if (dir[d][0]==1)      NZ0=NZ-1;
+        for (k=NZ0;k<NZ;k++){
+            for (j=NY0;j<NY;j++){
+                for (i=NX0;i<NX;i++){
+                    ind[0] = (i)*NY*NZ+(j)*NZ+(k);
+                    gout[ind[0]] += gin[ind[0]];
+                }
+            }
+        }
+    }
+}
+
+static void grad_T_arithmetic_tau(float * gin, float * gout,
+                                  int * N, int ndim, int (*dir)[3]){
+    int i,j,k,d;
+    int NX, NY, NZ;
+    int NX0=0, NY0=0, NZ0=0;
+    int ind[4];
+    if (ndim==3){ NX=N[2]; NY=N[1]; NZ=N[0]; }
+    else        { NX=N[1]; NY=1;    NZ=N[0]; }
+
+    /* Plain 4-point arithmetic mean: every Jacobian entry is 0.25. */
+    for (k=0;k<NZ-dir[0][0]-dir[1][0];k++){
+        for (j=0;j<NY-dir[0][1]-dir[1][1];j++){
+            for (i=0;i<NX-dir[0][2]-dir[1][2];i++){
+                ind[0] = (i)*NY*NZ+(j)*NZ+(k);
+                ind[1] = (i+dir[0][2])*NY*NZ+(j+dir[0][1])*NZ+(k+dir[0][0]);
+                ind[2] = (i+dir[1][2])*NY*NZ+(j+dir[1][1])*NZ+(k+dir[1][0]);
+                ind[3] = (i+dir[0][2]+dir[1][2])*NY*NZ
+                        +(j+dir[0][1]+dir[1][1])*NZ
+                        +(k+dir[0][0]+dir[1][0]);
+                for (d=0;d<4;d++){
+                    gout[ind[d]] += 0.25*gin[ind[0]];
+                }
+            }
+        }
+    }
+    for (d=0;d<2;d++){
+        NX0=0; NY0=0; NZ0=0;
+        if (dir[d][2]==1)      NX0=NX-1;
+        else if (dir[d][1]==1) NY0=NY-1;
+        if (dir[d][0]==1)      NZ0=NZ-1;
+        for (k=NZ0;k<NZ;k++){
+            for (j=NY0;j<NY;j++){
+                for (i=NX0;i<NX;i++){
+                    ind[0] = (i)*NY*NZ+(j)*NZ+(k);
+                    gout[ind[0]] += gin[ind[0]];
+                }
+            }
+        }
+    }
+}
+
+/* One helper so a missing parameter (SH has no M, elastic has no taus, ...)
+   is skipped rather than dereferenced. */
+static float * par_grad(model * m, const char * name, float ** value){
+    parameter * p = get_par(m->pars, m->npars, name);
+    if (!p || !p->gl_grad) return NULL;
+    if (value) *value = p->gl_par;
+    return p->gl_grad;
+}
+
+int average_grad_transpose(model * m) {
     int state=0;
-    int i, j, num_ele=0;
+    float * gsrc; float * psrc;
+    float * gavg; float * pavg;
+    int d1[3];
+    int d2[2][3];
+
+    /* buoyancy -> rip / rjp / rkp */
+    gsrc = par_grad(m, "rho", &psrc);
+    if (gsrc){
+        gavg = par_grad(m, "rip", &pavg);
+        if (gavg){ d1[0]=0; d1[1]=0; d1[2]=1;
+            grad_T_arithmetic_rho(psrc, gavg, gsrc, m->N, m->NDIM, d1); }
+        gavg = par_grad(m, "rjp", &pavg);
+        if (gavg){ d1[0]=0; d1[1]=1; d1[2]=0;
+            grad_T_arithmetic_rho(psrc, gavg, gsrc, m->N, m->NDIM, d1); }
+        gavg = par_grad(m, "rkp", &pavg);
+        if (gavg){ d1[0]=1; d1[1]=0; d1[2]=0;
+            grad_T_arithmetic_rho(psrc, gavg, gsrc, m->N, m->NDIM, d1); }
+    }
+
+    /* mu -> muipkp / muipjp / mujpkp */
+    gsrc = par_grad(m, "mu", &psrc);
+    if (gsrc){
+        gavg = par_grad(m, "muipkp", &pavg);
+        if (gavg){ d2[0][0]=0; d2[0][1]=0; d2[0][2]=1;
+                   d2[1][0]=1; d2[1][1]=0; d2[1][2]=0;
+            grad_T_harmonic_mu(psrc, gavg, gsrc, m->N, m->NDIM, d2); }
+        gavg = par_grad(m, "mujpkp", &pavg);
+        if (gavg){ d2[0][0]=0; d2[0][1]=1; d2[0][2]=0;
+                   d2[1][0]=1; d2[1][1]=0; d2[1][2]=0;
+            grad_T_harmonic_mu(psrc, gavg, gsrc, m->N, m->NDIM, d2); }
+        gavg = par_grad(m, "muipjp", &pavg);
+        if (gavg){ d2[0][0]=0; d2[0][1]=0; d2[0][2]=1;
+                   d2[1][0]=0; d2[1][1]=1; d2[1][2]=0;
+            grad_T_harmonic_mu(psrc, gavg, gsrc, m->N, m->NDIM, d2); }
+    }
+
+    /* taus -> tausipkp / tausipjp / tausjpkp */
+    gsrc = par_grad(m, "taus", &psrc);
+    if (gsrc){
+        gavg = par_grad(m, "tausipkp", &pavg);
+        if (gavg){ d2[0][0]=0; d2[0][1]=0; d2[0][2]=1;
+                   d2[1][0]=1; d2[1][1]=0; d2[1][2]=0;
+            grad_T_arithmetic_tau(gavg, gsrc, m->N, m->NDIM, d2); }
+        gavg = par_grad(m, "tausjpkp", &pavg);
+        if (gavg){ d2[0][0]=0; d2[0][1]=1; d2[0][2]=0;
+                   d2[1][0]=1; d2[1][1]=0; d2[1][2]=0;
+            grad_T_arithmetic_tau(gavg, gsrc, m->N, m->NDIM, d2); }
+        gavg = par_grad(m, "tausipjp", &pavg);
+        if (gavg){ d2[0][0]=0; d2[0][1]=0; d2[0][2]=1;
+                   d2[1][0]=0; d2[1][1]=1; d2[1][2]=0;
+            grad_T_arithmetic_tau(gavg, gsrc, m->N, m->NDIM, d2); }
+    }
+
+    return state;
+}
+
+/* unpack_par_fp16, unscale_par_grad and chain_rule_par_type used to be one
+   function. They are three unrelated jobs -- storage format, units, and
+   parameterization -- and fusing them made it impossible to say which of them
+   a given caller wanted. BACK_PROP_TYPE==2 in particular needs the
+   parameterization but not the scaling (its correlation kernel already
+   converts to physical units on the device), and the forthcoming
+   material-averaging transpose has to run *between* the scaling and the
+   parameterization. Keeping them separate is what makes those compositions
+   expressible; transf_grad() below is simply all three in the original order,
+   so existing callers are unaffected. */
+
+/* FP16>1 stores the parameters as half in the same buffer. Expand in place,
+   backwards, so the wider floats do not overwrite unread halves. */
+int unpack_par_fp16(model * m) {
+    int state=0;
+    int i, j;
     half * hpar;
-    
+    if (m->FP16>1){
+        for (i=0;i<m->npars;i++){
+            hpar = (half*)m->pars[i].gl_par;
+            for (j=m->pars[i].num_ele-1;j>=0;j--){
+                m->pars[i].gl_par[j] = half_to_float(hpar[j]);
+            }
+            
+        }
+    }
+    return state;
+}
+
+/* Parameters back to physical units: rho from buoyancy, M and mu from their
+   dt/dh scaling, both times 2^-par_scale. Every path needs this before
+   chain_rule_par_type(), which evaluates its Jacobians at the physical
+   values. */
+int unscale_par(model * m) {
+    int state=0;
+    int i, num_ele=0;
+
+    float * rho = get_par(m->pars, m->npars, "rho")->gl_par;
+    num_ele = get_par(m->pars, m->npars, "rho")->num_ele;
+    float * M = get_par(m->pars, m->npars, "M")->gl_par;
+    float * mu = get_par(m->pars, m->npars, "mu")->gl_par;
+
+    int scaler=m->par_scale;
+
+    for (i=0;i<num_ele;i++){
+        /* A zero buoyancy marks a vacuum cell (rho() in
+           assign_modeling_case.c keeps it exactly 0, not 1/0, for the same
+           reason -- a vacuum cell comes from the user's model). Guard the
+           inverse here too:
+           unguarded, 1.0/0.0 gives +inf, which the sqrt(rho[i]*M[i])-style
+           multiplications a few lines below turn into inf*0=NaN even though
+           the physical density (and M/mu) are genuinely, correctly zero
+           there. Ported from SeisCL-freesurface (notes/back-prop-type1-
+           zero-material-nan.md), which found and fixed this in its
+           (then-unsplit) transf_grad() -- this is that same site, now in
+           unscale_par() after the unscale_par/unscale_grad split. */
+        if (rho[i]==0){
+            rho[i]=0;
+        }
+        else{
+            rho[i]= 1.0/rho[i]*m->dt/m->dh*powf(2,-scaler);
+        }
+    }
+    if (M){
+        for (i=0;i<num_ele;i++){
+            M[i]*=m->dh/m->dt*powf(2,-scaler);
+        }
+    }
+    if (mu){
+        for (i=0;i<num_ele;i++){
+            mu[i]*=m->dh/m->dt*powf(2,-scaler);
+        }
+    }
+    return state;
+}
+
+/* Drop the dt the time integration put into the gradient. Separate from
+   unscale_par() because it is *not* universal: BACK_PROP_TYPE==2 accumulates
+   its gradient from frequency-domain spectra with its own normalization
+   (dftnorm/DTNYQ) and must not be given this factor, while still needing the
+   parameters unscaled above. */
+int unscale_grad(model * m) {
+    int state=0;
+    int i, num_ele=0;
+    /* FP16>0 stores the wavefield in scaled units (par_scale, see
+       unscale_par()'s powf(2,-scaler) on M/mu/rho). The raw kernel-
+       accumulated gradient inherits that same scaling from the forward and
+       adjoint wavefields it correlates, and is otherwise never corrected for
+       it (unlike the parameters). Confirmed empirically: at FP16=1 with
+       par_scale=-20, the crosswell finite-difference check showed the
+       returned gradient uniformly 2^20 too large across vp/vs/rho alike
+       (ratio ~1048564/1048515/1050131 vs the expected ~1) -- consistent with
+       a single powf(2, par_scale) factor missing here, not a per-parameter
+       bug. At FP16=0, par_scale=0 and this is a no-op, which is why it went
+       unnoticed until back_prop_type=1 was checked at FP16>0 for the first
+       time. */
+    float scale2 = powf(2.0f, (float)m->par_scale);
+
+    float * gradrho = get_par(m->pars, m->npars, "rho")->gl_grad;
+    num_ele = get_par(m->pars, m->npars, "rho")->num_ele;
+    float * M = get_par(m->pars, m->npars, "M")->gl_par;
+    float * gradM = get_par(m->pars, m->npars, "M")->gl_grad;
+    float * mu = get_par(m->pars, m->npars, "mu")->gl_par;
+    float * gradmu = get_par(m->pars, m->npars, "mu")->gl_grad;
+
+    /* gradrho carries an extra dh^2/dt^2 relative to gradM/gradmu's plain
+       1/dt: it is accumulated (via average_grad_transpose(), from
+       update_adjv2D.cl's gradrip/gradrkp) against the buoyancy parameter,
+       whose internal (non-dimensionalized) representation is scaled by
+       dt/dh relative to the physical value (see unscale_par()'s
+       rho[i]=1/rho[i]*dt/dh), the inverse of M/mu's dh/dt scaling -- so its
+       raw kernel-accumulated gradient needs the reciprocal-squared
+       correction here rather than the same plain 1/dt gradM/gradmu get.
+       Confirmed empirically: crosswell finite-difference check on the
+       (back_prop_type=1) rho gradient went from ratio -33 (missing this
+       factor entirely, i.e. only /dt) to 0.9999 (this exact dh^2/dt^3). */
+    for (i=0;i<num_ele;i++){
+        gradrho[i] *= (m->dh*m->dh)/(m->dt*m->dt*m->dt)*scale2;
+    }
+    if (M){
+        for (i=0;i<num_ele;i++){
+            gradM[i] *= scale2/m->dt;
+        }
+    }
+    if (mu){
+        for (i=0;i<num_ele;i++){
+            gradmu[i] *= scale2/m->dt;
+        }
+    }
+    return state;
+}
+
+/* The BACK_PROP_TYPE==2 (DFT) analog of unscale_grad(): the frequency-domain
+   correlation (grad_dft{2,3}D.cl, calc_grad()'s host DFT branch, and their
+   shared numpy reference SeisCL/tests/dft_reference.py) has never applied any
+   equivalent of unscale_grad()'s dt/dh unit conversion, on the reasoning that
+   it is "a spurious global factor" the old proportional-only finite-
+   difference check could not see anyway (time_stepping.c's comment, now
+   stale). Derived 2026-09-03 (notes/todo.md item 0h), not fitted: per
+   Fabien-Ouellet et al. (2016) eq. A1b/A2a, dJ/dM = -c1^M*P1 with
+   P1 = <adjoint_trace, d/dt(forward_trace)>. Parseval applied to that
+   *derivative* correlation (pairing DFT bin k with -k via real-signal
+   conjugate symmetry, which is exactly what folds the two-sided spectrum
+   onto the positive-frequency-only bins the kernel sums) gives
+   P1 = (2/dt) * sum_bins(d0), i.e. the kernel's own per-bin sum (no extra
+   factor, as coded) equals (dt/2)*P1, not P1 itself. Separately, the
+   kernel's `iden`/`i3den`/`i2ndmu2` coefficients are evaluated at the
+   *physically rescaled* M_p/mu_p (grad_dft2D.cl's own dh/dt conversion),
+   whereas BACK_PROP_TYPE==1's raw kernel-accumulated gradM uses the same
+   coefficient evaluated at *raw* (internally non-dimensionalized) M/mu and
+   then gets a single extra 1/dt from unscale_grad() above -- dividing the
+   raw-M coefficient by the physically-scaled one shows they differ by
+   exactly (dh/dt)^2. Combining both factors:
+     (2/dt, the DFT correlation's own missing factor)
+     x ((dh/dt)^2 / (1/dt), the raw-vs-physical coefficient difference)
+     = 2*dh^2/dt^4.
+   The same derivation applies unchanged to gradmu (i3den/i2ndmu2 share
+   iden's M_p/mu_p scaling) and to gradrho/gradrip/gradrjp/gradrkp (raw,
+   unconverted velocity-velocity correlations, matching unscale_grad()'s own
+   rho path, which needs dh^2/dt^3 against gradM/gradmu's 1/dt -- the extra
+   dh^2/dt factor cancels against the DFT correlation's own missing 2/dt
+   piece the same way for every parameter, so one uniform factor applies to
+   every to_grad array here, not a per-parameter one).
+
+   Verified against the one fully-trusted reference available
+   (BACK_PROP_TYPE==1, velocity output, itself calibrated to <0.1% -- see
+   notes/todo.md item 1): isolated single-parameter finite-difference checks
+   (2D crosswell) gave ad/fd = 1.005 (vp), 1.022 (vs), 0.945 (rho) after this
+   fix, all within this codebase's ordinary FD-check precision. NOT verified
+   for 3D's rho: 3D's DFT kernel writes gradrho directly, bypassing the
+   gradrip/gradrjp/gradrkp + average_grad_transpose() path 2D uses, which
+   is a separate, pre-existing material-averaging gap (notes/todo.md item 1)
+   this fix does not address -- 3D vp/vs still calibrate to ~1-3% but 3D rho
+   remains ~35% off. HOUT (Hessian) is a different kind of quantity (an
+   auto-power spectrum, not a P1-style cross-correlation) and is
+   deliberately left uncorrected here -- not re-derived.
+
+   No FP16 (`par_scale`) factor here, unlike unscale_grad(): tried
+   multiplying by the same `scale2=2^par_scale` unscale_grad() uses, by
+   analogy -- broke test_dft_gradient_every_fp16_level (FP16=1 came back a
+   full magnitude off FP16=0, previously exactly matching). The DFT kernel
+   already fully accounts for FP16 internally (grad_dft2D.cl's own
+   `sc_ss`/`sc_vv`/`s2` factors, see that file's own comment on the
+   src_scale/res_scale/par_scale bookkeeping) -- unlike BACK_PROP_TYPE=1's
+   raw kernel accumulation, which carries no FP16 correction of its own and
+   so needs unscale_grad()'s scale2 to supply one. Adding a second, redundant
+   par_scale factor here double-counts it. This function's own derivation
+   was verified only at FP16=0 (where scale2 is a no-op either way), so this
+   is confirmed by elimination, not re-derived from first principles -- flag
+   for anyone revisiting FP16 + BACK_PROP_TYPE=2 together. */
+int unscale_grad_dft(model * m) {
+    int state=0;
+    int i, j;
+    float dftcal = 2.0f*(m->dh*m->dh)/(m->dt*m->dt*m->dt*m->dt);
+
+    for (j=0;j<m->npars;j++){
+        if (m->pars[j].to_grad && m->pars[j].gl_grad){
+            float * g = m->pars[j].gl_grad;
+            int num_ele = m->pars[j].num_ele;
+            for (i=0;i<num_ele;i++){
+                g[i] *= dftcal;
+            }
+        }
+    }
+    return state;
+}
+
+/* Map the internal (M, mu, rho) gradient onto m->par_type. Expects physical
+   units, i.e. unscale_par_grad() already run (and, once it exists, the
+   material-averaging transpose too -- that maps the staggered gradients onto
+   the cell-centred ones, which is a different chain rule and belongs before
+   this one). */
+/* d(M)/d(vp) and d(mu)/d(vs) for par_type==0.
+
+   M() and mu() (assign_modeling_case.c) do NOT store rho*vp^2: for L>0 they
+   divide by the GSLS phase-velocity normalization, so that the phase
+   velocity at f0 is the vp the user supplied (the elastic convention):
+
+       M = rho*vp^2 / (1 + alpha*taup),   alpha = sum_l r^2/(1+r^2), r=f0/FL_l
+
+   Therefore dM/dvp = 2*rho*vp/(1+alpha*taup), whereas the elastic identity
+   2*sqrt(rho*M) evaluates to 2*rho*vp/sqrt(1+alpha*taup) -- too large by
+   exactly sqrt(1+alpha*taup). This function returns that missing
+   1/sqrt(1+alpha*tau), which is identically 1 when L==0.
+
+   Measured: a tau-scan at fixed alpha (FL=f0, alpha=0.5) on the 2D
+   viscoelastic FD check gives a raw gradvp/FD ratio drifting 0.998 -> 1.019
+   over taup = 0.005 -> 0.1, while ratio/sqrt(1+alpha*taup) is flat to 0.22%
+   (0.9966 / 0.9964 / 0.9959 / 0.9944) -- i.e. the whole tau dependence of
+   gradvp's calibration is this factor. See notes/todo.md item 0k.
+
+   NOT to be applied to the gradrho cross terms: dM/drho|_{vp,taup} =
+   vp^2/(1+alpha*taup) = M/rho exactly, so those are already correct. And
+   NOT to gradtaup/gradtaus: the published coefficients (eq. A4i-A4p, the
+   (L-alpha) group) already carry the fixed-vp dependence -- verified
+   numerically, a missing term there would be 16x larger than the observed
+   taup discrepancy. */
+static double gsls_alpha(model * m){
+    int l;
+    double al = 0.0;
+    if (m->L <= 0)
+        return 0.0;
+    float * FL = get_cst(m->csts, m->ncsts, "FL")->gl_cst;
+    if (!FL)
+        return 0.0;
+    for (l=0;l<m->L;l++){
+        if (FL[l] <= 0.0f)
+            continue;
+        double r = (double)m->f0/(double)FL[l];
+        al += r*r/(1.0 + r*r);
+    }
+    return al;
+}
+
+int chain_rule_par_type(model * m) {
+    int state=0;
+    int i, num_ele=0;
+
+    /* The phase-velocity normalization factors, 1 when elastic. */
+    double al = gsls_alpha(m);
+    float * taup_par = (m->L>0)
+                     ? get_par(m->pars, m->npars, "taup")->gl_par : NULL;
+    float * taus_par = (m->L>0)
+                     ? get_par(m->pars, m->npars, "taus")->gl_par : NULL;
+
     float * rho = get_par(m->pars, m->npars, "rho")->gl_par;
     float * gradrho = get_par(m->pars, m->npars, "rho")->gl_grad;
     float * Hrho = get_par(m->pars, m->npars, "rho")->gl_H;
@@ -989,38 +1707,16 @@ int transf_grad(model * m) {
     float * gradmu = get_par(m->pars, m->npars, "mu")->gl_grad;
     float * Hmu = get_par(m->pars, m->npars, "mu")->gl_H;
 
-    int scaler=m->par_scale;
-    
-    if (m->FP16>1){
-        for (i=0;i<m->npars;i++){
-            hpar = (half*)m->pars[i].gl_par;
-            for (j=m->pars[i].num_ele-1;j>=0;j--){
-                m->pars[i].gl_par[j] = half_to_float(hpar[j]);
-            }
-            
-        }
-    }
-    
-    for (i=0;i<num_ele;i++){
-        rho[i]= 1.0/rho[i]*m->dt/m->dh*powf(2,-scaler);
-        gradrho[i]/=m->dt;
-    }
-    if (M){
-        for (i=0;i<num_ele;i++){
-            M[i]*=m->dh/m->dt*powf(2,-scaler);
-            gradM[i]/=m->dt;
-        }
-    }
-    if (mu){
-        for (i=0;i<num_ele;i++){
-            mu[i]*=m->dh/m->dt*powf(2,-scaler);
-            gradmu[i]/=m->dt;
-        }
-    }
-
     if (m->par_type==0){
 
         for (i=0;i<num_ele;i++){
+            /*rho[i]==0 marks a vacuum cell (M[i]==mu[i]==0 there too) --
+              there is no real material to compute a density sensitivity
+              for, so leave gradrho[i] as accumulated rather than divide
+              0/0.*/
+            if (rho[i]==0){
+                continue;
+            }
             gradrho[i]= gradrho[i]+M[i]/rho[i]*gradM[i];
             if (mu[i]>0){
                 gradrho[i]= gradrho[i]+mu[i]/rho[i]*gradmu[i];
@@ -1028,30 +1724,39 @@ int transf_grad(model * m) {
         }
         if (Hrho){
             for (i=0;i<num_ele;i++){
+                if (rho[i]==0){
+                    continue;
+                }
                 Hrho[i]= Hrho[i]+M[i]/rho[i]*HM[i];
                 if (mu[i]>0){
                     Hrho[i]= Hrho[i]+mu[i]/rho[i]*Hmu[i];
                 }
             }
         }
+        /* dM/dvp = 2*rho*vp/(1+alpha*taup), NOT the elastic 2*sqrt(rho*M)
+           -- see gsls_alpha()'s comment. nrmp/nrms are 1 when L==0. */
         if (M){
             for (i=0;i<num_ele;i++){
-                gradM[i]  = 2.0*sqrt((double)rho[i]*(double)M[i])*gradM[i];
+                double nrmp = taup_par ? sqrt(1.0+al*(double)taup_par[i]) : 1.0;
+                gradM[i]  = 2.0*sqrt((double)rho[i]*(double)M[i])/nrmp*gradM[i];
             }
         }
         if (HM){
             for (i=0;i<num_ele;i++){
-                HM[i]  = 2.0*sqrt((double)rho[i]*(double)M[i])*HM[i];
+                double nrmp = taup_par ? sqrt(1.0+al*(double)taup_par[i]) : 1.0;
+                HM[i]  = 2.0*sqrt((double)rho[i]*(double)M[i])/nrmp*HM[i];
             }
         }
         if (mu){
             for (i=0;i<num_ele;i++){
-                gradmu[i] = 2.0*sqrt((double)rho[i]*(double)mu[i])*gradmu[i];
+                double nrms = taus_par ? sqrt(1.0+al*(double)taus_par[i]) : 1.0;
+                gradmu[i] = 2.0*sqrt((double)rho[i]*(double)mu[i])/nrms*gradmu[i];
             }
         }
         if (Hmu){
             for (i=0;i<num_ele;i++){
-                Hmu[i] = 2.0*sqrt((double)rho[i]*(double)mu[i])*Hmu[i];
+                double nrms = taus_par ? sqrt(1.0+al*(double)taus_par[i]) : 1.0;
+                Hmu[i] = 2.0*sqrt((double)rho[i]*(double)mu[i])/nrms*Hmu[i];
             }
         }
     }
@@ -1060,6 +1765,14 @@ int transf_grad(model * m) {
     }
     else if (m->par_type==2){
         for (i=0;i<num_ele;i++){
+            /*See the matching par_type==0 comment above: rho[i]==0 is a
+              vacuum cell, skip rather than divide 0/0. par_type==2 divides
+              by rho[i] even more than par_type==0 (M[i]/rho[i] appears
+              inside the gradM/gradmu sqrt() too, not just gradrho), so
+              every one of those sites needs the same guard.*/
+            if (rho[i]==0){
+                continue;
+            }
             gradrho[i]= gradrho[i]+M[i]/rho[i]*gradM[i];
             if (mu[i]>0){
                 gradrho[i]= gradrho[i]+mu[i]/rho[i]*gradmu[i];
@@ -1068,6 +1781,9 @@ int transf_grad(model * m) {
 
         if (Hrho){
             for (i=0;i<num_ele;i++){
+                if (rho[i]==0){
+                    continue;
+                }
                 Hrho[i]= Hrho[i]+M[i]/rho[i]*HM[i];
                 if (mu[i]>0){
                     Hrho[i]= Hrho[i]+mu[i]/rho[i]*Hmu[i];
@@ -1076,22 +1792,26 @@ int transf_grad(model * m) {
         }
         if (M){
             for (i=0;i<num_ele;i++){
-                gradM[i]  = 2.0*sqrt((double)M[i]/(double)rho[i])*gradM[i];
+                gradM[i]  = rho[i]==0 ? 0
+                          : 2.0*sqrt((double)M[i]/(double)rho[i])*gradM[i];
             }
         }
         if (HM){
             for (i=0;i<num_ele;i++){
-                HM[i]  = 2.0*sqrt((double)M[i]/(double)rho[i])*HM[i];
+                HM[i]  = rho[i]==0 ? 0
+                       : 2.0*sqrt((double)M[i]/(double)rho[i])*HM[i];
             }
         }
         if (mu){
             for (i=0;i<num_ele;i++){
-                gradmu[i] = 2.0*sqrt((double)mu[i]/(double)rho[i])*gradmu[i];
+                gradmu[i] = rho[i]==0 ? 0
+                          : 2.0*sqrt((double)mu[i]/(double)rho[i])*gradmu[i];
             }
         }
         if (Hmu){
             for (i=0;i<num_ele;i++){
-                Hmu[i] = 2.0*sqrt((double)mu[i]/(double)rho[i])*Hmu[i];
+                Hmu[i] = rho[i]==0 ? 0
+                       : 2.0*sqrt((double)mu[i]/(double)rho[i])*Hmu[i];
             }
         }
     }
@@ -1099,9 +1819,20 @@ int transf_grad(model * m) {
         fprintf(stdout,"Warning: Gradiant transformation not implemented: ");
         fprintf(stdout,"Outputting grad for M,mu,rho parametrization\n");
     }
-    
-    
-    
+    return state;
+}
+
+/* The original composition: storage, then units, then parameterization. */
+int transf_grad(model * m) {
+    int state=0;
+    __GUARD unpack_par_fp16(m);
+    __GUARD average_grad_transpose(m);
+    __GUARD unscale_par(m);
+    __GUARD unscale_grad(m);
+    __GUARD chain_rule_par_type(m);
+
+
+
     return state;
 
 }

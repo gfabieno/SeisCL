@@ -174,8 +174,8 @@ int prog_read_file(char **output, size_t *size, const char *name) {
     fseek(fp, 0, SEEK_END);
     *size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
-    if (*size > MAX_KERN_STR){
-        fprintf(stderr,"Error: Kernel file is too long, change MAX_KERN_STR value in F.h\n");
+    if (*size > MAX_KERN_BIN){
+        fprintf(stderr,"Error: cached kernel binary too long, raise MAX_KERN_BIN in F.h\n");
         return -1;
     }
     
@@ -299,7 +299,8 @@ char *get_build_options(device *dev,
     int i;
     static char build_options [6000]={0};
     char src[50];
-    
+    int parny, parnx;
+
     build_options[0]=0;
     if (m->N_names[0]){
         for (i=0;i<m->NDIM;i++){
@@ -310,7 +311,18 @@ char *get_build_options(device *dev,
                 sprintf(src,"-D N%s=%d ",m->N_names[i],(*dev).N[i]+m->FDORDER);
             }
             strcat(build_options,src);
-            
+
+        }
+        /* Scalar (unvectorized) padded extents. N<dim> above is halved on the
+           fastest axis whenever FP16>0, because the update kernels address the
+           wavefield as float2/half2. Kernels that address it one scalar element
+           at a time -- the DFT gradient correlation, whose spectra are one
+           float2 per *scalar* element (Init_OpenCL.c's cl_fvar sizing) -- need
+           the true extent, and cannot recover it as 2*N<dim> when
+           N[i]+FDORDER is odd. */
+        for (i=0;i<m->NDIM;i++){
+            sprintf(src,"-D N%sS=%d ",m->N_names[i],(*dev).N[i]+m->FDORDER);
+            strcat(build_options,src);
         }
     }
     else{
@@ -326,6 +338,31 @@ char *get_build_options(device *dev,
         
     }
     
+    // Raw (unpadded) per-dimension grid size for src/average_params.cl (see
+    // notes/vacuum-freesurface-plan.md, Phase 8) -- distinct from the N%d/N%s
+    // macros above, which are FDORDER-padded wavefield sizes. dev->N is
+    // [NZ,NX] for 2D and [NZ,NY,NX] for 3D; PARNY is unused (left at 1) for
+    // 2D's own kernels but still emitted unconditionally to keep this call
+    // simple.
+    /* Which variable the RESIDUALS are injected into, so the gradient kernels
+       can read the right `*out` buffer -- reading `pout` when the "p" trans_var
+       is not an output binds to a placeholder and faults. */
+    int presout = 0, velout = 0;
+    for (i=0;i<(*dev).ntvars;i++){
+        if (strcmp((*dev).trans_vars[i].name,"p")==0 && (*dev).trans_vars[i].to_output)
+            presout = 1;
+    }
+    for (i=0;i<(*dev).nvars;i++){
+        if ((*dev).vars[i].to_output
+            && (strcmp((*dev).vars[i].name,"vx")==0
+                || strcmp((*dev).vars[i].name,"vy")==0
+                || strcmp((*dev).vars[i].name,"vz")==0))
+            velout = 1;
+    }
+
+    parny = (m->NDIM==3) ? (*dev).N[1] : 1;
+    parnx = (m->NDIM==3) ? (*dev).N[2] : (*dev).N[1];
+
     char src2[2000];
     sprintf(src2,"-I ./ -D NDIM=%d -D OFFSET=%d -D FDOH=%d -D DTDH=%9.9f -D DH=%9.9ff "
             "-D DT=%9.9ff -D DT2=%9.9ff -D NT=%d -D NAB=%d -D NBND=%d "
@@ -335,7 +372,9 @@ char *get_build_options(device *dev,
             "-D BACK_PROP_TYPE=%d -D COMM12=%d -D NTNYQ=%d -D DTNYQ=%d "
             "-D VARSOUT=%d -D RESOUT=%d  -D RMSOUT=%d -D MOVOUT=%d "
             "-D GRADOUT=%d -D HOUT=%d -D GRADSRCOUT=%d -D DIRPROP=%d "
-            "-D RESTYPE=%d -D FP16=%d",
+            "-D RESTYPE=%d -D FP16=%d -D PARSCALE=%d -D FREQ0=%9.9ff "
+            "-D PARNZ=%d -D PARNY=%d -D PARNX=%d -D TMIN=%d "
+            "-D PRESOUT=%d -D VELOUT=%d",
             (*m).NDIM, (*dev).OFFSET, (*m).FDOH, (*m).dt/(*m).dh, (*m).dh,
             (*m).dt, (*m).dt/2.0, (*m).NT, (*m).NAB, (*dev).NBND,
             (*dev).LOCAL_OFF, (*m).L, (*dev).DEVID, (*m).NUM_DEVICES,
@@ -344,8 +383,10 @@ char *get_build_options(device *dev,
             (*m).BACK_PROP_TYPE, comm, (*m).NTNYQ, (*m).DTNYQ,
             (*m).VARSOUT, (*m).RESOUT, (*m).RMSOUT, (*m).MOVOUT,
             (*m).GRADOUT, (*m).HOUT, (*m).GRADSRCOUT, DIRPROP, (*m).restype,
-            (*m).FP16) ;
-    
+            (*m).FP16, (*m).par_scale, (*m).f0,
+            (*dev).N[0], parny, parnx, (*m).tmin, presout, velout) ;
+
+
     strcat(build_options,src2);
     
     //Make it all uppercase
@@ -418,8 +459,28 @@ int compile(const char *program_source,
             
         }
         state = clBuildProgram(*program, 1, &device, build_options, NULL, NULL);
-        if (state !=CL_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
-        
+        if (state !=CL_SUCCESS){
+            /* Print the compiler diagnostics. Without this a kernel that fails
+             * to compile reports only "CL_BUILD_PROGRAM_FAILURE" and the count
+             * of errors, with no indication of what or where. */
+            size_t logsize=0;
+            char * log=NULL;
+            fprintf(stderr,"Error: %s\n",clerrors(state));
+            clGetProgramBuildInfo(*program, device, CL_PROGRAM_BUILD_LOG,
+                                  0, NULL, &logsize);
+            if (logsize>1){
+                log = malloc(logsize+1);
+                if (log){
+                    clGetProgramBuildInfo(*program, device, CL_PROGRAM_BUILD_LOG,
+                                          logsize, log, NULL);
+                    log[logsize]='\0';
+                    fprintf(stderr,"Build log for %s:\n%s\n",
+                            program_name, log);
+                    free(log);
+                }
+            }
+        }
+
         if (same!=1){
             __GUARD prog_write_binaries(program,
                                         (char *)filename_bin,
@@ -456,6 +517,21 @@ int get_build_options(device *dev,
 {
     int state=0;
     int i;
+    /* See the same computation in the OpenCL option string above: which
+       variable the residuals are injected into, so the gradient kernels read a
+       live `*out` buffer. */
+    int presout = 0, velout = 0;
+    for (i=0;i<(*dev).ntvars;i++){
+        if (strcmp((*dev).trans_vars[i].name,"p")==0 && (*dev).trans_vars[i].to_output)
+            presout = 1;
+    }
+    for (i=0;i<(*dev).nvars;i++){
+        if ((*dev).vars[i].to_output
+            && (strcmp((*dev).vars[i].name,"vx")==0
+                || strcmp((*dev).vars[i].name,"vy")==0
+                || strcmp((*dev).vars[i].name,"vz")==0))
+            velout = 1;
+    }
     
     *n=0;
     
@@ -483,6 +559,12 @@ int get_build_options(device *dev,
                         m->N_names[i],(*dev).N[i]+m->FDORDER);
             }
         }
+        /* Scalar (unvectorized) padded extents -- see the OpenCL branch. */
+        for (i=0;i<m->NDIM;i++){
+            *n+=1;
+            sprintf(build_options[*n-1],"-D N%sS=%d ",
+                    m->N_names[i],(*dev).N[i]+m->FDORDER);
+        }
     }
     else{
         for (i=0;i<m->NDIM;i++){
@@ -497,6 +579,12 @@ int get_build_options(device *dev,
     
     *n+=1;
     sprintf(build_options[*n-1],"-D FP16=%d ",(*m).FP16);
+    GMALLOC(build_options[*n], sizeof(char)*30); *n+=1;
+    sprintf(build_options[*n-1],"-D PARSCALE=%d ",(*m).par_scale);
+    /* f0: the viscoelastic gradient needs it to rebuild the
+       phase-velocity factor alpha -- see grad_dft2D_visc.cl. */
+    GMALLOC(build_options[*n], sizeof(char)*30); *n+=1;
+    sprintf(build_options[*n-1],"-D FREQ0=%9.9ff ",(*m).f0);
     
     *n+=1;
     sprintf(build_options[*n-1],"-D NDIM=%d ",(*m).NDIM);
@@ -566,7 +654,31 @@ int get_build_options(device *dev,
     sprintf(build_options[*n-1],"-D DIRPROP=%d",DIRPROP);
     *n+=1;
     sprintf(build_options[*n-1],"-D RESTYPE=%d",(*m).restype);
-    
+    *n+=1;
+    /* First time step of the gradient window. savefreqs phases its DFT
+       against the SAMPLED index (t-tmin)/DTNYQ, so any kernel that has to
+       build a spectrum of its own on the same convention -- calc_grad_dft's
+       source term, eq. (26a) -- needs tmin. */
+    sprintf(build_options[*n-1],"-D TMIN=%d",(*m).tmin);
+    *n+=1;
+    sprintf(build_options[*n-1],"-D PRESOUT=%d",presout);
+    *n+=1;
+    sprintf(build_options[*n-1],"-D VELOUT=%d",velout);
+    // Raw (unpadded) per-dimension grid size, matching the material
+    // parameter arrays' actual layout (num_ele = prod(N), no FDORDER) --
+    // distinct from the NZ/NX/etc. macros above, which are sized for the
+    // FDORDER-padded wavefield arrays and would be wrong here. Used by
+    // src/average_params.cl (see notes/vacuum-freesurface-plan.md, Phase 8).
+    // dev->N is [NZ,NX] for 2D and [NZ,NY,NX] for 3D; PARNY is unused (left
+    // at 1) for 2D's own kernels.
+    *n+=1;
+    sprintf(build_options[*n-1],"-D PARNZ=%d",(*dev).N[0]);
+    *n+=1;
+    sprintf(build_options[*n-1],"-D PARNY=%d",(m->NDIM==3) ? (*dev).N[1] : 1);
+    *n+=1;
+    sprintf(build_options[*n-1],"-D PARNX=%d",
+            (m->NDIM==3) ? (*dev).N[2] : (*dev).N[1]);
+
     return state;
 }
 
@@ -721,9 +833,16 @@ int prog_create(model * m,
     
     
     #else
+    // 64, not 50: a typical 2D elastic config already uses 46 of the
+    // previous 50 slots (measured), leaving too little headroom for any
+    // future -D option addition -- get_build_options has no bounds check
+    // on *n, so overflowing this silently corrupts heap memory.
     char ** build_options=NULL;
-        GMALLOC(build_options, sizeof(char*)*50);
-    for (i=0;i<50;i++){
+    /* 64 was already close to the ~50 options get_build_options() emits (more
+       in 3D, which adds per-dimension ones), and the comment above says an
+       overflow corrupts the heap silently. Widened when TMIN was added. */
+    GMALLOC(build_options, sizeof(char*)*96);
+    for (i=0;i<96;i++){
         GMALLOC(build_options[i], sizeof(char)*500);
     }
     state= get_build_options(dev,
@@ -825,6 +944,15 @@ int prog_create(model * m,
                 sprintf(str2comp,"f%s",(*dev).vars[j].name);
                 if (strcmp(str2comp,(*prog).input_list[i])==0){
                     prog_arg(prog, i, &(*dev).vars[j].cl_fvar.mem, memsize);
+                    argfound=1;
+                    break;
+                }
+                /* f<var>_f is the resident forward DFT spectrum; f<var> alone
+                 * stays bound to the adjoint one, so savefreqs and everything
+                 * else keep their existing binding. */
+                sprintf(str2comp,"f%s_f",(*dev).vars[j].name);
+                if (strcmp(str2comp,(*prog).input_list[i])==0){
+                    prog_arg(prog, i, &(*dev).vars[j].cl_fvar_f.mem, memsize);
                     argfound=1;
                     break;
                 }
@@ -984,10 +1112,25 @@ int prog_create(model * m,
         }
         
         if (!argfound){
-            #ifdef __DEBUGGING__
-            fprintf(stdout,"Warning: input %s undefined for kernel %s\n",
-                             (*prog).input_list[i], (*prog).name);
-            #endif
+            /* SEISCL_WARN_ARGS=1 reports these. An unmatched argument is
+             * bound to a placeholder that is not a valid memory object, so the
+             * kernel either launches with garbage or fails with
+             * CL_INVALID_KERNEL_ARGS far from the cause -- which is what made
+             * the ND=21 gradient path hard to diagnose. Off by default because
+             * kernels declare every possible argument by convention (the CPML
+             * coefficients, for instance, are legitimately unmatched whenever
+             * ABS_TYPE != 1), so it is noisy rather than wrong. */
+            {
+                static int warn=-1;
+                if (warn<0){
+                    const char * v = getenv("SEISCL_WARN_ARGS");
+                    warn = (v && v[0] && v[0]!='0') ? 1 : 0;
+                }
+                if (warn)
+                    fprintf(stderr,"Warning: argument %s of kernel %s matched "
+                                   "nothing and is bound to a placeholder\n",
+                                   (*prog).input_list[i], (*prog).name);
+            }
             prog_arg(prog, i, &dev->cuda_null, memsize);
         }
 
@@ -1040,8 +1183,11 @@ int prog_launch(QUEUE *inqueue, clprogram * prog){
         }
         bsize[i]=(unsigned int)(prog->gsize[i]+tsize[i]-1)/tsize[i];
     }
-    if (prog->nwait > 0){
-        state = cuStreamWaitEvent(*inqueue, *prog->waits, 0);
+    /* Wait on all nwait events, not just waits[0]: the OpenCL branch above
+     * honours nwait, so silently dropping the rest here would desynchronize
+     * the CUDA path for any kernel with more than one dependency. */
+    for (i=0;i<prog->nwait;i++){
+        state = cuStreamWaitEvent(*inqueue, prog->waits[i], 0);
     }
     state = cuLaunchKernel (prog->kernel,
                             bsize[0],

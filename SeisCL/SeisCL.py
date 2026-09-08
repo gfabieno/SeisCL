@@ -27,7 +27,8 @@ csts = [ 'N', 'ND', 'dh', 'dt', 'NT', 'freesurf', 'FDORDER', 'MAXRELERROR',
         'param_type', 'gradfreqs', 'tmax', 'tmin', 'scalerms',
         'scalermsnorm', 'scaleshot',
         'fmin', 'fmax', 'gradout', 'Hout', 'gradsrcout', 'seisout', 'resout',
-        'rmsout', 'movout', 'restype', 'inputres', 'FP16']
+        'rmsout', 'movout', 'restype', 'inputres', 'FP16', 'dftout',
+        'dft_osamp']
 
 SOURCE_TYPES = {
     "Fx": 0,
@@ -81,7 +82,8 @@ class SeisCL:
                  scalermsnorm: int = 0, scaleshot: int = 0,
 
                  seisout: int = 2, resout: int = 0, rmsout: int = 0,
-                 movout: int = 0,
+                 movout: int = 0, dftout: int = 0,
+                 dft_osamp: float = 64.0,
 
                  file: str = "SeisCL", workdir: str = "./seiscl",
                  ):
@@ -173,7 +175,10 @@ class SeisCL:
 
         Parameters defining the Boundary conditions
 
-        :param freesurf:         Include a free surface 0: no, 1: yes
+        :param freesurf:         Free surface: 0: none, 1: stress-image
+                                 (Levander, 1988), 2: improved vacuum
+                                 formulation (Zeng et al., 2012,
+                                 doi:10.1190/geo2011-0067.1)
         :param abs_type:         Absorbing boundary type:
                                  1: CPML, 2: Absorbing layer of Cerjan
         :param VPPML:            Vp velocity near CPML boundary
@@ -256,6 +261,12 @@ class SeisCL:
         :param resout:           Output residuals 1:yes, 0: no
         :param rmsout:           Output rms value of the cost 1:yes, 0: no
         :param movout:           Output movie every n frames
+        :param dftout:           Debug: 1 to dump the raw forward and adjoint
+                                 DFT wavefield buffers accumulated by
+                                 savefreqs (back_prop_type=2 only, single
+                                 device, single shot). Read with read_dft().
+                                 Lets the DFT spectra be validated on their own,
+                                 independently of the gradient correlation.
 
 
         Parameters for file creation
@@ -348,6 +359,8 @@ class SeisCL:
         self.resout = resout
         self.rmsout = rmsout
         self.movout = movout
+        self.dftout = dftout
+        self.dft_osamp = dft_osamp
 
         self.file = file
         self.file_datalist = None
@@ -419,6 +432,7 @@ class SeisCL:
         self.file_movout = file+"_movie.mat"
         self.file_din = file+"_din.mat"
         self.file_res = file + "_res.mat"
+        self.file_dft = file + "_dft.mat"
 
     @property
     def csts(self):
@@ -475,6 +489,9 @@ class SeisCL:
             workdir = self.workdir
 
         self.N = np.array(params[self.params[0]].shape, dtype=int)
+        # Kept so read_grad() can apply the parameterization chain rule, which
+        # needs the model it was evaluated at.
+        self._last_params = {k: np.asarray(v) for k, v in params.items()}
         self.prepare_data(jobids)
         if withgrad:
             self.gradout = 1
@@ -617,9 +634,78 @@ class SeisCL:
                 
         if not output:
             raise SeisCLError('Could not read movie: variables not found')
-            
+
         return output
-    
+
+    def _crop_boundary(self, output):
+        """Zero the `nab`-deep absorbing-boundary band, in place, on every
+        array in `output` -- shared by read_grad() and read_Hessian(), which
+        need the exact same crop.
+
+        Whether cropping is actually needed, not just requested via
+        `cropgrad`, depends on *why* the boundary's gradient would be wrong,
+        which differs by `back_prop_type`:
+
+        - `back_prop_type=1` reconstructs the forward wavefield from a
+          saved boundary checkpoint by literally undoing each timestep's
+          raw update (`update_adj{v,s}{2D,3D}.cl`'s `BACK_PROP_TYPE==1`
+          branch does `vx[indv] -= lvx`, `sxx[indv] -= lsxx`, etc.) -- but
+          it never divides out the absorbing boundary's own damping
+          (Cerjan's `taper[...]` multiply, or CPML's memory-variable
+          recursion) that the *forward* pass applied at that same cell.
+          Absorption is lossy/non-invertible by construction, so inside the
+          `nab`-deep band the "reconstructed" forward field silently
+          diverges from the true one as backpropagation proceeds -- and any
+          gradient correlating it against the (correctly computed) adjoint
+          field there is invalid. This applies regardless of `abs_type`, so
+          it is always cropped.
+        - `back_prop_type=2` (the DFT path) never reconstructs anything: the
+          true forward field's spectrum is accumulated during one genuine
+          forward pass over the *entire* grid (`kernel_savefreqs` has no
+          `NAB`-based exclusion), and the adjoint field is likewise computed
+          by real time-stepping, not inversion. For `abs_type=2` (Cerjan), a
+          taper is just a real per-cell multiplication -- its own adjoint --
+          so correlating the two genuine fields inside the tapered band is
+          numerically valid (only physically less interesting: it reflects
+          sensitivity within an artificially damped medium). This case is
+          therefore NOT cropped by default. `abs_type=1` (CPML) is a more
+          delicate discrete-adjoint question (its memory-variable recursion
+          is not a simple self-adjoint operator, and has not been verified
+          the way Cerjan has here) -- kept cropped by default out of
+          caution.
+        """
+        do_crop = self.back_prop_type == 1 or self.abs_type == 1
+        if not do_crop:
+            return
+        nab = self.nab
+        for o in output:
+            threed = o.ndim == 3
+            if self.freesurf != 1:
+                # freesurf==0: no free surface, top nab rows are real PML,
+                # the BACK_PROP_TYPE=1/CPML boundary-inaccuracy crop above
+                # applies (nab deep). freesurf==2: improved vacuum
+                # formulation -- nab does NOT apply to this edge (CPML is
+                # already disabled there for any nonzero freesurf,
+                # regardless of nab); the vacuum band itself is only fdoh
+                # deep BY CONVENTION -- with freesurf=2 the vacuum is part
+                # of the model the caller supplies, not something the engine
+                # creates, so this is an assumption about that model rather
+                # than a fact about the engine. It matches what the tests
+                # build. A caller using topography (a non-flat vacuum) should
+                # mask on where the material is actually zero instead; see
+                # notes/vacuum-freesurface-plan.md, Phase 3.
+                ztop = self.FDORDER // 2 if self.freesurf == 2 else nab
+                o[:ztop] = 0
+            o[-nab:] = 0
+            if threed:
+                o[:, :nab, :] = 0
+                o[:, -nab:, :] = 0
+                o[:, :, :nab] = 0
+                o[:, :, -nab:] = 0
+            else:
+                o[:, :nab] = 0
+                o[:, -nab:] = 0
+
     def read_grad(self, workdir=None, param_names=None, filename=None):
         """
 
@@ -634,8 +720,20 @@ class SeisCL:
             workdir = self.workdir
         if filename is None:
             filename = self.file_gout
+        # The engine always runs par_type=0, so the datasets are gradvp,
+        # gradvs, gradrho (plus gradtaup/gradtaus when L>0), whatever
+        # parameterization the caller works in.
+        native = ['vp', 'vs', 'rho']
+        if self.L > 0:
+            native += ['taup', 'taus']
+        # An explicit param_names is a request for those datasets as the
+        # engine wrote them: the chain rule below needs the full (vp, vs,
+        # rho) triplet, so applying it to a caller-chosen subset would index
+        # past the end, and applying it to an explicit ['vp','vs','rho'] would
+        # contradict the escape hatch the error message below documents.
+        explicit = param_names is not None
         if param_names is None:
-            param_names = self.params
+            param_names = native
         toread = ['grad'+name for name in param_names]
         try:
             mat = h5.File(os.path.join(workdir, filename), 'r')
@@ -643,14 +741,60 @@ class SeisCL:
             raise SeisCLError('Could not read grad')
         output = [np.transpose(mat[v]) for v in toread]
         if self.cropgrad:
-            for o in output:
-                if self.freesurf == 0:
-                    o[:self.nab, :] = 0
-                o[-self.nab:, :] = 0
-                o[:, :self.nab] = 0
-                o[:, -self.nab:] = 0
-        return output 
+            self._crop_boundary(output)
+        if self.param_type != 0 and not explicit:
+            if getattr(self, "_last_params", None) is None:
+                raise SeisCLError(
+                    "read_grad() needs the model to convert the gradient into "
+                    "param_type=%d; call set_forward() first, or read with "
+                    "param_names=['vp','vs','rho'] to get the native gradient."
+                    % self.param_type)
+            output = self._grad_to_param_type(output, self._last_params)
+        return output
     
+    def read_dft(self, workdir=None, filename=None):
+        """
+        Read the raw forward and adjoint DFT wavefield buffers dumped by
+        dftout=1 (back_prop_type=2 only, single device, single shot).
+
+        This is a debug facility: it exposes what the savefreqs kernel
+        accumulated, before any gradient correlation, so the spectra can be
+        checked against a reference DFT on their own.
+
+        :param workdir: The directory of the dft file
+        :param filename: The filename of the dft dump
+
+        :return: A dict with the derived DFT parameters DTNYQ, NTNYQ, NFREQS,
+                 FDORDER, tminind, tmaxind (ints), gradfreqsn (int array of DFT
+                 bin indices), and one complex128 array per variable under the
+                 keys 'f_<var>' (forward) and 'a_<var>' (adjoint), shaped
+                 (NZ+FDORDER, [NY+FDORDER,] NX+FDORDER, [L,] NFREQS) -- i.e.
+                 the padded grid leading in (z, [y,] x) order, matching the
+                 convention of read_movie().
+        """
+        if workdir is None:
+            workdir = self.workdir
+        if filename is None:
+            filename = self.file_dft
+        try:
+            mat = h5.File(os.path.join(workdir, filename), 'r')
+        except OSError:
+            raise SeisCLError('Could not read dft dump: is dftout=1 set?')
+
+        out = {}
+        for k in ('DTNYQ', 'NTNYQ', 'NFREQS', 'FDORDER', 'tminind', 'tmaxind'):
+            out[k] = int(np.array(mat[k]).ravel()[0])
+        out['gradfreqsn'] = np.array(mat['gradfreqsn']).ravel().astype(int)
+        for v in mat.keys():
+            if not (v.startswith('dft_f_') or v.startswith('dft_a_')):
+                continue
+            # Stored C-order as (NFREQS, [L,] Xpad, [Ypad,] Zpad, 2). A full
+            # transpose (as read_movie does) puts the interleaved real/imag
+            # pair on axis 0 and the spatial axes first in (z, [y,] x) order.
+            a = np.transpose(np.array(mat[v]))
+            out[v[4:]] = (a[0] + 1j * a[1]).astype(np.complex128)
+        return out
+
     def read_Hessian(self,  workdir=None, param_names=None, filename=None):
         """
         Read the approximate hessian output by SeisCL
@@ -664,23 +808,44 @@ class SeisCL:
 
         if workdir is None:
             workdir = self.workdir
+        # As for read_grad: the engine always runs par_type=0, so the datasets
+        # are Hvp, Hvs, Hrho whatever parameterization the caller works in.
+        native = ['vp', 'vs', 'rho']
+        if self.L > 0:
+            native += ['taup', 'taus']
+        explicit = param_names is not None  # see read_grad()
         if param_names is None:
-            param_names = self.params
+            param_names = native
         if filename is None:
             filename = self.file_gout
         toread = ['H' + name for name in param_names]
         try:
             mat = h5.File(os.path.join(workdir, filename), 'r')
-            output = [np.transpose(mat[v]) for v in toread]
         except OSError:
             raise SeisCLError('Could not read Hessian')
+        missing = [v for v in toread if v not in mat]
+        if missing:
+            raise SeisCLError(
+                'Hessian datasets %s not found in %s (found %s). Was the run '
+                'made with Hout=1?' % (missing, filename, sorted(mat.keys())))
+        output = [np.transpose(mat[v]) for v in toread]
         if self.cropgrad:
-            for o in output:
-                if self.freesurf == 0:
-                    o[:self.nab, :] = 0
-                o[-self.nab:, :] = 0
-                o[:, :self.nab] = 0
-                o[:, -self.nab:] = 0
+            self._crop_boundary(output)
+        if self.param_type != 0 and not explicit:
+            if getattr(self, "_last_params", None) is None:
+                raise SeisCLError(
+                    "read_Hessian() needs the model to convert into "
+                    "param_type=%d; call set_forward() first, or read with "
+                    "param_names=['vp','vs','rho'] to get the native Hessian."
+                    % self.param_type)
+            # SeisCL applies the *same* first-order map to the Hessian as to
+            # the gradient (transf_grad does Hrho += M/rho*HM and
+            # HM = 2*sqrt(rho*M)*HM, calc_grad.c:1029-1062), rather than the
+            # squared Jacobian a diagonal Hessian would strictly require. That
+            # convention is kept here so the result matches what the engine
+            # produced for these parameterizations before the conversion moved
+            # to Python.
+            output = self._grad_to_param_type(output, self._last_params)
         return output
 
     def read_rms(self, workdir=None, filename=None):
@@ -765,10 +930,16 @@ class SeisCL:
         try:
             with h5.File(os.path.join(workdir, filename), "w") as f:
                 for el in csts:
-                    if isinstance(self.__dict__[el], np.ndarray):
-                        f[el] = np.transpose(self.__dict__[el])
+                    val = self.__dict__[el]
+                    # The engine implements only (vp, vs, rho) and rejects
+                    # anything else; this class converts the model and the
+                    # gradient itself, so it always asks for the native one.
+                    if el == 'param_type':
+                        val = 0
+                    if isinstance(val, np.ndarray):
+                        f[el] = np.transpose(val)
                     else:
-                        f[el] = self.__dict__[el]
+                        f[el] = val
         except OSError:
             raise SeisCLError('could not write parameter file \n')
 
@@ -794,6 +965,99 @@ class SeisCL:
             self.src_all[:, srcid] = src_new
         return src_new
 
+
+    # ------------------------------------------------------------------
+    # Parameterization
+    #
+    # The engine only implements par_type=0, (vp, vs, rho); it errors on
+    # anything else so that other wrappers are told rather than silently handed
+    # a gradient in the wrong parameterization. The other parameterizations are
+    # a pointwise chain rule on the model grid, negligible next to propagation,
+    # so they are done here. param_type keeps its previous meaning for callers
+    # of this class:
+    #
+    #   0 : (vp, vs, rho)      native, no conversion
+    #   1 : (M, mu, rho)       M = rho*vp**2,  mu = rho*vs**2
+    #   2 : (Ip, Is, rho)      Ip = rho*vp,    Is = rho*vs
+    # ------------------------------------------------------------------
+
+    def _to_native(self, params):
+        """Convert a model in self.param_type to the engine's (vp, vs, rho)."""
+        if self.param_type == 0:
+            return dict(params)
+        rho = np.asarray(params["rho"], dtype=np.float64)
+        if self.param_type == 1:
+            vp = np.sqrt(np.asarray(params["M"], dtype=np.float64) / rho)
+            vs = np.sqrt(np.asarray(params["mu"], dtype=np.float64) / rho)
+        elif self.param_type == 2:
+            vp = np.asarray(params["Ip"], dtype=np.float64) / rho
+            vs = np.asarray(params["Is"], dtype=np.float64) / rho
+        else:
+            raise NotImplementedError(
+                "param_type=%d is not supported. The engine implements only "
+                "(vp, vs, rho); this wrapper converts 1 (M, mu, rho) and "
+                "2 (Ip, Is, rho)." % self.param_type)
+        out = {"vp": vp, "vs": vs, "rho": rho}
+        for extra in ("taup", "taus"):
+            if extra in params:
+                out[extra] = params[extra]
+        return out
+
+    def _grad_to_param_type(self, grad, params):
+        """Chain-rule a gradient from (vp, vs, rho) into self.param_type.
+
+        :param grad:   [gvp, gvs, grho, ...] as returned by the engine
+        :param params: the model, in self.param_type units
+        """
+        if self.param_type == 0:
+            return grad
+        nat = self._to_native(params)
+        vp, vs = nat["vp"], nat["vs"]
+        rho = np.asarray(params["rho"], dtype=np.float64)
+        gvp, gvs, grho = grad[0], grad[1], grad[2]
+        if self.param_type == 1:
+            # vp = sqrt(M/rho) -> dvp/dM = 1/(2*rho*vp), dvp/drho = -vp/(2*rho)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                g0 = np.where(vp > 0, gvp / (2.0 * rho * vp), 0.0)
+                g1 = np.where(vs > 0, gvs / (2.0 * rho * vs), 0.0)
+            g2 = grho - (gvp * vp + gvs * vs) / (2.0 * rho)
+        elif self.param_type == 2:
+            # vp = Ip/rho -> dvp/dIp = 1/rho, dvp/drho = -vp/rho
+            g0 = gvp / rho
+            g1 = gvs / rho
+            g2 = grho - (gvp * vp + gvs * vs) / rho
+        else:
+            raise NotImplementedError(
+                "param_type=%d is not supported." % self.param_type)
+        return [g0, g1, g2] + list(grad[3:])
+
+
+    def misfit(self, dmod, dobs=None, workdir=None):
+        """L2 misfit and its adjoint source, computed here rather than in C.
+
+        The engine's own rms scalar is not reproducible from Python -- see
+        notes/dft-gradient-findings.md -- and for back_prop_type=2 it is
+        evaluated at slightly different discrete frequencies than the gradient
+        (residuals.c:364-405 selects bins as gradfreqs*nfft*dt+1 while the
+        gradient uses floor(f/df)). Computing the objective here removes both
+        problems and makes finite-difference checks straightforward.
+
+        The engine's adjoint source was measured to be exactly proportional to
+        (d_obs - d_mod), so feeding back (d_mod - d_obs) through set_backward()
+        reproduces the same gradient up to the constant res_scale applies.
+
+        :param dmod: list of modelled data, as returned by read_data()
+        :param dobs: list of observed data; defaults to reading file_din
+        :return: (J, residuals) with J = 0.5*sum (d_mod - d_obs)**2 and
+                 residuals the list of (d_mod - d_obs) arrays
+        """
+        if dobs is None:
+            dobs = self.read_data(workdir=workdir, filename=self.file_din)
+        res = [np.asarray(a, dtype=np.float64) - np.asarray(b, dtype=np.float64)
+               for a, b in zip(dmod, dobs)]
+        J = 0.5 * float(sum((r ** 2).sum() for r in res))
+        return J, res
+
     def write_model(self, params, workdir=None):
         """
         Write model parameters to the model files
@@ -808,9 +1072,13 @@ class SeisCL:
         for param in self.params:
             if param not in params:
                 raise SeisCLError('Parameter with %s not defined\n' % param)
+        # The engine only reads (vp, vs, rho); convert here if the caller works
+        # in another parameterization.
+        towrite = self._to_native(params)
         with h5.File(os.path.join(workdir, self.file_model), "w") as file:
-            for param in params:
-                file[param] = np.transpose(params[param].astype(np.float32))
+            for param in towrite:
+                file[param] = np.transpose(
+                    np.asarray(towrite[param]).astype(np.float32))
 
     def prepare_data(self, srcids):
         """
@@ -862,8 +1130,13 @@ class SeisCL:
 
             if dim ==1 and self.N.shape[0] == 2:
                 continue
-            if self.freesurf and dim == 0:
+            if self.freesurf == 1 and dim == 0:
                 nmin = 0
+            elif self.freesurf == 2 and dim == 0:
+                # the vacuum band is fdoh deep by convention (the caller
+                # supplies it; the engine does not create it) -- nab does
+                # not apply to this edge once a free surface is active.
+                nmin = self.FDORDER // 2
             else:
                 nmin = self.nab
 

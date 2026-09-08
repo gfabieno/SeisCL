@@ -81,7 +81,19 @@ class SeisCLForward(torch.autograd.Function):
         # d(source wavelet)/d(geometry) gradients aren't computed here
         # (cfg.GRADSRCOUT support is a future extension, see the project
         # plan) -- always None for src/src_pos/rec_pos.
-        grad_params = [grads.get(name) for name in ctx.param_names]
+        #
+        # _C.run_backward() always returns CPU tensors (the engine's
+        # gradient buffers are host memory) regardless of which device the
+        # matching parameter tensor lived on -- CUDA parameters are accepted
+        # and copied down to host in set_params(), see op.py's docstring.
+        # torch.autograd.Function requires a returned gradient to be on the
+        # same device as its input, so move each one back before returning.
+        grad_params = []
+        for name, value in zip(ctx.param_names, param_values):
+            g = grads.get(name)
+            if g is not None and g.device != value.device:
+                g = g.to(value.device)
+            grad_params.append(g)
 
         # One None per non-tensor/non-grad-needing forward() arg:
         # (cfg, param_names, field_names_out, output_fields, src, src_pos,

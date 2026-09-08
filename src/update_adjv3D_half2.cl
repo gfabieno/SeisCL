@@ -52,7 +52,11 @@ FUNDEF void update_adjv(int offcomm,
                         GLOBARG __prec2 *psi_syz_y,  GLOBARG __prec2 *psi_syz_z,
                         GLOBARG __prec2 *psi_szz_z,
                         GLOBARG __gprec *gradrho, GLOBARG __gprec *Hrho,
+                        GLOBARG __gprec *gradrip, GLOBARG __gprec *gradrjp,
+                        GLOBARG __gprec *gradrkp,
                         int res_scale, int src_scale, int par_scale,
+                        GLOBARG float *src, GLOBARG float *src_pos,
+                        int nsrc, int nt,
                         LOCARG2)
 {
     //Local memory
@@ -546,8 +550,75 @@ FUNDEF void update_adjv(int offcomm,
     lvyr = (syyr_y1 + sxyr_x2 + syzr_z2) * lrjp;
     lvzr = (szzr_z1 + sxzr_x2 + syzr_y2) * lrkp;
 
-    gradrho[indp]=gradrho[indp] - scalefun(__h22f2c(lvx*lvxr + lvy*lvyr + lvz*lvzr),
+    /* vx/vy/vz sit at the rip/rjp/rkp staggered positions (update_v3D.cl), so
+     * their contributions are kept in separate accumulators -- NOT summed into
+     * the cell-centred gradrho -- so average_grad_transpose() (calc_grad.c) can
+     * apply the buoyancy averaging Jacobian to each separately. This mirrors
+     * update_adjv2D_half2.cl's split and update_adjv3D.cl's FP32 one; this
+     * kernel was simply missed when those were done, which made the FP16>=1 3D
+     * density gradient come back about half its true value at EVERY cell, not
+     * just near sources (measured 0.5702 at an interior cell against 1.0006 at
+     * FP16==0). */
+    gradrip[indp]=gradrip[indp] - scalefun(__h22f2c(lvx) * __h22f2c(lvxr),
                                            2*par_scale -src_scale - res_scale);
+    gradrjp[indp]=gradrjp[indp] - scalefun(__h22f2c(lvy) * __h22f2c(lvyr),
+                                           2*par_scale -src_scale - res_scale);
+    gradrkp[indp]=gradrkp[indp] - scalefun(__h22f2c(lvz) * __h22f2c(lvzr),
+                                           2*par_scale -src_scale - res_scale);
+
+    /* Source term of the misfit gradient -- GJI 2017 eq. (26a) -- for a FORCE
+     * source; see update_adjv2D.cl for the derivation and
+     * update_adjs2D_half2.cl for the vectorized form. lvxr/lvyr/lvzr are the
+     * adjoint INCREMENT by this point, so the adjoint FIELD is re-read from
+     * global memory. DIV z-cells share a work item, so the correction lands in
+     * the source's lane only. */
+    #if GRADOUT==1
+    if (nsrc>0){
+        for (int srci=0; srci<nsrc; srci++){
+            int st = (int)src_pos[4+5*srci];
+            if (st>=0 && st<=2){
+                int si  = (int)(src_pos[0+5*srci]/DH)+FDOH;
+                int sj  = (int)(src_pos[1+5*srci]/DH)+FDOH;
+                int skf = (int)(src_pos[2+5*srci]/DH)+FDOH;
+                if (si==gidx && sj==gidy && (skf/DIV)==gidz){
+                    /* The VELOCITY variables are stored with their own
+                     * scaler (= par_scale; set_par_scale()), so the injected
+                     * amplitude kernel_sources() adds is
+                     * ldexp(DT*src, src_scale - par_scale), not just
+                     * src_scale. <v~,s> pairs the adjoint velocity FIELD --
+                     * which carries 2^(res_scale-par_scale) -- against that,
+                     * and the scalefun() below removes
+                     * 2*par_scale-src_scale-res_scale from the product, so
+                     * samp must carry the par_scale too. Using plain
+                     * src_scale here made the term 2^par_scale too small
+                     * (~2^-33), i.e. silently absent, at FP16>0. */
+                    #if FP16==0
+                    float samp = DT*src[srci*NT+nt];
+                    #elif defined(__OPENCL_VERSION__)
+                    float samp = ldexp(DT*src[srci*NT+nt],
+                                       src_scale - par_scale);
+                    #else
+                    float samp = scalbnf(DT*src[srci*NT+nt],
+                                         src_scale - par_scale);
+                    #endif
+                    __gprec psi;
+                    if      (st==0) psi = __h22f2(vxr[indv]);
+                    else if (st==1) psi = __h22f2(vyr[indv]);
+                    else            psi = __h22f2(vzr[indv]);
+                    __gprec Csrc = psi*samp;
+                    #if DIV==2
+                    if ((skf%DIV)==0) Csrc.y = 0.0f; else Csrc.x = 0.0f;
+                    #endif
+                    __gprec sc = scalefun(Csrc,
+                                          2*par_scale-src_scale-res_scale);
+                    if      (st==0) gradrip[indp] = gradrip[indp] + sc;
+                    else if (st==1) gradrjp[indp] = gradrjp[indp] + sc;
+                    else            gradrkp[indp] = gradrkp[indp] + sc;
+                }
+            }
+        }
+    }
+    #endif
     #if HOUT==1
     Hrho[indp]=Hrho[indp] + scalefun(lvx*lvx + lvy*lvy + lvz*lvz,
                                      2*par_scale - 2*src_scale);

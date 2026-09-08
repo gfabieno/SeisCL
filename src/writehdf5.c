@@ -345,8 +345,13 @@ int writehdf5(struct filenames file, model * m) {
             dims[m->NDIM-i-1]=m->N[i];
         }
         
+        /* to_read, not just to_grad: every parameter now carries a gradient
+           buffer (clmodel.c), including the derived staggered ones, but only
+           those the user supplies as a model belong in the output -- and
+           to_read is what supplies the dataset name, so dereferencing it for
+           the others would read a NULL pointer. */
         for (i=0;i<m->npars;i++){
-            if (m->pars[i].to_grad){
+            if (m->pars[i].to_grad && m->pars[i].to_read){
                 sprintf(name, "grad%s",&m->pars[i].to_read[1]);
                 writetomat(&file_id,name,m->pars[i].gl_grad,m->NDIM,dims);
             }
@@ -354,7 +359,7 @@ int writehdf5(struct filenames file, model * m) {
         // Write Hessian output file
         if ( m->HOUT){
             for (i=0;i<m->npars;i++){
-                if (m->pars[i].to_grad){
+                if (m->pars[i].to_grad && m->pars[i].to_read){
                     sprintf(name, "H%s",&m->pars[i].to_read[1]);
                     writetomat(&file_id,name,m->pars[i].gl_H,m->NDIM,dims);
                 }

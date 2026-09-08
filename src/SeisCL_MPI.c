@@ -117,6 +117,7 @@ int main(int argc, char **argv) {
     snprintf(file.rmsout, sizeof(file.rmsout), "%s%s", filein, "_rms.mat");
     snprintf(file.movout, sizeof(file.movout), "%s%s", filein, "_movie.mat");
     snprintf(file.res, sizeof(file.res), "%s%s", filein, "_res.mat");
+    snprintf(file.dftout, sizeof(file.dftout), "%s%s", filein, "_dft.mat");
     snprintf(file.checkpoint, sizeof(file.checkpoint), "%s_NP%d%s", filein,
              m.GID, "_checkpoint.mat");
     if (filedata == NULL) {

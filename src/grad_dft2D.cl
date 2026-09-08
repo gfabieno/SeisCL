@@ -1,0 +1,455 @@
+/*------------------------------------------------------------------------
+ * Copyright (C) 2016 For the list of authors, see file AUTHORS.
+ *
+ * This file is part of SeisCL.
+ *
+ * SeisCL is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.0 of the License only.
+ *
+ * SeisCL is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with SeisCL. See file COPYING and/or
+ * <http://www.gnu.org/licenses/gpl-3.0.html>.
+ --------------------------------------------------------------------------*/
+
+/* Frequency-domain (BACK_PROP_TYPE==2) gradient correlation, 2D P-SV, elastic.
+ *
+ * One work item per model cell. Replaces the host-side calc_grad() for this
+ * case: it removes the two per-shot PCIe transfers of both spectra and makes
+ * the DFT gradient work in the CUDA build at all, where calc_grad() is a no-op
+ * stub. calc_grad() is retained as a reference implementation, selectable with
+ * SEISCL_DFT_HOST=1 and cross-checkable with SEISCL_DFT_CHECK=1.
+ *
+ * Everything here is double precision. This kernel runs once per shot, not once
+ * per time step, so the cost is irrelevant (well under a millisecond even at
+ * NFREQS=128), and double keeps it bit-comparable with the host reference, which
+ * is what makes SEISCL_DFT_CHECK a tight test rather than a smoke test.
+ *
+ * Conventions, all verified against the host implementation and against a
+ * float64 numpy reference (SeisCL/tests/dft_reference.py):
+ *
+ *   itreal(a,b) = a.y*b.x - a.x*b.y = Im(a * conj(b))
+ *   w           = 2*pi*DFTDF*bin,  DFTDF = 1/(NTNYQ*dt*DTNYQ)
+ *   every dot product carries a 1/NTNYQ factor
+ *   spectra are indexed f*num_ele + (i+FDOH)*NZ + (k+FDOH), the padded layout
+ *
+ * The coefficients are the grad_coefelast_0 / grad_coefvisc_0 family. They are
+ * expressions in the *physical* stiffnesses and density, while cl_par holds the
+ * internally non-dimensionalized values, so they are converted here exactly as
+ * the host does.
+ */
+
+#ifdef __OPENCL_VERSION__
+/* OpenCL 1.2 requires double precision to be enabled explicitly. __SEISCL__ is
+ * a host-side macro and is *not* visible to the device compiler; the portable
+ * guard in device sources is __OPENCL_VERSION__ (see header_CUDACL.cl). */
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
+#endif
+
+/* NZS and NXS are the *scalar* padded extents (clprogram.c defines them as
+ * N[i]+FDORDER). Deliberately not NZ/NX: those are halved on the fastest axis
+ * whenever FP16>0, since the update kernels address the wavefield as
+ * float2/half2. This kernel is scalar -- savefreqs accumulates one float2
+ * spectrum entry per scalar element (kernel_savefreqs indexes gid<num_ele, and
+ * Init_OpenCL.c sizes cl_fvar as 2*sizeof(float)*num_ele*NFREQS regardless of
+ * FP16) -- so using NZ here made the correlation cover and stride only half the
+ * grid at FP16=1, giving a gradient uncorrelated with the FP16=0 one. */
+#define NZM (NZS - 2*FDOH)
+#define NXM (NXS - 2*FDOH)
+#define NPAD (NXS*NZS)
+#define indf(f,i,k) ((f)*NPAD + ((i)+FDOH)*NZS + ((k)+FDOH))
+
+#ifdef __OPENCL_VERSION__
+    #define COSPIF(x) cospi(x)
+    #define SINPIF(x) sinpi(x)
+#else
+    #define COSPIF(x) cospif(x)
+    #define SINPIF(x) sinpif(x)
+#endif
+
+LFUNDEF double itreal(float2 a, float2 b)
+{
+    return (double)a.y*(double)b.x - (double)a.x*(double)b.y;
+}
+
+/* itreal(a,b) is Re(conj(a)*i*b), which is what the <sigma~, dt sigma>
+ * correlations need (dt <-> i*w).  The source term of eq. (26a) is
+ * <sigma~, s> with no time derivative, so it needs the plain
+ * Re(conj(a)*b) instead -- the same product without the i. */
+LFUNDEF double rreal(float2 a, float2 b)
+{
+    return (double)a.x*(double)b.x + (double)a.y*(double)b.y;
+}
+
+/* Parameter buffers are stored as half when FP16>1 (Init_OpenCL.c halves
+ * cl_par.size), so reading them as float would return garbage. Deliberately
+ * NOT __pprec/__pconv: those are the *vectorized* pair types the update
+ * kernels use (float2/half2), and __pconv is the identity at FP16==3 because
+ * those kernels go on to compute in half2. This kernel is scalar -- one work
+ * item per model cell -- and always computes in float/double, so it takes the
+ * scalar half type and converts on load. The gradient/Hessian outputs are
+ * unaffected: cl_grad and cl_H are never halved. */
+#if FP16>1
+    #define PARARG half
+    #ifdef __OPENCL_VERSION__
+        /* cl_khr_fp16 is enabled in header_CUDACL.cl, so a half load
+         * converts implicitly. */
+        #define PARCONV(x) (x)
+    #else
+        #define PARCONV(x) __half2float(x)
+    #endif
+#else
+    #define PARARG float
+    #define PARCONV(x) (x)
+#endif
+
+FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
+                          GLOBARG PARARG * M,
+                          GLOBARG PARARG * mu,
+                          GLOBARG PARARG * rho,
+                          GLOBARG PARARG * muipkp,
+                          GLOBARG float * gradM,
+                          GLOBARG float * gradmu,
+                          GLOBARG float * gradrho,
+                          GLOBARG float * gradmuipkp,
+                          GLOBARG float * gradrip,
+                          GLOBARG float * gradrkp,
+                          GLOBARG float * HM,
+                          GLOBARG float * Hmu,
+                          GLOBARG float * Hrho,
+                          GLOBARG float * Hmuipkp,
+                          GLOBARG float * Hrip,
+                          GLOBARG float * Hrkp,
+                          GLOBARG float2 * fvx_f,
+                          GLOBARG float2 * fvz_f,
+                          GLOBARG float2 * fsxx_f,
+                          GLOBARG float2 * fszz_f,
+                          GLOBARG float2 * fsxz_f,
+                          GLOBARG float2 * fvx,
+                          GLOBARG float2 * fvz,
+                          GLOBARG float2 * fsxx,
+                          GLOBARG float2 * fszz,
+                          GLOBARG float2 * fsxz,
+                          GLOBARG float * src,
+                          GLOBARG float * src_pos,
+                          int nsrc,
+                          int src_scale,
+                          int res_scale,
+                          int par_scale)
+{
+
+    #ifdef __OPENCL_VERSION__
+    int gid = get_global_id(0);
+    #else
+    int gid = blockIdx.x*blockDim.x + threadIdx.x;
+    #endif
+
+    if (gid >= NXM*NZM)
+        return;
+
+    int i = gid/NZM;
+    int k = gid - i*NZM;
+    int f;
+
+    /* Undo the internal non-dimensionalization: the coefficient expressions
+     * below are in physical units. Mirrors transf_grad() in reverse. */
+    double s2    = pow(2.0, -(double)par_scale);
+    double dhdt  = (double)DH/(double)DT;
+    double lrho  = (double)PARCONV(rho[gid]);
+    double rho_p = (lrho!=0.0) ? (1.0/lrho)*((double)DT/(double)DH)*s2 : 0.0;
+    double M_p   = (double)PARCONV(M[gid])*dhdt*s2;
+    double mu_p  = (double)PARCONV(mu[gid])*dhdt*s2;
+    /* The shear stress sxz is driven by muipkp, not by the cell-centred mu
+     * (update_s2D.cl's fipkp), so the sxz correlation's coefficient has to be
+     * evaluated here and its gradient stored at this staggered slot. */
+    double muipkp_p = (double)PARCONV(muipkp[gid])*dhdt*s2;
+
+    /* df = 1/(NTNYQ*dt*DTNYQ), from defines that already exist. */
+    double dftdf = 1.0/((double)NTNYQ*(double)DT*(double)DTNYQ);
+    /* Parseval factor: 1/(NTNYQ*DTNYQ), not 1/NTNYQ -- see calc_grad.c. Without
+     * the DTNYQ the gradient scales linearly with the decimation factor. */
+    double dftnorm = (double)NTNYQ*(double)DTNYQ;
+
+    /* FP16>0 keeps the wavefield in scaled units, so the spectra savefreqs
+     * accumulated are not in physical units and the coefficient expressions
+     * below (which are) would be off by a power of two. seisout recovers a
+     * stored value as ldexp(var, -src_scale + var->scaler)
+     * (automatic_kernels.c's kernel_varout), and set_par_scale gives only
+     * vx/vy/vz a nonzero scaler, equal to par_scale -- stresses keep 0. The
+     * forward spectra therefore carry 2^(scaler-src_scale) and the adjoint
+     * ones 2^(scaler-res_scale), so each product below needs one factor:
+     *
+     *   stress x stress (d0,d2,d3,d4):  2^(-src_scale-res_scale)
+     *   velocity x velocity (d8):       2^(2*par_scale-src_scale-res_scale)
+     *
+     * There are no mixed velocity/stress products. All three scales are 0
+     * when FP16==0, so this is exactly a no-op there. */
+    double sc_ss = pow(2.0, -(double)src_scale - (double)res_scale);
+    double sc_vv = sc_ss*pow(2.0, 2.0*(double)par_scale);
+
+    /* ND is a build-option macro (-D ND=%d), so it must not be shadowed. */
+    const double NDd = (double)ND;
+    double den = (NDd*M_p - 2.0*(NDd-1.0)*mu_p);
+    den = den*den;
+
+    /* Coefficients of the *internal* (M, mu, rho) gradient. Each internal
+     * gradient depends on one group of correlations and nothing else:
+     *
+     *   dJ/dM   <- the trace correlation      d0
+     *   dJ/dmu  <- the shear correlations     d2, d3, d4
+     *   dJ/drho <- the velocity correlation   d8
+     *
+     * The (vp, vs, rho) chain rule used to be folded into every coefficient
+     * (c0 = 2*sqrt(rho*M)/den is already d/dvp), which coupled the three:
+     * grho carried -c16*d0 - c18*d2 + c19*d3 - c20*d4, so the trace and shear
+     * correlations leaked into the density gradient and could not be told
+     * apart from a genuine density sensitivity. It is now applied once, after
+     * the frequency loop, exactly as transf_grad()'s par_type==0 block does
+     * for BACK_PROP_TYPE==1 -- which already emits the internal gradient and
+     * is why its gradrho is the pure velocity term.
+     *
+     * Decoupling is also what makes the missing material-averaging transpose
+     * insertable: Gmu belongs at the muipkp positions and Grho at the
+     * rip/rkp ones, and they cannot be scattered separately while both are
+     * pre-mixed into one number. See
+     * notes/material-averaging-gradient-review.md. */
+    double iden=0.0, imu2=0.0, i3den=0.0, i2ndmu2=0.0, imuipkp2=0.0;
+    if (muipkp_p>=1.0){
+        imuipkp2 = 1.0/(muipkp_p*muipkp_p);
+    }
+    if (den>0.0){
+        iden = 1.0/den;
+        /* Fluid cells drop every shear-related coefficient. Guarded with a
+         * branch, not a select: 1/(mu*mu) is inf at mu==0 and would poison the
+         * result under fast math even though it is multiplied by zero. */
+        if (mu_p>=1.0){
+            imu2    = 1.0/(mu_p*mu_p);
+            i3den   = (NDd+1.0)/3.0*iden;
+            i2ndmu2 = imu2/(2.0*NDd);
+        }
+    }
+
+    /* Internal accumulators, one per parameter the physics actually uses:
+     * cell-centred M and mu for the sxx/szz terms, muipkp for the sxz term,
+     * and rip/rkp for the two velocity components. The averaging transpose
+     * (average_grad_transpose) folds the staggered ones back onto the
+     * cell-centred mu and rho afterwards. */
+    /* Source term of the misfit gradient -- GJI 2017 eq. (26a), thesis
+     * eq. (3.51). The correlations below are the (A phi' + B phi) side of
+     * eq. (6); Appendix A writes them against dt(sigma), i.e. with the "- s"
+     * of the bracket dropped, so the gradient carries a spurious
+     * <psi, T dLambda^-1/dm T s> in cells that contain a source. See
+     * update_adjs2D.cl for the full derivation of the time-domain twin of
+     * this term, and notes/todo.md.
+     *
+     * Only P1 (d0) is affected: an isotropic source injects amp/n2ave into
+     * each normal stress, so P4's deviatoric combination
+     * (N-1)s_ii - sum_{j!=i} s_jj vanishes, and it touches neither the shear
+     * correlation (d2) nor the velocity one (d8).
+     *
+     * A FORCE source is the mirror case: it enters the velocity block only, so
+     * it corrects d8x/d8z (and hence gradrip/gradrkp -- the STAGGERED buoyancy
+     * slots, which is what lets average_grad_transpose() apply the averaging
+     * Jacobian) and leaves every stress correlation alone. The two types are
+     * mutually exclusive, hence the single sstype below.
+     *
+     * Types index kernel_sources()'s src_names[] = {vx,vy,vz,p,...}: 0 = force
+     * in x, 2 = force in z, 100 = the "p" trans_var. */
+    int ssrc = -1, sstype = -1;
+    for (int q=0; q<nsrc; q++){
+        int st = (int)src_pos[4+5*q];
+        if ((st==100 || st==0 || st==2)
+            && (int)(src_pos[0+5*q]/DH)==i
+            && (int)(src_pos[2+5*q]/DH)==k){
+            ssrc = q;
+            sstype = st;
+            break;
+        }
+    }
+
+    double GM=0.0, Gmu=0.0, Gmuipkp=0.0, Grip=0.0, Grkp=0.0;
+#if HOUT==1
+    double HMi=0.0, Hmui=0.0, Hmuipkpi=0.0, Hripi=0.0, Hrkpi=0.0;
+#endif
+
+    for (f=0; f<NFREQS; f++){
+
+        double w = 2.0*3.14159265358979323846*dftdf*(double)gradfreqsn[f];
+        /* Exact discrete equivalent of BACK_PROP_TYPE==1's quadrature.
+         *
+         * bpt1 accumulates sum_t phi(t)*[psi(t) - psi(t+1)], i.e. it pairs the
+         * forward field at an integer step against an adjoint INCREMENT
+         * spanning t->t+1. Shifting psi by one sample multiplies its spectrum
+         * by exp(i*w*dt), so the exact frequency-domain equivalent carries
+         *     1 - exp(-i*w*dt) = 2*sin^2(w*dt/2) + i*sin(w*dt),
+         * which is sdt*itreal(.) + s2dt*rreal(.) below.
+         *
+         * Using a plain `w` instead keeps only the imaginary half and
+         * mis-scales it: it is the CONTINUUM derivative, not the scheme's. The
+         * dropped rreal term is O(w*dt) relative -- 41% of the itreal term at
+         * 125 Hz for dt=1e-3 -- and being FIRST order it does not vanish under
+         * refinement the way a symbol error would. It showed up as a large
+         * error confined to source cells, where the field is impulsive and the
+         * two halves nearly cancel: measured src/bpt1 = 1.4054 (2D force) and
+         * 0.8040 (3D pressure), both halving exactly when dt was halved. */
+        double wdt  = w*(double)DT;
+        double sdt  = sin(wdt)/(double)DT;
+        double s2dt = 2.0*sin(0.5*wdt)*sin(0.5*wdt)/(double)DT;
+        int id = indf(f,i,k);
+
+        /* S(w): the transform of the injected source, in savefreqs'
+         * convention (kernel_savefreqs) -- weight DT*DTNYQ, phase
+         * ang = 2*gradfreqsn[f]*nt/NTNYQ with nt the SAMPLED index
+         * (t-TMIN)/DTNYQ. The source acts at every full-rate step, so the sum
+         * runs over all NT of them (its own weight DT is already inside
+         * `amp`); sampling it every DTNYQ would alias. Built from the same
+         * expression kernel_sources() injects, so it carries src_scale
+         * exactly as Fpp does and the shared sc_ss removes both. */
+        float2 S; S.x = 0.0f; S.y = 0.0f;
+        if (ssrc>=0){
+            for (int t=0; t<NT; t++){
+                float ang = 2.0f*gradfreqsn[f]*(float)(t-TMIN)
+                            /((float)NTNYQ*(float)DTNYQ);
+                #if FP16==0
+                float amp = DT*src[ssrc*NT+t];
+                #elif defined(__OPENCL_VERSION__)
+                float amp = ldexp(DT*src[ssrc*NT+t], src_scale);
+                #else
+                float amp = scalbnf(DT*src[ssrc*NT+t], src_scale);
+                #endif
+                S.x +=  amp*COSPIF(ang);
+                S.y += -amp*SINPIF(ang);
+            }
+        }
+
+        float2 Fxx = fsxx_f[id], Fzz = fszz_f[id], Fxz = fsxz_f[id];
+        float2 Axx = fsxx[id],   Azz = fszz[id],   Axz = fsxz[id];
+
+        float2 Fpp, App, Fmm, Fmz;
+        Fpp.x = Fxx.x + Fzz.x;  Fpp.y = Fxx.y + Fzz.y;   /* fwd  sxx+szz */
+        /* savefreqs runs BEFORE the source injection in the forward loop
+         * (time_stepping.c: savefreqs -> sources -> update_grid), so the
+         * stored forward spectrum is the field *before* this step's source
+         * was added, while BACK_PROP_TYPE==1 correlates the field *after*
+         * it. Restore the injected source here, otherwise the trace
+         * correlation is missing the source's own contribution in source
+         * cells -- a defect independent of, and on top of, the eq. (26a)
+         * term below. Only the trace is affected: an isotropic source adds
+         * the same amount to sxx and szz, so Fmm/Fmz (differences) and Fxz
+         * are untouched, which is why S is added to Fpp alone. */
+        /* Two different weights, deliberately. S is the transform of the
+         * source as a RATE, sum_t amp(t) exp(-i.theta) = integral s e^-iwt dt,
+         * which is what the eq. (26a) term <sigma~,s> needs. Adding it to a
+         * FIELD spectrum instead needs savefreqs' own per-sample weight
+         * DT*DTNYQ, because Fpp accumulates sigma(t)*DT*DTNYQ per sample and
+         * the per-step field increment the source produces is amp(t). */
+        if (sstype==100){
+            Fpp.x += (float)((double)DT*(double)DTNYQ)*S.x;
+            Fpp.y += (float)((double)DT*(double)DTNYQ)*S.y;
+        }
+        App.x = Axx.x + Azz.x;  App.y = Axx.y + Azz.y;   /* adj  sxx+szz */
+        Fmm.x = Fxx.x - Fzz.x;  Fmm.y = Fxx.y - Fzz.y;   /* fwd  sxx-szz */
+        Fmz.x = Fzz.x - Fxx.x;  Fmz.y = Fzz.y - Fxx.y;   /* fwd  szz-sxx */
+
+        /* d0 is P1 = <sigma~_kk, dt sigma_kk - s_kk> (eq. A2a with the
+         * bracket of eq. 26a intact): the w*itreal term is <sigma~, dt sigma>
+         * (dt <-> i*w) on the source-restored forward field, and rreal is the
+         * eq. (26a) source term, which carries no time derivative. */
+        double d0 = sc_ss*((sdt*itreal(App, Fpp) + s2dt*rreal(App, Fpp))
+                           - (sstype==100 ? rreal(App, S) : 0.0))/dftnorm;
+        double d2 = sc_ss*(sdt*itreal(Axz, Fxz) + s2dt*rreal(Axz, Fxz))/dftnorm;
+        double d3 = d0;
+        double d4 = sc_ss*((sdt*itreal(Axx, Fmm) + s2dt*rreal(Axx, Fmm))
+                     + (sdt*itreal(Azz, Fmz) + s2dt*rreal(Azz, Fmz)))/dftnorm;
+        /* vx sits at the rip position and vz at the rkp one (update_v2D.cl),
+         * so the two components carry different parameters and must not be
+         * summed before the correlation is stored. */
+        /* Velocity block: the same two corrections as the trace above, for a
+         * FORCE source. savefreqs omits the injection here too, so the forward
+         * velocity spectrum gets the source restored with the FIELD weight
+         * DT*DTNYQ (the generated kernel adds `amp` straight into vx/vz, no
+         * material factor), and the eq. (26a) term itself is the rate-weighted
+         * rreal. dJ/drho has no c-factor at all (A1a). */
+        float2 Fvx = fvx_f[id], Fvz = fvz_f[id];
+        float2 Avx = fvx[id],   Avz = fvz[id];
+        if (sstype==0){
+            Fvx.x += (float)((double)DT*(double)DTNYQ)*S.x;
+            Fvx.y += (float)((double)DT*(double)DTNYQ)*S.y;
+        }
+        else if (sstype==2){
+            Fvz.x += (float)((double)DT*(double)DTNYQ)*S.x;
+            Fvz.y += (float)((double)DT*(double)DTNYQ)*S.y;
+        }
+        double d8x = sc_vv*((sdt*itreal(Avx, Fvx) + s2dt*rreal(Avx, Fvx))
+                            - (sstype==0 ? rreal(Avx, S) : 0.0))/dftnorm;
+        double d8z = sc_vv*((sdt*itreal(Avz, Fvz) + s2dt*rreal(Avz, Fvz))
+                            - (sstype==2 ? rreal(Avz, S) : 0.0))/dftnorm;
+
+#if HOUT==1
+        /* Approximate (Gauss-Newton style) Hessian diagonal, transcribed from
+         * the host calc_grad 2D HOUT block. cl_norm(cl_derivative(a, w)) is
+         * w^2*|a|^2, so every term here is non-negative; the sign pattern is
+         * the one the host uses, which differs from the gradient's only in the
+         * velocity term, chosen so the result stays positive. */
+        {
+            double w2 = w*w;
+            /* These are forward-only squares, so both factors are the
+             * forward one -- 2^(-2*src_scale), not 2^(-src_scale-res_scale).
+             * Same no-op at FP16==0 as the gradient terms above. */
+            double sh_ss = pow(2.0, -2.0*(double)src_scale);
+            double sh_vv = sh_ss*pow(2.0, 2.0*(double)par_scale);
+            double h0 = sh_ss*w2*((double)Fpp.x*(double)Fpp.x
+                          + (double)Fpp.y*(double)Fpp.y)/dftnorm;
+            double h2 = sh_ss*w2*((double)Fxz.x*(double)Fxz.x
+                          + (double)Fxz.y*(double)Fxz.y)/dftnorm;
+            double h3 = h0;
+            double h4 = sh_ss*w2*(((double)Fmm.x*(double)Fmm.x
+                           + (double)Fmm.y*(double)Fmm.y)
+                          + ((double)Fmz.x*(double)Fmz.x
+                           + (double)Fmz.y*(double)Fmz.y))/dftnorm;
+            float2 Vx = fvx_f[id], Vz = fvz_f[id];
+            double h8x = sh_vv*w2*((double)Vx.x*(double)Vx.x
+                           + (double)Vx.y*(double)Vx.y)/dftnorm;
+            double h8z = sh_vv*w2*((double)Vz.x*(double)Vz.x
+                           + (double)Vz.y*(double)Vz.y)/dftnorm;
+            HMi      += h0*iden;
+            Hmui     += -h3*i3den + h4*i2ndmu2;
+            Hmuipkpi += h2*imuipkp2;
+            Hripi    += h8x;
+            Hrkpi    += h8z;
+        }
+#endif
+        GM      += -d0*iden;
+        Gmu     += d3*i3den - d4*i2ndmu2;   /* sxx/szz: cell-centred mu */
+        Gmuipkp += -d2*imuipkp2;            /* sxz: the averaged mu */
+        Grip    += -d8x;
+        Grkp    += -d8z;
+    }
+
+    /* The internal (M, mu, rho) gradient is the kernel's whole output. The
+     * parameterization chain rule now runs once on the host
+     * (chain_rule_par_type, called from time_stepping.c for this
+     * back_prop_type), which is also where the host reference calc_grad()
+     * leaves it -- so device and host share one convention and
+     * SEISCL_DFT_CHECK compares like with like. */
+    gradM[gid]      += (float)GM;
+    gradmu[gid]     += (float)Gmu;
+    gradmuipkp[gid] += (float)Gmuipkp;
+    gradrip[gid]    += (float)Grip;
+    gradrkp[gid]    += (float)Grkp;
+    /* gradrho gets no correlation term at all now: density enters the physics
+     * only through rip/rkp. It is filled by the averaging transpose and then
+     * by chain_rule_par_type's M/rho and mu/rho terms. */
+#if HOUT==1
+    HM[gid]      += (float)HMi;
+    Hmu[gid]     += (float)Hmui;
+    Hmuipkp[gid] += (float)Hmuipkpi;
+    Hrip[gid]    += (float)Hripi;
+    Hrkp[gid]    += (float)Hrkpi;
+#endif
+}

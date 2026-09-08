@@ -52,6 +52,7 @@ int Init_model_values(model * m) {
     int i,j,t;
     half * hpar;
 
+
     __GUARD m->set_par_scale( (void*) m);
     for (i=0;i<m->npars;i++){
         if (m->pars[i].transform !=NULL){
@@ -62,15 +63,39 @@ int Init_model_values(model * m) {
 
     float srcmax;
     if (m->FP16!=0){
-        //TODO review scaler constant
         for (i=0;i<m->src_recs.ns;i++){
             srcmax=0;
-                for (t=0;t<m->NT*m->src_recs.nsrc[i];t++){
-                    if (srcmax<fabsf(m->src_recs.src[i][t])){
-                        srcmax=fabsf(m->src_recs.src[i][t]);
-                    }
-                    m->src_recs.src_scales[i]=-log2(srcmax*m->dt*1.0);
+            for (t=0;t<m->NT*m->src_recs.nsrc[i];t++){
+                if (srcmax<fabsf(m->src_recs.src[i][t])){
+                    srcmax=fabsf(m->src_recs.src[i][t]);
+                }
             }
+            /* es of eq. (6) in Fabien-Ouellet (2020), Geophysics 85(3) F65:
+               es = -log2(dt*max(s)), which normalizes the injected amplitude
+               to ~1 -- but only for a source that goes into a variable stored
+               at scaler 0, i.e. a stress. Every variable is stored as
+               physical*2^(src_scale - scaler) (see kernel_varout), so a source
+               injected into vx/vy/vz, whose scaler is par_scale = ev, lands as
+               ~2^(-ev) instead of ~1. With ev ~ -33 that is ~2^33, far past
+               half's 65504, and FP16=2 NaN'd for ANY force-source amplitude.
+               Offsetting es by the target variable's scaler makes the stored
+               increment ~1 for both kinds. varout and the gradient descaling
+               (2*par_scale - src_scale - res_scale, eq. 11) both read the same
+               src_scale, so they stay consistent.
+               A shot mixing stress and velocity sources cannot satisfy both
+               with one scaler; the velocity one is taken, since overflowing is
+               fatal and the stress merely loses precision. */
+            int vsc = 0;
+            for (j=0;j<m->src_recs.nsrc[i];j++){
+                int st = (int)m->src_recs.src_pos[i][4+5*j];
+                const char * vn = (st==0) ? "vx" : (st==1) ? "vy"
+                                          : (st==2) ? "vz" : NULL;
+                if (vn){
+                    variable * sv = get_var(m->vars, m->nvars, vn);
+                    if (sv && abs(sv->scaler)>abs(vsc)) vsc = sv->scaler;
+                }
+            }
+            m->src_recs.src_scales[i]=-log2(srcmax*m->dt*1.0) + vsc;
         }
     }
     

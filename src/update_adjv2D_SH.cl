@@ -262,23 +262,25 @@ LFUNDEF int evarm( int k, int i){
 }
 
 
-__kernel void update_adjv(int offcomm, 
-                          __global float *vy,
-                          __global float *sxy,        __global float *syz,
-                          __global float *vybnd,
-                          __global float *sxybnd,     __global float *syzbnd,
-                          __global float *vy_r,
-                          __global float *sxy_r,      __global float *syz_r,
-                          __global float *rjp,
-                          __global float *taper,
-                          __global float *K_x,        __global float *a_x,          __global float *b_x,
-                          __global float *K_x_half,   __global float *a_x_half,     __global float *b_x_half,
-                          __global float *K_z,        __global float *a_z,          __global float *b_z,
-                          __global float *K_z_half,   __global float *a_z_half,     __global float *b_z_half,
-                          __global float *psi_sxy_x,  __global float *psi_syz_z,
-                          __local  float *lvar, __global float *gradrho, __global float *gradsrc,
-                          __global float *Hrho, __global float *Hsrc)
+FUNDEF void update_adjv(int offcomm, 
+                          GLOBARG float *vy,
+                          GLOBARG float *sxy,        GLOBARG float *syz,
+                          GLOBARG float *vybnd,
+                          GLOBARG float *sxybnd,     GLOBARG float *syzbnd,
+                          GLOBARG float *vy_r,
+                          GLOBARG float *sxy_r,      GLOBARG float *syz_r,
+                          GLOBARG float *rjp,
+                          GLOBARG float *taper,
+                          GLOBARG float *K_x,        GLOBARG float *a_x,          GLOBARG float *b_x,
+                          GLOBARG float *K_x_half,   GLOBARG float *a_x_half,     GLOBARG float *b_x_half,
+                          GLOBARG float *K_z,        GLOBARG float *a_z,          GLOBARG float *b_z,
+                          GLOBARG float *K_z_half,   GLOBARG float *a_z_half,     GLOBARG float *b_z_half,
+                          GLOBARG float *psi_sxy_x,  GLOBARG float *psi_syz_z,
+                          LOCARG, GLOBARG float *gradrho, GLOBARG float *gradsrc,
+                          GLOBARG float *Hrho, GLOBARG float *Hsrc)
 {
+
+    LOCDEF
 
     int g,i,j,k,m, ind;
     float sxy_x, syz_z;
@@ -326,7 +328,7 @@ __kernel void update_adjv(int offcomm,
 #if BACK_PROP_TYPE==1
     {
 #if LOCAL_OFF==0
-        barrier(CLK_LOCAL_MEM_FENCE);
+        BARRIER
         lsxy(lidz,lidx)=sxy(gidz,gidx);
         if (lidx<2*FDOH)
             lsxy(lidz,lidx-FDOH)=sxy(gidz,gidx-FDOH);
@@ -336,7 +338,7 @@ __kernel void update_adjv(int offcomm,
             lsxy(lidz,lidx+FDOH)=sxy(gidz,gidx+FDOH);
         if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
             lsxy(lidz,lidx-lsizex+3*FDOH)=sxy(gidz,gidx-lsizex+3*FDOH);
-        barrier(CLK_LOCAL_MEM_FENCE);
+        BARRIER
 #endif
         
 #if   FDOH ==1
@@ -370,13 +372,13 @@ __kernel void update_adjv(int offcomm,
 #endif
         
 #if LOCAL_OFF==0
-        barrier(CLK_LOCAL_MEM_FENCE);
+        BARRIER
         lsyz(lidz,lidx)=syz(gidz,gidx);
         if (lidz<2*FDOH)
             lsyz(lidz-FDOH,lidx)=syz(gidz-FDOH,gidx);
         if (lidz>(lsizez-2*FDOH-1))
             lsyz(lidz+FDOH,lidx)=syz(gidz+FDOH,gidx);
-        barrier(CLK_LOCAL_MEM_FENCE);
+        BARRIER
 #endif
         
 #if   FDOH ==1
@@ -413,7 +415,7 @@ __kernel void update_adjv(int offcomm,
 // Calculation of the stress spatial derivatives of the adjoint wavefield
     {
 #if LOCAL_OFF==0
-        barrier(CLK_LOCAL_MEM_FENCE);
+        BARRIER
         lsxy_r(lidz,lidx)=sxy_r(gidz,gidx);
         if (lidx<2*FDOH)
             lsxy_r(lidz,lidx-FDOH)=sxy_r(gidz,gidx-FDOH);
@@ -423,7 +425,7 @@ __kernel void update_adjv(int offcomm,
             lsxy_r(lidz,lidx+FDOH)=sxy_r(gidz,gidx+FDOH);
         if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
             lsxy_r(lidz,lidx-lsizex+3*FDOH)=sxy_r(gidz,gidx-lsizex+3*FDOH);
-        barrier(CLK_LOCAL_MEM_FENCE);
+        BARRIER
 #endif
         
 #if   FDOH ==1
@@ -457,13 +459,13 @@ __kernel void update_adjv(int offcomm,
 #endif
         
 #if LOCAL_OFF==0
-        barrier(CLK_LOCAL_MEM_FENCE);
+        BARRIER
         lsyz_r(lidz,lidx)=syz_r(gidz,gidx);
         if (lidz<2*FDOH)
             lsyz_r(lidz-FDOH,lidx)=syz_r(gidz-FDOH,gidx);
         if (lidz>(lsizez-2*FDOH-1))
             lsyz_r(lidz+FDOH,lidx)=syz_r(gidz+FDOH,gidx);
-        barrier(CLK_LOCAL_MEM_FENCE);
+        BARRIER
 #endif
         
 #if   FDOH ==1

@@ -42,8 +42,17 @@ docs/_build/
 *.ipynb_checkpoints
 SeisCL_MPI
 cl2cstring
-# build / docs / env artifacts
-build/
-docs/_build/
+# out-of-source build trees (build/, build-cuda/, build-ocl/, ...)
+build*/
+# env artifacts
 .venv*/
 *.so
+
+# docs/builders/ generates the notebooks (see notes/docs-status.md) but is
+# caught by the build*/ rule above -- keep it.
+!docs/builders/
+
+# local test working dirs
+SeisCL/tests/_dftwork/
+cudacheck.py
+_wd*/

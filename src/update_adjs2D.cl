@@ -46,10 +46,15 @@ FUNDEF void update_adjs(int offcomm,
                           GLOBARG float * RESTRICT psi_vx_x,            GLOBARG float * RESTRICT psi_vx_z,
                           GLOBARG float * RESTRICT psi_vz_x,            GLOBARG float * RESTRICT psi_vz_z,
                           GLOBARG const float * RESTRICT gradrho,       GLOBARG float * RESTRICT gradM,           GLOBARG float * RESTRICT gradmu,
-                          GLOBARG const float * RESTRICT gradmuipkp,    GLOBARG const float * RESTRICT gradtaup,  GLOBARG const float * RESTRICT gradtaus,
+                          GLOBARG float * RESTRICT gradmuipkp,          GLOBARG const float * RESTRICT gradtaup,  GLOBARG const float * RESTRICT gradtaus,
                           GLOBARG const float * RESTRICT gradtausipkp,  GLOBARG const float * RESTRICT gradsrc,
                           GLOBARG const float * RESTRICT Hrho,          GLOBARG float * RESTRICT HM,              GLOBARG float * RESTRICT Hmu,
                           GLOBARG const float * RESTRICT Htaup,         GLOBARG const float * RESTRICT Htaus,     GLOBARG const float * RESTRICT Hsrc,
+                          GLOBARG const float * RESTRICT src,           GLOBARG const float * RESTRICT src_pos,
+                          int nsrc,                                     int nt,
+                          int src_scale,
+                          GLOBARG const float * RESTRICT pout,          GLOBARG const float * RESTRICT rec_pos,
+                          int nrec,                                     int res_scale,
                           LOCARG)
 {
 
@@ -381,7 +386,8 @@ FUNDEF void update_adjs(int offcomm,
         //those variables change sign in reverse time
         b=1.0/(1.0+(leta[l]*0.5));
         c=1.0-(leta[l]*0.5);
-
+        /* Per-mechanism index; omitting it broke LVE>1. notes/todo.md 0d6. */
+        indr = l*NX*NZ + gidx*NZ+gidz;
         rxzr[indr]=b*(rxzr[indr]*c-leta[l]*(dipkp*(vxzr+vzxr)));
         rxxr[indr]=b*(rxxr[indr]*c-leta[l]*((e*(vxxr+vzzr))-(d*vzzr)));
         rzzr[indr]=b*(rzzr[indr]*c-leta[l]*((e*(vxxr+vzzr))-(d*vxxr)));
@@ -443,13 +449,129 @@ FUNDEF void update_adjs(int offcomm,
         float c1=1.0/( (2.0*lM-2.0*lmu)*(2.0*lM-2.0*lmu) );
 
 
-        float c3=1.0/(lmu*lmu);
-        float c5=0.25*c3;
+        // The sxz/shear term is evaluated at the muipkp (staggered) position,
+        // not the cell-centred mu used by c1/c5's sxx/szz terms -- matching
+        // grad_dft2D.cl's imuipkp2 = 1/(muipkp*muipkp). Kept in its own
+        // gradmuipkp accumulator (not folded into gradmu) so
+        // average_grad_transpose() (calc_grad.c) can apply the harmonic-mean
+        // averaging Jacobian to it separately, mirroring grad_dft2D.cl's
+        // Gmu/Gmuipkp split.
+        float c3=1.0/(fipkp*fipkp);
+        float c5=0.25/(lmu*lmu);
 
-        float dM=c1*( sxx[indv]+szz[indv] )*( lsxx+lszz );
+        /* The adjoint increment this step is NOT lsxx alone. The reverse loop
+         * runs `inject residuals -> update_grid_adj`, so
+         *     sigma~(t) = sigma~(t+1) + res(t) + lsxx(t)
+         *  => d(sigma~)(t) = res(t) + lsxx(t),
+         * and lsxx is only the PROPAGATION part computed here from spatial
+         * derivatives -- the residual was added to sxxr before this kernel
+         * ran. Pairing the forward field against that partial increment drops
+         * res(t), which is nonzero only in receiver cells. Measured there:
+         * FD/adjoint = -0.4537 (WRONG SIGN) against 0.995-1.023 at every
+         * neighbouring cell, and back_prop_type=2 -- whose frequency-domain
+         * form carries the full d(sigma~) -- gets the same cell right (0.9746).
+         *
+         * This is the exact mirror of the eq. (26a) source term, which this
+         * kernel drops at SOURCE cells for the same reason: a forward field
+         * paired against an incomplete increment.
+         *
+         * kernel_residuals() injects pout[NT*g+nt]/n2ave into each of
+         * sxxr,szzr for the "p" trans_var, so the TRACE receives exactly
+         * pout[NT*g+nt]; being split equally it cancels in the deviatoric (c5)
+         * and shear (c3) terms, so only the trace needs it.
+         *
+         * Invisible to the FD suite: _patch keeps 16 cells clear of receivers
+         * as well as sources. */
+        float restr = 0.0f;
+        /* Only when the "p" trans_var is an output: with velocity receivers
+         * (seisout=1) the residual goes into vx/vz instead, `pout` is not a
+         * live buffer, and reading it faults. The velocity case is handled in
+         * update_adjv2D.cl, where that residual belongs. */
+        #if GRADOUT==1 && PRESOUT==1
+        if (nrec>0){
+            for (int g=0; g<nrec; g++){
+                int ri=(int)(rec_pos[0+8*g]/DH)+FDOH;
+                int rk=(int)(rec_pos[2+8*g]/DH)+FDOH;
+                if (ri==gidx && rk==gidz){
+                    #if FP16==0
+                    restr += pout[NT*g+nt];
+                    #elif defined(__SEISCL__)
+                    restr += ldexp(pout[NT*g+nt], res_scale);
+                    #else
+                    restr += scalbnf(pout[NT*g+nt], res_scale);
+                    #endif
+                }
+            }
+        }
+        #endif
+
+        float dM=c1*( sxx[indv]+szz[indv] )*( lsxx+lszz+restr );
 
         gradM[indp]+=-dM;
-        gradmu[indp]+=-c3*(sxz[indv]*lsxz)+dM-c5*(  (sxx[indv]-szz[indv])*(lsxx-lszz)  );
+        gradmuipkp[indp]+=-c3*(sxz[indv]*lsxz);
+        gradmu[indp]+=dM-c5*(  (sxx[indv]-szz[indv])*(lsxx-lszz)  );
+
+        /* Source term of the misfit gradient -- GJI 2017 eq. (26a), thesis
+         * eq. (3.51):
+         *
+         *     dJ/dm = -<psi, T dLambda^-1/dm T (A phi' + B phi - s)>
+         *
+         * The accumulation just above is the (A phi' + B phi) part only: it
+         * is the discrete form of -c1M*P1 with P1 = <sigma~_kk, dt sigma_kk>
+         * (eq. A2a), obtained by parts -- in reverse time the adjoint
+         * increment is d(sigma~) = -dt*dt(sigma~), so
+         * sum_t (-dM) = +c1<sigma,dt sigma~> = -c1<sigma~,dt sigma> = -c1M*P1.
+         * The "- s" in the bracket never gets integrated by parts, so it
+         * survives as a separate, purely local term
+         *
+         *     +c1M * <sigma~_kk , s_kk>
+         *
+         * which the correlation cannot produce and which is nonzero ONLY in
+         * cells containing a source. That is exactly the observed symptom:
+         * a wrong gradient confined to source cells.
+         *
+         * Only P1 is affected. An isotropic (pressure) source injects the
+         * same amp/n2ave into each normal stress, so in P4's deviatoric
+         * combination (N-1)s_ii - sum_{j!=i} s_jj = (N-1)s - (N-1)s = 0, and
+         * it touches neither the shear stresses (P3) nor the velocities
+         * (dJ/drho), so no other dot product picks it up.
+         *
+         * s_kk is the TRACE of the injected source. kernel_sources() (see
+         * automatic_kernels.c) injects amp/n2ave into each of sxx,szz for the
+         * "p" trans_var, so the trace receives exactly amp -- with pdir=+1,
+         * the FORWARD sign, even though this kernel runs in the adjoint pass
+         * where the re-injection that undoes the forward source uses pdir=-1.
+         * DT is already inside amp, matching dM's adjoint increment which
+         * carries its own dt through the dt/dh-scaled moduli, so the two
+         * terms are in the same units. */
+        #if GRADOUT==1
+        if (nsrc>0){
+            for (int srci=0; srci<nsrc; srci++){
+                if ((int)src_pos[4+5*srci]==100){
+                    int si=(int)(src_pos[0+5*srci]/DH)+FDOH;
+                    int sk=(int)(src_pos[2+5*srci]/DH)+FDOH;
+                    if (si==gidx && sk==gidz){
+                        #if FP16==0
+                        float samp = DT*src[srci*NT+nt];
+                        #elif defined(__SEISCL__)
+                        float samp = ldexp(DT*src[srci*NT+nt], src_scale);
+                        #else
+                        float samp = scalbnf(DT*src[srci*NT+nt], src_scale);
+                        #endif
+                        /* The adjoint FIELD (after this step's update), not
+                         * the increment dM pairs against: <sigma~,s> is the one
+                         * term of the bracket that is never integrated by
+                         * parts.  Checked against the two neighbouring
+                         * conventions (before the update, and the midpoint);
+                         * this one is the exact match. */
+                        float Csrc = c1*( sxxr[indv]+szzr[indv] )*samp;
+                        gradM[indp]  += Csrc;
+                        gradmu[indp] += -Csrc;
+                    }
+                }
+            }
+        }
+        #endif
 
         #if HOUT==1
             float dMH=c1*(sxx[indv]+szz[indv])*(sxx[indv]+szz[indv]);
@@ -459,13 +581,62 @@ FUNDEF void update_adjs(int offcomm,
     #endif
     
     #if RESTYPE==1
-        float dM=( sxx[indv]+szz[indv] )*( lsxx+lszz );
+        /* Missing the c1=1/(2M-2mu)^2 normalization RESTYPE==0 has just
+         * above -- gradM here was off from a correctly-calibrated gradient
+         * by that entire factor (confirmed: FD ratios of order 1e12-1e14,
+         * not ~1, stable across eps -- a real, consistent direction, just
+         * unnormalized). Not simply re-added unguarded: c1 divides by
+         * (M-mu), which is exactly 0 in FREESURF==2's vacuum band, and
+         * avoiding exactly that division is why RESTYPE==1 exists at all
+         * (see the v1-constraint comment above, in assign_modeling_case.c).
+         * Guarded the same way as the other zero-material guards in this
+         * codebase (e.g. the 3D shear-gradient NaN fix on notes/todo.md
+         * item 1): zero the coefficient instead of dividing when the
+         * denominator is degenerate, rather than computing Inf/NaN and
+         * hoping it gets cropped away. */
+        float fMmu = 2.0*lM-2.0*lmu;
+        float c1 = (fMmu!=0.0) ? 1.0/(fMmu*fMmu) : 0.0;
+        /* Same receiver-cell residual term as the RESTYPE==0 branch above. */
+        float restr1 = 0.0f;
+        #if GRADOUT==1 && PRESOUT==1
+        if (nrec>0){
+            for (int g=0; g<nrec; g++){
+                int ri=(int)(rec_pos[0+8*g]/DH)+FDOH;
+                int rk=(int)(rec_pos[2+8*g]/DH)+FDOH;
+                if (ri==gidx && rk==gidz){
+                    #if FP16==0
+                    restr1 += pout[NT*g+nt];
+                    #elif defined(__SEISCL__)
+                    restr1 += ldexp(pout[NT*g+nt], res_scale);
+                    #else
+                    restr1 += scalbnf(pout[NT*g+nt], res_scale);
+                    #endif
+                }
+            }
+        }
+        #endif
+        float dM=c1*( sxx[indv]+szz[indv] )*( lsxx+lszz+restr1 );
 
         gradM[indp]+=-dM;
         #if HOUT==1
-        float dMH= (sxx[indv]+szz[indv])*(sxx[indv]+szz[indv]);
+        float dMH= c1*(sxx[indv]+szz[indv])*(sxx[indv]+szz[indv]);
         HM[indp]+= dMH;
 
+        #endif
+
+        /* gradmu was never computed at all here (only gradM, above) --
+         * the same missing-normalization pattern as c1, for the same
+         * documented reason (RESTYPE==0's c3=1/mu^2 divides by zero in
+         * the vacuum band). Added with the same zero-guard as c1;
+         * gradmuipkp (the sxz-only staggered contribution RESTYPE==0
+         * doesn't split out either way) is intentionally still not
+         * computed here -- out of scope for this pass, matches item 1's
+         * material-averaging work being separate from this fix. */
+        float c3 = (lmu!=0.0) ? 1.0/(lmu*lmu) : 0.0;
+        float c5 = 0.25*c3;
+        gradmu[indp]+=-c3*(sxz[indv]*lsxz)+dM-c5*( (sxx[indv]-szz[indv])*(lsxx-lszz) );
+        #if HOUT==1
+        Hmu[indp]+=c3*sxz[indv]*sxz[indv]-dM+c5*(sxx[indv]-szz[indv])*(sxx[indv]-szz[indv]);
         #endif
     #endif
 

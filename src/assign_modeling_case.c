@@ -11,6 +11,13 @@
 
 /*Loading files autmatically created by the makefile that contain the *.cl kernels in a c string.
  This way, no .cl file need to be read and there is no need to be in the executable directory to execute SeisCL.*/
+#include "grad_dft2D.hcl"
+#include "grad_dft2D_SH.hcl"
+#include "grad_dft2D_visc.hcl"
+#include "grad_dft2D_SH_visc.hcl"
+#include "grad_dft3D.hcl"
+#include "grad_dft3D_visc.hcl"
+#include "average_params.hcl"
 #include "savebnd2D.hcl"
 #include "savebnd3D.hcl"
 #include "surface2D.hcl"
@@ -73,7 +80,27 @@ void ave_arithmetic_rho(float * pin, float * pout, int * N, int ndim, int  *dir)
             for (i=0;i<NX-dir[2];i++){
                 ind1 = (i  )*NY*NZ+(j)*NZ+(k);
                 ind2 = (i+dir[2])*NY*NZ+(j+dir[1])*NZ+(k+dir[0]);
-                pout[ind1]=2/(1.0/pin[ind1] + 1.0/pin[ind2]);
+                // eq. 6, piecewise: both nodes vacuum (buoyancy 0) -> 0;
+                // exactly one vacuum -> twice the solid neighbor's
+                // buoyancy (2/(0+1/pin)=2*pin); both solid -> the usual
+                // harmonic-of-density combination. Written this way
+                // (rather than relying on 1/0 -> +inf -> 1/inf -> 0
+                // round-tripping back to the right answer) so the vacuum
+                // region (FREESURF==2) is handled explicitly and doesn't
+                // depend on IEEE inf/nan semantics surviving compiler
+                // flags such as -ffast-math.
+                if (pin[ind1]==0 && pin[ind2]==0){
+                    pout[ind1] = 0;
+                }
+                else if (pin[ind1]==0){
+                    pout[ind1] = 2*pin[ind2];
+                }
+                else if (pin[ind2]==0){
+                    pout[ind1] = 2*pin[ind1];
+                }
+                else{
+                    pout[ind1]=2/(1.0/pin[ind1] + 1.0/pin[ind2]);
+                }
             }
         }
     }
@@ -257,7 +284,33 @@ void ave_harmonic_mu(float * pin, float * pout, int * N, int ndim, int dir[][3])
     
 }
 
-/*Functions to define the transformations requires for each parameter 
+/* NOTE: SeisCL does not create a free surface itself.
+
+   There used to be a set_freesurf2_vacuum() here that zeroed M/mu/rho in the
+   top FDOH-thick band whenever FREESURF==2, i.e. the engine manufactured the
+   vacuum. That is not what the improved vacuum formulation says
+   (Zeng et al. 2012, doi:10.1190/geo2011-0067.1 --
+   papers/pdfs/zeng_2012_geophysics-improved-vacuum-freesurface.pdf): the
+   whole point of the method is that a free surface needs NO special-cased
+   boundary code at all. The user supplies a model with vp=vs=rho=0 wherever
+   the vacuum is, those nodes are then updated exactly like interior nodes,
+   and the traction-free condition falls out of the parameter averaging
+   (ave_arithmetic_rho / ave_harmonic_mu above, the paper's eq. 6-8). Baking a
+   fixed flat band into the engine also threw away the method's main
+   advantage, which is that arbitrary topography and internal discontinuities
+   need no extra handling -- they are just more zeros in the input model.
+
+   FREESURF==2 therefore has exactly one job left, and it needs no code here:
+   disabling the absorbing boundary on the TOP edge so the vacuum is not
+   damped. That is already done at compile time by the `#if FREESURF==0`
+   guards around both the CPML (ABS_TYPE==1) and Cerjan (ABS_TYPE==2)
+   top-edge blocks in update_v*.cl / update_s*.cl.
+
+   What DOES belong in the engine, and stays: the handling of zero-material
+   cells wherever they occur -- the averaging above, and the vacuum guards in
+   calc_grad.c. Those work on the user's zeros, whatever shape they take. */
+
+/*Functions to define the transformations requires for each parameter
   and constant */
 void mu(void * mptr){
     
@@ -414,7 +467,16 @@ void rho(void * mptr){
     int i;
     int num_ele = get_par(m->pars, m->npars, "rho")->num_ele;
     for (i=0;i<num_ele;i++){
-        rho[i]=1.0/rho[i]*m->dt/m->dh*powf(2,-scaler);
+        /*A zero density marks a vacuum cell (improved vacuum free-surface
+          formulation, FREESURF==2): keep its buoyancy exactly zero instead
+          of 1/0, so the arithmetic averaging in ave_arithmetic_rho below
+          can rely on seeing true zeros rather than +inf.*/
+        if (rho[i]==0){
+            rho[i]=0;
+        }
+        else{
+            rho[i]=1.0/rho[i]*m->dt/m->dh*powf(2,-scaler);
+        }
     }
 }
 
@@ -517,8 +579,40 @@ void gradfreqsn( void *mptr, void *cstptr, int ncst){
         fmaxout=gradfreqs[j];
     }
     float df;
-    m->DTNYQ=ceil(0.0156/fmaxout/m->dt);
-    m->NTNYQ=(m->tmax-m->tmin)/m->DTNYQ+1;
+    if (!(fmaxout>0)){
+        /* Every gradfreqs entry is zero or negative. Without this guard the
+         * DTNYQ expression below divides by zero and every downstream size is
+         * inf/nan. assign_modeling_case() cannot catch this because the cst
+         * values are not loaded yet when it runs. */
+        fprintf(stderr,"Error: back_prop_type=2 requires at least one strictly "
+                       "positive entry in gradfreqs (max was %g)\n", fmaxout);
+        m->DTNYQ=1;
+        m->NTNYQ=1;
+        for (j=0;j<m->NFREQS;j++) gradfreqsn[j]=0;
+        return;
+    }
+    /* Oversampling of the highest requested gradient frequency. The DFT only
+     * needs the Nyquist rate of fmax, but savefreqs was sampling at
+     * 1/0.0156 = 64x that, which for typical 2D parameters (fmax=25 Hz,
+     * dt=1e-3) gives DTNYQ=1 -- i.e. it fires on *every* time step, and it is
+     * ~75% of GPU time. dft_osamp exposes the factor; the default of 64
+     * preserves the previous behaviour exactly.
+     *
+     * Lowering it is an aliasing trade-off, not a quadrature one: with
+     * DTNYQ>1 the accumulation is the *exact* DFT of the decimated series, and
+     * the error is energy above the decimated Nyquist folding onto the selected
+     * bins. For a Ricker at f0 the spectrum is ~e^-64 at 8*f0, so with
+     * fmax ~ 2*f0 an oversample of 8 puts the decimated Nyquist at 8*f0. */
+    m->DTNYQ=ceil((1.0/m->dft_osamp)/fmaxout/m->dt);
+    if (m->DTNYQ<1) m->DTNYQ=1;
+    /* NTNYQ is the DFT period: it must equal the number of samples savefreqs
+     * actually accumulates, otherwise the basis is not orthogonal and every bin
+     * picks up a phase drift. The forward loop runs t = 0 .. tmax-1 and fires
+     * when t >= tmin && (t-tmin) % DTNYQ == 0 (time_stepping.c:838, :850-853),
+     * i.e. ceil((tmax-tmin)/DTNYQ) samples. The previous
+     * (tmax-tmin)/DTNYQ + 1 overcounted by one whenever DTNYQ divides
+     * tmax-tmin, giving e.g. 257 for 256 accumulated samples. */
+    m->NTNYQ=(m->tmax-m->tmin+m->DTNYQ-1)/m->DTNYQ;
     df=1.0/m->NTNYQ/m->dt/m->DTNYQ;
     for (j=0;j<m->NFREQS;j++){
         gradfreqsn[j]=floor(gradfreqs[j]/df);
@@ -836,6 +930,85 @@ int assign_modeling_case(model * m){
     m->check_stability=&check_stability;
     m->set_par_scale=&set_par_scale;
 
+    /* Reject the BACK_PROP_TYPE==2 (DFT gradient) configurations that are not
+     * supported. Each of these used to run to completion and emit a silently
+     * wrong or empty gradient. */
+    if (m->GRADOUT==1 && m->BACK_PROP_TYPE==2){
+        if (m->NFREQS<1){
+            state=1;
+            fprintf(stderr,"Error: back_prop_type=2 requires a non-empty "
+                           "gradfreqs\n");
+        }
+        /* All FP16 levels are supported. savefreqs types the wavefield as
+           half when FP16>1 and converts on load; the correlation kernels do
+           the same for the parameter buffers (Init_OpenCL.c halves cl_par.size
+           too), index with the scalar extents NZS/NXS rather than the
+           float2-halved NZ/NX, and undo the wavefield scaling with
+           src_scale/res_scale/par_scale. Everything downstream of the load is
+           float/double -- half is a storage format here, never a compute one.
+           A small accuracy cost at FP16>1 is expected from the half storage
+           itself. */
+
+    }
+    /* Only par_type=0, (vp, vs, rho), is supported by the engine. The other
+     * parameterizations are a chain rule on the model grid -- pointwise, and
+     * negligible next to propagation -- so they belong in the caller, where
+     * they are one expression instead of twelve hand-derived coefficient
+     * variants (grad_coef{visc,elast}_{0,1,2,3} plus the _SH twins). Keeping
+     * them here duplicated the chain rule between transf_grad (used by
+     * BACK_PROP_TYPE==1) and the grad_coef* families (used by
+     * BACK_PROP_TYPE==2), which is what let gradrho's chain-rule group sit
+     * sign-flipped without being noticed. par_type=1 was in fact unreachable:
+     * it was silently reset to 0 and then failed asking for /vp.
+     *
+     * The SeisCL Python wrapper still accepts param_type 0, 1 and 2 and does
+     * the conversion itself, so it is unaffected. This error exists so that
+     * other wrappers are told rather than silently given a gradient in the
+     * wrong parameterization. */
+    if (m->par_type!=0){
+        state=1;
+        fprintf(stderr,"Error: par_type=%d is no longer supported by the "
+                       "engine; only par_type=0 (vp, vs, rho). Convert the "
+                       "model and apply the chain rule to the gradient in the "
+                       "caller. The SeisCL Python wrapper does this for you.\n",
+                m->par_type);
+    }
+    if (m->GRADOUT==1 && m->ND==22){
+        state=1;
+        fprintf(stderr,"Error: gradient computation is not implemented for "
+                       "ND=22 (acoustic): no adjoint or savebnd kernel is "
+                       "assigned\n");
+    }
+
+    /* BACK_PROP_TYPE==1 reconstructs the forward wavefield by re-running the
+     * simulation backward in time from the saved domain-boundary values. For
+     * a viscoelastic (L>0) medium the forward equations are dissipative, so
+     * running them backward in time is not merely inaccurate but
+     * unconditionally unstable: the attenuation that damps the forward
+     * simulation amplifies the reconstruction error at the same rate running
+     * in reverse, and it blows up regardless of time step or model size. This
+     * is a property of the method, not a bug to fix here. It also means
+     * gradtaup/gradtaus were never implemented for BACK_PROP_TYPE==1 (in
+     * either 2D or 3D: both update_adjs2D.cl and update_adjs3D.cl declare
+     * them as read-only kernel arguments, and transf_grad() in calc_grad.c
+     * has no taup/taus branch) -- there was no point wiring up gradients that
+     * the reconstructed wavefield feeding them cannot be trusted to produce.
+     * BACK_PROP_TYPE==2 does not reconstruct the wavefield this way (it
+     * correlates spectra accumulated during the single forward pass), so it
+     * is unaffected once it supports L>0 (todo item 6). */
+    if (m->GRADOUT==1 && m->BACK_PROP_TYPE==1 && m->L>0){
+        state=1;
+        fprintf(stderr,"Error: back_prop_type=1 cannot compute a gradient for "
+                       "a viscoelastic model (L=%d>0): it reconstructs the "
+                       "forward wavefield by backpropagating in time, which "
+                       "is unconditionally unstable for a dissipative "
+                       "(attenuating) medium -- the reconstruction error "
+                       "grows exponentially, independent of the vp/vs/rho "
+                       "gradient's own correctness. Use back_prop_type=2 "
+                       "once it supports L>0, or a fully-checkpointed "
+                       "(non-reconstructing) gradient method.\n", m->L);
+    }
+
     /* Definition of each seismic modeling case that has been implemented */
     const char * updatev;
     const char * updates;
@@ -942,17 +1115,98 @@ int assign_modeling_case(model * m){
         __GUARD append_update(m->ups_adj, &ind, "update_adjv", updatev_adj, nheaders, headers);
         __GUARD append_update(m->ups_adj, &ind, "update_adjs", updates_adj, nheaders, headers);
     }
-    if (m->FREESURF){
+    if (m->FREESURF==1){
         __GUARD prog_source(&m->bnd_cnds.surf, "freesurface", surface, 2, headers);
         if (m->GRADOUT){
             __GUARD prog_source(&m->bnd_cnds.surf_adj,
                                 "surface_adj", surface_adj, 2, headers);
         }
     }
+    /* On-device DFT gradient correlation. Elastic: 2D P-SV, SH and 3D.
+       Viscoelastic: 2D P-SV and SH. Everything else keeps the host
+       calc_grad, which only the OpenCL build provides. */
+    if (m->GRADOUT && m->BACK_PROP_TYPE==2){
+        const char * graddft = NULL;
+        if (m->L==0){
+            if (m->ND==2)       graddft = grad_dft2D_source;
+            else if (m->ND==21) graddft = grad_dft2D_SH_source;
+            else if (m->ND==3)  graddft = grad_dft3D_source;
+        }
+        else {
+            /* Viscoelastic. Without this the L>0 case fell back to the host
+               calc_grad(), which is #ifdef __SEISCL__ and a no-op stub under
+               CUDA -- so the gradient came back identically zero, silently,
+               and SeisCL.torch (CUDA-only) could not do viscoelastic FWI at
+               all. */
+            if (m->ND==2)       graddft = grad_dft2D_visc_source;
+            else if (m->ND==21) graddft = grad_dft2D_SH_visc_source;
+            else if (m->ND==3)  graddft = grad_dft3D_visc_source;
+        }
+        if (graddft){
+            if (m->ND==21 && m->HOUT){
+                state=1;
+                fprintf(stderr,"Error: Hout=1 is not implemented for ND=21 "
+                               "(SH): calc_grad has no HOUT block for it "
+                               "either.\n");
+            }
+            __GUARD prog_source(&m->grads.calc_grad, "calc_grad_dft",
+                                (char*)graddft, 2, headers);
+        }
+    }
     if ((m->GRADOUT || m->INPUTRES) && m->BACK_PROP_TYPE==1){
         __GUARD prog_source(&m->grads.savebnd, "savebnd", savebnd, 1, headers);
     }
-    
+    /*GPU port of the staggered-grid material-parameter averaging (elastic
+      only -- see src/average_params.cl and
+      notes/vacuum-freesurface-plan.md, Phase 8). Replaces the CPU
+      ave_arithmetic_rho()/ave_harmonic_mu() computation for "rip"/"rkp"/
+      "muipkp" (ND==2 and ND==3) and "rjp"/"muipjp"/"mujpkp" (ND==3 only)
+      below (their transform is NULL, so Init_model()'s transform loop
+      skips them and this kernel is the only thing that fills them). Only
+      needs header_CUDACL_source (headers count 1, like savebnd above) --
+      no FD stencil or CPML macros.*/
+    if (m->ND==2 || m->ND==3){
+        __GUARD prog_source(&m->par_avg.rip, "ave_rip", average_params_source,
+                            1, headers);
+        __GUARD prog_source(&m->par_avg.rkp, "ave_rkp", average_params_source,
+                            1, headers);
+        __GUARD prog_source(&m->par_avg.muipkp, "ave_muipkp",
+                            average_params_source, 1, headers);
+    }
+    if (m->ND==3){
+        __GUARD prog_source(&m->par_avg.rjp, "ave_rjp", average_params_source,
+                            1, headers);
+        __GUARD prog_source(&m->par_avg.muipjp, "ave_muipjp",
+                            average_params_source, 1, headers);
+        __GUARD prog_source(&m->par_avg.mujpkp, "ave_mujpkp",
+                            average_params_source, 1, headers);
+    }
+    /* There is deliberately no FREESURF==2 gradient restriction here.
+
+       There used to be one rejecting FREESURF==2 + GRADOUT unless
+       (BACK_PROP_TYPE==1 && restype==1), because the vacuum band the engine
+       itself used to zero produced NaN gradients three different ways. Now
+       that the engine no longer creates that band, keying a restriction on
+       FREESURF==2 tests the wrong thing in both directions: it would reject
+       a perfectly ordinary FREESURF==2 run on a fully solid model (nothing
+       is zero, nothing can divide by zero), while still letting through a
+       FREESURF==0 run on a model the user zeroed, which carries exactly the
+       same risk.
+
+       The real condition is "the model contains zero-material cells", and
+       that is a pre-existing SeisCL property independent of FREESURF -- it
+       already applies to any acoustic/water layer with mu==0. The
+       divide-by-zero sites it used to guard have since been given their own
+       guards where they belong: transf_grad()'s 1/rho (see
+       notes/back-prop-type1-zero-material-nan.md) and calc_grad.c's
+       coefficient routines, which skip cells with rho==0 or
+       (ND*M-2(ND-1)mu)^2==0 rather than evaluating 0/0. What remains
+       unguarded is BACK_PROP_TYPE==1's boundary-reconstruction shell
+       (header_injectbnd.cl), which the old comment itself recorded as NOT
+       specific to FREESURF==2 -- tracked in notes/vacuum-freesurface-plan.md
+       rather than papered over with a flag check that does not correspond to
+       it. */
+
     /*___________________Assign material parameters__________________________ */
     
     m->npars=14;
@@ -972,18 +1226,26 @@ int assign_modeling_case(model * m){
         }
     }
     if (m->ND!=21){
-        __GUARD append_par(m, &ind, "rip", NULL, &rip);
+        // ND==2 and ND==3: rip/rjp/rkp/muipkp/muipjp/mujpkp are computed
+        // on-device instead (see the par_avg kernel registration above) --
+        // transform=NULL so Init_model()'s transform loop leaves their raw
+        // host gl_par alone; Init_OpenCL.c reads the GPU-computed values
+        // back to host right after launching the kernel, since res_scale()
+        // (residuals.c) reads rip/rkp's *host* gl_par directly.
+        __GUARD append_par(m, &ind, "rip", NULL,
+                           (m->ND==2 || m->ND==3) ? NULL : &rip);
         if (m->ND==3){
-            __GUARD append_par(m, &ind, "rjp", NULL, &rjp);
+            __GUARD append_par(m, &ind, "rjp", NULL, NULL);
         }
-        __GUARD append_par(m, &ind, "rkp", NULL, &rkp);
+        __GUARD append_par(m, &ind, "rkp", NULL,
+                           (m->ND==2 || m->ND==3) ? NULL : &rkp);
     }
     if (m->ND==2 || m->ND==3){
-        __GUARD append_par(m, &ind, "muipkp", NULL, &muipkp);
+        __GUARD append_par(m, &ind, "muipkp", NULL, NULL);
     }
     if (m->ND==3){
-        __GUARD append_par(m, &ind, "muipjp", NULL, &muipjp);
-        __GUARD append_par(m, &ind, "mujpkp", NULL, &mujpkp);
+        __GUARD append_par(m, &ind, "muipjp", NULL, NULL);
+        __GUARD append_par(m, &ind, "mujpkp", NULL, NULL);
     }
     if (m->L>0){
         if (m->ND==2 || m->ND==3){
@@ -1183,6 +1445,22 @@ int assign_modeling_case(model * m){
                     m->pars[i].to_read="/vpI";
                 if (strcmp(m->pars[i].name,"taus")==0)
                     m->pars[i].to_read="/vsI";
+            }
+        }
+        else if (m->par_type==1){
+            /* (M, mu, rho). This branch used to be absent: par_type==1 fell
+             * into the else below, which forcibly reset par_type to 0 and then
+             * asked for /vp and /vs. So par_type=1 was silently downgraded to
+             * par_type=0 and the run died with "Variable /vp is not defined",
+             * while the par_type==1 arms of the parameter transforms
+             * (assign_modeling_case.c:276-280, :351-354) and the
+             * grad_coefelast_1 / grad_coefvisc_1 coefficient sets were all
+             * unreachable. */
+            for (i=0;i<m->npars;i++){
+                if (strcmp(m->pars[i].name,"M")==0)
+                    m->pars[i].to_read="/M";
+                if (strcmp(m->pars[i].name,"mu")==0)
+                    m->pars[i].to_read="/mu";
             }
         }
         else {
