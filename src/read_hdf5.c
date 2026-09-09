@@ -662,7 +662,13 @@ int readhdf5(struct filenames files, model * m) {
                         }
                     }
                     var_alloc_out(&m->vars[i].gl_varin, m);
-                    if (m->RESOUT || m->GRADOUT){
+                    /* var_res_raw() (residuals.c) writes gl_var_res for every
+                       to_output variable whenever it runs, and it runs for
+                       RMSOUT too -- not just RESOUT/GRADOUT. Init_MPI.c already
+                       allocates it under the same three-way condition on the
+                       non-root ranks; without RMSOUT here the root rank left it
+                       NULL and segfaulted on an rmsout-only run. */
+                    if (m->RESOUT || m->GRADOUT || m->RMSOUT){
                         var_alloc_out(&m->vars[i].gl_var_res, m);
                     }
                     __GUARD read_seis(file_id,
@@ -687,7 +693,7 @@ int readhdf5(struct filenames files, model * m) {
                         return 1;
                     }
                     var_alloc_out(&m->trans_vars[i].gl_varin, m);
-                    if (m->RESOUT || m->GRADOUT){
+                    if (m->RESOUT || m->GRADOUT || m->RMSOUT){
                         var_alloc_out(&m->trans_vars[i].gl_var_res, m);
                     }
                     __GUARD read_seis(file_id,

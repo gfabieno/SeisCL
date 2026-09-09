@@ -120,10 +120,15 @@ int append_update(update * up, int * ind, char * name, const char * source,
     return state;
 }
 
+/* The not-found sentinel is static, not a stack local: callers routinely do
+   get_cst(...)->field without a NULL check and expect to read a zeroed struct.
+   Returning &<local> was undefined behaviour (-Wreturn-local-addr) and made
+   ->gl_grad etc. read stack garbage, which crashed average_grad_transpose()
+   when it probed for parameters absent in the current dimensionality. */
 constants * get_cst(constants * csts, int ncsts, const char * name){
-    
+
     int i;
-    constants zerocst;
+    static constants zerocst;
     memset(&zerocst, 0, sizeof(constants));
     constants * outptr=&zerocst;
     for (i=0;i<ncsts;i++){
@@ -138,7 +143,7 @@ constants * get_cst(constants * csts, int ncsts, const char * name){
 variable * get_var(variable * vars, int nvars, const char * name){
     
     int i;
-    variable zerovar;
+    static variable zerovar;
     memset(&zerovar, 0, sizeof(variable));
     variable * outptr=&zerovar;
     for (i=0;i<nvars;i++){
@@ -153,7 +158,7 @@ variable * get_var(variable * vars, int nvars, const char * name){
 parameter * get_par(parameter * pars, int npars, const char * name){
     
     int i;
-    parameter zeropar;
+    static parameter zeropar;
     memset(&zeropar, 0, sizeof(parameter));
     parameter * outptr=&zeropar;
     for (i=0;i<npars;i++){
