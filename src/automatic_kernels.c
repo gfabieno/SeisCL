@@ -19,6 +19,17 @@
 
 #include "F.h"
 
+/* The argument-list builders below append "<arg>, " (or "<expr>+") in a loop and
+ * then need to drop the dangling separator. This trims the last n bytes of s in
+ * place, guarded so an unexpectedly empty string cannot underflow the buffer.
+ * Replaces a "char *p=temp; while(*p) p++; p[-n]='\0';" idiom whose walk-back
+ * GCC's -Wstringop-overflow could not prove in-bounds. */
+static void chop_tail(char * s, size_t n){
+    size_t len = strlen(s);
+    if (n <= len)
+        s[len - n] = '\0';
+}
+
 int kernel_varout(device * dev,
                   clprogram * prog){
  
@@ -28,7 +39,6 @@ int kernel_varout(device * dev,
     
     char temp[MAX_KERN_STR]={0};;
     char temp2[100]={0};
-    char * p=(char*)temp;
     variable * vars = dev->vars;
     variable * tvars = dev->trans_vars;
     
@@ -75,9 +85,7 @@ int kernel_varout(device * dev,
             strcat(temp, "out, ");
         }
     }
-    while (*p)
-        p++;
-    p[-2]='\0';
+    chop_tail(temp, 2);
     strcat(temp, "){\n\n");
 
     //This only supports 3 dimensions (need for more ?)
@@ -194,9 +202,7 @@ int kernel_varout(device * dev,
                 }
                 strcat(temp, "+");
             }
-            while (*p)
-                p++;
-            p[-1]='\0';
+            chop_tail(temp, 1);
             strcat(temp, ")/");
             sprintf(temp2,"%f",(float)tvars->n2ave);
             strcat(temp, temp2);
@@ -228,7 +234,6 @@ int kernel_varoutinit(device * dev,
     variable * tvars = dev->trans_vars;
     char temp[MAX_KERN_STR]={0};
     
-    char * p=(char*)temp;
     
     strcat(temp, FUNDEF"void varsoutinit(int nrec,");
     for (i=0;i<dev->nvars;i++){
@@ -245,9 +250,7 @@ int kernel_varoutinit(device * dev,
             strcat(temp, "out, ");
         }
     }
-    while (*p)
-        p++;
-    p[-2]='\0';
+    chop_tail(temp, 2);
     strcat(temp, "){\n\n");
     
     #ifdef __SEISCL__
@@ -299,7 +302,6 @@ int kernel_varinit(device * dev,
     
     char temp[MAX_KERN_STR]={0};;
     
-    char * p=(char*)temp;
     char ptemp[50];
     
     int maxsize=0;
@@ -324,9 +326,7 @@ int kernel_varinit(device * dev,
         }
         strcat(temp, ", ");
     }
-    while (*p)
-        p++;
-    p[-2]='\0';
+    chop_tail(temp, 2);
     strcat(temp, "){\n\n");
     
     #ifdef __SEISCL__
@@ -406,7 +406,6 @@ int kernel_sources(model * m,
     char temp[MAX_KERN_STR]={0};
     char temp2[100]={0};
 //    
-    char * p=(char*)temp;
     
     
     
@@ -486,9 +485,7 @@ int kernel_sources(model * m,
         }
     }
 
-    while (*p)
-        p++;
-    p[-2]='\0';
+    chop_tail(temp, 2);
     strcat(temp, "){\n\n");
     
     //This only supports 3 dimensions (need for more ?)
@@ -668,7 +665,6 @@ int kernel_residuals(device * dev,
     
     char temp[MAX_KERN_STR]={0};
     char temp2[100]={0};
-    char * p=(char*)temp;
     variable * vars = dev->vars;
     variable * tvars = dev->trans_vars;
     
@@ -715,9 +711,7 @@ int kernel_residuals(device * dev,
             strcat(temp, "out, ");
         }
     }
-    while (*p)
-        p++;
-    p[-2]='\0';
+    chop_tail(temp, 2);
     strcat(temp, "){\n\n");
     
     #ifdef __SEISCL__
@@ -876,7 +870,6 @@ int kernel_gradinit(device * dev,
     int i;
     
     char temp[MAX_KERN_STR]={0};
-    char * p=(char*)temp;
     char temp2[100]={0};
 
     strcat(temp, FUNDEF"void gradinit(");
@@ -892,9 +885,7 @@ int kernel_gradinit(device * dev,
             }
         }
     }
-    while (*p)
-        p++;
-    p[-2]='\0';
+    chop_tail(temp, 2);
     strcat(temp, "){\n\n");
     
     #ifdef __SEISCL__
@@ -969,7 +960,6 @@ int kernel_initsavefreqs(device * dev,
     
     char temp[MAX_KERN_STR]={0};;
     
-    char * p=(char*)temp;
     char ptemp[50];
     
     int maxsize=0;
@@ -987,9 +977,7 @@ int kernel_initsavefreqs(device * dev,
             strcat(temp, ", ");
         }
     }
-    while (*p)
-        p++;
-    p[-2]='\0';
+    chop_tail(temp, 2);
     strcat(temp, "){\n\n");
 
 
@@ -1064,7 +1052,6 @@ int kernel_savefreqs(device * dev,
     
     char temp[MAX_KERN_STR]={0};;
     
-    char * p=(char*)temp;
     char ptemp[50];
     
     int maxsize=0;
@@ -1105,9 +1092,7 @@ int kernel_savefreqs(device * dev,
             strcat(temp, ", ");
         }
     }
-    while (*p)
-        p++;
-    p[-2]='\0';
+    chop_tail(temp, 2);
     strcat(temp, "){\n\n");
 
     /* No float2 fact[NFREQS] array: it was a per-thread array indexed in a
@@ -1121,9 +1106,7 @@ int kernel_savefreqs(device * dev,
             strcat(temp, ";\n");
         }
     }
-    while (*p)
-        p++;
-    p[-2]='\0';
+    chop_tail(temp, 2);
     strcat(temp, ";\n\n");
     
     /* Flat 1-D launch in both backends -- see kernel_initsavefreqs. */
@@ -1274,7 +1257,6 @@ int kernel_fcom_out(device * dev,
     
     char temp[MAX_KERN_STR]={0};;
     
-    char * p=(char*)temp;
     char ptemp[200];
     
     int maxsize=0;
@@ -1320,9 +1302,7 @@ int kernel_fcom_out(device * dev,
                 strcat(temp, "_buf2, ");
         }
     }
-    while (*p)
-        p++;
-    p[-2]='\0';
+    chop_tail(temp, 2);
     strcat(temp, "){\n\n");
     
     
@@ -1500,7 +1480,6 @@ int kernel_fcom_in(device * dev,
     
     char temp[MAX_KERN_STR]={0};;
     
-    char * p=(char*)temp;
     char ptemp[200];
     
     int maxsize=0;
@@ -1549,9 +1528,7 @@ int kernel_fcom_in(device * dev,
                 strcat(temp, "_buf2, ");
         }
     }
-    while (*p)
-        p++;
-    p[-2]='\0';
+    chop_tail(temp, 2);
     strcat(temp, "){\n\n");
     
     char * names[] = {"x","y","z"};
