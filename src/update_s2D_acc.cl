@@ -151,15 +151,15 @@ FUNDEF void update_s(int offcomm,
 // Calculation of the velocity spatial derivatives
     {
 #if LOCAL_OFF==0
-        lvx(lidz,lidx)=vx(gidz, gidx);
+        if (INARR(gidz,0,gidx)) lvx(lidz,lidx)=vx(gidz, gidx);
         if (lidx<2*FDOH)
-            lvx(lidz,lidx-FDOH)=vx(gidz,gidx-FDOH);
+            if (INARR(gidz,0,gidx-FDOH)) lvx(lidz,lidx-FDOH)=vx(gidz,gidx-FDOH);
         if (lidx+lsizex-3*FDOH<FDOH)
-            lvx(lidz,lidx+lsizex-3*FDOH)=vx(gidz,gidx+lsizex-3*FDOH);
+            if (INARR(gidz,0,gidx+lsizex-3*FDOH)) lvx(lidz,lidx+lsizex-3*FDOH)=vx(gidz,gidx+lsizex-3*FDOH);
         if (lidx>(lsizex-2*FDOH-1))
-            lvx(lidz,lidx+FDOH)=vx(gidz,gidx+FDOH);
+            if (INARR(gidz,0,gidx+FDOH)) lvx(lidz,lidx+FDOH)=vx(gidz,gidx+FDOH);
         if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
-            lvx(lidz,lidx-lsizex+3*FDOH)=vx(gidz,gidx-lsizex+3*FDOH);
+            if (INARR(gidz,0,gidx-lsizex+3*FDOH)) lvx(lidz,lidx-lsizex+3*FDOH)=vx(gidz,gidx-lsizex+3*FDOH);
         BARRIER
 #endif
         
@@ -201,11 +201,11 @@ FUNDEF void update_s(int offcomm,
         
 #if LOCAL_OFF==0
         BARRIER
-        lvz(lidz,lidx)=vz(gidz, gidx);
+        if (INARR(gidz,0,gidx)) lvz(lidz,lidx)=vz(gidz, gidx);
         if (lidz<2*FDOH)
-            lvz(lidz-FDOH,lidx)=vz(gidz-FDOH,gidx);
+            if (INARR(gidz-FDOH,0,gidx)) lvz(lidz-FDOH,lidx)=vz(gidz-FDOH,gidx);
         if (lidz>(lsizez-2*FDOH-1))
-            lvz(lidz+FDOH,lidx)=vz(gidz+FDOH,gidx);
+            if (INARR(gidz+FDOH,0,gidx)) lvz(lidz+FDOH,lidx)=vz(gidz+FDOH,gidx);
         BARRIER
 #endif
         

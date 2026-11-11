@@ -546,6 +546,16 @@ int get_build_options(device *dev,
     *n+=1;
     sprintf(build_options[*n-1],"--gpu-architecture=compute_%d%d",
                         dev->cuda_arc[0], dev->cuda_arc[1]);
+    /* SEISCL_LINEINFO=1: compile the kernels with line information, so that
+       compute-sanitizer reports the source line of a bad access (debugging
+       only; see SeisCL_cache/<kernel>.src for the source). */
+    {
+        const char * v = getenv("SEISCL_LINEINFO");
+        if (v && v[0]=='1'){
+            *n+=1;
+            sprintf(build_options[*n-1],"--generate-line-info");
+        }
+    }
 
     if (m->N_names[0]){
         for (i=0;i<m->NDIM;i++){
@@ -1034,7 +1044,12 @@ int prog_create(model * m,
                 prog_arg(prog, i, &(*dev).src_recs.cl_rec_pos.mem, memsize);
                 argfound=1;
             }
-            else if (strcmp("grad_src" ,(*prog).input_list[i])==0){
+            /* The kernels (init_gradsrc, update_adj*) call it "gradsrc"; only
+               "grad_src" was matched, so the source gradient was bound to the
+               4-byte placeholder and every write went out of bounds
+               (notes/gpu-memory-audit.md, B2). */
+            else if (strcmp("gradsrc" ,(*prog).input_list[i])==0
+                     || strcmp("grad_src" ,(*prog).input_list[i])==0){
                 prog_arg(prog, i, &(*dev).src_recs.cl_grad_src.mem, memsize);
                 argfound=1;
             }

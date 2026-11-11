@@ -85,8 +85,8 @@
 #define psi_sxy_x(z,x) psi_sxy_x[(x)*(NZ-2*FDOH)+(z)]
 #define psi_syz_z(z,x) psi_syz_z[(x)*(2*NAB)+(z)]
 
-#define psi_vyx(z,x) psi_vyx[(x)*(NZ-2*FDOH)+(z)]
-#define psi_vyz(z,x) psi_vyz[(x)*(2*NAB)+(z)]
+#define psi_vy_x(z,x) psi_vy_x[(x)*(NZ-2*FDOH)+(z)]
+#define psi_vy_z(z,x) psi_vy_z[(x)*(2*NAB)+(z)]
 
 #define vxout(y,x) vxout[(y)*NT+(x)]
 #define vyout(y,x) vyout[(y)*NT+(x)]
@@ -329,15 +329,15 @@ FUNDEF void update_adjv(int offcomm,
     {
 #if LOCAL_OFF==0
         BARRIER
-        lsxy(lidz,lidx)=sxy(gidz,gidx);
+        if (INARR(gidz,0,gidx)) lsxy(lidz,lidx)=sxy(gidz,gidx);
         if (lidx<2*FDOH)
-            lsxy(lidz,lidx-FDOH)=sxy(gidz,gidx-FDOH);
+            if (INARR(gidz,0,gidx-FDOH)) lsxy(lidz,lidx-FDOH)=sxy(gidz,gidx-FDOH);
         if (lidx+lsizex-3*FDOH<FDOH)
-            lsxy(lidz,lidx+lsizex-3*FDOH)=sxy(gidz,gidx+lsizex-3*FDOH);
+            if (INARR(gidz,0,gidx+lsizex-3*FDOH)) lsxy(lidz,lidx+lsizex-3*FDOH)=sxy(gidz,gidx+lsizex-3*FDOH);
         if (lidx>(lsizex-2*FDOH-1))
-            lsxy(lidz,lidx+FDOH)=sxy(gidz,gidx+FDOH);
+            if (INARR(gidz,0,gidx+FDOH)) lsxy(lidz,lidx+FDOH)=sxy(gidz,gidx+FDOH);
         if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
-            lsxy(lidz,lidx-lsizex+3*FDOH)=sxy(gidz,gidx-lsizex+3*FDOH);
+            if (INARR(gidz,0,gidx-lsizex+3*FDOH)) lsxy(lidz,lidx-lsizex+3*FDOH)=sxy(gidz,gidx-lsizex+3*FDOH);
         BARRIER
 #endif
         
@@ -373,11 +373,11 @@ FUNDEF void update_adjv(int offcomm,
         
 #if LOCAL_OFF==0
         BARRIER
-        lsyz(lidz,lidx)=syz(gidz,gidx);
+        if (INARR(gidz,0,gidx)) lsyz(lidz,lidx)=syz(gidz,gidx);
         if (lidz<2*FDOH)
-            lsyz(lidz-FDOH,lidx)=syz(gidz-FDOH,gidx);
+            if (INARR(gidz-FDOH,0,gidx)) lsyz(lidz-FDOH,lidx)=syz(gidz-FDOH,gidx);
         if (lidz>(lsizez-2*FDOH-1))
-            lsyz(lidz+FDOH,lidx)=syz(gidz+FDOH,gidx);
+            if (INARR(gidz+FDOH,0,gidx)) lsyz(lidz+FDOH,lidx)=syz(gidz+FDOH,gidx);
         BARRIER
 #endif
         
@@ -416,15 +416,15 @@ FUNDEF void update_adjv(int offcomm,
     {
 #if LOCAL_OFF==0
         BARRIER
-        lsxy_r(lidz,lidx)=sxy_r(gidz,gidx);
+        if (INARR(gidz,0,gidx)) lsxy_r(lidz,lidx)=sxy_r(gidz,gidx);
         if (lidx<2*FDOH)
-            lsxy_r(lidz,lidx-FDOH)=sxy_r(gidz,gidx-FDOH);
+            if (INARR(gidz,0,gidx-FDOH)) lsxy_r(lidz,lidx-FDOH)=sxy_r(gidz,gidx-FDOH);
         if (lidx+lsizex-3*FDOH<FDOH)
-            lsxy_r(lidz,lidx+lsizex-3*FDOH)=sxy_r(gidz,gidx+lsizex-3*FDOH);
+            if (INARR(gidz,0,gidx+lsizex-3*FDOH)) lsxy_r(lidz,lidx+lsizex-3*FDOH)=sxy_r(gidz,gidx+lsizex-3*FDOH);
         if (lidx>(lsizex-2*FDOH-1))
-            lsxy_r(lidz,lidx+FDOH)=sxy_r(gidz,gidx+FDOH);
+            if (INARR(gidz,0,gidx+FDOH)) lsxy_r(lidz,lidx+FDOH)=sxy_r(gidz,gidx+FDOH);
         if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
-            lsxy_r(lidz,lidx-lsizex+3*FDOH)=sxy_r(gidz,gidx-lsizex+3*FDOH);
+            if (INARR(gidz,0,gidx-lsizex+3*FDOH)) lsxy_r(lidz,lidx-lsizex+3*FDOH)=sxy_r(gidz,gidx-lsizex+3*FDOH);
         BARRIER
 #endif
         
@@ -460,11 +460,11 @@ FUNDEF void update_adjv(int offcomm,
         
 #if LOCAL_OFF==0
         BARRIER
-        lsyz_r(lidz,lidx)=syz_r(gidz,gidx);
+        if (INARR(gidz,0,gidx)) lsyz_r(lidz,lidx)=syz_r(gidz,gidx);
         if (lidz<2*FDOH)
-            lsyz_r(lidz-FDOH,lidx)=syz_r(gidz-FDOH,gidx);
+            if (INARR(gidz-FDOH,0,gidx)) lsyz_r(lidz-FDOH,lidx)=syz_r(gidz-FDOH,gidx);
         if (lidz>(lsizez-2*FDOH-1))
-            lsyz_r(lidz+FDOH,lidx)=syz_r(gidz+FDOH,gidx);
+            if (INARR(gidz+FDOH,0,gidx)) lsyz_r(lidz+FDOH,lidx)=syz_r(gidz+FDOH,gidx);
         BARRIER
 #endif
         

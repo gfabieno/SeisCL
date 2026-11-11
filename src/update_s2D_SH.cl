@@ -65,8 +65,8 @@
 #define psi_sxy_x(z,x) psi_sxy_x[(x)*(NZ-2*FDOH)+(z)]
 #define psi_syz_z(z,x) psi_syz_z[(x)*(2*NAB)+(z)]
 
-#define psi_vyx(z,x) psi_vyx[(x)*(NZ-2*FDOH)+(z)]
-#define psi_vyz(z,x) psi_vyz[(x)*(2*NAB)+(z)]
+#define psi_vy_x(z,x) psi_vy_x[(x)*(NZ-2*FDOH)+(z)]
+#define psi_vy_z(z,x) psi_vy_z[(x)*(2*NAB)+(z)]
 
 
 #if LOCAL_OFF==0
@@ -118,7 +118,7 @@ FUNDEF void update_s(int offcomm, int nt,
                        GLOBARG float *K_x_half,   GLOBARG float *a_x_half,     GLOBARG float *b_x_half,
                        GLOBARG float *K_z,        GLOBARG float *a_z,          GLOBARG float *b_z,
                        GLOBARG float *K_z_half,   GLOBARG float *a_z_half,     GLOBARG float *b_z_half,
-                       GLOBARG float *psi_vyx,    GLOBARG float *psi_vyz,
+                       GLOBARG float *psi_vy_x,    GLOBARG float *psi_vy_z,
                        LOCARG)
 
 {
@@ -184,19 +184,19 @@ FUNDEF void update_s(int offcomm, int nt,
 // Calculation of the velocity spatial derivatives
     {
 #if LOCAL_OFF==0
-        lvy(lidz,lidx)=vy(gidz,  gidx);
+        if (INARR(gidz,0,gidx)) lvy(lidz,lidx)=vy(gidz,  gidx);
         if (lidx<2*FDOH)
-            lvy(lidz,lidx-FDOH)=vy(gidz,gidx-FDOH);
+            if (INARR(gidz,0,gidx-FDOH)) lvy(lidz,lidx-FDOH)=vy(gidz,gidx-FDOH);
         if (lidx+lsizex-3*FDOH<FDOH)
-            lvy(lidz,lidx+lsizex-3*FDOH)=vy(gidz,gidx+lsizex-3*FDOH);
+            if (INARR(gidz,0,gidx+lsizex-3*FDOH)) lvy(lidz,lidx+lsizex-3*FDOH)=vy(gidz,gidx+lsizex-3*FDOH);
         if (lidx>(lsizex-2*FDOH-1))
-            lvy(lidz,lidx+FDOH)=vy(gidz,gidx+FDOH);
+            if (INARR(gidz,0,gidx+FDOH)) lvy(lidz,lidx+FDOH)=vy(gidz,gidx+FDOH);
         if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
-            lvy(lidz,lidx-lsizex+3*FDOH)=vy(gidz,gidx-lsizex+3*FDOH);
+            if (INARR(gidz,0,gidx-lsizex+3*FDOH)) lvy(lidz,lidx-lsizex+3*FDOH)=vy(gidz,gidx-lsizex+3*FDOH);
         if (lidz<2*FDOH)
-            lvy(lidz-FDOH,lidx)=vy(gidz-FDOH,gidx);
+            if (INARR(gidz-FDOH,0,gidx)) lvy(lidz-FDOH,lidx)=vy(gidz-FDOH,gidx);
         if (lidz>(lsizez-2*FDOH-1))
-            lvy(lidz+FDOH,lidx)=vy(gidz+FDOH,gidx);
+            if (INARR(gidz+FDOH,0,gidx)) lvy(lidz+FDOH,lidx)=vy(gidz+FDOH,gidx);
         BARRIER
 #endif
         
@@ -281,8 +281,8 @@ FUNDEF void update_s(int offcomm, int nt,
             k =gidz - NZ+NAB+FDOH+NAB;
             ind=2*NAB-1-k;
             
-            psi_vyz(k,i) = b_z_half[ind] * psi_vyz(k,i) + a_z_half[ind] * vyz;
-            vyz = vyz / K_z_half[ind] + psi_vyz(k,i);
+            psi_vy_z(k,i) = b_z_half[ind] * psi_vy_z(k,i) + a_z_half[ind] * vyz;
+            vyz = vyz / K_z_half[ind] + psi_vy_z(k,i);
         }
         
 #if FREESURF==0
@@ -291,8 +291,8 @@ FUNDEF void update_s(int offcomm, int nt,
             i =gidx-FDOH;
             k =gidz-FDOH;
             
-            psi_vyz(k,i) = b_z_half[k] * psi_vyz(k,i) + a_z_half[k] * vyz;
-            vyz = vyz / K_z_half[k] + psi_vyz(k,i);
+            psi_vy_z(k,i) = b_z_half[k] * psi_vy_z(k,i) + a_z_half[k] * vyz;
+            vyz = vyz / K_z_half[k] + psi_vy_z(k,i);
             
         }
 #endif
@@ -303,8 +303,8 @@ FUNDEF void update_s(int offcomm, int nt,
             i =gidx-FDOH;
             k =gidz-FDOH;
             
-            psi_vyx(k,i) = b_x_half[i] * psi_vyx(k,i) + a_x_half[i] * vyx;
-            vyx = vyx / K_x_half[i] + psi_vyx(k,i);
+            psi_vy_x(k,i) = b_x_half[i] * psi_vy_x(k,i) + a_x_half[i] * vyx;
+            vyx = vyx / K_x_half[i] + psi_vy_x(k,i);
             
         }
 #endif
@@ -316,8 +316,8 @@ FUNDEF void update_s(int offcomm, int nt,
             k =gidz-FDOH;
             ind=2*NAB-1-i;
             
-            psi_vyx(k,i) = b_x_half[ind] * psi_vyx(k,i) + a_x_half[ind] * vyx;
-            vyx = vyx  /K_x_half[ind] + psi_vyx(k,i);
+            psi_vy_x(k,i) = b_x_half[ind] * psi_vy_x(k,i) + a_x_half[ind] * vyx;
+            vyx = vyx  /K_x_half[ind] + psi_vy_x(k,i);
         }
 #endif
     }

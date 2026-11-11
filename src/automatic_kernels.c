@@ -693,6 +693,13 @@ int kernel_residuals(device * dev,
     for (i=0;i<dev->ntvars;i++){
         if (tvars[i].to_output){
             for (j=0;j<tvars[i].n2ave;j++){
+                /* Skip a variable that is already a parameter (e.g. sxx and
+                   szz when both the stresses and the pressure are output):
+                   a duplicate parameter name does not compile. */
+                char token[100];
+                snprintf(token, sizeof(token), " %s%s, ", tvars[i].var2ave[j],
+                         BACK_PROP_TYPE==1 ? "r" : "");
+                if (strstr(temp, token)) continue;
                 if (dev->FP16<=1){
                     strcat(temp, GLOBARG"float * ");
                     
