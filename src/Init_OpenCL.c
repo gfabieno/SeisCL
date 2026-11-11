@@ -823,7 +823,7 @@ int Init_CUDA(model * m, device ** dev)  {
             // launch (Init_OpenCL.c, below), which also leaves it to
             // prog_launch's own defaults.
             // FP16>1: averaged on the host instead (assign_modeling_case.c).
-            if (!state && (m->ND==2 || m->ND==3) && m->FP16<=1){
+            if (!state && use_gpu_average(m)){
                 int par_NY = (m->ND==3) ? di->N[1] : 1;
                 int par_NX = (m->ND==3) ? di->N[2] : di->N[1];
 
@@ -1068,6 +1068,17 @@ int Init_CUDA(model * m, device ** dev)  {
                 di->vars_adj[i].cl_buf1.free_host = 0;
                 di->vars_adj[i].cl_buf2.free_host = 0;
                 di->vars_adj[i].cl_var_res.free_host = 0;
+                /* The copy shares the forward host pointers: it must not
+                   free them (clbuf_free). Its own pinned buffers are
+                   created below and set free_pin again. */
+                di->vars_adj[i].cl_var.free_pin = 0;
+                di->vars_adj[i].cl_varout.free_pin = 0;
+                di->vars_adj[i].cl_varbnd.free_pin = 0;
+                di->vars_adj[i].cl_fvar.free_pin = 0;
+                di->vars_adj[i].cl_fvar_adj.free_pin = 0;
+                di->vars_adj[i].cl_buf1.free_pin = 0;
+                di->vars_adj[i].cl_buf2.free_pin = 0;
+                di->vars_adj[i].cl_var_res.free_pin = 0;
             }
 
             for (i = 0; i < m->nvars; i++) {

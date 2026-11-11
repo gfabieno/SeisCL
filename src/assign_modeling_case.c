@@ -919,6 +919,17 @@ int set_par_scale( void *mptr){
 }
 
 //Assign parameters list depending on which case of modeling is desired
+/* Whether the material averages (rip, rjp, rkp, muipkp, muipjp, mujpkp) are
+   computed on the device by average_params.cl. Not for FP16>1: the device
+   parameters are then half, and the kernels read and write float (an Xid 31
+   write fault on cgm-geo1). The environment variable SEISCL_HOST_AVERAGE=1
+   forces the host path, so that tests can compare both. */
+int use_gpu_average(model * m){
+    const char * v = getenv("SEISCL_HOST_AVERAGE");
+    if (v && v[0]=='1') return 0;
+    return (m->ND==2 || m->ND==3) && m->FP16<=1;
+}
+
 int assign_modeling_case(model * m){
     
     int i;
@@ -1171,7 +1182,7 @@ int assign_modeling_case(model * m){
        Xid 31 write fault on cgm-geo1, notes/gpu-memory-audit-plan.md). For
        FP16>1 the averages are computed on the host instead, by the
        transforms below, before Init_model_values() converts to half. */
-    int gpu_avg = (m->ND==2 || m->ND==3) && m->FP16<=1;
+    int gpu_avg = use_gpu_average(m);
     if (gpu_avg){
         __GUARD prog_source(&m->par_avg.rip, "ave_rip", average_params_source,
                             1, headers);
