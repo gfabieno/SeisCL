@@ -1165,7 +1165,14 @@ int assign_modeling_case(model * m){
       skips them and this kernel is the only thing that fills them). Only
       needs header_CUDACL_source (headers count 1, like savebnd above) --
       no FD stencil or CPML macros.*/
-    if (m->ND==2 || m->ND==3){
+    /* FP16>1 stores the parameters as half on the device (Init_OpenCL.c
+       halves cl_par.size), while average_params.cl reads and writes float:
+       on the device it would write twice past the end of each buffer (an
+       Xid 31 write fault on cgm-geo1, notes/gpu-memory-audit-plan.md). For
+       FP16>1 the averages are computed on the host instead, by the
+       transforms below, before Init_model_values() converts to half. */
+    int gpu_avg = (m->ND==2 || m->ND==3) && m->FP16<=1;
+    if (gpu_avg){
         __GUARD prog_source(&m->par_avg.rip, "ave_rip", average_params_source,
                             1, headers);
         __GUARD prog_source(&m->par_avg.rkp, "ave_rkp", average_params_source,
@@ -1173,7 +1180,7 @@ int assign_modeling_case(model * m){
         __GUARD prog_source(&m->par_avg.muipkp, "ave_muipkp",
                             average_params_source, 1, headers);
     }
-    if (m->ND==3){
+    if (gpu_avg && m->ND==3){
         __GUARD prog_source(&m->par_avg.rjp, "ave_rjp", average_params_source,
                             1, headers);
         __GUARD prog_source(&m->par_avg.muipjp, "ave_muipjp",
@@ -1232,20 +1239,19 @@ int assign_modeling_case(model * m){
         // host gl_par alone; Init_OpenCL.c reads the GPU-computed values
         // back to host right after launching the kernel, since res_scale()
         // (residuals.c) reads rip/rkp's *host* gl_par directly.
-        __GUARD append_par(m, &ind, "rip", NULL,
-                           (m->ND==2 || m->ND==3) ? NULL : &rip);
+        // transform NULL when the GPU computes the average (gpu_avg).
+        __GUARD append_par(m, &ind, "rip", NULL, gpu_avg ? NULL : &rip);
         if (m->ND==3){
-            __GUARD append_par(m, &ind, "rjp", NULL, NULL);
+            __GUARD append_par(m, &ind, "rjp", NULL, gpu_avg ? NULL : &rjp);
         }
-        __GUARD append_par(m, &ind, "rkp", NULL,
-                           (m->ND==2 || m->ND==3) ? NULL : &rkp);
+        __GUARD append_par(m, &ind, "rkp", NULL, gpu_avg ? NULL : &rkp);
     }
     if (m->ND==2 || m->ND==3){
-        __GUARD append_par(m, &ind, "muipkp", NULL, NULL);
+        __GUARD append_par(m, &ind, "muipkp", NULL, gpu_avg ? NULL : &muipkp);
     }
     if (m->ND==3){
-        __GUARD append_par(m, &ind, "muipjp", NULL, NULL);
-        __GUARD append_par(m, &ind, "mujpkp", NULL, NULL);
+        __GUARD append_par(m, &ind, "muipjp", NULL, gpu_avg ? NULL : &muipjp);
+        __GUARD append_par(m, &ind, "mujpkp", NULL, gpu_avg ? NULL : &mujpkp);
     }
     if (m->L>0){
         if (m->ND==2 || m->ND==3){

@@ -822,7 +822,8 @@ int Init_CUDA(model * m, device ** dev)  {
             // get_build_options. No explicit lsize: matches savebnd's
             // launch (Init_OpenCL.c, below), which also leaves it to
             // prog_launch's own defaults.
-            if (!state && (m->ND==2 || m->ND==3)){
+            // FP16>1: averaged on the host instead (assign_modeling_case.c).
+            if (!state && (m->ND==2 || m->ND==3) && m->FP16<=1){
                 int par_NY = (m->ND==3) ? di->N[1] : 1;
                 int par_NX = (m->ND==3) ? di->N[2] : di->N[1];
 
