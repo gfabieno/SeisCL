@@ -275,7 +275,10 @@ int engine_build(EngineHandle &h, const Config &cfg, int gradout, int inputres,
     // no file, fill the array assign_modeling_case() just allocated. Must
     // happen before Init_cst(), which derives gradfreqsn (the bin indices)
     // and DTNYQ/NTNYQ from these values.
-    if (cfg.BACK_PROP_TYPE == 2) {
+    // Only for a gradient build: assign_modeling_case() registers gradfreqs
+    // only when GRADOUT (a forward-only call with a back_prop_type 2 config,
+    // e.g. under torch.no_grad(), used to fail here).
+    if (cfg.BACK_PROP_TYPE == 2 && gradout) {
         constants *freqs = find_cst(h.m, "gradfreqs");
         if (!freqs || freqs->num_ele != static_cast<int>(cfg.gradfreqs.size())) {
             throw std::runtime_error(
