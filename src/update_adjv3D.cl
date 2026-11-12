@@ -67,6 +67,7 @@ FUNDEF void update_adjv(int offcomm,
     float sxx_xr, syy_yr, szz_zr, sxy_yr, sxy_xr;
     float syz_yr, syz_zr, sxz_xr, sxz_zr;
     float lvx, lvy, lvz;
+    float fvx = 0.0f, fvy = 0.0f, fvz = 0.0f;   // forward velocity increment of this step (BACK_PROP_TYPE 1)
 
 // If we use local memory
 #if LOCAL_OFF==0
@@ -309,6 +310,9 @@ FUNDEF void update_adjv(int offcomm,
         vx[indv]-= lvx;
         vy[indv]-= lvy;
         vz[indv]-= lvz;
+        fvx = lvx;
+        fvy = lvy;
+        fvz = lvz;
 
         // Inject the boundary values
         m=inject_ind(gidz, gidy, gidx);
@@ -508,9 +512,11 @@ FUNDEF void update_adjv(int offcomm,
         }
     }
     #endif
-    gradrip[indp]+=-vx[indv]*(lvx+rvx);
-    gradrjp[indp]+=-vy[indv]*(lvy+rvy);
-    gradrkp[indp]+=-vz[indv]*(lvz+rvz);
+    /* The residual of step nt measures the velocity recorded at the end of
+       that step, v^{nt+1} = v + fv (v was just stepped back to v^{nt}). */
+    gradrip[indp]+=-vx[indv]*lvx - (vx[indv]+fvx)*rvx;
+    gradrjp[indp]+=-vy[indv]*lvy - (vy[indv]+fvy)*rvy;
+    gradrkp[indp]+=-vz[indv]*lvz - (vz[indv]+fvz)*rvz;
 
     /* Source term of the misfit gradient -- GJI 2017 eq. (26a) -- for a FORCE
      * source; see update_adjv2D.cl for the derivation. Each component lands in
