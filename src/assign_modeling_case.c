@@ -1152,7 +1152,7 @@ int assign_modeling_case(model * m){
         if (m->GRADOUT){
             __GUARD prog_source(&m->bnd_cnds.surf_adj,
                                 "surface_adj", surface_adj, 2, headers);
-            if (m->ND==2 && m->FP16==0){
+            if ((m->ND==2 || m->ND==3) && m->FP16==0){
                 __GUARD prog_source(&m->bnd_cnds.surf_adj_fold,
                                     "surface_adj_fold", surface_adj, 2,
                                     headers);
