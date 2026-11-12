@@ -610,6 +610,7 @@ int seiscl_set_srcrec(model * m,
 
 int assign_modeling_case(model * m);
 int use_gpu_average(model * m);
+int param_average_run(model * m, device * di);
 
 
 int Init_cst(model * m);

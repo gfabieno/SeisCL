@@ -1,5 +1,7 @@
 #include "engine_cache.h"
 
+#include <unistd.h>
+
 #include <algorithm>
 
 namespace seiscl_torch {
@@ -72,6 +74,9 @@ std::size_t EngineCache::size() {
 
 void EngineCache::clear() {
     std::lock_guard<std::mutex> lock(mu_);
+    if (forked_child()) {
+        for (auto &kv : handles_) kv.second.release();
+    }
     handles_.clear();
     lru_.clear();
 }
@@ -91,6 +96,30 @@ void EngineCache::trim() {
         CacheKey victim = *it;
         it = lru_.erase(it);
         handles_.erase(victim);
+    }
+}
+
+namespace {
+const pid_t g_owner_pid = getpid();   // the process that loaded the module
+}
+
+bool forked_child() { return getpid() != g_owner_pid; }
+
+void EngineCache::abandon(const CacheKey &key) {
+    std::lock_guard<std::mutex> lock(mu_);
+    auto it = handles_.find(key);
+    if (it != handles_.end()) {
+        it->second.release();   // leaked on purpose, see the header
+        handles_.erase(it);
+    }
+    lru_.remove(key);
+}
+
+EngineCache::~EngineCache() {
+    // Static destruction at exit. In a forked child the handles belong to
+    // the parent's CUDA state: never free them here.
+    if (forked_child()) {
+        for (auto &kv : handles_) kv.second.release();
     }
 }
 

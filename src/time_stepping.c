@@ -263,6 +263,15 @@ int checkpoint_d2h(model * m, device ** dev, hid_t file_id, int s){
 
     for (d=0;d<m->NUM_DEVICES;d++){
         WAITQUEUE((*dev)[d].queue);
+        /* The boundary of each time step is copied to the pinned host buffer
+           cl_varbnd.host on the second queue (save_bnd: clbuf_readto on
+           queuecomm). Wait for those copies before writing the buffer below:
+           otherwise the last time steps of a shot can be written before they
+           arrive, and the checkpoint keeps the previous shot's values there.
+           Only the last shot survived that (its copies complete before the
+           adjoint pass reads the buffer), so every other shot of a
+           back_prop_type 1 gradient was wrong (seen in 3-D, 2026-11-11). */
+        if ((*dev)[d].queuecomm) WAITQUEUE((*dev)[d].queuecomm);
         for (i=0;i<m->nvars;i++){
             if ((*dev)[d].vars[i].cl_buf1.host){
                 dims[0] = (*dev)[d].vars[i].cl_buf1.size / sizeof(float);
@@ -381,6 +390,17 @@ int checkpoint_h2d(model * m, device ** dev, hid_t file_id, int s) {
     int nwait;
     EVENT * event;
 
+    /* The host buffers read below (cl_var.host, and above all the pinned
+       boundary buffer cl_varbnd.host) are the sources of asynchronous copies
+       queued by the previous shot's adjoint pass (inject_bnd: clbuf_sendfrom
+       on queue). Overwriting them before those copies have run gave the last
+       time steps of every shot but the last the boundaries of the NEXT shot:
+       a wrong back_prop_type 1 gradient for multi-shot runs, depending on the
+       timing (large in 3-D; 2026-11-11). Wait for both queues first. */
+    for (d = 0; d < m->NUM_DEVICES; d++) {
+        WAITQUEUE((*dev)[d].queue);
+        if ((*dev)[d].queuecomm) WAITQUEUE((*dev)[d].queuecomm);
+    }
 
     // Transfer all variables to output to host for this time step
     for (d = 0; d < m->NUM_DEVICES; d++) {

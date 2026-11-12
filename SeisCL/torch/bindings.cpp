@@ -45,6 +45,7 @@
 #include <cstring>
 #include <fstream>
 #include <limits>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -337,6 +338,97 @@ void flush_pending_checkpoint(EngineHandle &h) {
     }
 }
 
+
+// ---------------------------------------------------------------------------
+// Robustness (decision 29, notes/torch-engine-robustness-plan.md).
+//
+// * One engine call at a time. The GIL is released during the GPU work
+//   (time_stepping can take minutes, and other Python threads must keep
+//   running), so two Python threads could otherwise enter the engine at once
+//   and share a handle. The lock is taken with the GIL released: a thread
+//   waiting for it must not hold the GIL that the running call needs to
+//   finish.
+// * A GPU fault (illegal address, launch failure, ...) leaves the CUDA
+//   context unusable for the rest of the process, and it is the primary
+//   context that PyTorch shares. After one, every later call raises at once
+//   with the original reason, instead of running on a dead context, and the
+//   faulty handle is abandoned rather than freed.
+// * A process forked after CUDA was initialised (DataLoader workers with the
+//   fork start method) must not touch CUDA: calls from such a child raise.
+std::mutex g_engine_mu;
+std::string g_dead_reason;   // non-empty once the CUDA context is unusable
+
+struct EngineLock {
+    std::unique_lock<std::mutex> lk;
+    EngineLock() : lk(g_engine_mu, std::defer_lock) {
+        py::gil_scoped_release nogil;
+        lk.lock();
+    }
+};
+
+void check_usable() {
+    if (forked_child()) {
+        throw std::runtime_error(
+            "SeisCL.torch cannot be used in a process forked after CUDA was "
+            "initialised (e.g. a DataLoader worker with the 'fork' start "
+            "method): CUDA calls there can hang. Call SeisCL from the main "
+            "process, or use multiprocessing's 'spawn' start method.");
+    }
+    if (!g_dead_reason.empty()) {
+        throw std::runtime_error(g_dead_reason);
+    }
+}
+
+// Errors after which the CUDA context cannot be used again.
+bool is_sticky(CUresult r) {
+    switch (r) {
+        case CUDA_ERROR_ILLEGAL_ADDRESS:
+        case CUDA_ERROR_ASSERT:
+        case CUDA_ERROR_LAUNCH_TIMEOUT:
+        case CUDA_ERROR_HARDWARE_STACK_ERROR:
+        case CUDA_ERROR_ILLEGAL_INSTRUCTION:
+        case CUDA_ERROR_MISALIGNED_ADDRESS:
+        case CUDA_ERROR_INVALID_ADDRESS_SPACE:
+        case CUDA_ERROR_INVALID_PC:
+        case CUDA_ERROR_LAUNCH_FAILED:
+        case CUDA_ERROR_ECC_UNCORRECTABLE:
+        case CUDA_ERROR_UNKNOWN:
+            return true;
+        default:
+            return false;
+    }
+}
+
+// A call failed with the engine's state code `state`. Find out whether the
+// GPU itself faulted (sticky error on the handle's context); if so, mark the
+// whole engine unusable and abandon the handle, else just evict it. Throws.
+[[noreturn]] void fail_call(const CacheKey &key, EngineHandle *h, int state,
+                            const std::string &what) {
+    CUresult r = CUDA_SUCCESS;
+    if (h && h->dev && h->m.NUM_DEVICES > 0) {
+        for (int d = 0; d < static_cast<int>(h->m.NUM_DEVICES); d++) {
+            if (!h->dev[d].context) continue;
+            cuCtxSetCurrent(h->dev[d].context);
+            r = cuCtxSynchronize();
+            if (r != CUDA_SUCCESS) break;
+        }
+    }
+    if (is_sticky(r)) {
+        const char *name = nullptr;
+        cuGetErrorName(r, &name);
+        g_dead_reason =
+            "SeisCL.torch: a GPU fault (" + std::string(name ? name : "?") +
+            ") during " + what + " left the CUDA context unusable; it is "
+            "shared with PyTorch, so restart the Python process. Please "
+            "report the configuration to the SeisCL maintainer.";
+        global_engine_cache().abandon(key);
+        throw std::runtime_error(g_dead_reason);
+    }
+    global_engine_cache().evict(key);
+    throw std::runtime_error("SeisCL " + what + " failed (state=" +
+                             std::to_string(state) + ")");
+}
+
 // Build on a miss, refresh on a hit. Any failure evicts the handle rather
 // than leaving a half-built or stale one for the next call to reuse.
 // build_gradout is what the engine is *built* for -- it decides which
@@ -371,11 +463,7 @@ EngineHandle *prepare_engine(const Config &cfg, const CacheKey &key,
         throw;
     }
 
-    if (state) {
-        cache.evict(key);
-        throw std::runtime_error("SeisCL engine setup failed (state=" +
-                                 std::to_string(state) + ")");
-    }
+    if (state) fail_call(key, h, state, "engine setup");
 
     // "Every output field" was requested as an empty list, but which fields
     // that actually means is only known now. Re-register under the resolved
@@ -408,6 +496,9 @@ py::dict run_forward(const Config &cfg, const py::dict &params,
                      torch::Tensor rec_pos,
                      const std::string &checkpoint_path,
                      const std::vector<std::string> &output_fields) {
+    EngineLock lock;
+    check_usable();
+    CtxRestore restore;
     bool has_checkpoint = !checkpoint_path.empty();
 
     int inputres = has_checkpoint ? 1 : 0;
@@ -466,12 +557,12 @@ py::dict run_forward(const Config &cfg, const py::dict &params,
                     sizeof(files.checkpoint) - 1);
     }
 
-    int state = time_stepping(&h->m, &h->dev, files);
-    if (state) {
-        global_engine_cache().evict(key);
-        throw std::runtime_error("SeisCL forward pass failed (state=" +
-                                 std::to_string(state) + ")");
+    int state;
+    {
+        py::gil_scoped_release nogil;
+        state = time_stepping(&h->m, &h->dev, files);
     }
+    if (state) fail_call(key, h, state, "forward pass");
 
     if (skip_file || in_memory) {
         h->pending_valid = true;
@@ -485,6 +576,9 @@ py::dict run_backward(const Config &cfg, const py::dict &params,
                       torch::Tensor src, torch::Tensor src_pos,
                       torch::Tensor rec_pos, const py::dict &residuals,
                       const std::string &checkpoint_path) {
+    EngineLock lock;
+    check_usable();
+    CtxRestore restore;
     if (checkpoint_path.empty()) {
         throw std::invalid_argument(
             "checkpoint_path is required for the backward pass "
@@ -598,14 +692,14 @@ py::dict run_backward(const Config &cfg, const py::dict &params,
     std::strncpy(files.checkpoint, checkpoint_path.c_str(),
                 sizeof(files.checkpoint) - 1);
 
-    int state = time_stepping(&h->m, &h->dev, files);
+    int state;
+    {
+        py::gil_scoped_release nogil;
+        state = time_stepping(&h->m, &h->dev, files);
+    }
     // Consumed either way: the adjoint pass has overwritten the buffers.
     h->pending_valid = false;
-    if (state) {
-        global_engine_cache().evict(key);
-        throw std::runtime_error("SeisCL backward pass failed (state=" +
-                                 std::to_string(state) + ")");
-    }
+    if (state) fail_call(key, h, state, "backward pass");
 
     return collect_grads(h->m);
 }
@@ -664,6 +758,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
 
     m.def("set_engine_cache_size",
          [](std::size_t n) {
+             seiscl_torch::EngineLock lock;
+             seiscl_torch::check_usable();
+             seiscl_torch::CtxRestore restore;
              seiscl_torch::global_engine_cache().set_max_size(n);
          },
          "Set how many built engines (CUDA context + compiled kernels + "
@@ -714,17 +811,34 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
          py::arg("budget_bytes") = py::none(),
          py::arg("ram_fraction") = py::none());
 
+    m.def("engine_dead_reason",
+         []() { return seiscl_torch::g_dead_reason; },
+         "Empty while the engine is usable; else why it is not (a GPU fault "
+         "made the CUDA context unusable for the rest of the process).");
+
     m.def("available_ram_bytes", &seiscl_torch::available_ram_bytes,
          "Memory the kernel currently reports as available, which is what "
          "the 'auto' checkpoint policy sizes itself against. 0 if unknown.");
 
     m.def("clear_engine_cache",
-         []() { seiscl_torch::global_engine_cache().clear(); },
+         []() {
+             seiscl_torch::EngineLock lock;
+             seiscl_torch::check_usable();
+             seiscl_torch::CtxRestore restore;
+             seiscl_torch::global_engine_cache().clear();
+         },
          "Free every cached engine and its GPU resources. The next call "
          "rebuilds from scratch.");
 
     m.def("_shutdown_engine_cache",
-         []() { seiscl_torch::global_engine_cache().clear(); },
+         []() {
+             // Never raise at exit. A forked child, or a dead context, leaks
+             // instead of freeing (clear() and abandon() handle the child).
+             seiscl_torch::EngineLock lock;
+             if (!seiscl_torch::g_dead_reason.empty()) return;
+             seiscl_torch::CtxRestore restore;
+             seiscl_torch::global_engine_cache().clear();
+         },
          "atexit hook: frees cached engines while the CUDA driver is still "
          "alive, rather than relying on static destruction order.");
 }

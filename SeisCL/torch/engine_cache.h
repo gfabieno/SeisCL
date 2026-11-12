@@ -50,6 +50,11 @@ class EngineCache {
     // in-flight call holds a raw pointer to it. Setting the size to 0
     // therefore still leaves one entry behind; use clear() to release it.
     void set_max_size(std::size_t n);
+    // Remove a handle WITHOUT freeing its GPU resources (they are leaked on
+    // purpose). Used when the CUDA context is dead after a GPU fault, or in
+    // a forked child: freeing there can fail or block in the driver.
+    void abandon(const CacheKey &key);
+    ~EngineCache();
     std::size_t size();
     void clear();
 
@@ -67,6 +72,10 @@ class EngineCache {
 };
 
 EngineCache &global_engine_cache();
+
+// True in a process forked after this module was loaded. CUDA state is not
+// valid in a forked child: any CUDA call there can hang.
+bool forked_child();
 
 }  // namespace seiscl_torch
 

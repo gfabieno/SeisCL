@@ -328,6 +328,37 @@ CL_INT connect_devices(device ** dev, model * m)
 }
 
 
+/* Launch the material-averaging kernels (average_params.cl) of one device and
+   read the averages back to the host, because res_scale() (residuals.c)
+   reads the host rip/rkp. The kernels are created once by Init_CUDA /
+   Init_OpenCL; this runs at build time and again every time the parameters
+   are uploaded anew (the PyTorch engine's engine_refresh_params), since the
+   averages depend on rho and mu. Does nothing when the host averages
+   (use_gpu_average() false). The device must be current (CUDA). */
+int param_average_run(model * m, device * di){
+    int state = 0;
+    if (!use_gpu_average(m)) return 0;
+    const char * names2[3] = {"rip", "rkp", "muipkp"};
+    const char * names3[3] = {"rjp", "muipjp", "mujpkp"};
+    __GUARD prog_launch(&di->queue, &di->par_avg.rip);
+    __GUARD prog_launch(&di->queue, &di->par_avg.rkp);
+    __GUARD prog_launch(&di->queue, &di->par_avg.muipkp);
+    if (m->ND==3){
+        __GUARD prog_launch(&di->queue, &di->par_avg.rjp);
+        __GUARD prog_launch(&di->queue, &di->par_avg.muipjp);
+        __GUARD prog_launch(&di->queue, &di->par_avg.mujpkp);
+    }
+    for (int i=0; i<3; i++){
+        parameter * p = get_par(di->pars, di->npars, names2[i]);
+        __GUARD clbuf_read(&di->queue, &p->cl_par);
+        if (m->ND==3){
+            p = get_par(di->pars, di->npars, names3[i]);
+            __GUARD clbuf_read(&di->queue, &p->cl_par);
+        }
+    }
+    return state;
+}
+
 int Init_CUDA(model * m, device ** dev)  {
     /* Function that intialize model decomposition on multiple devices on one
        host. All OpenCL buffers and kernels are created and are contained in a
@@ -846,16 +877,6 @@ int Init_CUDA(model * m, device ** dev)  {
                 di->par_avg.muipkp.gsize[1]=par_NY;
                 di->par_avg.muipkp.gsize[2]=par_NX;
 
-                __GUARD prog_launch(&di->queue, &di->par_avg.rip);
-                __GUARD prog_launch(&di->queue, &di->par_avg.rkp);
-                __GUARD prog_launch(&di->queue, &di->par_avg.muipkp);
-
-                parameter * rip_par = get_par(di->pars, di->npars, "rip");
-                parameter * rkp_par = get_par(di->pars, di->npars, "rkp");
-                parameter * muipkp_par = get_par(di->pars, di->npars, "muipkp");
-                __GUARD clbuf_read(&di->queue, &rip_par->cl_par);
-                __GUARD clbuf_read(&di->queue, &rkp_par->cl_par);
-                __GUARD clbuf_read(&di->queue, &muipkp_par->cl_par);
 
                 if (m->ND==3){
                     di->par_avg.rjp=m->par_avg.rjp;
@@ -876,20 +897,8 @@ int Init_CUDA(model * m, device ** dev)  {
                     di->par_avg.mujpkp.gsize[0]=di->N[0];
                     di->par_avg.mujpkp.gsize[1]=par_NY;
                     di->par_avg.mujpkp.gsize[2]=par_NX;
-
-                    __GUARD prog_launch(&di->queue, &di->par_avg.rjp);
-                    __GUARD prog_launch(&di->queue, &di->par_avg.muipjp);
-                    __GUARD prog_launch(&di->queue, &di->par_avg.mujpkp);
-
-                    parameter * rjp_par = get_par(di->pars, di->npars, "rjp");
-                    parameter * muipjp_par = get_par(di->pars, di->npars,
-                                                     "muipjp");
-                    parameter * mujpkp_par = get_par(di->pars, di->npars,
-                                                     "mujpkp");
-                    __GUARD clbuf_read(&di->queue, &rjp_par->cl_par);
-                    __GUARD clbuf_read(&di->queue, &muipjp_par->cl_par);
-                    __GUARD clbuf_read(&di->queue, &mujpkp_par->cl_par);
                 }
+                __GUARD param_average_run(m, di);
             }
 
         }
