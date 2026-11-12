@@ -1,5 +1,6 @@
 #include "engine_handle.h"
 
+#include <cstdlib>
 #include <cstring>
 #include <stdexcept>
 
@@ -8,6 +9,7 @@ namespace seiscl_torch {
 EngineHandle::EngineHandle() { std::memset(&m, 0, sizeof(model)); }
 
 EngineHandle::~EngineHandle() {
+    CtxRestore restore;
     // time_stepping() deliberately leaves a RAM-backed checkpoint open for
     // the adjoint pass; this is where it finally goes away.
     if (m.CKPT_FILE_ID > 0) H5Fclose(m.CKPT_FILE_ID);
@@ -159,6 +161,13 @@ void apply_config(model &m, const Config &cfg, int gradout, int inputres) {
     m.GRADOUT = gradout;
     m.INPUTRES = inputres;
     m.VARSOUT = 1;
+
+    // Debug: SEISCL_CACHE_DIR=<existing folder> keeps each kernel's exact
+    // source and options there (<kernel>-0-0.src/.opt), as SeisCL_MPI does
+    // in <input>_cache, so that a memcheck line number can be read.
+    if (const char *dir = std::getenv("SEISCL_CACHE_DIR")) {
+        std::strncpy(m.cache_dir, dir, sizeof(m.cache_dir) - 1);
+    }
 
     // Single process, single group: no MPI (mirrors SeisCL_MPI.c:main()'s
     // __NOMPI__ branch).
@@ -350,6 +359,12 @@ int engine_refresh_params(EngineHandle &h, const py::dict &params) {
             state = clbuf_send(&h.dev[d].queue, &h.dev[d].pars[i].cl_par);
             if (state) return state;
         }
+        // The material averages (rip, rkp, muipkp, and rjp, muipjp, mujpkp
+        // in 3-D) are computed by the device from rho and mu: Init_CUDA does
+        // it once at build time, so without this a cache hit kept the
+        // averages of the model of the first call.
+        state = param_average_run(&h.m, &h.dev[d]);
+        if (state) return state;
     }
     return 0;
 }

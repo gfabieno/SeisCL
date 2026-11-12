@@ -24,6 +24,20 @@ extern "C" {
 
 namespace seiscl_torch {
 
+// Saves the calling thread's current CUDA context and restores it on scope
+// exit. The engine switches to its device's primary context
+// (cuCtxSetCurrent) in many places and used to leave it current, so the
+// caller -- usually PyTorch on another device, or with its own notion of the
+// current device -- found the thread on SeisCL's context after every call.
+struct CtxRestore {
+    CUcontext saved = nullptr;
+    bool ok = false;
+    CtxRestore() { ok = (cuCtxGetCurrent(&saved) == CUDA_SUCCESS); }
+    ~CtxRestore() { if (ok) cuCtxSetCurrent(saved); }
+    CtxRestore(const CtxRestore &) = delete;
+    CtxRestore &operator=(const CtxRestore &) = delete;
+};
+
 struct EngineHandle {
     model m;
     device *dev = nullptr;
