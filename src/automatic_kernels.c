@@ -898,19 +898,13 @@ int kernel_gradinit(device * dev,
     #ifdef __SEISCL__
     strcat(temp,"    int gid = get_global_id(0);\n\n");
     #else
-    if (dev->NDIM==2){
-        
-        strcat(temp,"int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
-               "int gidx = blockIdx.y*blockDim.y + threadIdx.y;\n"
-               "int gid = gidx*blockDim.x*gridDim.x+gidz;\n");
-    }
-    else if (dev->NDIM==3){
-        strcat(temp,"int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
-               "int gidy = blockIdx.y*blockDim.y + threadIdx.y;\n"
-               "int gidx = blockIdx.y*blockDim.z + threadIdx.z;\n"
-               "int gid = gidx*blockDim.x*gridDim.x*blockDim.y*gridDim.y"
-               "+gidy*blockDim.x*gridDim.x +gidz;\n");
-    }
+    /* One flat index over the prod(N) cells, launched 1-D (below), as the
+       OpenCL branch does. The 3-D version used blockIdx.y for gidx (so
+       gidx == gidy): only a sparse subset of the gradient and Hessian cells
+       was zeroed, and the others kept whatever the memory held -- the
+       previous call's gradient on a reused buffer (PyTorch engine), which
+       was then added to the new one. */
+    strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n");
     if (dev->npars>0){
         sprintf(temp2,"    if (gid>%d-1){\n", pars[0].num_ele);
         strcat(temp,temp2);
@@ -942,14 +936,11 @@ int kernel_gradinit(device * dev,
     }
     prog->wdim=1;
     #else
-    prog->gsize[0]=dev->N[0];
-
-    prog->gsize[1]=dev->N[1];
-    if (dev->NDIM==3){
-        prog->gsize[2]=dev->N[2];
+    prog->gsize[0]=1;
+    for (i=0;i<dev->NDIM;i++){
+        prog->gsize[0]*=dev->N[i];
     }
-    
-    prog->wdim=dev->NDIM;
+    prog->wdim=1;
     #endif
     
 //        printf("%s\n\n%lu\n",temp, strlen(temp));
