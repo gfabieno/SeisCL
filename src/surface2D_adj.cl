@@ -102,6 +102,9 @@ FUNDEF void surface_adj(GLOBARG __prec *vxr,        GLOBARG __prec *vzr,
 //            }
 //    #endif
 
+#if FP16!=0
+    /* FP16 path (no surface_adj_fold): scatter into vxr of neighbouring
+       columns. Not race-free: other threads add to the same cells. */
     for (int m=0; m<FDOH; m++){
         if ( (gidx-FDOH + m) < (NX - 2*FDOH))
             vxr[indv(gidz,gidx + m)]+=(hc[m] * hx * lsxx *
@@ -112,6 +115,7 @@ FUNDEF void surface_adj(GLOBARG __prec *vxr,        GLOBARG __prec *vzr,
         vzr[indv(gidz+m,gidx)] += (hc[m] *hz * lsxx
                                    * (__cprec1)rkp[indp(gidz+m,gidx)]);
     }
+#endif
 
     //Perform the post-adjoint transformation L^-1
     szzr[indv(gidz,  gidx)] = -( lM * lszz + ( lM - (__cprec1)2.0 * lmu) * lsxx );
@@ -151,28 +155,36 @@ FUNDEF void surface_adj(GLOBARG __prec *vxr,        GLOBARG __prec *vzr,
 
 
 
-/* Adjoint of the free surface, first part (FREESURF==1, 2D elastic).
+/* Adjoint of the free surface, first part (FREESURF==1, 2D elastic, FP16==0).
+   Launched just before surface_adj, between the adjoint stress update and the
+   adjoint velocity update (the place of the surface kernel in the forward
+   step). One thread per column; each thread writes only its own column, so
+   the kernel is race-free. The adjoint fields are stored as T*lambda with
+   T = diag(B, -C) (symmetrised adjoint).
 
-   In the forward step, update_v reads the stress images that the surface
-   kernel writes above the surface (szz through Dzp, sxz through Dzm). Their
-   adjoint is a contribution of the adjoint velocities to those image rows,
-   which the transpose of the mirroring folds back, with a minus sign, into the
-   rows below the surface (szz at FDOH+k, sxz at FDOH+k-1); the image rows of
-   the adjoint stresses stay zero. The adjoint fields are stored as
-   T*lambda with T = diag(B, -C) (symmetrised adjoint), so in stored variables:
-     img_szz(k) = -sum_{m>=k}   hc[m] * vzr(FDOH-k+m)
-     img_sxz(k) = -sum_{m>=k-1} hc[m] * vxr(FDOH-k+m+1)
-     szzr(FDOH+k) += M img_szz, sxxr(FDOH+k) += (M-2mu) img_szz,
-     sxzr(FDOH+k-1) += muipkp img_sxz.
-   It uses the adjoint velocities before surface_adj adds the sxx term to
-   them (vxr in neighbouring columns), hence a separate kernel, launched just
-   before surface_adj, between the adjoint stress and velocity updates.
+   1. Adjoint of the stress images. In the forward step, update_v reads the
+      images that the surface kernel writes above the surface (szz through
+      Dzp, sxz through Dzm). Their adjoint is a contribution of the adjoint
+      velocities to the image rows, which the transpose of the mirroring folds
+      back, with a minus sign, into the rows below the surface:
+        img_szz(k) = -sum_{m>=k}   hc[m] * vzr(FDOH-k+m)
+        img_sxz(k) = -sum_{m>=k-1} hc[m] * vxr(FDOH-k+m+1)
+        szzr(FDOH+k) += M img_szz, sxxr(FDOH+k) += (M-2mu) img_szz,
+        sxzr(FDOH+k-1) += muipkp img_sxz;
+      the image rows of the adjoint stresses stay zero. Uses the adjoint
+      velocities before step 2 changes them.
+   2. Adjoint of the sxx correction, h = hx*Dxm(vx) + hz*Dzm(vz): as a gather
+      of the contributions of the surface sxx of the neighbouring columns
+      (read before surface_adj transforms them) into this column's vxr, and of
+      this column's into its vzr. surface_adj used to scatter into vxr of
+      neighbouring columns with +=, a write race between threads.
    Derived and checked against the exact transpose of one time step:
    ~/data/claude/torch-robust/fsadj/ (ref.py, derive.py). */
 FUNDEF void surface_adj_fold(GLOBARG __prec *vxr,  GLOBARG __prec *vzr,
                              GLOBARG __prec *sxxr, GLOBARG __prec *szzr,
                              GLOBARG __prec *sxzr, GLOBARG __prec *M,
-                             GLOBARG __prec *mu,   GLOBARG __prec *muipkp)
+                             GLOBARG __prec *mu,   GLOBARG __prec *muipkp,
+                             GLOBARG __prec *rip,  GLOBARG __prec *rkp)
 {
     #ifdef __OPENCL_VERSION__
     int gidx = get_global_id(0) + FDOH;
@@ -182,7 +194,10 @@ FUNDEF void surface_adj_fold(GLOBARG __prec *vxr,  GLOBARG __prec *vzr,
     if ( gidx>(NX-FDOH-1) ){
         return;
     }
+    int gidz = FDOH;
     __cprec1 hc[6] = {HC1, HC2, HC3, HC4, HC5, HC6};
+
+    // 1. Adjoint of the stress images (reads vxr, vzr of this column first)
     for (int k=1; k<=FDOH; k++){
         __cprec1 img_szz = 0;
         __cprec1 img_sxz = 0;
@@ -202,5 +217,40 @@ FUNDEF void surface_adj_fold(GLOBARG __prec *vxr,  GLOBARG __prec *vzr,
     for (int m=1; m<=FDOH; m++){
         szzr[indv(FDOH-m, gidx)] = 0;
         sxzr[indv(FDOH-m, gidx)] = 0;
+    }
+
+    // 2. Adjoint of the sxx correction. hx*lsxx of column c, lsxx being the
+    //    surface sxx of column c after the transform L (as in surface_adj).
+    __cprec1 dvx = 0;
+    for (int m=0; m<FDOH; m++){
+        // column c = gidx - m wrote +hc[m]*hx*lsxx*rip into gidx (forward Dxm)
+        int c = gidx - m;
+        if (c >= FDOH){
+            __cprec1 cM = M[indp(gidz, c)], cmu = mu[indp(gidz, c)];
+            __cprec1 a = (__cprec1)1.0/( (__cprec1)4.0*cM*cmu - (__cprec1)4.0*cmu*cmu);
+            __cprec1 lsxx = -a * ( cM * (__cprec1)sxxr[indv(gidz, c)]
+                                  + (-cM + (__cprec1)2.0 * cmu) * (__cprec1)szzr[indv(gidz, c)] );
+            dvx += hc[m] * (-((cM-cmu*(__cprec1)2.0)*(cM-cmu*(__cprec1)2.0)/cM)) * lsxx;
+        }
+        // column c = gidx + m + 1 wrote -hc[m]*hx*lsxx*rip into gidx
+        c = gidx + m + 1;
+        if (c <= NX-FDOH-1){
+            __cprec1 cM = M[indp(gidz, c)], cmu = mu[indp(gidz, c)];
+            __cprec1 a = (__cprec1)1.0/( (__cprec1)4.0*cM*cmu - (__cprec1)4.0*cmu*cmu);
+            __cprec1 lsxx = -a * ( cM * (__cprec1)sxxr[indv(gidz, c)]
+                                  + (-cM + (__cprec1)2.0 * cmu) * (__cprec1)szzr[indv(gidz, c)] );
+            dvx -= hc[m] * (-((cM-cmu*(__cprec1)2.0)*(cM-cmu*(__cprec1)2.0)/cM)) * lsxx;
+        }
+    }
+    vxr[indv(gidz, gidx)] += dvx * (__cprec1)rip[indp(gidz, gidx)];
+    {
+        __cprec1 lM = M[indp(gidz, gidx)], lmu = mu[indp(gidz, gidx)];
+        __cprec1 a = (__cprec1)1.0/( (__cprec1)4.0*lM*lmu - (__cprec1)4.0*lmu*lmu);
+        __cprec1 lsxx = -a * ( lM * (__cprec1)sxxr[indv(gidz, gidx)]
+                              + (-lM + (__cprec1)2.0 * lmu) * (__cprec1)szzr[indv(gidz, gidx)] );
+        __cprec1 hz = -(lM-lmu*(__cprec1)2.0);
+        for (int m=0; m<FDOH; m++){
+            vzr[indv(gidz+m, gidx)] += hc[m] * hz * lsxx * (__cprec1)rkp[indp(gidz+m, gidx)];
+        }
     }
 }
