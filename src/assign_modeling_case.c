@@ -920,14 +920,14 @@ int set_par_scale( void *mptr){
 
 //Assign parameters list depending on which case of modeling is desired
 /* Whether the material averages (rip, rjp, rkp, muipkp, muipjp, mujpkp) are
-   computed on the device by average_params.cl. Not for FP16>1: the device
-   parameters are then half, and the kernels read and write float (an Xid 31
-   write fault on cgm-geo1). The environment variable SEISCL_HOST_AVERAGE=1
-   forces the host path, so that tests can compare both. */
+   computed on the device by average_params.cl. For every FP16 value: with
+   FP16>1 the kernels read and write half (average_params.cl, APAR). The
+   environment variable SEISCL_HOST_AVERAGE=1 forces the host path, so that
+   tests can compare both. */
 int use_gpu_average(model * m){
     const char * v = getenv("SEISCL_HOST_AVERAGE");
     if (v && v[0]=='1') return 0;
-    return (m->ND==2 || m->ND==3) && m->FP16<=1;
+    return (m->ND==2 || m->ND==3);
 }
 
 int assign_modeling_case(model * m){
@@ -1177,11 +1177,10 @@ int assign_modeling_case(model * m){
       needs header_CUDACL_source (headers count 1, like savebnd above) --
       no FD stencil or CPML macros.*/
     /* FP16>1 stores the parameters as half on the device (Init_OpenCL.c
-       halves cl_par.size), while average_params.cl reads and writes float:
-       on the device it would write twice past the end of each buffer (an
-       Xid 31 write fault on cgm-geo1, notes/gpu-memory-audit-plan.md). For
-       FP16>1 the averages are computed on the host instead, by the
-       transforms below, before Init_model_values() converts to half. */
+       halves cl_par.size); average_params.cl then reads and writes half
+       (it used to write float, twice past the end of each buffer: Xid 31 on
+       cgm-geo1). With SEISCL_HOST_AVERAGE=1 the averages are computed on the
+       host instead, by the transforms below. */
     int gpu_avg = use_gpu_average(m);
     if (gpu_avg){
         __GUARD prog_source(&m->par_avg.rip, "ave_rip", average_params_source,

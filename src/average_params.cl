@@ -56,189 +56,149 @@
   even though the computation itself now happens on-device).
 
   Viscoelastic (tausipkp/tausipjp/tausjpkp, same arithmetic-average pattern
-  as rip/rkp/rjp) is the same mechanical extension, not yet done. */
+  as rip/rkp/rjp) is the same mechanical extension, not yet done.
 
-FUNDEF void ave_rip(GLOBARG float *rho, GLOBARG float *rip)
-{
-#ifdef __OPENCL_VERSION__
-    int gidz = get_global_id(0);
-    int gidy = get_global_id(1);
-    int gidx = get_global_id(2);
+  Storage type. With FP16>1 the device parameter buffers hold one half per
+  cell (Init_model.c converts gl_par in place, Init_OpenCL.c halves
+  cl_par.size), in the same order as the float arrays. The kernels used to
+  read and write float there, so they wrote one buffer length past the end
+  of every averaged parameter (Xid 31 on cgm-geo1, 2026-11-10). APAR is the
+  storage type, AVLD reads one cell as float, AVST rounds a float to the
+  storage type (round to nearest even, like float_to_half_full_rtne on the
+  host). The arithmetic is always float. */
+
+#if FP16>1
+    #ifdef __OPENCL_VERSION__
+        #define APAR half
+        #define AVLD(p, i) vload_half((i), (p))
+        #define AVST(p, i, v) vstore_half_rte((v), (i), (p))
+    #else
+        #define APAR __half
+        #define AVLD(p, i) __half2float((p)[(i)])
+        #define AVST(p, i, v) ((p)[(i)] = __float2half_rn((v)))
+    #endif
 #else
-    int gidz = blockIdx.x * blockDim.x + threadIdx.x;
-    int gidy = blockIdx.y * blockDim.y + threadIdx.y;
-    int gidx = blockIdx.z * blockDim.z + threadIdx.z;
+    #define APAR float
+    #define AVLD(p, i) ((p)[(i)])
+    #define AVST(p, i, v) ((p)[(i)] = (v))
 #endif
-    if (gidz >= PARNZ || gidy >= PARNY || gidx >= PARNX) return;
 
-    int ind1 = gidx * PARNY * PARNZ + gidy * PARNZ + gidz;
+/* Thread index and bounds check, the same in every kernel. */
+#ifdef __OPENCL_VERSION__
+    #define AVE_GID int gidz = get_global_id(0); \
+                    int gidy = get_global_id(1); \
+                    int gidx = get_global_id(2);
+#else
+    #define AVE_GID int gidz = blockIdx.x * blockDim.x + threadIdx.x; \
+                    int gidy = blockIdx.y * blockDim.y + threadIdx.y; \
+                    int gidx = blockIdx.z * blockDim.z + threadIdx.z;
+#endif
+#define AVE_IND(x, y, z) ((x) * PARNY * PARNZ + (y) * PARNZ + (z))
+
+/* Buoyancy average between two cells (eq. 6, same zero-guard as
+   ave_arithmetic_rho in assign_modeling_case.c): both vacuum -> 0; one
+   vacuum -> twice the solid neighbour; both solid -> harmonic combination. */
+LFUNDEF float ave_two(float a, float b)
+{
+    if (a == 0.0f && b == 0.0f) return 0.0f;
+    if (a == 0.0f) return 2.0f * b;
+    if (b == 0.0f) return 2.0f * a;
+    return 2.0f / (1.0f / a + 1.0f / b);
+}
+
+/* Shear modulus average over four cells (eq. 8, same zero-guard as
+   ave_harmonic_mu): zero if any of the four cells is vacuum. */
+LFUNDEF float ave_four(float a, float b, float c, float d)
+{
+    if (a == 0.0f || b == 0.0f || c == 0.0f || d == 0.0f) return 0.0f;
+    return 4.0f / (1.0f / a + 1.0f / b + 1.0f / c + 1.0f / d);
+}
+
+
+
+/* rip: average along x. The last plane keeps the cell value. */
+FUNDEF void ave_rip(GLOBARG APAR *rho, GLOBARG APAR *rip)
+{
+    AVE_GID
+    if (gidz >= PARNZ || gidy >= PARNY || gidx >= PARNX) return;
+    int i1 = AVE_IND(gidx, gidy, gidz);
     if (gidx == PARNX - 1) {
-        rip[ind1] = rho[ind1];
+        AVST(rip, i1, AVLD(rho, i1));
         return;
     }
-    int ind2 = (gidx + 1) * PARNY * PARNZ + gidy * PARNZ + gidz;
-    // Same eq. 6 zero-guard as ave_arithmetic_rho (assign_modeling_case.c):
-    // both vacuum -> 0; one vacuum -> twice the solid neighbor's buoyancy;
-    // both solid -> harmonic-of-density combination.
-    if (rho[ind1] == 0.0f && rho[ind2] == 0.0f) {
-        rip[ind1] = 0.0f;
-    } else if (rho[ind1] == 0.0f) {
-        rip[ind1] = 2.0f * rho[ind2];
-    } else if (rho[ind2] == 0.0f) {
-        rip[ind1] = 2.0f * rho[ind1];
-    } else {
-        rip[ind1] = 2.0f / (1.0f / rho[ind1] + 1.0f / rho[ind2]);
-    }
+    AVST(rip, i1, ave_two(AVLD(rho, i1), AVLD(rho, AVE_IND(gidx + 1, gidy, gidz))));
 }
 
-FUNDEF void ave_rjp(GLOBARG float *rho, GLOBARG float *rjp)
+/* rjp: average along y (3-D only). */
+FUNDEF void ave_rjp(GLOBARG APAR *rho, GLOBARG APAR *rjp)
 {
-#ifdef __OPENCL_VERSION__
-    int gidz = get_global_id(0);
-    int gidy = get_global_id(1);
-    int gidx = get_global_id(2);
-#else
-    int gidz = blockIdx.x * blockDim.x + threadIdx.x;
-    int gidy = blockIdx.y * blockDim.y + threadIdx.y;
-    int gidx = blockIdx.z * blockDim.z + threadIdx.z;
-#endif
+    AVE_GID
     if (gidz >= PARNZ || gidy >= PARNY || gidx >= PARNX) return;
-
-    int ind1 = gidx * PARNY * PARNZ + gidy * PARNZ + gidz;
+    int i1 = AVE_IND(gidx, gidy, gidz);
     if (gidy == PARNY - 1) {
-        rjp[ind1] = rho[ind1];
+        AVST(rjp, i1, AVLD(rho, i1));
         return;
     }
-    int ind2 = gidx * PARNY * PARNZ + (gidy + 1) * PARNZ + gidz;
-    if (rho[ind1] == 0.0f && rho[ind2] == 0.0f) {
-        rjp[ind1] = 0.0f;
-    } else if (rho[ind1] == 0.0f) {
-        rjp[ind1] = 2.0f * rho[ind2];
-    } else if (rho[ind2] == 0.0f) {
-        rjp[ind1] = 2.0f * rho[ind1];
-    } else {
-        rjp[ind1] = 2.0f / (1.0f / rho[ind1] + 1.0f / rho[ind2]);
-    }
+    AVST(rjp, i1, ave_two(AVLD(rho, i1), AVLD(rho, AVE_IND(gidx, gidy + 1, gidz))));
 }
 
-FUNDEF void ave_rkp(GLOBARG float *rho, GLOBARG float *rkp)
+/* rkp: average along z. */
+FUNDEF void ave_rkp(GLOBARG APAR *rho, GLOBARG APAR *rkp)
 {
-#ifdef __OPENCL_VERSION__
-    int gidz = get_global_id(0);
-    int gidy = get_global_id(1);
-    int gidx = get_global_id(2);
-#else
-    int gidz = blockIdx.x * blockDim.x + threadIdx.x;
-    int gidy = blockIdx.y * blockDim.y + threadIdx.y;
-    int gidx = blockIdx.z * blockDim.z + threadIdx.z;
-#endif
+    AVE_GID
     if (gidz >= PARNZ || gidy >= PARNY || gidx >= PARNX) return;
-
-    int ind1 = gidx * PARNY * PARNZ + gidy * PARNZ + gidz;
+    int i1 = AVE_IND(gidx, gidy, gidz);
     if (gidz == PARNZ - 1) {
-        rkp[ind1] = rho[ind1];
+        AVST(rkp, i1, AVLD(rho, i1));
         return;
     }
-    int ind2 = gidx * PARNY * PARNZ + gidy * PARNZ + (gidz + 1);
-    if (rho[ind1] == 0.0f && rho[ind2] == 0.0f) {
-        rkp[ind1] = 0.0f;
-    } else if (rho[ind1] == 0.0f) {
-        rkp[ind1] = 2.0f * rho[ind2];
-    } else if (rho[ind2] == 0.0f) {
-        rkp[ind1] = 2.0f * rho[ind1];
-    } else {
-        rkp[ind1] = 2.0f / (1.0f / rho[ind1] + 1.0f / rho[ind2]);
-    }
+    AVST(rkp, i1, ave_two(AVLD(rho, i1), AVLD(rho, AVE_IND(gidx, gidy, gidz + 1))));
 }
 
-FUNDEF void ave_muipkp(GLOBARG float *mu, GLOBARG float *muipkp)
+/* muipkp: average over the x-z cell. */
+FUNDEF void ave_muipkp(GLOBARG APAR *mu, GLOBARG APAR *muipkp)
 {
-#ifdef __OPENCL_VERSION__
-    int gidz = get_global_id(0);
-    int gidy = get_global_id(1);
-    int gidx = get_global_id(2);
-#else
-    int gidz = blockIdx.x * blockDim.x + threadIdx.x;
-    int gidy = blockIdx.y * blockDim.y + threadIdx.y;
-    int gidx = blockIdx.z * blockDim.z + threadIdx.z;
-#endif
+    AVE_GID
     if (gidz >= PARNZ || gidy >= PARNY || gidx >= PARNX) return;
-
-    int ind1 = gidx * PARNY * PARNZ + gidy * PARNZ + gidz;
+    int i1 = AVE_IND(gidx, gidy, gidz);
     if (gidx == PARNX - 1 || gidz == PARNZ - 1) {
-        muipkp[ind1] = mu[ind1];
+        AVST(muipkp, i1, AVLD(mu, i1));
         return;
     }
-    int ind2 = (gidx + 1) * PARNY * PARNZ + gidy * PARNZ + gidz;
-    int ind3 = gidx * PARNY * PARNZ + gidy * PARNZ + (gidz + 1);
-    int ind4 = (gidx + 1) * PARNY * PARNZ + gidy * PARNZ + (gidz + 1);
-    // Same eq. 8 zero-guard as ave_harmonic_mu (assign_modeling_case.c):
-    // zero if any of the 4 contributing nodes is vacuum.
-    if (mu[ind1] == 0.0f || mu[ind2] == 0.0f ||
-        mu[ind3] == 0.0f || mu[ind4] == 0.0f) {
-        muipkp[ind1] = 0.0f;
-    } else {
-        muipkp[ind1] = 4.0f / (1.0f / mu[ind1] + 1.0f / mu[ind2] +
-                               1.0f / mu[ind3] + 1.0f / mu[ind4]);
-    }
+    AVST(muipkp, i1, ave_four(AVLD(mu, i1),
+                              AVLD(mu, AVE_IND(gidx + 1, gidy, gidz)),
+                              AVLD(mu, AVE_IND(gidx, gidy, gidz + 1)),
+                              AVLD(mu, AVE_IND(gidx + 1, gidy, gidz + 1))));
 }
 
-FUNDEF void ave_muipjp(GLOBARG float *mu, GLOBARG float *muipjp)
+/* muipjp: average over the x-y cell (3-D only). */
+FUNDEF void ave_muipjp(GLOBARG APAR *mu, GLOBARG APAR *muipjp)
 {
-#ifdef __OPENCL_VERSION__
-    int gidz = get_global_id(0);
-    int gidy = get_global_id(1);
-    int gidx = get_global_id(2);
-#else
-    int gidz = blockIdx.x * blockDim.x + threadIdx.x;
-    int gidy = blockIdx.y * blockDim.y + threadIdx.y;
-    int gidx = blockIdx.z * blockDim.z + threadIdx.z;
-#endif
+    AVE_GID
     if (gidz >= PARNZ || gidy >= PARNY || gidx >= PARNX) return;
-
-    int ind1 = gidx * PARNY * PARNZ + gidy * PARNZ + gidz;
+    int i1 = AVE_IND(gidx, gidy, gidz);
     if (gidx == PARNX - 1 || gidy == PARNY - 1) {
-        muipjp[ind1] = mu[ind1];
+        AVST(muipjp, i1, AVLD(mu, i1));
         return;
     }
-    int ind2 = (gidx + 1) * PARNY * PARNZ + gidy * PARNZ + gidz;
-    int ind3 = gidx * PARNY * PARNZ + (gidy + 1) * PARNZ + gidz;
-    int ind4 = (gidx + 1) * PARNY * PARNZ + (gidy + 1) * PARNZ + gidz;
-    if (mu[ind1] == 0.0f || mu[ind2] == 0.0f ||
-        mu[ind3] == 0.0f || mu[ind4] == 0.0f) {
-        muipjp[ind1] = 0.0f;
-    } else {
-        muipjp[ind1] = 4.0f / (1.0f / mu[ind1] + 1.0f / mu[ind2] +
-                               1.0f / mu[ind3] + 1.0f / mu[ind4]);
-    }
+    AVST(muipjp, i1, ave_four(AVLD(mu, i1),
+                              AVLD(mu, AVE_IND(gidx + 1, gidy, gidz)),
+                              AVLD(mu, AVE_IND(gidx, gidy + 1, gidz)),
+                              AVLD(mu, AVE_IND(gidx + 1, gidy + 1, gidz))));
 }
 
-FUNDEF void ave_mujpkp(GLOBARG float *mu, GLOBARG float *mujpkp)
+/* mujpkp: average over the y-z cell (3-D only). */
+FUNDEF void ave_mujpkp(GLOBARG APAR *mu, GLOBARG APAR *mujpkp)
 {
-#ifdef __OPENCL_VERSION__
-    int gidz = get_global_id(0);
-    int gidy = get_global_id(1);
-    int gidx = get_global_id(2);
-#else
-    int gidz = blockIdx.x * blockDim.x + threadIdx.x;
-    int gidy = blockIdx.y * blockDim.y + threadIdx.y;
-    int gidx = blockIdx.z * blockDim.z + threadIdx.z;
-#endif
+    AVE_GID
     if (gidz >= PARNZ || gidy >= PARNY || gidx >= PARNX) return;
-
-    int ind1 = gidx * PARNY * PARNZ + gidy * PARNZ + gidz;
+    int i1 = AVE_IND(gidx, gidy, gidz);
     if (gidy == PARNY - 1 || gidz == PARNZ - 1) {
-        mujpkp[ind1] = mu[ind1];
+        AVST(mujpkp, i1, AVLD(mu, i1));
         return;
     }
-    int ind2 = gidx * PARNY * PARNZ + (gidy + 1) * PARNZ + gidz;
-    int ind3 = gidx * PARNY * PARNZ + gidy * PARNZ + (gidz + 1);
-    int ind4 = gidx * PARNY * PARNZ + (gidy + 1) * PARNZ + (gidz + 1);
-    if (mu[ind1] == 0.0f || mu[ind2] == 0.0f ||
-        mu[ind3] == 0.0f || mu[ind4] == 0.0f) {
-        mujpkp[ind1] = 0.0f;
-    } else {
-        mujpkp[ind1] = 4.0f / (1.0f / mu[ind1] + 1.0f / mu[ind2] +
-                               1.0f / mu[ind3] + 1.0f / mu[ind4]);
-    }
+    AVST(mujpkp, i1, ave_four(AVLD(mu, i1),
+                              AVLD(mu, AVE_IND(gidx, gidy + 1, gidz)),
+                              AVLD(mu, AVE_IND(gidx, gidy, gidz + 1)),
+                              AVLD(mu, AVE_IND(gidx, gidy + 1, gidz + 1))));
 }
