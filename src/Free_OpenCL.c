@@ -257,6 +257,11 @@ void gradients_freeGL(gradients * grad){
 }
 
 void device_free(device * dev){
+    #ifndef __SEISCL__
+    /* Module unloads and frees act on the current context: make it this
+       device's one (the caller, e.g. PyTorch, may have another current). */
+    if (dev->context) cuCtxSetCurrent(dev->context);
+    #endif
     int i;
     
     if (dev->vars){

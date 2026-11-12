@@ -984,6 +984,15 @@ int assign_modeling_case(model * m){
                        "caller. The SeisCL Python wrapper does this for you.\n",
                 m->par_type);
     }
+    /* N[0] even: the kernels address the wavefield as float2/half2 along z
+       (clprogram.c halves NZ when FP16>0). read_hdf5.c refuses an odd N[0]
+       for SeisCL_MPI, for every FP16 value; the PyTorch engine does not read
+       an HDF5 file, so the same rule is applied here, for both. */
+    if (m->N[0]%2!=0){
+        state=1;
+        fprintf(stderr,"Error: N[0] (NZ=%d) must be a multiple of 2\n",
+                m->N[0]);
+    }
     /* SH (ND=21) gradients: the adjoint kernels update_adjs2D_SH.cl and
        update_adjv2D_SH.cl do not compile under CUDA, and their arguments
        (vy_r, sxy_r, syz_r, mu, rho, ...) do not match the names the host
