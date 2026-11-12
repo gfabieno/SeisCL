@@ -39,17 +39,23 @@ void clbuf_free(device *dev, clbuf *buf){
     else if (buf->free_host){
         GFree(buf->host);
     }
-    buf->host = NULL;
     buf->pin = NULL;
     #else
-    
+    /* Free only what this buffer owns: malloc'd memory (free_host) or pinned
+       memory from clbuf_create_pin (free_pin). Other host pointers are
+       borrowed (model parameters, constants, sources, the forward copy in
+       vars_adj); calling cuMemFreeHost on them is an invalid free. */
     if (buf->free_host){
         GFree(buf->host);
     }
-    else{
-        if (buf->host) cuMemFreeHost(buf->host);
+    else if (buf->free_pin && buf->host){
+        cuMemFreeHost(buf->host);
     }
     #endif
+    // Reset, so that a second clbuf_free on the same buffer does nothing.
+    buf->host = NULL;
+    buf->free_host = 0;
+    buf->free_pin = 0;
 
 
 }

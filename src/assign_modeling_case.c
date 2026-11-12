@@ -919,6 +919,17 @@ int set_par_scale( void *mptr){
 }
 
 //Assign parameters list depending on which case of modeling is desired
+/* Whether the material averages (rip, rjp, rkp, muipkp, muipjp, mujpkp) are
+   computed on the device by average_params.cl. For every FP16 value: with
+   FP16>1 the kernels read and write half (average_params.cl, APAR). The
+   environment variable SEISCL_HOST_AVERAGE=1 forces the host path, so that
+   tests can compare both. */
+int use_gpu_average(model * m){
+    const char * v = getenv("SEISCL_HOST_AVERAGE");
+    if (v && v[0]=='1') return 0;
+    return (m->ND==2 || m->ND==3);
+}
+
 int assign_modeling_case(model * m){
     
     int i;
@@ -972,6 +983,18 @@ int assign_modeling_case(model * m){
                        "model and apply the chain rule to the gradient in the "
                        "caller. The SeisCL Python wrapper does this for you.\n",
                 m->par_type);
+    }
+    /* SH (ND=21) gradients: the adjoint kernels update_adjs2D_SH.cl and
+       update_adjv2D_SH.cl do not compile under CUDA, and their arguments
+       (vy_r, sxy_r, syz_r, mu, rho, ...) do not match the names the host
+       binds: when made to compile they read out of bounds (finding B3 of the
+       2026-11 GPU memory audit). Refused for both back_prop_types until the
+       SH adjoint is rewritten. SH forward modelling is not affected. */
+    if (m->GRADOUT==1 && m->ND==21){
+        state=1;
+        fprintf(stderr,"Error: gradient computation is not available for "
+                       "ND=21 (SH): the SH adjoint kernels are broken (they "
+                       "read out of bounds). Forward modelling in SH works.\n");
     }
     if (m->GRADOUT==1 && m->ND==22){
         state=1;
@@ -1165,7 +1188,13 @@ int assign_modeling_case(model * m){
       skips them and this kernel is the only thing that fills them). Only
       needs header_CUDACL_source (headers count 1, like savebnd above) --
       no FD stencil or CPML macros.*/
-    if (m->ND==2 || m->ND==3){
+    /* FP16>1 stores the parameters as half on the device (Init_OpenCL.c
+       halves cl_par.size); average_params.cl then reads and writes half
+       (it used to write float, twice past the end of each buffer: Xid 31 on
+       cgm-geo1). With SEISCL_HOST_AVERAGE=1 the averages are computed on the
+       host instead, by the transforms below. */
+    int gpu_avg = use_gpu_average(m);
+    if (gpu_avg){
         __GUARD prog_source(&m->par_avg.rip, "ave_rip", average_params_source,
                             1, headers);
         __GUARD prog_source(&m->par_avg.rkp, "ave_rkp", average_params_source,
@@ -1173,7 +1202,7 @@ int assign_modeling_case(model * m){
         __GUARD prog_source(&m->par_avg.muipkp, "ave_muipkp",
                             average_params_source, 1, headers);
     }
-    if (m->ND==3){
+    if (gpu_avg && m->ND==3){
         __GUARD prog_source(&m->par_avg.rjp, "ave_rjp", average_params_source,
                             1, headers);
         __GUARD prog_source(&m->par_avg.muipjp, "ave_muipjp",
@@ -1232,20 +1261,19 @@ int assign_modeling_case(model * m){
         // host gl_par alone; Init_OpenCL.c reads the GPU-computed values
         // back to host right after launching the kernel, since res_scale()
         // (residuals.c) reads rip/rkp's *host* gl_par directly.
-        __GUARD append_par(m, &ind, "rip", NULL,
-                           (m->ND==2 || m->ND==3) ? NULL : &rip);
+        // transform NULL when the GPU computes the average (gpu_avg).
+        __GUARD append_par(m, &ind, "rip", NULL, gpu_avg ? NULL : &rip);
         if (m->ND==3){
-            __GUARD append_par(m, &ind, "rjp", NULL, NULL);
+            __GUARD append_par(m, &ind, "rjp", NULL, gpu_avg ? NULL : &rjp);
         }
-        __GUARD append_par(m, &ind, "rkp", NULL,
-                           (m->ND==2 || m->ND==3) ? NULL : &rkp);
+        __GUARD append_par(m, &ind, "rkp", NULL, gpu_avg ? NULL : &rkp);
     }
     if (m->ND==2 || m->ND==3){
-        __GUARD append_par(m, &ind, "muipkp", NULL, NULL);
+        __GUARD append_par(m, &ind, "muipkp", NULL, gpu_avg ? NULL : &muipkp);
     }
     if (m->ND==3){
-        __GUARD append_par(m, &ind, "muipjp", NULL, NULL);
-        __GUARD append_par(m, &ind, "mujpkp", NULL, NULL);
+        __GUARD append_par(m, &ind, "muipjp", NULL, gpu_avg ? NULL : &muipjp);
+        __GUARD append_par(m, &ind, "mujpkp", NULL, gpu_avg ? NULL : &mujpkp);
     }
     if (m->L>0){
         if (m->ND==2 || m->ND==3){

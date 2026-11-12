@@ -609,6 +609,7 @@ int seiscl_set_srcrec(model * m,
                       const float * rec_pos, int allng);
 
 int assign_modeling_case(model * m);
+int use_gpu_average(model * m);
 
 
 int Init_cst(model * m);

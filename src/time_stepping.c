@@ -782,6 +782,15 @@ int initialize_forward(model * m, device ** dev, int s, int * pdir){
         (*dev)[d].src_recs.cl_rec_pos.size= sizeof(float)
                                                * 8 * (*dev)[d].src_recs.nrec[s];
         (*dev)[d].src_recs.cl_rec_pos.host=(*dev)[d].src_recs.rec_pos[s];
+        /* The source gradient is read back into this shot's slice of the
+           host array, with this shot's size: the host pointer was never set
+           (read into NULL), and the allocation size (nsmax) would overflow
+           the slice of a shot with fewer sources (gpu-memory-audit.md, D1). */
+        if (m->GRADSRCOUT){
+            (*dev)[d].src_recs.cl_grad_src.size= sizeof(float)
+                                       * m->NT * (*dev)[d].src_recs.nsrc[s];
+            (*dev)[d].src_recs.cl_grad_src.host=(*dev)[d].src_recs.gradsrc[s];
+        }
         
         __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].src_recs.cl_src);
         __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].src_recs.cl_src_pos);

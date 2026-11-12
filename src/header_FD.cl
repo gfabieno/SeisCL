@@ -48,39 +48,53 @@
     #endif
 #endif
 
+
+/* INARR(z,y,x): the cell is inside this device's array. The update kernels
+   round the global size up to a multiple of the work-group size, and the
+   extra threads still load their cell and halo into local memory before
+   their bounds check: without this guard they read past the end of the
+   field arrays (compute-sanitizer: Invalid __global__ read in load_local_in;
+   notes/gpu-memory-audit.md, C1). No valid thread needs a cell outside the
+   array, so skipping these loads does not change any result. */
+#if ND==3
+    #define INARR(z,y,x) ((z)>=0 && (z)<(NZ) && (y)>=0 && (y)<(NY) && (x)>=0 && (x)<(NX))
+#else
+    #define INARR(z,y,x) ((z)>=0 && (z)<(NZ) && (x)>=0 && (x)<(NX))
+#endif
+
 //Load in local memory with the halo for FD in different directions
-#define load_local_in(v) lvar[ind(lidz,lidy,lidx)]=v[indg(gidz,gidy,gidx)]
+#define load_local_in(v) do{ if (INARR(gidz,gidy,gidx)) lvar[ind(lidz,lidy,lidx)]=v[indg(gidz,gidy,gidx)]; } while(0)
 
 #define load_local_halox(v) \
     do{\
         if (lidx<2*FDOH)\
-            lvar[ind(lidz,lidy,lidx-FDOH)]=v[indg(gidz,gidy,gidx-FDOH)];\
+            if (INARR(gidz,gidy,gidx-FDOH)) lvar[ind(lidz,lidy,lidx-FDOH)]=v[indg(gidz,gidy,gidx-FDOH)];\
         if (lidx+lsizex-3*FDOH<FDOH)\
-            lvar[ind(lidz,lidy,lidx+lsizex-3*FDOH)]=v[indg(gidz,gidy,gidx+lsizex-3*FDOH)];\
+            if (INARR(gidz,gidy,gidx+lsizex-3*FDOH)) lvar[ind(lidz,lidy,lidx+lsizex-3*FDOH)]=v[indg(gidz,gidy,gidx+lsizex-3*FDOH)];\
         if (lidx>(lsizex-2*FDOH-1))\
-            lvar[ind(lidz,lidy,lidx+FDOH)]=v[indg(gidz,gidy,gidx+FDOH)];\
+            if (INARR(gidz,gidy,gidx+FDOH)) lvar[ind(lidz,lidy,lidx+FDOH)]=v[indg(gidz,gidy,gidx+FDOH)];\
         if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))\
-            lvar[ind(lidz,lidy,lidx-lsizex+3*FDOH)]=v[indg(gidz,gidy,gidx-lsizex+3*FDOH)];\
+            if (INARR(gidz,gidy,gidx-lsizex+3*FDOH)) lvar[ind(lidz,lidy,lidx-lsizex+3*FDOH)]=v[indg(gidz,gidy,gidx-lsizex+3*FDOH)];\
         } while(0)
 
 #define load_local_haloy(v) \
     do{\
         if (lidy<2*FDOH)\
-            lvar[ind(lidz,lidy-FDOH,lidx)]=v[indg(gidz,gidy-FDOH,gidx)];\
+            if (INARR(gidz,gidy-FDOH,gidx)) lvar[ind(lidz,lidy-FDOH,lidx)]=v[indg(gidz,gidy-FDOH,gidx)];\
         if (lidy+lsizey-3*FDOH<FDOH)\
-            lvar[ind(lidz,lidy+lsizey-3*FDOH,lidx)]=v[indg(gidz,gidy+lsizey-3*FDOH,gidx)];\
+            if (INARR(gidz,gidy+lsizey-3*FDOH,gidx)) lvar[ind(lidz,lidy+lsizey-3*FDOH,lidx)]=v[indg(gidz,gidy+lsizey-3*FDOH,gidx)];\
         if (lidy>(lsizey-2*FDOH-1))\
-            lvar[ind(lidz,lidy+FDOH,lidx)]=v[indg(gidz,gidy+FDOH,gidx)];\
+            if (INARR(gidz,gidy+FDOH,gidx)) lvar[ind(lidz,lidy+FDOH,lidx)]=v[indg(gidz,gidy+FDOH,gidx)];\
         if (lidy-lsizey+3*FDOH>(lsizey-FDOH-1))\
-            lvar[ind(lidz,lidy-lsizey+3*FDOH,lidx)]=v[indg(gidz,gidy-lsizey+3*FDOH,gidx)];\
+            if (INARR(gidz,gidy-lsizey+3*FDOH,gidx)) lvar[ind(lidz,lidy-lsizey+3*FDOH,lidx)]=v[indg(gidz,gidy-lsizey+3*FDOH,gidx)];\
      } while(0)
 
 #define load_local_haloz(v) \
     do{\
         if (lidz<2*FDOH)\
-            lvar[ind(lidz-FDOH,lidy,lidx)]=v[indg(gidz-FDOH,gidy,gidx)];\
+            if (INARR(gidz-FDOH,gidy,gidx)) lvar[ind(lidz-FDOH,lidy,lidx)]=v[indg(gidz-FDOH,gidy,gidx)];\
         if (lidz>(lsizez-2*FDOH-1))\
-            lvar[ind(lidz+FDOH,lidy,lidx)]=v[indg(gidz+FDOH,gidy,gidx)];\
+            if (INARR(gidz+FDOH,gidy,gidx)) lvar[ind(lidz+FDOH,lidy,lidx)]=v[indg(gidz+FDOH,gidy,gidx)];\
     } while(0)
 
 

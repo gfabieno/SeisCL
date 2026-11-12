@@ -335,19 +335,19 @@ FUNDEF void update_adjs(int offcomm,
     {
 #if LOCAL_OFF==0
         BARRIER
-        lvy(lidz,lidx)=vy(gidz,  gidx);
+        if (INARR(gidz,0,gidx)) lvy(lidz,lidx)=vy(gidz,  gidx);
         if (lidx<2*FDOH)
-            lvy(lidz,lidx-FDOH)=vy(gidz,gidx-FDOH);
+            if (INARR(gidz,0,gidx-FDOH)) lvy(lidz,lidx-FDOH)=vy(gidz,gidx-FDOH);
         if (lidx+lsizex-3*FDOH<FDOH)
-            lvy(lidz,lidx+lsizex-3*FDOH)=vy(gidz,gidx+lsizex-3*FDOH);
+            if (INARR(gidz,0,gidx+lsizex-3*FDOH)) lvy(lidz,lidx+lsizex-3*FDOH)=vy(gidz,gidx+lsizex-3*FDOH);
         if (lidx>(lsizex-2*FDOH-1))
-            lvy(lidz,lidx+FDOH)=vy(gidz,gidx+FDOH);
+            if (INARR(gidz,0,gidx+FDOH)) lvy(lidz,lidx+FDOH)=vy(gidz,gidx+FDOH);
         if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
-            lvy(lidz,lidx-lsizex+3*FDOH)=vy(gidz,gidx-lsizex+3*FDOH);
+            if (INARR(gidz,0,gidx-lsizex+3*FDOH)) lvy(lidz,lidx-lsizex+3*FDOH)=vy(gidz,gidx-lsizex+3*FDOH);
         if (lidz<2*FDOH)
-            lvy(lidz-FDOH,lidx)=vy(gidz-FDOH,gidx);
+            if (INARR(gidz-FDOH,0,gidx)) lvy(lidz-FDOH,lidx)=vy(gidz-FDOH,gidx);
         if (lidz>(lsizez-2*FDOH-1))
-            lvy(lidz+FDOH,lidx)=vy(gidz+FDOH,gidx);
+            if (INARR(gidz+FDOH,0,gidx)) lvy(lidz+FDOH,lidx)=vy(gidz+FDOH,gidx);
         BARRIER
 #endif
         
@@ -413,19 +413,19 @@ FUNDEF void update_adjs(int offcomm,
     {
 #if LOCAL_OFF==0
         BARRIER
-        lvy_r(lidz,lidx)=vy_r(gidz,  gidx);
+        if (INARR(gidz,0,gidx)) lvy_r(lidz,lidx)=vy_r(gidz,  gidx);
         if (lidx<2*FDOH)
-            lvy_r(lidz,lidx-FDOH)=vy_r(gidz,gidx-FDOH);
+            if (INARR(gidz,0,gidx-FDOH)) lvy_r(lidz,lidx-FDOH)=vy_r(gidz,gidx-FDOH);
         if (lidx+lsizex-3*FDOH<FDOH)
-            lvy_r(lidz,lidx+lsizex-3*FDOH)=vy_r(gidz,gidx+lsizex-3*FDOH);
+            if (INARR(gidz,0,gidx+lsizex-3*FDOH)) lvy_r(lidz,lidx+lsizex-3*FDOH)=vy_r(gidz,gidx+lsizex-3*FDOH);
         if (lidx>(lsizex-2*FDOH-1))
-            lvy_r(lidz,lidx+FDOH)=vy_r(gidz,gidx+FDOH);
+            if (INARR(gidz,0,gidx+FDOH)) lvy_r(lidz,lidx+FDOH)=vy_r(gidz,gidx+FDOH);
         if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
-            lvy_r(lidz,lidx-lsizex+3*FDOH)=vy_r(gidz,gidx-lsizex+3*FDOH);
+            if (INARR(gidz,0,gidx-lsizex+3*FDOH)) lvy_r(lidz,lidx-lsizex+3*FDOH)=vy_r(gidz,gidx-lsizex+3*FDOH);
         if (lidz<2*FDOH)
-            lvy_r(lidz-FDOH,lidx)=vy_r(gidz-FDOH,gidx);
+            if (INARR(gidz-FDOH,0,gidx)) lvy_r(lidz-FDOH,lidx)=vy_r(gidz-FDOH,gidx);
         if (lidz>(lsizez-2*FDOH-1))
-            lvy_r(lidz+FDOH,lidx)=vy_r(gidz+FDOH,gidx);
+            if (INARR(gidz+FDOH,0,gidx)) lvy_r(lidz+FDOH,lidx)=vy_r(gidz+FDOH,gidx);
         BARRIER
 #endif
         

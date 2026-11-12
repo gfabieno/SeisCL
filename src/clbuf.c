@@ -300,6 +300,9 @@ CL_INT clbuf_create_pin(CONTEXT *incontext, QUEUE *inqueue,
     }
     #else
     state = cuMemAllocHost((void**)&(*buf).host, sizepin);
+    // Mark the host memory as ours: clbuf_free must only cuMemFreeHost
+    // pinned memory, never a borrowed pointer (model arrays, sources).
+    if (state==CUCL_SUCCESS) (*buf).free_pin = 1;
     #endif
     
     if (state !=CUCL_SUCCESS) fprintf(stderr,

@@ -141,19 +141,19 @@ FUNDEF void update_v(int offcomm,
 // Calculation of the stresses spatial derivatives
     {
 #if LOCAL_OFF==0
-        lp(lidz,lidx)=p(gidz, gidx);
+        if (INARR(gidz,0,gidx)) lp(lidz,lidx)=p(gidz, gidx);
         if (lidx<2*FDOH)
-            lp(lidz,lidx-FDOH)=p(gidz,gidx-FDOH);
+            if (INARR(gidz,0,gidx-FDOH)) lp(lidz,lidx-FDOH)=p(gidz,gidx-FDOH);
         if (lidx+lsizex-3*FDOH<FDOH)
-            lp(lidz,lidx+lsizex-3*FDOH)=p(gidz,gidx+lsizex-3*FDOH);
+            if (INARR(gidz,0,gidx+lsizex-3*FDOH)) lp(lidz,lidx+lsizex-3*FDOH)=p(gidz,gidx+lsizex-3*FDOH);
         if (lidx>(lsizex-2*FDOH-1))
-            lp(lidz,lidx+FDOH)=p(gidz,gidx+FDOH);
+            if (INARR(gidz,0,gidx+FDOH)) lp(lidz,lidx+FDOH)=p(gidz,gidx+FDOH);
         if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
-            lp(lidz,lidx-lsizex+3*FDOH)=p(gidz,gidx-lsizex+3*FDOH);
+            if (INARR(gidz,0,gidx-lsizex+3*FDOH)) lp(lidz,lidx-lsizex+3*FDOH)=p(gidz,gidx-lsizex+3*FDOH);
         if (lidz<2*FDOH)
-            lp(lidz-FDOH,lidx)=p(gidz-FDOH,gidx);
+            if (INARR(gidz-FDOH,0,gidx)) lp(lidz-FDOH,lidx)=p(gidz-FDOH,gidx);
         if (lidz>(lsizez-2*FDOH-1))
-            lp(lidz+FDOH,lidx)=p(gidz+FDOH,gidx);
+            if (INARR(gidz+FDOH,0,gidx)) lp(lidz+FDOH,lidx)=p(gidz+FDOH,gidx);
         BARRIER
 #endif
         
