@@ -350,6 +350,7 @@ typedef struct boundary_conditions{
     
     clprogram surf;
     clprogram surf_adj;
+    clprogram surf_adj_fold;   // 2D: adjoint of the stress images (surface2D_adj.cl)
     clprogram init_f;
     clprogram init_adj;
 
