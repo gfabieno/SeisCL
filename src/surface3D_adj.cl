@@ -94,6 +94,9 @@ FUNDEF void surface_adj(GLOBARG __prec *vxr,   GLOBARG __prec *vyr,
     h=-((lM-lmu*(__cprec1)2.0)*(lM-lmu*(__cprec1)2.0)/lM);
     hz=-(lM-lmu*(__cprec1)2.0);
     
+#if FP16!=0
+    /* FP16 path (no surface_adj_fold): scatter into vxr, vyr of neighbouring
+       columns. Not race-free: other threads add to the same cells. */
     for (int m=0; m<FDOH; m++){
         if ( (gidx-FDOH + m) < (NX - 2*FDOH))
             vxr[indv(gidz,gidy,gidx+m)]+=(hc[m] * h * (lsxx + lsyy) *
@@ -111,6 +114,7 @@ FUNDEF void surface_adj(GLOBARG __prec *vxr,   GLOBARG __prec *vyr,
         vzr[indv(gidz+m,gidy,gidx)]+=(hc[m] *hz * (lsxx + lsyy)
                                       * (__cprec1)rkp[indp(gidz+m,gidy, gidx)]);
     }
+#endif
     
     //Perform the post-adjoint transformation
     sxxr[indv(gidz,gidy,gidx)] = -(lM * lsxx + (lM-(__cprec1)2.0*lmu) * (lsyy+lszz));
@@ -122,3 +126,109 @@ FUNDEF void surface_adj(GLOBARG __prec *vxr,   GLOBARG __prec *vyr,
 
 
 
+
+
+/* Adjoint of the free surface, first part (FREESURF==1, 3D elastic, FP16==0).
+   Same role as in surface2D_adj.cl: launched just before surface_adj, between
+   the adjoint stress update and the adjoint velocity update; one thread per
+   (y, x) column, each writing only its own column (race-free).
+   1. Adjoint of the stress images (szz through Dzp in vz, sxz and syz through
+      Dzm in vx and vy), folded back into the rows below the surface:
+        img_szz(k) = -sum_{m>=k}   hc[m] vzr(FDOH-k+m)
+        img_sxz(k) = -sum_{m>=k-1} hc[m] vxr(FDOH-k+m+1)   (syz: vyr)
+        szzr += M img_szz, sxxr and syyr += (M-2mu) img_szz at FDOH+k,
+        sxzr += muipkp img_sxz, syzr += mujpkp img_syz at FDOH+k-1;
+      image rows of the adjoint stresses stay zero.
+   2. Adjoint of h = hx*(Dxm vx + Dym vy) + hz*Dzm vz added to sxx and syy: a
+      gather from the surface stresses of the neighbouring columns in x
+      (into vxr) and y (into vyr), read before surface_adj transforms them.
+   Checked against the exact transpose of one time step:
+   ~/data/claude/torch-robust/fsadj/ref3d.py (3e-15). */
+/* lsxx + lsyy at the surface of column (y, x), after the pre-adjoint transform
+   (as in surface_adj), and hx = -(M-2mu)^2/M there. */
+LFUNDEF __cprec1 lsum3d(GLOBARG __prec *sxxr, GLOBARG __prec *syyr,
+                        GLOBARG __prec *szzr, GLOBARG __prec *M,
+                        GLOBARG __prec *mu, int y, int x)
+{
+    __cprec1 cM = M[indp(FDOH, y, x)], cmu = mu[indp(FDOH, y, x)];
+    __cprec1 t1 = -(__cprec1)sxxr[indv(FDOH, y, x)];
+    __cprec1 t2 = -(__cprec1)syyr[indv(FDOH, y, x)];
+    __cprec1 t3 = -(__cprec1)szzr[indv(FDOH, y, x)];
+    __cprec1 a = (__cprec1)1.0/( (__cprec1)6.0*cM*cmu - (__cprec1)8.0*cmu*cmu);
+    return a * ( (__cprec1)2.0*(cM-cmu) * (t1 + t2)
+                 + (-cM + (__cprec1)2.0*cmu) * (t1 + t2 + (__cprec1)2.0*t3) );
+}
+LFUNDEF __cprec1 hx3d(GLOBARG __prec *M, GLOBARG __prec *mu, int y, int x)
+{
+    __cprec1 d = M[indp(FDOH, y, x)] - (__cprec1)2.0*mu[indp(FDOH, y, x)];
+    return -(d*d/M[indp(FDOH, y, x)]);
+}
+FUNDEF void surface_adj_fold(GLOBARG __prec *vxr,   GLOBARG __prec *vyr,
+                             GLOBARG __prec *vzr,   GLOBARG __prec *sxxr,
+                             GLOBARG __prec *syyr,  GLOBARG __prec *szzr,
+                             GLOBARG __prec *syzr,  GLOBARG __prec *sxzr,
+                             GLOBARG __prec *M,     GLOBARG __prec *mu,
+                             GLOBARG __prec *muipkp, GLOBARG __prec *mujpkp,
+                             GLOBARG __prec *rip,   GLOBARG __prec *rjp,
+                             GLOBARG __prec *rkp)
+{
+    #ifdef __OPENCL_VERSION__
+    int gidy = get_global_id(0) + FDOH;
+    int gidx = get_global_id(1) + FDOH;
+    #else
+    int gidy = blockIdx.x*blockDim.x + threadIdx.x + FDOH;
+    int gidx = blockIdx.y*blockDim.y + threadIdx.y + FDOH;
+    #endif
+    if ( gidx>(NX-FDOH-1) || gidy>(NY-FDOH-1) ){
+        return;
+    }
+    int gidz = FDOH;
+    __cprec1 hc[6] = {HC1, HC2, HC3, HC4, HC5, HC6};
+
+    // 1. Adjoint of the stress images (reads vxr, vyr, vzr of this column first)
+    for (int k=1; k<=FDOH; k++){
+        __cprec1 isz = 0, isx = 0, isy = 0;
+        for (int m=k; m<FDOH; m++){
+            isz -= hc[m] * (__cprec1)vzr[indv(FDOH-k+m, gidy, gidx)];
+        }
+        for (int m=k-1; m<FDOH; m++){
+            isx -= hc[m] * (__cprec1)vxr[indv(FDOH-k+m+1, gidy, gidx)];
+            isy -= hc[m] * (__cprec1)vyr[indv(FDOH-k+m+1, gidy, gidx)];
+        }
+        int z = FDOH + k;
+        __cprec1 lM = M[indp(z, gidy, gidx)];
+        __cprec1 lmu = mu[indp(z, gidy, gidx)];
+        szzr[indv(z, gidy, gidx)] += lM * isz;
+        sxxr[indv(z, gidy, gidx)] += (lM - (__cprec1)2.0 * lmu) * isz;
+        syyr[indv(z, gidy, gidx)] += (lM - (__cprec1)2.0 * lmu) * isz;
+        sxzr[indv(z-1, gidy, gidx)] += (__cprec1)muipkp[indp(z-1, gidy, gidx)] * isx;
+        syzr[indv(z-1, gidy, gidx)] += (__cprec1)mujpkp[indp(z-1, gidy, gidx)] * isy;
+    }
+    for (int m=1; m<=FDOH; m++){
+        szzr[indv(FDOH-m, gidy, gidx)] = 0;
+        sxzr[indv(FDOH-m, gidy, gidx)] = 0;
+        syzr[indv(FDOH-m, gidy, gidx)] = 0;
+    }
+
+    // 2. Adjoint of the sxx, syy correction, as a gather
+    __cprec1 dvx = 0, dvy = 0;
+    for (int m=0; m<FDOH; m++){
+        int c = gidx - m;
+        if (c >= FDOH) dvx += hc[m] * hx3d(M, mu, gidy, c) * lsum3d(sxxr, syyr, szzr, M, mu, gidy, c);
+        c = gidx + m + 1;
+        if (c <= NX-FDOH-1) dvx -= hc[m] * hx3d(M, mu, gidy, c) * lsum3d(sxxr, syyr, szzr, M, mu, gidy, c);
+        c = gidy - m;
+        if (c >= FDOH) dvy += hc[m] * hx3d(M, mu, c, gidx) * lsum3d(sxxr, syyr, szzr, M, mu, c, gidx);
+        c = gidy + m + 1;
+        if (c <= NY-FDOH-1) dvy -= hc[m] * hx3d(M, mu, c, gidx) * lsum3d(sxxr, syyr, szzr, M, mu, c, gidx);
+    }
+    vxr[indv(gidz, gidy, gidx)] += dvx * (__cprec1)rip[indp(gidz, gidy, gidx)];
+    vyr[indv(gidz, gidy, gidx)] += dvy * (__cprec1)rjp[indp(gidz, gidy, gidx)];
+    {
+        __cprec1 ls = lsum3d(sxxr, syyr, szzr, M, mu, gidy, gidx);
+        __cprec1 hz = -(M[indp(gidz, gidy, gidx)] - (__cprec1)2.0*mu[indp(gidz, gidy, gidx)]);
+        for (int m=0; m<FDOH; m++){
+            vzr[indv(gidz+m, gidy, gidx)] += hc[m] * hz * ls * (__cprec1)rkp[indp(gidz+m, gidy, gidx)];
+        }
+    }
+}

@@ -777,7 +777,21 @@ int update_grid_adj(model * m, device ** dev){
                 }
             }
         }
-        
+
+        // Adjoint of the free surface: in the forward step the surface kernel
+        // runs after the stress update and before the next velocity update;
+        // its adjoint must sit at the same place, between the adjoint stress
+        // update (i = 1, run first) and the adjoint velocity update (i = 0).
+        if (m->FREESURF==1 && i==1){
+            for (d=0;d<m->NUM_DEVICES;d++){
+                if ((*dev)[d].bnd_cnds.surf_adj_fold.name){
+                    __GUARD prog_launch(&(*dev)[d].queue,
+                                        &(*dev)[d].bnd_cnds.surf_adj_fold);
+                }
+                __GUARD prog_launch(&(*dev)[d].queue,
+                                    &(*dev)[d].bnd_cnds.surf_adj);
+            }
+        }
     }
 
     return state;
@@ -1177,14 +1191,6 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
                 // Inject the forward variables boundaries
                 if (m->BACK_PROP_TYPE==1){
                     __GUARD inject_bnd(m, dev, t);
-                }
-
-                // Computing the free surface
-                if (m->FREESURF==1){
-                    for (d=0;d<m->NUM_DEVICES;d++){
-                        __GUARD prog_launch(&(*dev)[d].queue,
-                                            &(*dev)[d].bnd_cnds.surf_adj);
-                    }
                 }
 
                 // Inject the residuals
