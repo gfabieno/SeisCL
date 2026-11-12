@@ -984,6 +984,18 @@ int assign_modeling_case(model * m){
                        "caller. The SeisCL Python wrapper does this for you.\n",
                 m->par_type);
     }
+    /* SH (ND=21) gradients: the adjoint kernels update_adjs2D_SH.cl and
+       update_adjv2D_SH.cl do not compile under CUDA, and their arguments
+       (vy_r, sxy_r, syz_r, mu, rho, ...) do not match the names the host
+       binds: when made to compile they read out of bounds (finding B3 of the
+       2026-11 GPU memory audit). Refused for both back_prop_types until the
+       SH adjoint is rewritten. SH forward modelling is not affected. */
+    if (m->GRADOUT==1 && m->ND==21){
+        state=1;
+        fprintf(stderr,"Error: gradient computation is not available for "
+                       "ND=21 (SH): the SH adjoint kernels are broken (they "
+                       "read out of bounds). Forward modelling in SH works.\n");
+    }
     if (m->GRADOUT==1 && m->ND==22){
         state=1;
         fprintf(stderr,"Error: gradient computation is not implemented for "
