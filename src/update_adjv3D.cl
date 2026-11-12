@@ -495,9 +495,15 @@ FUNDEF void update_adjv(int offcomm,
             int rj=(int)(rec_pos[1+8*g]/DH)+FDOH;
             int rk=(int)(rec_pos[2+8*g]/DH)+FDOH;
             if (ri==gidx && rj==gidy && rk==gidz){
+                #if VXOUT==1
                 rvx += vxout[NT*g+nt];
+                #endif
+                #if VYOUT==1
                 rvy += vyout[NT*g+nt];
+                #endif
+                #if VZOUT==1
                 rvz += vzout[NT*g+nt];
+                #endif
             }
         }
     }

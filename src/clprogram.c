@@ -352,13 +352,17 @@ char *get_build_options(device *dev,
         if (strcmp((*dev).trans_vars[i].name,"p")==0 && (*dev).trans_vars[i].to_output)
             presout = 1;
     }
+    /* One flag per component as well: an output set may hold vx without vz
+       (the PyTorch engine accepts any subset), and the adjoint kernels then
+       must not read the unallocated vzout (a NULL read, update_adjv). */
+    int vout[3] = {0, 0, 0};
     for (i=0;i<(*dev).nvars;i++){
-        if ((*dev).vars[i].to_output
-            && (strcmp((*dev).vars[i].name,"vx")==0
-                || strcmp((*dev).vars[i].name,"vy")==0
-                || strcmp((*dev).vars[i].name,"vz")==0))
-            velout = 1;
+        if (!(*dev).vars[i].to_output) continue;
+        if (strcmp((*dev).vars[i].name,"vx")==0) vout[0] = 1;
+        if (strcmp((*dev).vars[i].name,"vy")==0) vout[1] = 1;
+        if (strcmp((*dev).vars[i].name,"vz")==0) vout[2] = 1;
     }
+    velout = vout[0] || vout[1] || vout[2];
 
     parny = (m->NDIM==3) ? (*dev).N[1] : 1;
     parnx = (m->NDIM==3) ? (*dev).N[2] : (*dev).N[1];
@@ -374,7 +378,7 @@ char *get_build_options(device *dev,
             "-D GRADOUT=%d -D HOUT=%d -D GRADSRCOUT=%d -D DIRPROP=%d "
             "-D RESTYPE=%d -D FP16=%d -D PARSCALE=%d -D FREQ0=%9.9ff "
             "-D PARNZ=%d -D PARNY=%d -D PARNX=%d -D TMIN=%d "
-            "-D PRESOUT=%d -D VELOUT=%d",
+            "-D PRESOUT=%d -D VELOUT=%d -D VXOUT=%d -D VYOUT=%d -D VZOUT=%d",
             (*m).NDIM, (*dev).OFFSET, (*m).FDOH, (*m).dt/(*m).dh, (*m).dh,
             (*m).dt, (*m).dt/2.0, (*m).NT, (*m).NAB, (*dev).NBND,
             (*dev).LOCAL_OFF, (*m).L, (*dev).DEVID, (*m).NUM_DEVICES,
@@ -384,7 +388,7 @@ char *get_build_options(device *dev,
             (*m).VARSOUT, (*m).RESOUT, (*m).RMSOUT, (*m).MOVOUT,
             (*m).GRADOUT, (*m).HOUT, (*m).GRADSRCOUT, DIRPROP, (*m).restype,
             (*m).FP16, (*m).par_scale, (*m).f0,
-            (*dev).N[0], parny, parnx, (*m).tmin, presout, velout) ;
+            (*dev).N[0], parny, parnx, (*m).tmin, presout, velout, vout[0], vout[1], vout[2]) ;
 
 
     strcat(build_options,src2);
@@ -525,13 +529,17 @@ int get_build_options(device *dev,
         if (strcmp((*dev).trans_vars[i].name,"p")==0 && (*dev).trans_vars[i].to_output)
             presout = 1;
     }
+    /* One flag per component as well: an output set may hold vx without vz
+       (the PyTorch engine accepts any subset), and the adjoint kernels then
+       must not read the unallocated vzout (a NULL read, update_adjv). */
+    int vout[3] = {0, 0, 0};
     for (i=0;i<(*dev).nvars;i++){
-        if ((*dev).vars[i].to_output
-            && (strcmp((*dev).vars[i].name,"vx")==0
-                || strcmp((*dev).vars[i].name,"vy")==0
-                || strcmp((*dev).vars[i].name,"vz")==0))
-            velout = 1;
+        if (!(*dev).vars[i].to_output) continue;
+        if (strcmp((*dev).vars[i].name,"vx")==0) vout[0] = 1;
+        if (strcmp((*dev).vars[i].name,"vy")==0) vout[1] = 1;
+        if (strcmp((*dev).vars[i].name,"vz")==0) vout[2] = 1;
     }
+    velout = vout[0] || vout[1] || vout[2];
     
     *n=0;
     
@@ -674,6 +682,12 @@ int get_build_options(device *dev,
     sprintf(build_options[*n-1],"-D PRESOUT=%d",presout);
     *n+=1;
     sprintf(build_options[*n-1],"-D VELOUT=%d",velout);
+    *n+=1;
+    sprintf(build_options[*n-1],"-D VXOUT=%d",vout[0]);
+    *n+=1;
+    sprintf(build_options[*n-1],"-D VYOUT=%d",vout[1]);
+    *n+=1;
+    sprintf(build_options[*n-1],"-D VZOUT=%d",vout[2]);
     // Raw (unpadded) per-dimension grid size, matching the material
     // parameter arrays' actual layout (num_ele = prod(N), no FDORDER) --
     // distinct from the NZ/NX/etc. macros above, which are sized for the
@@ -851,8 +865,12 @@ int prog_create(model * m,
     /* 64 was already close to the ~50 options get_build_options() emits (more
        in 3D, which adds per-dimension ones), and the comment above says an
        overflow corrupts the heap silently. Widened when TMIN was added. */
-    GMALLOC(build_options, sizeof(char*)*96);
-    for (i=0;i<96;i++){
+    /* 128 slots; about 75 are used in 3-D (VXOUT/VYOUT/VZOUT added). The
+       check after the call turns an overflow into an error: the writes
+       themselves are not bounded, so keep a wide margin. */
+    #define SEISCL_MAX_BUILD_OPTIONS 128
+    GMALLOC(build_options, sizeof(char*)*SEISCL_MAX_BUILD_OPTIONS);
+    for (i=0;i<SEISCL_MAX_BUILD_OPTIONS;i++){
         GMALLOC(build_options[i], sizeof(char)*500);
     }
     state= get_build_options(dev,
@@ -862,6 +880,12 @@ int prog_create(model * m,
                               prog->LCOMM,
                               prog->COMM,
                               prog->DIRPROP);
+    if (noptions > SEISCL_MAX_BUILD_OPTIONS){
+        fprintf(stderr, "Error: %d build options for %s, more than the %d "
+                        "slots (clprogram.c)\n", noptions, prog->name,
+                SEISCL_MAX_BUILD_OPTIONS);
+        return 1;
+    }
     
     state = compile((*prog).src,
                     (*prog).prog,
@@ -874,7 +898,9 @@ int prog_create(model * m,
                     dev->DEVID,
                     m->GID);
     if (build_options){
-        for (i=0;i<noptions;i++){
+        /* All the slots, not only the noptions used: the others leaked
+           (about 27 kB per kernel compile, at every engine build). */
+        for (i=0;i<SEISCL_MAX_BUILD_OPTIONS;i++){
             GFree(build_options[i]);
         }
         GFree(build_options);
