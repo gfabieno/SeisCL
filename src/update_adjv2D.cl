@@ -68,6 +68,7 @@ FUNDEF void update_adjv(int offcomm,
     float sxz_z;
     float lvx;
     float lvz;
+    float fvx = 0.0f, fvz = 0.0f;   // forward velocity increment of this step (BACK_PROP_TYPE 1)
     
 // If we use local memory
 #if LOCAL_OFF==0
@@ -213,6 +214,8 @@ FUNDEF void update_adjv(int offcomm,
         lvz=((szz_z + sxz_x)*rkp[indp]);
         vx[indv]-= lvx;
         vz[indv]-= lvz;
+        fvx = lvx;
+        fvz = lvz;
         
         // Inject the boundary values
         m=inject_ind(gidz,  gidx);
@@ -352,8 +355,10 @@ FUNDEF void update_adjv(int offcomm,
         }
     }
     #endif
-    gradrip[indp]+=-vx[indv]*(lvx+rvx);
-    gradrkp[indp]+=-vz[indv]*(lvz+rvz);
+    /* The residual of step nt measures the velocity recorded at the end of
+       that step, v^{nt+1} = v + fv (v was just stepped back to v^{nt}). */
+    gradrip[indp]+=-vx[indv]*lvx - (vx[indv]+fvx)*rvx;
+    gradrkp[indp]+=-vz[indv]*lvz - (vz[indv]+fvz)*rvz;
 
     /* Source term of the misfit gradient -- GJI 2017 eq. (26a) -- for a FORCE
      * source. The accumulation just above is the (A phi' + B phi) side of
