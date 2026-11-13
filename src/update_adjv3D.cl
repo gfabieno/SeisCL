@@ -400,6 +400,7 @@ FUNDEF void update_adjv(int offcomm,
 // Backpropagate the forward velocity
 #if BACK_PROP_TYPE==1
     {
+        float vxold = vx[indv], vyold = vy[indv], vzold = vz[indv];
         lvx=((sxx_x + sxy_y + sxz_z)*rip[indp]);
         lvy=((syy_y + sxy_x + syz_z)*rjp[indp]);
         lvz=((szz_z + sxz_x + syz_y)*rkp[indp]);
@@ -417,6 +418,26 @@ FUNDEF void update_adjv(int offcomm,
             vx[indv]= vxbnd[m];
             vy[indv]= vybnd[m];
             vz[indv]= vzbnd[m];
+            /* Exact forward increment from the two stored states (see
+               update_adjv2D.cl). */
+            float gt = 1.0f;
+            #if ABS_TYPE==2
+            #if FREESURF==0
+            if (gidz-FDOH<NAB) gt*=taper[gidz-FDOH];
+            #endif
+            if (gidz>NZ-NAB-FDOH-1) gt*=taper[NZ-FDOH-gidz-1];
+            if (gidy-FDOH<NAB) gt*=taper[gidy-FDOH];
+            if (gidy>NY-NAB-FDOH-1) gt*=taper[NY-FDOH-gidy-1];
+            #if DEVID==0 & MYLOCALID==0
+            if (gidx-FDOH<NAB) gt*=taper[gidx-FDOH];
+            #endif
+            #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+            if (gidx>NX-NAB-FDOH-1) gt*=taper[NX-FDOH-gidx-1];
+            #endif
+            #endif
+            fvx = vxold/gt - vx[indv];
+            fvy = vyold/gt - vy[indv];
+            fvz = vzold/gt - vz[indv];
         }
     }
 #endif
@@ -612,9 +633,18 @@ FUNDEF void update_adjv(int offcomm,
     #endif
     /* The residual of step nt measures the velocity recorded at the end of
        that step, v^{nt+1} = v + fv (v was just stepped back to v^{nt}). */
+    /* Under a stress-image free surface the FDOH rows that the adjoint
+       surface gather changes get their density gradient from surface_grad
+       (surface3D_adj.cl), in the direct form. */
+    int sumform = 1;
+    #if FREESURF==1 && GRADOUT==1
+    if (gidz-FDOH < FDOH) sumform = 0;
+    #endif
+    if (sumform){
     gradrip[indp]+=-vx[indv]*lvx - (vx[indv]+fvx)*rvx;
     gradrjp[indp]+=-vy[indv]*lvy - (vy[indv]+fvy)*rvy;
     gradrkp[indp]+=-vz[indv]*lvz - (vz[indv]+fvz)*rvz;
+    }
 
     /* Source term of the misfit gradient -- GJI 2017 eq. (26a) -- for a FORCE
      * source; see update_adjv2D.cl for the derivation. Each component lands in
@@ -625,7 +655,7 @@ FUNDEF void update_adjv(int offcomm,
      * Types index kernel_sources()'s src_names[] = {vx,vy,vz,p,...}.
      * No src_scale: this file is compiled only at FP16==0. */
     #if GRADOUT==1
-    if (nsrc>0){
+    if (nsrc>0 && sumform){
         for (int srci=0; srci<nsrc; srci++){
             int st = (int)src_pos[4+5*srci];
             if (st>=0 && st<=2){

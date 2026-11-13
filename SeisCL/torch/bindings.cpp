@@ -263,7 +263,16 @@ py::dict collect_data(model &m) {
 // X-slowest/Y-middle/Z-fastest in 3D (gl_par[x*(NY*NZ)+y*NZ+z]) -- matching
 // what SeisCL.py's write_model() produces via np.transpose().
 void crop_boundary(float *grad, const model &m) {
-    if (m.BACK_PROP_TYPE != 1 && m.ABS_TYPE != 1) return;
+    if (m.BACK_PROP_TYPE != 1 && m.ABS_TYPE != 1) {
+        // The vacuum rows of FREESURF==2 are not a medium: always zeroed.
+        if (m.FREESURF == 2) {
+            int nz = m.N[0];
+            int ncol = (m.NDIM == 3) ? m.N[1] * m.N[2] : m.N[1];
+            for (int c = 0; c < ncol; c++)
+                for (int z = 0; z < m.FDOH && z < nz; z++) grad[c * nz + z] = 0.0f;
+        }
+        return;
+    }
     // GRADABS: the forward wavefield is saved in the whole layers, so the
     // gradient there is exact (Cerjan and CPML). Only FREESURF==2's vacuum rows
     // are still zeroed: they are not a medium.

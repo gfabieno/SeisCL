@@ -28,6 +28,14 @@
 #define psi_vz_z(z,x) psi_vz_z[(x)*(2*NAB)+(z)]
 
 
+#ifndef SURFROWS
+/* Rows below a stress-image free surface (FREESURF 1) whose gradient is
+   computed in the direct form (surface_grad in surface2D_adj.cl and the
+   density term of update_adjv2D.cl): the adjoint fold and gather of the
+   surface touch rows 0..FDOH, where the summation-by-parts form fails. */
+#define SURFROWS (FDOH+1)
+#endif
+
 FUNDEF void update_adjs(int offcomm,
                           GLOBARG const float * RESTRICT vx,            GLOBARG const float * RESTRICT vz,        GLOBARG float * RESTRICT sxx,
                           GLOBARG float * RESTRICT szz,                 GLOBARG float * RESTRICT sxz,             GLOBARG const float * RESTRICT vxbnd,
@@ -552,9 +560,17 @@ FUNDEF void update_adjs(int offcomm,
 
         float dM=c1*( sxx[indv]+szz[indv] )*( lsxx+lszz+restr );
 
+        /* Near a stress-image free surface the direct form is used instead
+           (surface_grad, surface2D_adj.cl). */
+        int sumform = 1;
+        #if FREESURF==1
+        if (gidz-FDOH < SURFROWS) sumform = 0;
+        #endif
+        if (sumform){
         gradM[indp]+=-dM;
         gradmuipkp[indp]+=-c3*(sxz[indv]*lsxz);
         gradmu[indp]+=dM-c5*(  (sxx[indv]-szz[indv])*(lsxx-lszz)  );
+        }
 
         /* Source term of the misfit gradient -- GJI 2017 eq. (26a), thesis
          * eq. (3.51):
@@ -590,7 +606,7 @@ FUNDEF void update_adjs(int offcomm,
          * carries its own dt through the dt/dh-scaled moduli, so the two
          * terms are in the same units. */
         #if GRADOUT==1
-        if (nsrc>0){
+        if (nsrc>0 && sumform){
             for (int srci=0; srci<nsrc; srci++){
                 if ((int)src_pos[4+5*srci]==100){
                     int si=(int)(src_pos[0+5*srci]/DH)+FDOH;

@@ -716,6 +716,14 @@ int update_grid_adj(model * m, device ** dev){
     int state=0;
     int d, i;
     
+    /* Direct-form gradient in the top rows under a stress-image free surface
+       (surface2D_adj.cl): needs the adjoint fields of the start of the step,
+       before the stress update and the adjoint of the surface. */
+    for (d=0;d<m->NUM_DEVICES;d++){
+        if ((*dev)[d].bnd_cnds.surf_grad.name){
+            __GUARD prog_launch(&(*dev)[d].queue, &(*dev)[d].bnd_cnds.surf_grad);
+        }
+    }
     // Perform the updates in backward order for adjoint simulation
     for (i=m->nupdates-1;i>=0;i--){
         /* Exact CPML adjoint: filter the adjoint fields that this update
@@ -1104,10 +1112,6 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
                 }
 
 
-                // Save the boundaries
-                if ((m->GRADOUT == 1 || m->INPUTRES) && m->BACK_PROP_TYPE == 1)
-                    __GUARD save_bnd(m, dev, t);
-
                 // Computing the free surface
                 if (m->FREESURF == 1) {
                     for (d = 0; d < m->NUM_DEVICES; d++) {
@@ -1115,6 +1119,15 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
                                             &(*dev)[d].bnd_cnds.surf);
                     }
                 }
+
+                // Save the boundaries. After the free surface: the adjoint
+                // pass injects them as the state at the end of this step,
+                // which the next step uses, i.e. with szz = 0 and the
+                // corrected sxx on the surface row. Saving them before the
+                // surface kernel made the rebuilt forward field wrong in the
+                // FDOH rows below the surface (gradient ratios 0.1-0.9).
+                if ((m->GRADOUT == 1 || m->INPUTRES) && m->BACK_PROP_TYPE == 1)
+                    __GUARD save_bnd(m, dev, t);
 
                 // Outputting seismograms
                 if (m->VARSOUT > 0 || m->GRADOUT || m->RMSOUT || m->RESOUT) {

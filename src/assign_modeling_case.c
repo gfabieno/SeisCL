@@ -1186,6 +1186,13 @@ int assign_modeling_case(model * m){
                                     "surface_adj_fold", surface_adj, 2,
                                     headers);
             }
+            /* Direct-form moduli gradient in the top rows (surface2D_adj.cl) */
+            if ((m->ND==2 || m->ND==3) && m->FP16==0 && m->BACK_PROP_TYPE==1
+                && m->restype==0){
+                __GUARD prog_source(&m->bnd_cnds.surf_grad,
+                                    "surface_grad", surface_adj, 3,
+                                    headers);
+            }
         }
     }
     /* On-device DFT gradient correlation. Elastic: 2D P-SV, SH and 3D.

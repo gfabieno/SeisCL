@@ -254,3 +254,143 @@ FUNDEF void surface_adj_fold(GLOBARG __prec *vxr,  GLOBARG __prec *vzr,
         }
     }
 }
+
+
+
+#ifndef SURFROWS
+#define SURFROWS (FDOH+1)
+#endif
+/* Gradient in the top rows under a stress-image free surface (FREESURF==1,
+   2D elastic, BACK_PROP_TYPE 1, FP16==0), in the direct form
+       dJ/dtheta = sum_t lambda(t) . dP_t/dtheta x(t)
+   instead of the summation-by-parts form of update_adjs2D.cl and
+   update_adjv2D.cl, which needs every change of the adjoint field at a cell
+   to be the update increment: false in the rows that the adjoint of the
+   surface (surface_adj_fold, surface_adj) changes.
+
+   Launched at the start of each adjoint time step t, after the residuals,
+   before update_adjs. There the adjoint fields are exactly T*eta_t, with
+   eta_t the adjoint of the state right after the forward velocity update of
+   step t, T = diag(B, -C): checked against the exact transpose of the time
+   step (~/data/claude/torch-robust/surfgrad/pairing2.py). Its stress part is
+   T*nu_t, nu_t the adjoint of the stresses after the forward stress update
+   and before the surface kernel. The forward velocities are still v(t+1).
+
+   Moduli, rows 0..SURFROWS-1:  dJ/dtheta += nu . (dC/dtheta) eps(v(t+1)).
+     On the surface row the forward update (stress update + surface kernel)
+     is szz = 0, sxx += (M - (M-2mu)^2/M) vxx, so d/dM = 4 mu^2/M^2 vxx and
+     d/dmu = 4 (M-2mu)/M vxx. The velocity rows above the surface are never
+     written, zero in both passes, as the forward stencils saw them.
+   With pressure receivers, the residual injected at this step is taken
+   out first (it belongs to the next step).
+   Density, rows 0..FDOH-1 (stored in the boundary buffer): the accumulator of
+     update_adjv2D.cl is -B^2 dJ/dB = -sum_t a_v(t) * (v(t+1) - taper*v(t)),
+     with v(t) the stored state plus the force source of the step (no stencil
+     on the unstored images).
+   (notes: ~/data/claude/notes/surface-gradient.md) */
+#ifdef HAVE_INJECT_IND   /* compiled only with header_injectbnd.cl (the surf_grad program) */
+FUNDEF void surface_grad(GLOBARG __prec *vx,         GLOBARG __prec *vz,
+                         GLOBARG __prec *vxr,        GLOBARG __prec *vzr,
+                         GLOBARG __prec *sxxr,       GLOBARG __prec *szzr,
+                         GLOBARG __prec *sxzr,       GLOBARG __prec *M,
+                         GLOBARG __prec *mu,         GLOBARG __prec *muipkp,
+                         GLOBARG __prec *vxbnd,      GLOBARG __prec *vzbnd,
+                         GLOBARG float *taper,
+                         GLOBARG float *gradM,       GLOBARG float *gradmu,
+                         GLOBARG float *gradmuipkp,  GLOBARG float *gradrip,
+                         GLOBARG float *gradrkp,     GLOBARG float *src,
+                         GLOBARG float *src_pos,     int nsrc,
+                         int nt,                     GLOBARG float *pout,
+                         GLOBARG float *rec_pos,     int nrec)
+{
+    #ifdef __OPENCL_VERSION__
+    int gidx = get_global_id(0) + FDOH;
+    #else
+    int gidx = blockIdx.x*blockDim.x + threadIdx.x + FDOH;
+    #endif
+    if ( gidx>(NX-FDOH-1) ){
+        return;
+    }
+    __cprec1 hc[6] = {HC1, HC2, HC3, HC4, HC5, HC6};
+    for (int k=0; k<SURFROWS && FDOH+k<NZ-FDOH; k++){
+        int z = FDOH+k;
+        __cprec1 vxx = 0, vzz = 0, vxz = 0, vzx = 0;
+        for (int m=0; m<FDOH; m++){
+            vxx += hc[m]*((__cprec1)vx[indv(z, gidx+m)]   - (__cprec1)vx[indv(z, gidx-m-1)]);
+            vzz += hc[m]*((__cprec1)vz[indv(z+m, gidx)]   - (__cprec1)vz[indv(z-m-1, gidx)]);
+            vxz += hc[m]*((__cprec1)vx[indv(z+m+1, gidx)] - (__cprec1)vx[indv(z-m, gidx)]);
+            vzx += hc[m]*((__cprec1)vz[indv(z, gidx+m+1)] - (__cprec1)vz[indv(z, gidx-m)]);
+        }
+        __cprec1 lM = M[indp(z, gidx)], lmu = mu[indp(z, gidx)];
+        __cprec1 lmuipkp = muipkp[indp(z, gidx)];
+        __cprec1 axx = sxxr[indv(z, gidx)], azz = szzr[indv(z, gidx)];
+        #if PRESOUT==1
+        /* The pressure residual injected at this step (residuals.c delays it
+           by one sample) is not yet part of T*nu_t: it enters the next step,
+           propagated. kernel_residuals adds pout/2 to sxxr and szzr. */
+        for (int g=0; g<nrec; g++){
+            int ri=(int)(rec_pos[0+8*g]/DH)+FDOH;
+            int rk=(int)(rec_pos[2+8*g]/DH)+FDOH;
+            if (ri==gidx && rk==z){
+                axx -= (__cprec1)0.5*pout[NT*g+nt];
+                azz -= (__cprec1)0.5*pout[NT*g+nt];
+            }
+        }
+        #endif
+        __cprec1 det = (__cprec1)4.0*lmu*(lM-lmu);
+        __cprec1 nxx = 0, nzz = 0, nxz = 0;
+        if (det != 0){
+            nxx = -(lM*axx - (lM-(__cprec1)2.0*lmu)*azz)/det;
+            nzz = -(lM*azz - (lM-(__cprec1)2.0*lmu)*axx)/det;
+        }
+        if (lmuipkp != 0){
+            nxz = -(__cprec1)sxzr[indv(z, gidx)]/lmuipkp;
+        }
+        __cprec1 gM, gmu;
+        if (k==0){
+            gM  = nxx*(__cprec1)4.0*lmu*lmu/(lM*lM)*vxx;
+            gmu = nxx*(__cprec1)4.0*(lM-(__cprec1)2.0*lmu)/lM*vxx;
+        }
+        else{
+            gM  = (nxx+nzz)*(vxx+vzz);
+            gmu = -(__cprec1)2.0*(nxx*vzz + nzz*vxx);
+        }
+        gradM[indp(z, gidx)] += gM;
+        gradmu[indp(z, gidx)] += gmu;
+        gradmuipkp[indp(z, gidx)] += nxz*(vxz+vzx);
+
+        if (k<FDOH){
+            int mb = inject_ind(z, gidx);
+            if (mb!=-1){
+                __cprec1 gt = 1;
+                #if ABS_TYPE==2
+                if (z>NZ-NAB-FDOH-1) gt*=taper[NZ-FDOH-z-1];
+                #if DEVID==0 & MYLOCALID==0
+                if (gidx-FDOH<NAB) gt*=taper[gidx-FDOH];
+                #endif
+                #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+                if (gidx>NX-NAB-FDOH-1) gt*=taper[NX-FDOH-gidx-1];
+                #endif
+                #endif
+                /* A force source of this step was added to v(t) before the
+                   velocity update (kernel_sources, amp = DT*src): it does
+                   not depend on the density, so take it out. */
+                __cprec1 sx = 0, sz = 0;
+                for (int srci=0; srci<nsrc; srci++){
+                    int st = (int)src_pos[4+5*srci];
+                    int si = (int)(src_pos[0+5*srci]/DH)+FDOH;
+                    int sk = (int)(src_pos[2+5*srci]/DH)+FDOH;
+                    if (si==gidx && sk==z){
+                        if (st==0) sx += DT*src[srci*NT+nt];
+                        if (st==2) sz += DT*src[srci*NT+nt];
+                    }
+                }
+                gradrip[indp(z, gidx)] += -(__cprec1)vxr[indv(z, gidx)]
+                    * ((__cprec1)vx[indv(z, gidx)] - gt*((__cprec1)vxbnd[mb] + sx));
+                gradrkp[indp(z, gidx)] += -(__cprec1)vzr[indv(z, gidx)]
+                    * ((__cprec1)vz[indv(z, gidx)] - gt*((__cprec1)vzbnd[mb] + sz));
+            }
+        }
+    }
+}
+#endif

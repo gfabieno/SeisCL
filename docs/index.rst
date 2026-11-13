@@ -43,6 +43,7 @@
 
    notebooks/Inversion/ComputingGradient
    notebooks/Inversion/AbsorbingLayerGradient
+   notebooks/Inversion/FreeSurfaceGradient
    notebooks/Inversion/UsingTensorflow
    notebooks/Inversion/UsingScipy
    notebooks/Inversion/source_inversion

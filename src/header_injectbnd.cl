@@ -20,6 +20,7 @@
 
 #endif
 
+#define HAVE_INJECT_IND 1
 #ifndef GRADABS
 #define GRADABS 0
 #endif

@@ -693,6 +693,10 @@ class SeisCL:
                     o[:self.FDORDER // 2] = 0
             return
         if not do_crop:
+            # The vacuum rows of freesurf=2 are not a medium: always zeroed.
+            if self.freesurf == 2:
+                for o in output:
+                    o[:self.FDORDER // 2] = 0
             return
         nab = self.nab
         for o in output:

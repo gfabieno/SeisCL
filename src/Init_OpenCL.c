@@ -1354,6 +1354,14 @@ int Init_CUDA(model * m, device ** dev)  {
                 for (i=1;i<m->NDIM;i++){
                     di->bnd_cnds.surf_adj.gsize[i-1]=di->N[i];
                 }
+                if (m->bnd_cnds.surf_grad.name){
+                    di->bnd_cnds.surf_grad=m->bnd_cnds.surf_grad;
+                    __GUARD prog_create(m, di, &di->bnd_cnds.surf_grad);
+                    di->bnd_cnds.surf_grad.wdim=m->NDIM-1;
+                    for (i=1;i<m->NDIM;i++){
+                        di->bnd_cnds.surf_grad.gsize[i-1]=di->N[i];
+                    }
+                }
                 if (m->bnd_cnds.surf_adj_fold.name){
                     di->bnd_cnds.surf_adj_fold=m->bnd_cnds.surf_adj_fold;
                     __GUARD prog_create(m, di, &di->bnd_cnds.surf_adj_fold);

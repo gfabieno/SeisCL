@@ -34,6 +34,12 @@
 
 
 
+#ifndef SURFROWS
+/* Rows below a stress-image free surface (FREESURF 1) whose moduli gradient
+   is computed in the direct form by surface_grad (surface3D_adj.cl). */
+#define SURFROWS (FDOH+1)
+#endif
+
 FUNDEF void update_adjs(int offcomm,
                           GLOBARG const float * RESTRICT vx,        GLOBARG const float * RESTRICT vy,        GLOBARG const float * RESTRICT vz,
                           GLOBARG float * RESTRICT sxx,             GLOBARG float * RESTRICT syy,             GLOBARG float * RESTRICT szz,
@@ -844,6 +850,11 @@ FUNDEF void update_adjs(int offcomm,
 
     float dM=c1*( sxx[indv]+syy[indv]+szz[indv] )*( lsxx+lsyy+lszz+restr );
 
+    int sumform = 1;
+    #if FREESURF==1
+    if (gidz-FDOH < SURFROWS) sumform = 0;
+    #endif
+    if (sumform){
     gradM[indp]+=-dM;
     gradmuipkp[indp]+=-c3xz*(sxz[indv]*lsxz);
     gradmuipjp[indp]+=-c3xy*(sxy[indv]*lsxy);
@@ -851,6 +862,7 @@ FUNDEF void update_adjs(int offcomm,
     gradmu[indp]+= 4.0/3*dM-c5*(lsxx*(2.0*sxx[indv]- syy[indv]-szz[indv] )
                       +lsyy*(2.0*syy[indv]- sxx[indv]-szz[indv] )
                       +lszz*(2.0*szz[indv]- sxx[indv]-syy[indv] ));
+    }
 
     /* Source term of the misfit gradient -- GJI 2017 eq. (26a), thesis
      * eq. (3.51).  See update_adjs2D.cl for the full derivation; this is the
@@ -869,7 +881,7 @@ FUNDEF void update_adjs(int offcomm,
      * (N-1)s_ii - sum_{j!=i} s_jj vanishes and the c5 term above is
      * untouched, as are the shear planes and dJ/drho. */
     #if GRADOUT==1
-    if (nsrc>0){
+    if (nsrc>0 && sumform){
         for (int srci=0; srci<nsrc; srci++){
             if ((int)src_pos[4+5*srci]==100){
                 int si=(int)(src_pos[0+5*srci]/DH)+FDOH;
