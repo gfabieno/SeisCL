@@ -24,38 +24,57 @@
 #ifndef GRADABS
 #define GRADABS 0
 #endif
+/* Frame of stored forward values, single device, FP16 0 (Init_OpenCL.c, NBND):
+   the cells between an outer box (FR_OL cells inside the grid edge; FR_OT on top)
+   and an inner box FR_W cells further in (FR_WT on top).
+   GRADABS 1: the whole absorbing layers + the FDOH band (FR_OL = 0).
+   GRADABS 0: the FDOH band + the last layer cell (FR_OL = NAB-1): the gradient
+   of the averaged parameters (rip, rkp, muipkp, ...) stored at that cell
+   straddles the layer and the band, and the averaging transpose spreads it
+   into the first band cell; its forward field must be exact.
+   Free surface (FREESURF != 0): no layer on top, FDOH rows from the surface. */
+#ifndef FR_OL
+#if GRADABS==1
+#define FR_OL 0
+#else
+#define FR_OL ((NAB)>0 ? (NAB)-1 : 0)
+#endif
+#define FR_W (NAB+FDOH-FR_OL)
+#if FREESURF==0
+#define FR_OT FR_OL
+#define FR_WT FR_W
+#else
+#define FR_OT 0
+#define FR_WT FDOH
+#endif
+#endif
 
 #if ND==3
     // Find boundary indice for boundary injection in backpropagation
     LFUNDEF int inject_ind(int k, int j, int i){
         
-    #if GRADABS==1
-        /* Whole absorbing layers + FDOH band: inverse of savebnd3D.cl. */
-        int NZi = NZ-2*FDOH, NYi = NY-2*FDOH, NXi = NX-2*FDOH;
-        int W = NAB+FDOH;
-        #if FREESURF==0
-        int Wt = W;
-        #else
-        int Wt = FDOH;
-        #endif
-        int NXm = NXi-2*W, NYm = NYi-2*W;
-        int A = W*NYi*NZi, B = NXm*W*NZi, C = NXm*NYm*Wt;
+    #if NUM_DEVICES==1 & NLOCALP==1 & FP16==0
+        /* Inverse of savebnd3D.cl's frame (FR_* above). */
+        int NZo = NZ-2*FDOH-FR_OT-FR_OL, NYo = NY-2*FDOH-2*FR_OL, NXo = NX-2*FDOH-2*FR_OL;
+        int W = FR_W, Wt = FR_WT;
+        int NXm = NXo-2*W, NYm = NYo-2*W;
+        int A = W*NYo*NZo, B = NXm*W*NZo, C = NXm*NYm*Wt;
         int m=-1;
-        i-=FDOH; j-=FDOH; k-=FDOH;
-        if (k<0 || k>NZi-1 || j<0 || j>NYi-1 || i<0 || i>NXi-1)
+        i-=FDOH+FR_OL; j-=FDOH+FR_OL; k-=FDOH+FR_OT;
+        if (k<0 || k>NZo-1 || j<0 || j>NYo-1 || i<0 || i>NXo-1)
             m=-1;
         else if (i<W)
-            m=i*NYi*NZi+j*NZi+k;
-        else if (i>NXi-1-W)
-            m=A+(i-NXi+W)*NYi*NZi+j*NZi+k;
+            m=i*NYo*NZo+j*NZo+k;
+        else if (i>NXo-1-W)
+            m=A+(i-NXo+W)*NYo*NZo+j*NZo+k;
         else if (j<W)
-            m=2*A+(i-W)*W*NZi+j*NZi+k;
-        else if (j>NYi-1-W)
-            m=2*A+B+(i-W)*W*NZi+(j-NYi+W)*NZi+k;
+            m=2*A+(i-W)*W*NZo+j*NZo+k;
+        else if (j>NYo-1-W)
+            m=2*A+B+(i-W)*W*NZo+(j-NYo+W)*NZo+k;
         else if (k<Wt)
             m=2*A+2*B+(i-W)*NYm*Wt+(j-W)*Wt+k;
-        else if (k>NZi-1-W)
-            m=2*A+2*B+C+(i-W)*NYm*W+(j-W)*W+(k-NZi+W);
+        else if (k>NZo-1-W)
+            m=2*A+2*B+C+(i-W)*NYm*W+(j-W)*W+(k-NZo+W);
         return m;
     #elif NUM_DEVICES==1 & NLOCALP==1
         
@@ -269,28 +288,23 @@
     // Find boundary indice for boundary injection in backpropagation
     LFUNDEF int inject_ind( int k, int i){
         
-    #if GRADABS==1
-        /* Whole absorbing layers + FDOH band: inverse of savebnd2D.cl. */
-        int NZi = NZ-2*FDOH, NXi = NX-2*FDOH;
-        int W = NAB+FDOH;
-        #if FREESURF==0
-        int Wt = W;
-        #else
-        int Wt = FDOH;
-        #endif
-        int A = W*NZi, NXm = NXi-2*W;
+    #if NUM_DEVICES==1 & NLOCALP==1 & FP16==0
+        /* Inverse of savebnd2D.cl's frame (FR_* above). */
+        int NZo = NZ-2*FDOH-FR_OT-FR_OL, NXo = NX-2*FDOH-2*FR_OL;
+        int W = FR_W, Wt = FR_WT;
+        int A = W*NZo, NXm = NXo-2*W;
         int m=-1;
-        i-=FDOH; k-=FDOH;
-        if (k<0 || k>NZi-1 || i<0 || i>NXi-1)
+        i-=FDOH+FR_OL; k-=FDOH+FR_OT;
+        if (k<0 || k>NZo-1 || i<0 || i>NXo-1)
             m=-1;
         else if (i<W)
-            m=i*NZi+k;
-        else if (i>NXi-1-W)
-            m=A+(i-NXi+W)*NZi+k;
+            m=i*NZo+k;
+        else if (i>NXo-1-W)
+            m=A+(i-NXo+W)*NZo+k;
         else if (k<Wt)
             m=2*A+(i-W)*Wt+k;
-        else if (k>NZi-1-W)
-            m=2*A+NXm*Wt+(i-W)*W+(k-NZi+W);
+        else if (k>NZo-1-W)
+            m=2*A+NXm*Wt+(i-W)*W+(k-NZo+W);
         return m;
     #elif NUM_DEVICES==1 & NLOCALP==1
         

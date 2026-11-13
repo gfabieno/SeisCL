@@ -43,6 +43,30 @@
 #ifndef GRADABS
 #define GRADABS 0
 #endif
+/* Frame of stored forward values, single device, FP16 0 (Init_OpenCL.c, NBND):
+   the cells between an outer box (FR_OL cells inside the grid edge; FR_OT on top)
+   and an inner box FR_W cells further in (FR_WT on top).
+   GRADABS 1: the whole absorbing layers + the FDOH band (FR_OL = 0).
+   GRADABS 0: the FDOH band + the last layer cell (FR_OL = NAB-1): the gradient
+   of the averaged parameters (rip, rkp, muipkp, ...) stored at that cell
+   straddles the layer and the band, and the averaging transpose spreads it
+   into the first band cell; its forward field must be exact.
+   Free surface (FREESURF != 0): no layer on top, FDOH rows from the surface. */
+#ifndef FR_OL
+#if GRADABS==1
+#define FR_OL 0
+#else
+#define FR_OL ((NAB)>0 ? (NAB)-1 : 0)
+#endif
+#define FR_W (NAB+FDOH-FR_OL)
+#if FREESURF==0
+#define FR_OT FR_OL
+#define FR_WT FR_W
+#else
+#define FR_OT 0
+#define FR_WT FDOH
+#endif
+#endif
 
 FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 *szz,
                                    GLOBARG __prec2 *vx, GLOBARG __prec2 *vz,
@@ -53,38 +77,31 @@ FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 
     int i,k,indv;
     int gidf;
     
-#if GRADABS==1
-    /* Frame of the whole absorbing layers + FDOH band (header_injectbnd.cl,
-       Init_OpenCL.c): x-left, x-right (all z), then top and bottom rows
-       between them. z is the fastest index in every block. */
+#if NUM_DEVICES==1 & NLOCALP==1 & FP16==0
     #ifdef __OPENCL_VERSION__
     int gid = get_global_id(0);
     #else
     int gid = blockIdx.x*blockDim.x + threadIdx.x;
     #endif
     {
-    int NZi = NZ-2*FDOH, NXi = NX-2*FDOH;
-    int W = NAB+FDOH;
-    #if FREESURF==0
-    int Wt = W;
-    #else
-    int Wt = FDOH;
-    #endif
-    int A = W*NZi, NXm = NXi-2*W;
+    int NZo = NZ-2*FDOH-FR_OT-FR_OL, NXo = NX-2*FDOH-2*FR_OL;
+    int W = FR_W, Wt = FR_WT;
+    int A = W*NZo, NXm = NXo-2*W;
+    int i0 = FDOH+FR_OL, k0 = FDOH+FR_OT;
     if (gid<A){
-        i = FDOH+gid/NZi;           k = FDOH+gid%NZi;
+        i = i0+gid/NZo;                 k = k0+gid%NZo;
     }
     else if (gid<2*A){
         gidf = gid-A;
-        i = NX-FDOH-W+gidf/NZi;     k = FDOH+gidf%NZi;
+        i = i0+NXo-W+gidf/NZo;          k = k0+gidf%NZo;
     }
     else if (gid<2*A+NXm*Wt){
         gidf = gid-2*A;
-        i = FDOH+W+gidf/Wt;         k = FDOH+gidf%Wt;
+        i = i0+W+gidf/Wt;               k = k0+gidf%Wt;
     }
     else if (gid<2*A+NXm*(Wt+W)){
         gidf = gid-2*A-NXm*Wt;
-        i = FDOH+W+gidf/W;          k = NZ-FDOH-W+gidf%W;
+        i = i0+W+gidf/W;                k = k0+NZo-W+gidf%W;
     }
     else{
         return;

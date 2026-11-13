@@ -94,6 +94,21 @@ def test_cpml_2d_interior():
     _check("cpml2d-g0", _crosswell_2d, regions=("interior",), abs_type=1, gradabs=0)
 
 
+def test_band_without_gradabs_2d():
+    """Without gradabs, the FDOH band inside the layers (vs, rho were 0.76 / -0.43 to -1.16): the last layer cell is
+    now stored too (savebnd2D.cl, FR_OL), for FD orders 4, 8, 12 and both absorbing types."""
+    for fdo in (4, 8, 12):
+        for abs_type in (2, 1):
+            _check("band-f%d-a%d" % (fdo, abs_type), _crosswell_2d, regions=("band", "interior"),
+                   abs_type=abs_type, gradabs=0, FDORDER=fdo)
+
+
+def test_band_without_gradabs_3d():
+    for abs_type in (2, 1):
+        _check("band3d-a%d" % abs_type, _crosswell_3d, params=("vs", "rho"), regions=("band",),
+               abs_type=abs_type, gradabs=0, FDORDER=4)
+
+
 def test_cerjan_3d_gradabs():
     _check("cerjan3d", _crosswell_3d, params=("vs", "rho"), regions=("layer", "band"), abs_type=2, gradabs=1)
 
@@ -104,4 +119,5 @@ def test_cpml_3d_gradabs():
 
 if __name__ == "__main__":
     sys.exit(run_tests([test_cerjan_2d_gradabs, test_cpml_2d_gradabs, test_cpml_2d_interior,
+                        test_band_without_gradabs_2d, test_band_without_gradabs_3d,
                         test_cerjan_3d_gradabs, test_cpml_3d_gradabs]) > 0)

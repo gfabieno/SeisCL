@@ -51,8 +51,14 @@ Two consequences, both measured with finite differences (section 5):
 * in the layers the gradient is meaningless; `read_grad` sets it to zero
   (`cropgrad`);
 * in the band of `FDOH` cells, the shear-modulus and density gradients were also
-  wrong (ratios between 0.40 and 1.49), because the forward strain there uses
-  rebuilt values from the layers. This band is not cropped.
+  wrong (ratios between -1.16 and 1.49). These two parameters are averaged
+  between neighbouring cells (`rip`, `rkp`, `muipkp`, ...). The averaged value
+  between the last layer cell and the first band cell is stored at the layer
+  cell, whose forward field was not saved, and the transpose of the averaging
+  spread its wrong gradient into the band before the layer was cropped.
+  Corrected: SeisCL now also saves the last layer cell (one more cell per side,
+  single device; `FR_OL` in `savebnd2D.cl`), so the band is exact without
+  `gradabs`, for every FD order.
 
 **`gradabs=1`** saves the forward field in the whole layers and the band, at every
 time step (`savebnd2D.cl`, `savebnd3D.cl`, `header_injectbnd.cl`), and injects it
@@ -223,7 +229,9 @@ cells inside them, or the rest (the interior). Cross-well geometry of
 | Cerjan 2-D, vertical force, velocity receivers, `gradabs=1` | 0.9995-0.9999 | 0.9959-1.0001 | 1.0006-1.0019 |
 | Cerjan 3-D, `gradabs=1` | 0.9973-1.0007 | 0.9993-1.0028 | 1.0005-1.0242 |
 | CPML 2-D, before | 0 (cropped) | 0.0000 | 0.0000 |
-| CPML 2-D, after, `gradabs=0` | 0 (cropped) | vs 0.76, rho -0.43 | 1.0007-1.0036 |
+| CPML 2-D, after, `gradabs=0` | 0 (cropped) | 0.9992-1.0025 | 1.0007-1.0036 |
+| Cerjan and CPML 2-D, `gradabs=0`, FD orders 4, 6, 8, 12 | 0 (cropped) | 0.9992-1.0025 | 1.0007-1.0038 |
+| Cerjan and CPML 3-D, `gradabs=0`, FD orders 4, 12 | 0 (cropped) | 0.9989-1.0015 | |
 | CPML 2-D, after, `gradabs=1` | 0.9995-1.0010 | 1.0000-1.0003 | 1.0007-1.0036 |
 | CPML 3-D, after, `gradabs=1` | 0.9989-0.9999 | 0.9964-1.0004 | 1.0006-1.0069 |
 
@@ -241,8 +249,14 @@ seis = SeisCL(..., abs_type=2, back_prop_type=1, gradabs=1)   # or abs_type=1 (C
 or `cfg.GRADABS = 1` with `SeisCL.torch`. `read_grad` then returns the gradient
 in the layers too (only the vacuum rows of `freesurf=2` are still zeroed).
 Limits: `back_prop_type=1`, `FP16=0`, a single device, 2-D P-SV or 3-D elastic.
-Estimate the memory first (section 1). Without `gradabs`, do not interpret the
-gradient within `nab + FDORDER/2` cells of an absorbing edge.""")
+Estimate the memory first (section 1). Without `gradabs`, the gradient is exact
+everywhere outside the layers (single device, `FP16=0`; with several devices or
+`FP16>0` the band of `FDORDER/2` cells inside the layers is still wrong for the
+shear modulus and the density).
+
+With FD order 2 the band is one cell wide and its finite-difference signal is
+about $10^{-4}$ of the interior's: the ratio there is FD noise (0.54 to 1.36
+depending on the FD step), not a gradient error.""")
 
 nb["cells"] = c
 nb.metadata["kernelspec"] = {"name": "python3", "display_name": "Python 3", "language": "python"}

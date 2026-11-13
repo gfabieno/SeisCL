@@ -1118,31 +1118,37 @@ int Init_CUDA(model * m, device ** dev)  {
             else{
                 lenz = di->N[0]-m->NAB-m->FDOH;
             }
-            if (m->GRADABS==1){
-                /* Frame = absorbing layers + the FDOH band inside them, on
-                   every side with a layer; on the free-surface side, the
-                   FDOH rows below the surface (as without GRADABS). Layout
-                   and indexing: savebnd2D/3D.cl and header_injectbnd.cl. */
-                int W = m->NAB+m->FDOH;
+            if (m->GRADABS==1 || (m->NUM_DEVICES==1 && m->NLOCALP==1
+                                   && m->FP16==0)){
+                /* Single-device frame (savebnd2D/3D.cl, header_injectbnd.cl,
+                   FR_* macros): cells between an outer box OL cells inside
+                   the grid edge and an inner box W cells further in. With
+                   GRADABS the whole layers (OL = 0); without, the FDOH band
+                   plus the last layer cell (OL = NAB-1), whose averaged
+                   parameters straddle the band. On a free-surface top: FDOH
+                   rows from the surface. */
+                int OL = m->GRADABS ? 0 : (m->NAB>0 ? m->NAB-1 : 0);
+                int W = m->NAB+m->FDOH-OL;
+                int OT = m->FREESURF ? 0 : OL;
                 int Wt = m->FREESURF ? m->FDOH : W;
-                int nzi = di->N[0];
-                int nxi = m->ND==3 ? di->N[2] : di->N[1];
-                int nyi = m->ND==3 ? di->N[1] : 1;
+                int nzo = di->N[0]-OT-OL;
+                int nxo = (m->ND==3 ? di->N[2] : di->N[1]) - 2*OL;
+                int nyo = m->ND==3 ? di->N[1]-2*OL : 1;
                 if (m->NUM_DEVICES!=1 || m->NLOCALP!=1){
                     state=1;
                     fprintf(stderr,"Error: gradabs=1 requires a single "
                                    "device and a single process per shot\n");
                 }
-                if (nxi<=2*W || nzi<=Wt+W || (m->ND==3 && nyi<=2*W)){
+                if (nxo<=2*W || nzo<=Wt+W || (m->ND==3 && nyo<=2*W)){
                     state=1;
-                    fprintf(stderr,"Error: gradabs=1: grid too small for "
-                                   "the absorbing layers\n");
+                    fprintf(stderr,"Error: grid too small for the absorbing "
+                                   "layers and the stored band\n");
                 }
                 if (m->ND==3)
-                    di->NBND = 2*W*nyi*nzi + (nxi-2*W)*2*W*nzi
-                             + (nxi-2*W)*(nyi-2*W)*(Wt+W);
+                    di->NBND = 2*W*nyo*nzo + (nxo-2*W)*2*W*nzo
+                             + (nxo-2*W)*(nyo-2*W)*(Wt+W);
                 else
-                    di->NBND = 2*W*nzi + (nxi-2*W)*(Wt+W);
+                    di->NBND = 2*W*nzo + (nxo-2*W)*(Wt+W);
             }
             else if (m->ND==3){// For 3D
                 if (m->NUM_DEVICES==1 && m->NLOCALP==1)
