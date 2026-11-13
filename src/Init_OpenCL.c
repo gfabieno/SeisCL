@@ -1118,7 +1118,39 @@ int Init_CUDA(model * m, device ** dev)  {
             else{
                 lenz = di->N[0]-m->NAB-m->FDOH;
             }
-            if (m->ND==3){// For 3D
+            if (m->GRADABS==1 || (m->NUM_DEVICES==1 && m->NLOCALP==1
+                                   && m->FP16==0)){
+                /* Single-device frame (savebnd2D/3D.cl, header_injectbnd.cl,
+                   FR_* macros): cells between an outer box OL cells inside
+                   the grid edge and an inner box W cells further in. With
+                   GRADABS the whole layers (OL = 0); without, the FDOH band
+                   plus the last layer cell (OL = NAB-1), whose averaged
+                   parameters straddle the band. On a free-surface top: FDOH
+                   rows from the surface. */
+                int OL = m->GRADABS ? 0 : (m->NAB>0 ? m->NAB-1 : 0);
+                int W = m->NAB+m->FDOH-OL;
+                int OT = m->FREESURF ? 0 : OL;
+                int Wt = m->FREESURF ? m->FDOH : W;
+                int nzo = di->N[0]-OT-OL;
+                int nxo = (m->ND==3 ? di->N[2] : di->N[1]) - 2*OL;
+                int nyo = m->ND==3 ? di->N[1]-2*OL : 1;
+                if (m->NUM_DEVICES!=1 || m->NLOCALP!=1){
+                    state=1;
+                    fprintf(stderr,"Error: gradabs=1 requires a single "
+                                   "device and a single process per shot\n");
+                }
+                if (nxo<=2*W || nzo<=Wt+W || (m->ND==3 && nyo<=2*W)){
+                    state=1;
+                    fprintf(stderr,"Error: grid too small for the absorbing "
+                                   "layers and the stored band\n");
+                }
+                if (m->ND==3)
+                    di->NBND = 2*W*nyo*nzo + (nxo-2*W)*2*W*nzo
+                             + (nxo-2*W)*(nyo-2*W)*(Wt+W);
+                else
+                    di->NBND = 2*W*nzo + (nxo-2*W)*(Wt+W);
+            }
+            else if (m->ND==3){// For 3D
                 if (m->NUM_DEVICES==1 && m->NLOCALP==1)
                     di->NBND=(di->N[2]-2*m->NAB)*(di->N[1]-2*m->NAB)*2*m->FDOH
                     +(di->N[2]-2*m->NAB)*(lenz)*2*m->FDOH
@@ -1292,6 +1324,26 @@ int Init_CUDA(model * m, device ** dev)  {
         }
     
         
+        /* Exact CPML adjoint filters (cpml_adj2D.cl): one thread per cell. The
+           scratch buffers have no halo exchange, so a single device only. */
+        if (m->bnd_cnds.cpml_adj_v.name){
+            if (m->NUM_DEVICES!=1 || m->NLOCALP!=1){
+                state=1;
+                fprintf(stderr,"Error: gradients with abs_type=1 (CPML) and "
+                               "back_prop_type=1 need a single device and "
+                               "a single process per shot\n");
+            }
+            di->bnd_cnds.cpml_adj_v=m->bnd_cnds.cpml_adj_v;
+            __GUARD prog_create(m, di, &di->bnd_cnds.cpml_adj_v);
+            di->bnd_cnds.cpml_adj_s=m->bnd_cnds.cpml_adj_s;
+            __GUARD prog_create(m, di, &di->bnd_cnds.cpml_adj_s);
+            di->bnd_cnds.cpml_adj_v.wdim=m->NDIM;
+            di->bnd_cnds.cpml_adj_s.wdim=m->NDIM;
+            for (i=0;i<m->NDIM;i++){
+                di->bnd_cnds.cpml_adj_v.gsize[i]=di->N[i];
+                di->bnd_cnds.cpml_adj_s.gsize[i]=di->N[i];
+            }
+        }
         //TODO Boundary conditions should be included in the update kernel
         //TODO Adjoint free surface
         if (m->FREESURF==1){
@@ -1307,6 +1359,14 @@ int Init_CUDA(model * m, device ** dev)  {
                 di->bnd_cnds.surf_adj.wdim=m->NDIM-1;
                 for (i=1;i<m->NDIM;i++){
                     di->bnd_cnds.surf_adj.gsize[i-1]=di->N[i];
+                }
+                if (m->bnd_cnds.surf_grad.name){
+                    di->bnd_cnds.surf_grad=m->bnd_cnds.surf_grad;
+                    __GUARD prog_create(m, di, &di->bnd_cnds.surf_grad);
+                    di->bnd_cnds.surf_grad.wdim=m->NDIM-1;
+                    for (i=1;i<m->NDIM;i++){
+                        di->bnd_cnds.surf_grad.gsize[i-1]=di->N[i];
+                    }
                 }
                 if (m->bnd_cnds.surf_adj_fold.name){
                     di->bnd_cnds.surf_adj_fold=m->bnd_cnds.surf_adj_fold;

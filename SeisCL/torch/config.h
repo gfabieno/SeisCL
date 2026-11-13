@@ -44,6 +44,10 @@ struct Config {
     int GRADSRCOUT = 0;
     int HOUT = 0;
     int BACK_PROP_TYPE = 1;
+    // 1: with BACK_PROP_TYPE 1 and ABS_TYPE 2 (Cerjan), save the forward
+    // wavefield in the whole absorbing layers, so the gradient there is exact
+    // and is not cropped. Costs memory (see SeisCL.py, gradabs).
+    int GRADABS = 0;
     // BACK_PROP_TYPE=2 (DFT gradient) only. The frequencies the gradient is
     // correlated at, in Hz; NFREQS is its length and the DFT path cannot
     // produce a gradient without it. dft_osamp sets how often savefreqs

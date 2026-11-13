@@ -83,6 +83,7 @@ int Init_MPI(model * m) {
         
         MPI_Bcast( &m->FP16, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->INPUTRES, 1, MPI_INT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->GRADABS, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->halfpar, 1, MPI_INT, 0, MPI_COMM_WORLD );
         
         MPI_Barrier(MPI_COMM_WORLD);

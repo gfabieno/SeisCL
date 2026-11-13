@@ -23,6 +23,8 @@
 #include "surface2D.hcl"
 #include "surface2D_half2.hcl"
 #include "surface2D_adj.hcl"
+#include "cpml_adj2D.hcl"
+#include "cpml_adj3D.hcl"
 #include "surface2D_SH.hcl"
 #include "surface3D.hcl"
 #include "surface3D_half2.hcl"
@@ -1005,6 +1007,23 @@ int assign_modeling_case(model * m){
                        "ND=21 (SH): the SH adjoint kernels are broken (they "
                        "read out of bounds). Forward modelling in SH works.\n");
     }
+    /* GRADABS: the full-layer storage is written for the Cerjan taper and the
+       float kernels; the CPML adjoint inside the layers is not derived yet. */
+    if (m->GRADABS==1 && m->BACK_PROP_TYPE==1 && (m->GRADOUT || m->INPUTRES)){
+        if (m->ABS_TYPE!=1 && m->ABS_TYPE!=2){
+            state=1;
+            fprintf(stderr,"Error: gradabs=1 needs absorbing layers "
+                           "(abs_type 1 or 2)\n");
+        }
+        if (m->FP16!=0){
+            state=1;
+            fprintf(stderr,"Error: gradabs=1 requires FP16=0\n");
+        }
+        if (m->ND!=2 && m->ND!=3){
+            state=1;
+            fprintf(stderr,"Error: gradabs=1 requires ND=2 or ND=3\n");
+        }
+    }
     if (m->GRADOUT==1 && m->ND==22){
         state=1;
         fprintf(stderr,"Error: gradient computation is not implemented for "
@@ -1147,6 +1166,16 @@ int assign_modeling_case(model * m){
         __GUARD append_update(m->ups_adj, &ind, "update_adjv", updatev_adj, nheaders, headers);
         __GUARD append_update(m->ups_adj, &ind, "update_adjs", updates_adj, nheaders, headers);
     }
+    /* Exact CPML adjoint (BACK_PROP_TYPE 1): filters run before each adjoint
+       update (time_stepping.c, update_grid_adj). */
+    if (m->ABS_TYPE==1 && m->GRADOUT && m->BACK_PROP_TYPE==1
+        && (m->ND==2 || m->ND==3) && m->FP16==0){
+        const char * cpmladj = m->ND==3 ? cpml_adj3D_source : cpml_adj2D_source;
+        __GUARD prog_source(&m->bnd_cnds.cpml_adj_v, "cpml_adj_v",
+                            cpmladj, 2, headers);
+        __GUARD prog_source(&m->bnd_cnds.cpml_adj_s, "cpml_adj_s",
+                            cpmladj, 2, headers);
+    }
     if (m->FREESURF==1){
         __GUARD prog_source(&m->bnd_cnds.surf, "freesurface", surface, 2, headers);
         if (m->GRADOUT){
@@ -1155,6 +1184,13 @@ int assign_modeling_case(model * m){
             if ((m->ND==2 || m->ND==3) && m->FP16==0){
                 __GUARD prog_source(&m->bnd_cnds.surf_adj_fold,
                                     "surface_adj_fold", surface_adj, 2,
+                                    headers);
+            }
+            /* Direct-form moduli gradient in the top rows (surface2D_adj.cl) */
+            if ((m->ND==2 || m->ND==3) && m->FP16==0 && m->BACK_PROP_TYPE==1
+                && m->restype==0){
+                __GUARD prog_source(&m->bnd_cnds.surf_grad,
+                                    "surface_grad", surface_adj, 3,
                                     headers);
             }
         }
@@ -1304,7 +1340,7 @@ int assign_modeling_case(model * m){
     /*___________________Assign seismic variables__________________________ */
     m->nvars=15;
     if (m->NAB<1) {m->ABS_TYPE=0;}
-    if (m->ABS_TYPE==1) {m->nvars+=18;}
+    if (m->ABS_TYPE==1) {m->nvars+=18+9;}   /* + cpml_adj scratch (cpfa...) */
     GMALLOC(m->vars, sizeof(variable)*m->nvars);
     
     ind=0;
@@ -1386,6 +1422,27 @@ int assign_modeling_case(model * m){
         if (m->ND==22){
             __GUARD append_var(m, &ind, "psi_p_x", 0, 0, &size_varcpmlx);
             __GUARD append_var(m, &ind, "psi_p_z", 0, 0, &size_varcpmlz);
+        }
+        /* Scratch fields of the exact CPML adjoint (cpml_adj2D.cl): the
+           adjoint fields filtered before their spatial derivatives. Also
+           created by the forward leg of the INPUTRES two-call protocol, whose
+           checkpoint must hold the same variables as the gradient leg. */
+        if ((m->GRADOUT || m->INPUTRES) && m->BACK_PROP_TYPE==1 && m->ND==2){
+            __GUARD append_var(m, &ind, "cpfa", 0, 0, &size_varseis);
+            __GUARD append_var(m, &ind, "cpfb", 0, 0, &size_varseis);
+            __GUARD append_var(m, &ind, "cpfc", 0, 0, &size_varseis);
+            __GUARD append_var(m, &ind, "cpfd", 0, 0, &size_varseis);
+        }
+        if ((m->GRADOUT || m->INPUTRES) && m->BACK_PROP_TYPE==1 && m->ND==3){
+            __GUARD append_var(m, &ind, "cpf1", 0, 0, &size_varseis);
+            __GUARD append_var(m, &ind, "cpf2", 0, 0, &size_varseis);
+            __GUARD append_var(m, &ind, "cpf3", 0, 0, &size_varseis);
+            __GUARD append_var(m, &ind, "cpf4", 0, 0, &size_varseis);
+            __GUARD append_var(m, &ind, "cpf5", 0, 0, &size_varseis);
+            __GUARD append_var(m, &ind, "cpf6", 0, 0, &size_varseis);
+            __GUARD append_var(m, &ind, "cpf7", 0, 0, &size_varseis);
+            __GUARD append_var(m, &ind, "cpf8", 0, 0, &size_varseis);
+            __GUARD append_var(m, &ind, "cpf9", 0, 0, &size_varseis);
         }
 
     }

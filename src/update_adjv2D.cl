@@ -27,6 +27,7 @@
 #define psi_szz_z(z,x) psi_szz_z[(x)*(2*NAB)+(z)]
 
 
+
 FUNDEF void update_adjv(int offcomm,
                           GLOBARG float * RESTRICT vx,              GLOBARG float * RESTRICT vz,
                           GLOBARG const float * RESTRICT sxx,       GLOBARG const float * RESTRICT szz,
@@ -45,6 +46,8 @@ FUNDEF void update_adjv(int offcomm,
                           GLOBARG const float * RESTRICT K_z_half,  GLOBARG const float * RESTRICT a_z_half,  GLOBARG const float * RESTRICT b_z_half,
                           GLOBARG float * RESTRICT psi_sxx_x,       GLOBARG float * RESTRICT psi_sxz_x,
                           GLOBARG float * RESTRICT psi_sxz_z,       GLOBARG float * RESTRICT psi_szz_z,
+                          GLOBARG const float * RESTRICT cpfa,      GLOBARG const float * RESTRICT cpfb,
+                          GLOBARG const float * RESTRICT cpfc,      GLOBARG const float * RESTRICT cpfd,
                           GLOBARG float * RESTRICT gradrho,         GLOBARG const float * RESTRICT gradsrc,
                           GLOBARG float * RESTRICT gradrip,         GLOBARG float * RESTRICT gradrkp,
                           GLOBARG float * RESTRICT Hrho,            GLOBARG const float * RESTRICT Hsrc,
@@ -96,6 +99,10 @@ FUNDEF void update_adjv(int offcomm,
 #define lsxxr lvar
 #define lszzr lvar
 #define lsxzr lvar
+#define lcpfa lvar
+#define lcpfb lvar
+#define lcpfc lvar
+#define lcpfd lvar
  
 // If local memory is turned off
 #elif LOCAL_OFF==1
@@ -121,6 +128,10 @@ FUNDEF void update_adjv(int offcomm,
 #define lsxxr sxxr
 #define lszzr szzr
 #define lsxzr sxzr
+#define lcpfa cpfa
+#define lcpfb cpfb
+#define lcpfc cpfc
+#define lcpfd cpfd
     
 #define lidx gidx
 #define lidz gidz
@@ -165,6 +176,37 @@ FUNDEF void update_adjv(int offcomm,
     #endif
 
 // Calculation of the stress spatial derivatives of the adjoint wavefield
+#if ABS_TYPE==1 && BACK_PROP_TYPE==1
+    /* Exact CPML adjoint: derivatives of the adjoint stresses filtered by
+       cpml_adj_s (cpml_adj2D.cl), which ran just before this kernel. */
+    #if LOCAL_OFF==0
+        load_local_in(cpfa);
+        load_local_halox(cpfa);
+        BARRIER
+    #endif
+        sxx_xr = Dxp(lcpfa);
+    #if LOCAL_OFF==0
+        BARRIER
+        load_local_in(cpfb);
+        load_local_haloz(cpfb);
+        BARRIER
+    #endif
+        sxz_zr = Dzm(lcpfb);
+    #if LOCAL_OFF==0
+        BARRIER
+        load_local_in(cpfc);
+        load_local_haloz(cpfc);
+        BARRIER
+    #endif
+        szz_zr = Dzp(lcpfc);
+    #if LOCAL_OFF==0
+        BARRIER
+        load_local_in(cpfd);
+        load_local_halox(cpfd);
+        BARRIER
+    #endif
+        sxz_xr = Dxm(lcpfd);
+#else
     #if LOCAL_OFF==0
         load_local_in(sxxr);
         load_local_halox(sxxr);
@@ -189,6 +231,7 @@ FUNDEF void update_adjv(int offcomm,
     #endif
         sxz_zr = Dzm(lsxzr);
         sxz_xr = Dxm(lsxzr);
+#endif
 
 
     
@@ -210,6 +253,7 @@ FUNDEF void update_adjv(int offcomm,
 // Backpropagate the forward velocity
 #if BACK_PROP_TYPE==1
     {
+        float vxold = vx[indv], vzold = vz[indv];
         lvx=((sxx_x + sxz_z)*rip[indp]);
         lvz=((szz_z + sxz_x)*rkp[indp]);
         vx[indv]-= lvx;
@@ -222,12 +266,32 @@ FUNDEF void update_adjv(int offcomm,
         if (m!=-1){
             vx[indv] = vxbnd[m];
             vz[indv] = vzbnd[m];
+            /* Exact forward increment from the two stored states,
+               v(t+1) = taper*(v(t) + f): the stencil above may read
+               stresses that are not rebuilt (the images above a free
+               surface, the layers without GRADABS). */
+            float gt = 1.0f;
+            #if ABS_TYPE==2
+            #if FREESURF==0
+            if (gidz-FDOH<NAB) gt*=taper[gidz-FDOH];
+            #endif
+            if (gidz>NZ-NAB-FDOH-1) gt*=taper[NZ-FDOH-gidz-1];
+            #if DEVID==0 & MYLOCALID==0
+            if (gidx-FDOH<NAB) gt*=taper[gidx-FDOH];
+            #endif
+            #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+            if (gidx>NX-NAB-FDOH-1) gt*=taper[NX-FDOH-gidx-1];
+            #endif
+            #endif
+            fvx = vxold/gt - vx[indv];
+            fvz = vzold/gt - vz[indv];
         }
     }
 #endif
 
-// Correct adjoint spatial derivatives to implement CPML
-#if ABS_TYPE==1
+// Correct adjoint spatial derivatives to implement CPML (BACK_PROP_TYPE 2;
+// BACK_PROP_TYPE 1 uses the exact adjoint of cpml_adj2D.cl instead)
+#if ABS_TYPE==1 && BACK_PROP_TYPE!=1
     {
     int ind;
     
@@ -357,8 +421,17 @@ FUNDEF void update_adjv(int offcomm,
     #endif
     /* The residual of step nt measures the velocity recorded at the end of
        that step, v^{nt+1} = v + fv (v was just stepped back to v^{nt}). */
-    gradrip[indp]+=-vx[indv]*lvx - (vx[indv]+fvx)*rvx;
-    gradrkp[indp]+=-vz[indv]*lvz - (vz[indv]+fvz)*rvz;
+    /* Under a stress-image free surface the FDOH rows that the adjoint
+       surface gather changes get their density gradient from surface_grad
+       (surface2D_adj.cl), in the direct form. */
+    int sumform = 1;
+    #if FREESURF==1 && GRADOUT==1
+    if (gidz-FDOH < FDOH) sumform = 0;
+    #endif
+    if (sumform){
+        gradrip[indp]+=-vx[indv]*lvx - (vx[indv]+fvx)*rvx;
+        gradrkp[indp]+=-vz[indv]*lvz - (vz[indv]+fvz)*rvz;
+    }
 
     /* Source term of the misfit gradient -- GJI 2017 eq. (26a) -- for a FORCE
      * source. The accumulation just above is the (A phi' + B phi) side of
@@ -382,7 +455,7 @@ FUNDEF void update_adjv(int offcomm,
      * Source type is the index into kernel_sources()'s src_names[] =
      * {"vx","vy","vz","p",...}, so 0 = force in x and 2 = force in z here. */
     #if GRADOUT==1
-    if (nsrc>0){
+    if (nsrc>0 && sumform){
         for (int srci=0; srci<nsrc; srci++){
             int st = (int)src_pos[4+5*srci];
             if (st==0 || st==2){

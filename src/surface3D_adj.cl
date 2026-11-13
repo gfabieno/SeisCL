@@ -232,3 +232,140 @@ FUNDEF void surface_adj_fold(GLOBARG __prec *vxr,   GLOBARG __prec *vyr,
         }
     }
 }
+
+
+
+#ifdef HAVE_INJECT_IND   /* compiled only with header_injectbnd.cl (the surf_grad program) */
+#ifndef SURFROWS
+#define SURFROWS (FDOH+1)
+#endif
+/* Gradient in the top rows under a stress-image free surface, 3D: the twin
+   of surface_grad in surface2D_adj.cl (see there for the derivation and the
+   timing). Launched at the start of each adjoint step, before update_adjs.
+   Adjoint fields = T*eta_t, T = diag(B, -C); stresses nu = -C^-1 a with
+   C = lambda 1 1^T + 2 mu I on the normal stresses, lambda = M - 2mu.
+   Rows 1..SURFROWS-1: dJ/dM = (sum nu)(sum eps), dJ/dmu = -2 (sum nu)(sum eps)
+     + 2 sum nu_ii eps_ii, shear planes nu_ij (v_i,j + v_j,i).
+   Surface row (szz = 0, sxx and syy += -(lambda^2/M)(vxx+vyy) - lambda vzz):
+     dJ/dM  = 4 mu^2/M^2 (nu_xx+nu_yy)(eps_xx+eps_yy),
+     dJ/dmu = 4 lambda/M (nu_xx+nu_yy)(eps_xx+eps_yy) - 2 (nu_xx eps_yy + nu_yy eps_xx).
+   Density, rows 0..FDOH-1, from the stored states (minus a force source). */
+FUNDEF void surface_grad(GLOBARG __prec *vx,     GLOBARG __prec *vy,
+                         GLOBARG __prec *vz,     GLOBARG __prec *vxr,
+                         GLOBARG __prec *vyr,    GLOBARG __prec *vzr,
+                         GLOBARG __prec *sxxr,   GLOBARG __prec *syyr,
+                         GLOBARG __prec *szzr,   GLOBARG __prec *sxyr,
+                         GLOBARG __prec *sxzr,   GLOBARG __prec *syzr,
+                         GLOBARG __prec *M,      GLOBARG __prec *mu,
+                         GLOBARG __prec *muipjp, GLOBARG __prec *muipkp,
+                         GLOBARG __prec *mujpkp,
+                         GLOBARG __prec *vxbnd,  GLOBARG __prec *vybnd,
+                         GLOBARG __prec *vzbnd,  GLOBARG float *taper,
+                         GLOBARG float *gradM,   GLOBARG float *gradmu,
+                         GLOBARG float *gradmuipjp, GLOBARG float *gradmuipkp,
+                         GLOBARG float *gradmujpkp, GLOBARG float *gradrip,
+                         GLOBARG float *gradrjp, GLOBARG float *gradrkp,
+                         GLOBARG float *src,     GLOBARG float *src_pos,
+                         int nsrc,               int nt,
+                         GLOBARG float *pout,    GLOBARG float *rec_pos,
+                         int nrec)
+{
+    #ifdef __OPENCL_VERSION__
+    int gidy = get_global_id(0) + FDOH;
+    int gidx = get_global_id(1) + FDOH;
+    #else
+    int gidy = blockIdx.x*blockDim.x + threadIdx.x + FDOH;
+    int gidx = blockIdx.y*blockDim.y + threadIdx.y + FDOH;
+    #endif
+    if ( gidx>(NX-FDOH-1) || gidy>(NY-FDOH-1) ){
+        return;
+    }
+    __cprec1 hc[6] = {HC1, HC2, HC3, HC4, HC5, HC6};
+    for (int k=0; k<SURFROWS && FDOH+k<NZ-FDOH; k++){
+        int z = FDOH+k;
+        __cprec1 exx=0, eyy=0, ezz=0, vxy=0, vyx=0, vxz=0, vzx=0, vyz=0, vzy=0;
+        for (int m=0; m<FDOH; m++){
+            exx += hc[m]*((__cprec1)vx[indv(z, gidy, gidx+m)]   - (__cprec1)vx[indv(z, gidy, gidx-m-1)]);
+            eyy += hc[m]*((__cprec1)vy[indv(z, gidy+m, gidx)]   - (__cprec1)vy[indv(z, gidy-m-1, gidx)]);
+            ezz += hc[m]*((__cprec1)vz[indv(z+m, gidy, gidx)]   - (__cprec1)vz[indv(z-m-1, gidy, gidx)]);
+            vxy += hc[m]*((__cprec1)vx[indv(z, gidy+m+1, gidx)] - (__cprec1)vx[indv(z, gidy-m, gidx)]);
+            vyx += hc[m]*((__cprec1)vy[indv(z, gidy, gidx+m+1)] - (__cprec1)vy[indv(z, gidy, gidx-m)]);
+            vxz += hc[m]*((__cprec1)vx[indv(z+m+1, gidy, gidx)] - (__cprec1)vx[indv(z-m, gidy, gidx)]);
+            vzx += hc[m]*((__cprec1)vz[indv(z, gidy, gidx+m+1)] - (__cprec1)vz[indv(z, gidy, gidx-m)]);
+            vyz += hc[m]*((__cprec1)vy[indv(z+m+1, gidy, gidx)] - (__cprec1)vy[indv(z-m, gidy, gidx)]);
+            vzy += hc[m]*((__cprec1)vz[indv(z, gidy+m+1, gidx)] - (__cprec1)vz[indv(z, gidy-m, gidx)]);
+        }
+        int ip = indp(z, gidy, gidx), iv = indv(z, gidy, gidx);
+        __cprec1 lM = M[ip], lmu = mu[ip], lam = lM-(__cprec1)2.0*lmu;
+        __cprec1 axx = sxxr[iv], ayy = syyr[iv], azz = szzr[iv];
+        #if PRESOUT==1
+        for (int g=0; g<nrec; g++){
+            int ri=(int)(rec_pos[0+8*g]/DH)+FDOH;
+            int rj=(int)(rec_pos[1+8*g]/DH)+FDOH;
+            int rk=(int)(rec_pos[2+8*g]/DH)+FDOH;
+            if (ri==gidx && rj==gidy && rk==z){
+                axx -= pout[NT*g+nt]/(__cprec1)3.0;
+                ayy -= pout[NT*g+nt]/(__cprec1)3.0;
+                azz -= pout[NT*g+nt]/(__cprec1)3.0;
+            }
+        }
+        #endif
+        __cprec1 nxx=0, nyy=0, nzz=0;
+        if (lmu != 0){
+            __cprec1 sa = axx+ayy+azz;
+            __cprec1 q = lam/((__cprec1)2.0*lmu+(__cprec1)3.0*lam);
+            nxx = -(axx - q*sa)/((__cprec1)2.0*lmu);
+            nyy = -(ayy - q*sa)/((__cprec1)2.0*lmu);
+            nzz = -(azz - q*sa)/((__cprec1)2.0*lmu);
+        }
+        __cprec1 gM, gmu;
+        if (k==0){
+            gM  = (__cprec1)4.0*lmu*lmu/(lM*lM)*(nxx+nyy)*(exx+eyy);
+            gmu = (__cprec1)4.0*lam/lM*(nxx+nyy)*(exx+eyy) - (__cprec1)2.0*(nxx*eyy + nyy*exx);
+        }
+        else{
+            __cprec1 sn = nxx+nyy+nzz, se = exx+eyy+ezz;
+            gM  = sn*se;
+            gmu = -(__cprec1)2.0*sn*se + (__cprec1)2.0*(nxx*exx + nyy*eyy + nzz*ezz);
+        }
+        gradM[ip] += gM;
+        gradmu[ip] += gmu;
+        if (muipjp[ip] != 0) gradmuipjp[ip] += -(__cprec1)sxyr[iv]/muipjp[ip]*(vxy+vyx);
+        if (muipkp[ip] != 0) gradmuipkp[ip] += -(__cprec1)sxzr[iv]/muipkp[ip]*(vxz+vzx);
+        if (mujpkp[ip] != 0) gradmujpkp[ip] += -(__cprec1)syzr[iv]/mujpkp[ip]*(vyz+vzy);
+
+        if (k<FDOH){
+            int mb = inject_ind(z, gidy, gidx);
+            if (mb!=-1){
+                __cprec1 gt = 1;
+                #if ABS_TYPE==2
+                if (z>NZ-NAB-FDOH-1) gt*=taper[NZ-FDOH-z-1];
+                if (gidy-FDOH<NAB) gt*=taper[gidy-FDOH];
+                if (gidy>NY-NAB-FDOH-1) gt*=taper[NY-FDOH-gidy-1];
+                #if DEVID==0 & MYLOCALID==0
+                if (gidx-FDOH<NAB) gt*=taper[gidx-FDOH];
+                #endif
+                #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+                if (gidx>NX-NAB-FDOH-1) gt*=taper[NX-FDOH-gidx-1];
+                #endif
+                #endif
+                __cprec1 sx = 0, sy = 0, sz = 0;
+                for (int srci=0; srci<nsrc; srci++){
+                    int st = (int)src_pos[4+5*srci];
+                    int si = (int)(src_pos[0+5*srci]/DH)+FDOH;
+                    int sj = (int)(src_pos[1+5*srci]/DH)+FDOH;
+                    int sk = (int)(src_pos[2+5*srci]/DH)+FDOH;
+                    if (si==gidx && sj==gidy && sk==z){
+                        if (st==0) sx += DT*src[srci*NT+nt];
+                        if (st==1) sy += DT*src[srci*NT+nt];
+                        if (st==2) sz += DT*src[srci*NT+nt];
+                    }
+                }
+                gradrip[ip] += -(__cprec1)vxr[iv]*((__cprec1)vx[iv] - gt*((__cprec1)vxbnd[mb] + sx));
+                gradrjp[ip] += -(__cprec1)vyr[iv]*((__cprec1)vy[iv] - gt*((__cprec1)vybnd[mb] + sy));
+                gradrkp[ip] += -(__cprec1)vzr[iv]*((__cprec1)vz[iv] - gt*((__cprec1)vzbnd[mb] + sz));
+            }
+        }
+    }
+}
+#endif

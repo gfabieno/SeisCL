@@ -47,6 +47,7 @@ struct CacheKey {
     int GRADSRCOUT;
     int HOUT;
     int BACK_PROP_TYPE;
+    int GRADABS;
     std::vector<float> gradfreqs;
     float dft_osamp;
     int tmin;
@@ -91,7 +92,7 @@ struct CacheKey {
                FL == o.FL &&
                f0 == o.f0 && par_type == o.par_type && FP16 == o.FP16 &&
                restype == o.restype && GRADSRCOUT == o.GRADSRCOUT &&
-               HOUT == o.HOUT && BACK_PROP_TYPE == o.BACK_PROP_TYPE &&
+               HOUT == o.HOUT && BACK_PROP_TYPE == o.BACK_PROP_TYPE && GRADABS == o.GRADABS &&
                gradfreqs == o.gradfreqs && dft_osamp == o.dft_osamp &&
                tmin == o.tmin &&
                nmax_dev == o.nmax_dev &&
@@ -134,6 +135,7 @@ struct CacheKeyHash {
         combine(h, k.GRADSRCOUT);
         combine(h, k.HOUT);
         combine(h, k.BACK_PROP_TYPE);
+        combine(h, k.GRADABS);
         for (float f : k.gradfreqs) combine(h, f);
         combine(h, k.dft_osamp);
         combine(h, k.tmin);

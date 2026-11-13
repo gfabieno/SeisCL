@@ -225,6 +225,9 @@ void boundary_conditions_freeCL(boundary_conditions * bnd){
     clprogram_freeCL(&bnd->surf);
     clprogram_freeCL(&bnd->surf_adj);
     clprogram_freeCL(&bnd->surf_adj_fold);
+    clprogram_freeCL(&bnd->cpml_adj_v);
+    clprogram_freeCL(&bnd->surf_grad);
+    clprogram_freeCL(&bnd->cpml_adj_s);
     clprogram_freeCL(&bnd->init_f);
     clprogram_freeCL(&bnd->init_adj);
 
@@ -235,6 +238,9 @@ void boundary_conditions_freeGL(boundary_conditions * bnd){
     clprogram_freeGL(&bnd->surf);
     clprogram_freeGL(&bnd->surf_adj);
     clprogram_freeGL(&bnd->surf_adj_fold);
+    clprogram_freeGL(&bnd->cpml_adj_v);
+    clprogram_freeGL(&bnd->surf_grad);
+    clprogram_freeGL(&bnd->cpml_adj_s);
     clprogram_freeGL(&bnd->init_f);
     clprogram_freeGL(&bnd->init_adj);
     

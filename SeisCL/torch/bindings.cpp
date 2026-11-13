@@ -172,6 +172,7 @@ CacheKey make_cache_key(const Config &cfg, int allns, int allng,
     k.GRADSRCOUT = cfg.GRADSRCOUT;
     k.HOUT = cfg.HOUT;
     k.BACK_PROP_TYPE = cfg.BACK_PROP_TYPE;
+    k.GRADABS = cfg.GRADABS;
     k.gradfreqs = cfg.gradfreqs;
     k.dft_osamp = cfg.dft_osamp;
     k.tmin = cfg.tmin;
@@ -262,8 +263,21 @@ py::dict collect_data(model &m) {
 // X-slowest/Y-middle/Z-fastest in 3D (gl_par[x*(NY*NZ)+y*NZ+z]) -- matching
 // what SeisCL.py's write_model() produces via np.transpose().
 void crop_boundary(float *grad, const model &m) {
-    if (m.BACK_PROP_TYPE != 1 && m.ABS_TYPE != 1) return;
-    int nab = m.NAB;
+    if (m.BACK_PROP_TYPE != 1 && m.ABS_TYPE != 1) {
+        // The vacuum rows of FREESURF==2 are not a medium: always zeroed.
+        if (m.FREESURF == 2) {
+            int nz = m.N[0];
+            int ncol = (m.NDIM == 3) ? m.N[1] * m.N[2] : m.N[1];
+            for (int c = 0; c < ncol; c++)
+                for (int z = 0; z < m.FDOH && z < nz; z++) grad[c * nz + z] = 0.0f;
+        }
+        return;
+    }
+    // GRADABS: the forward wavefield is saved in the whole layers, so the
+    // gradient there is exact (Cerjan and CPML). Only FREESURF==2's vacuum rows
+    // are still zeroed: they are not a medium.
+    bool gradabs = m.BACK_PROP_TYPE == 1 && (m.ABS_TYPE == 1 || m.ABS_TYPE == 2) && m.GRADABS;
+    int nab = gradabs ? 0 : m.NAB;
     // FREESURF==0's top band is cropped for the general reason above.
     // FREESURF==1 has its own accurate free-surface gradient handling right
     // up to z=0, no crop needed. FREESURF==2's vacuum band
@@ -736,6 +750,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         .def_readwrite("GRADSRCOUT", &Config::GRADSRCOUT)
         .def_readwrite("HOUT", &Config::HOUT)
         .def_readwrite("BACK_PROP_TYPE", &Config::BACK_PROP_TYPE)
+        .def_readwrite("GRADABS", &Config::GRADABS)
         .def_readwrite("gradfreqs", &Config::gradfreqs)
         .def_readwrite("dft_osamp", &Config::dft_osamp)
         .def_readwrite("tmin", &Config::tmin)

@@ -51,6 +51,15 @@ FUNDEF void update_adjv(int offcomm,
                           GLOBARG float * RESTRICT psi_sxx_x,       GLOBARG float * RESTRICT psi_sxy_x,       GLOBARG float * RESTRICT psi_sxy_y,
                           GLOBARG float * RESTRICT psi_sxz_x,       GLOBARG float * RESTRICT psi_sxz_z,       GLOBARG float * RESTRICT psi_syy_y,
                           GLOBARG float * RESTRICT psi_syz_y,       GLOBARG float * RESTRICT psi_syz_z,       GLOBARG float * RESTRICT psi_szz_z,
+                          GLOBARG const float * RESTRICT cpf1,
+                          GLOBARG const float * RESTRICT cpf2,
+                          GLOBARG const float * RESTRICT cpf3,
+                          GLOBARG const float * RESTRICT cpf4,
+                          GLOBARG const float * RESTRICT cpf5,
+                          GLOBARG const float * RESTRICT cpf6,
+                          GLOBARG const float * RESTRICT cpf7,
+                          GLOBARG const float * RESTRICT cpf8,
+                          GLOBARG const float * RESTRICT cpf9,
                           LOCARG,                                   GLOBARG float * RESTRICT gradrho,         GLOBARG const float * RESTRICT gradsrc,
                           GLOBARG float * RESTRICT gradrip,         GLOBARG float * RESTRICT gradrjp,         GLOBARG float * RESTRICT gradrkp,
                           GLOBARG const float * RESTRICT Hrho,      GLOBARG const float * RESTRICT Hsrc,
@@ -107,6 +116,15 @@ FUNDEF void update_adjv(int offcomm,
     #define lsxyr lvar
     #define lsyzr lvar
     #define lsxzr lvar
+    #define lcpf1 lvar
+    #define lcpf2 lvar
+    #define lcpf3 lvar
+    #define lcpf4 lvar
+    #define lcpf5 lvar
+    #define lcpf6 lvar
+    #define lcpf7 lvar
+    #define lcpf8 lvar
+    #define lcpf9 lvar
 
 // If local memory is turned off
 #elif LOCAL_OFF==1
@@ -143,6 +161,15 @@ FUNDEF void update_adjv(int offcomm,
     #define lsxyr sxyr
     #define lsyzr syzr
     #define lsxzr sxzr
+    #define lcpf1 cpf1
+    #define lcpf2 cpf2
+    #define lcpf3 cpf3
+    #define lcpf4 cpf4
+    #define lcpf5 cpf5
+    #define lcpf6 cpf6
+    #define lcpf7 cpf7
+    #define lcpf8 cpf8
+    #define lcpf9 cpf9
 
     #define lidx gidx
     #define lidy gidy
@@ -223,6 +250,75 @@ FUNDEF void update_adjv(int offcomm,
 #endif
 
 // Calculation of the stress spatial derivatives of the adjoint wavefield
+#if ABS_TYPE==1 && BACK_PROP_TYPE==1
+    /* Exact CPML adjoint: derivatives of the adjoint fields filtered by
+       cpml_adj_s (cpml_adj3D.cl), which ran just before this kernel. */
+    {
+        #if LOCAL_OFF==0
+        load_local_in(cpf1);
+        load_local_halox(cpf1);
+        BARRIER
+        #endif
+        sxx_xr = Dxp(lcpf1);
+        #if LOCAL_OFF==0
+        BARRIER
+        load_local_in(cpf2);
+        load_local_haloy(cpf2);
+        BARRIER
+        #endif
+        sxy_yr = Dym(lcpf2);
+        #if LOCAL_OFF==0
+        BARRIER
+        load_local_in(cpf3);
+        load_local_haloz(cpf3);
+        BARRIER
+        #endif
+        sxz_zr = Dzm(lcpf3);
+        #if LOCAL_OFF==0
+        BARRIER
+        load_local_in(cpf4);
+        load_local_halox(cpf4);
+        BARRIER
+        #endif
+        sxy_xr = Dxm(lcpf4);
+        #if LOCAL_OFF==0
+        BARRIER
+        load_local_in(cpf5);
+        load_local_haloy(cpf5);
+        BARRIER
+        #endif
+        syy_yr = Dyp(lcpf5);
+        #if LOCAL_OFF==0
+        BARRIER
+        load_local_in(cpf6);
+        load_local_haloz(cpf6);
+        BARRIER
+        #endif
+        syz_zr = Dzm(lcpf6);
+        #if LOCAL_OFF==0
+        BARRIER
+        load_local_in(cpf7);
+        load_local_halox(cpf7);
+        BARRIER
+        #endif
+        sxz_xr = Dxm(lcpf7);
+        #if LOCAL_OFF==0
+        BARRIER
+        load_local_in(cpf8);
+        load_local_haloy(cpf8);
+        BARRIER
+        #endif
+        syz_yr = Dym(lcpf8);
+        #if LOCAL_OFF==0
+        BARRIER
+        load_local_in(cpf9);
+        load_local_haloz(cpf9);
+        BARRIER
+        #endif
+        szz_zr = Dzp(lcpf9);
+        BARRIER
+    }
+#else
     {
         #if LOCAL_OFF==0
         load_local_in(szzr);
@@ -285,6 +381,7 @@ FUNDEF void update_adjv(int offcomm,
         BARRIER
 
     }
+#endif
 
 // To stop updating if we are outside the model (global id must be a multiple of local id in OpenCL, hence we stop if we have a global id outside the grid)
 #if LOCAL_OFF==0
@@ -303,6 +400,7 @@ FUNDEF void update_adjv(int offcomm,
 // Backpropagate the forward velocity
 #if BACK_PROP_TYPE==1
     {
+        float vxold = vx[indv], vyold = vy[indv], vzold = vz[indv];
         lvx=((sxx_x + sxy_y + sxz_z)*rip[indp]);
         lvy=((syy_y + sxy_x + syz_z)*rjp[indp]);
         lvz=((szz_z + sxz_x + syz_y)*rkp[indp]);
@@ -320,12 +418,33 @@ FUNDEF void update_adjv(int offcomm,
             vx[indv]= vxbnd[m];
             vy[indv]= vybnd[m];
             vz[indv]= vzbnd[m];
+            /* Exact forward increment from the two stored states (see
+               update_adjv2D.cl). */
+            float gt = 1.0f;
+            #if ABS_TYPE==2
+            #if FREESURF==0
+            if (gidz-FDOH<NAB) gt*=taper[gidz-FDOH];
+            #endif
+            if (gidz>NZ-NAB-FDOH-1) gt*=taper[NZ-FDOH-gidz-1];
+            if (gidy-FDOH<NAB) gt*=taper[gidy-FDOH];
+            if (gidy>NY-NAB-FDOH-1) gt*=taper[NY-FDOH-gidy-1];
+            #if DEVID==0 & MYLOCALID==0
+            if (gidx-FDOH<NAB) gt*=taper[gidx-FDOH];
+            #endif
+            #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
+            if (gidx>NX-NAB-FDOH-1) gt*=taper[NX-FDOH-gidx-1];
+            #endif
+            #endif
+            fvx = vxold/gt - vx[indv];
+            fvy = vyold/gt - vy[indv];
+            fvz = vzold/gt - vz[indv];
         }
     }
 #endif
 
-// Correct adjoint spatial derivatives to implement CPML
-#if ABS_TYPE==1
+// Correct adjoint spatial derivatives to implement CPML (BACK_PROP_TYPE 2;
+// BACK_PROP_TYPE 1 uses the exact adjoint of cpml_adj3D.cl instead)
+#if ABS_TYPE==1 && BACK_PROP_TYPE!=1
     {
         int ind;
         int i,j,k;
@@ -514,9 +633,18 @@ FUNDEF void update_adjv(int offcomm,
     #endif
     /* The residual of step nt measures the velocity recorded at the end of
        that step, v^{nt+1} = v + fv (v was just stepped back to v^{nt}). */
+    /* Under a stress-image free surface the FDOH rows that the adjoint
+       surface gather changes get their density gradient from surface_grad
+       (surface3D_adj.cl), in the direct form. */
+    int sumform = 1;
+    #if FREESURF==1 && GRADOUT==1
+    if (gidz-FDOH < FDOH) sumform = 0;
+    #endif
+    if (sumform){
     gradrip[indp]+=-vx[indv]*lvx - (vx[indv]+fvx)*rvx;
     gradrjp[indp]+=-vy[indv]*lvy - (vy[indv]+fvy)*rvy;
     gradrkp[indp]+=-vz[indv]*lvz - (vz[indv]+fvz)*rvz;
+    }
 
     /* Source term of the misfit gradient -- GJI 2017 eq. (26a) -- for a FORCE
      * source; see update_adjv2D.cl for the derivation. Each component lands in
@@ -527,7 +655,7 @@ FUNDEF void update_adjv(int offcomm,
      * Types index kernel_sources()'s src_names[] = {vx,vy,vz,p,...}.
      * No src_scale: this file is compiled only at FP16==0. */
     #if GRADOUT==1
-    if (nsrc>0){
+    if (nsrc>0 && sumform){
         for (int srci=0; srci<nsrc; srci++){
             int st = (int)src_pos[4+5*srci];
             if (st>=0 && st<=2){

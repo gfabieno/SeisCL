@@ -1240,21 +1240,26 @@ static void grad_T_arithmetic_rho(float * pin, float * gin, float * gout,
     int NX, NY, NZ;
     int NX0=0, NY0=0, NZ0=0;
     int ind1, ind2;
-    double avg, s;
     if (ndim==3){ NX=N[2]; NY=N[1]; NZ=N[0]; }
     else        { NX=N[1]; NY=1;    NZ=N[0]; }
 
-    /* pout = 2/(1/p1 + 1/p2)  =>  d(pout)/d(p_j) = (pout^2/2)/p_j^2 */
     for (k=0;k<NZ-dir[0];k++){
         for (j=0;j<NY-dir[1];j++){
             for (i=0;i<NX-dir[2];i++){
                 ind1 = (i  )*NY*NZ+(j)*NZ+(k);
                 ind2 = (i+dir[2])*NY*NZ+(j+dir[1])*NZ+(k+dir[0]);
-                s = 1.0/pin[ind1] + 1.0/pin[ind2];
-                if (s==0.0) continue;
-                avg = 2.0/s;
-                gout[ind1] += gin[ind1]*0.5*avg*avg/(pin[ind1]*pin[ind1]);
-                gout[ind2] += gin[ind1]*0.5*avg*avg/(pin[ind2]*pin[ind2]);
+                /* The kernels accumulate gradrip/gradrkp against the
+                   averaged DENSITY (update_adjv: -B^2 dJ/dB), and nothing
+                   downstream multiplies by -b^2: the transpose of the
+                   arithmetic density average rho_avg = (rho1+rho2)/2 is 1/2
+                   for each cell. The buoyancy Jacobian used before,
+                   0.5*avg^2/p^2 = 0.5*(rho_j/rho_avg)^2, is that only for a
+                   uniform density. With one vacuum neighbour (FREESURF==2,
+                   ave_two(): b_avg = 2b, i.e. rho_avg = rho/2) it is still
+                   1/2, for the solid cell only; it used to be dropped. */
+                if (pin[ind1]==0.0 && pin[ind2]==0.0) continue;
+                if (pin[ind1]!=0.0) gout[ind1] += 0.5*gin[ind1];
+                if (pin[ind2]!=0.0) gout[ind2] += 0.5*gin[ind1];
             }
         }
     }
