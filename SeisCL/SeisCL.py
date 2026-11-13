@@ -27,7 +27,7 @@ csts = [ 'N', 'ND', 'dh', 'dt', 'NT', 'freesurf', 'FDORDER', 'MAXRELERROR',
         'param_type', 'gradfreqs', 'tmax', 'tmin', 'scalerms',
         'scalermsnorm', 'scaleshot',
         'fmin', 'fmax', 'gradout', 'Hout', 'gradsrcout', 'seisout', 'resout',
-        'rmsout', 'movout', 'restype', 'inputres', 'FP16', 'dftout',
+        'rmsout', 'movout', 'restype', 'inputres', 'FP16', 'dftout', 'gradabs',
         'dft_osamp']
 
 SOURCE_TYPES = {
@@ -73,7 +73,7 @@ class SeisCL:
                  no_use_GPUs:  np.ndarray = np.array([-1]),
 
                  gradout: int = 0, Hout: int = 0, gradsrcout: int = 0,
-                 back_prop_type: int = 1, cropgrad=True,
+                 back_prop_type: int = 1, cropgrad=True, gradabs: int = 0,
                  gradfreqs:  np.ndarray = np.empty((1, 0)), param_type: int = 0,
                  tmax: float = 0, tmin: float = 0, fmin: float = 0,
                  fmax: float = 0, filter_offset: bool = False,
@@ -213,6 +213,13 @@ class SeisCL:
                                  2: Discrete Fourier transform
         :param cropgrad:         If true, when calling read_grad, the gradient
                                  in the absorbing boundaries are set to 0.
+        :param gradabs:          1: with back_prop_type=1, save the forward
+                                 wavefield in the whole absorbing layers at
+                                 every time step, so that the gradient there
+                                 is exact (it is then not cropped). Cerjan
+                                 layers (abs_type=2) only. Memory: about
+                                 (number of layer cells) x (number of
+                                 wavefield variables) x 4 bytes x NT.
         :param gradfreqs:        Frequencies of gradient with DFT
         :param param_type:       Type of parametrization:
                                  0:(rho,vp,vs,taup,taus)
@@ -339,6 +346,7 @@ class SeisCL:
         self.gradsrcout = gradsrcout
         self.back_prop_type = back_prop_type
         self.cropgrad = cropgrad
+        self.gradabs = gradabs
         self.gradfreqs = gradfreqs
         self.param_type = param_type
         self.tmax = tmax
@@ -675,6 +683,15 @@ class SeisCL:
           caution.
         """
         do_crop = self.back_prop_type == 1 or self.abs_type == 1
+        # gradabs=1: the forward wavefield is saved in the whole layers, so
+        # the back_prop_type=1 gradient there is exact (Cerjan and CPML).
+        if self.back_prop_type == 1 and self.abs_type in (1, 2) and self.gradabs:
+            # Only the vacuum rows of freesurf=2 are still zeroed: they are not
+            # a medium, and the kernels leave 0/0 there.
+            if self.freesurf == 2:
+                for o in output:
+                    o[:self.FDORDER // 2] = 0
+            return
         if not do_crop:
             return
         nab = self.nab

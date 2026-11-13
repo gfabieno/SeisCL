@@ -378,7 +378,7 @@ char *get_build_options(device *dev,
             "-D GRADOUT=%d -D HOUT=%d -D GRADSRCOUT=%d -D DIRPROP=%d "
             "-D RESTYPE=%d -D FP16=%d -D PARSCALE=%d -D FREQ0=%9.9ff "
             "-D PARNZ=%d -D PARNY=%d -D PARNX=%d -D TMIN=%d "
-            "-D PRESOUT=%d -D VELOUT=%d -D VXOUT=%d -D VYOUT=%d -D VZOUT=%d",
+            "-D PRESOUT=%d -D VELOUT=%d -D VXOUT=%d -D VYOUT=%d -D VZOUT=%d -D GRADABS=%d",
             (*m).NDIM, (*dev).OFFSET, (*m).FDOH, (*m).dt/(*m).dh, (*m).dh,
             (*m).dt, (*m).dt/2.0, (*m).NT, (*m).NAB, (*dev).NBND,
             (*dev).LOCAL_OFF, (*m).L, (*dev).DEVID, (*m).NUM_DEVICES,
@@ -388,7 +388,7 @@ char *get_build_options(device *dev,
             (*m).VARSOUT, (*m).RESOUT, (*m).RMSOUT, (*m).MOVOUT,
             (*m).GRADOUT, (*m).HOUT, (*m).GRADSRCOUT, DIRPROP, (*m).restype,
             (*m).FP16, (*m).par_scale, (*m).f0,
-            (*dev).N[0], parny, parnx, (*m).tmin, presout, velout, vout[0], vout[1], vout[2]) ;
+            (*dev).N[0], parny, parnx, (*m).tmin, presout, velout, vout[0], vout[1], vout[2], (*m).GRADABS) ;
 
 
     strcat(build_options,src2);
@@ -688,6 +688,8 @@ int get_build_options(device *dev,
     sprintf(build_options[*n-1],"-D VYOUT=%d",vout[1]);
     *n+=1;
     sprintf(build_options[*n-1],"-D VZOUT=%d",vout[2]);
+    *n+=1;
+    sprintf(build_options[*n-1],"-D GRADABS=%d",(*m).GRADABS);
     // Raw (unpadded) per-dimension grid size, matching the material
     // parameter arrays' actual layout (num_ele = prod(N), no FDORDER) --
     // distinct from the NZ/NX/etc. macros above, which are sized for the

@@ -513,6 +513,7 @@ int read_csts(hid_t file_id, model * m){
     read_optional(file_id, H5T_NATIVE_INT, "/param_type", &m->par_type);
     read_optional(file_id, H5T_NATIVE_INT, "/FP16", &m->FP16);
     read_optional(file_id, H5T_NATIVE_INT, "/inputres", &m->INPUTRES);
+    read_optional(file_id, H5T_NATIVE_INT, "/gradabs", &m->GRADABS);
     read_optional(file_id, H5T_NATIVE_INT, "/halfpar", &m->halfpar);
     read_optional(file_id, H5T_NATIVE_FLOAT,   "/tmax", &tmaxf);
     read_optional(file_id, H5T_NATIVE_FLOAT,   "/tmin", &tminf);

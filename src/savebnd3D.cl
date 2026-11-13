@@ -35,6 +35,10 @@
 #endif
 
 
+#ifndef GRADABS
+#define GRADABS 0
+#endif
+
 FUNDEF void savebnd(GLOBARG __prec2 *vx,         GLOBARG __prec2 *vy,      GLOBARG __prec2 *vz,
                     GLOBARG __prec2 *sxx,        GLOBARG __prec2 *syy,     GLOBARG __prec2 *szz,
                     GLOBARG __prec2 *sxy,        GLOBARG __prec2 *syz,     GLOBARG __prec2 *sxz,
@@ -46,8 +50,51 @@ FUNDEF void savebnd(GLOBARG __prec2 *vx,         GLOBARG __prec2 *vy,      GLOBA
     int i,j,k,indv;
     int gidf;
 
-// If we have one device and one processing element in the group, we need all 6 sides of the boundary
-#if NUM_DEVICES==1 & NLOCALP==1
+#if GRADABS==1
+    /* Frame of the whole absorbing layers + FDOH band (header_injectbnd.cl,
+       Init_OpenCL.c): x-left, x-right (all y, z); y-front, y-back (middle x,
+       all z); top, bottom (middle x and y). z is the fastest index. */
+    #ifdef __OPENCL_VERSION__
+    int gid = get_global_id(0);
+    #else
+    int gid = blockIdx.x*blockDim.x + threadIdx.x;
+    #endif
+    {
+    int NZi = NZ-2*FDOH, NYi = NY-2*FDOH, NXi = NX-2*FDOH;
+    int W = NAB+FDOH;
+    #if FREESURF==0
+    int Wt = W;
+    #else
+    int Wt = FDOH;
+    #endif
+    int NXm = NXi-2*W, NYm = NYi-2*W;
+    int A = W*NYi*NZi, B = NXm*W*NZi, C = NXm*NYm*Wt, D = NXm*NYm*W;
+    if (gid<2*A){
+        gidf = gid<A ? gid : gid-A;
+        i = gidf/(NYi*NZi);  j = (gidf/NZi)%NYi;  k = gidf%NZi;
+        i += gid<A ? FDOH : NX-FDOH-W;
+        j += FDOH;  k += FDOH;
+    }
+    else if (gid<2*A+2*B){
+        gidf = gid-2*A;
+        int back = gidf>=B;
+        if (back) gidf -= B;
+        i = FDOH+W+gidf/(W*NZi);  j = (gidf/NZi)%W;  k = FDOH+gidf%NZi;
+        j += back ? NY-FDOH-W : FDOH;
+    }
+    else if (gid<2*A+2*B+C){
+        gidf = gid-2*A-2*B;
+        i = FDOH+W+gidf/(NYm*Wt);  j = FDOH+W+(gidf/Wt)%NYm;  k = FDOH+gidf%Wt;
+    }
+    else if (gid<2*A+2*B+C+D){
+        gidf = gid-2*A-2*B-C;
+        i = FDOH+W+gidf/(NYm*W);  j = FDOH+W+(gidf/W)%NYm;  k = NZ-FDOH-W+gidf%W;
+    }
+    else{
+        return;
+    }
+    }
+#elif NUM_DEVICES==1 & NLOCALP==1
     #ifdef __OPENCL_VERSION__
     int gid = get_global_id(0);
     #else

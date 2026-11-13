@@ -62,6 +62,15 @@ FUNDEF void update_adjs(int offcomm,
                           GLOBARG float * RESTRICT psi_vx_x,        GLOBARG float * RESTRICT psi_vx_y,        GLOBARG float * RESTRICT psi_vx_z,
                           GLOBARG float * RESTRICT psi_vy_x,        GLOBARG float * RESTRICT psi_vy_y,        GLOBARG float * RESTRICT psi_vy_z,
                           GLOBARG float * RESTRICT psi_vz_x,        GLOBARG float * RESTRICT psi_vz_y,        GLOBARG float * RESTRICT psi_vz_z,
+                          GLOBARG const float * RESTRICT cpf1,
+                          GLOBARG const float * RESTRICT cpf2,
+                          GLOBARG const float * RESTRICT cpf3,
+                          GLOBARG const float * RESTRICT cpf4,
+                          GLOBARG const float * RESTRICT cpf5,
+                          GLOBARG const float * RESTRICT cpf6,
+                          GLOBARG const float * RESTRICT cpf7,
+                          GLOBARG const float * RESTRICT cpf8,
+                          GLOBARG const float * RESTRICT cpf9,
                           GLOBARG const float * RESTRICT gradrho,   GLOBARG float * RESTRICT gradM,           GLOBARG float * RESTRICT gradmu,
                           GLOBARG float * RESTRICT gradmuipkp,      GLOBARG float * RESTRICT gradmuipjp,      GLOBARG float * RESTRICT gradmujpkp,
                           GLOBARG const float * RESTRICT gradtaup,  GLOBARG const float * RESTRICT gradtaus,  GLOBARG const float * RESTRICT gradsrc,
@@ -125,6 +134,15 @@ FUNDEF void update_adjs(int offcomm,
     #define lvxr lvar
     #define lvyr lvar
     #define lvzr lvar
+    #define lcpf1 lvar
+    #define lcpf2 lvar
+    #define lcpf3 lvar
+    #define lcpf4 lvar
+    #define lcpf5 lvar
+    #define lcpf6 lvar
+    #define lcpf7 lvar
+    #define lcpf8 lvar
+    #define lcpf9 lvar
 
 // If local memory is turned off
     #elif LOCAL_OFF==1
@@ -151,6 +169,15 @@ FUNDEF void update_adjs(int offcomm,
     #define lvxr vxr
     #define lvyr vyr
     #define lvzr vzr
+    #define lcpf1 cpf1
+    #define lcpf2 cpf2
+    #define lcpf3 cpf3
+    #define lcpf4 cpf4
+    #define lcpf5 cpf5
+    #define lcpf6 cpf6
+    #define lcpf7 cpf7
+    #define lcpf8 cpf8
+    #define lcpf9 cpf9
     #define lvx vx
     #define lvy vy
     #define lvz vz
@@ -213,6 +240,75 @@ FUNDEF void update_adjs(int offcomm,
 #endif
 
 // Calculation of the velocity spatial derivatives of the adjoint wavefield
+#if ABS_TYPE==1 && BACK_PROP_TYPE==1
+    /* Exact CPML adjoint: derivatives of the adjoint fields filtered by
+       cpml_adj_v (cpml_adj3D.cl), which ran just before this kernel. */
+    {
+        #if LOCAL_OFF==0
+        load_local_in(cpf1);
+        load_local_halox(cpf1);
+        BARRIER
+        #endif
+        vxxr = Dxm(lcpf1);
+        #if LOCAL_OFF==0
+        BARRIER
+        load_local_in(cpf2);
+        load_local_haloy(cpf2);
+        BARRIER
+        #endif
+        vxyr = Dyp(lcpf2);
+        #if LOCAL_OFF==0
+        BARRIER
+        load_local_in(cpf3);
+        load_local_haloz(cpf3);
+        BARRIER
+        #endif
+        vxzr = Dzp(lcpf3);
+        #if LOCAL_OFF==0
+        BARRIER
+        load_local_in(cpf4);
+        load_local_halox(cpf4);
+        BARRIER
+        #endif
+        vyxr = Dxp(lcpf4);
+        #if LOCAL_OFF==0
+        BARRIER
+        load_local_in(cpf5);
+        load_local_haloy(cpf5);
+        BARRIER
+        #endif
+        vyyr = Dym(lcpf5);
+        #if LOCAL_OFF==0
+        BARRIER
+        load_local_in(cpf6);
+        load_local_haloz(cpf6);
+        BARRIER
+        #endif
+        vyzr = Dzp(lcpf6);
+        #if LOCAL_OFF==0
+        BARRIER
+        load_local_in(cpf7);
+        load_local_halox(cpf7);
+        BARRIER
+        #endif
+        vzxr = Dxp(lcpf7);
+        #if LOCAL_OFF==0
+        BARRIER
+        load_local_in(cpf8);
+        load_local_haloy(cpf8);
+        BARRIER
+        #endif
+        vzyr = Dyp(lcpf8);
+        #if LOCAL_OFF==0
+        BARRIER
+        load_local_in(cpf9);
+        load_local_haloz(cpf9);
+        BARRIER
+        #endif
+        vzzr = Dzm(lcpf9);
+        BARRIER
+    }
+#else
     {
          #if LOCAL_OFF==0
         load_local_in(vzr);
@@ -252,6 +348,7 @@ FUNDEF void update_adjs(int offcomm,
         vxyr = Dyp(lvxr);
         vxzr = Dzp(lvxr);
     }
+#endif
 
 // To stop updating if we are outside the model (global id must be a multiple of local id in OpenCL, hence we stop if we have a global id outside the grid)
 #if LOCAL_OFF==0
@@ -412,8 +509,9 @@ FUNDEF void update_adjs(int offcomm,
     }
 #endif
 
-// Correct adjoint spatial derivatives to implement CPML
-#if ABS_TYPE==1
+// Correct adjoint spatial derivatives to implement CPML (BACK_PROP_TYPE 2;
+// BACK_PROP_TYPE 1 uses the exact adjoint of cpml_adj3D.cl instead)
+#if ABS_TYPE==1 && BACK_PROP_TYPE!=1
     {
         int ind;
         int i,j,k;

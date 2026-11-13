@@ -20,12 +20,43 @@
 
 #endif
 
+#ifndef GRADABS
+#define GRADABS 0
+#endif
+
 #if ND==3
     // Find boundary indice for boundary injection in backpropagation
     LFUNDEF int inject_ind(int k, int j, int i){
         
-        
-    #if NUM_DEVICES==1 & NLOCALP==1
+    #if GRADABS==1
+        /* Whole absorbing layers + FDOH band: inverse of savebnd3D.cl. */
+        int NZi = NZ-2*FDOH, NYi = NY-2*FDOH, NXi = NX-2*FDOH;
+        int W = NAB+FDOH;
+        #if FREESURF==0
+        int Wt = W;
+        #else
+        int Wt = FDOH;
+        #endif
+        int NXm = NXi-2*W, NYm = NYi-2*W;
+        int A = W*NYi*NZi, B = NXm*W*NZi, C = NXm*NYm*Wt;
+        int m=-1;
+        i-=FDOH; j-=FDOH; k-=FDOH;
+        if (k<0 || k>NZi-1 || j<0 || j>NYi-1 || i<0 || i>NXi-1)
+            m=-1;
+        else if (i<W)
+            m=i*NYi*NZi+j*NZi+k;
+        else if (i>NXi-1-W)
+            m=A+(i-NXi+W)*NYi*NZi+j*NZi+k;
+        else if (j<W)
+            m=2*A+(i-W)*W*NZi+j*NZi+k;
+        else if (j>NYi-1-W)
+            m=2*A+B+(i-W)*W*NZi+(j-NYi+W)*NZi+k;
+        else if (k<Wt)
+            m=2*A+2*B+(i-W)*NYm*Wt+(j-W)*Wt+k;
+        else if (k>NZi-1-W)
+            m=2*A+2*B+C+(i-W)*NYm*W+(j-W)*W+(k-NZi+W);
+        return m;
+    #elif NUM_DEVICES==1 & NLOCALP==1
         
         int NXbnd = (NX-2*FDOH-2*NAB);
         int NYbnd = (NY-2*FDOH-2*NAB);
@@ -237,8 +268,30 @@
     // Find boundary indice for boundary injection in backpropagation
     LFUNDEF int inject_ind( int k, int i){
         
-        
-    #if NUM_DEVICES==1 & NLOCALP==1
+    #if GRADABS==1
+        /* Whole absorbing layers + FDOH band: inverse of savebnd2D.cl. */
+        int NZi = NZ-2*FDOH, NXi = NX-2*FDOH;
+        int W = NAB+FDOH;
+        #if FREESURF==0
+        int Wt = W;
+        #else
+        int Wt = FDOH;
+        #endif
+        int A = W*NZi, NXm = NXi-2*W;
+        int m=-1;
+        i-=FDOH; k-=FDOH;
+        if (k<0 || k>NZi-1 || i<0 || i>NXi-1)
+            m=-1;
+        else if (i<W)
+            m=i*NZi+k;
+        else if (i>NXi-1-W)
+            m=A+(i-NXi+W)*NZi+k;
+        else if (k<Wt)
+            m=2*A+(i-W)*Wt+k;
+        else if (k>NZi-1-W)
+            m=2*A+NXm*Wt+(i-W)*W+(k-NZi+W);
+        return m;
+    #elif NUM_DEVICES==1 & NLOCALP==1
         
         int NXbnd = (NX-2*FDOH-2*NAB);
     #if FREESURF==0

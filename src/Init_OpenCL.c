@@ -1118,7 +1118,33 @@ int Init_CUDA(model * m, device ** dev)  {
             else{
                 lenz = di->N[0]-m->NAB-m->FDOH;
             }
-            if (m->ND==3){// For 3D
+            if (m->GRADABS==1){
+                /* Frame = absorbing layers + the FDOH band inside them, on
+                   every side with a layer; on the free-surface side, the
+                   FDOH rows below the surface (as without GRADABS). Layout
+                   and indexing: savebnd2D/3D.cl and header_injectbnd.cl. */
+                int W = m->NAB+m->FDOH;
+                int Wt = m->FREESURF ? m->FDOH : W;
+                int nzi = di->N[0];
+                int nxi = m->ND==3 ? di->N[2] : di->N[1];
+                int nyi = m->ND==3 ? di->N[1] : 1;
+                if (m->NUM_DEVICES!=1 || m->NLOCALP!=1){
+                    state=1;
+                    fprintf(stderr,"Error: gradabs=1 requires a single "
+                                   "device and a single process per shot\n");
+                }
+                if (nxi<=2*W || nzi<=Wt+W || (m->ND==3 && nyi<=2*W)){
+                    state=1;
+                    fprintf(stderr,"Error: gradabs=1: grid too small for "
+                                   "the absorbing layers\n");
+                }
+                if (m->ND==3)
+                    di->NBND = 2*W*nyi*nzi + (nxi-2*W)*2*W*nzi
+                             + (nxi-2*W)*(nyi-2*W)*(Wt+W);
+                else
+                    di->NBND = 2*W*nzi + (nxi-2*W)*(Wt+W);
+            }
+            else if (m->ND==3){// For 3D
                 if (m->NUM_DEVICES==1 && m->NLOCALP==1)
                     di->NBND=(di->N[2]-2*m->NAB)*(di->N[1]-2*m->NAB)*2*m->FDOH
                     +(di->N[2]-2*m->NAB)*(lenz)*2*m->FDOH
@@ -1292,6 +1318,26 @@ int Init_CUDA(model * m, device ** dev)  {
         }
     
         
+        /* Exact CPML adjoint filters (cpml_adj2D.cl): one thread per cell. The
+           scratch buffers have no halo exchange, so a single device only. */
+        if (m->bnd_cnds.cpml_adj_v.name){
+            if (m->NUM_DEVICES!=1 || m->NLOCALP!=1){
+                state=1;
+                fprintf(stderr,"Error: gradients with abs_type=1 (CPML) and "
+                               "back_prop_type=1 need a single device and "
+                               "a single process per shot\n");
+            }
+            di->bnd_cnds.cpml_adj_v=m->bnd_cnds.cpml_adj_v;
+            __GUARD prog_create(m, di, &di->bnd_cnds.cpml_adj_v);
+            di->bnd_cnds.cpml_adj_s=m->bnd_cnds.cpml_adj_s;
+            __GUARD prog_create(m, di, &di->bnd_cnds.cpml_adj_s);
+            di->bnd_cnds.cpml_adj_v.wdim=m->NDIM;
+            di->bnd_cnds.cpml_adj_s.wdim=m->NDIM;
+            for (i=0;i<m->NDIM;i++){
+                di->bnd_cnds.cpml_adj_v.gsize[i]=di->N[i];
+                di->bnd_cnds.cpml_adj_s.gsize[i]=di->N[i];
+            }
+        }
         //TODO Boundary conditions should be included in the update kernel
         //TODO Adjoint free surface
         if (m->FREESURF==1){

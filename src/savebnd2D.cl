@@ -40,6 +40,10 @@
 
 #endif
 
+#ifndef GRADABS
+#define GRADABS 0
+#endif
+
 FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 *szz,
                                    GLOBARG __prec2 *vx, GLOBARG __prec2 *vz,
                                    GLOBARG __prec2 *sxxbnd, GLOBARG __prec2 *sxzbnd, GLOBARG __prec2 *szzbnd,
@@ -49,7 +53,44 @@ FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 
     int i,k,indv;
     int gidf;
     
-#if NUM_DEVICES==1 & NLOCALP==1
+#if GRADABS==1
+    /* Frame of the whole absorbing layers + FDOH band (header_injectbnd.cl,
+       Init_OpenCL.c): x-left, x-right (all z), then top and bottom rows
+       between them. z is the fastest index in every block. */
+    #ifdef __OPENCL_VERSION__
+    int gid = get_global_id(0);
+    #else
+    int gid = blockIdx.x*blockDim.x + threadIdx.x;
+    #endif
+    {
+    int NZi = NZ-2*FDOH, NXi = NX-2*FDOH;
+    int W = NAB+FDOH;
+    #if FREESURF==0
+    int Wt = W;
+    #else
+    int Wt = FDOH;
+    #endif
+    int A = W*NZi, NXm = NXi-2*W;
+    if (gid<A){
+        i = FDOH+gid/NZi;           k = FDOH+gid%NZi;
+    }
+    else if (gid<2*A){
+        gidf = gid-A;
+        i = NX-FDOH-W+gidf/NZi;     k = FDOH+gidf%NZi;
+    }
+    else if (gid<2*A+NXm*Wt){
+        gidf = gid-2*A;
+        i = FDOH+W+gidf/Wt;         k = FDOH+gidf%Wt;
+    }
+    else if (gid<2*A+NXm*(Wt+W)){
+        gidf = gid-2*A-NXm*Wt;
+        i = FDOH+W+gidf/W;          k = NZ-FDOH-W+gidf%W;
+    }
+    else{
+        return;
+    }
+    }
+#elif NUM_DEVICES==1 & NLOCALP==1
 #ifdef __OPENCL_VERSION__
     int gid = get_global_id(0);
 #else

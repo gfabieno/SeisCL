@@ -103,6 +103,7 @@ void apply_config(model &m, const Config &cfg, int gradout, int inputres) {
     m.GRADSRCOUT = cfg.GRADSRCOUT;
     m.HOUT = cfg.HOUT;
     m.BACK_PROP_TYPE = cfg.BACK_PROP_TYPE;
+    m.GRADABS = cfg.GRADABS;
     m.nmax_dev = cfg.nmax_dev;
     m.pref_device_type = static_cast<DEVICE_TYPE>(cfg.pref_device_type);
 

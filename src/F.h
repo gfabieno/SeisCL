@@ -351,6 +351,8 @@ typedef struct boundary_conditions{
     clprogram surf;
     clprogram surf_adj;
     clprogram surf_adj_fold;   // 2D: adjoint of the stress images (surface2D_adj.cl)
+    clprogram cpml_adj_v;      // exact CPML adjoint: filter the adjoint velocities (cpml_adj2D.cl)
+    clprogram cpml_adj_s;      // ... and the adjoint stresses
     clprogram init_f;
     clprogram init_adj;
 
@@ -477,6 +479,12 @@ typedef struct model {
      * Default 64, which is what the hardcoded 0.0156 used to give. */
     float dft_osamp;
     int INPUTRES;
+    /* GRADABS=1 (BACK_PROP_TYPE 1, Cerjan, single device, FP16 0): save the
+     * forward wavefield in the whole absorbing layers (plus the FDOH band
+     * inside them) at every time step instead of the FDOH band only, so the
+     * gradient inside the layers is exact. Costs NBND floats per variable and
+     * time step (Init_OpenCL.c). Default 0 (memset of model). */
+    int GRADABS;
     /* Skip the HDF5 boundary checkpoint entirely, on both the writing
      * (GRADOUT=0) and reading (GRADOUT=1) leg of the INPUTRES=1 two-call
      * gradient protocol. Only valid when both legs run against the same
