@@ -49,14 +49,42 @@ def _itreal(a, b):
     return np.imag(a * np.conj(b))
 
 
+def _dd(sdt, s2dt, a, b):
+    """The scheme's discrete d/dt in a correlation (grad_dft2D.cl, commit
+    60349ed): sdt*Im(a conj b) + s2dt*Re(a conj b), with sdt = sin(w dt)/dt and
+    s2dt = 2 sin^2(w dt/2)/dt -- the spectrum of 1 - exp(-i w dt). The
+    continuum w*Im(a conj b) is its limit dt -> 0."""
+    ab = a * np.conj(b)
+    return sdt * np.imag(ab) + s2dt * np.real(ab)
+
+
+def _source_spectra(src, src_pos, b, ntnyq, dtnyq, dt, dh, tmin):
+    """Source cell, type, and the two source spectra of the DFT kernels:
+    S (every time step: the eq. (26a) term) and Sd (the samples savefreqs
+    keeps, t >= tmin every dtnyq steps: restores the source in a field
+    spectrum). Same phase convention as kernel_savefreqs. None without a
+    source."""
+    if src is None:
+        return None
+    t = np.arange(src.shape[0])
+    amp = dt * np.asarray(src[:, 0], dtype=np.float64)
+    e = np.exp(-1j * np.pi * 2.0 * b * (t - tmin) / (ntnyq * dtnyq))
+    keep = (t >= tmin) & ((t - tmin) % dtnyq == 0)
+    cell = (int(src_pos[2, 0] / dh), int(src_pos[1, 0] / dh), int(src_pos[0, 0] / dh))
+    return int(src_pos[4, 0]), cell, np.sum(amp * e), np.sum((amp * e)[keep])
+
+
 def gradient_2d_elastic(fwd, adj, M, mu, rho, bins, ntnyq, dtnyq, dt,
-                        fdoh, nz, nx, ND=2.0, dh=None):
+                        fdoh, nz, nx, ND=2.0, dh=None, src=None, src_pos=None,
+                        tmin=0):
     """Reference (gradvp, gradvs, gradrho) from the dumped DFT spectra.
 
     :param fwd: dict var -> (NZpad, NXpad, NFREQS) forward spectrum
     :param adj: dict var -> same, adjoint spectrum
     :param M, mu, rho: physical stiffness/density arrays, shape (nz, nx)
     :param bins: gradfreqsn, integer DFT bin indices
+    :param src, src_pos: the source (NT x 1) and its position (5 x 1); with
+        them, the source terms of the kernel are included (source cell only)
     :return: dict with 'vp', 'vs', 'rho', each (nz, nx)
     """
     df = 1.0 / ntnyq / dt / dtnyq
@@ -115,6 +143,9 @@ def gradient_2d_elastic(fwd, adj, M, mu, rho, bins, ntnyq, dtnyq, dt,
 
     for j, b in enumerate(bins):
         w = 2.0 * np.pi * df * float(b)
+        sdt = np.sin(w * dt) / dt
+        s2dt = 2.0 * np.sin(0.5 * w * dt) ** 2 / dt
+        srcs = _source_spectra(src, src_pos, b, ntnyq, dtnyq, dt, dh, tmin)
 
         fsxx, fszz, fsxz = F("sxx")[..., j], F("szz")[..., j], F("sxz")[..., j]
         asxx, aszz, asxz = A("sxx")[..., j], A("szz")[..., j], A("sxz")[..., j]
@@ -126,14 +157,31 @@ def gradient_2d_elastic(fwd, adj, M, mu, rho, bins, ntnyq, dtnyq, dt,
         sxx_mzz = fsxx - fszz
         szz_mxx = fszz - fsxx
 
-        d0 = w * _itreal(sxxzzr, sxxzz) / dftnorm
-        d2 = w * _itreal(asxz, fsxz) / dftnorm
+        if srcs is not None:
+            # savefreqs runs before the source injection: restore this step's
+            # source in the sampled field spectrum (kernel: += DT*DTNYQ*Sd).
+            st, (kz, _, kx), S, Sd = srcs
+            if st == 100:
+                sxxzz = sxxzz.copy(); sxxzz[kz, kx] += dt * dtnyq * Sd
+            elif st == 0:
+                fvx = fvx.copy(); fvx[kz, kx] += dt * dtnyq * Sd
+            elif st == 2:
+                fvz = fvz.copy(); fvz[kz, kx] += dt * dtnyq * Sd
+        d0 = _dd(sdt, s2dt, sxxzzr, sxxzz) / dftnorm
+        if srcs is not None and st == 100:
+            # eq. (26a) source term: -<adjoint, s> at the source cell
+            d0[kz, kx] -= np.real(sxxzzr[kz, kx] * np.conj(S)) / dftnorm
+        d2 = _dd(sdt, s2dt, asxz, fsxz) / dftnorm
         d3 = d0
-        d4 = w * (_itreal(asxx, sxx_mzz) + _itreal(aszz, szz_mxx)) / dftnorm
+        d4 = (_dd(sdt, s2dt, asxx, sxx_mzz) + _dd(sdt, s2dt, aszz, szz_mxx)) / dftnorm
         # vx sits at the rip position, vz at rkp: different parameters, so the
         # two must not be summed before the correlation is stored.
-        d8x = w * _itreal(avx, fvx) / dftnorm
-        d8z = w * _itreal(avz, fvz) / dftnorm
+        d8x = _dd(sdt, s2dt, avx, fvx) / dftnorm
+        d8z = _dd(sdt, s2dt, avz, fvz) / dftnorm
+        if srcs is not None and st == 0:
+            d8x[kz, kx] -= np.real(avx[kz, kx] * np.conj(S)) / dftnorm
+        if srcs is not None and st == 2:
+            d8z[kz, kx] -= np.real(avz[kz, kx] * np.conj(S)) / dftnorm
 
         gM += -d0 * iden
         gmu += d3 * i3den - d4 * i2ndmu2      # sxx/szz: cell-centred mu
@@ -169,7 +217,8 @@ def gradient_2d_elastic(fwd, adj, M, mu, rho, bins, ntnyq, dtnyq, dt,
 
 
 def gradient_3d_elastic(fwd, adj, M, mu, rho, bins, ntnyq, dtnyq, dt,
-                        fdoh, nz, ny, nx, ND=3.0, dh=None):
+                        fdoh, nz, ny, nx, ND=3.0, dh=None, src=None, src_pos=None,
+                        tmin=0):
     """3D extension of gradient_2d_elastic. Same coefficients (already generic
     in ND), dot products extended to the extra field components (vy, syy,
     sxy, syz), transcribed from src/grad_dft3D.cl / calc_grad.c's ND==3
@@ -251,6 +300,9 @@ def gradient_3d_elastic(fwd, adj, M, mu, rho, bins, ntnyq, dtnyq, dt,
 
     for j, b in enumerate(bins):
         w = 2.0 * np.pi * df * float(b)
+        sdt = np.sin(w * dt) / dt
+        s2dt = 2.0 * np.sin(0.5 * w * dt) ** 2 / dt
+        srcs = _source_spectra(src, src_pos, b, ntnyq, dtnyq, dt, dh, tmin)
 
         fsxx, fsyy, fszz = F("sxx")[..., j], F("syy")[..., j], F("szz")[..., j]
         fsxy, fsxz, fsyz = F("sxy")[..., j], F("sxz")[..., j], F("syz")[..., j]
@@ -272,20 +324,36 @@ def gradient_3d_elastic(fwd, adj, M, mu, rho, bins, ntnyq, dtnyq, dt,
         syy_mxxzz = ndm1 * fsyy - fsxx - fszz
         szz_mxxyy = ndm1 * fszz - fsxx - fsyy
 
-        d0 = w * _itreal(spppr, sppp) / dftnorm
+        if srcs is not None:
+            # see gradient_2d_elastic: source restored in the sampled spectrum
+            st, (kz, ky, kx), S, Sd = srcs
+            if st == 100:
+                sppp = sppp.copy(); sppp[kz, ky, kx] += dt * dtnyq * Sd
+            elif st == 0:
+                fvx = fvx.copy(); fvx[kz, ky, kx] += dt * dtnyq * Sd
+            elif st == 1:
+                fvy = fvy.copy(); fvy[kz, ky, kx] += dt * dtnyq * Sd
+            elif st == 2:
+                fvz = fvz.copy(); fvz[kz, ky, kx] += dt * dtnyq * Sd
+        d0 = _dd(sdt, s2dt, spppr, sppp) / dftnorm
+        if srcs is not None and st == 100:
+            d0[kz, ky, kx] -= np.real(spppr[kz, ky, kx] * np.conj(S)) / dftnorm
         # Kept apart per shear plane -- each goes with a different staggered
         # mu, so they cannot be summed before the coefficient is applied.
-        d2xy = w * _itreal(asxy, fsxy) / dftnorm
-        d2xz = w * _itreal(asxz, fsxz) / dftnorm
-        d2yz = w * _itreal(asyz, fsyz) / dftnorm
+        d2xy = _dd(sdt, s2dt, asxy, fsxy) / dftnorm
+        d2xz = _dd(sdt, s2dt, asxz, fsxz) / dftnorm
+        d2yz = _dd(sdt, s2dt, asyz, fsyz) / dftnorm
         d3 = d0
-        d4 = w * (_itreal(asxx, sxx_myyzz) + _itreal(asyy, syy_mxxzz)
-                  + _itreal(aszz, szz_mxxyy)) / dftnorm
+        d4 = (_dd(sdt, s2dt, asxx, sxx_myyzz) + _dd(sdt, s2dt, asyy, syy_mxxzz)
+                  + _dd(sdt, s2dt, aszz, szz_mxxyy)) / dftnorm
         # vx/vy/vz sit at rip/rjp/rkp respectively: kept apart rather than
         # summed.
-        d8x = w * _itreal(avx, fvx) / dftnorm
-        d8y = w * _itreal(avy, fvy) / dftnorm
-        d8z = w * _itreal(avz, fvz) / dftnorm
+        d8x = _dd(sdt, s2dt, avx, fvx) / dftnorm
+        d8y = _dd(sdt, s2dt, avy, fvy) / dftnorm
+        d8z = _dd(sdt, s2dt, avz, fvz) / dftnorm
+        if srcs is not None and st in (0, 1, 2):
+            dv, av = (d8x, d8y, d8z)[st], (avx, avy, avz)[st]
+            dv[kz, ky, kx] -= np.real(av[kz, ky, kx] * np.conj(S)) / dftnorm
 
         gM += -d0 * iden
         gmu += d3 * i3den - d4 * i2ndmu2         # sxx/syy/szz: cell-centred mu

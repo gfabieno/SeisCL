@@ -220,7 +220,8 @@ def _numpy_reference(s, d, params):
     adj = {k[2:]: v for k, v in d.items() if k.startswith("a_")}
     return gradient_2d_elastic(fwd, adj, M, mu, rho, d["gradfreqsn"],
                                d["NTNYQ"], d["DTNYQ"], s.dt,
-                               d["FDORDER"] // 2, nz, nx, dh=s.dh)
+                               d["FDORDER"] // 2, nz, nx, dh=s.dh,
+                               src=s.src_all, src_pos=s.src_pos_all)
 
 
 def _interior(s, a):
@@ -241,6 +242,12 @@ def test_dft_gradient_vs_numpy_heterogeneous():
 
     This test is the acceptance criterion for the Phase 4 device-side kernel and
     doubles as its executable specification.
+
+    The reference was not updated when the kernel took the scheme's discrete
+    d/dt and the source terms (2026-09-05, checked then against
+    back_prop_type=1 and finite differences): this test failed from then on
+    (cos 0.49 for vp, all of it at the source cell). Updated 2026-11-14:
+    dft_reference.py has both, and the source is passed in.
     """
     wd = workdir("t3_hetero")
     s0 = make_seiscl(wd)
@@ -301,7 +308,8 @@ def _numpy_reference_3d(s, d, params):
     adj = {k[2:]: v for k, v in d.items() if k.startswith("a_")}
     return gradient_3d_elastic(fwd, adj, M, mu, rho, d["gradfreqsn"],
                                d["NTNYQ"], d["DTNYQ"], s.dt,
-                               d["FDORDER"] // 2, nz, ny, nx, dh=s.dh)
+                               d["FDORDER"] // 2, nz, ny, nx, dh=s.dh,
+                               src=s.src_all, src_pos=s.src_pos_all)
 
 
 def _interior_3d(s, a):
@@ -640,15 +648,21 @@ def test_dft_osamp_convergence():
     the exact DFT of the decimated series, and the error is energy above the
     decimated Nyquist folding onto the selected bins.
 
-    MEASURED (2D elastic, Ricker f0=25, gradfreqs up to 25 Hz):
+    MEASURED (2D elastic, Ricker f0=25, gradfreqs up to 25 Hz; 2026-11-14,
+    with the source terms of 2026-09-05):
 
         dft_osamp   DTNYQ    rel err
              64        1     0
-             20        2     6.6e-3
+             20        2     6.4e-3
            13.3        3     1.3e-2
-              8        5     2.7e-2
-              4       10     9.3e-2
-              2       20     1.9
+              8        5     2.6e-2
+              4       10     2.0e-1
+              2       20     7.6       (decimated Nyquist = fmax)
+
+    From 2026-09-05 to 2026-11-14 this test failed with errors of 1.45*(DTNYQ-1):
+    the kernels restored the source in the sampled forward spectrum with its
+    every-step transform, DTNYQ times too much. They now use the transform on
+    the sampled steps (Sd in grad_dft*.cl).
 
     This *refutes* the estimate that an oversample of 8 would be safe at the
     1e-27 level from Ricker bandwidth alone. It is 2.7% in practice, because the
@@ -1170,8 +1184,10 @@ TESTS = [
 ]
 
 # Known-open failures, documented in the corresponding docstring.
-XFAIL = {"test_dense_dft_matches_backprop",
-         "test_finite_difference_python_objective"}
+# test_dense_dft_matches_backprop and test_finite_difference_python_objective
+# pass since the discrete d/dt and the source terms (2026-09-05); removed
+# 2026-11-14.
+XFAIL = set()
 
 if __name__ == "__main__":
     import sys

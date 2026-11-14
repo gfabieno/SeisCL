@@ -314,6 +314,12 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
          * par_scale) (kernel_sources): its amplitude carries that shift too. */
         int vshift = (sstype>=0 && sstype<=2) ? par_scale : 0;
         float2 S; S.x = 0.0f; S.y = 0.0f;
+        /* Sd: the same transform on the samples savefreqs keeps (t >= TMIN,
+         * every DTNYQ steps). It restores the source in a FIELD spectrum,
+         * which savefreqs sampled; S (every step) is the eq. (26a) source
+         * term. With DTNYQ>1, restoring with S added DTNYQ times the missing
+         * increment: test_dft_osamp_convergence errors of 1.45 (DTNYQ-1). */
+        float2 Sd; Sd.x = 0.0f; Sd.y = 0.0f;
         if (ssrc>=0){
             for (int t=0; t<NT; t++){
                 float ang = 2.0f*gradfreqsn[f]*(float)(t-TMIN)
@@ -327,6 +333,10 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
                 #endif
                 S.x +=  amp*COSPIF(ang);
                 S.y += -amp*SINPIF(ang);
+                if (t>=TMIN && (t-TMIN)%DTNYQ==0){
+                    Sd.x +=  amp*COSPIF(ang);
+                    Sd.y += -amp*SINPIF(ang);
+                }
             }
         }
 
@@ -352,8 +362,8 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
          * DT*DTNYQ, because Fpp accumulates sigma(t)*DT*DTNYQ per sample and
          * the per-step field increment the source produces is amp(t). */
         if (sstype==100){
-            Fpp.x += (float)((double)DT*(double)DTNYQ)*S.x;
-            Fpp.y += (float)((double)DT*(double)DTNYQ)*S.y;
+            Fpp.x += (float)((double)DT*(double)DTNYQ)*Sd.x;
+            Fpp.y += (float)((double)DT*(double)DTNYQ)*Sd.y;
         }
         App.x = Axx.x + Azz.x;  App.y = Axx.y + Azz.y;   /* adj  sxx+szz */
         Fmm.x = Fxx.x - Fzz.x;  Fmm.y = Fxx.y - Fzz.y;   /* fwd  sxx-szz */
@@ -381,12 +391,12 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         float2 Fvx = fvx_f[id], Fvz = fvz_f[id];
         float2 Avx = fvx[id],   Avz = fvz[id];
         if (sstype==0){
-            Fvx.x += (float)((double)DT*(double)DTNYQ)*S.x;
-            Fvx.y += (float)((double)DT*(double)DTNYQ)*S.y;
+            Fvx.x += (float)((double)DT*(double)DTNYQ)*Sd.x;
+            Fvx.y += (float)((double)DT*(double)DTNYQ)*Sd.y;
         }
         else if (sstype==2){
-            Fvz.x += (float)((double)DT*(double)DTNYQ)*S.x;
-            Fvz.y += (float)((double)DT*(double)DTNYQ)*S.y;
+            Fvz.x += (float)((double)DT*(double)DTNYQ)*Sd.x;
+            Fvz.y += (float)((double)DT*(double)DTNYQ)*Sd.y;
         }
         double d8x = sc_vv*((sdt*itreal(Avx, Fvx) + s2dt*rreal(Avx, Fvx))
                             - (sstype==0 ? rreal(Avx, S) : 0.0))/dftnorm;
