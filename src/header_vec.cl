@@ -192,3 +192,77 @@ LFUNDEF void ldp2(GLOBARG const STO *a, int gidx, int zt, float *v)
         v[c] = INTERIOR_Z(zt+c) ? ldf(a, (gidx-FDOH)*(NZS-2*FDOH) + (zt+c-FDOH)) : 0.0f;
 #endif
 }
+
+/* ---- scaled storage (FP16 > 0) -------------------------------------------- */
+/* With FP16 > 0 the fields and parameters are stored scaled by powers of two
+   (set_par_scale, res_scale, src_scale) so that half precision does not
+   overflow. The gradient accumulations carry the factor
+   2^(2 PARSCALE - src_scale - res_scale), which the host removes (unscale_grad,
+   2^par_scale); FP16 0: no scaling. */
+LFUNDEF float pow2s(float a, int e)
+{
+#if FP16==0
+    return a;
+#elif defined(__OPENCL_VERSION__)
+    return ldexp(a, e);
+#else
+    return scalbnf(a, e);
+#endif
+}
+#define GSCALE(a) pow2s((a), 2*PARSCALE - src_scale - res_scale)
+
+/* ---- 3D: thread geometry, tiles, stencils, parameters --------------------- */
+#ifdef __OPENCL_VERSION__
+#define LID2 get_local_id(2)
+#define LSZ2 get_local_size(2)
+#define GRP2 get_group_id(2)
+#else
+#define LID2 threadIdx.z
+#define LSZ2 blockDim.z
+#define GRP2 blockIdx.z
+#endif
+
+#if ND==3
+/* Fill a float tile [tx][ty][tz] (z fastest) with a[z, y, x], z = z0 .. z0+tz-1,
+   y = y0 .. , x = x0 .. (zero outside the array), NV values per load. */
+LFUNDEF void load_tile3(LOCID float *tile, GLOBARG const STO *a, int z0, int y0, int x0,
+                        int tz, int ty, int tx)
+{
+    int nthr = LSZ0 * LSZ1 * LSZ2;
+    int nzv = tz / NV;
+    for (int i = LID0 + LSZ0*(LID1 + LSZ1*LID2); i < nzv * ty * tx; i += nthr){
+        int lz = (i % nzv) * NV, ly = (i / nzv) % ty, lx = i / (nzv * ty);
+        int gz = z0 + lz, gy = y0 + ly, gx = x0 + lx;
+        int it = (lx * ty + ly) * tz + lz;
+        if (gz >= 0 && gz + NV <= NZS && gy >= 0 && gy < NYS && gx >= 0 && gx < NX){
+            ldn(a, (gx * NYS + gy) * NZS + gz, &tile[it]);
+        }
+        else {
+            for (int c = 0; c < NV; c++) tile[it + c] = 0.0f;
+        }
+    }
+}
+
+/* the NV values of a model parameter for this thread (3D, no halo) */
+LFUNDEF void ldp3(GLOBARG const STO *a, int gidx, int gidy, int zt, float *v)
+{
+    int base = ((gidx-FDOH)*(NYS-2*FDOH) + (gidy-FDOH))*(NZS-2*FDOH);
+#if FDOH%NV==0
+    ldn(a, base + (zt-FDOH), v);
+#else
+    for (int c=0; c<NV; c++)
+        v[c] = INTERIOR_Z(zt+c) ? ldf(a, base + (zt+c-FDOH)) : 0.0f;
+#endif
+}
+#endif
+
+/* Staggered derivatives along any axis of a tile: element i, stride s
+   (1 along z, tz along y, tz*ty along x in 3D; tz along x in 2D). */
+LFUNDEF float tdp(LOCID const float *t, int i, int s)
+{   const float hc[6] = HCV; float d = 0.0f;
+    for (int m = 0; m < FDOH; m++) d += hc[m] * (t[i + (m+1)*s] - t[i - m*s]);
+    return d; }
+LFUNDEF float tdm(LOCID const float *t, int i, int s)
+{   const float hc[6] = HCV; float d = 0.0f;
+    for (int m = 0; m < FDOH; m++) d += hc[m] * (t[i + m*s] - t[i - (m+1)*s]);
+    return d; }

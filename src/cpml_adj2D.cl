@@ -37,26 +37,26 @@
  * notes: torch-robust/cpmladj/ref.py. Single device only (assign_modeling_case.c).
  */
 
-#define psi_sxx_xr(z,x) psi_sxx_xr[(x)*(NZ-2*FDOH)+(z)]
-#define psi_sxz_xr(z,x) psi_sxz_xr[(x)*(NZ-2*FDOH)+(z)]
-#define psi_sxz_zr(z,x) psi_sxz_zr[(x)*(2*NAB)+(z)]
-#define psi_szz_zr(z,x) psi_szz_zr[(x)*(2*NAB)+(z)]
-#define psi_vx_xr(z,x) psi_vx_xr[(x)*(NZ-2*FDOH)+(z)]
-#define psi_vz_xr(z,x) psi_vz_xr[(x)*(NZ-2*FDOH)+(z)]
-#define psi_vx_zr(z,x) psi_vx_zr[(x)*(2*NAB)+(z)]
-#define psi_vz_zr(z,x) psi_vz_zr[(x)*(2*NAB)+(z)]
+#define psi_sxx_xr_I(z,x) ((x)*(NZS-2*FDOH)+(z))
+#define psi_sxz_xr_I(z,x) ((x)*(NZS-2*FDOH)+(z))
+#define psi_sxz_zr_I(z,x) ((x)*(2*NAB)+(z))
+#define psi_szz_zr_I(z,x) ((x)*(2*NAB)+(z))
+#define psi_vx_xr_I(z,x) ((x)*(NZS-2*FDOH)+(z))
+#define psi_vz_xr_I(z,x) ((x)*(NZS-2*FDOH)+(z))
+#define psi_vx_zr_I(z,x) ((x)*(2*NAB)+(z))
+#define psi_vz_zr_I(z,x) ((x)*(2*NAB)+(z))
 
 /* Velocities: cpfa = F[sxx_x](vxr), cpfb = F[sxz_z](vxr),
                cpfc = F[szz_z](vzr), cpfd = F[sxz_x](vzr). */
-FUNDEF void cpml_adj_v(GLOBARG const float * RESTRICT vxr,  GLOBARG const float * RESTRICT vzr,
+FUNDEF void cpml_adj_v(GLOBARG const STO * RESTRICT vxr,  GLOBARG const STO * RESTRICT vzr,
                        GLOBARG const float * RESTRICT K_x,       GLOBARG const float * RESTRICT a_x,       GLOBARG const float * RESTRICT b_x,
                        GLOBARG const float * RESTRICT K_x_half,  GLOBARG const float * RESTRICT a_x_half,  GLOBARG const float * RESTRICT b_x_half,
                        GLOBARG const float * RESTRICT K_z,       GLOBARG const float * RESTRICT a_z,       GLOBARG const float * RESTRICT b_z,
                        GLOBARG const float * RESTRICT K_z_half,  GLOBARG const float * RESTRICT a_z_half,  GLOBARG const float * RESTRICT b_z_half,
-                       GLOBARG float * RESTRICT psi_sxx_xr,      GLOBARG float * RESTRICT psi_sxz_xr,
-                       GLOBARG float * RESTRICT psi_sxz_zr,      GLOBARG float * RESTRICT psi_szz_zr,
-                       GLOBARG float * RESTRICT cpfa,            GLOBARG float * RESTRICT cpfb,
-                       GLOBARG float * RESTRICT cpfc,            GLOBARG float * RESTRICT cpfd)
+                       GLOBARG STO * RESTRICT psi_sxx_xr,      GLOBARG STO * RESTRICT psi_sxz_xr,
+                       GLOBARG STO * RESTRICT psi_sxz_zr,      GLOBARG STO * RESTRICT psi_szz_zr,
+                       GLOBARG STO * RESTRICT cpfa,            GLOBARG STO * RESTRICT cpfb,
+                       GLOBARG STO * RESTRICT cpfc,            GLOBARG STO * RESTRICT cpfd)
 {
 #ifdef __OPENCL_VERSION__
     int gidz = get_global_id(0)+FDOH;
@@ -65,68 +65,68 @@ FUNDEF void cpml_adj_v(GLOBARG const float * RESTRICT vxr,  GLOBARG const float 
     int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
     int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH;
 #endif
-    if (gidz>NZ-FDOH-1 || gidx>NX-FDOH-1){
+    if (gidz>NZS-FDOH-1 || gidx>NX-FDOH-1){
         return;
     }
-    int indv = gidx*NZ+gidz;
+    int indv = gidx*NZS+gidz;
     int i,k,ind;
-    float ex = vxr[indv], ez = vzr[indv];
+    float ex = ldf(vxr, indv), ez = ldf(vzr, indv);
     float fa = ex, fb = ex, fc = ez, fd = ez;
 
-    if (gidz>NZ-NAB-FDOH-1){
+    if (gidz>NZS-NAB-FDOH-1){
         i =gidx-FDOH;
-        k =gidz - NZ+NAB+FDOH+NAB;
+        k =gidz - NZS+NAB+FDOH+NAB;
         ind=2*NAB-1-k;
-        psi_sxz_zr(k,i) = b_z[ind+1] * psi_sxz_zr(k,i) + a_z[ind+1] * ex;
-        fb = ex / K_z[ind+1] + psi_sxz_zr(k,i);
-        psi_szz_zr(k,i) = b_z_half[ind] * psi_szz_zr(k,i) + a_z_half[ind] * ez;
-        fc = ez / K_z_half[ind] + psi_szz_zr(k,i);
+        { float ps = b_z[ind+1] * ldf(psi_sxz_zr, psi_sxz_zr_I(k,i)) + a_z[ind+1] * ex; stf(psi_sxz_zr, psi_sxz_zr_I(k,i), ps); }
+        fb = ex / K_z[ind+1] + ldf(psi_sxz_zr, psi_sxz_zr_I(k,i));
+        { float ps = b_z_half[ind] * ldf(psi_szz_zr, psi_szz_zr_I(k,i)) + a_z_half[ind] * ez; stf(psi_szz_zr, psi_szz_zr_I(k,i), ps); }
+        fc = ez / K_z_half[ind] + ldf(psi_szz_zr, psi_szz_zr_I(k,i));
     }
 #if FREESURF==0
     else if (gidz-FDOH<NAB){
         i =gidx-FDOH;
         k =gidz-FDOH;
-        psi_sxz_zr(k,i) = b_z[k] * psi_sxz_zr(k,i) + a_z[k] * ex;
-        fb = ex / K_z[k] + psi_sxz_zr(k,i);
-        psi_szz_zr(k,i) = b_z_half[k] * psi_szz_zr(k,i) + a_z_half[k] * ez;
-        fc = ez / K_z_half[k] + psi_szz_zr(k,i);
+        { float ps = b_z[k] * ldf(psi_sxz_zr, psi_sxz_zr_I(k,i)) + a_z[k] * ex; stf(psi_sxz_zr, psi_sxz_zr_I(k,i), ps); }
+        fb = ex / K_z[k] + ldf(psi_sxz_zr, psi_sxz_zr_I(k,i));
+        { float ps = b_z_half[k] * ldf(psi_szz_zr, psi_szz_zr_I(k,i)) + a_z_half[k] * ez; stf(psi_szz_zr, psi_szz_zr_I(k,i), ps); }
+        fc = ez / K_z_half[k] + ldf(psi_szz_zr, psi_szz_zr_I(k,i));
     }
 #endif
     if (gidx-FDOH<NAB){
         i =gidx-FDOH;
         k =gidz-FDOH;
-        psi_sxx_xr(k,i) = b_x_half[i] * psi_sxx_xr(k,i) + a_x_half[i] * ex;
-        fa = ex / K_x_half[i] + psi_sxx_xr(k,i);
-        psi_sxz_xr(k,i) = b_x[i] * psi_sxz_xr(k,i) + a_x[i] * ez;
-        fd = ez / K_x[i] + psi_sxz_xr(k,i);
+        { float ps = b_x_half[i] * ldf(psi_sxx_xr, psi_sxx_xr_I(k,i)) + a_x_half[i] * ex; stf(psi_sxx_xr, psi_sxx_xr_I(k,i), ps); }
+        fa = ex / K_x_half[i] + ldf(psi_sxx_xr, psi_sxx_xr_I(k,i));
+        { float ps = b_x[i] * ldf(psi_sxz_xr, psi_sxz_xr_I(k,i)) + a_x[i] * ez; stf(psi_sxz_xr, psi_sxz_xr_I(k,i), ps); }
+        fd = ez / K_x[i] + ldf(psi_sxz_xr, psi_sxz_xr_I(k,i));
     }
     if (gidx>NX-NAB-FDOH-1){
         i =gidx - NX+NAB+FDOH+NAB;
         k =gidz-FDOH;
         ind=2*NAB-1-i;
-        psi_sxx_xr(k,i) = b_x_half[ind] * psi_sxx_xr(k,i) + a_x_half[ind] * ex;
-        fa = ex / K_x_half[ind] + psi_sxx_xr(k,i);
-        psi_sxz_xr(k,i) = b_x[ind+1] * psi_sxz_xr(k,i) + a_x[ind+1] * ez;
-        fd = ez / K_x[ind+1] + psi_sxz_xr(k,i);
+        { float ps = b_x_half[ind] * ldf(psi_sxx_xr, psi_sxx_xr_I(k,i)) + a_x_half[ind] * ex; stf(psi_sxx_xr, psi_sxx_xr_I(k,i), ps); }
+        fa = ex / K_x_half[ind] + ldf(psi_sxx_xr, psi_sxx_xr_I(k,i));
+        { float ps = b_x[ind+1] * ldf(psi_sxz_xr, psi_sxz_xr_I(k,i)) + a_x[ind+1] * ez; stf(psi_sxz_xr, psi_sxz_xr_I(k,i), ps); }
+        fd = ez / K_x[ind+1] + ldf(psi_sxz_xr, psi_sxz_xr_I(k,i));
     }
-    cpfa[indv] = fa;
-    cpfb[indv] = fb;
-    cpfc[indv] = fc;
-    cpfd[indv] = fd;
+    stf(cpfa, indv, fa);
+    stf(cpfb, indv, fb);
+    stf(cpfc, indv, fc);
+    stf(cpfd, indv, fd);
 }
 
 /* Stresses: cpfa = F[vx_x](sxxr), cpfb = F[vx_z](sxzr),
              cpfc = F[vz_z](szzr), cpfd = F[vz_x](sxzr). */
-FUNDEF void cpml_adj_s(GLOBARG const float * RESTRICT sxxr, GLOBARG const float * RESTRICT szzr,
-                       GLOBARG const float * RESTRICT sxzr,
+FUNDEF void cpml_adj_s(GLOBARG const STO * RESTRICT sxxr, GLOBARG const STO * RESTRICT szzr,
+                       GLOBARG const STO * RESTRICT sxzr,
                        GLOBARG const float * RESTRICT K_x,       GLOBARG const float * RESTRICT a_x,       GLOBARG const float * RESTRICT b_x,
                        GLOBARG const float * RESTRICT K_x_half,  GLOBARG const float * RESTRICT a_x_half,  GLOBARG const float * RESTRICT b_x_half,
                        GLOBARG const float * RESTRICT K_z,       GLOBARG const float * RESTRICT a_z,       GLOBARG const float * RESTRICT b_z,
                        GLOBARG const float * RESTRICT K_z_half,  GLOBARG const float * RESTRICT a_z_half,  GLOBARG const float * RESTRICT b_z_half,
-                       GLOBARG float * RESTRICT psi_vx_xr,       GLOBARG float * RESTRICT psi_vz_xr,
-                       GLOBARG float * RESTRICT psi_vx_zr,       GLOBARG float * RESTRICT psi_vz_zr,
-                       GLOBARG float * RESTRICT cpfa,            GLOBARG float * RESTRICT cpfb,
-                       GLOBARG float * RESTRICT cpfc,            GLOBARG float * RESTRICT cpfd)
+                       GLOBARG STO * RESTRICT psi_vx_xr,       GLOBARG STO * RESTRICT psi_vz_xr,
+                       GLOBARG STO * RESTRICT psi_vx_zr,       GLOBARG STO * RESTRICT psi_vz_zr,
+                       GLOBARG STO * RESTRICT cpfa,            GLOBARG STO * RESTRICT cpfb,
+                       GLOBARG STO * RESTRICT cpfc,            GLOBARG STO * RESTRICT cpfd)
 {
 #ifdef __OPENCL_VERSION__
     int gidz = get_global_id(0)+FDOH;
@@ -135,52 +135,52 @@ FUNDEF void cpml_adj_s(GLOBARG const float * RESTRICT sxxr, GLOBARG const float 
     int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
     int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH;
 #endif
-    if (gidz>NZ-FDOH-1 || gidx>NX-FDOH-1){
+    if (gidz>NZS-FDOH-1 || gidx>NX-FDOH-1){
         return;
     }
-    int indv = gidx*NZ+gidz;
+    int indv = gidx*NZS+gidz;
     int i,k,ind;
-    float exx = sxxr[indv], ezz = szzr[indv], exz = sxzr[indv];
+    float exx = ldf(sxxr, indv), ezz = ldf(szzr, indv), exz = ldf(sxzr, indv);
     float fa = exx, fb = exz, fc = ezz, fd = exz;
 
-    if (gidz>NZ-NAB-FDOH-1){
+    if (gidz>NZS-NAB-FDOH-1){
         i =gidx-FDOH;
-        k =gidz - NZ+NAB+FDOH+NAB;
+        k =gidz - NZS+NAB+FDOH+NAB;
         ind=2*NAB-1-k;
-        psi_vx_zr(k,i) = b_z_half[ind] * psi_vx_zr(k,i) + a_z_half[ind] * exz;
-        fb = exz / K_z_half[ind] + psi_vx_zr(k,i);
-        psi_vz_zr(k,i) = b_z[ind+1] * psi_vz_zr(k,i) + a_z[ind+1] * ezz;
-        fc = ezz / K_z[ind+1] + psi_vz_zr(k,i);
+        { float ps = b_z_half[ind] * ldf(psi_vx_zr, psi_vx_zr_I(k,i)) + a_z_half[ind] * exz; stf(psi_vx_zr, psi_vx_zr_I(k,i), ps); }
+        fb = exz / K_z_half[ind] + ldf(psi_vx_zr, psi_vx_zr_I(k,i));
+        { float ps = b_z[ind+1] * ldf(psi_vz_zr, psi_vz_zr_I(k,i)) + a_z[ind+1] * ezz; stf(psi_vz_zr, psi_vz_zr_I(k,i), ps); }
+        fc = ezz / K_z[ind+1] + ldf(psi_vz_zr, psi_vz_zr_I(k,i));
     }
 #if FREESURF==0
     else if (gidz-FDOH<NAB){
         i =gidx-FDOH;
         k =gidz-FDOH;
-        psi_vx_zr(k,i) = b_z_half[k] * psi_vx_zr(k,i) + a_z_half[k] * exz;
-        fb = exz / K_z_half[k] + psi_vx_zr(k,i);
-        psi_vz_zr(k,i) = b_z[k] * psi_vz_zr(k,i) + a_z[k] * ezz;
-        fc = ezz / K_z[k] + psi_vz_zr(k,i);
+        { float ps = b_z_half[k] * ldf(psi_vx_zr, psi_vx_zr_I(k,i)) + a_z_half[k] * exz; stf(psi_vx_zr, psi_vx_zr_I(k,i), ps); }
+        fb = exz / K_z_half[k] + ldf(psi_vx_zr, psi_vx_zr_I(k,i));
+        { float ps = b_z[k] * ldf(psi_vz_zr, psi_vz_zr_I(k,i)) + a_z[k] * ezz; stf(psi_vz_zr, psi_vz_zr_I(k,i), ps); }
+        fc = ezz / K_z[k] + ldf(psi_vz_zr, psi_vz_zr_I(k,i));
     }
 #endif
     if (gidx-FDOH<NAB){
         i =gidx-FDOH;
         k =gidz-FDOH;
-        psi_vx_xr(k,i) = b_x[i] * psi_vx_xr(k,i) + a_x[i] * exx;
-        fa = exx / K_x[i] + psi_vx_xr(k,i);
-        psi_vz_xr(k,i) = b_x_half[i] * psi_vz_xr(k,i) + a_x_half[i] * exz;
-        fd = exz / K_x_half[i] + psi_vz_xr(k,i);
+        { float ps = b_x[i] * ldf(psi_vx_xr, psi_vx_xr_I(k,i)) + a_x[i] * exx; stf(psi_vx_xr, psi_vx_xr_I(k,i), ps); }
+        fa = exx / K_x[i] + ldf(psi_vx_xr, psi_vx_xr_I(k,i));
+        { float ps = b_x_half[i] * ldf(psi_vz_xr, psi_vz_xr_I(k,i)) + a_x_half[i] * exz; stf(psi_vz_xr, psi_vz_xr_I(k,i), ps); }
+        fd = exz / K_x_half[i] + ldf(psi_vz_xr, psi_vz_xr_I(k,i));
     }
     if (gidx>NX-NAB-FDOH-1){
         i =gidx - NX+NAB+FDOH+NAB;
         k =gidz-FDOH;
         ind=2*NAB-1-i;
-        psi_vx_xr(k,i) = b_x[ind+1] * psi_vx_xr(k,i) + a_x[ind+1] * exx;
-        fa = exx / K_x[ind+1] + psi_vx_xr(k,i);
-        psi_vz_xr(k,i) = b_x_half[ind] * psi_vz_xr(k,i) + a_x_half[ind] * exz;
-        fd = exz / K_x_half[ind] + psi_vz_xr(k,i);
+        { float ps = b_x[ind+1] * ldf(psi_vx_xr, psi_vx_xr_I(k,i)) + a_x[ind+1] * exx; stf(psi_vx_xr, psi_vx_xr_I(k,i), ps); }
+        fa = exx / K_x[ind+1] + ldf(psi_vx_xr, psi_vx_xr_I(k,i));
+        { float ps = b_x_half[ind] * ldf(psi_vz_xr, psi_vz_xr_I(k,i)) + a_x_half[ind] * exz; stf(psi_vz_xr, psi_vz_xr_I(k,i), ps); }
+        fd = exz / K_x_half[ind] + ldf(psi_vz_xr, psi_vz_xr_I(k,i));
     }
-    cpfa[indv] = fa;
-    cpfb[indv] = fb;
-    cpfc[indv] = fc;
-    cpfd[indv] = fd;
+    stf(cpfa, indv, fa);
+    stf(cpfb, indv, fb);
+    stf(cpfc, indv, fc);
+    stf(cpfd, indv, fd);
 }

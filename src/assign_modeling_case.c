@@ -1017,9 +1017,9 @@ int assign_modeling_case(model * m){
             fprintf(stderr,"Error: gradabs=1 needs absorbing layers "
                            "(abs_type 1 or 2)\n");
         }
-        if (m->FP16!=0){
+        if (m->FP16>=3){
             state=1;
-            fprintf(stderr,"Error: gradabs=1 requires FP16=0\n");
+            fprintf(stderr,"Error: gradabs=1 requires FP16 < 3\n");
         }
         if (m->ND!=2 && m->ND!=3){
             state=1;
@@ -1157,15 +1157,17 @@ int assign_modeling_case(model * m){
     /* Unified kernels (header_vec.cl): one source for FP16 0, 1 and 2, float
        arithmetic, storage and cells per thread set at compile time. */
     const char * vheaders[3] = {headers[0], headers[1], header_vec_source};
-    if (m->ND==2 && m->FP16<3){
-        __GUARD append_update(m->ups_f, &ind, "update_v", update_v2D_source,
+    if ((m->ND==2 || m->ND==3) && m->FP16<3){
+        __GUARD append_update(m->ups_f, &ind, "update_v",
+                              m->ND==3 ? update_v3D_source : update_v2D_source,
                               3, vheaders);
     }
     else {
         __GUARD append_update(m->ups_f, &ind, "update_v", updatev, 2, headers);
     }
-    if (m->ND==2 && m->FP16<3){
-        __GUARD append_update(m->ups_f, &ind, "update_s", update_s2D_source,
+    if ((m->ND==2 || m->ND==3) && m->FP16<3){
+        __GUARD append_update(m->ups_f, &ind, "update_s",
+                              m->ND==3 ? update_s3D_source : update_s2D_source,
                               3, vheaders);
     }
     else {
@@ -1180,43 +1182,70 @@ int assign_modeling_case(model * m){
         else{
             nheaders=2;
         }
-        __GUARD append_update(m->ups_adj, &ind, "update_adjv", updatev_adj, nheaders, headers);
-        __GUARD append_update(m->ups_adj, &ind, "update_adjs", updates_adj, nheaders, headers);
+        if ((m->ND==2 || m->ND==3) && m->FP16<3){
+            const char * aheaders[4] = {headers[0], headers[1],
+                                        header_injectbnd_source, header_vec_source};
+            __GUARD append_update(m->ups_adj, &ind, "update_adjv",
+                                  m->ND==3 ? update_adjv3D_source : update_adjv2D_source,
+                                  4, aheaders);
+            __GUARD append_update(m->ups_adj, &ind, "update_adjs",
+                                  m->ND==3 ? update_adjs3D_source : update_adjs2D_source,
+                                  4, aheaders);
+        }
+        else {
+            __GUARD append_update(m->ups_adj, &ind, "update_adjv", updatev_adj, nheaders, headers);
+            __GUARD append_update(m->ups_adj, &ind, "update_adjs", updates_adj, nheaders, headers);
+        }
     }
     /* Residual terms of the gradient at the receiver cells (rec_grad.cl). */
     if (m->GRADOUT && m->BACK_PROP_TYPE==1 && (m->ND==2 || m->ND==3)
-        && m->FP16==0){
+        && m->FP16<3){
         __GUARD prog_source(&m->bnd_cnds.rec_grad_v, "rec_grad_v",
-                            rec_grad_source, 2, headers);
+                            rec_grad_source, 3, vheaders);
         __GUARD prog_source(&m->bnd_cnds.rec_grad_s, "rec_grad_s",
-                            rec_grad_source, 2, headers);
+                            rec_grad_source, 3, vheaders);
     }
     /* Exact CPML adjoint (BACK_PROP_TYPE 1): filters run before each adjoint
        update (time_stepping.c, update_grid_adj). */
     if (m->ABS_TYPE==1 && m->GRADOUT && m->BACK_PROP_TYPE==1
-        && (m->ND==2 || m->ND==3) && m->FP16==0){
+        && m->FP16<3){
         const char * cpmladj = m->ND==3 ? cpml_adj3D_source : cpml_adj2D_source;
         __GUARD prog_source(&m->bnd_cnds.cpml_adj_v, "cpml_adj_v",
-                            cpmladj, 2, headers);
+                            cpmladj, 3, vheaders);
         __GUARD prog_source(&m->bnd_cnds.cpml_adj_s, "cpml_adj_s",
-                            cpmladj, 2, headers);
+                            cpmladj, 3, vheaders);
     }
     if (m->FREESURF==1){
-        __GUARD prog_source(&m->bnd_cnds.surf, "freesurface", surface, 2, headers);
+        /* 2D, FP16 0-2: the unified kernels (header_vec.cl storage) */
+        int uni2 = ((m->ND==2 || m->ND==3) && m->FP16<3);
+        const char * gheaders[4] = {headers[0], headers[1],
+                                    header_injectbnd_source, header_vec_source};
+        if (uni2){
+            __GUARD prog_source(&m->bnd_cnds.surf, "freesurface",
+                                m->ND==3 ? surface3D_source : surface2D_source, 3, vheaders);
+        }
+        else {
+            __GUARD prog_source(&m->bnd_cnds.surf, "freesurface", surface, 2, headers);
+        }
         if (m->GRADOUT){
-            __GUARD prog_source(&m->bnd_cnds.surf_adj,
-                                "surface_adj", surface_adj, 2, headers);
-            if ((m->ND==2 || m->ND==3) && m->FP16==0){
+            __GUARD prog_source(&m->bnd_cnds.surf_adj, "surface_adj", surface_adj,
+                                uni2 ? 3 : 2, uni2 ? vheaders : headers);
+            if ((m->ND==3 && m->FP16==0) || uni2){
                 __GUARD prog_source(&m->bnd_cnds.surf_adj_fold,
-                                    "surface_adj_fold", surface_adj, 2,
-                                    headers);
+                                    "surface_adj_fold", surface_adj,
+                                    uni2 ? 3 : 2, uni2 ? vheaders : headers);
             }
-            /* Direct-form moduli gradient in the top rows (surface2D_adj.cl) */
-            if ((m->ND==2 || m->ND==3) && m->FP16==0 && m->BACK_PROP_TYPE==1
+            /* Direct-form gradient in the top rows (surface2D/3D_adj.cl) */
+            if (((m->ND==3 && m->FP16==0) || uni2) && m->BACK_PROP_TYPE==1
                 && m->restype==0){
-                __GUARD prog_source(&m->bnd_cnds.surf_grad,
-                                    "surface_grad", surface_adj, 3,
-                                    headers);
+                if (uni2){
+                    __GUARD prog_source(&m->bnd_cnds.surf_grad, "surface_grad",
+                                        surface_adj, 4, gheaders);
+                }
+                else {
+                    __GUARD prog_source(&m->bnd_cnds.surf_grad, "surface_grad",
+                                        surface_adj, 3, headers);
+                }
             }
         }
     }

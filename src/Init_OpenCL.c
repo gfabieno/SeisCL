@@ -679,7 +679,11 @@ int Init_CUDA(model * m, device ** dev)  {
                 else{
                     //We use half2 and float2 in kernels, and must divide by 2 the
                     //global size of dim 0
-                    gsize[0]=di->N[0]/2+(lsize[0]-(di->N[0]/2)%lsize[0])%lsize[0];
+                    {   /* two cells per thread, aligned pairs of the padded grid: with an odd
+       FDOH the first pair starts in the halo, so one more pair */
+    int npair = (di->N[0] + m->FDOH%2 + 1)/2;
+    gsize[0]=npair+(lsize[0]-npair%lsize[0])%lsize[0];
+}
                     for (i=1;i<m->NDIM-1;i++){
                         gsize[i]=di->N[i]
                                 +(lsize[i]-di->N[i]%lsize[i])%lsize[i];
@@ -1119,7 +1123,7 @@ int Init_CUDA(model * m, device ** dev)  {
                 lenz = di->N[0]-m->NAB-m->FDOH;
             }
             if (m->GRADABS==1 || (m->NUM_DEVICES==1 && m->NLOCALP==1
-                                   && m->FP16==0)){
+                                   && m->FP16<3)){
                 /* Single-device frame (savebnd2D/3D.cl, header_injectbnd.cl,
                    FR_* macros): cells between an outer box OL cells inside
                    the grid edge and an inner box W cells further in. With
@@ -1149,6 +1153,10 @@ int Init_CUDA(model * m, device ** dev)  {
                              + (nxo-2*W)*(nyo-2*W)*(Wt+W);
                 else
                     di->NBND = 2*W*nzo + (nxo-2*W)*(Wt+W);
+                /* scalar cells; even, so that the half offsets
+                   (NBND*t/2 floats, FP16 > 1) stay exact */
+                di->NBND += di->NBND % 2;
+                di->frame_cells = 1;
             }
             else if (m->ND==3){// For 3D
                 if (m->NUM_DEVICES==1 && m->NLOCALP==1)
@@ -1395,8 +1403,8 @@ int Init_CUDA(model * m, device ** dev)  {
         if ((m->GRADOUT || m->INPUTRES) && m->BACK_PROP_TYPE==1){
             di->grads.savebnd=m->grads.savebnd;
             __GUARD prog_create(m, di,  &di->grads.savebnd);
-            if (m->FP16==0){
-                di->grads.savebnd.gsize[0]=di->NBND;
+            if (m->FP16==0 || di->frame_cells){
+                di->grads.savebnd.gsize[0]=di->NBND;    // one work-item per cell
             }
             else{
                 di->grads.savebnd.gsize[0]=di->NBND/2;

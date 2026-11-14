@@ -17,477 +17,265 @@
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  --------------------------------------------------------------------------*/
 
-/*Adjoint update of the velocities in 2D SV*/
+/* Adjoint update of the velocities in 2D P-SV, for every precision mode
+   (FP16 0, 1, 2): float arithmetic, one cell at a time; storage and cells per
+   thread come from header_vec.cl.
+   BACK_PROP_TYPE 1: also rebuilds the forward velocities one step back (with the
+   stored boundary values) and accumulates the density gradient in the
+   summation-by-parts form, forward velocity x adjoint increment.
+   Receiver cells: the residual term is added by rec_grad.cl. Free surface
+   (FREESURF 1): the FDOH rows the adjoint surface changes get their density
+   gradient from surface_grad (surface2D_adj.cl), in the direct form.
+   CPML with BACK_PROP_TYPE 1: the derivatives of the adjoint stresses are taken
+   of the fields filtered by cpml_adj_s (cpml_adj2D.cl), the exact adjoint. */
 
-/*Define useful macros to be able to write a matrix formulation in 2D with OpenCl */
-
-#define psi_sxx_x(z,x) psi_sxx_x[(x)*(NZ-2*FDOH)+(z)]
-#define psi_sxz_x(z,x) psi_sxz_x[(x)*(NZ-2*FDOH)+(z)]
-#define psi_sxz_z(z,x) psi_sxz_z[(x)*(2*NAB)+(z)]
-#define psi_szz_z(z,x) psi_szz_z[(x)*(2*NAB)+(z)]
-
-
+#define PSIX(z,x) ((x)*(NZS-2*FDOH)+(z))
+#define PSIZ(z,x) ((x)*(2*NAB)+(z))
 
 FUNDEF void update_adjv(int offcomm,
-                          GLOBARG float * RESTRICT vx,              GLOBARG float * RESTRICT vz,
-                          GLOBARG const float * RESTRICT sxx,       GLOBARG const float * RESTRICT szz,
-                          GLOBARG const float * RESTRICT sxz,
-                          GLOBARG const float * RESTRICT vxbnd,     GLOBARG const float * RESTRICT vzbnd,
-                          GLOBARG const float * RESTRICT sxxbnd,    GLOBARG const float * RESTRICT szzbnd,
-                          GLOBARG const float * RESTRICT sxzbnd,
-                          GLOBARG float * RESTRICT vxr,             GLOBARG float * RESTRICT vzr,
-                          GLOBARG const float * RESTRICT sxxr,      GLOBARG const float * RESTRICT szzr,
-                          GLOBARG const float * RESTRICT sxzr,
-                          GLOBARG const float * RESTRICT rip,       GLOBARG const float * RESTRICT rkp,
-                          GLOBARG const float * RESTRICT taper,
-                          GLOBARG const float * RESTRICT K_x,       GLOBARG const float * RESTRICT a_x,       GLOBARG const float * RESTRICT b_x,
-                          GLOBARG const float * RESTRICT K_x_half,  GLOBARG const float * RESTRICT a_x_half,  GLOBARG const float * RESTRICT b_x_half,
-                          GLOBARG const float * RESTRICT K_z,       GLOBARG const float * RESTRICT a_z,       GLOBARG const float * RESTRICT b_z,
-                          GLOBARG const float * RESTRICT K_z_half,  GLOBARG const float * RESTRICT a_z_half,  GLOBARG const float * RESTRICT b_z_half,
-                          GLOBARG float * RESTRICT psi_sxx_x,       GLOBARG float * RESTRICT psi_sxz_x,
-                          GLOBARG float * RESTRICT psi_sxz_z,       GLOBARG float * RESTRICT psi_szz_z,
-                          GLOBARG const float * RESTRICT cpfa,      GLOBARG const float * RESTRICT cpfb,
-                          GLOBARG const float * RESTRICT cpfc,      GLOBARG const float * RESTRICT cpfd,
-                          GLOBARG float * RESTRICT gradrho,         GLOBARG const float * RESTRICT gradsrc,
-                          GLOBARG float * RESTRICT gradrip,         GLOBARG float * RESTRICT gradrkp,
-                          GLOBARG float * RESTRICT Hrho,            GLOBARG const float * RESTRICT Hsrc,
-                          GLOBARG const float * RESTRICT src,       GLOBARG const float * RESTRICT src_pos,
-                          int nsrc,                                 int nt,
-                          GLOBARG const float * RESTRICT vxout,     GLOBARG const float * RESTRICT vzout,
-                          GLOBARG const float * RESTRICT rec_pos,   int nrec,
-                          LOCARG)
+                        GLOBARG STO * RESTRICT vx,              GLOBARG STO * RESTRICT vz,
+                        GLOBARG const STO * RESTRICT sxx,       GLOBARG const STO * RESTRICT szz,
+                        GLOBARG const STO * RESTRICT sxz,
+                        GLOBARG const STO * RESTRICT vxbnd,     GLOBARG const STO * RESTRICT vzbnd,
+                        GLOBARG STO * RESTRICT vxr,             GLOBARG STO * RESTRICT vzr,
+                        GLOBARG const STO * RESTRICT sxxr,      GLOBARG const STO * RESTRICT szzr,
+                        GLOBARG const STO * RESTRICT sxzr,
+                        GLOBARG const STO * RESTRICT rip,       GLOBARG const STO * RESTRICT rkp,
+                        GLOBARG const float * RESTRICT taper,
+                        GLOBARG const float * RESTRICT K_x,       GLOBARG const float * RESTRICT a_x,       GLOBARG const float * RESTRICT b_x,
+                        GLOBARG const float * RESTRICT K_x_half,  GLOBARG const float * RESTRICT a_x_half,  GLOBARG const float * RESTRICT b_x_half,
+                        GLOBARG const float * RESTRICT K_z,       GLOBARG const float * RESTRICT a_z,       GLOBARG const float * RESTRICT b_z,
+                        GLOBARG const float * RESTRICT K_z_half,  GLOBARG const float * RESTRICT a_z_half,  GLOBARG const float * RESTRICT b_z_half,
+                        GLOBARG STO * RESTRICT psi_sxx_x,       GLOBARG STO * RESTRICT psi_sxz_x,
+                        GLOBARG STO * RESTRICT psi_sxz_z,       GLOBARG STO * RESTRICT psi_szz_z,
+                        GLOBARG const STO * RESTRICT cpfa,      GLOBARG const STO * RESTRICT cpfb,
+                        GLOBARG const STO * RESTRICT cpfc,      GLOBARG const STO * RESTRICT cpfd,
+                        GLOBARG float * RESTRICT gradrip,       GLOBARG float * RESTRICT gradrkp,
+                        GLOBARG float * RESTRICT Hrho,
+                        GLOBARG const float * RESTRICT src,     GLOBARG const float * RESTRICT src_pos,
+                        int nsrc,                               int nt,
+                        int src_scale,                          int res_scale,
+                        LOCARG)
 {
-
     LOCDEF
-    
-    int g,i,j,k,m;
-    float sxx_xr;
-    float szz_zr;
-    float sxz_xr;
-    float sxz_zr;
-    float sxx_x;
-    float szz_z;
-    float sxz_x;
-    float sxz_z;
-    float lvx;
-    float lvz;
-    float fvx = 0.0f, fvz = 0.0f;   // forward velocity increment of this step (BACK_PROP_TYPE 1)
-    
-// If we use local memory
-#if LOCAL_OFF==0
-    
-#ifdef __OPENCL_VERSION__
-    int lsizez = get_local_size(0)+2*FDOH;
-    int lsizex = get_local_size(1)+2*FDOH;
-    int lidz = get_local_id(0)+FDOH;
-    int lidx = get_local_id(1)+FDOH;
-    int gidz = get_global_id(0)+FDOH;
-    int gidx = get_global_id(1)+FDOH+offcomm;
-#else
-    int lsizez = blockDim.x+2*FDOH;
-    int lsizex = blockDim.y+2*FDOH;
-    int lidz = threadIdx.x+FDOH;
-    int lidx = threadIdx.y+FDOH;
-    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
-    int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH+offcomm;
-#endif
+    int gidx = GRP1*LSZ1 + LID1 + FDOH + offcomm;
+    int zt = Z0 + NV*(GRP0*LSZ0 + LID0);
+    int tz = NV*LSZ0 + 2*ZH, tx = LSZ1 + 2*FDOH;
+    int tile_z0 = Z0 + NV*GRP0*LSZ0 - ZH, tile_x0 = GRP1*LSZ1 + offcomm;
+    int lx = LID1 + FDOH;
+    int lz0 = ZH + NV*LID0;
 
-#define lsxx lvar
-#define lszz lvar
-#define lsxz lvar
-    
-#define lsxxr lvar
-#define lszzr lvar
-#define lsxzr lvar
-#define lcpfa lvar
-#define lcpfb lvar
-#define lcpfc lvar
-#define lcpfd lvar
- 
-// If local memory is turned off
-#elif LOCAL_OFF==1
-    
-#ifdef __OPENCL_VERSION__
-    int gid = get_global_id(0);
-    int glsizez = (NZ-2*FDOH);
-    int gidz = gid%glsizez+FDOH;
-    int gidx = (gid/glsizez)+FDOH+offcomm;
-#else
-    int lsizez = blockDim.x+2*FDOH;
-    int lsizex = blockDim.y+2*FDOH;
-    int lidz = threadIdx.x+FDOH;
-    int lidx = threadIdx.y+FDOH;
-    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
-    int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH+offcomm;
-#endif
-    
-#define lsxx sxx
-#define lszz szz
-#define lsxz sxz
-    
-#define lsxxr sxxr
-#define lszzr szzr
-#define lsxzr sxzr
-#define lcpfa cpfa
-#define lcpfb cpfb
-#define lcpfc cpfc
-#define lcpfd cpfd
-    
-#define lidx gidx
-#define lidz gidz
-    
-#define lsizez NZ
-#define lsizex NX
-    
-#endif
-    
-    int indp = (gidx-FDOH)*(NZ-2*FDOH)+(gidz-FDOH);
-    int indv = gidx*NZ+gidz;
-    
-// Calculation of the stress spatial derivatives of the forward wavefield if backpropagation is used
-    #if BACK_PROP_TYPE==1
-    {
-    #if LOCAL_OFF==0
-        load_local_in(sxx);
-        load_local_halox(sxx);
-        BARRIER
-    #endif
-        sxx_x = Dxp(lsxx);
-        
-    #if LOCAL_OFF==0
-        BARRIER
-        load_local_in(szz);
-        load_local_haloz(szz);
-        BARRIER
-    #endif
-        szz_z = Dzp(lszz);
-        
-    #if LOCAL_OFF==0
-        BARRIER
-        load_local_in(sxz);
-        load_local_haloz(sxz);
-        load_local_halox(sxz);
-        BARRIER
-    #endif
-        sxz_z = Dzm(lsxz);
-        sxz_x = Dxm(lsxz);
-        BARRIER
+    // Spatial derivatives of the forward stresses (to rebuild the forward velocities)
+#if BACK_PROP_TYPE==1
+    float sxx_x[NV], szz_z[NV], sxz_x[NV], sxz_z[NV];
+    load_tile2(lvar, sxx, tile_z0, tile_x0, tz, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) sxx_x[c] = tdxp(lvar, tz, lz0+c, lx);
+    BARRIER
+    load_tile2(lvar, szz, tile_z0, tile_x0, tz, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) szz_z[c] = tdzp(lvar, tz, lz0+c, lx);
+    BARRIER
+    load_tile2(lvar, sxz, tile_z0, tile_x0, tz, tx);
+    BARRIER
+    for (int c=0; c<NV; c++){
+        sxz_z[c] = tdzm(lvar, tz, lz0+c, lx);
+        sxz_x[c] = tdxm(lvar, tz, lz0+c, lx);
     }
-    #endif
+    BARRIER
+#endif
 
-// Calculation of the stress spatial derivatives of the adjoint wavefield
+    // Spatial derivatives of the adjoint stresses
+    float sxx_xr[NV], szz_zr[NV], sxz_xr[NV], sxz_zr[NV];
 #if ABS_TYPE==1 && BACK_PROP_TYPE==1
-    /* Exact CPML adjoint: derivatives of the adjoint stresses filtered by
-       cpml_adj_s (cpml_adj2D.cl), which ran just before this kernel. */
-    #if LOCAL_OFF==0
-        load_local_in(cpfa);
-        load_local_halox(cpfa);
-        BARRIER
-    #endif
-        sxx_xr = Dxp(lcpfa);
-    #if LOCAL_OFF==0
-        BARRIER
-        load_local_in(cpfb);
-        load_local_haloz(cpfb);
-        BARRIER
-    #endif
-        sxz_zr = Dzm(lcpfb);
-    #if LOCAL_OFF==0
-        BARRIER
-        load_local_in(cpfc);
-        load_local_haloz(cpfc);
-        BARRIER
-    #endif
-        szz_zr = Dzp(lcpfc);
-    #if LOCAL_OFF==0
-        BARRIER
-        load_local_in(cpfd);
-        load_local_halox(cpfd);
-        BARRIER
-    #endif
-        sxz_xr = Dxm(lcpfd);
+    /* exact CPML adjoint: the fields filtered by cpml_adj_s */
+    load_tile2(lvar, cpfa, tile_z0, tile_x0, tz, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) sxx_xr[c] = tdxp(lvar, tz, lz0+c, lx);
+    BARRIER
+    load_tile2(lvar, cpfb, tile_z0, tile_x0, tz, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) sxz_zr[c] = tdzm(lvar, tz, lz0+c, lx);
+    BARRIER
+    load_tile2(lvar, cpfc, tile_z0, tile_x0, tz, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) szz_zr[c] = tdzp(lvar, tz, lz0+c, lx);
+    BARRIER
+    load_tile2(lvar, cpfd, tile_z0, tile_x0, tz, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) sxz_xr[c] = tdxm(lvar, tz, lz0+c, lx);
 #else
-    #if LOCAL_OFF==0
-        load_local_in(sxxr);
-        load_local_halox(sxxr);
-        BARRIER
-    #endif
-        sxx_xr = Dxp(lsxxr);
-    
-    #if LOCAL_OFF==0
-        BARRIER
-        load_local_in(szzr);
-        load_local_haloz(szzr);
-        BARRIER
-    #endif
-        szz_zr = Dzp(lszzr);
-    
-    #if LOCAL_OFF==0
-        BARRIER
-        load_local_in(sxzr);
-        load_local_haloz(sxzr);
-        load_local_halox(sxzr);
-        BARRIER
-    #endif
-        sxz_zr = Dzm(lsxzr);
-        sxz_xr = Dxm(lsxzr);
+    load_tile2(lvar, sxxr, tile_z0, tile_x0, tz, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) sxx_xr[c] = tdxp(lvar, tz, lz0+c, lx);
+    BARRIER
+    load_tile2(lvar, szzr, tile_z0, tile_x0, tz, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) szz_zr[c] = tdzp(lvar, tz, lz0+c, lx);
+    BARRIER
+    load_tile2(lvar, sxzr, tile_z0, tile_x0, tz, tx);
+    BARRIER
+    for (int c=0; c<NV; c++){
+        sxz_zr[c] = tdzm(lvar, tz, lz0+c, lx);
+        sxz_xr[c] = tdxm(lvar, tz, lz0+c, lx);
+    }
 #endif
 
-
-    
-// To stop updating if we are outside the model (global id must be a multiple of local id in OpenCL, hence we stop if we have a global id outside the grid)
-#if LOCAL_OFF==0
 #if COMM12==0
-    if (gidz>(NZ-FDOH-1) || (gidx-offcomm)>(NX-FDOH-1-LCOMM) ){
-        return;
-    }
-    
+    if (zt > NZS-FDOH-1 || (gidx-offcomm) > (NX-FDOH-1-LCOMM)) return;
 #else
-    if (gidz>(NZ-FDOH-1) ){
-        return;
-    }
-#endif
+    if (zt > NZS-FDOH-1) return;
 #endif
 
-
-// Backpropagate the forward velocity
+    int indv = gidx*NZS + zt;
+    float lvxr[NV], lvzr[NV], lrip[NV], lrkp[NV];
+    ldn(vxr, indv, lvxr);
+    ldn(vzr, indv, lvzr);
+    ldp2(rip, gidx, zt, lrip);
+    ldp2(rkp, gidx, zt, lrkp);
 #if BACK_PROP_TYPE==1
-    {
-        float vxold = vx[indv], vzold = vz[indv];
-        lvx=((sxx_x + sxz_z)*rip[indp]);
-        lvz=((szz_z + sxz_x)*rkp[indp]);
-        vx[indv]-= lvx;
-        vz[indv]-= lvz;
-        fvx = lvx;
-        fvz = lvz;
-        
-        // Inject the boundary values
-        m=inject_ind(gidz,  gidx);
-        if (m!=-1){
-            vx[indv] = vxbnd[m];
-            vz[indv] = vzbnd[m];
-            /* Exact forward increment from the two stored states,
-               v(t+1) = taper*(v(t) + f): the stencil above may read
-               stresses that are not rebuilt (the images above a free
-               surface, the layers without GRADABS). */
-            float gt = 1.0f;
-            #if ABS_TYPE==2
-            #if FREESURF==0
-            if (gidz-FDOH<NAB) gt*=taper[gidz-FDOH];
-            #endif
-            if (gidz>NZ-NAB-FDOH-1) gt*=taper[NZ-FDOH-gidz-1];
-            #if DEVID==0 & MYLOCALID==0
-            if (gidx-FDOH<NAB) gt*=taper[gidx-FDOH];
-            #endif
-            #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-            if (gidx>NX-NAB-FDOH-1) gt*=taper[NX-FDOH-gidx-1];
-            #endif
-            #endif
-            fvx = vxold/gt - vx[indv];
-            fvz = vzold/gt - vz[indv];
+    float lvx[NV], lvz[NV];
+    ldn(vx, indv, lvx);
+    ldn(vz, indv, lvz);
+#endif
+
+    for (int c=0; c<NV; c++){
+        int gidz = zt + c;
+        if (!INTERIOR_Z(gidz)) continue;              // halo cell of an aligned pair
+        int indp = (gidx-FDOH)*(NZS-2*FDOH) + (gidz-FDOH);
+
+        // Rebuild the forward velocities one step back; stored cells get their stored value
+#if BACK_PROP_TYPE==1
+        lvx[c] -= (sxx_x[c] + sxz_z[c])*lrip[c];
+        lvz[c] -= (szz_z[c] + sxz_x[c])*lrkp[c];
+        {
+            int m = inject_ind(gidz, gidx);
+            if (m != -1){
+                lvx[c] = ldf(vxbnd, m);
+                lvz[c] = ldf(vzbnd, m);
+            }
         }
-    }
 #endif
 
-// Correct adjoint spatial derivatives to implement CPML (BACK_PROP_TYPE 2;
-// BACK_PROP_TYPE 1 uses the exact adjoint of cpml_adj2D.cl instead)
+        float dsxx = sxx_xr[c], dszz = szz_zr[c], dsxzz = sxz_zr[c], dsxzx = sxz_xr[c];
+
+        // CPML, BACK_PROP_TYPE 2: the adjoint run as a forward simulation
 #if ABS_TYPE==1 && BACK_PROP_TYPE!=1
-    {
-    int ind;
-    
-    if (gidz>NZ-NAB-FDOH-1){
-        
-        i =gidx-FDOH;
-        k =gidz - NZ+NAB+FDOH+NAB;
-        ind=2*NAB-1-k;
-        
-        psi_sxz_z(k,i) = b_z[ind+1] * psi_sxz_z(k,i) + a_z[ind+1] * sxz_zr;
-        sxz_zr = sxz_zr / K_z[ind+1] + psi_sxz_z(k,i);
-        psi_szz_z(k,i) = b_z_half[ind] * psi_szz_z(k,i) + a_z_half[ind] * szz_zr;
-        szz_zr = szz_zr / K_z_half[ind] + psi_szz_z(k,i);
-        
-    }
-    
+        {
+            int i, k, ind;
+            float psi;
+            if (gidz>NZS-NAB-FDOH-1){
+                i = gidx-FDOH;
+                k = gidz-NZS+NAB+FDOH+NAB;
+                ind = 2*NAB-1-k;
+                psi = b_z[ind+1]*ldf(psi_sxz_z, PSIZ(k,i)) + a_z[ind+1]*dsxzz;
+                stf(psi_sxz_z, PSIZ(k,i), psi);
+                dsxzz = dsxzz/K_z[ind+1] + psi;
+                psi = b_z_half[ind]*ldf(psi_szz_z, PSIZ(k,i)) + a_z_half[ind]*dszz;
+                stf(psi_szz_z, PSIZ(k,i), psi);
+                dszz = dszz/K_z_half[ind] + psi;
+            }
 #if FREESURF==0
-    else if (gidz-FDOH<NAB){
-        
-        i =gidx-FDOH;
-        k =gidz-FDOH;
-        
-        psi_sxz_z(k,i) = b_z[k] * psi_sxz_z(k,i) + a_z[k] * sxz_zr;
-        sxz_zr = sxz_zr / K_z[k] + psi_sxz_z(k,i);
-        psi_szz_z(k,i) = b_z_half[k] * psi_szz_z(k,i) + a_z_half[k] * szz_zr;
-        szz_zr = szz_zr / K_z_half[k] + psi_szz_z(k,i);
-        
-    }
+            else if (gidz-FDOH<NAB){
+                i = gidx-FDOH;
+                k = gidz-FDOH;
+                psi = b_z[k]*ldf(psi_sxz_z, PSIZ(k,i)) + a_z[k]*dsxzz;
+                stf(psi_sxz_z, PSIZ(k,i), psi);
+                dsxzz = dsxzz/K_z[k] + psi;
+                psi = b_z_half[k]*ldf(psi_szz_z, PSIZ(k,i)) + a_z_half[k]*dszz;
+                stf(psi_szz_z, PSIZ(k,i), psi);
+                dszz = dszz/K_z_half[k] + psi;
+            }
 #endif
-    
 #if DEVID==0 & MYLOCALID==0
-    if (gidx-FDOH<NAB){
-        
-        i =gidx-FDOH;
-        k =gidz-FDOH;
-        
-        psi_sxx_x(k,i) = b_x_half[i] * psi_sxx_x(k,i) + a_x_half[i] * sxx_xr;
-        sxx_xr = sxx_xr / K_x_half[i] + psi_sxx_x(k,i);
-        psi_sxz_x(k,i) = b_x[i] * psi_sxz_x(k,i) + a_x[i] * sxz_xr;
-        sxz_xr = sxz_xr / K_x[i] + psi_sxz_x(k,i);
-        
-    }
+            if (gidx-FDOH<NAB){
+                i = gidx-FDOH;
+                k = gidz-FDOH;
+                psi = b_x_half[i]*ldf(psi_sxx_x, PSIX(k,i)) + a_x_half[i]*dsxx;
+                stf(psi_sxx_x, PSIX(k,i), psi);
+                dsxx = dsxx/K_x_half[i] + psi;
+                psi = b_x[i]*ldf(psi_sxz_x, PSIX(k,i)) + a_x[i]*dsxzx;
+                stf(psi_sxz_x, PSIX(k,i), psi);
+                dsxzx = dsxzx/K_x[i] + psi;
+            }
 #endif
-    
 #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-    if (gidx>NX-NAB-FDOH-1){
-        
-        i =gidx - NX+NAB+FDOH+NAB;
-        k =gidz-FDOH;
-        ind=2*NAB-1-i;
-        
-        psi_sxx_x(k,i) = b_x_half[ind] * psi_sxx_x(k,i) + a_x_half[ind] * sxx_xr;
-        sxx_xr = sxx_xr / K_x_half[ind] + psi_sxx_x(k,i);
-        psi_sxz_x(k,i) = b_x[ind+1] * psi_sxz_x(k,i) + a_x[ind+1] * sxz_xr;
-        sxz_xr = sxz_xr / K_x[ind+1] + psi_sxz_x(k,i);
-        
-    }
+            if (gidx>NX-NAB-FDOH-1){
+                i = gidx-NX+NAB+FDOH+NAB;
+                k = gidz-FDOH;
+                ind = 2*NAB-1-i;
+                psi = b_x_half[ind]*ldf(psi_sxx_x, PSIX(k,i)) + a_x_half[ind]*dsxx;
+                stf(psi_sxx_x, PSIX(k,i), psi);
+                dsxx = dsxx/K_x_half[ind] + psi;
+                psi = b_x[ind+1]*ldf(psi_sxz_x, PSIX(k,i)) + a_x[ind+1]*dsxzx;
+                stf(psi_sxz_x, PSIX(k,i), psi);
+                dsxzx = dsxzx/K_x[ind+1] + psi;
+            }
 #endif
-    }
+        }
 #endif
-    
-    // Update adjoint velocities
-    lvx=((sxx_xr + sxz_zr)*rip[indp]);
-    lvz=((szz_zr + sxz_xr)*rkp[indp]);
-    vxr[indv]+= lvx;
-    vzr[indv]+= lvz;
- 
-    
 
-// Absorbing boundary
+        // Update the adjoint velocities
+        float ivx = (dsxx + dsxzz)*lrip[c];
+        float ivz = (dszz + dsxzx)*lrkp[c];
+        lvxr[c] += ivx;
+        lvzr[c] += ivz;
+
+        // Absorbing boundary (Cerjan)
 #if ABS_TYPE==2
-    {
+        {
+            float tp = 1.0f;
 #if FREESURF==0
-    if (gidz-FDOH<NAB){
-        vxr[indv]*=taper[gidz-FDOH];
-        vzr[indv]*=taper[gidz-FDOH];
-    }
+            if (gidz-FDOH<NAB) tp *= taper[gidz-FDOH];
 #endif
-    
-    if (gidz>NZ-NAB-FDOH-1){
-        vxr[indv]*=taper[NZ-FDOH-gidz-1];
-        vzr[indv]*=taper[NZ-FDOH-gidz-1];
-    }
-    
+            if (gidz>NZS-NAB-FDOH-1) tp *= taper[NZS-FDOH-gidz-1];
 #if DEVID==0 & MYLOCALID==0
-    if (gidx-FDOH<NAB){
-        vxr[indv]*=taper[gidx-FDOH];
-        vzr[indv]*=taper[gidx-FDOH];
-    }
+            if (gidx-FDOH<NAB) tp *= taper[gidx-FDOH];
 #endif
-    
 #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-    if (gidx>NX-NAB-FDOH-1){
-        vxr[indv]*=taper[NX-FDOH-gidx-1];
-        vzr[indv]*=taper[NX-FDOH-gidx-1];
-    }
+            if (gidx>NX-NAB-FDOH-1) tp *= taper[NX-FDOH-gidx-1];
 #endif
-    }
+            lvxr[c] *= tp;
+            lvzr[c] *= tp;
+        }
 #endif
-    
-    
-// Density gradient calculation on the fly
-#if BACK_PROP_TYPE==1
-    /* Receiver cells: the residual term of the gradient is added by
-       rec_grad.cl (see there). */
-    /* Under a stress-image free surface the FDOH rows that the adjoint
-       surface gather changes get their density gradient from surface_grad
-       (surface2D_adj.cl), in the direct form. */
-    int sumform = 1;
-    #if FREESURF==1 && GRADOUT==1
-    if (gidz-FDOH < FDOH) sumform = 0;
-    #endif
-    if (sumform){
-        gradrip[indp]+=-vx[indv]*lvx;
-        gradrkp[indp]+=-vz[indv]*lvz;
-    }
 
-    /* Source term of the misfit gradient -- GJI 2017 eq. (26a) -- for a FORCE
-     * source. The accumulation just above is the (A phi' + B phi) side of
-     * eq. (6) only: eq. (A1a) writes dJ/drho as <v~, dt v>, i.e. with the
-     * bracket's "- s" dropped, so a spurious <psi, T dLambda^-1/dm T s>
-     * survives in cells holding a source. update_adjs2D.cl carries the same
-     * term for a pressure source; this is its velocity-block twin.
-     *
-     * A pressure source (type 100) enters only the stress block and a force
-     * source only the velocity block, so the two are mutually exclusive and
-     * neither leaks into the other's parameters.
-     *
-     * The coefficient is 1: (A1a) has no c-factor, and the `rip` inside lvx is
-     * how the adjoint velocity equation computes dt(v~), not a coefficient.
-     * What matters for the averaging is WHERE this lands -- vx lives at the
-     * rip position and vz at the rkp one, so each goes to its own STAGGERED
-     * buoyancy accumulator and average_grad_transpose() applies the averaging
-     * Jacobian afterwards. Writing it into a cell-centred gradrho instead
-     * would skip that Jacobian and put the sensitivity at the wrong point.
-     *
-     * Source type is the index into kernel_sources()'s src_names[] =
-     * {"vx","vy","vz","p",...}, so 0 = force in x and 2 = force in z here. */
-    #if GRADOUT==1
-    if (nsrc>0 && sumform){
-        for (int srci=0; srci<nsrc; srci++){
-            int st = (int)src_pos[4+5*srci];
-            if (st==0 || st==2){
-                int si=(int)(src_pos[0+5*srci]/DH)+FDOH;
-                int sk=(int)(src_pos[2+5*srci]/DH)+FDOH;
-                if (si==gidx && sk==gidz){
-                    /* No src_scale here: assign_modeling_case.c compiles
-                     * this file only at FP16==0, where src_scale is 0 and
-                     * kernel_sources()'s amp is plainly DT*src. The half2
-                     * kernels are the FP16>0 path. */
-                    float samp = DT*src[srci*NT+nt];
-                    if (st==0) gradrip[indp] += vxr[indv]*samp;
-                    else       gradrkp[indp] += vzr[indv]*samp;
+        // Density gradient: forward velocity x adjoint increment
+#if BACK_PROP_TYPE==1
+        int sumform = 1;
+#if FREESURF==1 && GRADOUT==1
+        if (gidz-FDOH < FDOH) sumform = 0;            // surface_grad (direct form)
+#endif
+        if (sumform){
+            gradrip[indp] += GSCALE(-lvx[c]*ivx);
+            gradrkp[indp] += GSCALE(-lvz[c]*ivz);
+        }
+        /* Source term of the misfit gradient -- GJI 2017 eq. (26a) -- for a
+           force source (codes 0 = Fx, 2 = Fz), in the buoyancy accumulator of
+           its own staggered position: adjoint velocity field x DT*src. The
+           velocities are stored scaled by 2^(src_scale - PARSCALE). */
+#if GRADOUT==1
+        if (nsrc>0 && sumform){
+            for (int srci=0; srci<nsrc; srci++){
+                int st = (int)src_pos[4+5*srci];
+                if (st==0 || st==2){
+                    int si = (int)(src_pos[0+5*srci]/DH)+FDOH;
+                    int sk = (int)(src_pos[2+5*srci]/DH)+FDOH;
+                    if (si==gidx && sk==gidz){
+                        float samp = pow2s(DT*src[srci*NT+nt], src_scale - PARSCALE);
+                        if (st==0) gradrip[indp] += GSCALE(lvxr[c]*samp);
+                        else       gradrkp[indp] += GSCALE(lvzr[c]*samp);
+                    }
                 }
             }
         }
+#endif
+#endif
     }
-    #endif
-
-//#if HOUT==1
-//    Hrho[indp]+= pown(vx[indv],2)+pown(vz[indv],2);
-//#endif
-
+    stn(vxr, indv, lvxr);
+    stn(vzr, indv, lvzr);
+#if BACK_PROP_TYPE==1
+    stn(vx, indv, lvx);
+    stn(vz, indv, lvz);
 #endif
-    
-#if GRADSRCOUT==1
-    //TODO
-//    if (nsrc>0){
-//        
-//        
-//        for (int srci=0; srci<nsrc; srci++){
-//            
-//            
-//            int i=(int)(srcpos_loc(0,srci)/DH-0.5)+FDOH;
-//            int k=(int)(srcpos_loc(2,srci)/DH-0.5)+FDOH;
-//            
-//            if (i==gidx && k==gidz){
-//                
-//                int SOURCE_TYPE= (int)srcpos_loc(4,srci);
-//                
-//                if (SOURCE_TYPE==2){
-//                    /* single force in x */
-//                    gradsrc(srci,nt)+= vxr[indv]/rip(gidx,gidz)/(DH*DH);
-//                }
-//                else if (SOURCE_TYPE==4){
-//                    /* single force in z */
-//                    
-//                    gradsrc(srci,nt)+= vzr[indv]/rkp(gidx,gidz)/(DH*DH);
-//                }
-//                
-//            }
-//        }
-//        
-//        
-//    }
-#endif
-    
 }
-

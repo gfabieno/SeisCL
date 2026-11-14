@@ -32,13 +32,13 @@
 
 
 
-FUNDEF void surface_adj(GLOBARG __prec *vxr,        GLOBARG __prec *vzr,
-                        GLOBARG __prec *sxxr,       GLOBARG __prec *szzr,
-                        GLOBARG __prec *sxzr,       GLOBARG __prec *M,
-                        GLOBARG __prec *rip,        GLOBARG __prec *rkp,
-                        GLOBARG __prec *mu,         GLOBARG __prec *rxx,
-                        GLOBARG __prec *rzz,        GLOBARG __prec *taus,
-                        GLOBARG __prec *taup,       GLOBARG float *eta,
+FUNDEF void surface_adj(GLOBARG STO *vxr,        GLOBARG STO *vzr,
+                        GLOBARG STO *sxxr,       GLOBARG STO *szzr,
+                        GLOBARG STO *sxzr,       GLOBARG STO *M,
+                        GLOBARG STO *rip,        GLOBARG STO *rkp,
+                        GLOBARG STO *mu,         GLOBARG STO *rxx,
+                        GLOBARG STO *rzz,        GLOBARG STO *taus,
+                        GLOBARG STO *taup,       GLOBARG float *eta,
                         GLOBARG float *K_x,        GLOBARG float *psi_vx_x,
                         GLOBARG float *taper)
 {
@@ -62,10 +62,10 @@ FUNDEF void surface_adj(GLOBARG __prec *vxr,        GLOBARG __prec *vzr,
     __cprec1 lmu, lM;
 
 
-    lszz = szzr[indv(gidz,  gidx)];
-    lsxx = sxxr[indv(gidz,  gidx)];
-    lmu = mu[indp(gidz,  gidx)];
-    lM = M[indp(gidz,  gidx)];
+    lszz = ldf(szzr, indv(gidz,  gidx));
+    lsxx = ldf(sxxr, indv(gidz,  gidx));
+    lmu = ldf(mu, indp(gidz,  gidx));
+    lM = ldf(M, indp(gidz,  gidx));
     
     //Preadjoint transformations L
     {
@@ -102,24 +102,10 @@ FUNDEF void surface_adj(GLOBARG __prec *vxr,        GLOBARG __prec *vzr,
 //            }
 //    #endif
 
-#if FP16!=0
-    /* FP16 path (no surface_adj_fold): scatter into vxr of neighbouring
-       columns. Not race-free: other threads add to the same cells. */
-    for (int m=0; m<FDOH; m++){
-        if ( (gidx-FDOH + m) < (NX - 2*FDOH))
-            vxr[indv(gidz,gidx + m)]+=(hc[m] * hx * lsxx *
-                                       (__cprec1)rip[indp(gidz,gidx+m)]);
-        if ( (gidx - (m + 1)) > (FDOH - 1))
-            vxr[indv(gidz,gidx-(m+1))]+=(-hc[m] * hx* lsxx *
-                                         (__cprec1)rip[indp(gidz,gidx-(m+1))]);
-        vzr[indv(gidz+m,gidx)] += (hc[m] *hz * lsxx
-                                   * (__cprec1)rkp[indp(gidz+m,gidx)]);
-    }
-#endif
 
     //Perform the post-adjoint transformation L^-1
-    szzr[indv(gidz,  gidx)] = -( lM * lszz + ( lM - (__cprec1)2.0 * lmu) * lsxx );
-    sxxr[indv(gidz,  gidx)] = -( lM * lsxx + ( lM - (__cprec1)2.0 * lmu) * lszz );
+    stf(szzr, indv(gidz,  gidx), -( lM * lszz + ( lM - (__cprec1)2.0 * lmu) * lsxx ));
+    stf(sxxr, indv(gidz,  gidx), -( lM * lsxx + ( lM - (__cprec1)2.0 * lmu) * lszz ));
 
 //    // Correct spatial derivatives to implement CPML
 //#if ABS_TYPE==1
@@ -180,11 +166,11 @@ FUNDEF void surface_adj(GLOBARG __prec *vxr,        GLOBARG __prec *vzr,
       neighbouring columns with +=, a write race between threads.
    Derived and checked against the exact transpose of one time step:
    ~/data/claude/torch-robust/fsadj/ (ref.py, derive.py). */
-FUNDEF void surface_adj_fold(GLOBARG __prec *vxr,  GLOBARG __prec *vzr,
-                             GLOBARG __prec *sxxr, GLOBARG __prec *szzr,
-                             GLOBARG __prec *sxzr, GLOBARG __prec *M,
-                             GLOBARG __prec *mu,   GLOBARG __prec *muipkp,
-                             GLOBARG __prec *rip,  GLOBARG __prec *rkp)
+FUNDEF void surface_adj_fold(GLOBARG STO *vxr,  GLOBARG STO *vzr,
+                             GLOBARG STO *sxxr, GLOBARG STO *szzr,
+                             GLOBARG STO *sxzr, GLOBARG STO *M,
+                             GLOBARG STO *mu,   GLOBARG STO *muipkp,
+                             GLOBARG STO *rip,  GLOBARG STO *rkp)
 {
     #ifdef __OPENCL_VERSION__
     int gidx = get_global_id(0) + FDOH;
@@ -202,21 +188,21 @@ FUNDEF void surface_adj_fold(GLOBARG __prec *vxr,  GLOBARG __prec *vzr,
         __cprec1 img_szz = 0;
         __cprec1 img_sxz = 0;
         for (int m=k; m<FDOH; m++){
-            img_szz -= hc[m] * (__cprec1)vzr[indv(FDOH-k+m, gidx)];
+            img_szz -= hc[m] * ldf(vzr, indv(FDOH-k+m, gidx));
         }
         for (int m=k-1; m<FDOH; m++){
-            img_sxz -= hc[m] * (__cprec1)vxr[indv(FDOH-k+m+1, gidx)];
+            img_sxz -= hc[m] * ldf(vxr, indv(FDOH-k+m+1, gidx));
         }
         int z = FDOH + k;
-        __cprec1 lM = M[indp(z, gidx)];
-        __cprec1 lmu = mu[indp(z, gidx)];
-        szzr[indv(z, gidx)] += lM * img_szz;
-        sxxr[indv(z, gidx)] += (lM - (__cprec1)2.0 * lmu) * img_szz;
-        sxzr[indv(z-1, gidx)] += (__cprec1)muipkp[indp(z-1, gidx)] * img_sxz;
+        __cprec1 lM = ldf(M, indp(z, gidx));
+        __cprec1 lmu = ldf(mu, indp(z, gidx));
+        stf(szzr, indv(z, gidx), ldf(szzr, indv(z, gidx)) + (lM * img_szz));
+        stf(sxxr, indv(z, gidx), ldf(sxxr, indv(z, gidx)) + ((lM - (__cprec1)2.0 * lmu) * img_szz));
+        stf(sxzr, indv(z-1, gidx), ldf(sxzr, indv(z-1, gidx)) + (ldf(muipkp, indp(z-1, gidx)) * img_sxz));
     }
     for (int m=1; m<=FDOH; m++){
-        szzr[indv(FDOH-m, gidx)] = 0;
-        sxzr[indv(FDOH-m, gidx)] = 0;
+        stf(szzr, indv(FDOH-m, gidx), 0);
+        stf(sxzr, indv(FDOH-m, gidx), 0);
     }
 
     // 2. Adjoint of the sxx correction. hx*lsxx of column c, lsxx being the
@@ -226,31 +212,31 @@ FUNDEF void surface_adj_fold(GLOBARG __prec *vxr,  GLOBARG __prec *vzr,
         // column c = gidx - m wrote +hc[m]*hx*lsxx*rip into gidx (forward Dxm)
         int c = gidx - m;
         if (c >= FDOH){
-            __cprec1 cM = M[indp(gidz, c)], cmu = mu[indp(gidz, c)];
+            __cprec1 cM = ldf(M, indp(gidz, c)), cmu = ldf(mu, indp(gidz, c));
             __cprec1 a = (__cprec1)1.0/( (__cprec1)4.0*cM*cmu - (__cprec1)4.0*cmu*cmu);
-            __cprec1 lsxx = -a * ( cM * (__cprec1)sxxr[indv(gidz, c)]
-                                  + (-cM + (__cprec1)2.0 * cmu) * (__cprec1)szzr[indv(gidz, c)] );
+            __cprec1 lsxx = -a * ( cM * ldf(sxxr, indv(gidz, c))
+                                  + (-cM + (__cprec1)2.0 * cmu) * ldf(szzr, indv(gidz, c)) );
             dvx += hc[m] * (-((cM-cmu*(__cprec1)2.0)*(cM-cmu*(__cprec1)2.0)/cM)) * lsxx;
         }
         // column c = gidx + m + 1 wrote -hc[m]*hx*lsxx*rip into gidx
         c = gidx + m + 1;
         if (c <= NX-FDOH-1){
-            __cprec1 cM = M[indp(gidz, c)], cmu = mu[indp(gidz, c)];
+            __cprec1 cM = ldf(M, indp(gidz, c)), cmu = ldf(mu, indp(gidz, c));
             __cprec1 a = (__cprec1)1.0/( (__cprec1)4.0*cM*cmu - (__cprec1)4.0*cmu*cmu);
-            __cprec1 lsxx = -a * ( cM * (__cprec1)sxxr[indv(gidz, c)]
-                                  + (-cM + (__cprec1)2.0 * cmu) * (__cprec1)szzr[indv(gidz, c)] );
+            __cprec1 lsxx = -a * ( cM * ldf(sxxr, indv(gidz, c))
+                                  + (-cM + (__cprec1)2.0 * cmu) * ldf(szzr, indv(gidz, c)) );
             dvx -= hc[m] * (-((cM-cmu*(__cprec1)2.0)*(cM-cmu*(__cprec1)2.0)/cM)) * lsxx;
         }
     }
-    vxr[indv(gidz, gidx)] += dvx * (__cprec1)rip[indp(gidz, gidx)];
+    stf(vxr, indv(gidz, gidx), ldf(vxr, indv(gidz, gidx)) + (dvx * ldf(rip, indp(gidz, gidx))));
     {
-        __cprec1 lM = M[indp(gidz, gidx)], lmu = mu[indp(gidz, gidx)];
+        __cprec1 lM = ldf(M, indp(gidz, gidx)), lmu = ldf(mu, indp(gidz, gidx));
         __cprec1 a = (__cprec1)1.0/( (__cprec1)4.0*lM*lmu - (__cprec1)4.0*lmu*lmu);
-        __cprec1 lsxx = -a * ( lM * (__cprec1)sxxr[indv(gidz, gidx)]
-                              + (-lM + (__cprec1)2.0 * lmu) * (__cprec1)szzr[indv(gidz, gidx)] );
+        __cprec1 lsxx = -a * ( lM * ldf(sxxr, indv(gidz, gidx))
+                              + (-lM + (__cprec1)2.0 * lmu) * ldf(szzr, indv(gidz, gidx)) );
         __cprec1 hz = -(lM-lmu*(__cprec1)2.0);
         for (int m=0; m<FDOH; m++){
-            vzr[indv(gidz+m, gidx)] += hc[m] * hz * lsxx * (__cprec1)rkp[indp(gidz+m, gidx)];
+            stf(vzr, indv(gidz+m, gidx), ldf(vzr, indv(gidz+m, gidx)) + (hc[m] * hz * lsxx * ldf(rkp, indp(gidz+m, gidx))));
         }
     }
 }
@@ -289,19 +275,20 @@ FUNDEF void surface_adj_fold(GLOBARG __prec *vxr,  GLOBARG __prec *vzr,
      on the unstored images).
    (notes: ~/data/claude/notes/surface-gradient.md) */
 #ifdef HAVE_INJECT_IND   /* compiled only with header_injectbnd.cl (the surf_grad program) */
-FUNDEF void surface_grad(GLOBARG __prec *vx,         GLOBARG __prec *vz,
-                         GLOBARG __prec *vxr,        GLOBARG __prec *vzr,
-                         GLOBARG __prec *sxxr,       GLOBARG __prec *szzr,
-                         GLOBARG __prec *sxzr,       GLOBARG __prec *M,
-                         GLOBARG __prec *mu,         GLOBARG __prec *muipkp,
-                         GLOBARG __prec *vxbnd,      GLOBARG __prec *vzbnd,
+FUNDEF void surface_grad(GLOBARG STO *vx,         GLOBARG STO *vz,
+                         GLOBARG STO *vxr,        GLOBARG STO *vzr,
+                         GLOBARG STO *sxxr,       GLOBARG STO *szzr,
+                         GLOBARG STO *sxzr,       GLOBARG STO *M,
+                         GLOBARG STO *mu,         GLOBARG STO *muipkp,
+                         GLOBARG STO *vxbnd,      GLOBARG STO *vzbnd,
                          GLOBARG float *taper,
                          GLOBARG float *gradM,       GLOBARG float *gradmu,
                          GLOBARG float *gradmuipkp,  GLOBARG float *gradrip,
                          GLOBARG float *gradrkp,     GLOBARG float *src,
                          GLOBARG float *src_pos,     int nsrc,
                          int nt,                     GLOBARG float *pout,
-                         GLOBARG float *rec_pos,     int nrec)
+                         GLOBARG float *rec_pos,     int nrec,
+                         int src_scale,              int res_scale)
 {
     #ifdef __OPENCL_VERSION__
     int gidx = get_global_id(0) + FDOH;
@@ -316,14 +303,14 @@ FUNDEF void surface_grad(GLOBARG __prec *vx,         GLOBARG __prec *vz,
         int z = FDOH+k;
         __cprec1 vxx = 0, vzz = 0, vxz = 0, vzx = 0;
         for (int m=0; m<FDOH; m++){
-            vxx += hc[m]*((__cprec1)vx[indv(z, gidx+m)]   - (__cprec1)vx[indv(z, gidx-m-1)]);
-            vzz += hc[m]*((__cprec1)vz[indv(z+m, gidx)]   - (__cprec1)vz[indv(z-m-1, gidx)]);
-            vxz += hc[m]*((__cprec1)vx[indv(z+m+1, gidx)] - (__cprec1)vx[indv(z-m, gidx)]);
-            vzx += hc[m]*((__cprec1)vz[indv(z, gidx+m+1)] - (__cprec1)vz[indv(z, gidx-m)]);
+            vxx += hc[m]*(ldf(vx, indv(z, gidx+m))   - ldf(vx, indv(z, gidx-m-1)));
+            vzz += hc[m]*(ldf(vz, indv(z+m, gidx))   - ldf(vz, indv(z-m-1, gidx)));
+            vxz += hc[m]*(ldf(vx, indv(z+m+1, gidx)) - ldf(vx, indv(z-m, gidx)));
+            vzx += hc[m]*(ldf(vz, indv(z, gidx+m+1)) - ldf(vz, indv(z, gidx-m)));
         }
-        __cprec1 lM = M[indp(z, gidx)], lmu = mu[indp(z, gidx)];
-        __cprec1 lmuipkp = muipkp[indp(z, gidx)];
-        __cprec1 axx = sxxr[indv(z, gidx)], azz = szzr[indv(z, gidx)];
+        __cprec1 lM = ldf(M, indp(z, gidx)), lmu = ldf(mu, indp(z, gidx));
+        __cprec1 lmuipkp = ldf(muipkp, indp(z, gidx));
+        __cprec1 axx = ldf(sxxr, indv(z, gidx)), azz = ldf(szzr, indv(z, gidx));
         #if PRESOUT==1
         /* The pressure residual injected at this step (residuals.c delays it
            by one sample) is not yet part of T*nu_t: it enters the next step,
@@ -332,8 +319,8 @@ FUNDEF void surface_grad(GLOBARG __prec *vx,         GLOBARG __prec *vz,
             int ri=(int)(rec_pos[0+8*g]/DH)+FDOH;
             int rk=(int)(rec_pos[2+8*g]/DH)+FDOH;
             if (ri==gidx && rk==z){
-                axx -= (__cprec1)0.5*pout[NT*g+nt];
-                azz -= (__cprec1)0.5*pout[NT*g+nt];
+                axx -= 0.5f*pow2s(pout[NT*g+nt], res_scale);
+                azz -= 0.5f*pow2s(pout[NT*g+nt], res_scale);
             }
         }
         #endif
@@ -344,7 +331,7 @@ FUNDEF void surface_grad(GLOBARG __prec *vx,         GLOBARG __prec *vz,
             nzz = -(lM*azz - (lM-(__cprec1)2.0*lmu)*axx)/det;
         }
         if (lmuipkp != 0){
-            nxz = -(__cprec1)sxzr[indv(z, gidx)]/lmuipkp;
+            nxz = -ldf(sxzr, indv(z, gidx))/lmuipkp;
         }
         __cprec1 gM, gmu;
         if (k==0){
@@ -355,9 +342,9 @@ FUNDEF void surface_grad(GLOBARG __prec *vx,         GLOBARG __prec *vz,
             gM  = (nxx+nzz)*(vxx+vzz);
             gmu = -(__cprec1)2.0*(nxx*vzz + nzz*vxx);
         }
-        gradM[indp(z, gidx)] += gM;
-        gradmu[indp(z, gidx)] += gmu;
-        gradmuipkp[indp(z, gidx)] += nxz*(vxz+vzx);
+        gradM[indp(z, gidx)] += GSCALE(gM);
+        gradmu[indp(z, gidx)] += GSCALE(gmu);
+        gradmuipkp[indp(z, gidx)] += GSCALE(nxz*(vxz+vzx));
 
         if (k<FDOH){
             int mb = inject_ind(z, gidx);
@@ -381,14 +368,15 @@ FUNDEF void surface_grad(GLOBARG __prec *vx,         GLOBARG __prec *vz,
                     int si = (int)(src_pos[0+5*srci]/DH)+FDOH;
                     int sk = (int)(src_pos[2+5*srci]/DH)+FDOH;
                     if (si==gidx && sk==z){
-                        if (st==0) sx += DT*src[srci*NT+nt];
-                        if (st==2) sz += DT*src[srci*NT+nt];
+                        /* the velocities are stored scaled by 2^(src_scale - PARSCALE) */
+                        if (st==0) sx += pow2s(DT*src[srci*NT+nt], src_scale - PARSCALE);
+                        if (st==2) sz += pow2s(DT*src[srci*NT+nt], src_scale - PARSCALE);
                     }
                 }
-                gradrip[indp(z, gidx)] += -(__cprec1)vxr[indv(z, gidx)]
-                    * ((__cprec1)vx[indv(z, gidx)] - gt*((__cprec1)vxbnd[mb] + sx));
-                gradrkp[indp(z, gidx)] += -(__cprec1)vzr[indv(z, gidx)]
-                    * ((__cprec1)vz[indv(z, gidx)] - gt*((__cprec1)vzbnd[mb] + sz));
+                gradrip[indp(z, gidx)] += GSCALE(-ldf(vxr, indv(z, gidx))
+                    * (ldf(vx, indv(z, gidx)) - gt*(ldf(vxbnd, mb) + sx)));
+                gradrkp[indp(z, gidx)] += GSCALE(-ldf(vzr, indv(z, gidx))
+                    * (ldf(vz, indv(z, gidx)) - gt*(ldf(vzbnd, mb) + sz)));
             }
         }
     }

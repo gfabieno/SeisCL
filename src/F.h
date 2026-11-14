@@ -402,6 +402,7 @@ typedef struct device {
     int OFFSET;
     int DEVID;
     int NBND;
+    int frame_cells;   // savebnd/inject_ind index scalar cells (single device, unified kernels)
     int par_scale;
     
     int LOCAL_OFF;

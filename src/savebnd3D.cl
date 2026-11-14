@@ -47,6 +47,9 @@
    straddles the layer and the band, and the averaging transpose spreads it
    into the first band cell; its forward field must be exact.
    Free surface (FREESURF != 0): no layer on top, FDOH rows from the surface. */
+#ifndef NZS
+#define NZS (NZ*DIV)
+#endif
 #ifndef FR_OL
 #if GRADABS==1
 #define FR_OL 0
@@ -74,14 +77,14 @@ FUNDEF void savebnd(GLOBARG __prec2 *vx,         GLOBARG __prec2 *vy,      GLOBA
     int i,j,k,indv;
     int gidf;
 
-#if NUM_DEVICES==1 & NLOCALP==1 & FP16==0
+#if NUM_DEVICES==1 & NLOCALP==1 & FP16<3
     #ifdef __OPENCL_VERSION__
     int gid = get_global_id(0);
     #else
     int gid = blockIdx.x*blockDim.x + threadIdx.x;
     #endif
     {
-    int NZo = NZ-2*FDOH-FR_OT-FR_OL, NYo = NY-2*FDOH-2*FR_OL, NXo = NX-2*FDOH-2*FR_OL;
+    int NZo = NZS-2*FDOH-FR_OT-FR_OL, NYo = NY-2*FDOH-2*FR_OL, NXo = NX-2*FDOH-2*FR_OL;
     int W = FR_W, Wt = FR_WT;
     int NXm = NXo-2*W, NYm = NYo-2*W;
     int A = W*NYo*NZo, B = NXm*W*NZo, C = NXm*NYm*Wt, D = NXm*NYm*W;
@@ -333,6 +336,30 @@ FUNDEF void savebnd(GLOBARG __prec2 *vx,         GLOBARG __prec2 *vy,      GLOBA
 
 #endif
 
+#if NUM_DEVICES==1 & NLOCALP==1 & FP16<3
+    /* Frame of scalar cells: copy the raw stored values (float, or the 16 bits
+       of a half for FP16 2). */
+    #if FP16==2
+        #ifdef __OPENCL_VERSION__
+        #define RAWT ushort
+        #else
+        #define RAWT unsigned short
+        #endif
+    #else
+        #define RAWT float
+    #endif
+    indv = (i*NY+j)*NZS+k;
+    ((GLOBARG RAWT*)vxbnd)[gid] = ((GLOBARG RAWT*)vx)[indv];
+    ((GLOBARG RAWT*)vybnd)[gid] = ((GLOBARG RAWT*)vy)[indv];
+    ((GLOBARG RAWT*)vzbnd)[gid] = ((GLOBARG RAWT*)vz)[indv];
+    ((GLOBARG RAWT*)sxxbnd)[gid] = ((GLOBARG RAWT*)sxx)[indv];
+    ((GLOBARG RAWT*)syybnd)[gid] = ((GLOBARG RAWT*)syy)[indv];
+    ((GLOBARG RAWT*)szzbnd)[gid] = ((GLOBARG RAWT*)szz)[indv];
+    ((GLOBARG RAWT*)sxybnd)[gid] = ((GLOBARG RAWT*)sxy)[indv];
+    ((GLOBARG RAWT*)syzbnd)[gid] = ((GLOBARG RAWT*)syz)[indv];
+    ((GLOBARG RAWT*)sxzbnd)[gid] = ((GLOBARG RAWT*)sxz)[indv];
+    return;
+#endif
     indv = i*NY*NZ+j*NZ+k;
 
     vxbnd[gid]=vx[indv];

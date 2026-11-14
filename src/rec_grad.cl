@@ -17,7 +17,7 @@
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  --------------------------------------------------------------------------*/
 
-/* Residual terms of the gradient at the receiver cells (BACK_PROP_TYPE 1, FP16 0).
+/* Residual terms of the gradient at the receiver cells (BACK_PROP_TYPE 1; storage from header_vec.cl).
 
    The adjoint kernels accumulate the gradient in the summation-by-parts form,
    forward field x the adjoint increment; at a receiver cell the increment also
@@ -40,18 +40,19 @@
 #endif
 
 #if ND==3
-#define INDV(z,y,x) ((x)*NY*NZ+(y)*NZ+(z))
-#define INDP(z,y,x) (((x)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((y)-FDOH)*(NZ-2*FDOH)+((z)-FDOH))
+#define INDV(z,y,x) ((x)*NY*NZS+(y)*NZS+(z))
+#define INDP(z,y,x) (((x)-FDOH)*(NY-2*FDOH)*(NZS-2*FDOH)+((y)-FDOH)*(NZS-2*FDOH)+((z)-FDOH))
 #else
-#define INDV(z,y,x) ((x)*NZ+(z))
-#define INDP(z,y,x) (((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH))
+#define INDV(z,y,x) ((x)*NZS+(z))
+#define INDP(z,y,x) (((x)-FDOH)*(NZS-2*FDOH)+((z)-FDOH))
 #endif
 
-FUNDEF void rec_grad_v(GLOBARG float *vx,      GLOBARG float *vy,      GLOBARG float *vz,
+FUNDEF void rec_grad_v(GLOBARG STO *vx,        GLOBARG STO *vy,        GLOBARG STO *vz,
                        GLOBARG float *vxout,   GLOBARG float *vyout,   GLOBARG float *vzout,
                        GLOBARG float *rec_pos, int nrec,               int nt,
                        GLOBARG float *taper,
-                       GLOBARG float *gradrip, GLOBARG float *gradrjp, GLOBARG float *gradrkp)
+                       GLOBARG float *gradrip, GLOBARG float *gradrjp, GLOBARG float *gradrkp,
+                       int src_scale,          int res_scale)
 {
 #if GRADOUT==1 && VELOUT==1
     #ifdef __OPENCL_VERSION__
@@ -77,7 +78,7 @@ FUNDEF void rec_grad_v(GLOBARG float *vx,      GLOBARG float *vy,      GLOBARG f
         #if FREESURF==0
         if (k-FDOH<NAB) gt*=taper[k-FDOH];
         #endif
-        if (k>NZ-NAB-FDOH-1) gt*=taper[NZ-FDOH-k-1];
+        if (k>NZS-NAB-FDOH-1) gt*=taper[NZS-FDOH-k-1];
         #if ND==3
         if (j-FDOH<NAB) gt*=taper[j-FDOH];
         if (j>NY-NAB-FDOH-1) gt*=taper[NY-FDOH-j-1];
@@ -87,22 +88,23 @@ FUNDEF void rec_grad_v(GLOBARG float *vx,      GLOBARG float *vy,      GLOBARG f
         #endif
         int iv = INDV(k,j,i), ip = INDP(k,j,i);
         #if VXOUT==1
-        gradrip[ip] += -vx[iv]/gt * vxout[NT*g+nt];
+        gradrip[ip] += GSCALE(-ldf(vx, iv)/gt * pow2s(vxout[NT*g+nt], res_scale));
         #endif
         #if VYOUT==1 && ND==3
-        gradrjp[ip] += -vy[iv]/gt * vyout[NT*g+nt];
+        gradrjp[ip] += GSCALE(-ldf(vy, iv)/gt * pow2s(vyout[NT*g+nt], res_scale));
         #endif
         #if VZOUT==1
-        gradrkp[ip] += -vz[iv]/gt * vzout[NT*g+nt];
+        gradrkp[ip] += GSCALE(-ldf(vz, iv)/gt * pow2s(vzout[NT*g+nt], res_scale));
         #endif
     }
 #endif
 }
 
-FUNDEF void rec_grad_s(GLOBARG float *sxx,     GLOBARG float *syy,     GLOBARG float *szz,
+FUNDEF void rec_grad_s(GLOBARG STO *sxx,       GLOBARG STO *syy,       GLOBARG STO *szz,
                        GLOBARG float *pout,    GLOBARG float *rec_pos, int nrec,
-                       int nt,                 GLOBARG float *M,       GLOBARG float *mu,
-                       GLOBARG float *gradM,   GLOBARG float *gradmu)
+                       int nt,                 GLOBARG STO *M,         GLOBARG STO *mu,
+                       GLOBARG float *gradM,   GLOBARG float *gradmu,
+                       int src_scale,          int res_scale)
 {
 #if GRADOUT==1 && PRESOUT==1
     #ifdef __OPENCL_VERSION__
@@ -121,20 +123,20 @@ FUNDEF void rec_grad_s(GLOBARG float *sxx,     GLOBARG float *syy,     GLOBARG f
         if (k-FDOH < SURFROWS) continue;      /* direct form (surface_grad) */
         #endif
         int iv = INDV(k,j,i), ip = INDP(k,j,i);
-        float lM = M[ip], lmu = mu[ip];
-        float res = pout[NT*g+nt];
+        float lM = ldf(M, ip), lmu = ldf(mu, ip);
+        float res = pow2s(pout[NT*g+nt], res_scale);
         #if ND==3
         float den = 3.0f*lM-4.0f*lmu;
         float c1 = (den!=0.0f) ? 1.0f/(den*den) : 0.0f;
-        float dM = c1*(sxx[iv]+syy[iv]+szz[iv])*res;
-        gradM[ip]  += -dM;
-        gradmu[ip] += 4.0f/3.0f*dM;
+        float dM = c1*(ldf(sxx, iv)+ldf(syy, iv)+ldf(szz, iv))*res;
+        gradM[ip]  += GSCALE(-dM);
+        gradmu[ip] += GSCALE(4.0f/3.0f*dM);
         #else
         float den = 2.0f*lM-2.0f*lmu;
         float c1 = (den!=0.0f) ? 1.0f/(den*den) : 0.0f;
-        float dM = c1*(sxx[iv]+szz[iv])*res;
-        gradM[ip]  += -dM;
-        gradmu[ip] += dM;
+        float dM = c1*(ldf(sxx, iv)+ldf(szz, iv))*res;
+        gradM[ip]  += GSCALE(-dM);
+        gradmu[ip] += GSCALE(dM);
         #endif
     }
 #endif

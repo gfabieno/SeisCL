@@ -26,15 +26,15 @@
 
 
 
-FUNDEF void surface_adj(GLOBARG __prec *vxr,   GLOBARG __prec *vyr,
-                        GLOBARG __prec *vzr,   GLOBARG __prec *sxxr,
-                        GLOBARG __prec *syyr,  GLOBARG __prec *szzr,
-                        GLOBARG __prec *sxyr,  GLOBARG __prec *syzr,
-                        GLOBARG __prec *sxzr,  GLOBARG __prec *M,
-                        GLOBARG __prec *rip,   GLOBARG __prec *rjp,
-                        GLOBARG __prec *rkp,   GLOBARG __prec *mu,
-                        GLOBARG __prec *rxx,   GLOBARG __prec *rzz,
-                        GLOBARG __prec *taus,  GLOBARG __prec *taup,
+FUNDEF void surface_adj(GLOBARG STO *vxr,   GLOBARG STO *vyr,
+                        GLOBARG STO *vzr,   GLOBARG STO *sxxr,
+                        GLOBARG STO *syyr,  GLOBARG STO *szzr,
+                        GLOBARG STO *sxyr,  GLOBARG STO *syzr,
+                        GLOBARG STO *sxzr,  GLOBARG STO *M,
+                        GLOBARG STO *rip,   GLOBARG STO *rjp,
+                        GLOBARG STO *rkp,   GLOBARG STO *mu,
+                        GLOBARG STO *rxx,   GLOBARG STO *rzz,
+                        GLOBARG STO *taus,  GLOBARG STO *taup,
                         GLOBARG float *eta)
 {
     /*Indice definition. gsize[0]=N[1] (Y extent), gsize[1]=N[2] (X extent)
@@ -68,11 +68,11 @@ FUNDEF void surface_adj(GLOBARG __prec *vxr,   GLOBARG __prec *vyr,
     
     
     //Read variables in register
-    lszz = -szzr[indv(gidz,gidy,gidx)];
-    lsxx = -sxxr[indv(gidz,gidy,gidx)];
-    lsyy = -syyr[indv(gidz,gidy,gidx)];
-    lmu = mu[indp(gidz,gidy,gidx)];
-    lM = M[indp(gidz,gidy,gidx)];
+    lszz = -ldf(szzr, indv(gidz,gidy,gidx));
+    lsxx = -ldf(sxxr, indv(gidz,gidy,gidx));
+    lsyy = -ldf(syyr, indv(gidz,gidy,gidx));
+    lmu = ldf(mu, indp(gidz,gidy,gidx));
+    lM = ldf(M, indp(gidz,gidy,gidx));
     
     //Preadjoint transformations
     {
@@ -94,32 +94,12 @@ FUNDEF void surface_adj(GLOBARG __prec *vxr,   GLOBARG __prec *vyr,
     h=-((lM-lmu*(__cprec1)2.0)*(lM-lmu*(__cprec1)2.0)/lM);
     hz=-(lM-lmu*(__cprec1)2.0);
     
-#if FP16!=0
-    /* FP16 path (no surface_adj_fold): scatter into vxr, vyr of neighbouring
-       columns. Not race-free: other threads add to the same cells. */
-    for (int m=0; m<FDOH; m++){
-        if ( (gidx-FDOH + m) < (NX - 2*FDOH))
-            vxr[indv(gidz,gidy,gidx+m)]+=(hc[m] * h * (lsxx + lsyy) *
-                                         (__cprec1)rip[indp(gidz,gidy,gidx+m)]);
-        if ( (gidx - (m + 1)) > (FDOH - 1))
-            vxr[indv(gidz,gidy,gidx-(m+1))]+=(-hc[m] * h* (lsxx + lsyy) *
-                                             (__cprec1)rip[indp(gidz,gidy,gidx-(m+1))]);
-        if ( (gidy-FDOH + m) < (NY - 2*FDOH))
-            vyr[indv(gidz,gidy+m,gidx)]+=(hc[m] * h * (lsxx + lsyy) *
-                                         (__cprec1)rjp[indp(gidz,gidy+m,gidx)]);
-        if ( (gidy - (m + 1)) > (FDOH - 1))
-            vyr[indv(gidz,gidy-(m+1),gidx)]+=(-hc[m] * h* (lsxx + lsyy) *
-                                              (__cprec1)rjp[indp(gidz,gidy-(m+1),gidx)]);
-            
-        vzr[indv(gidz+m,gidy,gidx)]+=(hc[m] *hz * (lsxx + lsyy)
-                                      * (__cprec1)rkp[indp(gidz+m,gidy, gidx)]);
-    }
-#endif
+
     
     //Perform the post-adjoint transformation
-    sxxr[indv(gidz,gidy,gidx)] = -(lM * lsxx + (lM-(__cprec1)2.0*lmu) * (lsyy+lszz));
-    syyr[indv(gidz,gidy,gidx)] = -(lM * lsyy + (lM-(__cprec1)2.0*lmu) * (lsxx+lszz));
-    szzr[indv(gidz,gidy,gidx)] = -(lM * lszz + (lM-(__cprec1)2.0*lmu) * (lsxx+lsyy));
+    stf(sxxr, indv(gidz,gidy,gidx), -(lM * lsxx + (lM-(__cprec1)2.0*lmu) * (lsyy+lszz)));
+    stf(syyr, indv(gidz,gidy,gidx), -(lM * lsyy + (lM-(__cprec1)2.0*lmu) * (lsxx+lszz)));
+    stf(szzr, indv(gidz,gidy,gidx), -(lM * lszz + (lM-(__cprec1)2.0*lmu) * (lsxx+lsyy)));
     
 
 }
@@ -146,31 +126,31 @@ FUNDEF void surface_adj(GLOBARG __prec *vxr,   GLOBARG __prec *vyr,
    ~/data/claude/torch-robust/fsadj/ref3d.py (3e-15). */
 /* lsxx + lsyy at the surface of column (y, x), after the pre-adjoint transform
    (as in surface_adj), and hx = -(M-2mu)^2/M there. */
-LFUNDEF __cprec1 lsum3d(GLOBARG __prec *sxxr, GLOBARG __prec *syyr,
-                        GLOBARG __prec *szzr, GLOBARG __prec *M,
-                        GLOBARG __prec *mu, int y, int x)
+LFUNDEF __cprec1 lsum3d(GLOBARG STO *sxxr, GLOBARG STO *syyr,
+                        GLOBARG STO *szzr, GLOBARG STO *M,
+                        GLOBARG STO *mu, int y, int x)
 {
-    __cprec1 cM = M[indp(FDOH, y, x)], cmu = mu[indp(FDOH, y, x)];
-    __cprec1 t1 = -(__cprec1)sxxr[indv(FDOH, y, x)];
-    __cprec1 t2 = -(__cprec1)syyr[indv(FDOH, y, x)];
-    __cprec1 t3 = -(__cprec1)szzr[indv(FDOH, y, x)];
+    __cprec1 cM = ldf(M, indp(FDOH, y, x)), cmu = ldf(mu, indp(FDOH, y, x));
+    __cprec1 t1 = -ldf(sxxr, indv(FDOH, y, x));
+    __cprec1 t2 = -ldf(syyr, indv(FDOH, y, x));
+    __cprec1 t3 = -ldf(szzr, indv(FDOH, y, x));
     __cprec1 a = (__cprec1)1.0/( (__cprec1)6.0*cM*cmu - (__cprec1)8.0*cmu*cmu);
     return a * ( (__cprec1)2.0*(cM-cmu) * (t1 + t2)
                  + (-cM + (__cprec1)2.0*cmu) * (t1 + t2 + (__cprec1)2.0*t3) );
 }
-LFUNDEF __cprec1 hx3d(GLOBARG __prec *M, GLOBARG __prec *mu, int y, int x)
+LFUNDEF __cprec1 hx3d(GLOBARG STO *M, GLOBARG STO *mu, int y, int x)
 {
-    __cprec1 d = M[indp(FDOH, y, x)] - (__cprec1)2.0*mu[indp(FDOH, y, x)];
-    return -(d*d/M[indp(FDOH, y, x)]);
+    __cprec1 d = ldf(M, indp(FDOH, y, x)) - (__cprec1)2.0*ldf(mu, indp(FDOH, y, x));
+    return -(d*d/ldf(M, indp(FDOH, y, x)));
 }
-FUNDEF void surface_adj_fold(GLOBARG __prec *vxr,   GLOBARG __prec *vyr,
-                             GLOBARG __prec *vzr,   GLOBARG __prec *sxxr,
-                             GLOBARG __prec *syyr,  GLOBARG __prec *szzr,
-                             GLOBARG __prec *syzr,  GLOBARG __prec *sxzr,
-                             GLOBARG __prec *M,     GLOBARG __prec *mu,
-                             GLOBARG __prec *muipkp, GLOBARG __prec *mujpkp,
-                             GLOBARG __prec *rip,   GLOBARG __prec *rjp,
-                             GLOBARG __prec *rkp)
+FUNDEF void surface_adj_fold(GLOBARG STO *vxr,   GLOBARG STO *vyr,
+                             GLOBARG STO *vzr,   GLOBARG STO *sxxr,
+                             GLOBARG STO *syyr,  GLOBARG STO *szzr,
+                             GLOBARG STO *syzr,  GLOBARG STO *sxzr,
+                             GLOBARG STO *M,     GLOBARG STO *mu,
+                             GLOBARG STO *muipkp, GLOBARG STO *mujpkp,
+                             GLOBARG STO *rip,   GLOBARG STO *rjp,
+                             GLOBARG STO *rkp)
 {
     #ifdef __OPENCL_VERSION__
     int gidy = get_global_id(0) + FDOH;
@@ -189,25 +169,25 @@ FUNDEF void surface_adj_fold(GLOBARG __prec *vxr,   GLOBARG __prec *vyr,
     for (int k=1; k<=FDOH; k++){
         __cprec1 isz = 0, isx = 0, isy = 0;
         for (int m=k; m<FDOH; m++){
-            isz -= hc[m] * (__cprec1)vzr[indv(FDOH-k+m, gidy, gidx)];
+            isz -= hc[m] * ldf(vzr, indv(FDOH-k+m, gidy, gidx));
         }
         for (int m=k-1; m<FDOH; m++){
-            isx -= hc[m] * (__cprec1)vxr[indv(FDOH-k+m+1, gidy, gidx)];
-            isy -= hc[m] * (__cprec1)vyr[indv(FDOH-k+m+1, gidy, gidx)];
+            isx -= hc[m] * ldf(vxr, indv(FDOH-k+m+1, gidy, gidx));
+            isy -= hc[m] * ldf(vyr, indv(FDOH-k+m+1, gidy, gidx));
         }
         int z = FDOH + k;
-        __cprec1 lM = M[indp(z, gidy, gidx)];
-        __cprec1 lmu = mu[indp(z, gidy, gidx)];
-        szzr[indv(z, gidy, gidx)] += lM * isz;
-        sxxr[indv(z, gidy, gidx)] += (lM - (__cprec1)2.0 * lmu) * isz;
-        syyr[indv(z, gidy, gidx)] += (lM - (__cprec1)2.0 * lmu) * isz;
-        sxzr[indv(z-1, gidy, gidx)] += (__cprec1)muipkp[indp(z-1, gidy, gidx)] * isx;
-        syzr[indv(z-1, gidy, gidx)] += (__cprec1)mujpkp[indp(z-1, gidy, gidx)] * isy;
+        __cprec1 lM = ldf(M, indp(z, gidy, gidx));
+        __cprec1 lmu = ldf(mu, indp(z, gidy, gidx));
+        stf(szzr, indv(z, gidy, gidx), ldf(szzr, indv(z, gidy, gidx)) + (lM * isz));
+        stf(sxxr, indv(z, gidy, gidx), ldf(sxxr, indv(z, gidy, gidx)) + ((lM - (__cprec1)2.0 * lmu) * isz));
+        stf(syyr, indv(z, gidy, gidx), ldf(syyr, indv(z, gidy, gidx)) + ((lM - (__cprec1)2.0 * lmu) * isz));
+        stf(sxzr, indv(z-1, gidy, gidx), ldf(sxzr, indv(z-1, gidy, gidx)) + (ldf(muipkp, indp(z-1, gidy, gidx)) * isx));
+        stf(syzr, indv(z-1, gidy, gidx), ldf(syzr, indv(z-1, gidy, gidx)) + (ldf(mujpkp, indp(z-1, gidy, gidx)) * isy));
     }
     for (int m=1; m<=FDOH; m++){
-        szzr[indv(FDOH-m, gidy, gidx)] = 0;
-        sxzr[indv(FDOH-m, gidy, gidx)] = 0;
-        syzr[indv(FDOH-m, gidy, gidx)] = 0;
+        stf(szzr, indv(FDOH-m, gidy, gidx), 0);
+        stf(sxzr, indv(FDOH-m, gidy, gidx), 0);
+        stf(syzr, indv(FDOH-m, gidy, gidx), 0);
     }
 
     // 2. Adjoint of the sxx, syy correction, as a gather
@@ -222,13 +202,13 @@ FUNDEF void surface_adj_fold(GLOBARG __prec *vxr,   GLOBARG __prec *vyr,
         c = gidy + m + 1;
         if (c <= NY-FDOH-1) dvy -= hc[m] * hx3d(M, mu, c, gidx) * lsum3d(sxxr, syyr, szzr, M, mu, c, gidx);
     }
-    vxr[indv(gidz, gidy, gidx)] += dvx * (__cprec1)rip[indp(gidz, gidy, gidx)];
-    vyr[indv(gidz, gidy, gidx)] += dvy * (__cprec1)rjp[indp(gidz, gidy, gidx)];
+    stf(vxr, indv(gidz, gidy, gidx), ldf(vxr, indv(gidz, gidy, gidx)) + (dvx * ldf(rip, indp(gidz, gidy, gidx))));
+    stf(vyr, indv(gidz, gidy, gidx), ldf(vyr, indv(gidz, gidy, gidx)) + (dvy * ldf(rjp, indp(gidz, gidy, gidx))));
     {
         __cprec1 ls = lsum3d(sxxr, syyr, szzr, M, mu, gidy, gidx);
-        __cprec1 hz = -(M[indp(gidz, gidy, gidx)] - (__cprec1)2.0*mu[indp(gidz, gidy, gidx)]);
+        __cprec1 hz = -(ldf(M, indp(gidz, gidy, gidx)) - (__cprec1)2.0*ldf(mu, indp(gidz, gidy, gidx)));
         for (int m=0; m<FDOH; m++){
-            vzr[indv(gidz+m, gidy, gidx)] += hc[m] * hz * ls * (__cprec1)rkp[indp(gidz+m, gidy, gidx)];
+            stf(vzr, indv(gidz+m, gidy, gidx), ldf(vzr, indv(gidz+m, gidy, gidx)) + (hc[m] * hz * ls * ldf(rkp, indp(gidz+m, gidy, gidx))));
         }
     }
 }
@@ -250,17 +230,17 @@ FUNDEF void surface_adj_fold(GLOBARG __prec *vxr,   GLOBARG __prec *vyr,
      dJ/dM  = 4 mu^2/M^2 (nu_xx+nu_yy)(eps_xx+eps_yy),
      dJ/dmu = 4 lambda/M (nu_xx+nu_yy)(eps_xx+eps_yy) - 2 (nu_xx eps_yy + nu_yy eps_xx).
    Density, rows 0..FDOH-1, from the stored states (minus a force source). */
-FUNDEF void surface_grad(GLOBARG __prec *vx,     GLOBARG __prec *vy,
-                         GLOBARG __prec *vz,     GLOBARG __prec *vxr,
-                         GLOBARG __prec *vyr,    GLOBARG __prec *vzr,
-                         GLOBARG __prec *sxxr,   GLOBARG __prec *syyr,
-                         GLOBARG __prec *szzr,   GLOBARG __prec *sxyr,
-                         GLOBARG __prec *sxzr,   GLOBARG __prec *syzr,
-                         GLOBARG __prec *M,      GLOBARG __prec *mu,
-                         GLOBARG __prec *muipjp, GLOBARG __prec *muipkp,
-                         GLOBARG __prec *mujpkp,
-                         GLOBARG __prec *vxbnd,  GLOBARG __prec *vybnd,
-                         GLOBARG __prec *vzbnd,  GLOBARG float *taper,
+FUNDEF void surface_grad(GLOBARG STO *vx,     GLOBARG STO *vy,
+                         GLOBARG STO *vz,     GLOBARG STO *vxr,
+                         GLOBARG STO *vyr,    GLOBARG STO *vzr,
+                         GLOBARG STO *sxxr,   GLOBARG STO *syyr,
+                         GLOBARG STO *szzr,   GLOBARG STO *sxyr,
+                         GLOBARG STO *sxzr,   GLOBARG STO *syzr,
+                         GLOBARG STO *M,      GLOBARG STO *mu,
+                         GLOBARG STO *muipjp, GLOBARG STO *muipkp,
+                         GLOBARG STO *mujpkp,
+                         GLOBARG STO *vxbnd,  GLOBARG STO *vybnd,
+                         GLOBARG STO *vzbnd,  GLOBARG float *taper,
                          GLOBARG float *gradM,   GLOBARG float *gradmu,
                          GLOBARG float *gradmuipjp, GLOBARG float *gradmuipkp,
                          GLOBARG float *gradmujpkp, GLOBARG float *gradrip,
@@ -268,7 +248,8 @@ FUNDEF void surface_grad(GLOBARG __prec *vx,     GLOBARG __prec *vy,
                          GLOBARG float *src,     GLOBARG float *src_pos,
                          int nsrc,               int nt,
                          GLOBARG float *pout,    GLOBARG float *rec_pos,
-                         int nrec)
+                         int nrec,              int src_scale,
+                         int res_scale)
 {
     #ifdef __OPENCL_VERSION__
     int gidy = get_global_id(0) + FDOH;
@@ -285,28 +266,28 @@ FUNDEF void surface_grad(GLOBARG __prec *vx,     GLOBARG __prec *vy,
         int z = FDOH+k;
         __cprec1 exx=0, eyy=0, ezz=0, vxy=0, vyx=0, vxz=0, vzx=0, vyz=0, vzy=0;
         for (int m=0; m<FDOH; m++){
-            exx += hc[m]*((__cprec1)vx[indv(z, gidy, gidx+m)]   - (__cprec1)vx[indv(z, gidy, gidx-m-1)]);
-            eyy += hc[m]*((__cprec1)vy[indv(z, gidy+m, gidx)]   - (__cprec1)vy[indv(z, gidy-m-1, gidx)]);
-            ezz += hc[m]*((__cprec1)vz[indv(z+m, gidy, gidx)]   - (__cprec1)vz[indv(z-m-1, gidy, gidx)]);
-            vxy += hc[m]*((__cprec1)vx[indv(z, gidy+m+1, gidx)] - (__cprec1)vx[indv(z, gidy-m, gidx)]);
-            vyx += hc[m]*((__cprec1)vy[indv(z, gidy, gidx+m+1)] - (__cprec1)vy[indv(z, gidy, gidx-m)]);
-            vxz += hc[m]*((__cprec1)vx[indv(z+m+1, gidy, gidx)] - (__cprec1)vx[indv(z-m, gidy, gidx)]);
-            vzx += hc[m]*((__cprec1)vz[indv(z, gidy, gidx+m+1)] - (__cprec1)vz[indv(z, gidy, gidx-m)]);
-            vyz += hc[m]*((__cprec1)vy[indv(z+m+1, gidy, gidx)] - (__cprec1)vy[indv(z-m, gidy, gidx)]);
-            vzy += hc[m]*((__cprec1)vz[indv(z, gidy+m+1, gidx)] - (__cprec1)vz[indv(z, gidy-m, gidx)]);
+            exx += hc[m]*(ldf(vx, indv(z, gidy, gidx+m))   - ldf(vx, indv(z, gidy, gidx-m-1)));
+            eyy += hc[m]*(ldf(vy, indv(z, gidy+m, gidx))   - ldf(vy, indv(z, gidy-m-1, gidx)));
+            ezz += hc[m]*(ldf(vz, indv(z+m, gidy, gidx))   - ldf(vz, indv(z-m-1, gidy, gidx)));
+            vxy += hc[m]*(ldf(vx, indv(z, gidy+m+1, gidx)) - ldf(vx, indv(z, gidy-m, gidx)));
+            vyx += hc[m]*(ldf(vy, indv(z, gidy, gidx+m+1)) - ldf(vy, indv(z, gidy, gidx-m)));
+            vxz += hc[m]*(ldf(vx, indv(z+m+1, gidy, gidx)) - ldf(vx, indv(z-m, gidy, gidx)));
+            vzx += hc[m]*(ldf(vz, indv(z, gidy, gidx+m+1)) - ldf(vz, indv(z, gidy, gidx-m)));
+            vyz += hc[m]*(ldf(vy, indv(z+m+1, gidy, gidx)) - ldf(vy, indv(z-m, gidy, gidx)));
+            vzy += hc[m]*(ldf(vz, indv(z, gidy+m+1, gidx)) - ldf(vz, indv(z, gidy-m, gidx)));
         }
         int ip = indp(z, gidy, gidx), iv = indv(z, gidy, gidx);
-        __cprec1 lM = M[ip], lmu = mu[ip], lam = lM-(__cprec1)2.0*lmu;
-        __cprec1 axx = sxxr[iv], ayy = syyr[iv], azz = szzr[iv];
+        __cprec1 lM = ldf(M, ip), lmu = ldf(mu, ip), lam = lM-(__cprec1)2.0*lmu;
+        __cprec1 axx = ldf(sxxr, iv), ayy = ldf(syyr, iv), azz = ldf(szzr, iv);
         #if PRESOUT==1
         for (int g=0; g<nrec; g++){
             int ri=(int)(rec_pos[0+8*g]/DH)+FDOH;
             int rj=(int)(rec_pos[1+8*g]/DH)+FDOH;
             int rk=(int)(rec_pos[2+8*g]/DH)+FDOH;
             if (ri==gidx && rj==gidy && rk==z){
-                axx -= pout[NT*g+nt]/(__cprec1)3.0;
-                ayy -= pout[NT*g+nt]/(__cprec1)3.0;
-                azz -= pout[NT*g+nt]/(__cprec1)3.0;
+                axx -= pow2s(pout[NT*g+nt], res_scale)/3.0f;
+                ayy -= pow2s(pout[NT*g+nt], res_scale)/3.0f;
+                azz -= pow2s(pout[NT*g+nt], res_scale)/3.0f;
             }
         }
         #endif
@@ -328,11 +309,11 @@ FUNDEF void surface_grad(GLOBARG __prec *vx,     GLOBARG __prec *vy,
             gM  = sn*se;
             gmu = -(__cprec1)2.0*sn*se + (__cprec1)2.0*(nxx*exx + nyy*eyy + nzz*ezz);
         }
-        gradM[ip] += gM;
-        gradmu[ip] += gmu;
-        if (muipjp[ip] != 0) gradmuipjp[ip] += -(__cprec1)sxyr[iv]/muipjp[ip]*(vxy+vyx);
-        if (muipkp[ip] != 0) gradmuipkp[ip] += -(__cprec1)sxzr[iv]/muipkp[ip]*(vxz+vzx);
-        if (mujpkp[ip] != 0) gradmujpkp[ip] += -(__cprec1)syzr[iv]/mujpkp[ip]*(vyz+vzy);
+        gradM[ip] += GSCALE(gM);
+        gradmu[ip] += GSCALE(gmu);
+        if (ldf(muipjp, ip) != 0) gradmuipjp[ip] += GSCALE(-ldf(sxyr, iv)/ldf(muipjp, ip)*(vxy+vyx));
+        if (ldf(muipkp, ip) != 0) gradmuipkp[ip] += GSCALE(-ldf(sxzr, iv)/ldf(muipkp, ip)*(vxz+vzx));
+        if (ldf(mujpkp, ip) != 0) gradmujpkp[ip] += GSCALE(-ldf(syzr, iv)/ldf(mujpkp, ip)*(vyz+vzy));
 
         if (k<FDOH){
             int mb = inject_ind(z, gidy, gidx);
@@ -356,14 +337,14 @@ FUNDEF void surface_grad(GLOBARG __prec *vx,     GLOBARG __prec *vy,
                     int sj = (int)(src_pos[1+5*srci]/DH)+FDOH;
                     int sk = (int)(src_pos[2+5*srci]/DH)+FDOH;
                     if (si==gidx && sj==gidy && sk==z){
-                        if (st==0) sx += DT*src[srci*NT+nt];
-                        if (st==1) sy += DT*src[srci*NT+nt];
-                        if (st==2) sz += DT*src[srci*NT+nt];
+                        if (st==0) sx += pow2s(DT*src[srci*NT+nt], src_scale - PARSCALE);
+                        if (st==1) sy += pow2s(DT*src[srci*NT+nt], src_scale - PARSCALE);
+                        if (st==2) sz += pow2s(DT*src[srci*NT+nt], src_scale - PARSCALE);
                     }
                 }
-                gradrip[ip] += -(__cprec1)vxr[iv]*((__cprec1)vx[iv] - gt*((__cprec1)vxbnd[mb] + sx));
-                gradrjp[ip] += -(__cprec1)vyr[iv]*((__cprec1)vy[iv] - gt*((__cprec1)vybnd[mb] + sy));
-                gradrkp[ip] += -(__cprec1)vzr[iv]*((__cprec1)vz[iv] - gt*((__cprec1)vzbnd[mb] + sz));
+                gradrip[ip] += GSCALE(-ldf(vxr, iv)*(ldf(vx, iv) - gt*(ldf(vxbnd, mb) + sx)));
+                gradrjp[ip] += GSCALE(-ldf(vyr, iv)*(ldf(vy, iv) - gt*(ldf(vybnd, mb) + sy)));
+                gradrkp[ip] += GSCALE(-ldf(vzr, iv)*(ldf(vz, iv) - gt*(ldf(vzbnd, mb) + sz)));
             }
         }
     }
