@@ -915,7 +915,9 @@ int prog_create(model * m,
         return state;
     }
 
-    if (m->FP16==1){
+    /* FP16 1 and 2: two cells per thread along z; the unified kernels keep
+       float tiles (header_vec.cl) whatever the storage. */
+    if (m->FP16==1 || m->FP16==2){
         shared_size=2*sizeof(float);
     }
     else{

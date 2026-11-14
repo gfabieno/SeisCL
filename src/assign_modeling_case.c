@@ -26,6 +26,7 @@
 #include "cpml_adj2D.hcl"
 #include "cpml_adj3D.hcl"
 #include "rec_grad.hcl"
+#include "header_vec.hcl"
 #include "surface2D_SH.hcl"
 #include "surface3D.hcl"
 #include "surface3D_half2.hcl"
@@ -1153,8 +1154,23 @@ int assign_modeling_case(model * m){
     m->nupdates=2;
     GMALLOC(m->ups_f, m->nupdates*sizeof(update));
     ind=0;
-    __GUARD append_update(m->ups_f, &ind, "update_v", updatev, 2, headers);
-    __GUARD append_update(m->ups_f, &ind, "update_s", updates, 2, headers);
+    /* Unified kernels (header_vec.cl): one source for FP16 0, 1 and 2, float
+       arithmetic, storage and cells per thread set at compile time. */
+    const char * vheaders[3] = {headers[0], headers[1], header_vec_source};
+    if (m->ND==2 && m->FP16<3){
+        __GUARD append_update(m->ups_f, &ind, "update_v", update_v2D_source,
+                              3, vheaders);
+    }
+    else {
+        __GUARD append_update(m->ups_f, &ind, "update_v", updatev, 2, headers);
+    }
+    if (m->ND==2 && m->FP16<3){
+        __GUARD append_update(m->ups_f, &ind, "update_s", update_s2D_source,
+                              3, vheaders);
+    }
+    else {
+        __GUARD append_update(m->ups_f, &ind, "update_s", updates, 2, headers);
+    }
     if (m->GRADOUT){
         GMALLOC(m->ups_adj, m->nupdates*sizeof(update));
         ind=0;
