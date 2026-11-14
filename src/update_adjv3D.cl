@@ -610,27 +610,8 @@ FUNDEF void update_adjv(int offcomm,
     /* Residual term at receiver cells for VELOCITY receivers -- the mirror of
      * update_adjs3D.cl's, landing in each component's own STAGGERED buoyancy
      * accumulator. See update_adjv2D.cl. */
-    float rvx = 0.0f, rvy = 0.0f, rvz = 0.0f;
-    #if GRADOUT==1 && VELOUT==1
-    if (nrec>0){
-        for (int g=0; g<nrec; g++){
-            int ri=(int)(rec_pos[0+8*g]/DH)+FDOH;
-            int rj=(int)(rec_pos[1+8*g]/DH)+FDOH;
-            int rk=(int)(rec_pos[2+8*g]/DH)+FDOH;
-            if (ri==gidx && rj==gidy && rk==gidz){
-                #if VXOUT==1
-                rvx += vxout[NT*g+nt];
-                #endif
-                #if VYOUT==1
-                rvy += vyout[NT*g+nt];
-                #endif
-                #if VZOUT==1
-                rvz += vzout[NT*g+nt];
-                #endif
-            }
-        }
-    }
-    #endif
+    /* Receiver cells: the residual term of the gradient is added by
+       rec_grad.cl (see there). */
     /* The residual of step nt measures the velocity recorded at the end of
        that step, v^{nt+1} = v + fv (v was just stepped back to v^{nt}). */
     /* Under a stress-image free surface the FDOH rows that the adjoint
@@ -641,9 +622,9 @@ FUNDEF void update_adjv(int offcomm,
     if (gidz-FDOH < FDOH) sumform = 0;
     #endif
     if (sumform){
-    gradrip[indp]+=-vx[indv]*lvx - (vx[indv]+fvx)*rvx;
-    gradrjp[indp]+=-vy[indv]*lvy - (vy[indv]+fvy)*rvy;
-    gradrkp[indp]+=-vz[indv]*lvz - (vz[indv]+fvz)*rvz;
+    gradrip[indp]+=-vx[indv]*lvx;
+    gradrjp[indp]+=-vy[indv]*lvy;
+    gradrkp[indp]+=-vz[indv]*lvz;
     }
 
     /* Source term of the misfit gradient -- GJI 2017 eq. (26a) -- for a FORCE

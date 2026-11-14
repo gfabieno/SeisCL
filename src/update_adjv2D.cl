@@ -395,32 +395,8 @@ FUNDEF void update_adjv(int offcomm,
     
 // Density gradient calculation on the fly
 #if BACK_PROP_TYPE==1
-    /* Same residual term as update_adjs2D.cl's, for VELOCITY receivers. The
-     * reverse loop injects the residual before update_grid_adj, so the adjoint
-     * increment is res(t) + lvx(t) and lvx alone drops res(t) -- nonzero only
-     * in receiver cells. A pressure receiver injects into the stresses and is
-     * handled there; a velocity receiver injects into vx/vz and belongs here,
-     * in the STAGGERED buoyancy accumulators. Compiled only when vx/vy/vz are
-     * outputs, since otherwise vxout/vzout are not live buffers. */
-    float rvx = 0.0f, rvz = 0.0f;
-    #if GRADOUT==1 && VELOUT==1
-    if (nrec>0){
-        for (int g=0; g<nrec; g++){
-            int ri=(int)(rec_pos[0+8*g]/DH)+FDOH;
-            int rk=(int)(rec_pos[2+8*g]/DH)+FDOH;
-            if (ri==gidx && rk==gidz){
-                #if VXOUT==1
-                rvx += vxout[NT*g+nt];
-                #endif
-                #if VZOUT==1
-                rvz += vzout[NT*g+nt];
-                #endif
-            }
-        }
-    }
-    #endif
-    /* The residual of step nt measures the velocity recorded at the end of
-       that step, v^{nt+1} = v + fv (v was just stepped back to v^{nt}). */
+    /* Receiver cells: the residual term of the gradient is added by
+       rec_grad.cl (see there). */
     /* Under a stress-image free surface the FDOH rows that the adjoint
        surface gather changes get their density gradient from surface_grad
        (surface2D_adj.cl), in the direct form. */
@@ -429,8 +405,8 @@ FUNDEF void update_adjv(int offcomm,
     if (gidz-FDOH < FDOH) sumform = 0;
     #endif
     if (sumform){
-        gradrip[indp]+=-vx[indv]*lvx - (vx[indv]+fvx)*rvx;
-        gradrkp[indp]+=-vz[indv]*lvz - (vz[indv]+fvz)*rvz;
+        gradrip[indp]+=-vx[indv]*lvx;
+        gradrkp[indp]+=-vz[indv]*lvz;
     }
 
     /* Source term of the misfit gradient -- GJI 2017 eq. (26a) -- for a FORCE

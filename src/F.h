@@ -352,6 +352,8 @@ typedef struct boundary_conditions{
     clprogram surf_adj;
     clprogram surf_adj_fold;   // 2D: adjoint of the stress images (surface2D_adj.cl)
     clprogram surf_grad;       // 2D: moduli gradient in the top rows (surface2D_adj.cl)
+    clprogram rec_grad_v;      // residual terms at the receiver cells (rec_grad.cl)
+    clprogram rec_grad_s;
     clprogram cpml_adj_v;      // exact CPML adjoint: filter the adjoint velocities (cpml_adj2D.cl)
     clprogram cpml_adj_s;      // ... and the adjoint stresses
     clprogram init_f;

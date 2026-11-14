@@ -592,7 +592,7 @@ int get_build_options(device *dev,
     }
     for (i=0;i<MAX_FD_ORDER/2;i++){
         *n+=1;
-        sprintf(build_options[*n-1],"-D HC%d=%9.9f ",i+1,m->hc[i+1]);
+        sprintf(build_options[*n-1],"-D HC%d=%9.9ff ",i+1,m->hc[i+1]);
     }
     
     *n+=1;
@@ -611,13 +611,13 @@ int get_build_options(device *dev,
     *n+=1;
     sprintf(build_options[*n-1],"-D FDOH=%d",(*m).FDOH);
     *n+=1;
-    sprintf(build_options[*n-1],"-D DTDH=%9.9f",(*m).dt/(*m).dh);
+    sprintf(build_options[*n-1],"-D DTDH=%9.9ff",(*m).dt/(*m).dh);
     *n+=1;
-    sprintf(build_options[*n-1],"-D DH=%9.9f",(*m).dh);
+    sprintf(build_options[*n-1],"-D DH=%9.9ff",(*m).dh);
     *n+=1;
-    sprintf(build_options[*n-1],"-D DT=%9.9f",(*m).dt);
+    sprintf(build_options[*n-1],"-D DT=%9.9ff",(*m).dt);
     *n+=1;
-    sprintf(build_options[*n-1],"-D DT2=%9.9f",(*m).dt/2.0);
+    sprintf(build_options[*n-1],"-D DT2=%9.9ff",(*m).dt/2.0);
     *n+=1;
     sprintf(build_options[*n-1],"-D NT=%d",(*m).NT);
     *n+=1;

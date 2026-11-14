@@ -723,6 +723,10 @@ int update_grid_adj(model * m, device ** dev){
         if ((*dev)[d].bnd_cnds.surf_grad.name){
             __GUARD prog_launch(&(*dev)[d].queue, &(*dev)[d].bnd_cnds.surf_grad);
         }
+        /* velocity receivers: the forward velocity is still v(t+1) */
+        if ((*dev)[d].bnd_cnds.rec_grad_v.name){
+            __GUARD prog_launch(&(*dev)[d].queue, &(*dev)[d].bnd_cnds.rec_grad_v);
+        }
     }
     // Perform the updates in backward order for adjoint simulation
     for (i=m->nupdates-1;i>=0;i--){
@@ -764,6 +768,12 @@ int update_grid_adj(model * m, device ** dev){
             //Launch kernel on the interior elements
             __GUARD prog_launch( &(*dev)[d].queue,
                                 &(*dev)[d].ups_adj[i].center);
+            /* pressure receivers: update_adjs (i = 1) has just rebuilt the
+               forward stresses to s(t) */
+            if (i==1 && (*dev)[d].bnd_cnds.rec_grad_s.name){
+                __GUARD prog_launch(&(*dev)[d].queue,
+                                    &(*dev)[d].bnd_cnds.rec_grad_s);
+            }
 //            cuStreamSynchronize((*dev)[d].queue);
 //            cuStreamSynchronize((*dev)[d].queuecomm);
         }

@@ -25,6 +25,7 @@
 #include "surface2D_adj.hcl"
 #include "cpml_adj2D.hcl"
 #include "cpml_adj3D.hcl"
+#include "rec_grad.hcl"
 #include "surface2D_SH.hcl"
 #include "surface3D.hcl"
 #include "surface3D_half2.hcl"
@@ -1165,6 +1166,14 @@ int assign_modeling_case(model * m){
         }
         __GUARD append_update(m->ups_adj, &ind, "update_adjv", updatev_adj, nheaders, headers);
         __GUARD append_update(m->ups_adj, &ind, "update_adjs", updates_adj, nheaders, headers);
+    }
+    /* Residual terms of the gradient at the receiver cells (rec_grad.cl). */
+    if (m->GRADOUT && m->BACK_PROP_TYPE==1 && (m->ND==2 || m->ND==3)
+        && m->FP16==0){
+        __GUARD prog_source(&m->bnd_cnds.rec_grad_v, "rec_grad_v",
+                            rec_grad_source, 2, headers);
+        __GUARD prog_source(&m->bnd_cnds.rec_grad_s, "rec_grad_s",
+                            rec_grad_source, 2, headers);
     }
     /* Exact CPML adjoint (BACK_PROP_TYPE 1): filters run before each adjoint
        update (time_stepping.c, update_grid_adj). */

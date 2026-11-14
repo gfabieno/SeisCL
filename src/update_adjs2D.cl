@@ -512,53 +512,10 @@ FUNDEF void update_adjs(int offcomm,
         float c3=1.0/(fipkp*fipkp);
         float c5=0.25/(lmu*lmu);
 
-        /* The adjoint increment this step is NOT lsxx alone. The reverse loop
-         * runs `inject residuals -> update_grid_adj`, so
-         *     sigma~(t) = sigma~(t+1) + res(t) + lsxx(t)
-         *  => d(sigma~)(t) = res(t) + lsxx(t),
-         * and lsxx is only the PROPAGATION part computed here from spatial
-         * derivatives -- the residual was added to sxxr before this kernel
-         * ran. Pairing the forward field against that partial increment drops
-         * res(t), which is nonzero only in receiver cells. Measured there:
-         * FD/adjoint = -0.4537 (WRONG SIGN) against 0.995-1.023 at every
-         * neighbouring cell, and back_prop_type=2 -- whose frequency-domain
-         * form carries the full d(sigma~) -- gets the same cell right (0.9746).
-         *
-         * This is the exact mirror of the eq. (26a) source term, which this
-         * kernel drops at SOURCE cells for the same reason: a forward field
-         * paired against an incomplete increment.
-         *
-         * kernel_residuals() injects pout[NT*g+nt]/n2ave into each of
-         * sxxr,szzr for the "p" trans_var, so the TRACE receives exactly
-         * pout[NT*g+nt]; being split equally it cancels in the deviatoric (c5)
-         * and shear (c3) terms, so only the trace needs it.
-         *
-         * Invisible to the FD suite: _patch keeps 16 cells clear of receivers
-         * as well as sources. */
-        float restr = 0.0f;
-        /* Only when the "p" trans_var is an output: with velocity receivers
-         * (seisout=1) the residual goes into vx/vz instead, `pout` is not a
-         * live buffer, and reading it faults. The velocity case is handled in
-         * update_adjv2D.cl, where that residual belongs. */
-        #if GRADOUT==1 && PRESOUT==1
-        if (nrec>0){
-            for (int g=0; g<nrec; g++){
-                int ri=(int)(rec_pos[0+8*g]/DH)+FDOH;
-                int rk=(int)(rec_pos[2+8*g]/DH)+FDOH;
-                if (ri==gidx && rk==gidz){
-                    #if FP16==0
-                    restr += pout[NT*g+nt];
-                    #elif defined(__SEISCL__)
-                    restr += ldexp(pout[NT*g+nt], res_scale);
-                    #else
-                    restr += scalbnf(pout[NT*g+nt], res_scale);
-                    #endif
-                }
-            }
-        }
-        #endif
+    /* Receiver cells: the residual term of the gradient is added by
+       rec_grad.cl (see there). */
 
-        float dM=c1*( sxx[indv]+szz[indv] )*( lsxx+lszz+restr );
+        float dM=c1*( sxx[indv]+szz[indv] )*( lsxx+lszz );
 
         /* Near a stress-image free surface the direct form is used instead
            (surface_grad, surface2D_adj.cl). */
@@ -657,26 +614,9 @@ FUNDEF void update_adjs(int offcomm,
          * hoping it gets cropped away. */
         float fMmu = 2.0*lM-2.0*lmu;
         float c1 = (fMmu!=0.0) ? 1.0/(fMmu*fMmu) : 0.0;
-        /* Same receiver-cell residual term as the RESTYPE==0 branch above. */
-        float restr1 = 0.0f;
-        #if GRADOUT==1 && PRESOUT==1
-        if (nrec>0){
-            for (int g=0; g<nrec; g++){
-                int ri=(int)(rec_pos[0+8*g]/DH)+FDOH;
-                int rk=(int)(rec_pos[2+8*g]/DH)+FDOH;
-                if (ri==gidx && rk==gidz){
-                    #if FP16==0
-                    restr1 += pout[NT*g+nt];
-                    #elif defined(__SEISCL__)
-                    restr1 += ldexp(pout[NT*g+nt], res_scale);
-                    #else
-                    restr1 += scalbnf(pout[NT*g+nt], res_scale);
-                    #endif
-                }
-            }
-        }
-        #endif
-        float dM=c1*( sxx[indv]+szz[indv] )*( lsxx+lszz+restr1 );
+    /* Receiver cells: the residual term of the gradient is added by
+       rec_grad.cl (see there). */
+        float dM=c1*( sxx[indv]+szz[indv] )*( lsxx+lszz );
 
         gradM[indp]+=-dM;
         #if HOUT==1

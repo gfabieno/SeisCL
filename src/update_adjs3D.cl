@@ -822,33 +822,10 @@ FUNDEF void update_adjs(int offcomm,
     float c3yz = (gfjpkp>=1.0) ? 1.0/gfjpkp/gfjpkp : 0.0;
     float c5=1.0/6.0/lmu/lmu;
 
-    /* Residual term at RECEIVER cells -- see update_adjs2D.cl for the
-     * derivation. The reverse loop injects the residual before
-     * update_grid_adj, so d(sigma~) = res + lsxx and lsxx alone drops res.
-     * An isotropic "p" residual is split equally over sxx,syy,szz, so the
-     * TRACE receives exactly pout[NT*g+nt] and the deviatoric/shear terms are
-     * untouched. */
-    float restr = 0.0f;
-    #if GRADOUT==1 && PRESOUT==1
-    if (nrec>0){
-        for (int g=0; g<nrec; g++){
-            int ri=(int)(rec_pos[0+8*g]/DH)+FDOH;
-            int rj=(int)(rec_pos[1+8*g]/DH)+FDOH;
-            int rk=(int)(rec_pos[2+8*g]/DH)+FDOH;
-            if (ri==gidx && rj==gidy && rk==gidz){
-                #if FP16==0
-                restr += pout[NT*g+nt];
-                #elif defined(__SEISCL__)
-                restr += ldexp(pout[NT*g+nt], res_scale);
-                #else
-                restr += scalbnf(pout[NT*g+nt], res_scale);
-                #endif
-            }
-        }
-    }
-    #endif
+    /* Receiver cells: the residual term of the gradient is added by
+       rec_grad.cl (see there). */
 
-    float dM=c1*( sxx[indv]+syy[indv]+szz[indv] )*( lsxx+lsyy+lszz+restr );
+    float dM=c1*( sxx[indv]+syy[indv]+szz[indv] )*( lsxx+lsyy+lszz );
 
     int sumform = 1;
     #if FREESURF==1
