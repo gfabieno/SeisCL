@@ -1249,9 +1249,10 @@ int assign_modeling_case(model * m){
             }
         }
     }
-    /* On-device DFT gradient correlation. Elastic: 2D P-SV, SH and 3D.
-       Viscoelastic: 2D P-SV and SH. Everything else keeps the host
-       calc_grad, which only the OpenCL build provides. */
+    /* DFT gradient correlation, on the device: 2D P-SV, SH and 3D, elastic
+       and viscoelastic. There is no other implementation (the host
+       calc_grad() was removed on 2026-11-14), so a case without a kernel is
+       refused. */
     if (m->GRADOUT && m->BACK_PROP_TYPE==2){
         const char * graddft = NULL;
         if (m->L==0){
@@ -1260,11 +1261,7 @@ int assign_modeling_case(model * m){
             else if (m->ND==3)  graddft = grad_dft3D_source;
         }
         else {
-            /* Viscoelastic. Without this the L>0 case fell back to the host
-               calc_grad(), which is #ifdef __SEISCL__ and a no-op stub under
-               CUDA -- so the gradient came back identically zero, silently,
-               and SeisCL.torch (CUDA-only) could not do viscoelastic FWI at
-               all. */
+            /* Viscoelastic */
             if (m->ND==2)       graddft = grad_dft2D_visc_source;
             else if (m->ND==21) graddft = grad_dft2D_SH_visc_source;
             else if (m->ND==3)  graddft = grad_dft3D_visc_source;
@@ -1273,11 +1270,15 @@ int assign_modeling_case(model * m){
             if (m->ND==21 && m->HOUT){
                 state=1;
                 fprintf(stderr,"Error: Hout=1 is not implemented for ND=21 "
-                               "(SH): calc_grad has no HOUT block for it "
-                               "either.\n");
+                               "(SH).\n");
             }
             __GUARD prog_source(&m->grads.calc_grad, "calc_grad_dft",
                                 (char*)graddft, 2, headers);
+        }
+        else {
+            state=1;
+            fprintf(stderr,"Error: back_prop_type=2 has no gradient kernel "
+                           "for ND=%d\n", m->ND);
         }
     }
     if ((m->GRADOUT || m->INPUTRES) && m->BACK_PROP_TYPE==1){

@@ -89,99 +89,15 @@ int reduce_seis(model * m, device ** dev, int s){
     
 }
 
-/* Selection between the on-device DFT correlation and the original host-side
- * calc_grad, which is kept as a reference implementation.
- *
- *   SEISCL_DFT_HOST=1   use the host calc_grad instead of the device kernel
- *   SEISCL_DFT_CHECK=1  run both and report the largest relative difference
- *
- * Both are read once. The device kernel is the default. */
-static int dft_env(const char * name){
-    static int cache_host=-1, cache_check=-1;
-    int * slot = (strcmp(name,"SEISCL_DFT_HOST")==0) ? &cache_host : &cache_check;
-    if (*slot<0){
-        const char * v = getenv(name);
-        *slot = (v && v[0] && v[0]!='0') ? 1 : 0;
-    }
-    return *slot;
-}
-static int dft_host_path(void){ return dft_env("SEISCL_DFT_HOST"); }
-static int dft_check_path(void){ return dft_env("SEISCL_DFT_CHECK"); }
-
-/* SEISCL_DFT_CHECK=1: run the host calc_grad after the device kernel and report
- * the largest relative difference per parameter. Both are double precision
- * internally and evaluate the same expressions, so agreement should be at the
- * 1e-6 level (the gradient buffers themselves are float); anything larger is a
- * real discrepancy between the two implementations.
- *
- * The device kernel has already accumulated into cl_grad, so the host pass is
- * given scratch buffers and the two are compared afterwards. */
-static int dft_check(model * m, device * dev){
-
-    int state=0, i, j, n;
-    float * saved[MAX_KERNELS];
-    float * devres[MAX_KERNELS];
-
-    n = m->npars < MAX_KERNELS ? m->npars : MAX_KERNELS;
-
-    /* Pull the device result back, then hand calc_grad a zeroed buffer. */
-    for (i=0;i<n;i++){
-        saved[i]=NULL; devres[i]=NULL;
-        if (!dev->pars[i].to_grad) continue;
-        __GUARD clbuf_read(&dev->queue, &dev->pars[i].cl_grad);
-    }
-    __GUARD WAITQUEUE(dev->queue);
-    for (i=0;i<n;i++){
-        if (!dev->pars[i].to_grad) continue;
-        GMALLOC(devres[i], sizeof(float)*dev->pars[i].num_ele);
-        GMALLOC(saved[i], sizeof(float)*dev->pars[i].num_ele);
-        for (j=0;j<dev->pars[i].num_ele;j++){
-            devres[i][j]=dev->pars[i].cl_grad.host[j];
-            saved[i][j]=0.0f;
-        }
-        /* calc_grad accumulates into cl_grad.host; point it at scratch. */
-        float * tmp = dev->pars[i].cl_grad.host;
-        dev->pars[i].cl_grad.host = saved[i];
-        saved[i] = tmp;
-    }
-
-    __GUARD calc_grad(m, dev);
-
-    for (i=0;i<n;i++){
-        if (!dev->pars[i].to_grad) continue;
-        float * hostres = dev->pars[i].cl_grad.host;
-        double maxd=0.0, maxr=0.0;
-        for (j=0;j<dev->pars[i].num_ele;j++){
-            double d = fabs((double)hostres[j]-(double)devres[i][j]);
-            double r = fabs((double)hostres[j]);
-            if (d>maxd) maxd=d;
-            if (r>maxr) maxr=r;
-        }
-        fprintf(stdout,"    SEISCL_DFT_CHECK grad%s: max|dev-host|=%.6e "
-                       "rel=%.6e\n", dev->pars[i].name, maxd,
-                       maxr>0.0 ? maxd/maxr : maxd);
-        /* restore the real buffer and the device result */
-        dev->pars[i].cl_grad.host = saved[i];
-        for (j=0;j<dev->pars[i].num_ele;j++){
-            dev->pars[i].cl_grad.host[j]=devres[i][j];
-        }
-        GFree(hostres);
-        GFree(devres[i]);
-    }
-
-    return state;
-}
-
 /* Debug facility (DFTOUT): dump the raw forward and adjoint DFT wavefield
  * buffers that savefreqs accumulated, plus the derived DFT parameters, so the
  * spectra can be validated against a reference DFT without involving the
  * gradient correlation at all. This is what makes the savefreqs half of
- * BACK_PROP_TYPE==2 testable independently -- in particular it is testable in
- * the CUDA build, where calc_grad() is a no-op stub.
+ * BACK_PROP_TYPE==2 testable independently.
  *
  * Layout written, C order: (NFREQS, NX+FDORDER, NZ+FDORDER, 2) in 2D and
  * (NFREQS, NX+FDORDER, NY+FDORDER, NZ+FDORDER, 2) in 3D, matching the
- * f*num_ele + padded-flat indexing that savefreqs and calc_grad both use. The
+ * f*num_ele + padded-flat indexing that savefreqs and grad_dft*.cl use. The
  * trailing 2 is the interleaved (real, imag) float2 pair.
  *
  * Single device, single shot only: the buffers are per device and are reset
@@ -948,17 +864,11 @@ int initialize_adj(model * m, device ** dev, int s, int * pdir){
                      * savefreqs can reuse cl_fvar for the adjoint pass and the
                      * correlation still has both spectra on the device. Only
                      * pull it to the host when something actually reads it
-                     * there: the dftout dump, or the host calc_grad oracle. */
+                     * there: the dftout dump. */
                     __GUARD clbuf_copy(&(*dev)[d].queue,
                                        &(*dev)[d].vars[i].cl_fvar,
                                        &(*dev)[d].vars[i].cl_fvar_f);
-                    /* Also when the device kernel is unavailable for this
-                     * case (e.g. HOUT, 3D, SH, viscoelastic), because then the
-                     * host calc_grad runs and reads the forward spectrum from
-                     * cl_fvar.host. Without this it silently correlates against
-                     * a stale buffer and returns a zero gradient. */
-                    if (m->DFTOUT || dft_host_path() || dft_check_path()
-                        || !(*dev)[d].grads.calc_grad.kernel){
+                    if (m->DFTOUT){
                         __GUARD clbuf_read(&(*dev)[d].queue,
                                            &(*dev)[d].vars[i].cl_fvar);
                     }
@@ -1296,12 +1206,10 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
             // for the forward modeling of the next source.
             if (m->BACK_PROP_TYPE==2 && !state){
                 for (d=0;d<m->NUM_DEVICES;d++){
-                    int usedev = (*dev)[d].grads.calc_grad.kernel
-                                 && !dft_host_path();
                     /* The on-device correlation reads both spectra straight
-                     * from device memory. Only pull the adjoint spectrum to the
-                     * host for the paths that actually read it there. */
-                    if (!usedev || dft_check_path() || m->DFTOUT){
+                     * from device memory. Only the dftout dump needs the
+                     * adjoint spectrum on the host. */
+                    if (m->DFTOUT){
                         for (i=0;i<(*dev)[d].nvars;i++){
                             if ((*dev)[d].vars[i].for_grad){
                                 __GUARD clbuf_readto(&(*dev)[d].queue,
@@ -1310,10 +1218,8 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
                             }
                         }
                     }
-                    if (usedev){
-                        __GUARD prog_launch(&(*dev)[d].queue,
-                                            &(*dev)[d].grads.calc_grad);
-                    }
+                    __GUARD prog_launch(&(*dev)[d].queue,
+                                        &(*dev)[d].grads.calc_grad);
 
                     __GUARD prog_launch(&(*dev)[d].queue,
                                         &(*dev)[d].grads.initsavefreqs);
@@ -1323,24 +1229,8 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
                 for (d=0;d<m->NUM_DEVICES;d++){
                     __GUARD WAITQUEUE((*dev)[d].queue);
                 }
-                /* Dump before calc_grad: for L>0 calc_grad rewrites the host
-                 * stress spectra in place (the memory-variable correction),
-                 * so afterwards they are no longer the raw savefreqs output. */
                 if (m->DFTOUT && !state){
                     __GUARD dump_dft(m, dev, files);
-                }
-                for (d=0;d<m->NUM_DEVICES;d++){
-                    /* Host reference implementation. Runs when the device
-                     * kernel is unavailable for this case or was disabled, and
-                     * additionally under SEISCL_DFT_CHECK -- but then it must
-                     * write somewhere harmless, since the device kernel has
-                     * already accumulated into cl_grad. */
-                    if (!(*dev)[d].grads.calc_grad.kernel || dft_host_path()){
-                        __GUARD calc_grad(m, &(*dev)[d]);
-                    }
-                    else if (dft_check_path()){
-                        __GUARD dft_check(m, &(*dev)[d]);
-                    }
                 }
             }
 
@@ -1354,10 +1244,8 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
         /* BACK_PROP_TYPE==2 with the on-device correlation also accumulates
          * into cl_grad, so the readback is shared. It does *not* get
          * transf_grad: the DFT coefficients already carry the par_type chain
-         * rule, so applying it again would double it (see grad_coefelast_0
-         * versus grad_coefelast_1). */
-        int devgrad = (m->BACK_PROP_TYPE==1)
-                    || ((*dev)[0].grads.calc_grad.kernel && !dft_host_path());
+         * rule, so applying it again would double it. */
+        int devgrad = (m->BACK_PROP_TYPE==1 || m->BACK_PROP_TYPE==2);
         if (devgrad){
             for (d=0;d<m->NUM_DEVICES;d++){
                 for (i=0;i<m->npars;i++){

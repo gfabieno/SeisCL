@@ -265,7 +265,6 @@ typedef struct parameter{
 
 } parameter;
 
-int calc_grad(struct model * m, struct device * dev);
 int transf_grad(struct model * m);
 /* transf_grad's three jobs, separately: storage format, units, and
    parameterization. See calc_grad.c for why they are not one function. */

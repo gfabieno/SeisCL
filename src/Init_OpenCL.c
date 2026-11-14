@@ -836,8 +836,7 @@ int Init_CUDA(model * m, device ** dev)  {
                     }
                     /* Created for both back_prop_types: the gradinit kernel,
                      * which now runs for both, zeroes these buffers, so they
-                     * must exist. For BACK_PROP_TYPE==2 the host calc_grad
-                     * fills cl_H.host directly and no readback is needed. */
+                     * must exist. */
                     if (m->HOUT){
                         di->pars[i].cl_H.size=sizeof(float)*parsize;
                         __GUARD clbuf_create(di->context_ptr, &di->pars[i].cl_H);
@@ -1320,9 +1319,8 @@ int Init_CUDA(model * m, device ** dev)  {
                 kernel_savefreqs(di, di->vars, &di->grads.savefreqs);
                 __GUARD prog_create(m, di,  &di->grads.savefreqs);
 
-                /* On-device correlation. Only created by
-                 * assign_modeling_case for the supported case (2D P-SV,
-                 * elastic); otherwise the host calc_grad is used. */
+                /* On-device correlation (assign_modeling_case refuses a case
+                 * that has none). */
                 if (m->grads.calc_grad.src[0]){
                     di->grads.calc_grad=m->grads.calc_grad;
                     __GUARD prog_create(m, di,  &di->grads.calc_grad);
