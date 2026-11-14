@@ -35,8 +35,8 @@ FUNDEF void update_s(int offcomm,
                      GLOBARG const float * RESTRICT K_x_half,  GLOBARG const float * RESTRICT a_x_half,  GLOBARG const float * RESTRICT b_x_half,
                      GLOBARG const float * RESTRICT K_z,       GLOBARG const float * RESTRICT a_z,       GLOBARG const float * RESTRICT b_z,
                      GLOBARG const float * RESTRICT K_z_half,  GLOBARG const float * RESTRICT a_z_half,  GLOBARG const float * RESTRICT b_z_half,
-                     GLOBARG STO * RESTRICT psi_vx_x,        GLOBARG STO * RESTRICT psi_vx_z,
-                     GLOBARG STO * RESTRICT psi_vz_x,        GLOBARG STO * RESTRICT psi_vz_z,
+                     GLOBARG float * RESTRICT psi_vx_x,        GLOBARG float * RESTRICT psi_vx_z,
+                     GLOBARG float * RESTRICT psi_vz_x,        GLOBARG float * RESTRICT psi_vz_z,
                      LOCARG)
 {
     LOCDEF
@@ -99,22 +99,22 @@ FUNDEF void update_s(int offcomm,
                 i = gidx-FDOH;
                 k = gidz-NZS+NAB+FDOH+NAB;
                 ind = 2*NAB-1-k;
-                psi = b_z_half[ind]*ldf(psi_vx_z, PSIZ(k,i)) + a_z_half[ind]*dvxz;
-                stf(psi_vx_z, PSIZ(k,i), psi);
+                psi = b_z_half[ind]*psi_vx_z[PSIZ(k,i)] + a_z_half[ind]*dvxz;
+                psi_vx_z[PSIZ(k,i)] = psi;
                 dvxz = dvxz/K_z_half[ind] + psi;
-                psi = b_z[ind+1]*ldf(psi_vz_z, PSIZ(k,i)) + a_z[ind+1]*dvzz;
-                stf(psi_vz_z, PSIZ(k,i), psi);
+                psi = b_z[ind+1]*psi_vz_z[PSIZ(k,i)] + a_z[ind+1]*dvzz;
+                psi_vz_z[PSIZ(k,i)] = psi;
                 dvzz = dvzz/K_z[ind+1] + psi;
             }
 #if FREESURF==0
             else if (gidz-FDOH<NAB){
                 i = gidx-FDOH;
                 k = gidz-FDOH;
-                psi = b_z_half[k]*ldf(psi_vx_z, PSIZ(k,i)) + a_z_half[k]*dvxz;
-                stf(psi_vx_z, PSIZ(k,i), psi);
+                psi = b_z_half[k]*psi_vx_z[PSIZ(k,i)] + a_z_half[k]*dvxz;
+                psi_vx_z[PSIZ(k,i)] = psi;
                 dvxz = dvxz/K_z_half[k] + psi;
-                psi = b_z[k]*ldf(psi_vz_z, PSIZ(k,i)) + a_z[k]*dvzz;
-                stf(psi_vz_z, PSIZ(k,i), psi);
+                psi = b_z[k]*psi_vz_z[PSIZ(k,i)] + a_z[k]*dvzz;
+                psi_vz_z[PSIZ(k,i)] = psi;
                 dvzz = dvzz/K_z[k] + psi;
             }
 #endif
@@ -122,11 +122,11 @@ FUNDEF void update_s(int offcomm,
             if (gidx-FDOH<NAB){
                 i = gidx-FDOH;
                 k = gidz-FDOH;
-                psi = b_x[i]*ldf(psi_vx_x, PSIX(k,i)) + a_x[i]*dvxx;
-                stf(psi_vx_x, PSIX(k,i), psi);
+                psi = b_x[i]*psi_vx_x[PSIX(k,i)] + a_x[i]*dvxx;
+                psi_vx_x[PSIX(k,i)] = psi;
                 dvxx = dvxx/K_x[i] + psi;
-                psi = b_x_half[i]*ldf(psi_vz_x, PSIX(k,i)) + a_x_half[i]*dvzx;
-                stf(psi_vz_x, PSIX(k,i), psi);
+                psi = b_x_half[i]*psi_vz_x[PSIX(k,i)] + a_x_half[i]*dvzx;
+                psi_vz_x[PSIX(k,i)] = psi;
                 dvzx = dvzx/K_x_half[i] + psi;
             }
 #endif
@@ -135,11 +135,11 @@ FUNDEF void update_s(int offcomm,
                 i = gidx-NX+NAB+FDOH+NAB;
                 k = gidz-FDOH;
                 ind = 2*NAB-1-i;
-                psi = b_x[ind+1]*ldf(psi_vx_x, PSIX(k,i)) + a_x[ind+1]*dvxx;
-                stf(psi_vx_x, PSIX(k,i), psi);
+                psi = b_x[ind+1]*psi_vx_x[PSIX(k,i)] + a_x[ind+1]*dvxx;
+                psi_vx_x[PSIX(k,i)] = psi;
                 dvxx = dvxx/K_x[ind+1] + psi;
-                psi = b_x_half[ind]*ldf(psi_vz_x, PSIX(k,i)) + a_x_half[ind]*dvzx;
-                stf(psi_vz_x, PSIX(k,i), psi);
+                psi = b_x_half[ind]*psi_vz_x[PSIX(k,i)] + a_x_half[ind]*dvzx;
+                psi_vz_x[PSIX(k,i)] = psi;
                 dvzx = dvzx/K_x_half[ind] + psi;
             }
 #endif

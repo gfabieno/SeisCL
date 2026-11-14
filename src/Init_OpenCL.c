@@ -335,6 +335,12 @@ CL_INT connect_devices(device ** dev, model * m)
    are uploaded anew (the PyTorch engine's engine_refresh_params), since the
    averages depend on rho and mu. Does nothing when the host averages
    (use_gpu_average() false). The device must be current (CUDA). */
+int var_is_half(model * m, const char * name){
+    if (m->FP16<2) return 0;
+    if (m->FP16==2 && (m->ND==2 || m->ND==3) && strncmp(name, "psi_", 4)==0) return 0;
+    return 1;
+}
+
 int param_average_run(model * m, device * di){
     int state = 0;
     if (!use_gpu_average(m)) return 0;
@@ -951,7 +957,7 @@ int Init_CUDA(model * m, device ** dev)  {
             
             //Create variable buffers for the interior domain
             di->vars[i].cl_var.size=sizeof(float)*di->vars[i].num_ele;
-            if (m->FP16>1)
+            if (var_is_half(m, di->vars[i].name))
                 di->vars[i].cl_var.size/=2;
             __GUARD clbuf_create(di->context_ptr, &di->vars[i].cl_var);
             //Create variable buffers for the boundary of the domain

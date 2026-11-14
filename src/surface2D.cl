@@ -32,7 +32,7 @@ FUNDEF void freesurface(GLOBARG STO *vx,    GLOBARG STO *vz,
                         GLOBARG STO *mu,    GLOBARG STO *rxx,
                         GLOBARG STO *rzz,   GLOBARG STO *taus,
                         GLOBARG STO *taup,  GLOBARG float *eta,
-                        GLOBARG float *K_x, GLOBARG STO *psi_vx_x,
+                        GLOBARG float *K_x, GLOBARG float *psi_vx_x,
                         GLOBARG float *taper, int pdir)
 {
     #ifdef __OPENCL_VERSION__
@@ -65,14 +65,14 @@ FUNDEF void freesurface(GLOBARG STO *vx,    GLOBARG STO *vz,
 #if DEVID==0 & MYLOCALID==0
     if (gidx-FDOH<NAB){
         int i = gidx-FDOH, k = gidz-FDOH;
-        vxx = vxx/K_x[i] + ldf(psi_vx_x, PSIX(k,i));
+        vxx = vxx/K_x[i] + psi_vx_x[PSIX(k,i)];
     }
 #endif
 #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
     if (gidx>NX-NAB-FDOH-1){
         int i = gidx-NX+NAB+FDOH+NAB, k = gidz-FDOH;
         int ind = 2*NAB-1-i;
-        vxx = vxx/K_x[ind+1] + ldf(psi_vx_x, PSIX(k,i));
+        vxx = vxx/K_x[ind+1] + psi_vx_x[PSIX(k,i)];
     }
 #endif
 #endif

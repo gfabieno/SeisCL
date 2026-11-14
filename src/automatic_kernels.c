@@ -314,7 +314,7 @@ int kernel_varinit(device * dev,
     
     strcat(temp, FUNDEF"void vars_init(");
     for (i=0;i<dev->nvars;i++){
-        if (dev->FP16<=1){
+        if (!var_is_half(m, vars[i].name)){
             strcat(temp, GLOBARG"float * ");
         }
         else{
@@ -356,7 +356,7 @@ int kernel_varinit(device * dev,
         if (BACK_PROP_TYPE==1){
             strcat(temp, "r");
         }
-        if (dev->FP16<=1){
+        if (!var_is_half(m, vars[i].name)){
             strcat(temp, "[gid]=0;\n");
         }
         else{

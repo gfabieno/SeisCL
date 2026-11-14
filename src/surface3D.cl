@@ -45,8 +45,8 @@ FUNDEF void freesurface(GLOBARG STO *vx,  GLOBARG STO *vy,
                         GLOBARG STO *ryy, GLOBARG STO *rzz,
                         GLOBARG STO *taus,GLOBARG STO *taup,
                         GLOBARG float *eta, GLOBARG float *K_x,
-                        GLOBARG STO *psi_vx_x, GLOBARG float *K_y,
-                        GLOBARG STO *psi_vy_y, GLOBARG float *taper,
+                        GLOBARG float *psi_vx_x, GLOBARG float *K_y,
+                        GLOBARG float *psi_vy_y, GLOBARG float *taper,
                         int pdir)
 {
     /*Indice definition */
@@ -109,7 +109,7 @@ FUNDEF void freesurface(GLOBARG STO *vx,  GLOBARG STO *vy,
             j =gidy-FDOH;
             k =gidz-FDOH;
 
-            vyy = vyy / K_y[j] + ldf(psi_vy_y, I_psi_vy_y(k,j,i));
+            vyy = vyy / K_y[j] + psi_vy_y[I_psi_vy_y(k,j,i)];
         }
 
         else if (gidy>NYS-NAB-FDOH-1){
@@ -118,7 +118,7 @@ FUNDEF void freesurface(GLOBARG STO *vx,  GLOBARG STO *vy,
             j =gidy - NYS+NAB+FDOH+NAB;
             k =gidz-FDOH;
             ind=2*NAB-1-j;
-            vyy = vyy / K_y[ind+1] + ldf(psi_vy_y, I_psi_vy_y(k,j,i));
+            vyy = vyy / K_y[ind+1] + psi_vy_y[I_psi_vy_y(k,j,i)];
         }
         #if DEV==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
@@ -127,7 +127,7 @@ FUNDEF void freesurface(GLOBARG STO *vx,  GLOBARG STO *vy,
             j =gidy-FDOH;
             k =gidz-FDOH;
 
-            vxx = vxx / K_x[i] + ldf(psi_vx_x, I_psi_vx_x(k,j,i));
+            vxx = vxx / K_x[i] + psi_vx_x[I_psi_vx_x(k,j,i)];
         }
         #endif
 
@@ -138,7 +138,7 @@ FUNDEF void freesurface(GLOBARG STO *vx,  GLOBARG STO *vy,
             j =gidy-FDOH;
             k =gidz-FDOH;
             ind=2*NAB-1-i;
-            vxx = vxx /K_x[ind+1] + ldf(psi_vx_x, I_psi_vx_x(k,j,i));
+            vxx = vxx /K_x[ind+1] + psi_vx_x[I_psi_vx_x(k,j,i)];
         }
         #endif
     }

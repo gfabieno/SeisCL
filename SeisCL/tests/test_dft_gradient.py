@@ -28,6 +28,7 @@ import h5py as h5
 import numpy as np
 
 from gradient_common import (make_seiscl, homogeneous, make_observed,
+                             with_anomaly,
                              reference_dft, relerr, run_tests, workdir,
                              SkipTest, SeisCLError)
 
@@ -1089,6 +1090,66 @@ def test_dft_gradient_every_fp16_level():
           % {k: "%.4g" % v for k, v in sorted(worst.items())})
 
 
+def test_fp16_gradient_scale_every_receiver_type():
+    """FP16=1 gives the FP16=0 gradient, magnitude included, for both gradient
+    methods, velocity and pressure receivers, force and pressure sources, 2D
+    and 3D.
+
+    FP16>0 stores each variable in scaled units (2^(src_scale - scaler) for the
+    forward field, 2^(res_scale - scaler) for the adjoint one; vx/vy/vz have
+    scaler = par_scale, the stresses 0). Until 2026-11-14 back_prop_type=2 was
+    right only with pressure receivers: with velocity receivers its gradient
+    was 2^-par_scale too large (2^20 here), in 3D also 2^(src_scale+res_scale)
+    (grad_dft3D.cl had no sc_ss/sc_vv), and a force source's own term carried
+    2^par_scale too much. test_dft_gradient_every_fp16_level did not see it:
+    it uses pressure receivers only. FP16=1 is float storage, so the two must
+    agree to float round-off; any power-of-two error is far above 1e-3.
+    """
+    from gradient_common import make_seiscl_3d, with_anomaly_3d, homogeneous_3d
+    cases = [(2, bpt, so, st) for bpt in (1, 2) for so in (1, 2) for st in (100, 2)]
+    cases += [(3, 2, 1, 100), (3, 2, 2, 100), (3, 2, 1, 2)]
+    worst = 0.0
+    for nd, bpt, seisout, stype in cases:
+        wd = workdir("fp16_scale_%dd_bpt%d_so%d_src%d" % (nd, bpt, seisout, stype))
+        extra = dict(seisout=seisout)
+        if bpt == 2:
+            extra.update(back_prop_type=2, gradfreqs=np.array([11.0, 19.0, 27.0]))
+        if nd == 2:
+            make, true = make_seiscl, with_anomaly
+        else:
+            make, true = make_seiscl_3d, with_anomaly_3d
+            extra.update(N=np.array([40, 40, 48]), nab=10, NT=600)
+        s0 = make(wd, **extra)
+        s0.src_pos_all[4, :] = stype
+        params = homogeneous(s0) if nd == 2 else homogeneous_3d(s0)
+        s0.set_forward(s0.src_pos_all[3, :], true(s0), withgrad=False)
+        s0.execute()
+        din = os.path.join(wd, "din_obs.mat")
+        s0.write_data(dict(zip(s0.to_load_names, s0.read_data())), filename=din)
+        grads = {}
+        for fp16 in (0, 1):
+            s = make(wd, gradout=1, FP16=fp16, **extra)
+            s.src_pos_all[4, :] = stype
+            s.file_din = din
+            s.set_forward(s.src_pos_all[3, :], params, withgrad=True)
+            s.execute()
+            grads[fp16] = s.read_grad()
+        for i, nm in enumerate(("vp", "vs", "rho")):
+            a = np.asarray(grads[0][i], np.float64).ravel()
+            b = np.asarray(grads[1][i], np.float64).ravel()
+            rel = float(np.linalg.norm(b - a) / np.linalg.norm(a))
+            worst = max(worst, rel)
+            assert rel < 1e-3, (
+                "%dD back_prop_type=%d seisout=%d source type %d: FP16=1 grad%s "
+                "differs from FP16=0 by %.3g (tol 1e-3); ratio of norms %.4g. "
+                "A power of two means a wavefield-scaling error "
+                "(src_scale/res_scale/par_scale)."
+                % (nd, bpt, seisout, stype, nm, rel,
+                   np.linalg.norm(b) / np.linalg.norm(a)))
+    print("  worst relative difference FP16=1 vs FP16=0: %.3g over %d cases"
+          % (worst, len(cases)))
+
+
 TESTS = [
     test_dft_forward_spectrum_vs_numpy,
     test_dft_forward_spectrum_multifreq,
@@ -1104,6 +1165,7 @@ TESTS = [
     test_engine_rejects_nonzero_par_type,
     test_hessian_read_in_every_param_type,
     test_dft_gradient_every_fp16_level,
+    test_fp16_gradient_scale_every_receiver_type,
     test_dense_dft_matches_backprop,
 ]
 

@@ -1625,18 +1625,26 @@ int unscale_grad(model * m) {
    par_scale factor here double-counts it. This function's own derivation
    was verified only at FP16=0 (where scale2 is a no-op either way), so this
    is confirmed by elimination, not re-derived from first principles -- flag
-   for anyone revisiting FP16 + BACK_PROP_TYPE=2 together. */
+   for anyone revisiting FP16 + BACK_PROP_TYPE=2 together.
+
+   2026-11-14: that conclusion was wrong. test_dft_gradient_every_fp16_level
+   compares cosines only, so it cannot see a global factor. Measured against
+   FP16=0 (same model and data): FP16=1 was 2^(-par_scale) too large in 2-D
+   (2^20, every parameter, cos 1.00000), and in 3-D also 2^(src_scale+
+   res_scale) (grad_dft3D.cl had no sc_ss/sc_vv, now added). The factor
+   2^par_scale is the same one unscale_grad() applies; it is applied here. */
 int unscale_grad_dft(model * m) {
     int state=0;
     int i, j;
     float dftcal = 2.0f*(m->dh*m->dh)/(m->dt*m->dt*m->dt*m->dt);
+    float scale2 = powf(2.0f, (float)m->par_scale);   /* 1 at FP16=0 */
 
     for (j=0;j<m->npars;j++){
         if (m->pars[j].to_grad && m->pars[j].gl_grad){
             float * g = m->pars[j].gl_grad;
             int num_ele = m->pars[j].num_ele;
             for (i=0;i<num_ele;i++){
-                g[i] *= dftcal;
+                g[i] *= dftcal*scale2;
             }
         }
     }

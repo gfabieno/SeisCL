@@ -701,6 +701,12 @@ int kernel_varout(device * dev,
 int kernel_varoutinit(device * dev,
                       clprogram * prog);
 
+/* 1 if the variable is stored as half on the device. FP16 > 1 stores the
+   wavefield as half, except the CPML memory variables psi_* of the unified
+   kernels (ND 2, 3, FP16 2): their recursion psi = b psi + a d, with b close
+   to 1, loses its increments in half precision. */
+int var_is_half(model * m, const char * name);
+
 int kernel_varinit(device * dev,
                    model * m,
                    variable * vars,

@@ -310,6 +310,9 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
          * `amp`); sampling it every DTNYQ would alias. Built from the same
          * expression kernel_sources() injects, so it carries src_scale
          * exactly as Fpp does and the shared sc_ss removes both. */
+        /* A force source goes into vx/vy/vz, stored in units 2^(src_scale -
+         * par_scale) (kernel_sources): its amplitude carries that shift too. */
+        int vshift = (sstype>=0 && sstype<=2) ? par_scale : 0;
         float2 S; S.x = 0.0f; S.y = 0.0f;
         if (ssrc>=0){
             for (int t=0; t<NT; t++){
@@ -318,9 +321,9 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
                 #if FP16==0
                 float amp = DT*src[ssrc*NT+t];
                 #elif defined(__OPENCL_VERSION__)
-                float amp = ldexp(DT*src[ssrc*NT+t], src_scale);
+                float amp = ldexp(DT*src[ssrc*NT+t], src_scale - vshift);
                 #else
-                float amp = scalbnf(DT*src[ssrc*NT+t], src_scale);
+                float amp = scalbnf(DT*src[ssrc*NT+t], src_scale - vshift);
                 #endif
                 S.x +=  amp*COSPIF(ang);
                 S.y += -amp*SINPIF(ang);

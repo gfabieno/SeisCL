@@ -579,7 +579,17 @@ int res_scale(model * m, int s)
                      * consistent) -- so it keeps the single power.
                      * Independently found and fixed the same way in
                      * SeisCL-freesurface. */
-                    float scaler2 = (m->BACK_PROP_TYPE==1) ? 2.0f*scaler : (float)scaler;
+                    /* 2026-11-14: one convention for both back_prop_types.
+                     * The single power above made back_prop_type=2 right for
+                     * pressure receivers only: with velocity receivers its
+                     * gradient was 2^-par_scale too large, because
+                     * unscale_grad_dft() lacked unscale_grad()'s 2^par_scale.
+                     * unscale_grad_dft() now applies it, so the pressure
+                     * adjoint source takes the same -2*scaler as
+                     * back_prop_type=1. Checked: FP16=1 equals FP16=0 to
+                     * ~1e-6 for both gradient methods, velocity and pressure
+                     * receivers, force and pressure sources (2-D, 3-D). */
+                    float scaler2 = 2.0f*scaler;
                     /* The trace-of-stress modulus, N*M - 2(N-1)*mu.
                      *
                      * "p" is the average of the N normal stresses, and the

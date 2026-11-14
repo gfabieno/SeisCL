@@ -55,15 +55,15 @@ FUNDEF void cpml_adj_v(GLOBARG const STO * RESTRICT vxr, GLOBARG const STO * RES
                        GLOBARG const float * RESTRICT K_y_half,  GLOBARG const float * RESTRICT a_y_half,  GLOBARG const float * RESTRICT b_y_half,
                        GLOBARG const float * RESTRICT K_z,  GLOBARG const float * RESTRICT a_z,  GLOBARG const float * RESTRICT b_z,
                        GLOBARG const float * RESTRICT K_z_half,  GLOBARG const float * RESTRICT a_z_half,  GLOBARG const float * RESTRICT b_z_half,
-                       GLOBARG STO * RESTRICT psi_sxz_zr,
-                       GLOBARG STO * RESTRICT psi_syz_zr,
-                       GLOBARG STO * RESTRICT psi_szz_zr,
-                       GLOBARG STO * RESTRICT psi_sxy_yr,
-                       GLOBARG STO * RESTRICT psi_syy_yr,
-                       GLOBARG STO * RESTRICT psi_syz_yr,
-                       GLOBARG STO * RESTRICT psi_sxx_xr,
-                       GLOBARG STO * RESTRICT psi_sxy_xr,
-                       GLOBARG STO * RESTRICT psi_sxz_xr,
+                       GLOBARG float * RESTRICT psi_sxz_zr,
+                       GLOBARG float * RESTRICT psi_syz_zr,
+                       GLOBARG float * RESTRICT psi_szz_zr,
+                       GLOBARG float * RESTRICT psi_sxy_yr,
+                       GLOBARG float * RESTRICT psi_syy_yr,
+                       GLOBARG float * RESTRICT psi_syz_yr,
+                       GLOBARG float * RESTRICT psi_sxx_xr,
+                       GLOBARG float * RESTRICT psi_sxy_xr,
+                       GLOBARG float * RESTRICT psi_sxz_xr,
                        GLOBARG STO * RESTRICT cpf1,
                        GLOBARG STO * RESTRICT cpf2,
                        GLOBARG STO * RESTRICT cpf3,
@@ -105,71 +105,71 @@ FUNDEF void cpml_adj_v(GLOBARG const STO * RESTRICT vxr, GLOBARG const STO * RES
         j =gidy-FDOH;
         k =gidz - NZS+NAB+FDOH+NAB;
         indm=2*NAB-1-k;
-        stf(psi_sxz_zr, I_psi_sxz_zr(k,j,i), b_z[indm+1] * ldf(psi_sxz_zr, I_psi_sxz_zr(k,j,i)) + a_z[indm+1] * e_vxr);
-        f3 = e_vxr / K_z[indm+1] + ldf(psi_sxz_zr, I_psi_sxz_zr(k,j,i));
-        stf(psi_syz_zr, I_psi_syz_zr(k,j,i), b_z[indm+1] * ldf(psi_syz_zr, I_psi_syz_zr(k,j,i)) + a_z[indm+1] * e_vyr);
-        f6 = e_vyr / K_z[indm+1] + ldf(psi_syz_zr, I_psi_syz_zr(k,j,i));
-        stf(psi_szz_zr, I_psi_szz_zr(k,j,i), b_z_half[indm] * ldf(psi_szz_zr, I_psi_szz_zr(k,j,i)) + a_z_half[indm] * e_vzr);
-        f9 = e_vzr / K_z_half[indm] + ldf(psi_szz_zr, I_psi_szz_zr(k,j,i));
+        psi_sxz_zr[I_psi_sxz_zr(k,j,i)] = b_z[indm+1] * psi_sxz_zr[I_psi_sxz_zr(k,j,i)] + a_z[indm+1] * e_vxr;
+        f3 = e_vxr / K_z[indm+1] + psi_sxz_zr[I_psi_sxz_zr(k,j,i)];
+        psi_syz_zr[I_psi_syz_zr(k,j,i)] = b_z[indm+1] * psi_syz_zr[I_psi_syz_zr(k,j,i)] + a_z[indm+1] * e_vyr;
+        f6 = e_vyr / K_z[indm+1] + psi_syz_zr[I_psi_syz_zr(k,j,i)];
+        psi_szz_zr[I_psi_szz_zr(k,j,i)] = b_z_half[indm] * psi_szz_zr[I_psi_szz_zr(k,j,i)] + a_z_half[indm] * e_vzr;
+        f9 = e_vzr / K_z_half[indm] + psi_szz_zr[I_psi_szz_zr(k,j,i)];
     }
 #if FREESURF==0
     else if (gidz-FDOH<NAB){
         i =gidx-FDOH;
         j =gidy-FDOH;
         k =gidz-FDOH;
-        stf(psi_sxz_zr, I_psi_sxz_zr(k,j,i), b_z[k] * ldf(psi_sxz_zr, I_psi_sxz_zr(k,j,i)) + a_z[k] * e_vxr);
-        f3 = e_vxr / K_z[k] + ldf(psi_sxz_zr, I_psi_sxz_zr(k,j,i));
-        stf(psi_syz_zr, I_psi_syz_zr(k,j,i), b_z[k] * ldf(psi_syz_zr, I_psi_syz_zr(k,j,i)) + a_z[k] * e_vyr);
-        f6 = e_vyr / K_z[k] + ldf(psi_syz_zr, I_psi_syz_zr(k,j,i));
-        stf(psi_szz_zr, I_psi_szz_zr(k,j,i), b_z_half[k] * ldf(psi_szz_zr, I_psi_szz_zr(k,j,i)) + a_z_half[k] * e_vzr);
-        f9 = e_vzr / K_z_half[k] + ldf(psi_szz_zr, I_psi_szz_zr(k,j,i));
+        psi_sxz_zr[I_psi_sxz_zr(k,j,i)] = b_z[k] * psi_sxz_zr[I_psi_sxz_zr(k,j,i)] + a_z[k] * e_vxr;
+        f3 = e_vxr / K_z[k] + psi_sxz_zr[I_psi_sxz_zr(k,j,i)];
+        psi_syz_zr[I_psi_syz_zr(k,j,i)] = b_z[k] * psi_syz_zr[I_psi_syz_zr(k,j,i)] + a_z[k] * e_vyr;
+        f6 = e_vyr / K_z[k] + psi_syz_zr[I_psi_syz_zr(k,j,i)];
+        psi_szz_zr[I_psi_szz_zr(k,j,i)] = b_z_half[k] * psi_szz_zr[I_psi_szz_zr(k,j,i)] + a_z_half[k] * e_vzr;
+        f9 = e_vzr / K_z_half[k] + psi_szz_zr[I_psi_szz_zr(k,j,i)];
     }
 #endif
     if (gidy-FDOH<NAB){
         i =gidx-FDOH;
         j =gidy-FDOH;
         k =gidz-FDOH;
-        stf(psi_sxy_yr, I_psi_sxy_yr(k,j,i), b_y[j] * ldf(psi_sxy_yr, I_psi_sxy_yr(k,j,i)) + a_y[j] * e_vxr);
-        f2 = e_vxr / K_y[j] + ldf(psi_sxy_yr, I_psi_sxy_yr(k,j,i));
-        stf(psi_syy_yr, I_psi_syy_yr(k,j,i), b_y_half[j] * ldf(psi_syy_yr, I_psi_syy_yr(k,j,i)) + a_y_half[j] * e_vyr);
-        f5 = e_vyr / K_y_half[j] + ldf(psi_syy_yr, I_psi_syy_yr(k,j,i));
-        stf(psi_syz_yr, I_psi_syz_yr(k,j,i), b_y[j] * ldf(psi_syz_yr, I_psi_syz_yr(k,j,i)) + a_y[j] * e_vzr);
-        f8 = e_vzr / K_y[j] + ldf(psi_syz_yr, I_psi_syz_yr(k,j,i));
+        psi_sxy_yr[I_psi_sxy_yr(k,j,i)] = b_y[j] * psi_sxy_yr[I_psi_sxy_yr(k,j,i)] + a_y[j] * e_vxr;
+        f2 = e_vxr / K_y[j] + psi_sxy_yr[I_psi_sxy_yr(k,j,i)];
+        psi_syy_yr[I_psi_syy_yr(k,j,i)] = b_y_half[j] * psi_syy_yr[I_psi_syy_yr(k,j,i)] + a_y_half[j] * e_vyr;
+        f5 = e_vyr / K_y_half[j] + psi_syy_yr[I_psi_syy_yr(k,j,i)];
+        psi_syz_yr[I_psi_syz_yr(k,j,i)] = b_y[j] * psi_syz_yr[I_psi_syz_yr(k,j,i)] + a_y[j] * e_vzr;
+        f8 = e_vzr / K_y[j] + psi_syz_yr[I_psi_syz_yr(k,j,i)];
     }
     else if (gidy>NYS-NAB-FDOH-1){
         i =gidx-FDOH;
         j =gidy - NYS+NAB+FDOH+NAB;
         k =gidz-FDOH;
         indm=2*NAB-1-j;
-        stf(psi_sxy_yr, I_psi_sxy_yr(k,j,i), b_y[indm+1] * ldf(psi_sxy_yr, I_psi_sxy_yr(k,j,i)) + a_y[indm+1] * e_vxr);
-        f2 = e_vxr / K_y[indm+1] + ldf(psi_sxy_yr, I_psi_sxy_yr(k,j,i));
-        stf(psi_syy_yr, I_psi_syy_yr(k,j,i), b_y_half[indm] * ldf(psi_syy_yr, I_psi_syy_yr(k,j,i)) + a_y_half[indm] * e_vyr);
-        f5 = e_vyr / K_y_half[indm] + ldf(psi_syy_yr, I_psi_syy_yr(k,j,i));
-        stf(psi_syz_yr, I_psi_syz_yr(k,j,i), b_y[indm+1] * ldf(psi_syz_yr, I_psi_syz_yr(k,j,i)) + a_y[indm+1] * e_vzr);
-        f8 = e_vzr / K_y[indm+1] + ldf(psi_syz_yr, I_psi_syz_yr(k,j,i));
+        psi_sxy_yr[I_psi_sxy_yr(k,j,i)] = b_y[indm+1] * psi_sxy_yr[I_psi_sxy_yr(k,j,i)] + a_y[indm+1] * e_vxr;
+        f2 = e_vxr / K_y[indm+1] + psi_sxy_yr[I_psi_sxy_yr(k,j,i)];
+        psi_syy_yr[I_psi_syy_yr(k,j,i)] = b_y_half[indm] * psi_syy_yr[I_psi_syy_yr(k,j,i)] + a_y_half[indm] * e_vyr;
+        f5 = e_vyr / K_y_half[indm] + psi_syy_yr[I_psi_syy_yr(k,j,i)];
+        psi_syz_yr[I_psi_syz_yr(k,j,i)] = b_y[indm+1] * psi_syz_yr[I_psi_syz_yr(k,j,i)] + a_y[indm+1] * e_vzr;
+        f8 = e_vzr / K_y[indm+1] + psi_syz_yr[I_psi_syz_yr(k,j,i)];
     }
     if (gidx-FDOH<NAB){
         i =gidx-FDOH;
         j =gidy-FDOH;
         k =gidz-FDOH;
-        stf(psi_sxx_xr, I_psi_sxx_xr(k,j,i), b_x_half[i] * ldf(psi_sxx_xr, I_psi_sxx_xr(k,j,i)) + a_x_half[i] * e_vxr);
-        f1 = e_vxr / K_x_half[i] + ldf(psi_sxx_xr, I_psi_sxx_xr(k,j,i));
-        stf(psi_sxy_xr, I_psi_sxy_xr(k,j,i), b_x[i] * ldf(psi_sxy_xr, I_psi_sxy_xr(k,j,i)) + a_x[i] * e_vyr);
-        f4 = e_vyr / K_x[i] + ldf(psi_sxy_xr, I_psi_sxy_xr(k,j,i));
-        stf(psi_sxz_xr, I_psi_sxz_xr(k,j,i), b_x[i] * ldf(psi_sxz_xr, I_psi_sxz_xr(k,j,i)) + a_x[i] * e_vzr);
-        f7 = e_vzr / K_x[i] + ldf(psi_sxz_xr, I_psi_sxz_xr(k,j,i));
+        psi_sxx_xr[I_psi_sxx_xr(k,j,i)] = b_x_half[i] * psi_sxx_xr[I_psi_sxx_xr(k,j,i)] + a_x_half[i] * e_vxr;
+        f1 = e_vxr / K_x_half[i] + psi_sxx_xr[I_psi_sxx_xr(k,j,i)];
+        psi_sxy_xr[I_psi_sxy_xr(k,j,i)] = b_x[i] * psi_sxy_xr[I_psi_sxy_xr(k,j,i)] + a_x[i] * e_vyr;
+        f4 = e_vyr / K_x[i] + psi_sxy_xr[I_psi_sxy_xr(k,j,i)];
+        psi_sxz_xr[I_psi_sxz_xr(k,j,i)] = b_x[i] * psi_sxz_xr[I_psi_sxz_xr(k,j,i)] + a_x[i] * e_vzr;
+        f7 = e_vzr / K_x[i] + psi_sxz_xr[I_psi_sxz_xr(k,j,i)];
     }
     if (gidx>NX-NAB-FDOH-1){
         i =gidx - NX+NAB+FDOH+NAB;
         j =gidy-FDOH;
         k =gidz-FDOH;
         indm=2*NAB-1-i;
-        stf(psi_sxx_xr, I_psi_sxx_xr(k,j,i), b_x_half[indm] * ldf(psi_sxx_xr, I_psi_sxx_xr(k,j,i)) + a_x_half[indm] * e_vxr);
-        f1 = e_vxr / K_x_half[indm] + ldf(psi_sxx_xr, I_psi_sxx_xr(k,j,i));
-        stf(psi_sxy_xr, I_psi_sxy_xr(k,j,i), b_x[indm+1] * ldf(psi_sxy_xr, I_psi_sxy_xr(k,j,i)) + a_x[indm+1] * e_vyr);
-        f4 = e_vyr / K_x[indm+1] + ldf(psi_sxy_xr, I_psi_sxy_xr(k,j,i));
-        stf(psi_sxz_xr, I_psi_sxz_xr(k,j,i), b_x[indm+1] * ldf(psi_sxz_xr, I_psi_sxz_xr(k,j,i)) + a_x[indm+1] * e_vzr);
-        f7 = e_vzr / K_x[indm+1] + ldf(psi_sxz_xr, I_psi_sxz_xr(k,j,i));
+        psi_sxx_xr[I_psi_sxx_xr(k,j,i)] = b_x_half[indm] * psi_sxx_xr[I_psi_sxx_xr(k,j,i)] + a_x_half[indm] * e_vxr;
+        f1 = e_vxr / K_x_half[indm] + psi_sxx_xr[I_psi_sxx_xr(k,j,i)];
+        psi_sxy_xr[I_psi_sxy_xr(k,j,i)] = b_x[indm+1] * psi_sxy_xr[I_psi_sxy_xr(k,j,i)] + a_x[indm+1] * e_vyr;
+        f4 = e_vyr / K_x[indm+1] + psi_sxy_xr[I_psi_sxy_xr(k,j,i)];
+        psi_sxz_xr[I_psi_sxz_xr(k,j,i)] = b_x[indm+1] * psi_sxz_xr[I_psi_sxz_xr(k,j,i)] + a_x[indm+1] * e_vzr;
+        f7 = e_vzr / K_x[indm+1] + psi_sxz_xr[I_psi_sxz_xr(k,j,i)];
     }
     stf(cpf1, indv, f1);
     stf(cpf2, indv, f2);
@@ -189,15 +189,15 @@ FUNDEF void cpml_adj_s(GLOBARG const STO * RESTRICT sxxr, GLOBARG const STO * RE
                        GLOBARG const float * RESTRICT K_y_half,  GLOBARG const float * RESTRICT a_y_half,  GLOBARG const float * RESTRICT b_y_half,
                        GLOBARG const float * RESTRICT K_z,  GLOBARG const float * RESTRICT a_z,  GLOBARG const float * RESTRICT b_z,
                        GLOBARG const float * RESTRICT K_z_half,  GLOBARG const float * RESTRICT a_z_half,  GLOBARG const float * RESTRICT b_z_half,
-                       GLOBARG STO * RESTRICT psi_vx_zr,
-                       GLOBARG STO * RESTRICT psi_vy_zr,
-                       GLOBARG STO * RESTRICT psi_vz_zr,
-                       GLOBARG STO * RESTRICT psi_vx_yr,
-                       GLOBARG STO * RESTRICT psi_vy_yr,
-                       GLOBARG STO * RESTRICT psi_vz_yr,
-                       GLOBARG STO * RESTRICT psi_vx_xr,
-                       GLOBARG STO * RESTRICT psi_vy_xr,
-                       GLOBARG STO * RESTRICT psi_vz_xr,
+                       GLOBARG float * RESTRICT psi_vx_zr,
+                       GLOBARG float * RESTRICT psi_vy_zr,
+                       GLOBARG float * RESTRICT psi_vz_zr,
+                       GLOBARG float * RESTRICT psi_vx_yr,
+                       GLOBARG float * RESTRICT psi_vy_yr,
+                       GLOBARG float * RESTRICT psi_vz_yr,
+                       GLOBARG float * RESTRICT psi_vx_xr,
+                       GLOBARG float * RESTRICT psi_vy_xr,
+                       GLOBARG float * RESTRICT psi_vz_xr,
                        GLOBARG STO * RESTRICT cpf1,
                        GLOBARG STO * RESTRICT cpf2,
                        GLOBARG STO * RESTRICT cpf3,
@@ -242,71 +242,71 @@ FUNDEF void cpml_adj_s(GLOBARG const STO * RESTRICT sxxr, GLOBARG const STO * RE
         j =gidy-FDOH;
         k =gidz - NZS+NAB+FDOH+NAB;
         indm=2*NAB-1-k;
-        stf(psi_vx_zr, I_psi_vx_zr(k,j,i), b_z_half[indm] * ldf(psi_vx_zr, I_psi_vx_zr(k,j,i)) + a_z_half[indm] * e_sxzr);
-        f3 = e_sxzr / K_z_half[indm] + ldf(psi_vx_zr, I_psi_vx_zr(k,j,i));
-        stf(psi_vy_zr, I_psi_vy_zr(k,j,i), b_z_half[indm] * ldf(psi_vy_zr, I_psi_vy_zr(k,j,i)) + a_z_half[indm] * e_syzr);
-        f6 = e_syzr / K_z_half[indm] + ldf(psi_vy_zr, I_psi_vy_zr(k,j,i));
-        stf(psi_vz_zr, I_psi_vz_zr(k,j,i), b_z[indm+1] * ldf(psi_vz_zr, I_psi_vz_zr(k,j,i)) + a_z[indm+1] * e_szzr);
-        f9 = e_szzr / K_z[indm+1] + ldf(psi_vz_zr, I_psi_vz_zr(k,j,i));
+        psi_vx_zr[I_psi_vx_zr(k,j,i)] = b_z_half[indm] * psi_vx_zr[I_psi_vx_zr(k,j,i)] + a_z_half[indm] * e_sxzr;
+        f3 = e_sxzr / K_z_half[indm] + psi_vx_zr[I_psi_vx_zr(k,j,i)];
+        psi_vy_zr[I_psi_vy_zr(k,j,i)] = b_z_half[indm] * psi_vy_zr[I_psi_vy_zr(k,j,i)] + a_z_half[indm] * e_syzr;
+        f6 = e_syzr / K_z_half[indm] + psi_vy_zr[I_psi_vy_zr(k,j,i)];
+        psi_vz_zr[I_psi_vz_zr(k,j,i)] = b_z[indm+1] * psi_vz_zr[I_psi_vz_zr(k,j,i)] + a_z[indm+1] * e_szzr;
+        f9 = e_szzr / K_z[indm+1] + psi_vz_zr[I_psi_vz_zr(k,j,i)];
     }
 #if FREESURF==0
     else if (gidz-FDOH<NAB){
         i =gidx-FDOH;
         j =gidy-FDOH;
         k =gidz-FDOH;
-        stf(psi_vx_zr, I_psi_vx_zr(k,j,i), b_z_half[k] * ldf(psi_vx_zr, I_psi_vx_zr(k,j,i)) + a_z_half[k] * e_sxzr);
-        f3 = e_sxzr / K_z_half[k] + ldf(psi_vx_zr, I_psi_vx_zr(k,j,i));
-        stf(psi_vy_zr, I_psi_vy_zr(k,j,i), b_z_half[k] * ldf(psi_vy_zr, I_psi_vy_zr(k,j,i)) + a_z_half[k] * e_syzr);
-        f6 = e_syzr / K_z_half[k] + ldf(psi_vy_zr, I_psi_vy_zr(k,j,i));
-        stf(psi_vz_zr, I_psi_vz_zr(k,j,i), b_z[k] * ldf(psi_vz_zr, I_psi_vz_zr(k,j,i)) + a_z[k] * e_szzr);
-        f9 = e_szzr / K_z[k] + ldf(psi_vz_zr, I_psi_vz_zr(k,j,i));
+        psi_vx_zr[I_psi_vx_zr(k,j,i)] = b_z_half[k] * psi_vx_zr[I_psi_vx_zr(k,j,i)] + a_z_half[k] * e_sxzr;
+        f3 = e_sxzr / K_z_half[k] + psi_vx_zr[I_psi_vx_zr(k,j,i)];
+        psi_vy_zr[I_psi_vy_zr(k,j,i)] = b_z_half[k] * psi_vy_zr[I_psi_vy_zr(k,j,i)] + a_z_half[k] * e_syzr;
+        f6 = e_syzr / K_z_half[k] + psi_vy_zr[I_psi_vy_zr(k,j,i)];
+        psi_vz_zr[I_psi_vz_zr(k,j,i)] = b_z[k] * psi_vz_zr[I_psi_vz_zr(k,j,i)] + a_z[k] * e_szzr;
+        f9 = e_szzr / K_z[k] + psi_vz_zr[I_psi_vz_zr(k,j,i)];
     }
 #endif
     if (gidy-FDOH<NAB){
         i =gidx-FDOH;
         j =gidy-FDOH;
         k =gidz-FDOH;
-        stf(psi_vx_yr, I_psi_vx_yr(k,j,i), b_y_half[j] * ldf(psi_vx_yr, I_psi_vx_yr(k,j,i)) + a_y_half[j] * e_sxyr);
-        f2 = e_sxyr / K_y_half[j] + ldf(psi_vx_yr, I_psi_vx_yr(k,j,i));
-        stf(psi_vy_yr, I_psi_vy_yr(k,j,i), b_y[j] * ldf(psi_vy_yr, I_psi_vy_yr(k,j,i)) + a_y[j] * e_syyr);
-        f5 = e_syyr / K_y[j] + ldf(psi_vy_yr, I_psi_vy_yr(k,j,i));
-        stf(psi_vz_yr, I_psi_vz_yr(k,j,i), b_y_half[j] * ldf(psi_vz_yr, I_psi_vz_yr(k,j,i)) + a_y_half[j] * e_syzr);
-        f8 = e_syzr / K_y_half[j] + ldf(psi_vz_yr, I_psi_vz_yr(k,j,i));
+        psi_vx_yr[I_psi_vx_yr(k,j,i)] = b_y_half[j] * psi_vx_yr[I_psi_vx_yr(k,j,i)] + a_y_half[j] * e_sxyr;
+        f2 = e_sxyr / K_y_half[j] + psi_vx_yr[I_psi_vx_yr(k,j,i)];
+        psi_vy_yr[I_psi_vy_yr(k,j,i)] = b_y[j] * psi_vy_yr[I_psi_vy_yr(k,j,i)] + a_y[j] * e_syyr;
+        f5 = e_syyr / K_y[j] + psi_vy_yr[I_psi_vy_yr(k,j,i)];
+        psi_vz_yr[I_psi_vz_yr(k,j,i)] = b_y_half[j] * psi_vz_yr[I_psi_vz_yr(k,j,i)] + a_y_half[j] * e_syzr;
+        f8 = e_syzr / K_y_half[j] + psi_vz_yr[I_psi_vz_yr(k,j,i)];
     }
     else if (gidy>NYS-NAB-FDOH-1){
         i =gidx-FDOH;
         j =gidy - NYS+NAB+FDOH+NAB;
         k =gidz-FDOH;
         indm=2*NAB-1-j;
-        stf(psi_vx_yr, I_psi_vx_yr(k,j,i), b_y_half[indm] * ldf(psi_vx_yr, I_psi_vx_yr(k,j,i)) + a_y_half[indm] * e_sxyr);
-        f2 = e_sxyr / K_y_half[indm] + ldf(psi_vx_yr, I_psi_vx_yr(k,j,i));
-        stf(psi_vy_yr, I_psi_vy_yr(k,j,i), b_y[indm+1] * ldf(psi_vy_yr, I_psi_vy_yr(k,j,i)) + a_y[indm+1] * e_syyr);
-        f5 = e_syyr / K_y[indm+1] + ldf(psi_vy_yr, I_psi_vy_yr(k,j,i));
-        stf(psi_vz_yr, I_psi_vz_yr(k,j,i), b_y_half[indm] * ldf(psi_vz_yr, I_psi_vz_yr(k,j,i)) + a_y_half[indm] * e_syzr);
-        f8 = e_syzr / K_y_half[indm] + ldf(psi_vz_yr, I_psi_vz_yr(k,j,i));
+        psi_vx_yr[I_psi_vx_yr(k,j,i)] = b_y_half[indm] * psi_vx_yr[I_psi_vx_yr(k,j,i)] + a_y_half[indm] * e_sxyr;
+        f2 = e_sxyr / K_y_half[indm] + psi_vx_yr[I_psi_vx_yr(k,j,i)];
+        psi_vy_yr[I_psi_vy_yr(k,j,i)] = b_y[indm+1] * psi_vy_yr[I_psi_vy_yr(k,j,i)] + a_y[indm+1] * e_syyr;
+        f5 = e_syyr / K_y[indm+1] + psi_vy_yr[I_psi_vy_yr(k,j,i)];
+        psi_vz_yr[I_psi_vz_yr(k,j,i)] = b_y_half[indm] * psi_vz_yr[I_psi_vz_yr(k,j,i)] + a_y_half[indm] * e_syzr;
+        f8 = e_syzr / K_y_half[indm] + psi_vz_yr[I_psi_vz_yr(k,j,i)];
     }
     if (gidx-FDOH<NAB){
         i =gidx-FDOH;
         j =gidy-FDOH;
         k =gidz-FDOH;
-        stf(psi_vx_xr, I_psi_vx_xr(k,j,i), b_x[i] * ldf(psi_vx_xr, I_psi_vx_xr(k,j,i)) + a_x[i] * e_sxxr);
-        f1 = e_sxxr / K_x[i] + ldf(psi_vx_xr, I_psi_vx_xr(k,j,i));
-        stf(psi_vy_xr, I_psi_vy_xr(k,j,i), b_x_half[i] * ldf(psi_vy_xr, I_psi_vy_xr(k,j,i)) + a_x_half[i] * e_sxyr);
-        f4 = e_sxyr / K_x_half[i] + ldf(psi_vy_xr, I_psi_vy_xr(k,j,i));
-        stf(psi_vz_xr, I_psi_vz_xr(k,j,i), b_x_half[i] * ldf(psi_vz_xr, I_psi_vz_xr(k,j,i)) + a_x_half[i] * e_sxzr);
-        f7 = e_sxzr / K_x_half[i] + ldf(psi_vz_xr, I_psi_vz_xr(k,j,i));
+        psi_vx_xr[I_psi_vx_xr(k,j,i)] = b_x[i] * psi_vx_xr[I_psi_vx_xr(k,j,i)] + a_x[i] * e_sxxr;
+        f1 = e_sxxr / K_x[i] + psi_vx_xr[I_psi_vx_xr(k,j,i)];
+        psi_vy_xr[I_psi_vy_xr(k,j,i)] = b_x_half[i] * psi_vy_xr[I_psi_vy_xr(k,j,i)] + a_x_half[i] * e_sxyr;
+        f4 = e_sxyr / K_x_half[i] + psi_vy_xr[I_psi_vy_xr(k,j,i)];
+        psi_vz_xr[I_psi_vz_xr(k,j,i)] = b_x_half[i] * psi_vz_xr[I_psi_vz_xr(k,j,i)] + a_x_half[i] * e_sxzr;
+        f7 = e_sxzr / K_x_half[i] + psi_vz_xr[I_psi_vz_xr(k,j,i)];
     }
     if (gidx>NX-NAB-FDOH-1){
         i =gidx - NX+NAB+FDOH+NAB;
         j =gidy-FDOH;
         k =gidz-FDOH;
         indm=2*NAB-1-i;
-        stf(psi_vx_xr, I_psi_vx_xr(k,j,i), b_x[indm+1] * ldf(psi_vx_xr, I_psi_vx_xr(k,j,i)) + a_x[indm+1] * e_sxxr);
-        f1 = e_sxxr / K_x[indm+1] + ldf(psi_vx_xr, I_psi_vx_xr(k,j,i));
-        stf(psi_vy_xr, I_psi_vy_xr(k,j,i), b_x_half[indm] * ldf(psi_vy_xr, I_psi_vy_xr(k,j,i)) + a_x_half[indm] * e_sxyr);
-        f4 = e_sxyr / K_x_half[indm] + ldf(psi_vy_xr, I_psi_vy_xr(k,j,i));
-        stf(psi_vz_xr, I_psi_vz_xr(k,j,i), b_x_half[indm] * ldf(psi_vz_xr, I_psi_vz_xr(k,j,i)) + a_x_half[indm] * e_sxzr);
-        f7 = e_sxzr / K_x_half[indm] + ldf(psi_vz_xr, I_psi_vz_xr(k,j,i));
+        psi_vx_xr[I_psi_vx_xr(k,j,i)] = b_x[indm+1] * psi_vx_xr[I_psi_vx_xr(k,j,i)] + a_x[indm+1] * e_sxxr;
+        f1 = e_sxxr / K_x[indm+1] + psi_vx_xr[I_psi_vx_xr(k,j,i)];
+        psi_vy_xr[I_psi_vy_xr(k,j,i)] = b_x_half[indm] * psi_vy_xr[I_psi_vy_xr(k,j,i)] + a_x_half[indm] * e_sxyr;
+        f4 = e_sxyr / K_x_half[indm] + psi_vy_xr[I_psi_vy_xr(k,j,i)];
+        psi_vz_xr[I_psi_vz_xr(k,j,i)] = b_x_half[indm] * psi_vz_xr[I_psi_vz_xr(k,j,i)] + a_x_half[indm] * e_sxzr;
+        f7 = e_sxzr / K_x_half[indm] + psi_vz_xr[I_psi_vz_xr(k,j,i)];
     }
     stf(cpf1, indv, f1);
     stf(cpf2, indv, f2);
