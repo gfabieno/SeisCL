@@ -89,8 +89,7 @@ LFUNDEF double rreal(float2 a, float2 b)
 /* Parameter buffers are stored as half when FP16>1 (Init_OpenCL.c halves
  * cl_par.size), so reading them as float would return garbage. Deliberately
  * NOT __pprec/__pconv: those are the *vectorized* pair types the update
- * kernels use (float2/half2), and __pconv is the identity at FP16==3 because
- * those kernels go on to compute in half2. This kernel is scalar -- one work
+ * kernels use (float2/half2). This kernel is scalar -- one work
  * item per model cell -- and always computes in float/double, so it takes the
  * scalar half type and converts on load. The gradient/Hessian outputs are
  * unaffected: cl_grad and cl_H are never halved. */

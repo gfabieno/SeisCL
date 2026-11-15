@@ -54,19 +54,10 @@
     #define __pconv(x) (x)
 #endif
 
-// functions to compute with half2 or float2 (only FP16=3 computes with half2)
-#if FP16==3
-    #define __f22h2c(x) __float22half2_rn((x))
-    #define __h22f2c(x) __half22float2((x))
-#else
-    #define __f22h2c(x) (x)
-    #define __h22f2c(x) (x)
-#endif
-
-#if FP16==3
-    #define __cprec half2
-    #define __cprec1 half
-#elif FP16==0
+// half arithmetic (FP16=3) was removed: computations are in float
+#define __f22h2c(x) (x)
+#define __h22f2c(x) (x)
+#if FP16==0
     #define __cprec float
     #define __cprec1 float
 #else

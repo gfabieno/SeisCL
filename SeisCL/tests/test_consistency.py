@@ -103,7 +103,7 @@ def test_backpropagation(seis, plot=False, ngpu=1, nmpi=1):
         seis.nmax_dev = ngpu
         seis.NP = nmpi
     
-    for fp16 in range(1, 4):
+    for fp16 in range(1, 3):   # FP16=3 removed (2026-11-14)
         print("    Testing FP16=%d....." % fp16, end='')
         seis.FP16 = fp16
         try:
@@ -155,7 +155,7 @@ def test_fp16_forward(seis, ref=None, plot=False, ngpu=1, nmpi=1):
         seis.nmax_dev = ngpu
         seis.NP = nmpi
 
-    for fp16 in range(0, 4):
+    for fp16 in range(0, 3):   # FP16=3 removed (2026-11-14)
         print("    Testing FP16=%d....." % fp16, end='')
         seis.FP16 = fp16
         try:
@@ -240,7 +240,7 @@ def test_fp16_grad(seis, ref=None, plot=False, ngpu=1, nmpi=1, inputres=0):
         seis.NP = nmpi
         seis.resout = 0
 
-    for fp16 in range(0, 4):
+    for fp16 in range(0, 3):   # FP16=3 removed (2026-11-14)
         print("    Testing FP16=%d....." % fp16, end='')
         seis.FP16 = fp16
         try:

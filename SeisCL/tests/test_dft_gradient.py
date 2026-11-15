@@ -642,6 +642,21 @@ def test_engine_rejects_nonzero_par_type():
         "engine did not reject par_type=1; stderr was:\n%s" % err[:500])
     print("  engine rejected par_type=1 as expected")
 
+def test_engine_rejects_fp16_3():
+    """FP16=3 (half-precision arithmetic) was removed on 2026-11-14: the engine
+    must refuse it with a message, not run another precision silently."""
+    wd = workdir("fp16_3_reject")
+    s = make_seiscl(wd, FP16=3)
+    s.set_forward(s.src_pos_all[3, :], homogeneous(s), withgrad=False)
+    try:
+        s.execute()
+    except SeisCLError as exc:
+        assert "FP16=3 is not available" in str(exc), str(exc)[:500]
+        print("  engine refused FP16=3 as expected")
+        return
+    raise AssertionError("FP16=3 ran instead of being refused")
+
+
 def test_finite_difference_python_objective():
     """T4: the gradient matches a finite difference of a Python-side objective.
 
@@ -875,21 +890,16 @@ def test_dft_gradient_every_fp16_level():
 
     s_ref, ref = grad_at(0)
     # |cos-1| tolerance, relative-difference tolerance
-    tols = {1: (1e-6, 1e-3), 2: (0.03, 0.30), 3: (0.03, 0.30)}
+    tols = {1: (1e-6, 1e-3), 2: (0.03, 0.30)}    # FP16=3 removed (2026-11-14)
     worst = {}
     for fp16, (cos_tol, rel_tol) in tols.items():
         try:
             _, got = grad_at(fp16)
         except SeisCLError as exc:
-            # FP16>1 is CUDA-only, and has always been: header_FD_fp16.cl
-            # expands __h22f2/__f22h2 to the CUDA intrinsics __half22float2 /
-            # __float22half2_rn, which OpenCL has no declaration for, so every
-            # update_*_half2 kernel fails to build. Nothing to do with the DFT
-            # path -- back_prop_type=1 at FP16=2 fails identically on an
-            # OpenCL build. Skip rather than assert a pre-existing limitation.
-            if "CL_BUILD_PROGRAM_FAILURE" in str(exc) and fp16 > 1:
-                print("  FP16=%d skipped: half2 kernels are CUDA-only on this "
-                      "build (__half22float2 is not an OpenCL function)" % fp16)
+            # The OpenCL build refuses FP16=2 (its generated kernels convert
+            # half with CUDA functions): check the refusal, skip the level.
+            if fp16 == 2 and "FP16=2 needs the CUDA build" in str(exc):
+                print("  FP16=2 refused by this (OpenCL) build, as expected")
                 continue
             raise
         for i, nm in enumerate(("vp", "vs", "rho")):
@@ -991,6 +1001,7 @@ TESTS = [
     test_param_type_chain_rule,
     test_finite_difference_python_objective,
     test_engine_rejects_nonzero_par_type,
+    test_engine_rejects_fp16_3,
     test_hessian_read_in_every_param_type,
     test_dft_gradient_every_fp16_level,
     test_fp16_gradient_scale_every_receiver_type,

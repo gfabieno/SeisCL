@@ -115,11 +115,12 @@ class SeisCL:
                                  0: Taylor-coeff.
                                  Holberg-coeff with maximum phase velocity error
                                  1: 0.1 % 2: 0.5 % 3: 1.0 % 4: 3.0 %
-        :param FP16:             FP16 computation: 0:FP32
-                                 1:FP32 vectorized, (faster than 0)
-                                 2: FP16 IO (computation are performed in FP32)
-                                 3: FP16 IO + COMP (computation in FP16,
-                                 requires CUDA)
+        :param FP16:             precision: 0: float; 1: float, two cells per
+                                 thread (needs N[0] even); 2: storage in half
+                                 precision, computation in float (CUDA, faster
+                                 in memory, less accurate). Half-precision
+                                 arithmetic (3) is in the tags v1.0.0-v1.1.1
+                                 only.
 
 
         Parameters controlling the acquisition

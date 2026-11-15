@@ -515,14 +515,6 @@ int Init_CUDA(model * m, device ** dev)  {
             __GUARD  cuDeviceGetAttribute(&di->cuda_arc[1],
                                           CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
                                           di->cudev );
-            if (m->FP16==3  && (di->cuda_arc[0]*10+di->cuda_arc[1])<53){
-                state=1;
-                fprintf(stderr,"Error: FP16 computation only possible for cuda");
-                fprintf(stderr," arch >=5.3, but device %d arch is %d.%d\n",
-                        d,
-                        di->cuda_arc[0],
-                        di->cuda_arc[1] );
-            }
             #endif
             if (state !=CUCL_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
             

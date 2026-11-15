@@ -21,7 +21,6 @@
 #include "savebnd2D.hcl"
 #include "savebnd3D.hcl"
 #include "surface2D.hcl"
-#include "surface2D_half2.hcl"
 #include "surface2D_adj.hcl"
 #include "cpml_adj2D.hcl"
 #include "cpml_adj3D.hcl"
@@ -29,30 +28,21 @@
 #include "header_vec.hcl"
 #include "surface2D_SH.hcl"
 #include "surface3D.hcl"
-#include "surface3D_half2.hcl"
 #include "surface3D_adj.hcl"
 #include "update_adjs2D.hcl"
-#include "update_adjs2D_half2.hcl"
 #include "update_adjs2D_SH.hcl"
 #include "update_adjs3D.hcl"
-#include "update_adjs3D_half2.hcl"
 #include "update_adjv2D.hcl"
-#include "update_adjv2D_half2.hcl"
 #include "update_adjv2D_SH.hcl"
 #include "update_adjv3D.hcl"
-#include "update_adjv3D_half2.hcl"
 #include "update_s2D.hcl"
-#include "update_s2D_half2.hcl"
 #include "update_s2D_SH.hcl"
 #include "update_s2D_acc.hcl"
 #include "update_s3D.hcl"
-#include "update_s3D_half2.hcl"
 #include "update_v2D.hcl"
-#include "update_v2D_half2.hcl"
 #include "update_v2D_SH.hcl"
 #include "update_v2D_acc.hcl"
 #include "update_v3D.hcl"
-#include "update_v3D_half2.hcl"
 #include "header_FD.hcl"
 #include "header_FD_fp16.hcl"
 #include "header_CUDACL.hcl"
@@ -1017,15 +1007,28 @@ int assign_modeling_case(model * m){
             fprintf(stderr,"Error: gradabs=1 needs absorbing layers "
                            "(abs_type 1 or 2)\n");
         }
-        if (m->FP16>=3){
-            state=1;
-            fprintf(stderr,"Error: gradabs=1 requires FP16 < 3\n");
-        }
         if (m->ND!=2 && m->ND!=3){
             state=1;
             fprintf(stderr,"Error: gradabs=1 requires ND=2 or ND=3\n");
         }
     }
+    /* FP16: 0 float, 1 float with two cells per thread, 2 half storage with
+       float arithmetic (header_vec.cl). Half arithmetic (FP16=3) gave no
+       practical speed-up and was removed on 2026-11-14 (supervisor). */
+    if (m->FP16<0 || m->FP16>2){
+        state=1;
+        fprintf(stderr,"Error: FP16=%d is not available: use 0, 1 or 2. Half-"
+                       "precision arithmetic (FP16=3) is kept in the tags "
+                       "v1.0.0 to v1.1.1 of SeisCL only.\n", m->FP16);
+    }
+#ifdef __SEISCL__
+    /* OpenCL: the generated source, residual and output kernels
+       (automatic_kernels.c) convert half with CUDA functions. */
+    if (m->FP16==2){
+        state=1;
+        fprintf(stderr,"Error: FP16=2 needs the CUDA build of SeisCL\n");
+    }
+#endif
     if (m->GRADOUT==1 && m->ND==22){
         state=1;
         fprintf(stderr,"Error: gradient computation is not implemented for "
@@ -1063,13 +1066,13 @@ int assign_modeling_case(model * m){
     }
 
     /* Definition of each seismic modeling case that has been implemented */
-    const char * updatev;
-    const char * updates;
-    const char * updatev_adj;
-    const char * updates_adj;
-    const char * surface;
-    const char * surface_adj;
-    const char * savebnd;
+    const char * updatev = NULL;
+    const char * updates = NULL;
+    const char * updatev_adj = NULL;
+    const char * updates_adj = NULL;
+    const char * surface = NULL;
+    const char * surface_adj = NULL;
+    const char * savebnd = NULL;
     const char * headers[3];
     headers[0] = header_CUDACL_source;
     
@@ -1082,46 +1085,16 @@ int assign_modeling_case(model * m){
     headers[2] = header_injectbnd_source;
     
     //TODO surface kernels with FP16, Adjoint kernels in 3D with FP16
-    if (m->ND==3 ){
-        if (m->FP16==0){
-            updatev = update_v3D_source;
-            updates = update_s3D_source;
-            updatev_adj = update_adjv3D_source;
-            updates_adj = update_adjs3D_source;
-            surface = surface3D_source;
-            surface_adj = surface3D_adj_source;
-            savebnd = savebnd3D_source;
-            
-        }
-        else{
-            updatev = update_v3D_half2_source;
-            updates = update_s3D_half2_source;
-            updatev_adj = update_adjv3D_half2_source;
-            updates_adj = update_adjs3D_half2_source;
-            surface = surface3D_half2_source;
-            surface_adj = surface3D_adj_source;
-            savebnd = savebnd3D_source;
-        }
+    /* ND 2 and 3: update kernels are the unified ones (append_update below) */
+    if (m->ND==3){
+        surface = surface3D_source;
+        surface_adj = surface3D_adj_source;
+        savebnd = savebnd3D_source;
     }
     else if (m->ND==2){
-        if (m->FP16==0){
-            updatev = update_v2D_source;
-            updates = update_s2D_source;
-            updatev_adj = update_adjv2D_source;
-            updates_adj = update_adjs2D_source;
-            surface = surface2D_source;
-            surface_adj = surface2D_adj_source;
-            savebnd = savebnd2D_source;
-        }
-        else{
-            updatev = update_v2D_half2_source;
-            updates = update_s2D_half2_source;
-            updatev_adj = update_adjv2D_half2_source;
-            updates_adj = update_adjs2D_half2_source;
-            surface = surface2D_half2_source;
-            surface_adj = surface2D_adj_source;
-            savebnd = savebnd2D_source;
-        }
+        surface = surface2D_source;
+        surface_adj = surface2D_adj_source;
+        savebnd = savebnd2D_source;
     }
      else if (m->ND==21){
          if (m->FP16==0){
@@ -1157,7 +1130,7 @@ int assign_modeling_case(model * m){
     /* Unified kernels (header_vec.cl): one source for FP16 0, 1 and 2, float
        arithmetic, storage and cells per thread set at compile time. */
     const char * vheaders[3] = {headers[0], headers[1], header_vec_source};
-    if ((m->ND==2 || m->ND==3) && m->FP16<3){
+    if (m->ND==2 || m->ND==3){
         __GUARD append_update(m->ups_f, &ind, "update_v",
                               m->ND==3 ? update_v3D_source : update_v2D_source,
                               3, vheaders);
@@ -1165,7 +1138,7 @@ int assign_modeling_case(model * m){
     else {
         __GUARD append_update(m->ups_f, &ind, "update_v", updatev, 2, headers);
     }
-    if ((m->ND==2 || m->ND==3) && m->FP16<3){
+    if (m->ND==2 || m->ND==3){
         __GUARD append_update(m->ups_f, &ind, "update_s",
                               m->ND==3 ? update_s3D_source : update_s2D_source,
                               3, vheaders);
@@ -1182,7 +1155,7 @@ int assign_modeling_case(model * m){
         else{
             nheaders=2;
         }
-        if ((m->ND==2 || m->ND==3) && m->FP16<3){
+        if (m->ND==2 || m->ND==3){
             const char * aheaders[4] = {headers[0], headers[1],
                                         header_injectbnd_source, header_vec_source};
             __GUARD append_update(m->ups_adj, &ind, "update_adjv",
@@ -1198,8 +1171,7 @@ int assign_modeling_case(model * m){
         }
     }
     /* Residual terms of the gradient at the receiver cells (rec_grad.cl). */
-    if (m->GRADOUT && m->BACK_PROP_TYPE==1 && (m->ND==2 || m->ND==3)
-        && m->FP16<3){
+    if (m->GRADOUT && m->BACK_PROP_TYPE==1 && (m->ND==2 || m->ND==3)){
         __GUARD prog_source(&m->bnd_cnds.rec_grad_v, "rec_grad_v",
                             rec_grad_source, 3, vheaders);
         __GUARD prog_source(&m->bnd_cnds.rec_grad_s, "rec_grad_s",
@@ -1207,8 +1179,7 @@ int assign_modeling_case(model * m){
     }
     /* Exact CPML adjoint (BACK_PROP_TYPE 1): filters run before each adjoint
        update (time_stepping.c, update_grid_adj). */
-    if (m->ABS_TYPE==1 && m->GRADOUT && m->BACK_PROP_TYPE==1
-        && m->FP16<3){
+    if (m->ABS_TYPE==1 && m->GRADOUT && m->BACK_PROP_TYPE==1){
         const char * cpmladj = m->ND==3 ? cpml_adj3D_source : cpml_adj2D_source;
         __GUARD prog_source(&m->bnd_cnds.cpml_adj_v, "cpml_adj_v",
                             cpmladj, 3, vheaders);
@@ -1216,8 +1187,8 @@ int assign_modeling_case(model * m){
                             cpmladj, 3, vheaders);
     }
     if (m->FREESURF==1){
-        /* 2D, FP16 0-2: the unified kernels (header_vec.cl storage) */
-        int uni2 = ((m->ND==2 || m->ND==3) && m->FP16<3);
+        /* ND 2, 3: the unified kernels (header_vec.cl storage); SH: its own */
+        int uni2 = (m->ND==2 || m->ND==3);
         const char * gheaders[4] = {headers[0], headers[1],
                                     header_injectbnd_source, header_vec_source};
         if (uni2){
@@ -1230,13 +1201,13 @@ int assign_modeling_case(model * m){
         if (m->GRADOUT){
             __GUARD prog_source(&m->bnd_cnds.surf_adj, "surface_adj", surface_adj,
                                 uni2 ? 3 : 2, uni2 ? vheaders : headers);
-            if ((m->ND==3 && m->FP16==0) || uni2){
+            if (uni2){
                 __GUARD prog_source(&m->bnd_cnds.surf_adj_fold,
                                     "surface_adj_fold", surface_adj,
                                     uni2 ? 3 : 2, uni2 ? vheaders : headers);
             }
             /* Direct-form gradient in the top rows (surface2D/3D_adj.cl) */
-            if (((m->ND==3 && m->FP16==0) || uni2) && m->BACK_PROP_TYPE==1
+            if (uni2 && m->BACK_PROP_TYPE==1
                 && m->restype==0){
                 if (uni2){
                     __GUARD prog_source(&m->bnd_cnds.surf_grad, "surface_grad",
