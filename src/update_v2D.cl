@@ -17,231 +17,160 @@
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  --------------------------------------------------------------------------*/
 
-/*Update of the velocity in 2D SV*/
+/* Update of the velocities in 2D P-SV, for every precision mode (FP16 0, 1, 2):
+   float arithmetic, one cell at a time; storage and cells per thread come from
+   header_vec.cl (included before this file). */
 
-//Define useful macros to be able to write a matrix formulation in 2D with OpenCl
-
-#define psi_sxx_x(z,x) psi_sxx_x[(x)*(NZ-2*FDOH)+(z)]
-#define psi_sxz_x(z,x) psi_sxz_x[(x)*(NZ-2*FDOH)+(z)]
-#define psi_sxz_z(z,x) psi_sxz_z[(x)*(2*NAB)+(z)]
-#define psi_szz_z(z,x) psi_szz_z[(x)*(2*NAB)+(z)]
-#define psi_sxy_x(z,x) psi_sxy_x[(x)*(NZ-2*FDOH)+(z)]
-#define psi_syz_z(z,x) psi_syz_z[(x)*(2*NAB)+(z)]
-
+/* CPML memory variables: interior z index k, x index i (x layers: 0..2NAB-1). */
+#define PSIX(z,x) ((x)*(NZS-2*FDOH)+(z))
+#define PSIZ(z,x) ((x)*(2*NAB)+(z))
 
 FUNDEF void update_v(int offcomm,
-                       GLOBARG float * RESTRICT vx,              GLOBARG float * RESTRICT vz,
-                       GLOBARG const float * RESTRICT sxx,       GLOBARG const float * RESTRICT szz,       GLOBARG const float * RESTRICT sxz,
-                       GLOBARG const float * RESTRICT rip,       GLOBARG const float * RESTRICT rkp,
-                       GLOBARG const float * RESTRICT taper,
-                       GLOBARG const float * RESTRICT K_z,       GLOBARG const float * RESTRICT a_z,       GLOBARG const float * RESTRICT b_z,
-                       GLOBARG const float * RESTRICT K_z_half,  GLOBARG const float * RESTRICT a_z_half,  GLOBARG const float * RESTRICT b_z_half,
-                       GLOBARG const float * RESTRICT K_x,       GLOBARG const float * RESTRICT a_x,       GLOBARG const float * RESTRICT b_x,
-                       GLOBARG const float * RESTRICT K_x_half,  GLOBARG const float * RESTRICT a_x_half,  GLOBARG const float * RESTRICT b_x_half,
-                       GLOBARG float * RESTRICT psi_sxx_x,       GLOBARG float * RESTRICT psi_sxz_x,
-                       GLOBARG float * RESTRICT psi_sxz_z,       GLOBARG float * RESTRICT psi_szz_z,
-                       LOCARG)
+                     GLOBARG STO * RESTRICT vx,              GLOBARG STO * RESTRICT vz,
+                     GLOBARG const STO * RESTRICT sxx,       GLOBARG const STO * RESTRICT szz,
+                     GLOBARG const STO * RESTRICT sxz,
+                     GLOBARG const STO * RESTRICT rip,       GLOBARG const STO * RESTRICT rkp,
+                     GLOBARG const float * RESTRICT taper,
+                     GLOBARG const float * RESTRICT K_z,       GLOBARG const float * RESTRICT a_z,       GLOBARG const float * RESTRICT b_z,
+                     GLOBARG const float * RESTRICT K_z_half,  GLOBARG const float * RESTRICT a_z_half,  GLOBARG const float * RESTRICT b_z_half,
+                     GLOBARG const float * RESTRICT K_x,       GLOBARG const float * RESTRICT a_x,       GLOBARG const float * RESTRICT b_x,
+                     GLOBARG const float * RESTRICT K_x_half,  GLOBARG const float * RESTRICT a_x_half,  GLOBARG const float * RESTRICT b_x_half,
+                     GLOBARG float * RESTRICT psi_sxx_x,       GLOBARG float * RESTRICT psi_sxz_x,
+                     GLOBARG float * RESTRICT psi_sxz_z,       GLOBARG float * RESTRICT psi_szz_z,
+                     LOCARG)
 {
-
     LOCDEF
-    float sxx_x;
-    float szz_z;
-    float sxz_x;
-    float sxz_z;
+    /* This thread: column gidx, cells z = zt .. zt+NV-1 (padded indices). */
+    int gidx = GRP1*LSZ1 + LID1 + FDOH + offcomm;
+    int zt = Z0 + NV*(GRP0*LSZ0 + LID0);
+    /* Shared tile: columns gidx-FDOH .. of the work-group, z from zt0-ZH. */
+    int tz = NV*LSZ0 + 2*ZH, tx = LSZ1 + 2*FDOH;
+    int tile_z0 = Z0 + NV*GRP0*LSZ0 - ZH, tile_x0 = GRP1*LSZ1 + offcomm;
+    int lx = LID1 + FDOH;
 
-// If we use local memory
-#if LOCAL_OFF==0
-    #ifdef __OPENCL_VERSION__
-    int lsizez = get_local_size(0)+2*FDOH;
-    int lsizex = get_local_size(1)+2*FDOH;
-    int lidz = get_local_id(0)+FDOH;
-    int lidx = get_local_id(1)+FDOH;
-    int gidz = get_global_id(0)+FDOH;
-    int gidx = get_global_id(1)+FDOH+offcomm;
-    #else
-    int lsizez = blockDim.x+2*FDOH;
-    int lsizex = blockDim.y+2*FDOH;
-    int lidz = threadIdx.x+FDOH;
-    int lidx = threadIdx.y+FDOH;
-    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
-    int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH+offcomm;
-    #endif
-    
-    #define lsxx lvar
-    #define lszz lvar
-    #define lsxz lvar
-    
-// If local memory is turned off
-#elif LOCAL_OFF==1
-    #ifdef __OPENCL_VERSION__
-    int gid = get_global_id(0);
-    int glsizez = (NZ-2*FDOH);
-    int gidz = gid%glsizez+FDOH;
-    int gidx = (gid/glsizez)+FDOH+offcomm;
-    #else
-    int lsizez = blockDim.x+2*FDOH;
-    int lsizex = blockDim.y+2*FDOH;
-    int lidz = threadIdx.x+FDOH;
-    int lidx = threadIdx.y+FDOH;
-    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
-    int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH+offcomm;
-    #endif
-    
-    #define lsxx sxx
-    #define lszz szz
-    #define lsxz sxz
-    #define lidx gidx
-    #define lidz gidz
-    
-#endif
-    
-    int indp = (gidx-FDOH)*(NZ-2*FDOH)+(gidz-FDOH);
-    int indv = gidx*NZ+gidz;
-    
-// Calculation of the stresses spatial derivatives
-    {
-#if LOCAL_OFF==0
-        load_local_in(sxx);
-        load_local_halox(sxx);
-        BARRIER
-#endif
-        sxx_x = Dxp(lsxx);
-        
-#if LOCAL_OFF==0
-        BARRIER
-        load_local_in(szz);
-        load_local_haloz(szz);
-        BARRIER
-#endif
-        szz_z = Dzp(lszz);
-        
-#if LOCAL_OFF==0
-        BARRIER
-        load_local_in(sxz);
-        load_local_haloz(sxz);
-        load_local_halox(sxz);
-        BARRIER
-#endif
-        sxz_z = Dzm(lsxz);
-        sxz_x = Dxm(lsxz);
+    float sxx_x[NV], szz_z[NV], sxz_x[NV], sxz_z[NV];
+
+    // Spatial derivatives of the stresses, from shared tiles
+    load_tile2(lvar, sxx, tile_z0, tile_x0, tz, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) sxx_x[c] = tdxp(lvar, tz, ZH + NV*LID0 + c, lx);
+    BARRIER
+    load_tile2(lvar, szz, tile_z0, tile_x0, tz, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) szz_z[c] = tdzp(lvar, tz, ZH + NV*LID0 + c, lx);
+    BARRIER
+    load_tile2(lvar, sxz, tile_z0, tile_x0, tz, tx);
+    BARRIER
+    for (int c=0; c<NV; c++){
+        sxz_z[c] = tdzm(lvar, tz, ZH + NV*LID0 + c, lx);
+        sxz_x[c] = tdxm(lvar, tz, ZH + NV*LID0 + c, lx);
     }
 
-/* To stop updating if we are outside the model (global id must be a multiple of
-    local id in OpenCL, hence we stop if we have a global id outside the grid)*/
-#if LOCAL_OFF==0
+    // Threads outside the grid stop here (the grid is rounded up to the work-group size)
 #if COMM12==0
-    if (gidz>(NZ-FDOH-1) || (gidx-offcomm)>(NX-FDOH-1-LCOMM) ){
-        return;
-    }
-    
+    if (zt > NZS-FDOH-1 || (gidx-offcomm) > (NX-FDOH-1-LCOMM)) return;
 #else
-    if (gidz>(NZ-FDOH-1) ){
-        return;
-    }
-#endif
+    if (zt > NZS-FDOH-1) return;
 #endif
 
-     
-  
-// Correct spatial derivatives to implement CPML
+    int indv = gidx*NZS + zt;
+    float lvx[NV], lvz[NV], lrip[NV], lrkp[NV];
+    ldn(vx, indv, lvx);
+    ldn(vz, indv, lvz);
+    ldp2(rip, gidx, zt, lrip);
+    ldp2(rkp, gidx, zt, lrkp);
+
+    for (int c=0; c<NV; c++){
+        int gidz = zt + c;
+        if (!INTERIOR_Z(gidz)) continue;              // halo cell of an aligned pair
+        float dsxx = sxx_x[c], dszz = szz_z[c], dsxzz = sxz_z[c], dsxzx = sxz_x[c];
+
+        // CPML: filter the derivatives in the layers
 #if ABS_TYPE==1
-    {
-        int i,k,ind;
-        
-        if (gidz>NZ-NAB-FDOH-1){
-            
-            i =gidx-FDOH;
-            k =gidz - NZ+NAB+FDOH+NAB;
-            ind=2*NAB-1-k;
-            
-            psi_sxz_z(k,i) = b_z[ind+1] * psi_sxz_z(k,i) + a_z[ind+1] * sxz_z;
-            sxz_z = sxz_z / K_z[ind+1] + psi_sxz_z(k,i);
-            psi_szz_z(k,i) = b_z_half[ind] * psi_szz_z(k,i) + a_z_half[ind] * szz_z;
-            szz_z = szz_z / K_z_half[ind] + psi_szz_z(k,i);
-            
-        }
-        
+        {
+            int i, k, ind;
+            float psi;
+            if (gidz>NZS-NAB-FDOH-1){
+                i = gidx-FDOH;
+                k = gidz-NZS+NAB+FDOH+NAB;
+                ind = 2*NAB-1-k;
+                psi = b_z[ind+1]*psi_sxz_z[PSIZ(k,i)] + a_z[ind+1]*dsxzz;
+                psi_sxz_z[PSIZ(k,i)] = psi;
+                dsxzz = dsxzz/K_z[ind+1] + psi;
+                psi = b_z_half[ind]*psi_szz_z[PSIZ(k,i)] + a_z_half[ind]*dszz;
+                psi_szz_z[PSIZ(k,i)] = psi;
+                dszz = dszz/K_z_half[ind] + psi;
+            }
 #if FREESURF==0
-        else if (gidz-FDOH<NAB){
-            
-            i =gidx-FDOH;
-            k =gidz-FDOH;
-            
-            psi_sxz_z(k,i) = b_z[k] * psi_sxz_z(k,i) + a_z[k] * sxz_z;
-            sxz_z = sxz_z / K_z[k] + psi_sxz_z(k,i);
-            psi_szz_z(k,i) = b_z_half[k] * psi_szz_z(k,i) + a_z_half[k] * szz_z;
-            szz_z = szz_z / K_z_half[k] + psi_szz_z(k,i);
-            
-        }
+            else if (gidz-FDOH<NAB){
+                i = gidx-FDOH;
+                k = gidz-FDOH;
+                psi = b_z[k]*psi_sxz_z[PSIZ(k,i)] + a_z[k]*dsxzz;
+                psi_sxz_z[PSIZ(k,i)] = psi;
+                dsxzz = dsxzz/K_z[k] + psi;
+                psi = b_z_half[k]*psi_szz_z[PSIZ(k,i)] + a_z_half[k]*dszz;
+                psi_szz_z[PSIZ(k,i)] = psi;
+                dszz = dszz/K_z_half[k] + psi;
+            }
 #endif
-        
 #if DEVID==0 & MYLOCALID==0
-        if (gidx-FDOH<NAB){
-            
-            i =gidx-FDOH;
-            k =gidz-FDOH;
-            
-            psi_sxx_x(k,i) = b_x_half[i] * psi_sxx_x(k,i) + a_x_half[i] * sxx_x;
-            sxx_x = sxx_x / K_x_half[i] + psi_sxx_x(k,i);
-            psi_sxz_x(k,i) = b_x[i] * psi_sxz_x(k,i) + a_x[i] * sxz_x;
-            sxz_x = sxz_x / K_x[i] + psi_sxz_x(k,i);
-            
-        }
+            if (gidx-FDOH<NAB){
+                i = gidx-FDOH;
+                k = gidz-FDOH;
+                psi = b_x_half[i]*psi_sxx_x[PSIX(k,i)] + a_x_half[i]*dsxx;
+                psi_sxx_x[PSIX(k,i)] = psi;
+                dsxx = dsxx/K_x_half[i] + psi;
+                psi = b_x[i]*psi_sxz_x[PSIX(k,i)] + a_x[i]*dsxzx;
+                psi_sxz_x[PSIX(k,i)] = psi;
+                dsxzx = dsxzx/K_x[i] + psi;
+            }
 #endif
-        
 #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-        if (gidx>NX-NAB-FDOH-1){
-            
-            i =gidx - NX+NAB+FDOH+NAB;
-            k =gidz-FDOH;
-            ind=2*NAB-1-i;
-            
-            psi_sxx_x(k,i) = b_x_half[ind] * psi_sxx_x(k,i) + a_x_half[ind] * sxx_x;
-            sxx_x = sxx_x / K_x_half[ind] + psi_sxx_x(k,i);
-            psi_sxz_x(k,i) = b_x[ind+1] * psi_sxz_x(k,i) + a_x[ind+1] * sxz_x;
-            sxz_x = sxz_x / K_x[ind+1] + psi_sxz_x(k,i);
-            
+            if (gidx>NX-NAB-FDOH-1){
+                i = gidx-NX+NAB+FDOH+NAB;
+                k = gidz-FDOH;
+                ind = 2*NAB-1-i;
+                psi = b_x_half[ind]*psi_sxx_x[PSIX(k,i)] + a_x_half[ind]*dsxx;
+                psi_sxx_x[PSIX(k,i)] = psi;
+                dsxx = dsxx/K_x_half[ind] + psi;
+                psi = b_x[ind+1]*psi_sxz_x[PSIX(k,i)] + a_x[ind+1]*dsxzx;
+                psi_sxz_x[PSIX(k,i)] = psi;
+                dsxzx = dsxzx/K_x[ind+1] + psi;
+            }
+#endif
         }
 #endif
-    }
-#endif
 
-// Update the velocities
-    {
-        vx[indv]+= ((sxx_x + sxz_z)*rip[indp]);
-        vz[indv]+= ((szz_z + sxz_x)*rkp[indp]);
-    }
+        // Update the velocities
+        lvx[c] += (dsxx + dsxzz)*lrip[c];
+        lvz[c] += (dszz + dsxzx)*lrkp[c];
 
-// Absorbing boundary
+        // Absorbing boundary (Cerjan)
 #if ABS_TYPE==2
-    {
 #if FREESURF==0
         if (gidz-FDOH<NAB){
-            vx[indv]*=taper[gidz-FDOH];
-            vz[indv]*=taper[gidz-FDOH];
+            lvx[c] *= taper[gidz-FDOH];
+            lvz[c] *= taper[gidz-FDOH];
         }
 #endif
-        
-        if (gidz>NZ-NAB-FDOH-1){
-            vx[indv]*=taper[NZ-FDOH-gidz-1];
-            vz[indv]*=taper[NZ-FDOH-gidz-1];
+        if (gidz>NZS-NAB-FDOH-1){
+            lvx[c] *= taper[NZS-FDOH-gidz-1];
+            lvz[c] *= taper[NZS-FDOH-gidz-1];
         }
-        
 #if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
-            vx[indv]*=taper[gidx-FDOH];
-            vz[indv]*=taper[gidx-FDOH];
+            lvx[c] *= taper[gidx-FDOH];
+            lvz[c] *= taper[gidx-FDOH];
         }
 #endif
-        
 #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-NAB-FDOH-1){
-            vx[indv]*=taper[NX-FDOH-gidx-1];
-            vz[indv]*=taper[NX-FDOH-gidx-1];
+            lvx[c] *= taper[NX-FDOH-gidx-1];
+            lvz[c] *= taper[NX-FDOH-gidx-1];
         }
-#endif 
-    }
 #endif
-    
+#endif
+    }
+    stn(vx, indv, lvx);
+    stn(vz, indv, lvz);
 }
-

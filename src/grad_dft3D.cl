@@ -189,6 +189,14 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
     /* Parseval factor: 1/(NTNYQ*DTNYQ), not 1/NTNYQ -- see calc_grad.c. */
     double dftnorm = (double)NTNYQ*(double)DTNYQ;
 
+    /* FP16>0: the spectra are in scaled units; one factor per product, as in
+     * grad_dft2D.cl (see the derivation there): stress x stress
+     * 2^(-src_scale-res_scale), velocity x velocity 2^(2 par_scale-src_scale-
+     * res_scale). Was missing here: the 3-D gradient came out 2^(src_scale+
+     * res_scale) too large, and rho uncorrelated. No-op at FP16=0. */
+    double sc_ss = pow(2.0, -(double)src_scale - (double)res_scale);
+    double sc_vv = sc_ss*pow(2.0, 2.0*(double)par_scale);
+
     /* ND is a build-option macro (-D ND=%d), so it must not be shadowed. */
     const double NDd = (double)ND;
     double den = (NDd*M_p - 2.0*(NDd-1.0)*mu_p);
@@ -260,7 +268,16 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
 
         /* S(w): transform of the injected source in savefreqs' convention;
          * see grad_dft2D.cl for the derivation and the two distinct weights. */
+        /* A force source goes into vx/vy/vz, stored in units 2^(src_scale -
+         * par_scale) (kernel_sources): its amplitude carries that shift too. */
+        int vshift = (sstype>=0 && sstype<=2) ? par_scale : 0;
         float2 S; S.x = 0.0f; S.y = 0.0f;
+        /* Sd: the same transform on the samples savefreqs keeps (t >= TMIN,
+         * every DTNYQ steps). It restores the source in a FIELD spectrum,
+         * which savefreqs sampled; S (every step) is the eq. (26a) source
+         * term. With DTNYQ>1, restoring with S added DTNYQ times the missing
+         * increment: test_dft_osamp_convergence errors of 1.45 (DTNYQ-1). */
+        float2 Sd; Sd.x = 0.0f; Sd.y = 0.0f;
         if (ssrc>=0){
             for (int t=0; t<NT; t++){
                 float ang = 2.0f*gradfreqsn[f]*(float)(t-TMIN)
@@ -268,12 +285,16 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
                 #if FP16==0
                 float amp = DT*src[ssrc*NT+t];
                 #elif defined(__OPENCL_VERSION__)
-                float amp = ldexp(DT*src[ssrc*NT+t], src_scale);
+                float amp = ldexp(DT*src[ssrc*NT+t], src_scale - vshift);
                 #else
-                float amp = scalbnf(DT*src[ssrc*NT+t], src_scale);
+                float amp = scalbnf(DT*src[ssrc*NT+t], src_scale - vshift);
                 #endif
                 S.x +=  amp*COSPIF(ang);
                 S.y += -amp*SINPIF(ang);
+                if (t>=TMIN && (t-TMIN)%DTNYQ==0){
+                    Sd.x +=  amp*COSPIF(ang);
+                    Sd.y += -amp*SINPIF(ang);
+                }
             }
         }
 
@@ -292,8 +313,8 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
          * deviatoric combinations and the shear planes are untouched, which is
          * why Fxx/Fyy/Fzz themselves are left alone. */
         if (sstype==100){
-            Fpp.x += (float)((double)DT*(double)DTNYQ)*S.x;
-            Fpp.y += (float)((double)DT*(double)DTNYQ)*S.y;
+            Fpp.x += (float)((double)DT*(double)DTNYQ)*Sd.x;
+            Fpp.y += (float)((double)DT*(double)DTNYQ)*Sd.y;
         }
         App.x = Axx.x + Ayy.x + Azz.x;  App.y = Axx.y + Ayy.y + Azz.y;
 
@@ -314,15 +335,15 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         Fzz_mxxyy.y = (float)(ndm1*Fzz.y) - Fxx.y - Fyy.y;
 
         /* P1 with the eq. (26a) bracket intact: <sigma~, dt sigma - s>. */
-        double d0 = ((sdt*itreal(App, Fpp) + s2dt*rreal(App, Fpp)) - (sstype==100 ? rreal(App, S) : 0.0))/dftnorm;
+        double d0 = sc_ss*((sdt*itreal(App, Fpp) + s2dt*rreal(App, Fpp)) - (sstype==100 ? rreal(App, S) : 0.0))/dftnorm;
         /* Kept apart per shear plane -- sxy/sxz/syz are each driven by a
          * different staggered mu, so they cannot be summed before the
          * coefficient is applied. */
-        double d2xy = (sdt*itreal(Axy, Fxy) + s2dt*rreal(Axy, Fxy))/dftnorm;
-        double d2xz = (sdt*itreal(Axz, Fxz) + s2dt*rreal(Axz, Fxz))/dftnorm;
-        double d2yz = (sdt*itreal(Ayz, Fyz) + s2dt*rreal(Ayz, Fyz))/dftnorm;
+        double d2xy = sc_ss*(sdt*itreal(Axy, Fxy) + s2dt*rreal(Axy, Fxy))/dftnorm;
+        double d2xz = sc_ss*(sdt*itreal(Axz, Fxz) + s2dt*rreal(Axz, Fxz))/dftnorm;
+        double d2yz = sc_ss*(sdt*itreal(Ayz, Fyz) + s2dt*rreal(Ayz, Fyz))/dftnorm;
         double d3 = d0;
-        double d4 = ((sdt*itreal(Axx, Fxx_myyzz) + s2dt*rreal(Axx, Fxx_myyzz))
+        double d4 = sc_ss*((sdt*itreal(Axx, Fxx_myyzz) + s2dt*rreal(Axx, Fxx_myyzz))
                      + (sdt*itreal(Ayy, Fyy_mxxzz) + s2dt*rreal(Ayy, Fyy_mxxzz))
                      + (sdt*itreal(Azz, Fzz_mxxyy) + s2dt*rreal(Azz, Fzz_mxxyy)))/dftnorm;
         /* vx/vy/vz sit at rip/rjp/rkp respectively (update_v3D.cl): different
@@ -338,14 +359,14 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         float2 Fvx = fvx_f[id], Avx = fvx[id];
         float2 Fvy = fvy_f[id], Avy = fvy[id];
         float2 Fvz = fvz_f[id], Avz = fvz[id];
-        if (sstype==0){ Fvx.x += (float)((double)DT*(double)DTNYQ)*S.x; Fvx.y += (float)((double)DT*(double)DTNYQ)*S.y; }
-        if (sstype==1){ Fvy.x += (float)((double)DT*(double)DTNYQ)*S.x; Fvy.y += (float)((double)DT*(double)DTNYQ)*S.y; }
-        if (sstype==2){ Fvz.x += (float)((double)DT*(double)DTNYQ)*S.x; Fvz.y += (float)((double)DT*(double)DTNYQ)*S.y; }
-        double d8x = ((sdt*itreal(Avx, Fvx) + s2dt*rreal(Avx, Fvx))
+        if (sstype==0){ Fvx.x += (float)((double)DT*(double)DTNYQ)*Sd.x; Fvx.y += (float)((double)DT*(double)DTNYQ)*Sd.y; }
+        if (sstype==1){ Fvy.x += (float)((double)DT*(double)DTNYQ)*Sd.x; Fvy.y += (float)((double)DT*(double)DTNYQ)*Sd.y; }
+        if (sstype==2){ Fvz.x += (float)((double)DT*(double)DTNYQ)*Sd.x; Fvz.y += (float)((double)DT*(double)DTNYQ)*Sd.y; }
+        double d8x = sc_vv*((sdt*itreal(Avx, Fvx) + s2dt*rreal(Avx, Fvx))
                      - (sstype==0 ? rreal(Avx, S) : 0.0))/dftnorm;
-        double d8y = ((sdt*itreal(Avy, Fvy) + s2dt*rreal(Avy, Fvy))
+        double d8y = sc_vv*((sdt*itreal(Avy, Fvy) + s2dt*rreal(Avy, Fvy))
                      - (sstype==1 ? rreal(Avy, S) : 0.0))/dftnorm;
-        double d8z = ((sdt*itreal(Avz, Fvz) + s2dt*rreal(Avz, Fvz))
+        double d8z = sc_vv*((sdt*itreal(Avz, Fvz) + s2dt*rreal(Avz, Fvz))
                      - (sstype==2 ? rreal(Avz, S) : 0.0))/dftnorm;
 
 #if HOUT==1

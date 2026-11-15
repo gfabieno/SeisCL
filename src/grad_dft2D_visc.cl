@@ -421,7 +421,16 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         /* S(w): transform of the injected source, savefreqs' convention.
          * See grad_dft2D.cl for the derivation and why the two uses below take
          * DIFFERENT weights. */
+        /* A force source goes into vx/vy/vz, stored in units 2^(src_scale -
+         * par_scale) (kernel_sources): its amplitude carries that shift too. */
+        int vshift = (sstype>=0 && sstype<=2) ? par_scale : 0;
         float2 S; S.x = 0.0f; S.y = 0.0f;
+        /* Sd: the same transform on the samples savefreqs keeps (t >= TMIN,
+         * every DTNYQ steps). It restores the source in a FIELD spectrum,
+         * which savefreqs sampled; S (every step) is the eq. (26a) source
+         * term. With DTNYQ>1, restoring with S added DTNYQ times the missing
+         * increment: test_dft_osamp_convergence errors of 1.45 (DTNYQ-1). */
+        float2 Sd; Sd.x = 0.0f; Sd.y = 0.0f;
         if (ssrc>=0){
             for (int t=0; t<NT; t++){
                 float ang = 2.0f*gradfreqsn[f]*(float)(t-TMIN)
@@ -429,12 +438,16 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
                 #if FP16==0
                 float amp = DT*src[ssrc*NT+t];
                 #elif defined(__OPENCL_VERSION__)
-                float amp = ldexp(DT*src[ssrc*NT+t], src_scale);
+                float amp = ldexp(DT*src[ssrc*NT+t], src_scale - vshift);
                 #else
-                float amp = scalbnf(DT*src[ssrc*NT+t], src_scale);
+                float amp = scalbnf(DT*src[ssrc*NT+t], src_scale - vshift);
                 #endif
                 S.x +=  amp*COSPIF(ang);
                 S.y += -amp*SINPIF(ang);
+                if (t>=TMIN && (t-TMIN)%DTNYQ==0){
+                    Sd.x +=  amp*COSPIF(ang);
+                    Sd.y += -amp*SINPIF(ang);
+                }
             }
         }
 
@@ -446,8 +459,8 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
          * scaling from S's use in the eq. (26a) term below, where S is the
          * source as a RATE. Only the trace is affected. */
         if (sstype==100){
-            Fpp.x += (float)((double)DT*(double)DTNYQ)*S.x;
-            Fpp.y += (float)((double)DT*(double)DTNYQ)*S.y;
+            Fpp.x += (float)((double)DT*(double)DTNYQ)*Sd.x;
+            Fpp.y += (float)((double)DT*(double)DTNYQ)*Sd.y;
         }
         App.x = Axx.x + Azz.x;  App.y = Axx.y + Azz.y;
         Fmm.x = Fxx.x - Fzz.x;  Fmm.y = Fxx.y - Fzz.y;
@@ -473,8 +486,8 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
          * average_grad_transpose() apply the averaging Jacobian. */
         float2 Fvx = fvx_f[id], Avx = fvx[id];
         float2 Fvz = fvz_f[id], Avz = fvz[id];
-        if (sstype==0){ Fvx.x += (float)((double)DT*(double)DTNYQ)*S.x; Fvx.y += (float)((double)DT*(double)DTNYQ)*S.y; }
-        if (sstype==2){ Fvz.x += (float)((double)DT*(double)DTNYQ)*S.x; Fvz.y += (float)((double)DT*(double)DTNYQ)*S.y; }
+        if (sstype==0){ Fvx.x += (float)((double)DT*(double)DTNYQ)*Sd.x; Fvx.y += (float)((double)DT*(double)DTNYQ)*Sd.y; }
+        if (sstype==2){ Fvz.x += (float)((double)DT*(double)DTNYQ)*Sd.x; Fvz.y += (float)((double)DT*(double)DTNYQ)*Sd.y; }
         double d8x = sc_vv*((sdt*itreal(Avx, Fvx) + s2dt*rreal(Avx, Fvx))
                      - (sstype==0 ? rreal(Avx, S) : 0.0))/dftnorm;
         double d8z = sc_vv*((sdt*itreal(Avz, Fvz) + s2dt*rreal(Avz, Fvz))

@@ -52,6 +52,9 @@
    straddles the layer and the band, and the averaging transpose spreads it
    into the first band cell; its forward field must be exact.
    Free surface (FREESURF != 0): no layer on top, FDOH rows from the surface. */
+#ifndef NZS
+#define NZS (NZ*DIV)
+#endif
 #ifndef FR_OL
 #if GRADABS==1
 #define FR_OL 0
@@ -77,14 +80,14 @@ FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 
     int i,k,indv;
     int gidf;
     
-#if NUM_DEVICES==1 & NLOCALP==1 & FP16==0
+#if NUM_DEVICES==1 & NLOCALP==1 & FP16<3
     #ifdef __OPENCL_VERSION__
     int gid = get_global_id(0);
     #else
     int gid = blockIdx.x*blockDim.x + threadIdx.x;
     #endif
     {
-    int NZo = NZ-2*FDOH-FR_OT-FR_OL, NXo = NX-2*FDOH-2*FR_OL;
+    int NZo = NZS-2*FDOH-FR_OT-FR_OL, NXo = NX-2*FDOH-2*FR_OL;
     int W = FR_W, Wt = FR_WT;
     int A = W*NZo, NXm = NXo-2*W;
     int i0 = FDOH+FR_OL, k0 = FDOH+FR_OT;
@@ -264,6 +267,33 @@ FUNDEF void savebnd(GLOBARG __prec2 *sxx, GLOBARG __prec2 *sxz, GLOBARG __prec2 
 
 #endif
     
+#if NUM_DEVICES==1 & NLOCALP==1 & FP16<3
+    /* Frame of scalar cells (i, k padded indices): copy the raw stored values
+       (float, or the 16 bits of a half for FP16 2). */
+    #if FP16==2
+        #ifdef __OPENCL_VERSION__
+        #define RAWT ushort
+        #else
+        #define RAWT unsigned short
+        #endif
+    #else
+        #define RAWT float
+    #endif
+    indv = i*NZS+k;
+#if ND==2
+    ((GLOBARG RAWT*)vxbnd)[gid]  = ((GLOBARG RAWT*)vx)[indv];
+    ((GLOBARG RAWT*)vzbnd)[gid]  = ((GLOBARG RAWT*)vz)[indv];
+    ((GLOBARG RAWT*)sxxbnd)[gid] = ((GLOBARG RAWT*)sxx)[indv];
+    ((GLOBARG RAWT*)szzbnd)[gid] = ((GLOBARG RAWT*)szz)[indv];
+    ((GLOBARG RAWT*)sxzbnd)[gid] = ((GLOBARG RAWT*)sxz)[indv];
+#endif
+#if ND==21
+    ((GLOBARG RAWT*)vybnd)[gid]  = ((GLOBARG RAWT*)vy)[indv];
+    ((GLOBARG RAWT*)sxybnd)[gid] = ((GLOBARG RAWT*)sxy)[indv];
+    ((GLOBARG RAWT*)syzbnd)[gid] = ((GLOBARG RAWT*)syz)[indv];
+#endif
+    return;
+#endif
     indv = i*NZ+k;
 #if ND==2
     vxbnd[gid]=vx[indv];

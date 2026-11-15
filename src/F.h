@@ -265,7 +265,6 @@ typedef struct parameter{
 
 } parameter;
 
-int calc_grad(struct model * m, struct device * dev);
 int transf_grad(struct model * m);
 /* transf_grad's three jobs, separately: storage format, units, and
    parameterization. See calc_grad.c for why they are not one function. */
@@ -352,6 +351,8 @@ typedef struct boundary_conditions{
     clprogram surf_adj;
     clprogram surf_adj_fold;   // 2D: adjoint of the stress images (surface2D_adj.cl)
     clprogram surf_grad;       // 2D: moduli gradient in the top rows (surface2D_adj.cl)
+    clprogram rec_grad_v;      // residual terms at the receiver cells (rec_grad.cl)
+    clprogram rec_grad_s;
     clprogram cpml_adj_v;      // exact CPML adjoint: filter the adjoint velocities (cpml_adj2D.cl)
     clprogram cpml_adj_s;      // ... and the adjoint stresses
     clprogram init_f;
@@ -400,6 +401,7 @@ typedef struct device {
     int OFFSET;
     int DEVID;
     int NBND;
+    int frame_cells;   // savebnd/inject_ind index scalar cells (single device, unified kernels)
     int par_scale;
     
     int LOCAL_OFF;
@@ -697,6 +699,12 @@ int kernel_varout(device * dev,
 
 int kernel_varoutinit(device * dev,
                       clprogram * prog);
+
+/* 1 if the variable is stored as half on the device. FP16 > 1 stores the
+   wavefield as half, except the CPML memory variables psi_* of the unified
+   kernels (ND 2, 3, FP16 2): their recursion psi = b psi + a d, with b close
+   to 1, loses its increments in half precision. */
+int var_is_half(model * m, const char * name);
 
 int kernel_varinit(device * dev,
                    model * m,

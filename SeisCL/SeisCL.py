@@ -115,11 +115,12 @@ class SeisCL:
                                  0: Taylor-coeff.
                                  Holberg-coeff with maximum phase velocity error
                                  1: 0.1 % 2: 0.5 % 3: 1.0 % 4: 3.0 %
-        :param FP16:             FP16 computation: 0:FP32
-                                 1:FP32 vectorized, (faster than 0)
-                                 2: FP16 IO (computation are performed in FP32)
-                                 3: FP16 IO + COMP (computation in FP16,
-                                 requires CUDA)
+        :param FP16:             precision: 0: float; 1: float, two cells per
+                                 thread (needs N[0] even); 2: storage in half
+                                 precision, computation in float (CUDA, faster
+                                 in memory, less accurate). Half-precision
+                                 arithmetic (3) is in the tags v1.0.0-v1.1.1
+                                 only.
 
 
         Parameters controlling the acquisition
@@ -220,7 +221,24 @@ class SeisCL:
                                  layers (abs_type=2) only. Memory: about
                                  (number of layer cells) x (number of
                                  wavefield variables) x 4 bytes x NT.
-        :param gradfreqs:        Frequencies of gradient with DFT
+        :param gradfreqs:        Frequencies (Hz) of the gradient with
+                                 back_prop_type=2 (DFT). Each is used at the
+                                 DFT bin floor(f/df), df = 1/(NT*dt); a value
+                                 below df falls in bin 0 (refused when L>0).
+                                 The result is the gradient of the misfit
+                                 restricted to these bins, NOT of the
+                                 time-domain misfit: it equals
+                                 back_prop_type=1 only with every bin up to
+                                 the Nyquist frequency of the record. Measured
+                                 2-D, 2026-11-14 (FD of the time-domain
+                                 misfit): bins 4 df .. 5 f0 give vs -1.2 to 13
+                                 and rho 0.4-1.7 with force sources or velocity
+                                 receivers (vp within a few %); bins 1 .. 5 f0
+                                 give vs 0.79, rho 0.64; every bin gives vs
+                                 0.96-0.99, rho 1.01-1.07. With a pressure
+                                 source and pressure receivers the choice
+                                 matters much less (earlier note, 2026-09-02:
+                                 a sparse selection skewed vp/vs/rho by 1.8x).
         :param param_type:       Type of parametrization:
                                  0:(rho,vp,vs,taup,taus)
                                  1:(rho, M, mu, taup, taus),

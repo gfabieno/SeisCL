@@ -20,17 +20,8 @@
 /*Adjoint update of the stresses in 3D*/
 
 /*Define useful macros to be able to write a matrix formulation in 2D with OpenCl */
-#define psi_vx_x(z,y,x) psi_vx_x[(x)*(NY-2*FDOH)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
-#define psi_vy_x(z,y,x) psi_vy_x[(x)*(NY-2*FDOH)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
-#define psi_vz_x(z,y,x) psi_vz_x[(x)*(NY-2*FDOH)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
 
-#define psi_vx_y(z,y,x) psi_vx_y[(x)*(2*NAB)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
-#define psi_vy_y(z,y,x) psi_vy_y[(x)*(2*NAB)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
-#define psi_vz_y(z,y,x) psi_vz_y[(x)*(2*NAB)*(NZ-2*FDOH)+(y)*(NZ-2*FDOH)+(z)]
 
-#define psi_vx_z(z,y,x) psi_vx_z[(x)*(NY-2*FDOH)*(2*NAB)+(y)*(2*NAB)+(z)]
-#define psi_vy_z(z,y,x) psi_vy_z[(x)*(NY-2*FDOH)*(2*NAB)+(y)*(2*NAB)+(z)]
-#define psi_vz_z(z,y,x) psi_vz_z[(x)*(NY-2*FDOH)*(2*NAB)+(y)*(2*NAB)+(z)]
 
 
 
@@ -40,24 +31,36 @@
 #define SURFROWS (FDOH+1)
 #endif
 
+/* Generated from the FP32 3-D kernel by torch-robust/unify/gen3d.py: unified storage (header_vec.cl),
+   per-cell physics unchanged. */
+#define I_psi_vx_x(z,y,x) ((x)*(NYS-2*FDOH)*(NZS-2*FDOH)+(y)*(NZS-2*FDOH)+(z))
+#define I_psi_vy_x(z,y,x) ((x)*(NYS-2*FDOH)*(NZS-2*FDOH)+(y)*(NZS-2*FDOH)+(z))
+#define I_psi_vz_x(z,y,x) ((x)*(NYS-2*FDOH)*(NZS-2*FDOH)+(y)*(NZS-2*FDOH)+(z))
+#define I_psi_vx_y(z,y,x) ((x)*(2*NAB)*(NZS-2*FDOH)+(y)*(NZS-2*FDOH)+(z))
+#define I_psi_vy_y(z,y,x) ((x)*(2*NAB)*(NZS-2*FDOH)+(y)*(NZS-2*FDOH)+(z))
+#define I_psi_vz_y(z,y,x) ((x)*(2*NAB)*(NZS-2*FDOH)+(y)*(NZS-2*FDOH)+(z))
+#define I_psi_vx_z(z,y,x) ((x)*(NYS-2*FDOH)*(2*NAB)+(y)*(2*NAB)+(z))
+#define I_psi_vy_z(z,y,x) ((x)*(NYS-2*FDOH)*(2*NAB)+(y)*(2*NAB)+(z))
+#define I_psi_vz_z(z,y,x) ((x)*(NYS-2*FDOH)*(2*NAB)+(y)*(2*NAB)+(z))
+
 FUNDEF void update_adjs(int offcomm,
-                          GLOBARG const float * RESTRICT vx,        GLOBARG const float * RESTRICT vy,        GLOBARG const float * RESTRICT vz,
-                          GLOBARG float * RESTRICT sxx,             GLOBARG float * RESTRICT syy,             GLOBARG float * RESTRICT szz,
-                          GLOBARG float * RESTRICT sxy,             GLOBARG float * RESTRICT syz,             GLOBARG float * RESTRICT sxz,
-                          GLOBARG const float * RESTRICT vxbnd,     GLOBARG const float * RESTRICT vybnd,     GLOBARG const float * RESTRICT vzbnd,
-                          GLOBARG const float * RESTRICT sxxbnd,    GLOBARG const float * RESTRICT syybnd,    GLOBARG const float * RESTRICT szzbnd,
-                          GLOBARG const float * RESTRICT sxybnd,    GLOBARG const float * RESTRICT syzbnd,    GLOBARG const float * RESTRICT sxzbnd,
-                          GLOBARG const float * RESTRICT vxr,       GLOBARG const float * RESTRICT vyr,       GLOBARG const float * RESTRICT vzr,
-                          GLOBARG float * RESTRICT sxxr,            GLOBARG float * RESTRICT syyr,            GLOBARG float * RESTRICT szzr,
-                          GLOBARG float * RESTRICT sxyr,            GLOBARG float * RESTRICT syzr,            GLOBARG float * RESTRICT sxzr,
-                          GLOBARG float * RESTRICT rxx,             GLOBARG float * RESTRICT ryy,             GLOBARG float * RESTRICT rzz,
-                          GLOBARG float * RESTRICT rxy,             GLOBARG float * RESTRICT ryz,             GLOBARG float * RESTRICT rxz,
-                          GLOBARG const float * RESTRICT rxxr,      GLOBARG const float * RESTRICT ryyr,      GLOBARG const float * RESTRICT rzzr,
-                          GLOBARG const float * RESTRICT rxyr,      GLOBARG const float * RESTRICT ryzr,      GLOBARG const float * RESTRICT rxzr,
-                          GLOBARG const float * RESTRICT M,         GLOBARG const float * RESTRICT mu,        GLOBARG const float * RESTRICT muipjp,
-                          GLOBARG const float * RESTRICT mujpkp,    GLOBARG const float * RESTRICT muipkp,
-                          GLOBARG const float * RESTRICT taus,      GLOBARG const float * RESTRICT tausipjp,  GLOBARG const float * RESTRICT tausjpkp,
-                          GLOBARG const float * RESTRICT tausipkp,  GLOBARG const float * RESTRICT taup,      GLOBARG const float * RESTRICT eta,
+                          GLOBARG const STO * RESTRICT vx,        GLOBARG const STO * RESTRICT vy,        GLOBARG const STO * RESTRICT vz,
+                          GLOBARG STO * RESTRICT sxx,             GLOBARG STO * RESTRICT syy,             GLOBARG STO * RESTRICT szz,
+                          GLOBARG STO * RESTRICT sxy,             GLOBARG STO * RESTRICT syz,             GLOBARG STO * RESTRICT sxz,
+                          GLOBARG const STO * RESTRICT vxbnd,     GLOBARG const STO * RESTRICT vybnd,     GLOBARG const STO * RESTRICT vzbnd,
+                          GLOBARG const STO * RESTRICT sxxbnd,    GLOBARG const STO * RESTRICT syybnd,    GLOBARG const STO * RESTRICT szzbnd,
+                          GLOBARG const STO * RESTRICT sxybnd,    GLOBARG const STO * RESTRICT syzbnd,    GLOBARG const STO * RESTRICT sxzbnd,
+                          GLOBARG const STO * RESTRICT vxr,       GLOBARG const STO * RESTRICT vyr,       GLOBARG const STO * RESTRICT vzr,
+                          GLOBARG STO * RESTRICT sxxr,            GLOBARG STO * RESTRICT syyr,            GLOBARG STO * RESTRICT szzr,
+                          GLOBARG STO * RESTRICT sxyr,            GLOBARG STO * RESTRICT syzr,            GLOBARG STO * RESTRICT sxzr,
+                          GLOBARG STO * RESTRICT rxx,             GLOBARG STO * RESTRICT ryy,             GLOBARG STO * RESTRICT rzz,
+                          GLOBARG STO * RESTRICT rxy,             GLOBARG STO * RESTRICT ryz,             GLOBARG STO * RESTRICT rxz,
+                          GLOBARG const STO * RESTRICT rxxr,      GLOBARG const STO * RESTRICT ryyr,      GLOBARG const STO * RESTRICT rzzr,
+                          GLOBARG const STO * RESTRICT rxyr,      GLOBARG const STO * RESTRICT ryzr,      GLOBARG const STO * RESTRICT rxzr,
+                          GLOBARG const STO * RESTRICT M,         GLOBARG const STO * RESTRICT mu,        GLOBARG const STO * RESTRICT muipjp,
+                          GLOBARG const STO * RESTRICT mujpkp,    GLOBARG const STO * RESTRICT muipkp,
+                          GLOBARG const STO * RESTRICT taus,      GLOBARG const STO * RESTRICT tausipjp,  GLOBARG const STO * RESTRICT tausjpkp,
+                          GLOBARG const STO * RESTRICT tausipkp,  GLOBARG const STO * RESTRICT taup,      GLOBARG const float * RESTRICT eta,
                           GLOBARG const float * RESTRICT taper,
                           GLOBARG const float * RESTRICT K_x,       GLOBARG const float * RESTRICT a_x,       GLOBARG const float * RESTRICT b_x,
                           GLOBARG const float * RESTRICT K_x_half,  GLOBARG const float * RESTRICT a_x_half,  GLOBARG const float * RESTRICT b_x_half,
@@ -68,15 +71,15 @@ FUNDEF void update_adjs(int offcomm,
                           GLOBARG float * RESTRICT psi_vx_x,        GLOBARG float * RESTRICT psi_vx_y,        GLOBARG float * RESTRICT psi_vx_z,
                           GLOBARG float * RESTRICT psi_vy_x,        GLOBARG float * RESTRICT psi_vy_y,        GLOBARG float * RESTRICT psi_vy_z,
                           GLOBARG float * RESTRICT psi_vz_x,        GLOBARG float * RESTRICT psi_vz_y,        GLOBARG float * RESTRICT psi_vz_z,
-                          GLOBARG const float * RESTRICT cpf1,
-                          GLOBARG const float * RESTRICT cpf2,
-                          GLOBARG const float * RESTRICT cpf3,
-                          GLOBARG const float * RESTRICT cpf4,
-                          GLOBARG const float * RESTRICT cpf5,
-                          GLOBARG const float * RESTRICT cpf6,
-                          GLOBARG const float * RESTRICT cpf7,
-                          GLOBARG const float * RESTRICT cpf8,
-                          GLOBARG const float * RESTRICT cpf9,
+                          GLOBARG const STO * RESTRICT cpf1,
+                          GLOBARG const STO * RESTRICT cpf2,
+                          GLOBARG const STO * RESTRICT cpf3,
+                          GLOBARG const STO * RESTRICT cpf4,
+                          GLOBARG const STO * RESTRICT cpf5,
+                          GLOBARG const STO * RESTRICT cpf6,
+                          GLOBARG const STO * RESTRICT cpf7,
+                          GLOBARG const STO * RESTRICT cpf8,
+                          GLOBARG const STO * RESTRICT cpf9,
                           GLOBARG const float * RESTRICT gradrho,   GLOBARG float * RESTRICT gradM,           GLOBARG float * RESTRICT gradmu,
                           GLOBARG float * RESTRICT gradmuipkp,      GLOBARG float * RESTRICT gradmuipjp,      GLOBARG float * RESTRICT gradmujpkp,
                           GLOBARG const float * RESTRICT gradtaup,  GLOBARG const float * RESTRICT gradtaus,  GLOBARG const float * RESTRICT gradsrc,
@@ -89,19 +92,17 @@ FUNDEF void update_adjs(int offcomm,
                           int nrec,                                 int res_scale,
                           LOCARG)
 {
-    
     LOCDEF
+
     
     int m;
-    float vxx,vxy,vxz,vyx,vyy,vyz,vzx,vzy,vzz;
     float vxyyx,vyzzy,vxzzx,vxxyyzz,vyyzz,vxxzz,vxxyy;
-    float vxxr,vxyr,vxzr,vyxr,vyyr,vyzr,vzxr,vzyr,vzzr;
     float vxyyxr,vyzzyr,vxzzxr,vxxyyzzr,vyyzzr,vxxzzr,vxxyyr;
     float fipjp, fjpkp, fipkp, f, g;
     float lM, lmu;
     #if LVE>0
     float sumrxy,sumryz,sumrxz,sumrxx,sumryy,sumrzz;
-    float b,c,e,d,dipjp,djpkp,dipkp;
+    float b,cv,e,d,dipjp,djpkp,dipkp;
     int l, indr;;
     float ltaup, ltaus, ltausipjp, ltausipkp, ltausjpkp, lmuipjp, lmuipkp, lmujpkp;
     float leta[LVE];
@@ -110,291 +111,149 @@ FUNDEF void update_adjs(int offcomm,
     
     
     // If we use local memory
-    #if LOCAL_OFF==0
     
-    #ifdef __OPENCL_VERSION__
-    int lsizez = get_local_size(0)+2*FDOH;
-    int lsizey = get_local_size(1)+2*FDOH;
-    int lsizex = get_local_size(2)+2*FDOH;
-    int lidz = get_local_id(0)+FDOH;
-    int lidy = get_local_id(1)+FDOH;
-    int lidx = get_local_id(2)+FDOH;
-    int gidz = get_global_id(0)+FDOH;
-    int gidy = get_global_id(1)+FDOH;
-    int gidx = get_global_id(2)+FDOH+offcomm;
-    #else
-    int lsizez = blockDim.x+2*FDOH;
-    int lsizey = blockDim.y+2*FDOH;
-    int lsizex = blockDim.z+2*FDOH;
-    int lidz = threadIdx.x+FDOH;
-    int lidy = threadIdx.y+FDOH;
-    int lidx = threadIdx.z+FDOH;
-    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
-    int gidy = blockIdx.y*blockDim.y + threadIdx.y+FDOH;
-    int gidx = blockIdx.z*blockDim.z + threadIdx.z+FDOH+offcomm;
-    #endif
-    
-    #define lvx lvar
-    #define lvy lvar
-    #define lvz lvar
-    #define lvxr lvar
-    #define lvyr lvar
-    #define lvzr lvar
-    #define lcpf1 lvar
-    #define lcpf2 lvar
-    #define lcpf3 lvar
-    #define lcpf4 lvar
-    #define lcpf5 lvar
-    #define lcpf6 lvar
-    #define lcpf7 lvar
-    #define lcpf8 lvar
-    #define lcpf9 lvar
-
-// If local memory is turned off
-    #elif LOCAL_OFF==1
-    
-    #ifdef __OPENCL_VERSION__
-    int gid = get_global_id(0);
-    int glsizez = (NZ-2*FDOH);
-    int glsizey = (NY-2*FDOH);
-    int gidz = gid%glsizez+FDOH;
-    int gidy = (gid/glsizez)%glsizey+FDOH;
-    int gidx = gid/(glsizez*glsizey)+FDOH+offcomm;
-    #else
-    int lsizez = blockDim.x+2*FDOH;
-    int lsizey = blockDim.y+2*FDOH;
-    int lsizex = blockDim.z+2*FDOH;
-    int lidz = threadIdx.x+FDOH;
-    int lidy = threadIdx.y+FDOH;
-    int lidx = threadIdx.z+FDOH;
-    int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
-    int gidy = blockIdx.y*blockDim.y + threadIdx.y+FDOH;
-    int gidx = blockIdx.z*blockDim.z + threadIdx.z+FDOH+offcomm;
-    #endif
-    
-    #define lvxr vxr
-    #define lvyr vyr
-    #define lvzr vzr
-    #define lcpf1 cpf1
-    #define lcpf2 cpf2
-    #define lcpf3 cpf3
-    #define lcpf4 cpf4
-    #define lcpf5 cpf5
-    #define lcpf6 cpf6
-    #define lcpf7 cpf7
-    #define lcpf8 cpf8
-    #define lcpf9 cpf9
-    #define lvx vx
-    #define lvy vy
-    #define lvz vz
-    #define lidx gidx
-    #define lidy gidy
-    #define lidz gidz
-    
-    #define lsizez NZ
-    #define lsizey NY
-    #define lsizex NX
-    
-    #endif
-    
-    int indp = ((gidx)-FDOH)*(NY-2*FDOH)*(NZ-2*FDOH)+((gidy)-FDOH)*(NZ-2*FDOH)+((gidz)-FDOH);
-    int indv = (gidx)*NZ*NY+(gidy)*NZ+(gidz);
-
-// Calculation of the velocity spatial derivatives of the forward wavefield if backpropagation is used
+    int gidy = GRP1*LSZ1 + LID1 + FDOH;
+    int gidx = GRP2*LSZ2 + LID2 + FDOH + offcomm;
+    int zt = Z0 + NV*(GRP0*LSZ0 + LID0);
+    int tz = NV*LSZ0 + 2*ZH, ty = LSZ1 + 2*FDOH, tx = LSZ2 + 2*FDOH;
+    int tile_z0 = Z0 + NV*GRP0*LSZ0 - ZH, tile_y0 = GRP1*LSZ1, tile_x0 = GRP2*LSZ2 + offcomm;
+    int it0 = ((LID2+FDOH)*ty + (LID1+FDOH))*tz + ZH + NV*LID0;
+    int sy = tz, sx = tz*ty;
+    float d_vxx[NV], d_vxxr[NV], d_vxy[NV], d_vxyr[NV], d_vxz[NV], d_vxzr[NV], d_vyx[NV], d_vyxr[NV], d_vyy[NV], d_vyyr[NV], d_vyz[NV], d_vyzr[NV], d_vzx[NV], d_vzxr[NV], d_vzy[NV], d_vzyr[NV], d_vzz[NV], d_vzzr[NV];
 #if BACK_PROP_TYPE==1
-    {
-         #if LOCAL_OFF==0
-        load_local_in(vz);
-        load_local_haloz(vz);
-        load_local_haloy(vz);
-        load_local_halox(vz);
-        BARRIER
-        #endif
-        
-        vzx = Dxp(lvz);
-        vzy = Dyp(lvz);
-        vzz = Dzm(lvz);
-        
-        #if LOCAL_OFF==0
-        BARRIER
-        load_local_in(vy);
-        load_local_haloz(vy);
-        load_local_haloy(vy);
-        load_local_halox(vy);
-        BARRIER
-        #endif
-        
-        vyx = Dxp(lvy);
-        vyy = Dym(lvy);
-        vyz = Dzp(lvy);
-
-        #if LOCAL_OFF==0
-        BARRIER
-        load_local_in(vx);
-        load_local_haloz(vx);
-        load_local_haloy(vx);
-        load_local_halox(vx);
-        BARRIER
-        #endif
-        
-        vxx = Dxm(lvx);
-        vxy = Dyp(lvx);
-        vxz = Dzp(lvx);
-
-        BARRIER
-    }
+    load_tile3(lvar, vz, tile_z0, tile_y0, tile_x0, tz, ty, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) d_vzx[c] = tdp(lvar, it0+c, sx);
+    for (int c=0; c<NV; c++) d_vzy[c] = tdp(lvar, it0+c, sy);
+    for (int c=0; c<NV; c++) d_vzz[c] = tdm(lvar, it0+c, 1);
+    BARRIER
+    load_tile3(lvar, vy, tile_z0, tile_y0, tile_x0, tz, ty, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) d_vyx[c] = tdp(lvar, it0+c, sx);
+    for (int c=0; c<NV; c++) d_vyy[c] = tdm(lvar, it0+c, sy);
+    for (int c=0; c<NV; c++) d_vyz[c] = tdp(lvar, it0+c, 1);
+    BARRIER
+    load_tile3(lvar, vx, tile_z0, tile_y0, tile_x0, tz, ty, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) d_vxx[c] = tdm(lvar, it0+c, sx);
+    for (int c=0; c<NV; c++) d_vxy[c] = tdp(lvar, it0+c, sy);
+    for (int c=0; c<NV; c++) d_vxz[c] = tdp(lvar, it0+c, 1);
+    BARRIER
 #endif
-
-// Calculation of the velocity spatial derivatives of the adjoint wavefield
 #if ABS_TYPE==1 && BACK_PROP_TYPE==1
-    /* Exact CPML adjoint: derivatives of the adjoint fields filtered by
-       cpml_adj_v (cpml_adj3D.cl), which ran just before this kernel. */
-    {
-        #if LOCAL_OFF==0
-        load_local_in(cpf1);
-        load_local_halox(cpf1);
-        BARRIER
-        #endif
-        vxxr = Dxm(lcpf1);
-        #if LOCAL_OFF==0
-        BARRIER
-        load_local_in(cpf2);
-        load_local_haloy(cpf2);
-        BARRIER
-        #endif
-        vxyr = Dyp(lcpf2);
-        #if LOCAL_OFF==0
-        BARRIER
-        load_local_in(cpf3);
-        load_local_haloz(cpf3);
-        BARRIER
-        #endif
-        vxzr = Dzp(lcpf3);
-        #if LOCAL_OFF==0
-        BARRIER
-        load_local_in(cpf4);
-        load_local_halox(cpf4);
-        BARRIER
-        #endif
-        vyxr = Dxp(lcpf4);
-        #if LOCAL_OFF==0
-        BARRIER
-        load_local_in(cpf5);
-        load_local_haloy(cpf5);
-        BARRIER
-        #endif
-        vyyr = Dym(lcpf5);
-        #if LOCAL_OFF==0
-        BARRIER
-        load_local_in(cpf6);
-        load_local_haloz(cpf6);
-        BARRIER
-        #endif
-        vyzr = Dzp(lcpf6);
-        #if LOCAL_OFF==0
-        BARRIER
-        load_local_in(cpf7);
-        load_local_halox(cpf7);
-        BARRIER
-        #endif
-        vzxr = Dxp(lcpf7);
-        #if LOCAL_OFF==0
-        BARRIER
-        load_local_in(cpf8);
-        load_local_haloy(cpf8);
-        BARRIER
-        #endif
-        vzyr = Dyp(lcpf8);
-        #if LOCAL_OFF==0
-        BARRIER
-        load_local_in(cpf9);
-        load_local_haloz(cpf9);
-        BARRIER
-        #endif
-        vzzr = Dzm(lcpf9);
-        BARRIER
-    }
+    load_tile3(lvar, cpf1, tile_z0, tile_y0, tile_x0, tz, ty, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) d_vxxr[c] = tdm(lvar, it0+c, sx);
+    BARRIER
+    load_tile3(lvar, cpf2, tile_z0, tile_y0, tile_x0, tz, ty, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) d_vxyr[c] = tdp(lvar, it0+c, sy);
+    BARRIER
+    load_tile3(lvar, cpf3, tile_z0, tile_y0, tile_x0, tz, ty, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) d_vxzr[c] = tdp(lvar, it0+c, 1);
+    BARRIER
+    load_tile3(lvar, cpf4, tile_z0, tile_y0, tile_x0, tz, ty, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) d_vyxr[c] = tdp(lvar, it0+c, sx);
+    BARRIER
+    load_tile3(lvar, cpf5, tile_z0, tile_y0, tile_x0, tz, ty, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) d_vyyr[c] = tdm(lvar, it0+c, sy);
+    BARRIER
+    load_tile3(lvar, cpf6, tile_z0, tile_y0, tile_x0, tz, ty, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) d_vyzr[c] = tdp(lvar, it0+c, 1);
+    BARRIER
+    load_tile3(lvar, cpf7, tile_z0, tile_y0, tile_x0, tz, ty, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) d_vzxr[c] = tdp(lvar, it0+c, sx);
+    BARRIER
+    load_tile3(lvar, cpf8, tile_z0, tile_y0, tile_x0, tz, ty, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) d_vzyr[c] = tdp(lvar, it0+c, sy);
+    BARRIER
+    load_tile3(lvar, cpf9, tile_z0, tile_y0, tile_x0, tz, ty, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) d_vzzr[c] = tdm(lvar, it0+c, 1);
+    BARRIER
 #else
-    {
-         #if LOCAL_OFF==0
-        load_local_in(vzr);
-        load_local_haloz(vzr);
-        load_local_haloy(vzr);
-        load_local_halox(vzr);
-        BARRIER
-        #endif
-
-        vzxr = Dxp(lvzr);
-        vzyr = Dyp(lvzr);
-        vzzr = Dzm(lvzr);
-
-        #if LOCAL_OFF==0
-        BARRIER
-        load_local_in(vyr);
-        load_local_haloz(vyr);
-        load_local_haloy(vyr);
-        load_local_halox(vyr);
-        BARRIER
-        #endif
-
-        vyxr = Dxp(lvyr);
-        vyyr = Dym(lvyr);
-        vyzr = Dzp(lvyr);
-
-        #if LOCAL_OFF==0
-        BARRIER
-        load_local_in(vxr);
-        load_local_haloz(vxr);
-        load_local_haloy(vxr);
-        load_local_halox(vxr);
-        BARRIER
-        #endif
-
-        vxxr = Dxm(lvxr);
-        vxyr = Dyp(lvxr);
-        vxzr = Dzp(lvxr);
-    }
+    load_tile3(lvar, vzr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) d_vzxr[c] = tdp(lvar, it0+c, sx);
+    for (int c=0; c<NV; c++) d_vzyr[c] = tdp(lvar, it0+c, sy);
+    for (int c=0; c<NV; c++) d_vzzr[c] = tdm(lvar, it0+c, 1);
+    BARRIER
+    load_tile3(lvar, vyr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) d_vyxr[c] = tdp(lvar, it0+c, sx);
+    for (int c=0; c<NV; c++) d_vyyr[c] = tdm(lvar, it0+c, sy);
+    for (int c=0; c<NV; c++) d_vyzr[c] = tdp(lvar, it0+c, 1);
+    BARRIER
+    load_tile3(lvar, vxr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) d_vxxr[c] = tdm(lvar, it0+c, sx);
+    for (int c=0; c<NV; c++) d_vxyr[c] = tdp(lvar, it0+c, sy);
+    for (int c=0; c<NV; c++) d_vxzr[c] = tdp(lvar, it0+c, 1);
+    BARRIER
 #endif
 
-// To stop updating if we are outside the model (global id must be a multiple of local id in OpenCL, hence we stop if we have a global id outside the grid)
-#if LOCAL_OFF==0
 #if COMM12==0
-    if (gidy>(NY-FDOH-1) || gidz>(NZ-FDOH-1) || (gidx-offcomm)>(NX-FDOH-1-LCOMM) ){
-        return;
-    }
-
+    if (zt > NZS-FDOH-1 || gidy > NYS-FDOH-1 || (gidx-offcomm) > (NX-FDOH-1-LCOMM)) return;
 #else
-    if (gidy>(NY-FDOH-1) || gidz>(NZ-FDOH-1) ){
-        return;
-    }
+    if (zt > NZS-FDOH-1 || gidy > NYS-FDOH-1) return;
 #endif
-#endif
+
+    for (int c=0; c<NV; c++){
+        int gidz = zt + c;
+        if (!INTERIOR_Z(gidz)) continue;              // halo cell of an aligned pair
+        int indp = ((gidx-FDOH)*(NYS-2*FDOH) + (gidy-FDOH))*(NZS-2*FDOH) + (gidz-FDOH);
+        int indv = (gidx*NYS + gidy)*NZS + gidz;
+        float vxx = d_vxx[c];
+        float vxxr = d_vxxr[c];
+        float vxy = d_vxy[c];
+        float vxyr = d_vxyr[c];
+        float vxz = d_vxz[c];
+        float vxzr = d_vxzr[c];
+        float vyx = d_vyx[c];
+        float vyxr = d_vyxr[c];
+        float vyy = d_vyy[c];
+        float vyyr = d_vyyr[c];
+        float vyz = d_vyz[c];
+        float vyzr = d_vyzr[c];
+        float vzx = d_vzx[c];
+        float vzxr = d_vzxr[c];
+        float vzy = d_vzy[c];
+        float vzyr = d_vzyr[c];
+        float vzz = d_vzz[c];
+        float vzzr = d_vzzr[c];
+
 
 
 
 // Read model parameters into local memory
 #if LVE==0
-    lM=M[indp];
-    lmu=mu[indp];
-    fipjp=muipjp[indp];
-    fjpkp=mujpkp[indp];
-    fipkp=muipkp[indp];
+    lM=ldf(M, indp);
+    lmu=ldf(mu, indp);
+    fipjp=ldf(muipjp, indp);
+    fjpkp=ldf(mujpkp, indp);
+    fipkp=ldf(muipkp, indp);
     g=lM;
     f=2.0*lmu;
 
 
 #else
 
-    lM=M[indp];
-    lmu=mu[indp];
-    lmuipkp=muipkp[indp];
-    lmuipjp=muipjp[indp];
-    lmujpkp=mujpkp[indp];
-    ltaup=taup[indp];
-    ltaus=taus[indp];
-    ltausipkp=tausipkp[indp];
-    ltausipjp=tausipjp[indp];
-    ltausjpkp=tausjpkp[indp];
+    lM=ldf(M, indp);
+    lmu=ldf(mu, indp);
+    lmuipkp=ldf(muipkp, indp);
+    lmuipjp=ldf(muipjp, indp);
+    lmujpkp=ldf(mujpkp, indp);
+    ltaup=ldf(taup, indp);
+    ltaus=ldf(taus, indp);
+    ltausipkp=ldf(tausipkp, indp);
+    ltausipjp=ldf(tausipjp, indp);
+    ltausjpkp=ldf(tausjpkp, indp);
 
     for (l=0;l<LVE;l++){
         leta[l]=eta[l];
@@ -428,12 +287,12 @@ FUNDEF void update_adjs(int offcomm,
         vxxzz=vxx+vzz;
         vxxyy=vxx+vyy;
 
-        sxy[indv]-=(fipjp*vxyyx);
-        syz[indv]-=(fjpkp*vyzzy);
-        sxz[indv]-=(fipkp*vxzzx);
-        sxx[indv]-=((g*vxxyyzz)-(f*vyyzz)) ;
-        syy[indv]-=((g*vxxyyzz)-(f*vxxzz)) ;
-        szz[indv]-=((g*vxxyyzz)-(f*vxxyy)) ;
+        stf(sxy, indv, ldf(sxy, indv) - ((fipjp*vxyyx)));
+        stf(syz, indv, ldf(syz, indv) - ((fjpkp*vyzzy)));
+        stf(sxz, indv, ldf(sxz, indv) - ((fipkp*vxzzx)));
+        stf(sxx, indv, ldf(sxx, indv) - (((g*vxxyyzz)-(f*vyyzz)) ));
+        stf(syy, indv, ldf(syy, indv) - (((g*vxxyyzz)-(f*vxxzz)) ));
+        stf(szz, indv, ldf(szz, indv) - (((g*vxxyyzz)-(f*vxxyy)) ));
 
 // Backpropagation is not stable for viscoelastic wave equation
 #else
@@ -442,13 +301,13 @@ FUNDEF void update_adjs(int offcomm,
         /* computing sums of the old memory variables */
         sumrxy=sumryz=sumrxz=sumrxx=sumryy=sumrzz=0;
         for (l=0;l<LVE;l++){
-            indr = l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz;
-            sumrxy+=rxy[indr];
-            sumryz+=ryz[indr];
-            sumrxz+=rxz[indr];
-            sumrxx+=rxx[indr];
-            sumryy+=ryy[indr];
-            sumrzz+=rzz[indr];
+            indr = l*NX*NYS*NZS + gidx*NYS*NZS + gidy*NZS +gidz;
+            sumrxy+=ldf(rxy, indr);
+            sumryz+=ldf(ryz, indr);
+            sumrxz+=ldf(rxz, indr);
+            sumrxx+=ldf(rxx, indr);
+            sumryy+=ldf(ryy, indr);
+            sumrzz+=ldf(rzz, indr);
         }
 
         /* updating components of the stress tensor, partially */
@@ -472,44 +331,44 @@ FUNDEF void update_adjs(int offcomm,
         for (l=0;l<LVE;l++){
             //Those variables change sign for reverse time
             b=1.0/(1.0+(leta[l]*0.5));
-            c=1.0-(leta[l]*0.5);
-            indr = l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz;
+            cv=1.0-(leta[l]*0.5);
+            indr = l*NX*NYS*NZS + gidx*NYS*NZS + gidy*NZS +gidz;
 
-            rxy[indr]=b*(rxy[indr]*c-leta[l]*(dipjp*vxyyx));
-            ryz[indr]=b*(ryz[indr]*c-leta[l]*(djpkp*vyzzy));
-            rxz[indr]=b*(rxz[indr]*c-leta[l]*(dipkp*vxzzx));
-            rxx[indr]=b*(rxx[indr]*c-leta[l]*((e*vxxyyzz)-(d*vyyzz)));
-            ryy[indr]=b*(ryy[indr]*c-leta[l]*((e*vxxyyzz)-(d*vxxzz)));
-            rzz[indr]=b*(rzz[indr]*c-leta[l]*((e*vxxyyzz)-(d*vxxyy)));
+            stf(rxy, indr, b*(ldf(rxy, indr)*cv-leta[l]*(dipjp*vxyyx)));
+            stf(ryz, indr, b*(ldf(ryz, indr)*cv-leta[l]*(djpkp*vyzzy)));
+            stf(rxz, indr, b*(ldf(rxz, indr)*cv-leta[l]*(dipkp*vxzzx)));
+            stf(rxx, indr, b*(ldf(rxx, indr)*cv-leta[l]*((e*vxxyyzz)-(d*vyyzz))));
+            stf(ryy, indr, b*(ldf(ryy, indr)*cv-leta[l]*((e*vxxyyzz)-(d*vxxzz))));
+            stf(rzz, indr, b*(ldf(rzz, indr)*cv-leta[l]*((e*vxxyyzz)-(d*vxxyy))));
 
-            sumrxy+=rxy[indr];
-            sumryz+=ryz[indr];
-            sumrxz+=rxz[indr];
-            sumrxx+=rxx[indr];
-            sumryy+=ryy[indr];
-            sumrzz+=rzz[indr];
+            sumrxy+=ldf(rxy, indr);
+            sumryz+=ldf(ryz, indr);
+            sumrxz+=ldf(rxz, indr);
+            sumrxx+=ldf(rxx, indr);
+            sumryy+=ldf(ryy, indr);
+            sumrzz+=ldf(rzz, indr);
         }
 
         /* and now the components of the stress tensor are
          completely updated */
 
-        sxy[indv]-=lsxy+(DT2*sumrxy);
-        syz[indv]-=lsyz+(DT2*sumryz);
-        sxz[indv]-=lsxz+(DT2*sumrxz);
-        sxx[indv]-=lsxx+(DT2*sumrxx);
-        syy[indv]-=lsyy+(DT2*sumryy);
-        szz[indv]-=lszz+(DT2*sumrzz);
+        stf(sxy, indv, ldf(sxy, indv) - (lsxy+(DT2*sumrxy)));
+        stf(syz, indv, ldf(syz, indv) - (lsyz+(DT2*sumryz)));
+        stf(sxz, indv, ldf(sxz, indv) - (lsxz+(DT2*sumrxz)));
+        stf(sxx, indv, ldf(sxx, indv) - (lsxx+(DT2*sumrxx)));
+        stf(syy, indv, ldf(syy, indv) - (lsyy+(DT2*sumryy)));
+        stf(szz, indv, ldf(szz, indv) - (lszz+(DT2*sumrzz)));
 
 #endif
 
         m=inject_ind(gidz, gidy, gidx);
         if (m!=-1){
-            sxx[indv]= sxxbnd[m];
-            syy[indv]= syybnd[m];
-            szz[indv]= szzbnd[m];
-            sxy[indv]= sxybnd[m];
-            syz[indv]= syzbnd[m];
-            sxz[indv]= sxzbnd[m];
+            stf(sxx, indv, ldf(sxxbnd, m));
+            stf(syy, indv, ldf(syybnd, m));
+            stf(szz, indv, ldf(szzbnd, m));
+            stf(sxy, indv, ldf(sxybnd, m));
+            stf(syz, indv, ldf(syzbnd, m));
+            stf(sxz, indv, ldf(sxzbnd, m));
         }
 
     }
@@ -521,19 +380,19 @@ FUNDEF void update_adjs(int offcomm,
     {
         int ind;
         int i,j,k;
-        if (gidz>NZ-NAB-FDOH-1){
+        if (gidz>NZS-NAB-FDOH-1){
 
             i =gidx-FDOH;
             j =gidy-FDOH;
-            k =gidz - NZ+NAB+FDOH+NAB;
+            k =gidz - NZS+NAB+FDOH+NAB;
             ind=2*NAB-1-k;
 
-            psi_vx_z(k,j,i) = b_z_half[ind] * psi_vx_z(k,j,i) + a_z_half[ind] * vxzr;
-            vxzr = vxzr / K_z_half[ind] + psi_vx_z(k,j,i);
-            psi_vy_z(k,j,i) = b_z_half[ind] * psi_vy_z(k,j,i) + a_z_half[ind] * vyzr;
-            vyzr = vyzr / K_z_half[ind] + psi_vy_z(k,j,i);
-            psi_vz_z(k,j,i) = b_z[ind+1] * psi_vz_z(k,j,i) + a_z[ind+1] * vzzr;
-            vzzr = vzzr / K_z[ind+1] + psi_vz_z(k,j,i);
+            psi_vx_z[I_psi_vx_z(k,j,i)] = b_z_half[ind] * psi_vx_z[I_psi_vx_z(k,j,i)] + a_z_half[ind] * vxzr;
+            vxzr = vxzr / K_z_half[ind] + psi_vx_z[I_psi_vx_z(k,j,i)];
+            psi_vy_z[I_psi_vy_z(k,j,i)] = b_z_half[ind] * psi_vy_z[I_psi_vy_z(k,j,i)] + a_z_half[ind] * vyzr;
+            vyzr = vyzr / K_z_half[ind] + psi_vy_z[I_psi_vy_z(k,j,i)];
+            psi_vz_z[I_psi_vz_z(k,j,i)] = b_z[ind+1] * psi_vz_z[I_psi_vz_z(k,j,i)] + a_z[ind+1] * vzzr;
+            vzzr = vzzr / K_z[ind+1] + psi_vz_z[I_psi_vz_z(k,j,i)];
 
         }
 
@@ -545,12 +404,12 @@ FUNDEF void update_adjs(int offcomm,
             k =gidz-FDOH;
 
 
-            psi_vx_z(k,j,i) = b_z_half[k] * psi_vx_z(k,j,i) + a_z_half[k] * vxzr;
-            vxzr = vxzr / K_z_half[k] + psi_vx_z(k,j,i);
-            psi_vy_z(k,j,i) = b_z_half[k] * psi_vy_z(k,j,i) + a_z_half[k] * vyzr;
-            vyzr = vyzr / K_z_half[k] + psi_vy_z(k,j,i);
-            psi_vz_z(k,j,i) = b_z[k] * psi_vz_z(k,j,i) + a_z[k] * vzzr;
-            vzzr = vzzr / K_z[k] + psi_vz_z(k,j,i);
+            psi_vx_z[I_psi_vx_z(k,j,i)] = b_z_half[k] * psi_vx_z[I_psi_vx_z(k,j,i)] + a_z_half[k] * vxzr;
+            vxzr = vxzr / K_z_half[k] + psi_vx_z[I_psi_vx_z(k,j,i)];
+            psi_vy_z[I_psi_vy_z(k,j,i)] = b_z_half[k] * psi_vy_z[I_psi_vy_z(k,j,i)] + a_z_half[k] * vyzr;
+            vyzr = vyzr / K_z_half[k] + psi_vy_z[I_psi_vy_z(k,j,i)];
+            psi_vz_z[I_psi_vz_z(k,j,i)] = b_z[k] * psi_vz_z[I_psi_vz_z(k,j,i)] + a_z[k] * vzzr;
+            vzzr = vzzr / K_z[k] + psi_vz_z[I_psi_vz_z(k,j,i)];
 
 
         }
@@ -561,29 +420,29 @@ FUNDEF void update_adjs(int offcomm,
             j =gidy-FDOH;
             k =gidz-FDOH;
 
-            psi_vx_y(k,j,i) = b_y_half[j] * psi_vx_y(k,j,i) + a_y_half[j] * vxyr;
-            vxyr = vxyr / K_y_half[j] + psi_vx_y(k,j,i);
-            psi_vy_y(k,j,i) = b_y[j] * psi_vy_y(k,j,i) + a_y[j] * vyyr;
-            vyyr = vyyr / K_y[j] + psi_vy_y(k,j,i);
-            psi_vz_y(k,j,i) = b_y_half[j] * psi_vz_y(k,j,i) + a_y_half[j] * vzyr;
-            vzyr = vzyr / K_y_half[j] + psi_vz_y(k,j,i);
+            psi_vx_y[I_psi_vx_y(k,j,i)] = b_y_half[j] * psi_vx_y[I_psi_vx_y(k,j,i)] + a_y_half[j] * vxyr;
+            vxyr = vxyr / K_y_half[j] + psi_vx_y[I_psi_vx_y(k,j,i)];
+            psi_vy_y[I_psi_vy_y(k,j,i)] = b_y[j] * psi_vy_y[I_psi_vy_y(k,j,i)] + a_y[j] * vyyr;
+            vyyr = vyyr / K_y[j] + psi_vy_y[I_psi_vy_y(k,j,i)];
+            psi_vz_y[I_psi_vz_y(k,j,i)] = b_y_half[j] * psi_vz_y[I_psi_vz_y(k,j,i)] + a_y_half[j] * vzyr;
+            vzyr = vzyr / K_y_half[j] + psi_vz_y[I_psi_vz_y(k,j,i)];
 
         }
 
-        else if (gidy>NY-NAB-FDOH-1){
+        else if (gidy>NYS-NAB-FDOH-1){
 
             i =gidx-FDOH;
-            j =gidy - NY+NAB+FDOH+NAB;
+            j =gidy - NYS+NAB+FDOH+NAB;
             k =gidz-FDOH;
             ind=2*NAB-1-j;
 
 
-            psi_vx_y(k,j,i) = b_y_half[ind] * psi_vx_y(k,j,i) + a_y_half[ind] * vxyr;
-            vxyr = vxyr / K_y_half[ind] + psi_vx_y(k,j,i);
-            psi_vy_y(k,j,i) = b_y[ind+1] * psi_vy_y(k,j,i) + a_y[ind+1] * vyyr;
-            vyyr = vyyr / K_y[ind+1] + psi_vy_y(k,j,i);
-            psi_vz_y(k,j,i) = b_y_half[ind] * psi_vz_y(k,j,i) + a_y_half[ind] * vzyr;
-            vzyr = vzyr / K_y_half[ind] + psi_vz_y(k,j,i);
+            psi_vx_y[I_psi_vx_y(k,j,i)] = b_y_half[ind] * psi_vx_y[I_psi_vx_y(k,j,i)] + a_y_half[ind] * vxyr;
+            vxyr = vxyr / K_y_half[ind] + psi_vx_y[I_psi_vx_y(k,j,i)];
+            psi_vy_y[I_psi_vy_y(k,j,i)] = b_y[ind+1] * psi_vy_y[I_psi_vy_y(k,j,i)] + a_y[ind+1] * vyyr;
+            vyyr = vyyr / K_y[ind+1] + psi_vy_y[I_psi_vy_y(k,j,i)];
+            psi_vz_y[I_psi_vz_y(k,j,i)] = b_y_half[ind] * psi_vz_y[I_psi_vz_y(k,j,i)] + a_y_half[ind] * vzyr;
+            vzyr = vzyr / K_y_half[ind] + psi_vz_y[I_psi_vz_y(k,j,i)];
 
 
         }
@@ -594,12 +453,12 @@ FUNDEF void update_adjs(int offcomm,
             j =gidy-FDOH;
             k =gidz-FDOH;
 
-            psi_vx_x(k,j,i) = b_x[i] * psi_vx_x(k,j,i) + a_x[i] * vxxr;
-            vxxr = vxxr / K_x[i] + psi_vx_x(k,j,i);
-            psi_vy_x(k,j,i) = b_x_half[i] * psi_vy_x(k,j,i) + a_x_half[i] * vyxr;
-            vyxr = vyxr / K_x_half[i] + psi_vy_x(k,j,i);
-            psi_vz_x(k,j,i) = b_x_half[i] * psi_vz_x(k,j,i) + a_x_half[i] * vzxr;
-            vzxr = vzxr / K_x_half[i] + psi_vz_x(k,j,i);
+            psi_vx_x[I_psi_vx_x(k,j,i)] = b_x[i] * psi_vx_x[I_psi_vx_x(k,j,i)] + a_x[i] * vxxr;
+            vxxr = vxxr / K_x[i] + psi_vx_x[I_psi_vx_x(k,j,i)];
+            psi_vy_x[I_psi_vy_x(k,j,i)] = b_x_half[i] * psi_vy_x[I_psi_vy_x(k,j,i)] + a_x_half[i] * vyxr;
+            vyxr = vyxr / K_x_half[i] + psi_vy_x[I_psi_vy_x(k,j,i)];
+            psi_vz_x[I_psi_vz_x(k,j,i)] = b_x_half[i] * psi_vz_x[I_psi_vz_x(k,j,i)] + a_x_half[i] * vzxr;
+            vzxr = vzxr / K_x_half[i] + psi_vz_x[I_psi_vz_x(k,j,i)];
 
 
         }
@@ -614,12 +473,12 @@ FUNDEF void update_adjs(int offcomm,
             ind=2*NAB-1-i;
 
 
-            psi_vx_x(k,j,i) = b_x[ind+1] * psi_vx_x(k,j,i) + a_x[ind+1] * vxxr;
-            vxxr = vxxr /K_x[ind+1] + psi_vx_x(k,j,i);
-            psi_vy_x(k,j,i) = b_x_half[ind] * psi_vy_x(k,j,i) + a_x_half[ind] * vyxr;
-            vyxr = vyxr  /K_x_half[ind] + psi_vy_x(k,j,i);
-            psi_vz_x(k,j,i) = b_x_half[ind] * psi_vz_x(k,j,i) + a_x_half[ind] * vzxr;
-            vzxr = vzxr / K_x_half[ind]  +psi_vz_x(k,j,i);
+            psi_vx_x[I_psi_vx_x(k,j,i)] = b_x[ind+1] * psi_vx_x[I_psi_vx_x(k,j,i)] + a_x[ind+1] * vxxr;
+            vxxr = vxxr /K_x[ind+1] + psi_vx_x[I_psi_vx_x(k,j,i)];
+            psi_vy_x[I_psi_vy_x(k,j,i)] = b_x_half[ind] * psi_vy_x[I_psi_vy_x(k,j,i)] + a_x_half[ind] * vyxr;
+            vyxr = vyxr  /K_x_half[ind] + psi_vy_x[I_psi_vy_x(k,j,i)];
+            psi_vz_x[I_psi_vz_x(k,j,i)] = b_x_half[ind] * psi_vz_x[I_psi_vz_x(k,j,i)] + a_x_half[ind] * vzxr;
+            vzxr = vzxr / K_x_half[ind]  +psi_vz_x[I_psi_vz_x(k,j,i)];
 
 
         }
@@ -647,12 +506,12 @@ FUNDEF void update_adjs(int offcomm,
     lsyy=((g*vxxyyzzr)-(f*vxxzzr));
     lszz=((g*vxxyyzzr)-(f*vxxyyr));
 
-    sxyr[indv]+=lsxy;
-    syzr[indv]+=lsyz;
-    sxzr[indv]+=lsxz;
-    sxxr[indv]+=lsxx;
-    syyr[indv]+=lsyy;
-    szzr[indv]+=lszz;
+    stf(sxyr, indv, ldf(sxyr, indv) + (lsxy));
+    stf(syzr, indv, ldf(syzr, indv) + (lsyz));
+    stf(sxzr, indv, ldf(sxzr, indv) + (lsxz));
+    stf(sxxr, indv, ldf(sxxr, indv) + (lsxx));
+    stf(syyr, indv, ldf(syyr, indv) + (lsyy));
+    stf(szzr, indv, ldf(szzr, indv) + (lszz));
 
 
 #else
@@ -660,13 +519,13 @@ FUNDEF void update_adjs(int offcomm,
     /* computing sums of the old memory variables */
     sumrxy=sumryz=sumrxz=sumrxx=sumryy=sumrzz=0;
     for (l=0;l<LVE;l++){
-        indr = l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz;
-        sumrxy+=rxyr[indr];
-        sumryz+=ryzr[indr];
-        sumrxz+=rxzr[indr];
-        sumrxx+=rxxr[indr];
-        sumryy+=ryyr[indr];
-        sumrzz+=rzzr[indr];
+        indr = l*NX*NYS*NZS + gidx*NYS*NZS + gidy*NZS +gidz;
+        sumrxy+=ldf(rxyr, indr);
+        sumryz+=ldf(ryzr, indr);
+        sumrxz+=ldf(rxzr, indr);
+        sumrxx+=ldf(rxxr, indr);
+        sumryy+=ldf(ryyr, indr);
+        sumrzz+=ldf(rzzr, indr);
     }
 
     vxyyxr=vxyr+vyxr;
@@ -687,34 +546,34 @@ FUNDEF void update_adjs(int offcomm,
     sumrxy=sumryz=sumrxz=sumrxx=sumryy=sumrzz=0;
     for (l=0;l<LVE;l++){
         b=1.0/(1.0+(leta[l]*0.5));
-        c=1.0-(leta[l]*0.5);
-        indr = l*NX*NY*NZ + gidx*NY*NZ + gidy*NZ +gidz;
+        cv=1.0-(leta[l]*0.5);
+        indr = l*NX*NYS*NZS + gidx*NYS*NZS + gidy*NZS +gidz;
 
         /* r* out, r*r const in; same buffer under bpt2. See notes/todo.md 0d6. */
-        rxy[indr]=b*(rxyr[indr]*c-leta[l]*(dipjp*vxyyxr));
-        ryz[indr]=b*(ryzr[indr]*c-leta[l]*(djpkp*vyzzyr));
-        rxz[indr]=b*(rxzr[indr]*c-leta[l]*(dipkp*vxzzxr));
-        rxx[indr]=b*(rxxr[indr]*c-leta[l]*((e*vxxyyzzr)-(d*vyyzzr)));
-        ryy[indr]=b*(ryyr[indr]*c-leta[l]*((e*vxxyyzzr)-(d*vxxzzr)));
-        rzz[indr]=b*(rzzr[indr]*c-leta[l]*((e*vxxyyzzr)-(d*vxxyyr)));
+        stf(rxy, indr, b*(ldf(rxyr, indr)*cv-leta[l]*(dipjp*vxyyxr)));
+        stf(ryz, indr, b*(ldf(ryzr, indr)*cv-leta[l]*(djpkp*vyzzyr)));
+        stf(rxz, indr, b*(ldf(rxzr, indr)*cv-leta[l]*(dipkp*vxzzxr)));
+        stf(rxx, indr, b*(ldf(rxxr, indr)*cv-leta[l]*((e*vxxyyzzr)-(d*vyyzzr))));
+        stf(ryy, indr, b*(ldf(ryyr, indr)*cv-leta[l]*((e*vxxyyzzr)-(d*vxxzzr))));
+        stf(rzz, indr, b*(ldf(rzzr, indr)*cv-leta[l]*((e*vxxyyzzr)-(d*vxxyyr))));
 
         /* += , not = : the sum runs over mechanisms (LVE>1). notes/todo.md 0d6. */
-        sumrxy+=rxyr[indr];
-        sumryz+=ryzr[indr];
-        sumrxz+=rxzr[indr];
-        sumrxx+=rxxr[indr];
-        sumryy+=ryyr[indr];
-        sumrzz+=rzzr[indr];
+        sumrxy+=ldf(rxyr, indr);
+        sumryz+=ldf(ryzr, indr);
+        sumrxz+=ldf(rxzr, indr);
+        sumrxx+=ldf(rxxr, indr);
+        sumryy+=ldf(ryyr, indr);
+        sumrzz+=ldf(rzzr, indr);
     }
 
     /* and now the components of the stress tensor are
      completely updated */
-    sxyr[indv]+=lsxy+(DT2*sumrxy);
-    syzr[indv]+=lsyz+(DT2*sumryz);
-    sxzr[indv]+=lsxz+(DT2*sumrxz);
-    sxxr[indv]+=lsxx+(DT2*sumrxx);
-    syyr[indv]+=lsyy+(DT2*sumryy);
-    szzr[indv]+=lszz+(DT2*sumrzz);
+    stf(sxyr, indv, ldf(sxyr, indv) + (lsxy+(DT2*sumrxy)));
+    stf(syzr, indv, ldf(syzr, indv) + (lsyz+(DT2*sumryz)));
+    stf(sxzr, indv, ldf(sxzr, indv) + (lsxz+(DT2*sumrxz)));
+    stf(sxxr, indv, ldf(sxxr, indv) + (lsxx+(DT2*sumrxx)));
+    stf(syyr, indv, ldf(syyr, indv) + (lsyy+(DT2*sumryy)));
+    stf(szzr, indv, ldf(szzr, indv) + (lszz+(DT2*sumrzz)));
 
 #endif
 }
@@ -725,61 +584,61 @@ FUNDEF void update_adjs(int offcomm,
     {
         #if FREESURF==0
         if (gidz-FDOH<NAB){
-            sxyr[indv]*=taper[gidz-FDOH];
-            syzr[indv]*=taper[gidz-FDOH];
-            sxzr[indv]*=taper[gidz-FDOH];
-            sxxr[indv]*=taper[gidz-FDOH];
-            syyr[indv]*=taper[gidz-FDOH];
-            szzr[indv]*=taper[gidz-FDOH];
+            stf(sxyr, indv, ldf(sxyr, indv) * (taper[gidz-FDOH]));
+            stf(syzr, indv, ldf(syzr, indv) * (taper[gidz-FDOH]));
+            stf(sxzr, indv, ldf(sxzr, indv) * (taper[gidz-FDOH]));
+            stf(sxxr, indv, ldf(sxxr, indv) * (taper[gidz-FDOH]));
+            stf(syyr, indv, ldf(syyr, indv) * (taper[gidz-FDOH]));
+            stf(szzr, indv, ldf(szzr, indv) * (taper[gidz-FDOH]));
         }
         #endif
 
-        if (gidz>NZ-NAB-FDOH-1){
-            sxyr[indv]*=taper[NZ-FDOH-gidz-1];
-            syzr[indv]*=taper[NZ-FDOH-gidz-1];
-            sxzr[indv]*=taper[NZ-FDOH-gidz-1];
-            sxxr[indv]*=taper[NZ-FDOH-gidz-1];
-            syyr[indv]*=taper[NZ-FDOH-gidz-1];
-            szzr[indv]*=taper[NZ-FDOH-gidz-1];
+        if (gidz>NZS-NAB-FDOH-1){
+            stf(sxyr, indv, ldf(sxyr, indv) * (taper[NZS-FDOH-gidz-1]));
+            stf(syzr, indv, ldf(syzr, indv) * (taper[NZS-FDOH-gidz-1]));
+            stf(sxzr, indv, ldf(sxzr, indv) * (taper[NZS-FDOH-gidz-1]));
+            stf(sxxr, indv, ldf(sxxr, indv) * (taper[NZS-FDOH-gidz-1]));
+            stf(syyr, indv, ldf(syyr, indv) * (taper[NZS-FDOH-gidz-1]));
+            stf(szzr, indv, ldf(szzr, indv) * (taper[NZS-FDOH-gidz-1]));
 
         }
         if (gidy-FDOH<NAB){
-            sxyr[indv]*=taper[gidy-FDOH];
-            syzr[indv]*=taper[gidy-FDOH];
-            sxzr[indv]*=taper[gidy-FDOH];
-            sxxr[indv]*=taper[gidy-FDOH];
-            syyr[indv]*=taper[gidy-FDOH];
-            szzr[indv]*=taper[gidy-FDOH];
+            stf(sxyr, indv, ldf(sxyr, indv) * (taper[gidy-FDOH]));
+            stf(syzr, indv, ldf(syzr, indv) * (taper[gidy-FDOH]));
+            stf(sxzr, indv, ldf(sxzr, indv) * (taper[gidy-FDOH]));
+            stf(sxxr, indv, ldf(sxxr, indv) * (taper[gidy-FDOH]));
+            stf(syyr, indv, ldf(syyr, indv) * (taper[gidy-FDOH]));
+            stf(szzr, indv, ldf(szzr, indv) * (taper[gidy-FDOH]));
         }
 
-        if (gidy>NY-NAB-FDOH-1){
-            sxyr[indv]*=taper[NY-FDOH-gidy-1];
-            syzr[indv]*=taper[NY-FDOH-gidy-1];
-            sxzr[indv]*=taper[NY-FDOH-gidy-1];
-            sxxr[indv]*=taper[NY-FDOH-gidy-1];
-            syyr[indv]*=taper[NY-FDOH-gidy-1];
-            szzr[indv]*=taper[NY-FDOH-gidy-1];
+        if (gidy>NYS-NAB-FDOH-1){
+            stf(sxyr, indv, ldf(sxyr, indv) * (taper[NYS-FDOH-gidy-1]));
+            stf(syzr, indv, ldf(syzr, indv) * (taper[NYS-FDOH-gidy-1]));
+            stf(sxzr, indv, ldf(sxzr, indv) * (taper[NYS-FDOH-gidy-1]));
+            stf(sxxr, indv, ldf(sxxr, indv) * (taper[NYS-FDOH-gidy-1]));
+            stf(syyr, indv, ldf(syyr, indv) * (taper[NYS-FDOH-gidy-1]));
+            stf(szzr, indv, ldf(szzr, indv) * (taper[NYS-FDOH-gidy-1]));
         }
 
 #if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
-            sxyr[indv]*=taper[gidx-FDOH];
-            syzr[indv]*=taper[gidx-FDOH];
-            sxzr[indv]*=taper[gidx-FDOH];
-            sxxr[indv]*=taper[gidx-FDOH];
-            syyr[indv]*=taper[gidx-FDOH];
-            szzr[indv]*=taper[gidx-FDOH];
+            stf(sxyr, indv, ldf(sxyr, indv) * (taper[gidx-FDOH]));
+            stf(syzr, indv, ldf(syzr, indv) * (taper[gidx-FDOH]));
+            stf(sxzr, indv, ldf(sxzr, indv) * (taper[gidx-FDOH]));
+            stf(sxxr, indv, ldf(sxxr, indv) * (taper[gidx-FDOH]));
+            stf(syyr, indv, ldf(syyr, indv) * (taper[gidx-FDOH]));
+            stf(szzr, indv, ldf(szzr, indv) * (taper[gidx-FDOH]));
         }
 #endif
 
 #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-NAB-FDOH-1){
-            sxyr[indv]*=taper[NX-FDOH-gidx-1];
-            syzr[indv]*=taper[NX-FDOH-gidx-1];
-            sxzr[indv]*=taper[NX-FDOH-gidx-1];
-            sxxr[indv]*=taper[NX-FDOH-gidx-1];
-            syyr[indv]*=taper[NX-FDOH-gidx-1];
-            szzr[indv]*=taper[NX-FDOH-gidx-1];
+            stf(sxyr, indv, ldf(sxyr, indv) * (taper[NX-FDOH-gidx-1]));
+            stf(syzr, indv, ldf(syzr, indv) * (taper[NX-FDOH-gidx-1]));
+            stf(sxzr, indv, ldf(sxzr, indv) * (taper[NX-FDOH-gidx-1]));
+            stf(sxxr, indv, ldf(sxxr, indv) * (taper[NX-FDOH-gidx-1]));
+            stf(syyr, indv, ldf(syyr, indv) * (taper[NX-FDOH-gidx-1]));
+            stf(szzr, indv, ldf(szzr, indv) * (taper[NX-FDOH-gidx-1]));
         }
 #endif
     }
@@ -801,67 +660,45 @@ FUNDEF void update_adjs(int offcomm,
     // reading the raw buffer here is the safer choice regardless. This did
     // NOT fix the NaN gradmuipkp/gradmuipjp/gradmujpkp observed via
     // instrumentation (average_grad_transpose() dump, host-side
-    // muipkp[indp] is confirmed nonzero/sane at this same index) -- the
+    // ldf(muipkp, indp) is confirmed nonzero/sane at this same index) -- the
     // real cause is still open, see notes/todo.md item 1's 3D section.
     // Kept because it removes one real risk (stale locals) even though it
     // is not the fix; do not assume this is done.
-    float gfipkp=muipkp[indp];
-    float gfipjp=muipjp[indp];
-    float gfjpkp=mujpkp[indp];
+    float gfipkp=ldf(muipkp, indp);
+    float gfipjp=ldf(muipjp, indp);
+    float gfjpkp=ldf(mujpkp, indp);
     // Fluid/padding cells (staggered mu==0, e.g. muipkp/muipjp/mujpkp can
     // legitimately be 0 at domain-edge ghost positions even where the
     // cell-centred lmu is not) must drop the shear coefficient entirely,
-    // matching grad_dft2D.cl's mu_p>=1.0 guard -- 1/0 gives Inf, and
+    // with a guard mu>0 (not mu>=1: with FP16>0 mu is stored scaled by
+    // 2^PARSCALE and can be below 1, which dropped the shear terms) -- 1/0 gives Inf, and
     // Inf*0 (whenever the correlated stress happens to be exactly 0 at
     // that same cell) gives NaN, which silently poisons the whole
     // gradmuipkp/gradmuipjp/gradmujpkp buffer through the += accumulation.
-    // Confirmed via instrumentation: muipkp[indp] is 0 at 4032/262144
+    // Confirmed via instrumentation: ldf(muipkp, indp) is 0 at 4032/262144
     // cells for this test model.
-    float c3xz = (gfipkp>=1.0) ? 1.0/gfipkp/gfipkp : 0.0;
-    float c3xy = (gfipjp>=1.0) ? 1.0/gfipjp/gfipjp : 0.0;
-    float c3yz = (gfjpkp>=1.0) ? 1.0/gfjpkp/gfjpkp : 0.0;
+    float c3xz = (gfipkp>0.0f) ? 1.0f/gfipkp/gfipkp : 0.0f;
+    float c3xy = (gfipjp>0.0f) ? 1.0f/gfipjp/gfipjp : 0.0f;
+    float c3yz = (gfjpkp>0.0f) ? 1.0f/gfjpkp/gfjpkp : 0.0f;
     float c5=1.0/6.0/lmu/lmu;
 
-    /* Residual term at RECEIVER cells -- see update_adjs2D.cl for the
-     * derivation. The reverse loop injects the residual before
-     * update_grid_adj, so d(sigma~) = res + lsxx and lsxx alone drops res.
-     * An isotropic "p" residual is split equally over sxx,syy,szz, so the
-     * TRACE receives exactly pout[NT*g+nt] and the deviatoric/shear terms are
-     * untouched. */
-    float restr = 0.0f;
-    #if GRADOUT==1 && PRESOUT==1
-    if (nrec>0){
-        for (int g=0; g<nrec; g++){
-            int ri=(int)(rec_pos[0+8*g]/DH)+FDOH;
-            int rj=(int)(rec_pos[1+8*g]/DH)+FDOH;
-            int rk=(int)(rec_pos[2+8*g]/DH)+FDOH;
-            if (ri==gidx && rj==gidy && rk==gidz){
-                #if FP16==0
-                restr += pout[NT*g+nt];
-                #elif defined(__SEISCL__)
-                restr += ldexp(pout[NT*g+nt], res_scale);
-                #else
-                restr += scalbnf(pout[NT*g+nt], res_scale);
-                #endif
-            }
-        }
-    }
-    #endif
+    /* Receiver cells: the residual term of the gradient is added by
+       rec_grad.cl (see there). */
 
-    float dM=c1*( sxx[indv]+syy[indv]+szz[indv] )*( lsxx+lsyy+lszz+restr );
+    float dM=c1*( ldf(sxx, indv)+ldf(syy, indv)+ldf(szz, indv) )*( lsxx+lsyy+lszz );
 
     int sumform = 1;
     #if FREESURF==1
     if (gidz-FDOH < SURFROWS) sumform = 0;
     #endif
     if (sumform){
-    gradM[indp]+=-dM;
-    gradmuipkp[indp]+=-c3xz*(sxz[indv]*lsxz);
-    gradmuipjp[indp]+=-c3xy*(sxy[indv]*lsxy);
-    gradmujpkp[indp]+=-c3yz*(syz[indv]*lsyz);
-    gradmu[indp]+= 4.0/3*dM-c5*(lsxx*(2.0*sxx[indv]- syy[indv]-szz[indv] )
-                      +lsyy*(2.0*syy[indv]- sxx[indv]-szz[indv] )
-                      +lszz*(2.0*szz[indv]- sxx[indv]-syy[indv] ));
+    gradM[indp] += GSCALE(-dM);
+    gradmuipkp[indp] += GSCALE(-c3xz*(ldf(sxz, indv)*lsxz));
+    gradmuipjp[indp] += GSCALE(-c3xy*(ldf(sxy, indv)*lsxy));
+    gradmujpkp[indp] += GSCALE(-c3yz*(ldf(syz, indv)*lsyz));
+    gradmu[indp] += GSCALE(4.0/3*dM-c5*(lsxx*(2.0*ldf(sxx, indv)- ldf(syy, indv)-ldf(szz, indv) )
+                      +lsyy*(2.0*ldf(syy, indv)- ldf(sxx, indv)-ldf(szz, indv) )
+                      +lszz*(2.0*ldf(szz, indv)- ldf(sxx, indv)-ldf(syy, indv) )));
     }
 
     /* Source term of the misfit gradient -- GJI 2017 eq. (26a), thesis
@@ -888,40 +725,34 @@ FUNDEF void update_adjs(int offcomm,
                 int sj=(int)(src_pos[1+5*srci]/DH)+FDOH;
                 int sk=(int)(src_pos[2+5*srci]/DH)+FDOH;
                 if (si==gidx && sj==gidy && sk==gidz){
-                    #if FP16==0
-                    float samp = DT*src[srci*NT+nt];
-                    #elif defined(__SEISCL__)
-                    float samp = ldexp(DT*src[srci*NT+nt], src_scale);
-                    #else
-                    float samp = scalbnf(DT*src[srci*NT+nt], src_scale);
-                    #endif
-                    float Csrc = c1*( sxxr[indv]+syyr[indv]+szzr[indv] )*samp;
-                    gradM[indp]  += Csrc;
-                    gradmu[indp] += -4.0/3*Csrc;
+                    float samp = pow2s(DT*src[srci*NT+nt], src_scale);
+                    float Csrc = c1*( ldf(sxxr, indv)+ldf(syyr, indv)+ldf(szzr, indv) )*samp;
+                    gradM[indp] += GSCALE(Csrc);
+                    gradmu[indp] += GSCALE(-4.0/3*Csrc);
                 }
             }
         }
     }
     #endif
     #if HOUT==1
-    float dMH=c1*(sxx[indv]+syy[indv]+szz[indv])*(sxx[indv]+syy[indv]+szz[indv]);
-    HM[indp]+= dMH;
-    Hmu[indp]+=c3xz*sxz[indv]*sxz[indv]+c3xy*sxy[indv]*sxy[indv]+c3yz*syz[indv]*syz[indv]
+    float dMH=c1*(ldf(sxx, indv)+ldf(syy, indv)+ldf(szz, indv))*(ldf(sxx, indv)+ldf(syy, indv)+ldf(szz, indv));
+    HM[indp] += GSCALE(dMH);
+    Hmu[indp] += GSCALE(c3xz*ldf(sxz, indv)*ldf(sxz, indv)+c3xy*ldf(sxy, indv)*ldf(sxy, indv)+c3yz*ldf(syz, indv)*ldf(syz, indv)
                     - 4.0/3*dM
-                    +c5*( (2.0*sxx[indv]- syy[indv]-szz[indv])*(2.0*sxx[indv]- syy[indv]-szz[indv]))
-                         +(2.0*syy[indv]- sxx[indv]-szz[indv])*(2.0*syy[indv]- sxx[indv]-szz[indv])
-                         +(2.0*szz[indv]- sxx[indv]-syy[indv])*(2.0*szz[indv]- sxx[indv]-syy[indv]));
+                    +c5*( (2.0*ldf(sxx, indv)- ldf(syy, indv)-ldf(szz, indv))*(2.0*ldf(sxx, indv)- ldf(syy, indv)-ldf(szz, indv)))
+                         +(2.0*ldf(syy, indv)- ldf(sxx, indv)-ldf(szz, indv))*(2.0*ldf(syy, indv)- ldf(sxx, indv)-ldf(szz, indv))
+                         +(2.0*ldf(szz, indv)- ldf(sxx, indv)-ldf(syy, indv))*(2.0*ldf(szz, indv)- ldf(sxx, indv)-ldf(syy, indv))));
     #endif
     #endif
 
     #if RESTYPE==1
-    float dM=(sxx[indv]+syy[indv]+szz[indv] )*( lsxx+lsyy+lszz );
+    float dM=(ldf(sxx, indv)+ldf(syy, indv)+ldf(szz, indv) )*( lsxx+lsyy+lszz );
 
-    gradM[indp]+=-dM;
+    gradM[indp] += GSCALE(-dM);
 
     #if HOUT==1
-    float dMH= (sxx[indv]+syy[indv]+szz[indv])*(sxx[indv]+syy[indv]+szz[indv]);
-    HM[indp]+= dMH;
+    float dMH= (ldf(sxx, indv)+ldf(syy, indv)+ldf(szz, indv))*(ldf(sxx, indv)+ldf(syy, indv)+ldf(szz, indv));
+    HM[indp] += GSCALE(dMH);
 
     #endif
     #endif
@@ -945,7 +776,7 @@ FUNDEF void update_adjs(int offcomm,
 //
 //                if (i==gidx && j==gidy && k==gidz){
 //
-//                    pressure=(sxxr[indv]+syyr[indv]+szzr[indv] )/(2.0*DH*DH*DH);
+//                    pressure=(ldf(sxxr, indv)+ldf(syyr, indv)+ldf(szzr, indv) )/(2.0*DH*DH*DH);
 //                    if ( (nt>0) && (nt< NT ) ){
 //                        gradsrc(srci,nt+1)+=pressure;
 //                        gradsrc(srci,nt-1)-=pressure;
@@ -963,5 +794,6 @@ FUNDEF void update_adjs(int offcomm,
 #endif
 
 
-}
 
+    }
+}

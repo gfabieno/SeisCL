@@ -1404,6 +1404,11 @@ def _fd_hetero(ND, bpt, L=0, srctype=100.0, fp16=0, seed=20260907, tol=0.10):
     gcfg = {}
     if bpt == 2:
         dfm = 1.0 / (g0NT * g0DT)
+        # Bins 4 .. 5 f0 (starting at 4 avoided the bin-0 NaN, now refused).
+        # The DFT gradient is the gradient of the misfit restricted to these
+        # bins, while the FD below is that of the time-domain misfit: they
+        # agree only with every bin to Nyquist (SeisCL.py, gradfreqs). With a
+        # pressure source and receivers, as here, the difference is small.
         gcfg["gradfreqs"] = dfm * np.arange(4, int(5.0 * g0F0 / dfm) + 1)
     g, _ = mk(gradout=1, back_prop_type=bpt, **gcfg)
     g.file_din = din

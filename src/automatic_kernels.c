@@ -314,7 +314,7 @@ int kernel_varinit(device * dev,
     
     strcat(temp, FUNDEF"void vars_init(");
     for (i=0;i<dev->nvars;i++){
-        if (dev->FP16<=1){
+        if (!var_is_half(m, vars[i].name)){
             strcat(temp, GLOBARG"float * ");
         }
         else{
@@ -356,7 +356,7 @@ int kernel_varinit(device * dev,
         if (BACK_PROP_TYPE==1){
             strcat(temp, "r");
         }
-        if (dev->FP16<=1){
+        if (!var_is_half(m, vars[i].name)){
             strcat(temp, "[gid]=0;\n");
         }
         else{
@@ -1027,8 +1027,8 @@ int kernel_initsavefreqs(device * dev,
     #ifdef __SEISCL__
     /* Launch one work-item per element of the *padded* buffer. prod(dev->N) is
      * the unpadded count and is smaller than num_ele = prod(N+FDORDER), so it
-     * left a tail of each buffer untouched while the in-kernel guard, and
-     * calc_grad, both use the padded count. */
+     * left a tail of each buffer untouched while the in-kernel guard uses
+     * the padded count. */
     prog->gsize[0] = maxsize;
     #else
     /* Same flat 1-D launch as OpenCL: prog_launch picks tsize={BLOCK_SIZE,1,1}

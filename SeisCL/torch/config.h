@@ -53,6 +53,9 @@ struct Config {
     // produce a gradient without it. dft_osamp sets how often savefreqs
     // fires (DTNYQ = ceil((1/dft_osamp)/fmax/dt)); 64 is the historical
     // hardcoded value and fires on every time step.
+    /* back_prop_type=2: the gradient of the misfit restricted to these
+       bins, not of the time-domain loss; it equals back_prop_type=1 only with
+       every bin to Nyquist (see SeisCL.py, gradfreqs). */
     std::vector<float> gradfreqs;
     float dft_osamp = 64.0f;
     // First time step included in the DFT accumulation.

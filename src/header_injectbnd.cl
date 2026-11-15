@@ -33,6 +33,9 @@
    straddles the layer and the band, and the averaging transpose spreads it
    into the first band cell; its forward field must be exact.
    Free surface (FREESURF != 0): no layer on top, FDOH rows from the surface. */
+#ifndef NZS
+#define NZS (NZ*DIV)
+#endif
 #ifndef FR_OL
 #if GRADABS==1
 #define FR_OL 0
@@ -53,9 +56,9 @@
     // Find boundary indice for boundary injection in backpropagation
     LFUNDEF int inject_ind(int k, int j, int i){
         
-    #if NUM_DEVICES==1 & NLOCALP==1 & FP16==0
+    #if NUM_DEVICES==1 & NLOCALP==1 & FP16<3
         /* Inverse of savebnd3D.cl's frame (FR_* above). */
-        int NZo = NZ-2*FDOH-FR_OT-FR_OL, NYo = NY-2*FDOH-2*FR_OL, NXo = NX-2*FDOH-2*FR_OL;
+        int NZo = NZS-2*FDOH-FR_OT-FR_OL, NYo = NY-2*FDOH-2*FR_OL, NXo = NX-2*FDOH-2*FR_OL;
         int W = FR_W, Wt = FR_WT;
         int NXm = NXo-2*W, NYm = NYo-2*W;
         int A = W*NYo*NZo, B = NXm*W*NZo, C = NXm*NYm*Wt;
@@ -288,9 +291,9 @@
     // Find boundary indice for boundary injection in backpropagation
     LFUNDEF int inject_ind( int k, int i){
         
-    #if NUM_DEVICES==1 & NLOCALP==1 & FP16==0
+    #if NUM_DEVICES==1 & NLOCALP==1 & FP16<3
         /* Inverse of savebnd2D.cl's frame (FR_* above). */
-        int NZo = NZ-2*FDOH-FR_OT-FR_OL, NXo = NX-2*FDOH-2*FR_OL;
+        int NZo = NZS-2*FDOH-FR_OT-FR_OL, NXo = NX-2*FDOH-2*FR_OL;
         int W = FR_W, Wt = FR_WT;
         int A = W*NZo, NXm = NXo-2*W;
         int m=-1;
