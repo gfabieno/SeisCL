@@ -608,6 +608,12 @@ void gradfreqsn( void *mptr, void *cstptr, int ncst){
      * tmax-tmin, giving e.g. 257 for 256 accumulated samples. */
     m->NTNYQ=(m->tmax-m->tmin+m->DTNYQ-1)/m->DTNYQ;
     df=1.0/m->NTNYQ/m->dt/m->DTNYQ;
+    /* A requested frequency is used at the bin below it (floor). The DFT
+       gradient is the gradient of the misfit restricted to these bins: it
+       equals back_prop_type=1 only when every bin to the Nyquist frequency
+       of the record is used. With fewer bins vs and rho can be wrong by
+       factors, sign included, with force sources or velocity receivers
+       (measurements in SeisCL.py, gradfreqs; pitfall A13 of the group skill). */
     for (j=0;j<m->NFREQS;j++){
         gradfreqsn[j]=floor(gradfreqs[j]/df);
     }
