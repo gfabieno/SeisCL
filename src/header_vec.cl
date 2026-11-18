@@ -294,6 +294,33 @@ LFUNDEF float tdm(LOCID const float *t, int i, int s)
 #define READ_CPF2(z,x) (CPML_CELL2(z,x) || HALO_Z(z) || HALO_X(x))
 #endif
 
+/* Whole tiles: decided once per work group (the tile box is the same for all
+   its work-items), so that only the few tiles that straddle the edge of a layer
+   test each element. A box [z0,z1) x [y0,y1) x [x0,x1) is RAW when it lies in
+   the interior outside every layer, CPF when it lies in one layer slab (which
+   includes the halo next to it). */
+#if FREESURF==0
+#define CPML_ZLO (FDOH+NAB)
+#else
+#define CPML_ZLO FDOH
+#endif
+#define CPML_ZHI (NZS-NAB-FDOH)
+#define CPML_XLO (FDOH+NAB)
+#define CPML_XHI (NX-NAB-FDOH)
+#if FREESURF==0
+#define CPF_TOPBOX(z1) ((z1) <= CPML_ZLO)
+#else
+#define CPF_TOPBOX(z1) 0
+#endif
+#define RAW_BOX2(z0,z1,x0,x1) ((z0)>=CPML_ZLO && (z1)<=CPML_ZHI && (x0)>=CPML_XLO && (x1)<=CPML_XHI)
+#define CPF_BOX2(z0,z1,x0,x1) ((z0)>=CPML_ZHI || CPF_TOPBOX(z1) || (x1)<=CPML_XLO || (x0)>=CPML_XHI)
+#if ND==3
+#define CPML_YLO (FDOH+NAB)
+#define CPML_YHI (NYS-NAB-FDOH)
+#define RAW_BOX3(z0,z1,y0,y1,x0,x1) (RAW_BOX2(z0,z1,x0,x1) && (y0)>=CPML_YLO && (y1)<=CPML_YHI)
+#define CPF_BOX3(z0,z1,y0,y1,x0,x1) (CPF_BOX2(z0,z1,x0,x1) || (y1)<=CPML_YLO || (y0)>=CPML_YHI)
+#endif
+
 /* NV values at element i of cpf (where sel(c) is true) or of the field a. */
 #define LDN_CPF(cpf, a, i, v, sel) do{ \
         int n_cpf = 0; \
@@ -304,9 +331,19 @@ LFUNDEF float tdm(LOCID const float *t, int i, int s)
     } while(0)
 
 #if ND==3
+/* 3D: not used for now. Reading the fields in place costs the 3D adjoint
+   kernels more (registers: 48 -> 60 for update_adjv, -20 % occupancy, measured
+   on an A6000) than the filter copies it saves; cpml_adj3D.cl still writes the
+   copies everywhere. Kept for the redesign of the 3D tiles. */
+#define CPML_INPLACE3 0
 LFUNDEF void load_tile3_cpf(LOCID float *tile, GLOBARG const STO *cpf, GLOBARG const STO *a,
                             int z0, int y0, int x0, int tz, int ty, int tx)
 {
+#if !CPML_INPLACE3
+    load_tile3(tile, cpf, z0, y0, x0, tz, ty, tx); return;
+#endif
+    if (RAW_BOX3(z0, z0+tz, y0, y0+ty, x0, x0+tx)){ load_tile3(tile, a, z0, y0, x0, tz, ty, tx); return; }
+    if (CPF_BOX3(z0, z0+tz, y0, y0+ty, x0, x0+tx)){ load_tile3(tile, cpf, z0, y0, x0, tz, ty, tx); return; }
     int nthr = LSZ0 * LSZ1 * LSZ2;
     int nzv = tz / NV;
     for (int i = LID0 + LSZ0*(LID1 + LSZ1*LID2); i < nzv * ty * tx; i += nthr){
@@ -327,6 +364,8 @@ LFUNDEF void load_tile3_cpf(LOCID float *tile, GLOBARG const STO *cpf, GLOBARG c
 LFUNDEF void load_tile2_cpf(LOCID float *tile, GLOBARG const STO *cpf, GLOBARG const STO *a,
                             int z0, int x0, int tz, int tx)
 {
+    if (RAW_BOX2(z0, z0+tz, x0, x0+tx)){ load_tile2(tile, a, z0, x0, tz, tx); return; }
+    if (CPF_BOX2(z0, z0+tz, x0, x0+tx)){ load_tile2(tile, cpf, z0, x0, tz, tx); return; }
     int nthr = LSZ0 * LSZ1;
     int nzv = tz / NV;
     for (int i = LID0 + LID1 * LSZ0; i < nzv * tx; i += nthr){
