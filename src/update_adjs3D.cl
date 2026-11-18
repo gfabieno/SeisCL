@@ -549,21 +549,19 @@ FUNDEF void update_adjs(int offcomm,
         cv=1.0-(leta[l]*0.5);
         indr = l*NX*NYS*NZS + gidx*NYS*NZS + gidy*NZS +gidz;
 
-        /* r* out, r*r const in; same buffer under bpt2. See notes/todo.md 0d6. */
-        stf(rxy, indr, b*(ldf(rxyr, indr)*cv-leta[l]*(dipjp*vxyyxr)));
-        stf(ryz, indr, b*(ldf(ryzr, indr)*cv-leta[l]*(djpkp*vyzzyr)));
-        stf(rxz, indr, b*(ldf(rxzr, indr)*cv-leta[l]*(dipkp*vxzzxr)));
-        stf(rxx, indr, b*(ldf(rxxr, indr)*cv-leta[l]*((e*vxxyyzzr)-(d*vyyzzr))));
-        stf(ryy, indr, b*(ldf(ryyr, indr)*cv-leta[l]*((e*vxxyyzzr)-(d*vxxzzr))));
-        stf(rzz, indr, b*(ldf(rzzr, indr)*cv-leta[l]*((e*vxxyyzzr)-(d*vxxyyr))));
-
-        /* += , not = : the sum runs over mechanisms (LVE>1). notes/todo.md 0d6. */
-        sumrxy+=ldf(rxyr, indr);
-        sumryz+=ldf(ryzr, indr);
-        sumrxz+=ldf(rxzr, indr);
-        sumrxx+=ldf(rxxr, indr);
-        sumryy+=ldf(ryyr, indr);
-        sumrzz+=ldf(rzzr, indr);
+        /* Under back_prop_type 2, rxy and rxyr are the SAME buffer (clprogram.c binds
+           every <var>r argument to the forward buffer). rxyr is const RESTRICT, so a
+           read of rxyr after the write to rxy may return the OLD value (CUDA read-only
+           cache): the stress then got DT2*(sum_old+sum_old) instead of
+           DT2*(sum_old+sum_new), an O(dt) adjoint attenuation error (3-D visco 3-14 %).
+           Keep the new value in a register, as update_adjs2D.cl does. */
+        float r;
+        r = b*(ldf(rxyr, indr)*cv-leta[l]*(dipjp*vxyyxr)); stf(rxy, indr, r); sumrxy += r;
+        r = b*(ldf(ryzr, indr)*cv-leta[l]*(djpkp*vyzzyr)); stf(ryz, indr, r); sumryz += r;
+        r = b*(ldf(rxzr, indr)*cv-leta[l]*(dipkp*vxzzxr)); stf(rxz, indr, r); sumrxz += r;
+        r = b*(ldf(rxxr, indr)*cv-leta[l]*((e*vxxyyzzr)-(d*vyyzzr))); stf(rxx, indr, r); sumrxx += r;
+        r = b*(ldf(ryyr, indr)*cv-leta[l]*((e*vxxyyzzr)-(d*vxxzzr))); stf(ryy, indr, r); sumryy += r;
+        r = b*(ldf(rzzr, indr)*cv-leta[l]*((e*vxxyyzzr)-(d*vxxyyr))); stf(rzz, indr, r); sumrzz += r;
     }
 
     /* and now the components of the stress tensor are
