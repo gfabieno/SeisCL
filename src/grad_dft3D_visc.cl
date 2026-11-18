@@ -167,6 +167,12 @@ LFUNDEF float2 sub2(float2 a, float2 b)
     float2 o; o.x = a.x-b.x; o.y = a.y-b.y; return o;
 }
 
+LFUNDEF float2 add2(float2 a, float2 b)
+{
+    float2 o; o.x = a.x + b.x; o.y = a.y + b.y;
+    return o;
+}
+
 /* grad_coefvisc_1's c[2]/c[5]/c[10]/c[13] group -- the shear-stress
  * correlation's own coefficients -- depends only on mu and taus, evaluated
  * at whichever staggered position drives that shear plane. See
@@ -312,6 +318,16 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         double r = (double)FREQ0/(double)FL[l];
         al += r*r/(1.0 + r*r);
     }
+    /* GJI 2017 Appendix A is written for the paper's moduli M = rho vp^2,
+     * mu = rho vs^2; SeisCL stores them divided by (1 + alpha tau) (phase
+     * velocity at f0). The coefficients below need the paper's values, and
+     * chain_rule_par_type() converts dJ/dM_paper (notes
+     * viscoelastic-gradient-theory.md, 2026-11-17). */
+    M_p      *= (1.0 + al*taup_p);
+    mu_p     *= (1.0 + al*taus_p);
+    muipjp_p *= (1.0 + al*tausipjp_p);
+    muipkp_p *= (1.0 + al*tausipkp_p);
+    mujpkp_p *= (1.0 + al*tausjpkp_p);
 
     double f1 = NDd*M_p*(1.0+Ld*taup_p)*(1.0+al*taus_p)
               - 2.0*(NDd-1.0)*mu_p*(1.0+Ld*taus_p)*(1.0+al*taup_p);
@@ -432,12 +448,15 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
             Fxy = sub2(Fxy, integ(Rxy_f, w));
             Fxz = sub2(Fxz, integ(Rxz_f, w));
             Fyz = sub2(Fyz, integ(Ryz_f, w));
-            Axx = sub2(Axx, integ(Rxx_a, w));
-            Ayy = sub2(Ayy, integ(Ryy_a, w));
-            Azz = sub2(Azz, integ(Rzz_a, w));
-            Axy = sub2(Axy, integ(Rxy_a, w));
-            Axz = sub2(Axz, integ(Rxz_a, w));
-            Ayz = sub2(Ayz, integ(Ryz_a, w));
+            /* Adjoint: r~ = -dt R~ (thesis eq. 3.33), so sigma~' = sigma~ - R~
+             * = sigma~ + integ(r~). Subtracting it made the unrelaxed-modulus
+             * gradients 6-41 % off away from FL = f0. */
+            Axx = add2(Axx, integ(Rxx_a, w));
+            Ayy = add2(Ayy, integ(Ryy_a, w));
+            Azz = add2(Azz, integ(Rzz_a, w));
+            Axy = add2(Axy, integ(Rxy_a, w));
+            Axz = add2(Axz, integ(Rxz_a, w));
+            Ayz = add2(Ayz, integ(Ryz_a, w));
 
             float2 Rpp_f = add3(Rxx_f, Ryy_f, Rzz_f);
             float2 Rpp_a = add3(Rxx_a, Ryy_a, Rzz_a);

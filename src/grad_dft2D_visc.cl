@@ -286,6 +286,14 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         double r = (double)FREQ0/(double)FL[l];
         al += r*r/(1.0 + r*r);
     }
+    /* GJI 2017 Appendix A is written for the paper's moduli M = rho vp^2,
+     * mu = rho vs^2; SeisCL stores them divided by (1 + alpha tau) (phase
+     * velocity at f0). The coefficients below need the paper's values, and
+     * chain_rule_par_type() converts dJ/dM_paper (notes
+     * viscoelastic-gradient-theory.md, 2026-11-17). */
+    M_p      *= (1.0 + al*taup_p);
+    mu_p     *= (1.0 + al*taus_p);
+    muipkp_p *= (1.0 + al*tausipkp_p);
 
     /* grad_coefvisc_1: the *internal* (M, mu, taup, taus) coefficients, i.e.
      * grad_coefvisc_0 with the parameterization chain rule factored out.
@@ -395,8 +403,14 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
              * host does this in place in its own buffers; locals here. */
             float2 ixx_f = integ(Rxx_f, w), izz_f = integ(Rzz_f, w);
             float2 ixz_f = integ(Rxz_f, w);
+/* Adjoint: r~ = -dt R~ (thesis eq. 3.33), so sigma~' = sigma~ - R~
+             * = sigma~ + integ(r~): the adjoint terms are ADDED below. Subtracting
+             * them made the unrelaxed-modulus gradients 6-41 % off away from FL = f0
+             * (notes viscoelastic-gradient-theory.md, 2026-11-17). */
             float2 ixx_a = integ(Rxx_a, w), izz_a = integ(Rzz_a, w);
             float2 ixz_a = integ(Rxz_a, w);
+            ixx_a.x = -ixx_a.x; ixx_a.y = -ixx_a.y; izz_a.x = -izz_a.x; izz_a.y = -izz_a.y;
+            ixz_a.x = -ixz_a.x; ixz_a.y = -ixz_a.y;
             Fxx.x -= ixx_f.x; Fxx.y -= ixx_f.y;
             Fzz.x -= izz_f.x; Fzz.y -= izz_f.y;
             Fxz.x -= ixz_f.x; Fxz.y -= ixz_f.y;

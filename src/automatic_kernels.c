@@ -133,11 +133,24 @@ int kernel_varout(device * dev,
         }
     }
     
+    /* Stress-type outputs (the stresses and the pressure) are recorded at the
+       state BEFORE this step's stress update: varsout runs after update_s, so
+       the value written now is stored at index nt+1 (index 0 stays at its
+       initial value, 0). The adjoint then injects stress residual nt at
+       adjoint iteration nt, like the velocity residuals, and every sample is
+       used. Before 2026-11-18 the stress at the end of step nt was stored at
+       nt and its residual delayed by one sample (res_scale), which dropped the
+       last pressure sample from the adjoint: an O(dt) gradient error whenever
+       the record ends before the waves have died out. In time, the new
+       pressure trace sits half a sample after the velocity trace, the old one
+       half a sample before. */
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
+            int isstress = (vars[i].name[0]=='s' && strlen(vars[i].name)==3);
             strcat(temp, "    ");
+            if (isstress) strcat(temp, "if (nt+1<NT) ");
             strcat(temp, vars[i].name);
-            strcat(temp, "out[NT*gid+nt]=");
+            strcat(temp, isstress ? "out[NT*gid+nt+1]=" : "out[NT*gid+nt]=");
             if (dev->FP16>0){
                 #ifdef __SEISCL__
                 strcat(temp, "ldexp(");
@@ -167,9 +180,10 @@ int kernel_varout(device * dev,
     }
     for (i=0;i<dev->ntvars;i++){
         if (tvars[i].to_output){
-            strcat(temp, "    ");
+            /* the pressure is a stress-type output: see above */
+            strcat(temp, "    if (nt+1<NT) ");
             strcat(temp, tvars[i].name);
-            strcat(temp, "out[NT*gid+nt]=(");
+            strcat(temp, "out[NT*gid+nt+1]=(");
             for (j=0;j<tvars->n2ave;j++){
                 if (dev->FP16>0){
                     for (k=0;k<dev->nvars;k++){
@@ -718,6 +732,32 @@ int kernel_residuals(device * dev,
             strcat(temp, "out, ");
         }
     }
+    /* Viscoelastic model with pressure output: the adjoint memory variables
+       get a source too (see the end of this function). */
+    int pmem = 0;
+    for (i=0;i<dev->ntvars;i++){
+        if (tvars[i].to_output && strcmp(tvars[i].name, "p")==0) pmem = 1;
+    }
+    {
+        int hasr = 0;
+        for (i=0;i<dev->nvars;i++){
+            if (strcmp(vars[i].name, "rxx")==0) hasr = 1;
+        }
+        pmem = pmem && hasr;
+    }
+    if (pmem){
+        const char * pt = (dev->FP16>1) ? GLOBARG"half * " : GLOBARG"float * ";
+        const char * rs = (BACK_PROP_TYPE==1) ? "r" : "";
+        sprintf(temp2, "%sM, %smu, %staup, %staus, "GLOBARG"float * eta, ",
+                pt, pt, pt, pt);
+        strcat(temp, temp2);
+        sprintf(temp2, "%srxx%s, %srzz%s, ", pt, rs, pt, rs);
+        strcat(temp, temp2);
+        if (dev->NDIM==3){
+            sprintf(temp2, "%sryy%s, ", pt, rs);
+            strcat(temp, temp2);
+        }
+    }
     chop_tail(temp, 2);
     strcat(temp, "){\n\n");
     
@@ -855,6 +895,119 @@ int kernel_residuals(device * dev,
         }
     }
     
+    /* Adjoint memory-variable source for pressure data (viscoelastic).
+       Pressure depends on sigma = sigma' + sum_l R^l, so dX/dR^l = dX/dsigma
+       and the adjoint source G dX/dphi (thesis eq. 3.29, G = blockdiag(1/rho,
+       Psi0, Psi1..PsiL)) also drives each adjoint memory variable: in
+       traditional variables r~ = -dt R~,
+           dt r~_l + (1/tau_l) Psi_l D v~ + r~_l/tau_l = (1/tau_l) Psi_l dX/dsigma.
+       The value s added above to each normal adjoint stress acts as an
+       isotropic strain increment theta = ND s / P; through the memory update
+       of update_s (r = b (c r - eta (e theta - d ...))) it adds -b eta Q/P s
+       to every normal memory variable, with the moduli of update_s:
+       P = ND g - (ND-1) f, Q = ND e - (ND-1) d. Without it the gradient with
+       pressure receivers was off by a common factor growing with tau
+       (notes viscoelastic-gradient-theory.md, 2026-11-17). */
+    if (pmem){
+        const char * rs = (BACK_PROP_TYPE==1) ? "r" : "";
+        int div = (dev->FP16>0) ? 2 : 1;
+        char nz[40], ny[40], nx[40], stride[200], ip[300], ld[100], st[200];
+        sprintf(nz, "(N%s*%d)", dev->N_names[0], div);
+        sprintf(nx, "N%s", dev->N_names[dev->NDIM-1]);
+        if (dev->NDIM==3){
+            sprintf(ny, "N%s", dev->N_names[1]);
+            sprintf(stride, "%s*%s*%s", nx, ny, nz);
+            sprintf(ip, "(((i-OFFSET-FDOH)*(%s-2*FDOH)+(j-FDOH))*(%s-2*FDOH)+(k-FDOH))", ny, nz);
+        }
+        else {
+            sprintf(stride, "%s*%s", nx, nz);
+            sprintf(ip, "((i-OFFSET-FDOH)*(%s-2*FDOH)+(k-FDOH))", nz);
+        }
+        if (dev->FP16>1){
+            strcpy(ld, "__half2float");
+        }
+        else {
+            strcpy(ld, "");
+        }
+        strcat(temp, "#if LVE>0\n    {\n");
+        sprintf(temp2, "        int ip = %s;\n", ip);
+        strcat(temp, temp2);
+        sprintf(temp2, "        float lM=%s(M[ip]), lmu=%s(mu[ip]), ltp=%s(taup[ip]), lts=%s(taus[ip]);\n", ld, ld, ld, ld);
+        strcat(temp, temp2);
+        strcat(temp,
+               "        float g = lM*(1.0f+LVE*ltp), f = 2.0f*lmu*(1.0f+LVE*lts);\n"
+               "        float e = lM*ltp/DT, d = 2.0f*lmu*lts/DT;\n"
+               "        float P = ND*g - (ND-1)*f, Q = ND*e - (ND-1)*d;\n");
+        /* s: the value added to each normal adjoint stress above */
+        for (i=0;i<dev->ntvars;i++){
+            if (tvars[i].to_output && strcmp(tvars[i].name, "p")==0){
+                if (dev->FP16==0){
+                    sprintf(temp2, "        float s = pout[NT*gid+nt]/%d;\n", tvars[i].n2ave);
+                }
+                else {
+                    #ifdef __SEISCL__
+                    sprintf(temp2, "        float s = ldexp(pout[NT*gid+nt]/%d, res_scale);\n", tvars[i].n2ave);
+                    #else
+                    sprintf(temp2, "        float s = scalbnf(pout[NT*gid+nt]/%d, res_scale);\n", tvars[i].n2ave);
+                    #endif
+                }
+                strcat(temp, temp2);
+            }
+        }
+        sprintf(temp2, "        int im = %s;\n", posstr+1);   /* posstr without its brackets */
+        temp2[strlen(temp2)-3] = ';'; temp2[strlen(temp2)-2] = '\n'; temp2[strlen(temp2)-1] = '\0';
+        strcat(temp, temp2);
+        /* Timing: this runs before update_adjs, which advances each memory
+           variable as r = b (c r_old - ...) and adds DT2 (sum r_old + sum r)
+           to the stresses. To leave exactly -b eta Q/P s in r after that
+           update, inject x = -eta Q/P s / c; the stresses then also receive
+           DT2 sum_l x from the old memory, which the true source does not
+           produce: it is removed here. Without these two corrections the
+           pressure-receiver gradient was off by O(dt) (1.4 % at dt = 1 ms). */
+        strcat(temp,
+               "        if (P!=0.0f){\n"
+               "            float sx = 0.0f;\n"
+               "            for (int l=0; l<LVE; l++){\n"
+               "                float c = 1.0f - eta[l]*0.5f;\n"
+               "                float a = -eta[l]*Q/P*s/c;\n"
+               "                sx += a;\n"
+               "                int ir = l*");
+        strcat(temp, stride);
+        strcat(temp, " + im;\n");
+        {
+            const char * names[3] = {"rxx", "rzz", "ryy"};
+            int nn = (dev->NDIM==3) ? 3 : 2;
+            int q;
+            for (q=0;q<nn;q++){
+                if (dev->FP16>1){
+                    sprintf(st, "                %s%s[ir] = __float2half(__half2float(%s%s[ir]) + a);\n",
+                            names[q], rs, names[q], rs);
+                }
+                else {
+                    sprintf(st, "                %s%s[ir] += a;\n", names[q], rs);
+                }
+                strcat(temp, st);
+            }
+        }
+        strcat(temp, "            }\n");
+        {
+            const char * names[3] = {"sxx", "szz", "syy"};
+            int nn = (dev->NDIM==3) ? 3 : 2;
+            int q;
+            for (q=0;q<nn;q++){
+                if (dev->FP16>1){
+                    sprintf(st, "            %s%s[im] = __float2half(__half2float(%s%s[im]) - DT2*sx);\n",
+                            names[q], rs, names[q], rs);
+                }
+                else {
+                    sprintf(st, "            %s%s[im] -= DT2*sx;\n", names[q], rs);
+                }
+                strcat(temp, st);
+            }
+        }
+        strcat(temp, "        }\n    }\n#endif\n");
+    }
+
     strcat(temp, "\n}");
     
     __GUARD prog_source(prog, "residuals", temp, 0, NULL);

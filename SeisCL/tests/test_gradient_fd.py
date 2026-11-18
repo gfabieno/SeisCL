@@ -1404,12 +1404,12 @@ def _fd_hetero(ND, bpt, L=0, srctype=100.0, fp16=0, seed=20260907, tol=0.10):
     gcfg = {}
     if bpt == 2:
         dfm = 1.0 / (g0NT * g0DT)
-        # Bins 4 .. 5 f0 (starting at 4 avoided the bin-0 NaN, now refused).
-        # The DFT gradient is the gradient of the misfit restricted to these
-        # bins, while the FD below is that of the time-domain misfit: they
-        # agree only with every bin to Nyquist (SeisCL.py, gradfreqs). With a
-        # pressure source and receivers, as here, the difference is small.
-        gcfg["gradfreqs"] = dfm * np.arange(4, int(5.0 * g0F0 / dfm) + 1)
+        # Every bin to Nyquist: the DFT gradient is the gradient of the misfit
+        # restricted to gradfreqs, and the FD below is that of the time-domain
+        # misfit; they agree only with every bin (SeisCL.py, gradfreqs). Until
+        # 2026-11-18 this used bins 4 .. 5 f0 (bin 0 gave NaN, now refused),
+        # which made test_fd_hetero_2d_elastic_bpt2 fail on rho.
+        gcfg["gradfreqs"] = dfm * np.arange(1, g0NT // 2)
     g, _ = mk(gradout=1, back_prop_type=bpt, **gcfg)
     g.file_din = din
     g.set_forward(g.src_pos_all[3, :], init, withgrad=True)
@@ -1483,6 +1483,92 @@ def test_fd_hetero_2d_force_bpt1():
     STAGGERED buoyancy, so this exercises the rip/rkp averaging Jacobian
     together with the force-source eq. (26a) term."""
     _fd_hetero(2, bpt=1, srctype=2.0)
+
+
+def _visco_physical_directions(srctype, seisout, tau=0.1, F0=25.0, FLf=(1.0, 4.0)):
+    """FD check of the viscoelastic DFT gradient along directions that change ONE physical combination per cell.
+
+    The physics of a cell depends only on A = M(1+L taup) (unrelaxed modulus), B = M taup (relaxation strength),
+    C = mu(1+L taus), D = mu taus (SeisCL's stored M, mu) and the density. Each direction changes one of them,
+    expressed in the user parameters (vp, vs, rho, taup, taus) with M = rho vp^2/(1+alpha taup). <g, dm> does
+    not depend on the parameterisation, so each ratio tests one group of correlations (A: P1, B: P2, C: P3/P4,
+    D: P5/P6, rho: the velocity terms of GJI 2017 Appendix A). Checks in user parameters cancel strongly between
+    parameters and hid these errors. A mechanism away from f0 matters: at FL = f0 two former errors cancelled.
+    Every DFT bin is used, so the DFT gradient is that of the time-domain misfit."""
+    FLv = F0 * np.array(FLf)
+    L = len(FLv)
+    al = float(sum((F0 / f) ** 2 / (1.0 + (F0 / f) ** 2) for f in FLv))
+    wd = workdir("visco_phys_s%d_o%d" % (int(srctype), seisout))
+    mk = lambda **k: _srccell_model(wd, ND=2, srctype=srctype, seisout=seisout, L=L, FL=FLv, **k)
+    s0, zs = mk()
+    nz, nx = int(s0.N[0]), int(s0.N[1])
+    vp0, vs0, rho0 = 2000.0, 1200.0, 2000.0
+    start = {"vp": np.full(s0.N, vp0), "vs": np.full(s0.N, vs0), "rho": np.full(s0.N, rho0),
+             "taup": np.full(s0.N, tau), "taus": np.full(s0.N, tau)}
+    true = {k: np.array(v) for k, v in start.items()}
+    true["vp"][nz // 2 + 6:nz // 2 + 12, nx // 2 - 5:nx // 2 + 5] += 300.0
+    true["vs"][nz // 2 + 6:nz // 2 + 12, nx // 2 - 5:nx // 2 + 5] += 150.0
+    s0.set_forward(s0.src_pos_all[3, :], true, withgrad=False)
+    s0.execute()
+    dobs = [np.asarray(a, np.float64) for a in s0.read_data()]
+    s0.write_data(dict(zip(s0.to_load_names, dobs)), filename="SeisCL_din.mat")
+    din = os.path.join(s0.workdir, "SeisCL_din.mat")
+
+    def misfit(p):
+        t, _ = mk()
+        t.file_din = din
+        t.set_forward(t.src_pos_all[3, :], p, withgrad=False)
+        t.execute()
+        return t.misfit(t.read_data(), dobs=dobs)[0]
+
+    NT, DT = int(s0.NT), float(s0.dt)
+    g, _ = mk(gradout=1, back_prop_type=2, gradfreqs=(1.0 / (NT * DT)) * np.arange(1, NT // 2))
+    g.file_din = din
+    g.set_forward(g.src_pos_all[3, :], start, withgrad=True)
+    g.execute()
+    G = {nm: np.asarray(a, np.float64) for nm, a in zip(g.params, g.read_grad())}
+    zz, xx = np.indices(s0.N)
+    bump = np.exp(-((zz - (zs + 8)) ** 2 + (xx - nx // 2) ** 2) / 4.0)
+    Ms = rho0 * vp0 ** 2 / (1 + al * tau)
+    mus = rho0 * vs0 ** 2 / (1 + al * tau)
+
+    def user(dMs=0.0, dtp=0.0, dmus=0.0, dts=0.0, drho=0.0):
+        dvp2 = (dMs * (1 + al * tau) + Ms * al * dtp) / rho0 - Ms * (1 + al * tau) * drho / rho0 ** 2
+        dvs2 = (dmus * (1 + al * tau) + mus * al * dts) / rho0 - mus * (1 + al * tau) * drho / rho0 ** 2
+        return {"vp": dvp2 / (2 * vp0), "vs": dvs2 / (2 * vs0), "rho": drho, "taup": dtp, "taus": dts}
+    eT = 0.01 * tau
+    dirs = {"A=M(1+L taup)": user(dMs=0.01 * Ms, dtp=-0.01 * tau),
+            "B=M taup": user(dMs=-Ms * L * eT / (1 + L * tau), dtp=eT),
+            "C=mu(1+L taus)": user(dmus=0.01 * mus, dts=-0.01 * tau),
+            "D=mu taus": user(dmus=-mus * L * eT / (1 + L * tau), dts=eT),
+            "rho": user(drho=0.01 * rho0)}
+    bad = []
+    print("=== viscoelastic, L=%d FL=%s, tau=%g, source type %d, seisout %d ===" % (L, FLv, tau, srctype, seisout))
+    for name, d in dirs.items():
+        dm = {p: d[p] * bump for p in d}
+        gd = sum(float((G[p] * dm[p]).sum()) for p in dm)
+        pp = {p: start[p] + dm[p] for p in start}
+        pm = {p: start[p] - dm[p] for p in start}
+        fd = (misfit(pp) - misfit(pm)) / 2.0
+        r = fd / gd
+        print("  %-15s FD %12.4e  <g,dm> %12.4e  ratio %.4f" % (name, fd, gd, r))
+        if abs(r - 1.0) > 0.05:
+            bad.append("%s %.4f" % (name, r))
+    assert not bad, ("viscoelastic gradient off by more than 5%% along: %s. Each direction changes one physical "
+                     "combination; see notes viscoelastic-gradient-theory.md (2026-11-17)." % ", ".join(bad))
+
+
+def test_fd_visco_physical_directions_velocity():
+    """Viscoelastic DFT gradient, explosive source and VELOCITY receivers, mechanisms at f0 and 4 f0, tau 0.1.
+    Before 2026-11-17: unrelaxed moduli 19-41 % off (Appendix A fed the stored M instead of M = rho vp^2, and the
+    adjoint modified stress subtracted the memory integral instead of adding it, thesis eq. 3.33)."""
+    _visco_physical_directions(100.0, 1)
+
+
+def test_fd_visco_physical_directions_pressure():
+    """Same with PRESSURE receivers: the residual must also drive the adjoint memory variables (pressure depends
+    on sigma = sigma' + sum_l R^l; thesis eq. 3.29). Before 2026-11-17: every direction 6-14 % off."""
+    _visco_physical_directions(100.0, 2)
 
 
 def test_fd_hetero_2d_visco_L1():
@@ -1959,6 +2045,8 @@ TESTS = [
     test_fd_hetero_2d_elastic_bpt1,
     test_fd_hetero_2d_elastic_bpt2,
     test_fd_hetero_2d_force_bpt1,
+    test_fd_visco_physical_directions_velocity,
+    test_fd_visco_physical_directions_pressure,
     test_fd_hetero_2d_visco_L1,
     test_fd_hetero_2d_visco_L2,
     test_fd_hetero_3d_elastic_bpt1,
@@ -1979,14 +2067,10 @@ XFAIL = {
     # (L-alpha) applies that normalization derivative AT the staggered
     # position. Homogeneous backgrounds cannot see the difference (both
     # Jacobians are 1/4 there), which is why every other check misses it.
-    "test_fd_hetero_2d_visco_L1",        # item 0e
-    "test_fd_hetero_2d_visco_L2",        # item 0e
-    "test_fd_hetero_3d_visco_L2",        # item 0e
     # item 0e (force source): rho only, 2.36. dJ/drho for a force source goes
     # through the staggered buoyancy that the source injects into directly.
     # Note gradrho is a near-cancellation (~111x amplification in 2D) and this
     # run's "all" row is 1.0275, so conditioning is not excluded.
-    "test_fd_hetero_2d_force_bpt1",      # item 0e
 }
 
 if __name__ == "__main__":

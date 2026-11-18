@@ -481,6 +481,13 @@ int unscale_grad_dft(model * m) {
    exactly sqrt(1+alpha*taup). This function returns that missing
    1/sqrt(1+alpha*tau), which is identically 1 when L==0.
 
+   UPDATE 2026-11-17: the DFT kernels now give the gradient with respect to the
+   paper's M_paper = rho vp^2 (GJI 2017 Appendix A is written for it), so the
+   chain rule uses dM_paper/dvp = 2 rho vp = 2 sqrt(rho M) sqrt(1+alpha taup):
+   chain_rule_par_type MULTIPLIES by sqrt(1+alpha tau). The measurements above
+   were taken with the coefficients evaluated at the stored M, where the two
+   errors partly cancelled at FL = f0.
+
    Measured: a tau-scan at fixed alpha (FL=f0, alpha=0.5) on the 2D
    viscoelastic FD check gives a raw gradvp/FD ratio drifting 0.998 -> 1.019
    over taup = 0.005 -> 0.1, while ratio/sqrt(1+alpha*taup) is flat to 0.22%
@@ -542,9 +549,15 @@ int chain_rule_par_type(model * m) {
             if (rho[i]==0){
                 continue;
             }
-            gradrho[i]= gradrho[i]+M[i]/rho[i]*gradM[i];
+            /* With L>0 the DFT kernels give dJ/dM and dJ/dmu for the paper's
+               M = rho vp^2, mu = rho vs^2 (GJI 2017 Appendix A), while M[] and
+               mu[] hold M/(1+alpha taup), mu/(1+alpha taus). kp, ks = 1 when
+               elastic. */
+            double kp = (taup_par) ? 1.0+al*(double)taup_par[i] : 1.0;
+            double ks = (taus_par) ? 1.0+al*(double)taus_par[i] : 1.0;
+            gradrho[i]= gradrho[i]+M[i]*kp/rho[i]*gradM[i];
             if (mu[i]>0){
-                gradrho[i]= gradrho[i]+mu[i]/rho[i]*gradmu[i];
+                gradrho[i]= gradrho[i]+mu[i]*ks/rho[i]*gradmu[i];
             }
         }
         if (Hrho){
@@ -558,12 +571,15 @@ int chain_rule_par_type(model * m) {
                 }
             }
         }
-        /* dM/dvp = 2*rho*vp/(1+alpha*taup), NOT the elastic 2*sqrt(rho*M)
-           -- see gsls_alpha()'s comment. nrmp/nrms are 1 when L==0. */
+        /* gradM is dJ/dM_paper, M_paper = rho vp^2 = M (1+alpha taup), so
+           dJ/dvp = 2 rho vp dJ/dM_paper = 2 sqrt(rho M) sqrt(1+alpha taup)
+           dJ/dM_paper (2026-11-17: the kernels now evaluate Appendix A at
+           M_paper; before, they used the stored M and this line divided by
+           sqrt(1+alpha taup)). nrmp/nrms are 1 when L==0. */
         if (M){
             for (i=0;i<num_ele;i++){
                 double nrmp = taup_par ? sqrt(1.0+al*(double)taup_par[i]) : 1.0;
-                gradM[i]  = 2.0*sqrt((double)rho[i]*(double)M[i])/nrmp*gradM[i];
+                gradM[i]  = 2.0*sqrt((double)rho[i]*(double)M[i])*nrmp*gradM[i];   /* 2 sqrt(rho M_paper) */
             }
         }
         if (HM){
@@ -575,7 +591,7 @@ int chain_rule_par_type(model * m) {
         if (mu){
             for (i=0;i<num_ele;i++){
                 double nrms = taus_par ? sqrt(1.0+al*(double)taus_par[i]) : 1.0;
-                gradmu[i] = 2.0*sqrt((double)rho[i]*(double)mu[i])/nrms*gradmu[i];
+                gradmu[i] = 2.0*sqrt((double)rho[i]*(double)mu[i])*nrms*gradmu[i];   /* 2 sqrt(rho mu_paper) */
             }
         }
         if (Hmu){
