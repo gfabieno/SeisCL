@@ -1328,7 +1328,8 @@ int Init_CUDA(model * m, device ** dev)  {
         }
     
         
-        /* Receiver-cell residual terms of the gradient: one work-item. */
+        /* Receiver-cell residual terms of the gradient: one work-item per
+           receiver; the size is set per shot (time_stepping.c). */
         if (m->bnd_cnds.rec_grad_v.name){
             di->bnd_cnds.rec_grad_v=m->bnd_cnds.rec_grad_v;
             __GUARD prog_create(m, di, &di->bnd_cnds.rec_grad_v);

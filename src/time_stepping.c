@@ -779,6 +779,9 @@ int initialize_forward(model * m, device ** dev, int s, int * pdir){
         (*dev)[d].src_recs.varsout.gsize[0]=(*dev)[d].src_recs.nrec[s];
         (*dev)[d].src_recs.varsoutinit.gsize[0]=(*dev)[d].src_recs.nrec[s]*m->NT;
         (*dev)[d].src_recs.residuals.gsize[0]=(*dev)[d].src_recs.nrec[s];
+        /* rec_grad.cl: one work-item per receiver of this shot */
+        (*dev)[d].bnd_cnds.rec_grad_v.gsize[0]=(*dev)[d].src_recs.nrec[s];
+        (*dev)[d].bnd_cnds.rec_grad_s.gsize[0]=(*dev)[d].src_recs.nrec[s];
         (*dev)[d].src_recs.init_gradsrc.gsize[0]=(*dev)[d].src_recs.nsrc[s]
                                                                         * m->NT;
         //Assign some arg to kernels
