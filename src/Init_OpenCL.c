@@ -1195,6 +1195,16 @@ int Init_CUDA(model * m, device ** dev)  {
                     __GUARD clbuf_create_pin( di->context_ptr,
                                               &di->queuecomm,
                                               &di->vars[i].cl_varbnd);
+                    #ifndef __SEISCL__
+                    /* Two halves: the adjoint pass uploads the boundary of the
+                       next step into one while the kernels read the other
+                       (time_stepping.c, bnd_async). size stays one step. */
+                    if (BND_ASYNC(m)){
+                        __GUARD cuMemFree(di->vars[i].cl_varbnd.mem);
+                        __GUARD cuMemAlloc(&di->vars[i].cl_varbnd.mem,
+                                           2*di->vars[i].cl_varbnd.size);
+                    }
+                    #endif
                 }
             }
         }
