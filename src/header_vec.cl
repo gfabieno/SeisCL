@@ -266,3 +266,81 @@ LFUNDEF float tdm(LOCID const float *t, int i, int s)
 {   const float hc[6] = HCV; float d = 0.0f;
     for (int m = 0; m < FDOH; m++) d += hc[m] * (t[i + m*s] - t[i - (m+1)*s]);
     return d; }
+
+/* ---- exact CPML adjoint (ABS_TYPE 1, BACK_PROP_TYPE 1) -------------------- */
+/* cpml_adj2D/3D.cl filter the adjoint fields into the cpf buffers only in the
+   cells of an absorbing layer (CPML_CELL; the top layer only without a free
+   surface; padded indices). Elsewhere the filter is the identity, so the
+   adjoint updates read the field itself there (load_tile*_cpf), and the cpf
+   buffer in the layers and in the halo (where it holds zeros, never written:
+   reading the field there would change the result under a free surface). */
+#if ABS_TYPE==1 && BACK_PROP_TYPE==1
+#if FREESURF==0
+#define CPML_TOPZ(z) ((z)-FDOH<NAB)
+#else
+#define CPML_TOPZ(z) 0
+#endif
+#define CPML_Z(z) ((z)>NZS-NAB-FDOH-1 || CPML_TOPZ(z))
+#define CPML_X(x) ((x)-FDOH<NAB || (x)>NX-NAB-FDOH-1)
+#define HALO_Z(z) ((z)<FDOH || (z)>NZS-FDOH-1)
+#define HALO_X(x) ((x)<FDOH || (x)>NX-FDOH-1)
+#if ND==3
+#define CPML_Y(y) ((y)-FDOH<NAB || (y)>NYS-NAB-FDOH-1)
+#define HALO_Y(y) ((y)<FDOH || (y)>NYS-FDOH-1)
+#define CPML_CELL3(z,y,x) (CPML_Z(z) || CPML_Y(y) || CPML_X(x))
+#define READ_CPF3(z,y,x) (CPML_CELL3(z,y,x) || HALO_Z(z) || HALO_Y(y) || HALO_X(x))
+#else
+#define CPML_CELL2(z,x) (CPML_Z(z) || CPML_X(x))
+#define READ_CPF2(z,x) (CPML_CELL2(z,x) || HALO_Z(z) || HALO_X(x))
+#endif
+
+/* NV values at element i of cpf (where sel(c) is true) or of the field a. */
+#define LDN_CPF(cpf, a, i, v, sel) do{ \
+        int n_cpf = 0; \
+        for (int c = 0; c < NV; c++) n_cpf += (sel(c)) ? 1 : 0; \
+        if (n_cpf == NV) ldn(cpf, i, v); \
+        else if (n_cpf == 0) ldn(a, i, v); \
+        else for (int c = 0; c < NV; c++) (v)[c] = (sel(c)) ? ldf(cpf, (i)+c) : ldf(a, (i)+c); \
+    } while(0)
+
+#if ND==3
+LFUNDEF void load_tile3_cpf(LOCID float *tile, GLOBARG const STO *cpf, GLOBARG const STO *a,
+                            int z0, int y0, int x0, int tz, int ty, int tx)
+{
+    int nthr = LSZ0 * LSZ1 * LSZ2;
+    int nzv = tz / NV;
+    for (int i = LID0 + LSZ0*(LID1 + LSZ1*LID2); i < nzv * ty * tx; i += nthr){
+        int lz = (i % nzv) * NV, ly = (i / nzv) % ty, lx = i / (nzv * ty);
+        int gz = z0 + lz, gy = y0 + ly, gx = x0 + lx;
+        int it = (lx * ty + ly) * tz + lz;
+        if (gz >= 0 && gz + NV <= NZS && gy >= 0 && gy < NYS && gx >= 0 && gx < NX){
+            #define SEL3(c) READ_CPF3(gz+(c), gy, gx)
+            LDN_CPF(cpf, a, (gx * NYS + gy) * NZS + gz, &tile[it], SEL3);
+            #undef SEL3
+        }
+        else {
+            for (int c = 0; c < NV; c++) tile[it + c] = 0.0f;
+        }
+    }
+}
+#else
+LFUNDEF void load_tile2_cpf(LOCID float *tile, GLOBARG const STO *cpf, GLOBARG const STO *a,
+                            int z0, int x0, int tz, int tx)
+{
+    int nthr = LSZ0 * LSZ1;
+    int nzv = tz / NV;
+    for (int i = LID0 + LID1 * LSZ0; i < nzv * tx; i += nthr){
+        int lz = (i % nzv) * NV, lx = i / nzv;
+        int gz = z0 + lz, gx = x0 + lx;
+        if (gz >= 0 && gz + NV <= NZS && gx >= 0 && gx < NX){
+            #define SEL2(c) READ_CPF2(gz+(c), gx)
+            LDN_CPF(cpf, a, gx * NZS + gz, &tile[lx * tz + lz], SEL2);
+            #undef SEL2
+        }
+        else {
+            for (int c = 0; c < NV; c++) tile[lx * tz + lz + c] = 0.0f;
+        }
+    }
+}
+#endif
+#endif

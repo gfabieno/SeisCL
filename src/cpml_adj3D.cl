@@ -86,6 +86,7 @@ FUNDEF void cpml_adj_v(GLOBARG const STO * RESTRICT vxr, GLOBARG const STO * RES
     if (gidz>NZS-FDOH-1 || gidy>NYS-FDOH-1 || gidx>NX-FDOH-1){
         return;
     }
+    if (!CPML_CELL3(gidz, gidy, gidx)) return;   /* identity filter: read in place (header_vec.cl) */
     int indv = gidx*NYS*NZS+gidy*NZS+gidz;
     int i,j,k,indm;
     float e_vxr = ldf(vxr, indv);
@@ -220,6 +221,7 @@ FUNDEF void cpml_adj_s(GLOBARG const STO * RESTRICT sxxr, GLOBARG const STO * RE
     if (gidz>NZS-FDOH-1 || gidy>NYS-FDOH-1 || gidx>NX-FDOH-1){
         return;
     }
+    if (!CPML_CELL3(gidz, gidy, gidx)) return;   /* identity filter: read in place (header_vec.cl) */
     int indv = gidx*NYS*NZS+gidy*NZS+gidz;
     int i,j,k,indm;
     float e_sxxr = ldf(sxxr, indv);

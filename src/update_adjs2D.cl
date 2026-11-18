@@ -94,19 +94,19 @@ FUNDEF void update_adjs(int offcomm,
     float vxxr[NV], vxzr[NV], vzzr[NV], vzxr[NV];
 #if ABS_TYPE==1 && BACK_PROP_TYPE==1
     /* exact CPML adjoint: the fields filtered by cpml_adj_v */
-    load_tile2(lvar, cpfa, tile_z0, tile_x0, tz, tx);
+    load_tile2_cpf(lvar, cpfa, vxr, tile_z0, tile_x0, tz, tx);
     BARRIER
     for (int c=0; c<NV; c++) vxxr[c] = tdxm(lvar, tz, lz0+c, lx);
     BARRIER
-    load_tile2(lvar, cpfb, tile_z0, tile_x0, tz, tx);
+    load_tile2_cpf(lvar, cpfb, vxr, tile_z0, tile_x0, tz, tx);
     BARRIER
     for (int c=0; c<NV; c++) vxzr[c] = tdzp(lvar, tz, lz0+c, lx);
     BARRIER
-    load_tile2(lvar, cpfc, tile_z0, tile_x0, tz, tx);
+    load_tile2_cpf(lvar, cpfc, vzr, tile_z0, tile_x0, tz, tx);
     BARRIER
     for (int c=0; c<NV; c++) vzzr[c] = tdzm(lvar, tz, lz0+c, lx);
     BARRIER
-    load_tile2(lvar, cpfd, tile_z0, tile_x0, tz, tx);
+    load_tile2_cpf(lvar, cpfd, vzr, tile_z0, tile_x0, tz, tx);
     BARRIER
     for (int c=0; c<NV; c++) vzxr[c] = tdxp(lvar, tz, lz0+c, lx);
 #else

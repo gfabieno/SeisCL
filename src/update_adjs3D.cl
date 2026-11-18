@@ -141,39 +141,39 @@ FUNDEF void update_adjs(int offcomm,
     BARRIER
 #endif
 #if ABS_TYPE==1 && BACK_PROP_TYPE==1
-    load_tile3(lvar, cpf1, tile_z0, tile_y0, tile_x0, tz, ty, tx);
+    load_tile3_cpf(lvar, cpf1, vxr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
     for (int c=0; c<NV; c++) d_vxxr[c] = tdm(lvar, it0+c, sx);
     BARRIER
-    load_tile3(lvar, cpf2, tile_z0, tile_y0, tile_x0, tz, ty, tx);
+    load_tile3_cpf(lvar, cpf2, vxr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
     for (int c=0; c<NV; c++) d_vxyr[c] = tdp(lvar, it0+c, sy);
     BARRIER
-    load_tile3(lvar, cpf3, tile_z0, tile_y0, tile_x0, tz, ty, tx);
+    load_tile3_cpf(lvar, cpf3, vxr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
     for (int c=0; c<NV; c++) d_vxzr[c] = tdp(lvar, it0+c, 1);
     BARRIER
-    load_tile3(lvar, cpf4, tile_z0, tile_y0, tile_x0, tz, ty, tx);
+    load_tile3_cpf(lvar, cpf4, vyr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
     for (int c=0; c<NV; c++) d_vyxr[c] = tdp(lvar, it0+c, sx);
     BARRIER
-    load_tile3(lvar, cpf5, tile_z0, tile_y0, tile_x0, tz, ty, tx);
+    load_tile3_cpf(lvar, cpf5, vyr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
     for (int c=0; c<NV; c++) d_vyyr[c] = tdm(lvar, it0+c, sy);
     BARRIER
-    load_tile3(lvar, cpf6, tile_z0, tile_y0, tile_x0, tz, ty, tx);
+    load_tile3_cpf(lvar, cpf6, vyr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
     for (int c=0; c<NV; c++) d_vyzr[c] = tdp(lvar, it0+c, 1);
     BARRIER
-    load_tile3(lvar, cpf7, tile_z0, tile_y0, tile_x0, tz, ty, tx);
+    load_tile3_cpf(lvar, cpf7, vzr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
     for (int c=0; c<NV; c++) d_vzxr[c] = tdp(lvar, it0+c, sx);
     BARRIER
-    load_tile3(lvar, cpf8, tile_z0, tile_y0, tile_x0, tz, ty, tx);
+    load_tile3_cpf(lvar, cpf8, vzr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
     for (int c=0; c<NV; c++) d_vzyr[c] = tdp(lvar, it0+c, sy);
     BARRIER
-    load_tile3(lvar, cpf9, tile_z0, tile_y0, tile_x0, tz, ty, tx);
+    load_tile3_cpf(lvar, cpf9, vzr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
     for (int c=0; c<NV; c++) d_vzzr[c] = tdm(lvar, it0+c, 1);
     BARRIER
