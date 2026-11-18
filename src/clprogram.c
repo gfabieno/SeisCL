@@ -233,6 +233,10 @@ CL_INT prog_compare(char * filename_src,
         return 0;
     }
 
+    /* the whole source: a longer source with the same beginning is not a hit */
+    if ((size_t)length != strlen(prog_src)){
+        return 0;
+    }
     for (i=0;i<length;i++){
         if (prog_src[i]!=src_cache[i]){
             return 0;
@@ -708,6 +712,80 @@ int get_build_options(device *dev,
     return state;
 }
 
+/* Kernel cache (CUDA). An entry is named by a 64-bit FNV-1a hash of the
+   source, the options and the architecture: <cache_dir>/<kernel>-<hash>.bin.
+   A new configuration adds entries instead of overwriting the previous ones,
+   and an entry is written to a temporary file then renamed, so that processes
+   sharing a cache directory never read a partial file. An empty cache_dir
+   disables the cache. The exact source and options are also written to
+   <kernel>-<procid>-<devid>.src/.opt (debugging: memcheck line numbers). */
+static unsigned long long fnv1a(unsigned long long h, const char * s, size_t n){
+    size_t i;
+    for (i=0;i<n;i++){ h ^= (unsigned char)s[i]; h *= 1099511628211ULL; }
+    return h;
+}
+
+/* NVRTC emits a CUBIN for the device (--gpu-architecture=sm_XY): no driver JIT
+   at load. If this NVRTC does not know the architecture (a device newer than
+   the toolkit), it falls back to PTX (compute_XY), JIT-compiled by the driver. */
+static int nvrtc_build(const char * program_source, const char * program_name,
+                       char ** build_options, int noptions,
+                       char ** binary, size_t * size, int cubin){
+    int state = 0, i;
+    nvrtcProgram cuprog;
+    state = nvrtcCreateProgram(&cuprog, program_source, program_name, 0, NULL, NULL);
+    if (state != NVRTC_SUCCESS){
+        fprintf(stderr,"Error: %s\n",clerrors(state));
+        return state;
+    }
+    /* the architecture option written by get_build_options():
+       --gpu-architecture=compute_XY, replaced by sm_XY for a CUBIN */
+    const char * pre = "--gpu-architecture=compute_";
+    int iarch = -1;
+    char saved[500];
+    for (i=0;i<noptions;i++){
+        if (strncmp(build_options[i], pre, strlen(pre))==0) iarch = i;
+    }
+    if (cubin && iarch >= 0){
+        snprintf(saved, sizeof(saved), "%s", build_options[iarch]);
+        snprintf(build_options[iarch], 500, "--gpu-architecture=sm_%s",
+                 saved + strlen(pre));
+    }
+    state = nvrtcCompileProgram(cuprog, noptions, (const char * const*)build_options);
+    if (cubin && iarch >= 0){
+        snprintf(build_options[iarch], 500, "%s", saved);
+    }
+    if (state != NVRTC_SUCCESS){
+        size_t logSize = 0;
+        nvrtcGetProgramLogSize(cuprog, &logSize);
+        char *log = malloc(logSize+1);
+        if (log){
+            nvrtcGetProgramLog(cuprog, log);
+            log[logSize] = 0;
+            if (!cubin){
+                fprintf(stdout,"Compilation of %s:\n%s", program_name, log);
+            }
+            free(log);
+        }
+        nvrtcDestroyProgram(&cuprog);
+        return state;
+    }
+    if (cubin){
+        state = nvrtcGetCUBINSize(cuprog, size);
+        if (!state) *binary = malloc(*size);
+        if (!state && !*binary) state = 1;
+        if (!state) state = nvrtcGetCUBIN(cuprog, *binary);
+    }
+    else{
+        state = nvrtcGetPTXSize(cuprog, size);
+        if (!state) *binary = malloc(*size);
+        if (!state && !*binary) state = 1;
+        if (!state) state = nvrtcGetPTX(cuprog, *binary);
+    }
+    nvrtcDestroyProgram(&cuprog);
+    return state;
+}
+
 int compile(const char *program_source,
             char * program,
             CUmodule *module,
@@ -719,85 +797,65 @@ int compile(const char *program_source,
             int devid,
             int procid)
 {
-    /* Routine to build a kernel from the source file contained in a c string*/
-    
     int state = 0;
-    size_t ptxSize=0;
-    nvrtcProgram cuprog;
-    size_t program_size = 0;
     int i;
-    
-    // Write the binaries to file
-    // Create output file name
+    char * binary = NULL;
+    size_t size = 0;
+    int use_cache = cache_dir && cache_dir[0];
     char filename_bin[PATH_MAX];
-    snprintf(filename_bin, sizeof(filename_bin), "%s/%s-%d-%d.bin",
-             cache_dir, program_name, procid, devid);
-    char filename_src[PATH_MAX];
-    snprintf(filename_src, sizeof(filename_src), "%s/%s-%d-%d.src",
-             cache_dir, program_name, procid, devid);
-    char filename_opt[PATH_MAX];
-    snprintf(filename_opt, sizeof(filename_opt), "%s/%s-%d-%d.opt",
-             cache_dir, program_name, procid, devid);
-    
-    int same;
-    char concat_options[5000] = {0};
-    for (i=0;i<noptions;i++){
-        strcat(concat_options, build_options[i]);
-    }
-    
-    same =  prog_compare(filename_opt, (char *)concat_options);
-    if (same==1){
-        same =  prog_compare(filename_src, (char *)program_source);
-    }
+    (void)program;
 
-    if (!program){
-        if (same!=1){
-            __GUARD nvrtcCreateProgram(&cuprog,
-                                       program_source,
-                                       program_name,
-                                       0,
-                                       NULL,
-                                       NULL);
-            if (state !=CUDA_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
-            //WARNING $CUDA_PATH/lib64 has to be in LD_LIBRARY_PATH for compilation
-            __GUARD nvrtcCompileProgram(cuprog,noptions,(const char * const*)build_options);
-            if (state !=NVRTC_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
-            size_t logSize;
-            nvrtcGetProgramLogSize(cuprog, &logSize);
-            if (state){
-                char *log = malloc(logSize);
-                state = nvrtcGetProgramLog(cuprog, log);
-                fprintf(stdout,"Compilation of %s:\n",program_name);
-                fprintf(stdout,"%s",log);
-                free(log);
-//                fprintf(stdout,"%s",program_source);
-            }
-            
-            if (state !=NVRTC_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
-            __GUARD nvrtcGetPTXSize(cuprog, &ptxSize);
-            GMALLOC(program, sizeof(char)*ptxSize);
-            __GUARD nvrtcGetPTX(cuprog, program);
-            __GUARD nvrtcDestroyProgram(&cuprog);
-            // Write the binary ans src to the output file
-            prog_write_file(filename_bin, program, sizeof(char)*ptxSize);
-            prog_write_src(filename_src, (char *)program_source);
-            prog_write_src(filename_opt, (char *)concat_options);
-        }
-        else{
-            state = prog_read_file((char **)&program,
-                                   &program_size,
-                                   filename_bin);
-        }
-        __GUARD cuModuleLoadDataEx(module, program, 0, 0, 0);
+    unsigned long long h = 14695981039346656037ULL;
+    h = fnv1a(h, program_source, strlen(program_source) + 1);
+    for (i=0;i<noptions;i++){
+        h = fnv1a(h, build_options[i], strlen(build_options[i]) + 1);
     }
-    
+    if (use_cache){
+        snprintf(filename_bin, sizeof(filename_bin), "%s/%s-%016llx.bin",
+                 cache_dir, program_name, h);
+        if (prog_read_file(&binary, &size, filename_bin) != 0){
+            binary = NULL;
+        }
+    }
+    if (!binary){
+        state = nvrtc_build(program_source, program_name, build_options,
+                            noptions, &binary, &size, 1);
+        if (state){
+            free(binary);
+            binary = NULL;
+            state = nvrtc_build(program_source, program_name, build_options,
+                                noptions, &binary, &size, 0);
+        }
+        if (state) fprintf(stderr,"Error: %s\n",clerrors(state));
+        if (!state && use_cache){
+            char tmp[PATH_MAX+32];
+            snprintf(tmp, sizeof(tmp), "%s.%d.tmp", filename_bin, (int)getpid());
+            if (prog_write_file(tmp, (unsigned char *)binary, size) == 0){
+                rename(tmp, filename_bin);
+            }
+            /* debugging copies of the source and options */
+            char filename_src[PATH_MAX], filename_opt[PATH_MAX];
+            char concat_options[5000] = {0};
+            for (i=0;i<noptions;i++){
+                strncat(concat_options, build_options[i],
+                        sizeof(concat_options) - strlen(concat_options) - 1);
+            }
+            snprintf(filename_src, sizeof(filename_src), "%s/%s-%d-%d.src",
+                     cache_dir, program_name, procid, devid);
+            snprintf(filename_opt, sizeof(filename_opt), "%s/%s-%d-%d.opt",
+                     cache_dir, program_name, procid, devid);
+            prog_write_src(filename_src, (char *)program_source);
+            prog_write_src(filename_opt, concat_options);
+        }
+    }
+    __GUARD cuModuleLoadDataEx(module, binary, 0, 0, 0);
+    free(binary);
+
     // Now create the kernel "objects"
     __GUARD cuModuleGetFunction(kernel, *module, program_name);
     if (state !=CUDA_SUCCESS) fprintf(stderr,"Error: %s\n",clerrors(state));
-    
-    
+
     return state;
-    
 }
 #endif
 
