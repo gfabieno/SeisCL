@@ -27,17 +27,21 @@
    simulation"), i.e. those of update_v2D_SH.cl. Thesis eq. 3.33 (SH form in
    notes sh-gradient.md). Under back_prop_type 2 every <var>r argument is bound
    to the same buffer as <var> (clprogram.c).
-   back_prop_type 1 (reverse-time reconstruction) is not implemented for SH:
-   assign_modeling_case.c refuses it. */
-
-#if BACK_PROP_TYPE==1
-#error "SH (ND 21): back_prop_type 1 adjoint not implemented"
-#endif
+   BACK_PROP_TYPE 1 (elastic), as update_adjv2D.cl: also rebuilds the forward
+   velocity one step back (stored frame values injected) and accumulates the
+   density gradient in the summation-by-parts form, forward velocity x adjoint
+   increment, in gradrho (vy sits at rjp = rho: no average). Receiver cells: the
+   residual term is added by rec_grad_SH.cl. CPML: the derivatives of the adjoint
+   stresses are taken of the fields filtered by cpml_adj_s (cpml_adj2D_SH.cl),
+   the exact adjoint. */
 
 #define PSIX(z,x) ((x)*(NZS-2*FDOH)+(z))
 #define PSIZ(z,x) ((x)*(2*NAB)+(z))
 
 FUNDEF void update_adjv(int offcomm,
+                     GLOBARG STO * RESTRICT vy,
+                     GLOBARG const STO * RESTRICT sxy,       GLOBARG const STO * RESTRICT syz,
+                     GLOBARG const STO * RESTRICT vybnd,
                      GLOBARG STO * RESTRICT vyr,
                      GLOBARG const STO * RESTRICT sxyr,      GLOBARG const STO * RESTRICT syzr,
                      GLOBARG const STO * RESTRICT rho,
@@ -45,6 +49,11 @@ FUNDEF void update_adjv(int offcomm,
                      GLOBARG const float * RESTRICT K_z,       GLOBARG const float * RESTRICT a_z,       GLOBARG const float * RESTRICT b_z,
                      GLOBARG const float * RESTRICT K_x,       GLOBARG const float * RESTRICT a_x,       GLOBARG const float * RESTRICT b_x,
                      GLOBARG float * RESTRICT psi_sxy_x,       GLOBARG float * RESTRICT psi_syz_z,
+                     GLOBARG const STO * RESTRICT cpfa,      GLOBARG const STO * RESTRICT cpfb,
+                     GLOBARG float * RESTRICT gradrho,
+                     GLOBARG const float * RESTRICT src,     GLOBARG const float * RESTRICT src_pos,
+                     int nsrc,                               int nt,
+                     int src_scale,                          int res_scale,
                      LOCARG)
 {
     LOCDEF
@@ -58,7 +67,30 @@ FUNDEF void update_adjv(int offcomm,
 
     float sxy_x[NV], syz_z[NV];
 
-    // Spatial derivatives of the stresses, from shared tiles
+    // Spatial derivatives of the forward stresses (to rebuild the forward velocity)
+#if BACK_PROP_TYPE==1
+    float fsxy_x[NV], fsyz_z[NV];
+    load_tile2(lvar, sxy, tile_z0, tile_x0, tz, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) fsxy_x[c] = tdxm(lvar, tz, ZH + NV*LID0 + c, lx);
+    BARRIER
+    load_tile2(lvar, syz, tile_z0, tile_x0, tz, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) fsyz_z[c] = tdzm(lvar, tz, ZH + NV*LID0 + c, lx);
+    BARRIER
+#endif
+
+    // Spatial derivatives of the adjoint stresses, from shared tiles
+#if ABS_TYPE==1 && BACK_PROP_TYPE==1
+    /* exact CPML adjoint: the fields filtered by cpml_adj_s */
+    load_tile2(lvar, cpfa, tile_z0, tile_x0, tz, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) sxy_x[c] = tdxm(lvar, tz, ZH + NV*LID0 + c, lx);
+    BARRIER
+    load_tile2(lvar, cpfb, tile_z0, tile_x0, tz, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) syz_z[c] = tdzm(lvar, tz, ZH + NV*LID0 + c, lx);
+#else
     load_tile2(lvar, sxyr, tile_z0, tile_x0, tz, tx);
     BARRIER
     for (int c=0; c<NV; c++) sxy_x[c] = tdxm(lvar, tz, ZH + NV*LID0 + c, lx);
@@ -66,6 +98,7 @@ FUNDEF void update_adjv(int offcomm,
     load_tile2(lvar, syzr, tile_z0, tile_x0, tz, tx);
     BARRIER
     for (int c=0; c<NV; c++) syz_z[c] = tdzm(lvar, tz, ZH + NV*LID0 + c, lx);
+#endif
 
     // Threads outside the grid stop here (the grid is rounded up to the work-group size)
 #if COMM12==0
@@ -78,14 +111,28 @@ FUNDEF void update_adjv(int offcomm,
     float lvy[NV], lrho[NV];
     ldn(vyr, indv, lvy);
     ldp2(rho, gidx, zt, lrho);
+#if BACK_PROP_TYPE==1
+    float lvyf[NV];
+    ldn(vy, indv, lvyf);
+#endif
 
     for (int c=0; c<NV; c++){
         int gidz = zt + c;
         if (!INTERIOR_Z(gidz)) continue;              // halo cell of an aligned pair
         float dsxy = sxy_x[c], dsyz = syz_z[c];
 
-        // CPML: filter the derivatives in the layers
-#if ABS_TYPE==1
+        // Rebuild the forward velocity one step back; stored cells get their stored value
+#if BACK_PROP_TYPE==1
+        int indp = (gidx-FDOH)*(NZS-2*FDOH) + (gidz-FDOH);
+        lvyf[c] -= (fsxy_x[c] + fsyz_z[c])*lrho[c];
+        {
+            int m = inject_ind(gidz, gidx);
+            if (m != -1) lvyf[c] = ldf(vybnd, m);
+        }
+#endif
+
+        // CPML, BACK_PROP_TYPE 2: the adjoint run as a forward simulation
+#if ABS_TYPE==1 && BACK_PROP_TYPE!=1
         {
             int i, k, ind;
             float psi;
@@ -131,7 +178,8 @@ FUNDEF void update_adjv(int offcomm,
 #endif
 
         // Update the adjoint velocity
-        lvy[c] += (dsxy + dsyz)*lrho[c];
+        float ivy = (dsxy + dsyz)*lrho[c];
+        lvy[c] += ivy;
 
         // Absorbing boundary (Cerjan)
 #if ABS_TYPE==2
@@ -146,6 +194,28 @@ FUNDEF void update_adjv(int offcomm,
         if (gidx>NX-NAB-FDOH-1) lvy[c] *= taper[NX-FDOH-gidx-1];
 #endif
 #endif
+
+        // Density gradient: forward velocity x adjoint increment (update_adjv2D.cl)
+#if BACK_PROP_TYPE==1
+        gradrho[indp] += GSCALE(-lvyf[c]*ivy);
+        /* Source term of the misfit gradient, GJI 2017 eq. (26a), for a force
+           source Fy (code 1): adjoint velocity x DT*src. */
+#if GRADOUT==1
+        for (int srci=0; srci<nsrc; srci++){
+            if ((int)src_pos[4+5*srci]==1){
+                int si = (int)(src_pos[0+5*srci]/DH)+FDOH;
+                int sk = (int)(src_pos[2+5*srci]/DH)+FDOH;
+                if (si==gidx && sk==gidz){
+                    float samp = pow2s(DT*src[srci*NT+nt], src_scale - PARSCALE);
+                    gradrho[indp] += GSCALE(lvy[c]*samp);
+                }
+            }
+        }
+#endif
+#endif
     }
     stn(vyr, indv, lvy);
+#if BACK_PROP_TYPE==1
+    stn(vy, indv, lvyf);
+#endif
 }

@@ -29,16 +29,20 @@
    pointer and summed from registers (pitfall A23: 3-D read the new value
    through an aliased const RESTRICT pointer). Thesis eq. 3.33 (SH form in
    notes sh-gradient.md).
-   back_prop_type 1 is not implemented for SH (refused by assign_modeling_case.c). */
-
-#if BACK_PROP_TYPE==1
-#error "SH (ND 21): back_prop_type 1 adjoint not implemented"
-#endif
+   BACK_PROP_TYPE 1 (elastic), as update_adjs2D.cl: also rebuilds the forward
+   stresses one step back (stored frame values injected) and accumulates the
+   shear-modulus gradient in the summation-by-parts form, forward stress x
+   adjoint increment, at the staggered nodes (gradmuipjp, gradmujpkp; folded onto
+   mu by average_grad_transpose). CPML: the derivatives of the adjoint velocity
+   are taken of the fields filtered by cpml_adj_v (cpml_adj2D_SH.cl). */
 
 #define PSIX(z,x) ((x)*(NZS-2*FDOH)+(z))
 #define PSIZ(z,x) ((x)*(2*NAB)+(z))
 
 FUNDEF void update_adjs(int offcomm,
+                     GLOBARG const STO * RESTRICT vy,
+                     GLOBARG STO * RESTRICT sxy,             GLOBARG STO * RESTRICT syz,
+                     GLOBARG const STO * RESTRICT sxybnd,    GLOBARG const STO * RESTRICT syzbnd,
                      GLOBARG const STO * RESTRICT vyr,
                      GLOBARG STO * RESTRICT sxyr,            GLOBARG STO * RESTRICT syzr,
                      GLOBARG const STO * RESTRICT muipjp,    GLOBARG const STO * RESTRICT mujpkp,
@@ -48,6 +52,9 @@ FUNDEF void update_adjs(int offcomm,
                      GLOBARG const float * RESTRICT K_x_half,  GLOBARG const float * RESTRICT a_x_half,  GLOBARG const float * RESTRICT b_x_half,
                      GLOBARG const float * RESTRICT K_z_half,  GLOBARG const float * RESTRICT a_z_half,  GLOBARG const float * RESTRICT b_z_half,
                      GLOBARG float * RESTRICT psi_vy_x,        GLOBARG float * RESTRICT psi_vy_z,
+                     GLOBARG const STO * RESTRICT cpfa,      GLOBARG const STO * RESTRICT cpfb,
+                     GLOBARG float * RESTRICT gradmuipjp,    GLOBARG float * RESTRICT gradmujpkp,
+                     int src_scale,                          int res_scale,
                      LOCARG)
 {
     LOCDEF
@@ -59,13 +66,36 @@ FUNDEF void update_adjs(int offcomm,
 
     float vyx[NV], vyz[NV];
 
-    // Spatial derivatives of the velocity, from a shared tile
+    // Spatial derivatives of the forward velocity (to rebuild the forward stresses)
+#if BACK_PROP_TYPE==1
+    float fvyx[NV], fvyz[NV];
+    load_tile2(lvar, vy, tile_z0, tile_x0, tz, tx);
+    BARRIER
+    for (int c=0; c<NV; c++){
+        fvyx[c] = tdxp(lvar, tz, ZH + NV*LID0 + c, lx);
+        fvyz[c] = tdzp(lvar, tz, ZH + NV*LID0 + c, lx);
+    }
+    BARRIER
+#endif
+
+    // Spatial derivatives of the adjoint velocity, from a shared tile
+#if ABS_TYPE==1 && BACK_PROP_TYPE==1
+    /* exact CPML adjoint: the fields filtered by cpml_adj_v */
+    load_tile2(lvar, cpfa, tile_z0, tile_x0, tz, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) vyx[c] = tdxp(lvar, tz, ZH + NV*LID0 + c, lx);
+    BARRIER
+    load_tile2(lvar, cpfb, tile_z0, tile_x0, tz, tx);
+    BARRIER
+    for (int c=0; c<NV; c++) vyz[c] = tdzp(lvar, tz, ZH + NV*LID0 + c, lx);
+#else
     load_tile2(lvar, vyr, tile_z0, tile_x0, tz, tx);
     BARRIER
     for (int c=0; c<NV; c++){
         vyx[c] = tdxp(lvar, tz, ZH + NV*LID0 + c, lx);
         vyz[c] = tdzp(lvar, tz, ZH + NV*LID0 + c, lx);
     }
+#endif
 
 #if COMM12==0
     if (zt > NZS-FDOH-1 || (gidx-offcomm) > (NX-FDOH-1-LCOMM)) return;
@@ -84,14 +114,33 @@ FUNDEF void update_adjs(int offcomm,
     ldp2(tausipjp, gidx, zt, ltausipjp);
     ldp2(tausjpkp, gidx, zt, ltausjpkp);
 #endif
+#if BACK_PROP_TYPE==1
+    float lsxyf[NV], lsyzf[NV];
+    ldn(sxy, indv, lsxyf);
+    ldn(syz, indv, lsyzf);
+#endif
 
     for (int c=0; c<NV; c++){
         int gidz = zt + c;
         if (!INTERIOR_Z(gidz)) continue;              // halo cell of an aligned pair
         float dvyx = vyx[c], dvyz = vyz[c];
 
-        // CPML: filter the derivatives in the layers
-#if ABS_TYPE==1
+        // Rebuild the forward stresses one step back (elastic); stored cells get their stored value
+#if BACK_PROP_TYPE==1
+        int indp = (gidx-FDOH)*(NZS-2*FDOH) + (gidz-FDOH);
+        lsxyf[c] -= lmuipjp[c]*fvyx[c];
+        lsyzf[c] -= lmujpkp[c]*fvyz[c];
+        {
+            int m = inject_ind(gidz, gidx);
+            if (m != -1){
+                lsxyf[c] = ldf(sxybnd, m);
+                lsyzf[c] = ldf(syzbnd, m);
+            }
+        }
+#endif
+
+        // CPML, BACK_PROP_TYPE 2: the adjoint run as a forward simulation
+#if ABS_TYPE==1 && BACK_PROP_TYPE!=1
         {
             int i, k, ind;
             float psi;
@@ -136,8 +185,10 @@ FUNDEF void update_adjs(int offcomm,
 
         // Update the adjoint stresses
 #if LVE==0
-        lsxy[c] += lmuipjp[c]*dvyx;
-        lsyz[c] += lmujpkp[c]*dvyz;
+        float isxy = lmuipjp[c]*dvyx;
+        float isyz = lmujpkp[c]*dvyz;
+        lsxy[c] += isxy;
+        lsyz[c] += isyz;
 #else
         float fipjp = lmuipjp[c]*(1.0f + (float)LVE*ltausipjp[c]);
         float fjpkp = lmujpkp[c]*(1.0f + (float)LVE*ltausjpkp[c]);
@@ -186,7 +237,20 @@ FUNDEF void update_adjs(int offcomm,
         lsxy[c] *= tp;
         lsyz[c] *= tp;
 #endif
+
+        // Moduli gradient at the staggered nodes: forward stress x adjoint increment
+        // (update_adjs2D.cl, its sxz term: -sxz isxz / mu^2)
+#if BACK_PROP_TYPE==1
+        if (lmuipjp[c] != 0.0f)
+            gradmuipjp[indp] += GSCALE(-lsxyf[c]*isxy/(lmuipjp[c]*lmuipjp[c]));
+        if (lmujpkp[c] != 0.0f)
+            gradmujpkp[indp] += GSCALE(-lsyzf[c]*isyz/(lmujpkp[c]*lmujpkp[c]));
+#endif
     }
     stn(sxyr, indv, lsxy);
     stn(syzr, indv, lsyz);
+#if BACK_PROP_TYPE==1
+    stn(sxy, indv, lsxyf);
+    stn(syz, indv, lsyzf);
+#endif
 }

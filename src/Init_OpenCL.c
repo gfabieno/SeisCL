@@ -1334,10 +1334,12 @@ int Init_CUDA(model * m, device ** dev)  {
             __GUARD prog_create(m, di, &di->bnd_cnds.rec_grad_v);
             di->bnd_cnds.rec_grad_v.wdim=1;
             di->bnd_cnds.rec_grad_v.gsize[0]=1;
-            di->bnd_cnds.rec_grad_s=m->bnd_cnds.rec_grad_s;
-            __GUARD prog_create(m, di, &di->bnd_cnds.rec_grad_s);
-            di->bnd_cnds.rec_grad_s.wdim=1;
-            di->bnd_cnds.rec_grad_s.gsize[0]=1;
+            if (m->bnd_cnds.rec_grad_s.name){      /* none in SH */
+                di->bnd_cnds.rec_grad_s=m->bnd_cnds.rec_grad_s;
+                __GUARD prog_create(m, di, &di->bnd_cnds.rec_grad_s);
+                di->bnd_cnds.rec_grad_s.wdim=1;
+                di->bnd_cnds.rec_grad_s.gsize[0]=1;
+            }
         }
         /* Exact CPML adjoint filters (cpml_adj2D.cl): one thread per cell. The
            scratch buffers have no halo exchange, so a single device only. */

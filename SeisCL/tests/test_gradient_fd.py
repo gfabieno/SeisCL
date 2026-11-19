@@ -1117,25 +1117,28 @@ def test_fd_3d_viscoelastic_bpt2_p():
 # verified -- this case is expected to error and is listed in XFAIL.
 # ---------------------------------------------------------------------------
 
-def _sh_physical_directions(FL, freesurf=0, tau=0.1, tol=0.02, F0=25.0):
-    """SH (ND=21), back_prop_type 2, every DFT bin: FD / <g, dm> along each
-    physical combination of SH, C = mu_s(1+L taus), D = mu_s taus (mu_s the
-    stored modulus rho vs^2/(1+alpha taus)) and rho, changed one at a time
-    through (vs, rho, taus) by a Gaussian bump 8 cells below the source.
+def _sh_physical_directions(FL, freesurf=0, tau=0.1, tol=0.02, F0=25.0, bpt=2, abs_type=2, bump="below",
+                            zrec=None, zbump=None, xbump=None, eps=0.01):
+    """SH (ND=21), FD / <g, dm> along each physical combination of SH,
+    C = mu_s(1+L taus), D = mu_s taus (mu_s the stored modulus rho vs^2/(1+alpha
+    taus)) and rho, changed one at a time through (vs, rho, taus) by a Gaussian
+    bump: 8 cells below the source ("below"), on the source cell ("src", the
+    eq. 26a source term), or on the middle receiver ("rec", the receiver term of
+    back_prop_type 1). back_prop_type 2 uses every DFT bin.
     The SH adjoint and gradient kernels are the 3-D ones with the terms that
     vanish by symmetry dropped (2026-11-19, notes sh-gradient.md)."""
     FL = np.asarray(FL, dtype=float) * F0
     L = len(FL)
-    wd = workdir("fd_sh_phys_L%d_fs%d" % (L, freesurf))
+    wd = workdir("fd_sh_phys_L%d_fs%d_b%d_a%d_%s_%s_%s" % (L, freesurf, bpt, abs_type, bump, zrec, zbump))
     def mk(**k):
         s = SeisCL(workdir=wd, N=np.array([96, 96]), ND=21, dh=10, dt=1e-3, NT=300, FDORDER=8,
-                   freesurf=freesurf, abs_type=2, nab=16, f0=F0, seisout=1, param_type=0,
+                   freesurf=freesurf, abs_type=abs_type, nab=16, f0=F0, seisout=1, param_type=0,
                    **(dict(L=L, FL=FL) if L else {}), **k)
         nz, nx = int(s.N[0]), int(s.N[1])
         zs = 20 if freesurf else nz // 2
         s.src_pos_all = np.stack([[nx // 2 * s.dh], [0.], [zs * s.dh], [0.], [1.]])
         nr = 8
-        zr = 3 if freesurf else nz - s.nab - 6
+        zr = (3 if freesurf else nz - s.nab - 6) if zrec is None else zrec
         s.rec_pos_all = np.stack([np.linspace(22, nx - 23, nr) * s.dh, np.zeros(nr), np.full(nr, zr * s.dh),
                                   np.zeros(nr), np.arange(1, nr + 1.), np.zeros(nr), np.zeros(nr), np.zeros(nr)])
         s.src_all = 1e10 * s.ricker_wavelet().reshape(-1, 1)
@@ -1158,20 +1161,28 @@ def _sh_physical_directions(FL, freesurf=0, tau=0.1, tol=0.02, F0=25.0):
         t.set_forward(t.src_pos_all[3, :], p, withgrad=False); t.execute()
         return t.misfit(t.read_data(), dobs=dobs)[0]
     fr = (1.0 / (int(s0.NT) * float(s0.dt))) * np.arange(1, int(s0.NT) // 2)
-    g, _ = mk(gradout=1, back_prop_type=2, gradfreqs=fr); g.file_din = din
+    g, _ = (mk(gradout=1, back_prop_type=2, gradfreqs=fr) if bpt == 2
+            else mk(gradout=1, back_prop_type=1)); g.file_din = din
     g.set_forward(g.src_pos_all[3, :], start, withgrad=True); g.execute()
     names = ["vs", "rho"] + (["taus"] if L else [])
     G = dict(zip(names, [np.asarray(a, np.float64) for a in g.read_grad()]))
     idx = np.indices(s0.N)
-    bump = np.exp(-((idx[0] - zs - 8) ** 2 + (idx[1] - nx // 2) ** 2) / 2.0 ** 2)
+    where = bump
+    if zbump is not None:
+        cz, cx = zbump, (nx // 2 if xbump is None else xbump)
+    elif where == "rec":
+        cz, cx = int(round(s0.rec_pos_all[2, 4] / s0.dh)), int(round(s0.rec_pos_all[0, 4] / s0.dh))
+    else:
+        cz, cx = zs + (8 if bump == "below" else 0), nx // 2
+    bump = np.exp(-((idx[0] - cz) ** 2 + (idx[1] - cx) ** 2) / 2.0 ** 2)
     ts = tau if L else 0.0
     mus = rho0 * vs0 ** 2 / (1 + al * ts)
     def user_dir(dmus=0.0, dts=0.0, drho=0.0):
         dvs2 = (dmus * (1 + al * ts) + mus * al * dts) / rho0 - mus * (1 + al * ts) * drho / rho0 ** 2
         return {"vs": dvs2 / (2 * vs0), "rho": drho, "taus": dts}
-    dirs = {"C": user_dir(dmus=0.01 * mus, dts=-0.01 * ts), "rho": user_dir(drho=0.01 * rho0)}
+    dirs = {"C": user_dir(dmus=eps * mus, dts=-eps * ts), "rho": user_dir(drho=eps * rho0)}
     if L:
-        dirs["D"] = user_dir(dmus=-mus * L * 0.01 * tau / (1 + L * tau), dts=0.01 * tau)
+        dirs["D"] = user_dir(dmus=-mus * L * eps * tau / (1 + L * tau), dts=eps * tau)
     bad = []
     for key, dd in dirs.items():
         dm = {k: dd[k] * bump for k in names}
@@ -1179,8 +1190,10 @@ def _sh_physical_directions(FL, freesurf=0, tau=0.1, tol=0.02, F0=25.0):
         pp = {k: v.copy() for k, v in start.items()}; pm = {k: v.copy() for k, v in start.items()}
         for k in names:
             pp[k] = pp[k] + dm[k]; pm[k] = pm[k] - dm[k]
-        ratio = (misfit(pp) - misfit(pm)) / 2.0 / gdm
-        print("  SH L=%d fs=%d %-3s FD/<g,dm> = %.4f" % (L, freesurf, key, ratio))
+        fd = (misfit(pp) - misfit(pm)) / 2.0
+        ratio = fd / gdm
+        print("  SH L=%d fs=%d bpt=%d abs=%d bump=%s %-3s FD/<g,dm> = %.4f  (FD %.3e)"
+              % (L, freesurf, bpt, abs_type, "%s zr=%s zb=%s" % (where, zrec, zbump), key, ratio, fd))
         if not abs(ratio - 1.0) <= tol:
             bad.append("%s %.4f" % (key, ratio))
     assert not bad, "SH gradient off in: %s (tol %g)" % (", ".join(bad), tol)
@@ -1197,26 +1210,57 @@ def test_fd_sh_visco_L2():
 
 
 def test_fd_sh_freesurface():
-    """SH elastic with a free surface: the adjoint applies the same image
-    condition to the adjoint stress (surface2D_SH.cl surface_adj)."""
+    """SH elastic with a free surface: the adjoint of the image condition
+    (surface2D_SH.cl surface_adj: the images folded back below the surface)."""
     _sh_physical_directions([], freesurf=1)
 
 
-def test_fd_sh_bpt1_is_rejected():
-    """SH with back_prop_type 1 must be refused with a clear message (the
-    reverse-time reconstruction is not implemented for SH)."""
-    wd = workdir("fd_sh_bpt1_reject")
-    s = _crosswell_sh(wd, gradout=1, back_prop_type=1)
-    init, true = _init_and_true(s, _patch(s))
-    s.set_forward(s.src_pos_all[3, :], init, withgrad=True)
+def test_fd_sh_bpt1_elastic():
+    """SH elastic, back_prop_type 1 (reverse-time reconstruction, 2026-11-19)."""
+    _sh_physical_directions([], bpt=1)
+
+
+def test_fd_sh_bpt1_srccell_reccell():
+    """SH back_prop_type 1 with the bump on the source cell (eq. 26a term for Fy) and on a receiver
+    (rec_grad_SH.cl)."""
+    _sh_physical_directions([], bpt=1, bump="src")
+    _sh_physical_directions([], bpt=1, bump="rec")
+
+
+def test_fd_sh_bpt1_cpml():
+    """SH back_prop_type 1 with CPML layers: exact CPML adjoint (cpml_adj2D_SH.cl)."""
+    _sh_physical_directions([], bpt=1, abs_type=1)
+
+
+def test_fd_sh_bpt1_freesurface():
+    """SH back_prop_type 1 with a free surface (sum form in every row, plus the fold term of surface_adj; the
+    image condition only writes the rows above the surface, so the step stays invertible). Bump below the
+    source, and on a receiver 3 rows under the surface. The receiver bump uses a 0.25 % step: there a 1 % step
+    puts 7 % of third-order terms into the FD (ratios 1.068 at 1 %, 1.005 at 0.25 %, 2.08 at 4 %)."""
+    _sh_physical_directions([], bpt=1, freesurf=1)
+    _sh_physical_directions([], bpt=1, freesurf=1, bump="rec", eps=0.0025)
+
+
+def test_fd_sh_surface_rows():
+    """SH free surface, bump on the surface rows (rows 0-3, between two receivers), both gradient methods.
+    The adjoint of the stress images (surface_adj, surface2D_SH.cl) folds the adjoint velocities back into the
+    rows below the surface; until 2026-11-19 it applied the forward image condition to the adjoint stress:
+    rho 0.61 (row 0) to -1.2 (row 3) with back_prop_type 2."""
+    for bpt in (2, 1):
+        _sh_physical_directions([], bpt=bpt, freesurf=1, zbump=1, xbump=47)
+
+
+def test_fd_sh_bpt1_visco_is_rejected():
+    """SH viscoelastic with back_prop_type 1 must be refused (reverse-time reconstruction of a dissipative
+    medium, as P-SV)."""
     try:
-        s.execute()
+        _sh_physical_directions([1.0], bpt=1)
     except SeisCLError as exc:
         msg = str(exc)
         print("  rejected as expected: %s" % msg.splitlines()[0][:200])
         assert "back_prop_type" in msg, "wrong refusal message: %s" % msg[:200]
         return
-    raise AssertionError("SH with back_prop_type=1 was accepted")
+    raise AssertionError("SH viscoelastic with back_prop_type=1 was accepted")
 
 
 # ---------------------------------------------------------------------------
@@ -2154,7 +2198,12 @@ TESTS = [
     test_fd_sh_elastic,
     test_fd_sh_visco_L2,
     test_fd_sh_freesurface,
-    test_fd_sh_bpt1_is_rejected,
+    test_fd_sh_bpt1_elastic,
+    test_fd_sh_bpt1_srccell_reccell,
+    test_fd_sh_bpt1_cpml,
+    test_fd_sh_bpt1_freesurface,
+    test_fd_sh_surface_rows,
+    test_fd_sh_bpt1_visco_is_rejected,
     test_fd_2d_srccell_bpt1,
     test_fd_3d_srccell_bpt1,
     test_fd_2d_srccell_bpt1_fp16,
@@ -2184,10 +2233,11 @@ TESTS = [
 # still run and still print their numbers; they just do not fail the build.
 XFAIL = {
     # Empty since 2026-11-19 (SH gradients implemented). The heterogeneous
-    # viscoelastic tests pass with every DFT bin, taus at 0.89: the stored/paper
-    # modulus conversion is done per cell, after the transpose of the staggered
-    # averages, which is exact only where taus is uniform across an average
-    # (notes sh-gradient.md, 2.7). Open, for the supervisor.
+    # viscoelastic tests pass with every DFT bin; taus 0.93-0.94 in 2-D
+    # (0.89 before the node-level conversion, calc_grad.c shear_node_transpose):
+    # the rest comes from the taup != taus defect (direction mu(1+L taus) off
+    # 6-9 % in 2-D with taup != taus, notes viscoelastic-gradient-theory.md).
+    # Open, for the supervisor.
 }
 
 if __name__ == "__main__":

@@ -20,11 +20,14 @@
 #include "average_params.hcl"
 #include "savebnd2D.hcl"
 #include "savebnd3D.hcl"
+#include "savebnd2D_SH.hcl"
 #include "surface2D.hcl"
 #include "surface2D_adj.hcl"
 #include "cpml_adj2D.hcl"
 #include "cpml_adj3D.hcl"
+#include "cpml_adj2D_SH.hcl"
 #include "rec_grad.hcl"
+#include "rec_grad_SH.hcl"
 #include "header_vec.hcl"
 #include "surface2D_SH.hcl"
 #include "surface3D.hcl"
@@ -1005,16 +1008,15 @@ int assign_modeling_case(model * m){
         fprintf(stderr,"Error: N[0] (NZ=%d) must be a multiple of 2\n",
                 m->N[0]);
     }
-    /* SH (ND=21) gradients: back_prop_type 2 only, velocity receivers only.
-       The SH adjoint and gradient kernels (2026-11-19) are the 3-D ones with
-       the terms that vanish by symmetry dropped (notes sh-gradient.md);
-       back_prop_type 1 (reverse-time reconstruction) is not implemented for
-       SH, and stress receivers would need the adjoint memory-variable source
-       of the P-SV pressure fix (thesis eq. 3.29), not ported. */
-    if (m->GRADOUT==1 && m->ND==21 && m->BACK_PROP_TYPE!=2){
+    /* SH (ND=21) gradients: velocity receivers only. The SH adjoint and
+       gradient kernels (2026-11-19) are the 3-D ones with the terms that
+       vanish by symmetry dropped (notes sh-gradient.md); back_prop_type 1
+       (elastic) follows update_adjv2D/adjs2D.cl. Stress receivers would need
+       the adjoint memory-variable source of the P-SV pressure fix (thesis eq.
+       3.29) and an SH rec_grad_s, not written. */
+    if (m->GRADOUT==1 && m->ND==21 && m->HOUT==1){
         state=1;
-        fprintf(stderr,"Error: gradients in SH (ND=21) need back_prop_type=2 "
-                       "(back_prop_type 1 is not implemented for SH).\n");
+        fprintf(stderr,"Error: Hout=1 is not implemented for ND=21 (SH).\n");
     }
     if (m->GRADOUT==1 && m->ND==21 && m->VARSOUT!=1){
         state=1;
@@ -1126,7 +1128,7 @@ int assign_modeling_case(model * m){
              updates_adj = update_adjs2D_SH_source;
              surface = surface2D_SH_source;
              surface_adj = surface2D_SH_source;   /* kernel surface_adj in the same file */
-             savebnd = savebnd2D_source;
+             savebnd = savebnd2D_SH_source;
          }
          else{
              state = 1;
@@ -1205,10 +1207,16 @@ int assign_modeling_case(model * m){
         __GUARD prog_source(&m->bnd_cnds.rec_grad_s, "rec_grad_s",
                             rec_grad_source, 3, vheaders);
     }
+    /* SH: velocity receivers only (refused otherwise), vy -> gradrho */
+    if (m->GRADOUT && m->BACK_PROP_TYPE==1 && m->ND==21){
+        __GUARD prog_source(&m->bnd_cnds.rec_grad_v, "rec_grad_v",
+                            rec_grad_SH_source, 3, vheaders);
+    }
     /* Exact CPML adjoint (BACK_PROP_TYPE 1): filters run before each adjoint
        update (time_stepping.c, update_grid_adj). */
     if (m->ABS_TYPE==1 && m->GRADOUT && m->BACK_PROP_TYPE==1){
-        const char * cpmladj = m->ND==3 ? cpml_adj3D_source : cpml_adj2D_source;
+        const char * cpmladj = m->ND==3 ? cpml_adj3D_source :
+                               (m->ND==21 ? cpml_adj2D_SH_source : cpml_adj2D_source);
         __GUARD prog_source(&m->bnd_cnds.cpml_adj_v, "cpml_adj_v",
                             cpmladj, 3, vheaders);
         __GUARD prog_source(&m->bnd_cnds.cpml_adj_s, "cpml_adj_s",
@@ -1495,6 +1503,10 @@ int assign_modeling_case(model * m){
             __GUARD append_var(m, &ind, "cpfb", 0, 0, &size_varseis);
             __GUARD append_var(m, &ind, "cpfc", 0, 0, &size_varseis);
             __GUARD append_var(m, &ind, "cpfd", 0, 0, &size_varseis);
+        }
+        if ((m->GRADOUT || m->INPUTRES) && m->BACK_PROP_TYPE==1 && m->ND==21){
+            __GUARD append_var(m, &ind, "cpfa", 0, 0, &size_varseis);   /* cpml_adj2D_SH.cl */
+            __GUARD append_var(m, &ind, "cpfb", 0, 0, &size_varseis);
         }
         if ((m->GRADOUT || m->INPUTRES) && m->BACK_PROP_TYPE==1 && m->ND==3){
             __GUARD append_var(m, &ind, "cpf1", 0, 0, &size_varseis);
