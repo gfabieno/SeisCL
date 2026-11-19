@@ -1571,6 +1571,38 @@ def test_fd_visco_physical_directions_pressure():
     _visco_physical_directions(100.0, 2)
 
 
+def test_visco_multishot_identical_L3():
+    """Two identical shots in one run, three relaxation mechanisms: shot 2 must equal shot 1 exactly.
+    vars_init used to zero one grid of each memory variable, which holds L grids: slices l >= 1 (OpenCL) or
+    l >= 2 (CUDA, partly) kept the previous shot's values (shot 2 off by 0.5-1.7 %), and the back_prop_type 2
+    adjoint, which reuses the forward buffers, started from the forward's last memory variables (gradient 1e13
+    too large). Fixed 2026-11-19."""
+    FL = F0 * np.array([1.0, 2.0, 4.0])
+    s, _ = _srccell_model(workdir("visco_multishot_L3"), ND=2, srctype=100.0, seisout=1, L=3, FL=FL)
+    sp = s.src_pos_all
+    s.src_pos_all = np.concatenate([sp, sp], axis=1)
+    s.src_pos_all[3, 1] = 1
+    rp = s.rec_pos_all
+    r2 = rp.copy(); r2[3, :] = 1; r2[4, :] += rp.shape[1]
+    s.rec_pos_all = np.concatenate([rp, r2], axis=1)
+    s.src_all = np.concatenate([s.src_all, s.src_all], axis=1)
+    m = {"vp": np.full(s.N, 2000.0), "vs": np.full(s.N, 1200.0), "rho": np.full(s.N, 2000.0),
+         "taup": np.full(s.N, 0.1), "taus": np.full(s.N, 0.1)}
+    s.set_forward(s.src_pos_all[3, :], m, withgrad=False)
+    s.execute()
+    d = np.asarray(s.read_data()[0], np.float64)
+    n = rp.shape[1]
+    err = np.abs(d[:, n:] - d[:, :n]).max() / np.abs(d[:, :n]).max()
+    print("  shot 2 vs shot 1: max |diff| / max |shot 1| = %.3e (must be < 1e-6)" % err)
+    assert err < 1e-6, "shot 2 differs from the identical shot 1 (%.3e): memory variables not reset" % err
+
+
+def test_fd_visco_physical_directions_L3():
+    """Physical directions with three mechanisms (f0, 2 f0, 4 f0), velocity receivers. With L = 3 the gradient
+    was meaningless on both backends before 2026-11-19 (memory slices not reset, see the multishot test)."""
+    _visco_physical_directions(100.0, 1, FLf=(1.0, 2.0, 4.0))
+
+
 def test_fd_hetero_2d_visco_L1():
     """2D viscoelastic, one mechanism. Adds taup/taus, whose staggered
     tausipkp is averaged ARITHMETICALLY while muipkp is averaged
@@ -2047,6 +2079,8 @@ TESTS = [
     test_fd_hetero_2d_force_bpt1,
     test_fd_visco_physical_directions_velocity,
     test_fd_visco_physical_directions_pressure,
+    test_visco_multishot_identical_L3,
+    test_fd_visco_physical_directions_L3,
     test_fd_hetero_2d_visco_L1,
     test_fd_hetero_2d_visco_L2,
     test_fd_hetero_3d_elastic_bpt1,

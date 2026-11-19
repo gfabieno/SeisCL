@@ -343,22 +343,19 @@ int kernel_varinit(device * dev,
     chop_tail(temp, 2);
     strcat(temp, "){\n\n");
     
+    /* Flat 1-D launch over the LARGEST buffer, in both backends (as
+     * initsavefreqs). The memory variables hold L grids (size_varmem:
+     * num_ele = prod(N+FDORDER)*L), but the launch used to cover one grid:
+     * OpenCL exactly prod(N+FDORDER), CUDA a 2-D/3-D launch whose fastest
+     * extent is rounded up to BLOCK_SIZE (about 2.5 grids in 2-D tests). The
+     * slices l >= 1 (OpenCL) or l >= 2 (CUDA, partly) were never zeroed: the
+     * back_prop_type 2 adjoint, which reuses the forward buffers, started from
+     * the forward's last memory variables (2-D OpenCL L=2 gradient 1e13 too
+     * large), and later shots started from the previous shot's. */
     #ifdef __SEISCL__
     strcat(temp,"    int gid = get_global_id(0);\n\n");
     #else
-    if (dev->NDIM==2){
-       
-        strcat(temp,"int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
-                    "int gidx = blockIdx.y*blockDim.y + threadIdx.y;\n"
-                    "int gid = gidx*blockDim.x*gridDim.x+gidz;\n");
-    }
-    else if (dev->NDIM==3){
-        strcat(temp,"int gidz = blockIdx.x*blockDim.x + threadIdx.x;\n"
-                    "int gidy = blockIdx.y*blockDim.y + threadIdx.y;\n"
-                    "int gidx = blockIdx.z*blockDim.z + threadIdx.z;\n"
-                    "int gid = gidx*blockDim.x*gridDim.x*blockDim.y*gridDim.y"
-                    "+gidy*blockDim.x*gridDim.x +gidz;\n");
-    }
+    strcat(temp,"    int gid = blockIdx.x*blockDim.x + threadIdx.x;\n\n");
     #endif
     
     for (i=0;i<dev->nvars;i++){
@@ -386,20 +383,8 @@ int kernel_varinit(device * dev,
     
        __GUARD prog_source(prog, "vars_init", temp, 0, NULL);
     
-    #ifdef __SEISCL__
-    prog->gsize[0] = 1;
-    for (i=0;i<m->NDIM;i++){
-        prog->gsize[0]*=dev->N[i]+m->FDORDER;
-    }
-    prog->wdim=1;
-    #else
-    prog->gsize[0]=dev->N[0]+m->FDORDER;
-    prog->gsize[1]=dev->N[1]+m->FDORDER;
-    if (dev->NDIM==3){
-        prog->gsize[2]=dev->N[2]+m->FDORDER;
-    }
-    prog->wdim=dev->NDIM;
-    #endif
+    prog->gsize[0] = maxsize;
+    prog->wdim = 1;
     
     return state;
     
