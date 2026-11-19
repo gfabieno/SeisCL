@@ -1117,17 +1117,106 @@ def test_fd_3d_viscoelastic_bpt2_p():
 # verified -- this case is expected to error and is listed in XFAIL.
 # ---------------------------------------------------------------------------
 
-def test_fd_sh_bpt1():
-    """SH (ND=21), back_prop_type=1. KNOWN OPEN -- see notes/todo.md item 4.
-    """
-    wd = workdir("fd_sh_bpt1")
-    make = lambda **kw: _crosswell_sh(wd, **kw)
-    s0 = make()
-    ids = s0.src_pos_all[3, :]
-    patch = _patch(s0)
-    init, true = _init_and_true(s0, patch)
-    fd_check("SH", make, ids, init, true, patch,
-            back_prop_type=1, calibrated=True, tol=0.05)
+def _sh_physical_directions(FL, freesurf=0, tau=0.1, tol=0.02, F0=25.0):
+    """SH (ND=21), back_prop_type 2, every DFT bin: FD / <g, dm> along each
+    physical combination of SH, C = mu_s(1+L taus), D = mu_s taus (mu_s the
+    stored modulus rho vs^2/(1+alpha taus)) and rho, changed one at a time
+    through (vs, rho, taus) by a Gaussian bump 8 cells below the source.
+    The SH adjoint and gradient kernels are the 3-D ones with the terms that
+    vanish by symmetry dropped (2026-11-19, notes sh-gradient.md)."""
+    FL = np.asarray(FL, dtype=float) * F0
+    L = len(FL)
+    wd = workdir("fd_sh_phys_L%d_fs%d" % (L, freesurf))
+    def mk(**k):
+        s = SeisCL(workdir=wd, N=np.array([96, 96]), ND=21, dh=10, dt=1e-3, NT=300, FDORDER=8,
+                   freesurf=freesurf, abs_type=2, nab=16, f0=F0, seisout=1, param_type=0,
+                   **(dict(L=L, FL=FL) if L else {}), **k)
+        nz, nx = int(s.N[0]), int(s.N[1])
+        zs = 20 if freesurf else nz // 2
+        s.src_pos_all = np.stack([[nx // 2 * s.dh], [0.], [zs * s.dh], [0.], [1.]])
+        nr = 8
+        zr = 3 if freesurf else nz - s.nab - 6
+        s.rec_pos_all = np.stack([np.linspace(22, nx - 23, nr) * s.dh, np.zeros(nr), np.full(nr, zr * s.dh),
+                                  np.zeros(nr), np.arange(1, nr + 1.), np.zeros(nr), np.zeros(nr), np.zeros(nr)])
+        s.src_all = 1e10 * s.ricker_wavelet().reshape(-1, 1)
+        return s, zs
+    s0, zs = mk()
+    nz, nx = int(s0.N[0]), int(s0.N[1])
+    al = float(sum((F0 / f) ** 2 / (1.0 + (F0 / f) ** 2) for f in FL))
+    vs0, rho0 = 1200.0, 2000.0
+    start = {"vp": np.full(s0.N, 2 * vs0), "vs": np.full(s0.N, vs0), "rho": np.full(s0.N, rho0)}
+    if L:
+        start["taup"] = np.full(s0.N, tau); start["taus"] = np.full(s0.N, tau)
+    true = {k: v.copy() for k, v in start.items()}
+    true["vs"][zs + 6:zs + 12, nx // 2 - 5:nx // 2 + 5] += 150.0
+    s0.set_forward(s0.src_pos_all[3, :], true, withgrad=False); s0.execute()
+    dobs = [np.asarray(a, np.float64) for a in s0.read_data()]
+    s0.write_data(dict(zip(s0.to_load_names, dobs)), filename="SeisCL_din.mat")
+    din = os.path.join(s0.workdir, "SeisCL_din.mat")
+    def misfit(p):
+        t, _ = mk(); t.file_din = din
+        t.set_forward(t.src_pos_all[3, :], p, withgrad=False); t.execute()
+        return t.misfit(t.read_data(), dobs=dobs)[0]
+    fr = (1.0 / (int(s0.NT) * float(s0.dt))) * np.arange(1, int(s0.NT) // 2)
+    g, _ = mk(gradout=1, back_prop_type=2, gradfreqs=fr); g.file_din = din
+    g.set_forward(g.src_pos_all[3, :], start, withgrad=True); g.execute()
+    names = ["vs", "rho"] + (["taus"] if L else [])
+    G = dict(zip(names, [np.asarray(a, np.float64) for a in g.read_grad()]))
+    idx = np.indices(s0.N)
+    bump = np.exp(-((idx[0] - zs - 8) ** 2 + (idx[1] - nx // 2) ** 2) / 2.0 ** 2)
+    ts = tau if L else 0.0
+    mus = rho0 * vs0 ** 2 / (1 + al * ts)
+    def user_dir(dmus=0.0, dts=0.0, drho=0.0):
+        dvs2 = (dmus * (1 + al * ts) + mus * al * dts) / rho0 - mus * (1 + al * ts) * drho / rho0 ** 2
+        return {"vs": dvs2 / (2 * vs0), "rho": drho, "taus": dts}
+    dirs = {"C": user_dir(dmus=0.01 * mus, dts=-0.01 * ts), "rho": user_dir(drho=0.01 * rho0)}
+    if L:
+        dirs["D"] = user_dir(dmus=-mus * L * 0.01 * tau / (1 + L * tau), dts=0.01 * tau)
+    bad = []
+    for key, dd in dirs.items():
+        dm = {k: dd[k] * bump for k in names}
+        gdm = sum(np.sum(G[k] * dm[k]) for k in names)
+        pp = {k: v.copy() for k, v in start.items()}; pm = {k: v.copy() for k, v in start.items()}
+        for k in names:
+            pp[k] = pp[k] + dm[k]; pm[k] = pm[k] - dm[k]
+        ratio = (misfit(pp) - misfit(pm)) / 2.0 / gdm
+        print("  SH L=%d fs=%d %-3s FD/<g,dm> = %.4f" % (L, freesurf, key, ratio))
+        if not abs(ratio - 1.0) <= tol:
+            bad.append("%s %.4f" % (key, ratio))
+    assert not bad, "SH gradient off in: %s (tol %g)" % (", ".join(bad), tol)
+
+
+def test_fd_sh_elastic():
+    """SH elastic, back_prop_type 2. Never worked before 2026-11-19."""
+    _sh_physical_directions([])
+
+
+def test_fd_sh_visco_L2():
+    """SH viscoelastic, two mechanisms, FL = (f0, 4 f0), tau 0.1."""
+    _sh_physical_directions([1.0, 4.0])
+
+
+def test_fd_sh_freesurface():
+    """SH elastic with a free surface: the adjoint applies the same image
+    condition to the adjoint stress (surface2D_SH.cl surface_adj)."""
+    _sh_physical_directions([], freesurf=1)
+
+
+def test_fd_sh_bpt1_is_rejected():
+    """SH with back_prop_type 1 must be refused with a clear message (the
+    reverse-time reconstruction is not implemented for SH)."""
+    wd = workdir("fd_sh_bpt1_reject")
+    s = _crosswell_sh(wd, gradout=1, back_prop_type=1)
+    init, true = _init_and_true(s, _patch(s))
+    s.set_forward(s.src_pos_all[3, :], init, withgrad=True)
+    try:
+        s.execute()
+    except SeisCLError as exc:
+        msg = str(exc)
+        print("  rejected as expected: %s" % msg.splitlines()[0][:200])
+        assert "back_prop_type" in msg, "wrong refusal message: %s" % msg[:200]
+        return
+    raise AssertionError("SH with back_prop_type=1 was accepted")
 
 
 # ---------------------------------------------------------------------------
@@ -2062,7 +2151,10 @@ TESTS = [
     test_fd_3d_elastic_bpt2_p,
     test_fd_3d_viscoelastic_bpt2_vel,
     test_fd_3d_viscoelastic_bpt2_p,
-    test_fd_sh_bpt1,
+    test_fd_sh_elastic,
+    test_fd_sh_visco_L2,
+    test_fd_sh_freesurface,
+    test_fd_sh_bpt1_is_rejected,
     test_fd_2d_srccell_bpt1,
     test_fd_3d_srccell_bpt1,
     test_fd_2d_srccell_bpt1_fp16,
@@ -2091,20 +2183,11 @@ TESTS = [
 # the corresponding test_* function for the item number and status. They
 # still run and still print their numbers; they just do not fail the build.
 XFAIL = {
-    "test_fd_sh_bpt1",                   # item 4
-    # item 0e: the VISCOELASTIC gradient does not match FD on a heterogeneous
-    # background, worst in taus (~0.18, i.e. the gradient ~5.7x too large, and
-    # reproducible at both L=1 and L=2). The elastic cases of this same check
-    # PASS, which is what localizes it: mu_stored = rho*vs^2/(1+alpha*taus) is
-    # normalized CELL-CENTRED and muipkp is a HARMONIC average of it, so
-    # perturbing taus moves muipkp as well as tausipkp -- but shear_stag_coef's
-    # (L-alpha) applies that normalization derivative AT the staggered
-    # position. Homogeneous backgrounds cannot see the difference (both
-    # Jacobians are 1/4 there), which is why every other check misses it.
-    # item 0e (force source): rho only, 2.36. dJ/drho for a force source goes
-    # through the staggered buoyancy that the source injects into directly.
-    # Note gradrho is a near-cancellation (~111x amplification in 2D) and this
-    # run's "all" row is 1.0275, so conditioning is not excluded.
+    # Empty since 2026-11-19 (SH gradients implemented). The heterogeneous
+    # viscoelastic tests pass with every DFT bin, taus at 0.89: the stored/paper
+    # modulus conversion is done per cell, after the transpose of the staggered
+    # averages, which is exact only where taus is uniform across an average
+    # (notes sh-gradient.md, 2.7). Open, for the supervisor.
 }
 
 if __name__ == "__main__":

@@ -9,43 +9,37 @@
  *
  * SeisCL is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See file COPYING
- * and/or <http://www.gnu.org/licenses/gpl-3.0.html>.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with SeisCL. See file COPYING and/or
+ * <http://www.gnu.org/licenses/gpl-3.0.html>.
  --------------------------------------------------------------------------*/
 
-/* Frequency-domain (BACK_PROP_TYPE==2) gradient correlation, 2D SH,
- * VISCOELASTIC (LVE>0). Counterpart of grad_dft2D_SH.cl, and the SH sibling
- * of grad_dft2D_visc.cl.
+/* Frequency-domain (back_prop_type 2) gradient correlation, 2D SH,
+ * VISCOELASTIC (LVE > 0).
  *
- * Without it an L>0 SH run falls back to the host calc_grad(), which is
- * #ifdef __SEISCL__ and a no-op stub in the CUDA build -- a silently zero
- * gradient.
- *
- * Own file, not an #if branch, because prog_args_list() (clprogram.c) parses
- * the raw signature text before preprocessing: arguments behind an #if would
- * still be listed and bound, desynchronising every index after them.
- *
- * Transcribed from calc_grad()'s ND==21, L>0 block. Two things there are
- * deliberately mirrored rather than "fixed", so that SEISCL_DFT_CHECK
- * compares like with like:
- *
- *   - dot[0] is formed from the *raw* stress spectra. The 2D P-SV block first
- *     subtracts each mechanism's memory-variable integral from the stresses;
- *     the SH block does not. Whether that is intentional or an omission in
- *     the host is an open question -- see
- *     notes/viscoelastic-inversion-plan.md.
- *   - dot[1] is *assigned* inside the mechanism loop, not accumulated, so for
- *     LVE>1 only the last mechanism contributes. The P-SV block uses +=.
- *     Almost certainly a host bug, but reproducing it keeps the oracle
- *     comparison meaningful; fix both together.
+ * Built from grad_dft3D_visc.cl by dropping every term that is zero by
+ * symmetry (y-invariance, SH polarisation: vx = vz = 0; sxx, syy, szz, sxz and
+ * their memory variables are 0; notes sh-gradient.md, step 2). What remains is
+ * grad_dft3D_visc.cl's
+ *   Gmuipjp   += -c2xy d2xy + c5xy d5xy,    Gtausipjp += -c10xy d2xy + c13xy d5xy,
+ *   Gmujpkp   += -c2yz d2yz + c5yz d5yz,    Gtausjpkp += -c10yz d2yz + c13yz d5yz,
+ *   Grjp      += -d8y  (-> gradrho: rjp = rho when nothing varies along y),
+ * with the same memory-variable handling (forward s' = s - integ(r), adjoint
+ * s~' = s~ + integ(r~), halfstep on the forward r), the same shear_stag_coef
+ * (thesis eq. 3.54 c1^mu, c4^mu, c1^taus, c4^taus; checked with sympy) and the
+ * same DFT conventions. GM, Gmu, Gtaup, Gtaus (normal stresses) vanish.
+ * Replaces the earlier grad_dft2D_SH_visc.cl (from the removed host
+ * calc_grad(), raw stresses, last mechanism only, never run).
  */
 
 #ifdef __OPENCL_VERSION__
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 #endif
 
-/* Scalar padded extents -- not NZ/NX, halved on the fastest axis when
- * FP16>0. See grad_dft2D.cl. */
+/* Scalar padded extents (see grad_dft3D.cl). */
 #define NZM (NZS - 2*FDOH)
 #define NXM (NXS - 2*FDOH)
 #define NPAD (NXS*NZS)
@@ -64,26 +58,101 @@
     #define PARCONV(x) (x)
 #endif
 
+#ifdef __OPENCL_VERSION__
+    #define COSPIF(x) cospi(x)
+    #define SINPIF(x) sinpi(x)
+#else
+    #define COSPIF(x) cospif(x)
+    #define SINPIF(x) sinpif(x)
+#endif
+
+/* itreal(a,b) = Re(conj(a)*i*b) (<s~, dt s>); rreal(a,b) = Re(conj(a)*b). */
+LFUNDEF double rreal(float2 a, float2 b)
+{
+    return (double)a.x*(double)b.x + (double)a.y*(double)b.y;
+}
+
 LFUNDEF double itreal(float2 a, float2 b)
 {
     return (double)a.y*(double)b.x - (double)a.x*(double)b.y;
 }
 
-/* calc_grad.c's cl_rm. */
+/* calc_grad.c's cl_rm: Re(conj(a)*(tausig + 1/(i*w))*b) (grad_dft3D_visc.cl). */
 LFUNDEF double rmreal(float2 a, float2 b, double tausig, double w)
 {
+    double th  = 0.5*w*(double)DT;
+    double iwd = 0.5*(double)DT*cos(th)/sin(th);   /* discrete 1/w */
     return tausig*((double)a.x*(double)b.x + (double)a.y*(double)b.y)
-         + ((double)a.x*(double)b.y - (double)a.y*(double)b.x)/w;
+         + ((double)a.x*(double)b.y - (double)a.y*(double)b.x)*iwd;
+}
+
+#ifndef HSGN
+#define HSGN (-1.0)
+#endif
+LFUNDEF float2 halfstep(float2 a, double w, double sgn)
+{
+    double th = 0.5*w*(double)DT;
+    double cr = cos(th)*cos(th);
+    double ci = sgn*sin(th)*cos(th);
+    float2 o;
+    o.x = (float)((double)a.x*cr - (double)a.y*ci);
+    o.y = (float)((double)a.x*ci + (double)a.y*cr);
+    return o;
+}
+
+LFUNDEF float2 integ(float2 a, double w)
+{
+    double th  = 0.5*w*(double)DT;
+    double iwd = 0.5*(double)DT*cos(th)/sin(th);   /* discrete 1/w */
+    float2 o;
+    o.x = (float)((double)a.y*iwd);
+    o.y = (float)(-(double)a.x*iwd);
+    return o;
+}
+
+LFUNDEF float2 sub2(float2 a, float2 b)
+{
+    float2 o; o.x = a.x-b.x; o.y = a.y-b.y; return o;
+}
+
+LFUNDEF float2 add2(float2 a, float2 b)
+{
+    float2 o; o.x = a.x + b.x; o.y = a.y + b.y;
+    return o;
+}
+
+/* grad_dft3D_visc.cl's shear_stag_coef, unchanged. */
+LFUNDEF void shear_stag_coef(double mu_s, double taus_s, double al, double L,
+                              double *c2, double *c5, double *c10, double *c13)
+{
+    *c2=0.0; *c5=0.0; *c10=0.0; *c13=0.0;
+    if (mu_s>=1.0){
+        if (L>0.0 && taus_s!=0.0){
+            double Lst  = 1.0+L*taus_s;
+            double ist  = 1.0+al*taus_s;
+            double imu2 = 1.0/(mu_s*mu_s);
+            *c2  = ist*imu2/Lst;
+            *c5  = ist*imu2/taus_s;
+            *c10 = (L-al)/(mu_s*Lst*Lst);
+            *c13 = 1.0/(mu_s*taus_s*taus_s);
+        } else {
+            *c2 = 1.0/(mu_s*mu_s);
+        }
+    }
 }
 
 FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
                           GLOBARG float * FL,
-                          GLOBARG PARARG * mu,
                           GLOBARG PARARG * rho,
-                          GLOBARG PARARG * taus,
-                          GLOBARG float * gradmu,
+                          GLOBARG PARARG * muipjp,
+                          GLOBARG PARARG * mujpkp,
+                          GLOBARG PARARG * tausipjp,
+                          GLOBARG PARARG * tausjpkp,
                           GLOBARG float * gradrho,
-                          GLOBARG float * gradtaus,
+                          GLOBARG float * gradmuipjp,
+                          GLOBARG float * gradmujpkp,
+                          GLOBARG float * gradtausipjp,
+                          GLOBARG float * gradtausjpkp,
                           GLOBARG float2 * fvy_f,
                           GLOBARG float2 * fsxy_f,
                           GLOBARG float2 * fsyz_f,
@@ -94,6 +163,9 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
                           GLOBARG float2 * fsyz,
                           GLOBARG float2 * frxy,
                           GLOBARG float2 * fryz,
+                          GLOBARG float * src,
+                          GLOBARG float * src_pos,
+                          int nsrc,
                           int src_scale,
                           int res_scale,
                           int par_scale)
@@ -108,87 +180,122 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
     if (gid >= NXM*NZM)
         return;
 
+    /* X-slowest, Z-fastest, as the parameter arrays. */
     int i = gid/NZM;
     int k = gid - i*NZM;
     int f, l;
 
     double s2    = pow(2.0, -(double)par_scale);
     double dhdt  = (double)DH/(double)DT;
-    double lrho  = (double)PARCONV(rho[gid]);
-    double rho_p = (lrho!=0.0) ? (1.0/lrho)*((double)DT/(double)DH)*s2 : 0.0;
-    double mu_p  = (double)PARCONV(mu[gid])*dhdt*s2;
-    double taus_p = (double)PARCONV(taus[gid]);
-
+    double muipjp_p = (double)PARCONV(muipjp[gid])*dhdt*s2;
+    double mujpkp_p = (double)PARCONV(mujpkp[gid])*dhdt*s2;
+    double tausipjp_p = (double)PARCONV(tausipjp[gid]);
+    double tausjpkp_p = (double)PARCONV(tausjpkp[gid]);
     double dftdf  = 1.0/((double)NTNYQ*(double)DT*(double)DTNYQ);
     double dftnorm = (double)NTNYQ*(double)DTNYQ;
-
-    /* Undo the FP16>0 wavefield scaling -- see grad_dft2D.cl. vy carries
-     * par_scale (set_par_scale scales the velocities only); the stresses and
-     * their memory variables carry none. */
     double sc_ss = pow(2.0, -(double)src_scale - (double)res_scale);
     double sc_vv = sc_ss*pow(2.0, 2.0*(double)par_scale);
-
-    const double Ld = (double)LVE;
-    /* The GSLS phase-velocity normalization. M()/mu() (assign_modeling_case.c)
-     * divide the stored moduli by (1 + alpha*tau) so that the phase velocity
-     * at f0 equals the vp/vs the user supplied -- the elastic convention. The
-     * gradient with respect to tau at fixed vp therefore has to carry that
-     * dependence, and it enters the coefficients as calc_grad.c's `al`:
-     *
-     *     al = sum_l r^2/(1+r^2),   r = f0/FL[l]
-     *
-     * It is NOT zero. calc_grad.c initialises `al=0` and then accumulates
-     * into it a few lines later, which is easy to miss; hardcoding 0 here
-     * scaled the c[8]/c[10]/c[11]/c[12] group -- i.e. gradtaup and gradtaus --
-     * by exactly (1-al), verified against the host oracle at f0/FL = 0.5, 1
-     * and 2. */
+    const double Ld  = (double)LVE;
+    /* GSLS phase-velocity normalisation al (see grad_dft3D_visc.cl). */
     double al = 0.0;
     for (l=0; l<LVE; l++){
         double r = (double)FREQ0/(double)FL[l];
         al += r*r/(1.0 + r*r);
     }
+    /* The paper's moduli at each node (grad_dft3D_visc.cl). */
+    muipjp_p *= (1.0 + al*tausipjp_p);
+    mujpkp_p *= (1.0 + al*tausjpkp_p);
+    double c2xy,c5xy,c10xy,c13xy;
+    double c2yz,c5yz,c10yz,c13yz;
+    shear_stag_coef(muipjp_p, tausipjp_p, al, Ld, &c2xy, &c5xy, &c10xy, &c13xy);
+    shear_stag_coef(mujpkp_p, tausjpkp_p, al, Ld, &c2yz, &c5yz, &c10yz, &c13yz);
 
-    /* grad_coefvisc_1_SH: the internal (mu, taus) coefficients. */
-    double c0=0.0, c1=0.0, c2=0.0, c3=0.0;
-    if (rho_p>0.0 && mu_p>=1.0 && taus_p!=0.0){
-        double ist = 1.0+al*taus_p;
-        double Lst = 1.0+Ld*taus_p;
-        double imu2 = 1.0/(mu_p*mu_p);
-        c0 = ist*imu2/Lst;
-        c1 = ist*imu2/taus_p;
-        c2 = (Ld-al)/(Lst*Lst*mu_p);
-        c3 = 1.0/(taus_p*taus_p*mu_p);
+    /* Which source, if any, sits in this cell (eq. 26a source term). In SH the
+     * only source acting on these fields is the vy force (code 1). */
+    int ssrc = -1, sstype = -1;
+    for (int q=0; q<nsrc; q++){
+        int st = (int)src_pos[4+5*q];
+        if (st==1
+            && (int)(src_pos[0+5*q]/DH)==i
+            && (int)(src_pos[2+5*q]/DH)==k){
+            ssrc = q; sstype = st; break;
+        }
     }
 
-    double Gmu=0.0, Gtaus=0.0, Grho=0.0;
+    double Gmuipjp=0.0, Gmujpkp=0.0, Gtausipjp=0.0, Gtausjpkp=0.0, Grho=0.0;
 
     for (f=0; f<NFREQS; f++){
 
         double w = 2.0*3.14159265358979323846*dftdf*(double)gradfreqsn[f];
+        /* Exact discrete equivalent of back_prop_type 1's quadrature: see
+         * grad_dft3D.cl. */
+        double wdt  = w*(double)DT;
+        double sdt  = sin(wdt)/(double)DT;
+        double s2dt = 2.0*sin(0.5*wdt)*sin(0.5*wdt)/(double)DT;
         int id = indf(f,i,k);
 
-        /* Raw stresses: the host's SH block applies no memory-variable
-         * correction here. */
-        double d0 = sc_ss*w*(itreal(fsxy[id], fsxy_f[id])
-                           + itreal(fsyz[id], fsyz_f[id]))/dftnorm;
+        /* S(w), Sd(w): see grad_dft3D.cl. A force source is stored in units
+         * 2^(src_scale - par_scale). */
+        int vshift = (sstype==1) ? par_scale : 0;
+        float2 S; S.x = 0.0f; S.y = 0.0f;
+        float2 Sd; Sd.x = 0.0f; Sd.y = 0.0f;
+        if (ssrc>=0){
+            for (int t=0; t<NT; t++){
+                float ang = 2.0f*gradfreqsn[f]*(float)(t-TMIN)
+                            /((float)NTNYQ*(float)DTNYQ);
+                #if FP16==0
+                float amp = DT*src[ssrc*NT+t];
+                #elif defined(__OPENCL_VERSION__)
+                float amp = ldexp(DT*src[ssrc*NT+t], src_scale - vshift);
+                #else
+                float amp = scalbnf(DT*src[ssrc*NT+t], src_scale - vshift);
+                #endif
+                S.x +=  amp*COSPIF(ang);
+                S.y += -amp*SINPIF(ang);
+                if (t>=TMIN && (t-TMIN)%DTNYQ==0){
+                    Sd.x +=  amp*COSPIF(ang);
+                    Sd.y += -amp*SINPIF(ang);
+                }
+            }
+        }
 
-        double d1 = 0.0;
+        float2 Fxy = fsxy_f[id], Fyz = fsyz_f[id];
+        float2 Axy = fsxy[id],   Ayz = fsyz[id];
+        double d5xy=0.0, d5yz=0.0;
         for (l=0; l<LVE; l++){
             int il = indr(f,l,i,k);
             double tausig = 1.0/(2.0*3.14159265358979323846*(double)FL[l]);
-            /* Assignment, not +=, mirroring the host. */
-            d1 = sc_ss*(rmreal(frxy[il], frxy_f[il], tausig, w)
-                      + rmreal(fryz[il], fryz_f[il], tausig, w))/dftnorm;
+            float2 Rxy_f = halfstep(frxy_f[il], w, HSGN);
+            float2 Ryz_f = halfstep(fryz_f[il], w, HSGN);
+            float2 Rxy_a = frxy[il], Ryz_a = fryz[il];
+            /* forward s' = s - sum R; adjoint s~' = s~ + integ(r~) (thesis 3.33) */
+            Fxy = sub2(Fxy, integ(Rxy_f, w));
+            Fyz = sub2(Fyz, integ(Ryz_f, w));
+            Axy = add2(Axy, integ(Rxy_a, w));
+            Ayz = add2(Ayz, integ(Ryz_a, w));
+            d5xy += sc_ss*rmreal(Rxy_a, Rxy_f, tausig, w)/dftnorm;
+            d5yz += sc_ss*rmreal(Ryz_a, Ryz_f, tausig, w)/dftnorm;
         }
+        double d2xy = sc_ss*(sdt*itreal(Axy, Fxy) + s2dt*rreal(Axy, Fxy))/dftnorm;
+        double d2yz = sc_ss*(sdt*itreal(Ayz, Fyz) + s2dt*rreal(Ayz, Fyz))/dftnorm;
 
-        double d2 = sc_vv*w*itreal(fvy[id], fvy_f[id])/dftnorm;
+        /* Velocity block (3-D d8y): vy, its force source restored with the
+         * FIELD weight DT*DTNYQ, and the eq. (26a) term. */
+        float2 Fvy = fvy_f[id], Avy = fvy[id];
+        if (sstype==1){ Fvy.x += (float)((double)DT*(double)DTNYQ)*Sd.x; Fvy.y += (float)((double)DT*(double)DTNYQ)*Sd.y; }
+        double d8y = sc_vv*((sdt*itreal(Avy, Fvy) + s2dt*rreal(Avy, Fvy))
+                     - (sstype==1 ? rreal(Avy, S) : 0.0))/dftnorm;
 
-        Gmu   += -c0*d0 + c1*d1;
-        Gtaus += -c2*d0 + c3*d1;
-        Grho  += -d2;
+        Gmuipjp   += -c2xy*d2xy + c5xy*d5xy;
+        Gmujpkp   += -c2yz*d2yz + c5yz*d5yz;
+        Gtausipjp += -c10xy*d2xy + c13xy*d5xy;
+        Gtausjpkp += -c10yz*d2yz + c13yz*d5yz;
+        Grho      += -d8y;
     }
 
-    gradmu[gid]   += (float)Gmu;
-    gradtaus[gid] += (float)Gtaus;
-    gradrho[gid]  += (float)Grho;
+    gradmuipjp[gid]   += (float)Gmuipjp;
+    gradmujpkp[gid]   += (float)Gmujpkp;
+    gradtausipjp[gid] += (float)Gtausipjp;
+    gradtausjpkp[gid] += (float)Gtausjpkp;
+    gradrho[gid]      += (float)Grho;
 }

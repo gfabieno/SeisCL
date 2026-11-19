@@ -125,6 +125,9 @@ static void grad_T_harmonic_mu(float * pin, float * gin, float * gout,
         }
     }
     for (d=0;d<2;d++){
+        /* A zero direction (SH: 2-point average) has no edge region; without
+           this test the copy below would cover the whole grid. */
+        if (dir[d][0]==0 && dir[d][1]==0 && dir[d][2]==0) continue;
         NX0=0; NY0=0; NZ0=0;
         if (dir[d][2]==1)      NX0=NX-1;
         else if (dir[d][1]==1) NY0=NY-1;
@@ -166,6 +169,9 @@ static void grad_T_arithmetic_tau(float * gin, float * gout,
         }
     }
     for (d=0;d<2;d++){
+        /* A zero direction (SH: 2-point average) has no edge region; without
+           this test the copy below would cover the whole grid. */
+        if (dir[d][0]==0 && dir[d][1]==0 && dir[d][2]==0) continue;
         NX0=0; NY0=0; NZ0=0;
         if (dir[d][2]==1)      NX0=NX-1;
         else if (dir[d][1]==1) NY0=NY-1;
@@ -218,13 +224,20 @@ int average_grad_transpose(model * m) {
         if (gavg){ d2[0][0]=0; d2[0][1]=0; d2[0][2]=1;
                    d2[1][0]=1; d2[1][1]=0; d2[1][2]=0;
             grad_T_harmonic_mu(psrc, gavg, gsrc, m->N, m->NDIM, d2); }
+        /* SH (ND 21): the 3-D averages with nothing varying along y, i.e.
+           along z (mujpkp) or x (muipjp) only, as assign_modeling_case.c
+           computes them; the 3-D directions would loop zero times (NY = 1)
+           and drop the SH gradient. */
         gavg = par_grad(m, "mujpkp", &pavg);
         if (gavg){ d2[0][0]=0; d2[0][1]=1; d2[0][2]=0;
                    d2[1][0]=1; d2[1][1]=0; d2[1][2]=0;
+            if (m->ND==21){ d2[0][0]=1; d2[0][1]=0; d2[0][2]=0;
+                            d2[1][0]=0; d2[1][1]=0; d2[1][2]=0; }
             grad_T_harmonic_mu(psrc, gavg, gsrc, m->N, m->NDIM, d2); }
         gavg = par_grad(m, "muipjp", &pavg);
         if (gavg){ d2[0][0]=0; d2[0][1]=0; d2[0][2]=1;
                    d2[1][0]=0; d2[1][1]=1; d2[1][2]=0;
+            if (m->ND==21){ d2[1][1]=0; }
             grad_T_harmonic_mu(psrc, gavg, gsrc, m->N, m->NDIM, d2); }
     }
 
@@ -238,10 +251,13 @@ int average_grad_transpose(model * m) {
         gavg = par_grad(m, "tausjpkp", &pavg);
         if (gavg){ d2[0][0]=0; d2[0][1]=1; d2[0][2]=0;
                    d2[1][0]=1; d2[1][1]=0; d2[1][2]=0;
+            if (m->ND==21){ d2[0][0]=1; d2[0][1]=0; d2[0][2]=0;
+                            d2[1][0]=0; d2[1][1]=0; d2[1][2]=0; }
             grad_T_arithmetic_tau(gavg, gsrc, m->N, m->NDIM, d2); }
         gavg = par_grad(m, "tausipjp", &pavg);
         if (gavg){ d2[0][0]=0; d2[0][1]=0; d2[0][2]=1;
                    d2[1][0]=0; d2[1][1]=1; d2[1][2]=0;
+            if (m->ND==21){ d2[1][1]=0; }
             grad_T_arithmetic_tau(gavg, gsrc, m->N, m->NDIM, d2); }
     }
 
@@ -555,7 +571,7 @@ int chain_rule_par_type(model * m) {
                elastic. */
             double kp = (taup_par) ? 1.0+al*(double)taup_par[i] : 1.0;
             double ks = (taus_par) ? 1.0+al*(double)taus_par[i] : 1.0;
-            gradrho[i]= gradrho[i]+M[i]*kp/rho[i]*gradM[i];
+            if (M) gradrho[i]= gradrho[i]+M[i]*kp/rho[i]*gradM[i];   /* SH (ND 21) has no M */
             if (mu[i]>0){
                 gradrho[i]= gradrho[i]+mu[i]*ks/rho[i]*gradmu[i];
             }
@@ -565,7 +581,7 @@ int chain_rule_par_type(model * m) {
                 if (rho[i]==0){
                     continue;
                 }
-                Hrho[i]= Hrho[i]+M[i]/rho[i]*HM[i];
+                if (M) Hrho[i]= Hrho[i]+M[i]/rho[i]*HM[i];
                 if (mu[i]>0){
                     Hrho[i]= Hrho[i]+mu[i]/rho[i]*Hmu[i];
                 }
@@ -614,7 +630,7 @@ int chain_rule_par_type(model * m) {
             if (rho[i]==0){
                 continue;
             }
-            gradrho[i]= gradrho[i]+M[i]/rho[i]*gradM[i];
+            if (M) gradrho[i]= gradrho[i]+M[i]/rho[i]*gradM[i];
             if (mu[i]>0){
                 gradrho[i]= gradrho[i]+mu[i]/rho[i]*gradmu[i];
             }
@@ -625,7 +641,7 @@ int chain_rule_par_type(model * m) {
                 if (rho[i]==0){
                     continue;
                 }
-                Hrho[i]= Hrho[i]+M[i]/rho[i]*HM[i];
+                if (M) Hrho[i]= Hrho[i]+M[i]/rho[i]*HM[i];
                 if (mu[i]>0){
                     Hrho[i]= Hrho[i]+mu[i]/rho[i]*Hmu[i];
                 }

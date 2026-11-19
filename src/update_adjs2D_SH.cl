@@ -17,705 +17,176 @@
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  --------------------------------------------------------------------------*/
 
-/*Adjoint update of the stresses in 2D SH*/
+/* Adjoint update of the stresses in 2D SH, back_prop_type 2, elastic or
+   viscoelastic, in the format of update_adjs2D.cl (P-SV).
+   Obtained from update_adjs3D.cl's back_prop_type 2 path by dropping the terms
+   that are zero by symmetry (nothing varies along y; vx = vz = 0):
+   3-D  vxyyxr = vxyr + vyxr -> vyxr,  vyzzyr = vyzr + vzyr -> vyzr; the sxyr and
+   syzr updates, with fipjp = muipjp(1 + L tausipjp), fjpkp = mujpkp(1 + L
+   tausjpkp), dipjp = muipjp tausipjp/DT, djpkp = mujpkp tausjpkp/DT, are kept
+   unchanged; sxxr, syyr, szzr, sxzr and their memory variables stay 0.
+   The adjoint memory variables rxyr, ryzr are read and written through ONE
+   pointer and summed from registers (pitfall A23: 3-D read the new value
+   through an aliased const RESTRICT pointer). Thesis eq. 3.33 (SH form in
+   notes sh-gradient.md).
+   back_prop_type 1 is not implemented for SH (refused by assign_modeling_case.c). */
 
-/*Define useful macros to be able to write a matrix formulation in 2D with OpenCl */
-#define rho(z,x)    rho[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define rip(z,x)    rip[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define rjp(z,x)    rjp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define rkp(z,x)    rkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define muipkp(z,x) muipkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define mujpkp(z,x) mujpkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define muipjp(z,x) muipjp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define mu(z,x)        mu[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define M(z,x)      M[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define gradrho(z,x)  gradrho[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define gradM(z,x)  gradM[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define gradmu(z,x)  gradmu[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define gradtaup(z,x)  gradtaup[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define gradtaus(z,x)  gradtaus[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-
-#define Hrho(z,x)  Hrho[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define HM(z,x)  HM[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define Hmu(z,x)  Hmu[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define Htaup(z,x)  Htaup[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define Htaus(z,x)  Htaus[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-
-
-#define taus(z,x)        taus[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define tausipkp(z,x) tausipkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define tausipjp(z,x) tausipjp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define tausjpkp(z,x) tausjpkp[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-#define taup(z,x)        taup[((x)-FDOH)*(NZ-2*FDOH)+((z)-FDOH)]
-
-#define vx(z,x)  vx[(x)*(NZ)+(z)]
-#define vy(z,x)  vy[(x)*(NZ)+(z)]
-#define vz(z,x)  vz[(x)*(NZ)+(z)]
-#define sxx(z,x) sxx[(x)*(NZ)+(z)]
-#define szz(z,x) szz[(x)*(NZ)+(z)]
-#define sxz(z,x) sxz[(x)*(NZ)+(z)]
-#define sxy(z,x) sxy[(x)*(NZ)+(z)]
-#define syz(z,x) syz[(x)*(NZ)+(z)]
-
-#define vx_r(z,x)  vx_r[(x)*(NZ)+(z)]
-#define vy_r(z,x)  vy_r[(x)*(NZ)+(z)]
-#define vz_r(z,x)  vz_r[(x)*(NZ)+(z)]
-#define sxx_r(z,x) sxx_r[(x)*(NZ)+(z)]
-#define szz_r(z,x) szz_r[(x)*(NZ)+(z)]
-#define sxz_r(z,x) sxz_r[(x)*(NZ)+(z)]
-#define sxy_r(z,x) sxy_r[(x)*(NZ)+(z)]
-#define syz_r(z,x) syz_r[(x)*(NZ)+(z)]
-
-#define rxx(z,x,l) rxx[(l)*NX*NZ+(x)*NZ+(z)]
-#define rzz(z,x,l) rzz[(l)*NX*NZ+(x)*NZ+(z)]
-#define rxz(z,x,l) rxz[(l)*NX*NZ+(x)*NZ+(z)]
-#define rxy(z,x,l) rxy[(l)*NX*NZ+(x)*NZ+(z)]
-#define ryz(z,x,l) ryz[(l)*NX*NZ+(x)*NZ+(z)]
-
-#define rxx_r(z,x,l) rxx_r[(l)*NX*NZ+(x)*NZ+(z)]
-#define rzz_r(z,x,l) rzz_r[(l)*NX*NZ+(x)*NZ+(z)]
-#define rxz_r(z,x,l) rxz_r[(l)*NX*NZ+(x)*NZ+(z)]
-#define rxy_r(z,x,l) rxy_r[(l)*NX*NZ+(x)*NZ+(z)]
-#define ryz_r(z,x,l) ryz_r[(l)*NX*NZ+(x)*NZ+(z)]
-
-#define psi_sxx_x(z,x) psi_sxx_x[(x)*(NZ-2*FDOH)+(z)]
-#define psi_sxz_x(z,x) psi_sxz_x[(x)*(NZ-2*FDOH)+(z)]
-#define psi_sxz_z(z,x) psi_sxz_z[(x)*(2*NAB)+(z)]
-#define psi_szz_z(z,x) psi_szz_z[(x)*(2*NAB)+(z)]
-#define psi_sxy_x(z,x) psi_sxy_x[(x)*(NZ-2*FDOH)+(z)]
-#define psi_syz_z(z,x) psi_syz_z[(x)*(2*NAB)+(z)]
-
-#define psi_vy_x(z,x) psi_vy_x[(x)*(NZ-2*FDOH)+(z)]
-#define psi_vy_z(z,x) psi_vy_z[(x)*(2*NAB)+(z)]
-
-#define vxout(y,x) vxout[(y)*NT+(x)]
-#define vyout(y,x) vyout[(y)*NT+(x)]
-#define vzout(y,x) vzout[(y)*NT+(x)]
-#define vx0(y,x) vx0[(y)*NT+(x)]
-#define vy0(y,x) vy0[(y)*NT+(x)]
-#define vz0(y,x) vz0[(y)*NT+(x)]
-#define rx(y,x) rx[(y)*NT+(x)]
-#define ry(y,x) ry[(y)*NT+(x)]
-#define rz(y,x) rz[(y)*NT+(x)]
-
-#if LOCAL_OFF==0
-
-#define lvar(z,x)  lvar[(x)*lsizez+(z)]
-
+#if BACK_PROP_TYPE==1
+#error "SH (ND 21): back_prop_type 1 adjoint not implemented"
 #endif
 
+#define PSIX(z,x) ((x)*(NZS-2*FDOH)+(z))
+#define PSIZ(z,x) ((x)*(2*NAB)+(z))
 
-#define PI (3.141592653589793238462643383279502884197169)
-#define signals(y,x) signals[(y)*NT+(x)]
-#define rec_pos(y,x) rec_pos[(y)*8+(x)]
-#define gradsrc(y,x) gradsrc[(y)*NT+(x)]
-
-// Find boundary indice for boundary injection in backpropagation
-LFUNDEF int evarm( int k, int i){
-    
-    
-#if NUM_DEVICES==1 & NLOCALP==1
-    
-    int NXbnd = (NX-2*FDOH-2*NAB);
-#if FREESURF==0
-    int NZbnd = (NZ- 2*FDOH- 2*NAB);
-    int lbnd = FDOH+NAB;
-    int lbnds = FDOH+NAB;
-#else
-    int NZbnd = (NZ- 2*FDOH- NAB);
-    int lbnd = FDOH+NAB;
-    int lbnds = FDOH;
-#endif
-    
-    int m=-1;
-    i-=lbnd;
-    k-=lbnds;
-    
-    if ( (k>FDOH-1 && k<NZbnd-FDOH)  && (i>FDOH-1 && i<NXbnd-FDOH) )
-        m=-1;
-    else if (k<0 || k>NZbnd-1 || i<0 || i>NXbnd-1 )
-        m=-1;
-    else if (i<FDOH){//front
-        m=i*NZbnd+k;
-    }
-    else if (i>NXbnd-1-FDOH){//back
-        i=i-NXbnd+FDOH;
-        m=NZbnd*FDOH+i*NZbnd+k;
-    }
-    else if (k<FDOH){//up
-        i=i-FDOH;
-        m=NZbnd*FDOH*2+(NXbnd-2*FDOH)*FDOH+i+k*(NXbnd-2.0*FDOH);
-    }
-    else {//down
-        i=i-FDOH;
-        k=k-NZbnd+FDOH;
-        m=NZbnd*FDOH*2+i+k*(NXbnd-2.0*FDOH);
-    }
-    
-    
-    
-#elif DEVID==0 & MYLOCALID==0
-    
-    int NXbnd = (NX-2*FDOH-NAB);
-#if FREESURF==0
-    int NZbnd = (NZ- 2*FDOH- 2*NAB);
-    int lbnd = FDOH+NAB;
-    int lbnds = FDOH+NAB;
-#else
-    int NZbnd = (NZ- 2*FDOH- NAB);
-    int lbnd = FDOH+NAB;
-    int lbnds = FDOH;
-#endif
-    
-    int m=-1;
-    i-=lbnd;
-    k-=lbnds;
-    
-    if ( (k>FDOH-1 && k<NZbnd-FDOH)  && i>FDOH-1  )
-        m=-1;
-    else if (k<0 || k>NZbnd-1 || i<0 || i>NXbnd-1 )
-        m=-1;
-    else if (i<FDOH){//front
-        m=i*NZbnd+k;
-    }
-    else if (k<FDOH){//up
-        i=i-FDOH;
-        m=NZbnd*FDOH+(NXbnd-FDOH)*FDOH+i+k*(NXbnd-FDOH);
-        
-    }
-    else {//down
-        i=i-FDOH;
-        k=k-NZbnd+FDOH;
-        m=NZbnd*FDOH+i+k*(NXbnd-FDOH);
-    }
-    
-#elif DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-    int NXbnd = (NX-2*FDOH-NAB);
-#if FREESURF==0
-    int NZbnd = (NZ- 2*FDOH- 2*NAB);
-    int lbnd = FDOH+NAB;
-    int lbnds = FDOH+NAB;
-#else
-    int NZbnd = (NZ- 2*FDOH- NAB);
-    int lbnd = FDOH+NAB;
-    int lbnds = FDOH;
-#endif
-    
-    int m=-1;
-    i-=FDOH;
-    k-=lbnds;
-    
-    if ( (k>FDOH-1 && k<NZbnd-FDOH) && i<NXbnd-FDOH )
-        m=-1;
-    else if (k<0 || k>NZbnd-1 || i>NXbnd-1 )
-        m=-1;
-    else if (i>NXbnd-1-FDOH){
-        i=i-NXbnd+FDOH;
-        m=i*NZbnd+k;
-    }
-    else if (k<FDOH){//up
-        m=NZbnd*FDOH+(NXbnd-FDOH)*FDOH+i+k*(NXbnd-FDOH);
-    }
-    else {//down
-        k=k-NZbnd+FDOH;
-        m=NZbnd*FDOH+i+k*(NXbnd-FDOH);
-    }
-    
-#else
-    
-    int NXbnd = (NX-2*FDOH);
-#if FREESURF==0
-    int NZbnd = (NZ- 2*FDOH- 2*NAB);
-    int lbnd = FDOH+NAB;
-    int lbnds = FDOH+NAB;
-#else
-    int NZbnd = (NZ- 2*FDOH- NAB);
-    int lbnd = FDOH+NAB;
-    int lbnds = FDOH;
-#endif
-    
-    int m=-1;
-    i-=FDOH;
-    k-=lbnds;
-    
-    if ( (k>FDOH-1 && k<NZbnd-FDOH) )
-        m=-1;
-    else if (k<0 || k>NZbnd-1 || i<0 || i>NXbnd-1 )
-        m=-1;
-    else if (k<FDOH){//up
-        m=(NXbnd)*FDOH+i+k*(NXbnd);
-    }
-    else {//down
-        k=k-NZbnd+FDOH;
-        m=i+k*(NXbnd);
-    }
-    
-    
-#endif
-    
-    
-    return m;
-    
-}
-
-FUNDEF void update_adjs(int offcomm, 
-                          GLOBARG float *vy,
-                          GLOBARG float *sxy,        GLOBARG float *syz,
-                          GLOBARG float *vybnd,
-                          GLOBARG float *sxybnd,     GLOBARG float *syzbnd,
-                          GLOBARG float *vy_r,
-                          GLOBARG float *sxy_r,      GLOBARG float *syz_r,
-                          GLOBARG float *rxy,        GLOBARG float *ryz,
-                          GLOBARG float *rxy_r,      GLOBARG float *ryz_r,
-                          GLOBARG float *muipjp,      GLOBARG float *mujpkp,
-                          GLOBARG float *tausipjp,   GLOBARG float *tausjpkp,
-                          GLOBARG float *eta,        GLOBARG float *taper,
-                          GLOBARG float *K_x,        GLOBARG float *a_x,      GLOBARG float *b_x,
-                          GLOBARG float *K_x_half,   GLOBARG float *a_x_half, GLOBARG float *b_x_half,
-                          GLOBARG float *K_z,        GLOBARG float *a_z,      GLOBARG float *b_z,
-                          GLOBARG float *K_z_half,   GLOBARG float *a_z_half, GLOBARG float *b_z_half,
-                          GLOBARG float *psi_vy_x,    GLOBARG float *psi_vy_z,
-                          GLOBARG float *gradrho,    GLOBARG float *gradmu,   GLOBARG float *gradsrc,
-                          GLOBARG float *Hrho,    GLOBARG float *Hmu,
-                          LOCARG)
+FUNDEF void update_adjs(int offcomm,
+                     GLOBARG const STO * RESTRICT vyr,
+                     GLOBARG STO * RESTRICT sxyr,            GLOBARG STO * RESTRICT syzr,
+                     GLOBARG const STO * RESTRICT muipjp,    GLOBARG const STO * RESTRICT mujpkp,
+                     GLOBARG STO * RESTRICT rxyr,            GLOBARG STO * RESTRICT ryzr,
+                     GLOBARG const STO * RESTRICT tausipjp,  GLOBARG const STO * RESTRICT tausjpkp,
+                     GLOBARG const float * RESTRICT eta,     GLOBARG const float * RESTRICT taper,
+                     GLOBARG const float * RESTRICT K_x_half,  GLOBARG const float * RESTRICT a_x_half,  GLOBARG const float * RESTRICT b_x_half,
+                     GLOBARG const float * RESTRICT K_z_half,  GLOBARG const float * RESTRICT a_z_half,  GLOBARG const float * RESTRICT b_z_half,
+                     GLOBARG float * RESTRICT psi_vy_x,        GLOBARG float * RESTRICT psi_vy_z,
+                     LOCARG)
 {
-
     LOCDEF
+    int gidx = GRP1*LSZ1 + LID1 + FDOH + offcomm;
+    int zt = Z0 + NV*(GRP0*LSZ0 + LID0);
+    int tz = NV*LSZ0 + 2*ZH, tx = LSZ1 + 2*FDOH;
+    int tile_z0 = Z0 + NV*GRP0*LSZ0 - ZH, tile_x0 = GRP1*LSZ1 + offcomm;
+    int lx = LID1 + FDOH;
 
-    int i,k,l,ind;
-    float fipjp, fjpkp;
-    float sumrxy,sumryz;
-    float b,c,dipjp,djpkp;
-    float lmuipjp, lmujpkp, ltausipjp, ltausjpkp;
-#if LVE>0
-    float leta[LVE];
-#endif
-    float vyx,vyz;
-    float vxyyx,vyzzy,vxzzx,vxxyyzz,vyyzz,vxxzz,vxxyy;
-    float vyx_r,vyz_r;
-    float vxyyx_r,vyzzy_r,vxzzx_r,vxxyyzz_r,vyyzz_r,vxxzz_r,vxxyy_r;
-    
-    float lsxy, lsyz;
-    
-    
-// If we use local memory
-#if LOCAL_OFF==0
-    int lsizez = get_local_size(0)+2*FDOH;
-    int lsizex = get_local_size(1)+2*FDOH;
-    int lidz = get_local_id(0)+FDOH;
-    int lidx = get_local_id(1)+FDOH;
-    int gidz = get_global_id(0)+FDOH;
-    int gidx = get_global_id(1)+FDOH+offcomm;
-    
-#define lvy lvar
-#define lvy_r lvar
-    
-// If local memory is turned off
-#elif LOCAL_OFF==1
-    
-    int gid = get_global_id(0);
-    int glsizez = (NZ-2*FDOH);
-    int gidz = gid%glsizez+FDOH;
-    int gidx = (gid/glsizez)+FDOH+offcomm;
-    
-    
-#define lvy vy
-#define lvy_r vy_r
-#define lidx gidx
-#define lidz gidz
-    
-#define lsizez NZ
-#define lsizex NX
-    
-#endif
-    
+    float vyx[NV], vyz[NV];
 
-// Calculation of the velocity spatial derivatives of the forward wavefield if backpropagation is used
-#if BACK_PROP_TYPE==1
-    {
-#if LOCAL_OFF==0
-        BARRIER
-        if (INARR(gidz,0,gidx)) lvy(lidz,lidx)=vy(gidz,  gidx);
-        if (lidx<2*FDOH)
-            if (INARR(gidz,0,gidx-FDOH)) lvy(lidz,lidx-FDOH)=vy(gidz,gidx-FDOH);
-        if (lidx+lsizex-3*FDOH<FDOH)
-            if (INARR(gidz,0,gidx+lsizex-3*FDOH)) lvy(lidz,lidx+lsizex-3*FDOH)=vy(gidz,gidx+lsizex-3*FDOH);
-        if (lidx>(lsizex-2*FDOH-1))
-            if (INARR(gidz,0,gidx+FDOH)) lvy(lidz,lidx+FDOH)=vy(gidz,gidx+FDOH);
-        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
-            if (INARR(gidz,0,gidx-lsizex+3*FDOH)) lvy(lidz,lidx-lsizex+3*FDOH)=vy(gidz,gidx-lsizex+3*FDOH);
-        if (lidz<2*FDOH)
-            if (INARR(gidz-FDOH,0,gidx)) lvy(lidz-FDOH,lidx)=vy(gidz-FDOH,gidx);
-        if (lidz>(lsizez-2*FDOH-1))
-            if (INARR(gidz+FDOH,0,gidx)) lvy(lidz+FDOH,lidx)=vy(gidz+FDOH,gidx);
-        BARRIER
-#endif
-        
-#if   FDOH==1
-        vyx = (lvy(lidz,lidx+1)-lvy(lidz,lidx));
-        vyz = (lvy(lidz+1,lidx)-lvy(lidz,lidx));
-#elif FDOH==2
-        vyx = (HC1*(lvy(lidz,lidx+1)-lvy(lidz,lidx))+
-               HC2*(lvy(lidz,lidx+2)-lvy(lidz,lidx-1)));
-        
-        vyz = (HC1*(lvy(lidz+1,lidx)-lvy(lidz,lidx))+
-               HC2*(lvy(lidz+2,lidx)-lvy(lidz-1,lidx)));
-#elif FDOH==3
-        vyx = (HC1*(lvy(lidz,lidx+1)-lvy(lidz,lidx))+
-               HC2*(lvy(lidz,lidx+2)-lvy(lidz,lidx-1))+
-               HC3*(lvy(lidz,lidx+3)-lvy(lidz,lidx-2)));
-        
-        vyz = (HC1*(lvy(lidz+1,lidx)-lvy(lidz,lidx))+
-               HC2*(lvy(lidz+2,lidx)-lvy(lidz-1,lidx))+
-               HC3*(lvy(lidz+3,lidx)-lvy(lidz-2,lidx)));
-#elif FDOH==4
-        vyx = (HC1*(lvy(lidz,lidx+1)-lvy(lidz,lidx))+
-               HC2*(lvy(lidz,lidx+2)-lvy(lidz,lidx-1))+
-               HC3*(lvy(lidz,lidx+3)-lvy(lidz,lidx-2))+
-               HC4*(lvy(lidz,lidx+4)-lvy(lidz,lidx-3)));
-        
-        vyz = (HC1*(lvy(lidz+1,lidx)-lvy(lidz,lidx))+
-               HC2*(lvy(lidz+2,lidx)-lvy(lidz-1,lidx))+
-               HC3*(lvy(lidz+3,lidx)-lvy(lidz-2,lidx))+
-               HC4*(lvy(lidz+4,lidx)-lvy(lidz-3,lidx)));
-#elif FDOH==5
-        vyx = (HC1*(lvy(lidz,lidx+1)-lvy(lidz,lidx))+
-               HC2*(lvy(lidz,lidx+2)-lvy(lidz,lidx-1))+
-               HC3*(lvy(lidz,lidx+3)-lvy(lidz,lidx-2))+
-               HC4*(lvy(lidz,lidx+4)-lvy(lidz,lidx-3))+
-               HC5*(lvy(lidz,lidx+5)-lvy(lidz,lidx-4)));
-        
-        vyz = (HC1*(lvy(lidz+1,lidx)-lvy(lidz,lidx))+
-               HC2*(lvy(lidz+2,lidx)-lvy(lidz-1,lidx))+
-               HC3*(lvy(lidz+3,lidx)-lvy(lidz-2,lidx))+
-               HC4*(lvy(lidz+4,lidx)-lvy(lidz-3,lidx))+
-               HC5*(lvy(lidz+5,lidx)-lvy(lidz-4,lidx)));
-#elif FDOH==6
-        vyx = (HC1*(lvy(lidz,lidx+1)-lvy(lidz,lidx))+
-               HC2*(lvy(lidz,lidx+2)-lvy(lidz,lidx-1))+
-               HC3*(lvy(lidz,lidx+3)-lvy(lidz,lidx-2))+
-               HC4*(lvy(lidz,lidx+4)-lvy(lidz,lidx-3))+
-               HC5*(lvy(lidz,lidx+5)-lvy(lidz,lidx-4))+
-               HC6*(lvy(lidz,lidx+6)-lvy(lidz,lidx-5)));
-        
-        vyz = (HC1*(lvy(lidz+1,lidx)-lvy(lidz,lidx))+
-               HC2*(lvy(lidz+2,lidx)-lvy(lidz-1,lidx))+
-               HC3*(lvy(lidz+3,lidx)-lvy(lidz-2,lidx))+
-               HC4*(lvy(lidz+4,lidx)-lvy(lidz-3,lidx))+
-               HC5*(lvy(lidz+5,lidx)-lvy(lidz-4,lidx))+
-               HC6*(lvy(lidz+6,lidx)-lvy(lidz-5,lidx)));
-#endif
-
-    }
-#endif
-    
-// Calculation of the velocity spatial derivatives of the adjoint wavefield
-    {
-#if LOCAL_OFF==0
-        BARRIER
-        if (INARR(gidz,0,gidx)) lvy_r(lidz,lidx)=vy_r(gidz,  gidx);
-        if (lidx<2*FDOH)
-            if (INARR(gidz,0,gidx-FDOH)) lvy_r(lidz,lidx-FDOH)=vy_r(gidz,gidx-FDOH);
-        if (lidx+lsizex-3*FDOH<FDOH)
-            if (INARR(gidz,0,gidx+lsizex-3*FDOH)) lvy_r(lidz,lidx+lsizex-3*FDOH)=vy_r(gidz,gidx+lsizex-3*FDOH);
-        if (lidx>(lsizex-2*FDOH-1))
-            if (INARR(gidz,0,gidx+FDOH)) lvy_r(lidz,lidx+FDOH)=vy_r(gidz,gidx+FDOH);
-        if (lidx-lsizex+3*FDOH>(lsizex-FDOH-1))
-            if (INARR(gidz,0,gidx-lsizex+3*FDOH)) lvy_r(lidz,lidx-lsizex+3*FDOH)=vy_r(gidz,gidx-lsizex+3*FDOH);
-        if (lidz<2*FDOH)
-            if (INARR(gidz-FDOH,0,gidx)) lvy_r(lidz-FDOH,lidx)=vy_r(gidz-FDOH,gidx);
-        if (lidz>(lsizez-2*FDOH-1))
-            if (INARR(gidz+FDOH,0,gidx)) lvy_r(lidz+FDOH,lidx)=vy_r(gidz+FDOH,gidx);
-        BARRIER
-#endif
-        
-#if   FDOH==1
-        vyx_r = (lvy_r(lidz,lidx+1)-lvy_r(lidz,lidx));
-        vyz_r = (lvy_r(lidz+1,lidx)-lvy_r(lidz,lidx));
-#elif FDOH==2
-        vyx_r = (HC1*(lvy_r(lidz,lidx+1)-lvy_r(lidz,lidx))+
-               HC2*(lvy_r(lidz,lidx+2)-lvy_r(lidz,lidx-1)));
-        
-        vyz_r = (HC1*(lvy_r(lidz+1,lidx)-lvy_r(lidz,lidx))+
-               HC2*(lvy_r(lidz+2,lidx)-lvy_r(lidz-1,lidx)));
-#elif FDOH==3
-        vyx_r = (HC1*(lvy_r(lidz,lidx+1)-lvy_r(lidz,lidx))+
-               HC2*(lvy_r(lidz,lidx+2)-lvy_r(lidz,lidx-1))+
-               HC3*(lvy_r(lidz,lidx+3)-lvy_r(lidz,lidx-2)));
-        
-        vyz_r = (HC1*(lvy_r(lidz+1,lidx)-lvy_r(lidz,lidx))+
-               HC2*(lvy_r(lidz+2,lidx)-lvy_r(lidz-1,lidx))+
-               HC3*(lvy_r(lidz+3,lidx)-lvy_r(lidz-2,lidx)));
-#elif FDOH==4
-        vyx_r = (HC1*(lvy_r(lidz,lidx+1)-lvy_r(lidz,lidx))+
-               HC2*(lvy_r(lidz,lidx+2)-lvy_r(lidz,lidx-1))+
-               HC3*(lvy_r(lidz,lidx+3)-lvy_r(lidz,lidx-2))+
-               HC4*(lvy_r(lidz,lidx+4)-lvy_r(lidz,lidx-3)));
-        
-        vyz_r = (HC1*(lvy_r(lidz+1,lidx)-lvy_r(lidz,lidx))+
-               HC2*(lvy_r(lidz+2,lidx)-lvy_r(lidz-1,lidx))+
-               HC3*(lvy_r(lidz+3,lidx)-lvy_r(lidz-2,lidx))+
-               HC4*(lvy_r(lidz+4,lidx)-lvy_r(lidz-3,lidx)));
-#elif FDOH==5
-        vyx_r = (HC1*(lvy_r(lidz,lidx+1)-lvy_r(lidz,lidx))+
-               HC2*(lvy_r(lidz,lidx+2)-lvy_r(lidz,lidx-1))+
-               HC3*(lvy_r(lidz,lidx+3)-lvy_r(lidz,lidx-2))+
-               HC4*(lvy_r(lidz,lidx+4)-lvy_r(lidz,lidx-3))+
-               HC5*(lvy_r(lidz,lidx+5)-lvy_r(lidz,lidx-4)));
-        
-        vyz_r = (HC1*(lvy_r(lidz+1,lidx)-lvy_r(lidz,lidx))+
-               HC2*(lvy_r(lidz+2,lidx)-lvy_r(lidz-1,lidx))+
-               HC3*(lvy_r(lidz+3,lidx)-lvy_r(lidz-2,lidx))+
-               HC4*(lvy_r(lidz+4,lidx)-lvy_r(lidz-3,lidx))+
-               HC5*(lvy_r(lidz+5,lidx)-lvy_r(lidz-4,lidx)));
-#elif FDOH==6
-        vyx_r = (HC1*(lvy_r(lidz,lidx+1)-lvy_r(lidz,lidx))+
-               HC2*(lvy_r(lidz,lidx+2)-lvy_r(lidz,lidx-1))+
-               HC3*(lvy_r(lidz,lidx+3)-lvy_r(lidz,lidx-2))+
-               HC4*(lvy_r(lidz,lidx+4)-lvy_r(lidz,lidx-3))+
-               HC5*(lvy_r(lidz,lidx+5)-lvy_r(lidz,lidx-4))+
-               HC6*(lvy_r(lidz,lidx+6)-lvy_r(lidz,lidx-5)));
-        
-        vyz_r = (HC1*(lvy_r(lidz+1,lidx)-lvy_r(lidz,lidx))+
-               HC2*(lvy_r(lidz+2,lidx)-lvy_r(lidz-1,lidx))+
-               HC3*(lvy_r(lidz+3,lidx)-lvy_r(lidz-2,lidx))+
-               HC4*(lvy_r(lidz+4,lidx)-lvy_r(lidz-3,lidx))+
-               HC5*(lvy_r(lidz+5,lidx)-lvy_r(lidz-4,lidx))+
-               HC6*(lvy_r(lidz+6,lidx)-lvy_r(lidz-5,lidx)));
-#endif
-
+    // Spatial derivatives of the velocity, from a shared tile
+    load_tile2(lvar, vyr, tile_z0, tile_x0, tz, tx);
+    BARRIER
+    for (int c=0; c<NV; c++){
+        vyx[c] = tdxp(lvar, tz, ZH + NV*LID0 + c, lx);
+        vyz[c] = tdzp(lvar, tz, ZH + NV*LID0 + c, lx);
     }
 
-// To stop updating if we are outside the model (global id must be a multiple of local id in OpenCL, hence we stop if we have a global id outside the grid)
-#if LOCAL_OFF==0
 #if COMM12==0
-    if (gidz>(NZ-FDOH-1) || (gidx-offcomm)>(NX-FDOH-1-LCOMM) ){
-        return;
-    }
-    
+    if (zt > NZS-FDOH-1 || (gidx-offcomm) > (NX-FDOH-1-LCOMM)) return;
 #else
-    if (gidz>(NZ-FDOH-1) ){
-        return;
-    }
+    if (zt > NZS-FDOH-1) return;
 #endif
-#endif
-    
-   
-    
 
-// Read model parameters into local memory
-#if LVE==0
-    
-    fipjp=muipjp(gidz,gidx);
-    fjpkp=mujpkp(gidz,gidx);
-    
-#else
-    
-    lmuipjp=muipjp(gidz,gidx);
-    lmujpkp=mujpkp(gidz,gidx);
-    ltausipjp=tausipjp(gidz,gidx);
-    ltausjpkp=tausjpkp(gidz,gidx);
-    
-    for (l=0;l<LVE;l++){
-        leta[l]=eta[l];
-    }
-    
-    fipjp=lmuipjp*(1.0+ (float)LVE*ltausipjp);
-    fjpkp=lmujpkp*(1.0+ (float)LVE*ltausjpkp);
-    dipjp=lmuipjp*ltausipjp;
-    djpkp=lmujpkp*ltausjpkp;
-    
+    int indv = gidx*NZS + zt;
+    float lsxy[NV], lsyz[NV], lmuipjp[NV], lmujpkp[NV];
+    ldn(sxyr, indv, lsxy);
+    ldn(syzr, indv, lsyz);
+    ldp2(muipjp, gidx, zt, lmuipjp);
+    ldp2(mujpkp, gidx, zt, lmujpkp);
+#if LVE>0
+    float ltausipjp[NV], ltausjpkp[NV];
+    ldp2(tausipjp, gidx, zt, ltausipjp);
+    ldp2(tausjpkp, gidx, zt, ltausjpkp);
 #endif
-    
-// Backpropagate the forward stresses
-#if BACK_PROP_TYPE==1
-    {
-#if LVE==0
-        
-        sxy(gidz,gidx)-=(fipjp*vyx);
-        syz(gidz,gidx)-=(fjpkp*vyz);
-        
-// Backpropagation is not stable for viscoelastic wave equation
-#else
-        
-        /* computing sums of the old memory variables */
-        sumrxy=sumryz=0;
-        for (l=0;l<LVE;l++){
-            sumrxy+=rxy(gidz,gidx,l);
-            sumryz+=ryz(gidz,gidx,l);
-        }
-        
-        /* updating components of the stress tensor, partially */
-        
-        lsxy=(fipjp*vxyyx)+(DT2*sumrxy);
-        lsyz=(fjpkp*vyzzy)+(DT2*sumryz);
-        
-        sumrxy=sumryz=0;
-        for (l=0;l<LVE;l++){
-            b=1.0/(1.0+(leta[l]*0.5));
-            c=1.0-(leta[l]*0.5);
-            
-            rxy(gidz,gidx,l)=b*(rxy(gidz,gidx,l)*c-leta[l]*(dipjp*vxyyx));
-            ryz(gidz,gidx,l)=b*(ryz(gidz,gidx,l)*c-leta[l]*(djpkp*vyzzy));
-            
-            sumrxy+=rxy(gidz,gidx,l);
-            sumryz+=ryz(gidz,gidx,l);
-        }
-        
-        /* and now the components of the stress tensor are
-         completely updated */
-        sxy(gidz,gidx)-=lsxy+(DT2*sumrxy);
-        syz(gidz,gidx)-=lsyz+(DT2*sumryz);
-        
-        
-#endif
-        
-        m=evarm(gidz,  gidx);
-        if (m!=-1){
-            sxy(gidz, gidx)= sxybnd[m];
-            syz(gidz, gidx)= szzbnd[m];
-        }
-    }
-#endif
-    
-// Correct adjoint spatial derivatives to implement CPML
+
+    for (int c=0; c<NV; c++){
+        int gidz = zt + c;
+        if (!INTERIOR_Z(gidz)) continue;              // halo cell of an aligned pair
+        float dvyx = vyx[c], dvyz = vyz[c];
+
+        // CPML: filter the derivatives in the layers
 #if ABS_TYPE==1
-    {
-        
-        
-        if (gidz>NZ-NAB-FDOH-1){
-            
-            i =gidx-FDOH;
-            k =gidz - NZ+NAB+FDOH+NAB;
-            ind=2*NAB-1-k;
-            
-            psi_vy_z(k,i) = b_z_half[ind] * psi_vy_z(k,i) + a_z_half[ind] * vyz_r;
-            vyz_r = vyz_r / K_z_half[ind] + psi_vy_z(k,i);
-        }
-        
+        {
+            int i, k, ind;
+            float psi;
+            if (gidz>NZS-NAB-FDOH-1){
+                i = gidx-FDOH;
+                k = gidz-NZS+NAB+FDOH+NAB;
+                ind = 2*NAB-1-k;
+                psi = b_z_half[ind]*psi_vy_z[PSIZ(k,i)] + a_z_half[ind]*dvyz;
+                psi_vy_z[PSIZ(k,i)] = psi;
+                dvyz = dvyz/K_z_half[ind] + psi;
+            }
 #if FREESURF==0
-        else if (gidz-FDOH<NAB){
-            
-            i =gidx-FDOH;
-            k =gidz-FDOH;
-            
-            psi_vy_z(k,i) = b_z_half[k] * psi_vy_z(k,i) + a_z_half[k] * vyz_r;
-            vyz_r = vyz_r / K_z_half[k] + psi_vy_z(k,i);
-            
-        }
+            else if (gidz-FDOH<NAB){
+                i = gidx-FDOH;
+                k = gidz-FDOH;
+                psi = b_z_half[k]*psi_vy_z[PSIZ(k,i)] + a_z_half[k]*dvyz;
+                psi_vy_z[PSIZ(k,i)] = psi;
+                dvyz = dvyz/K_z_half[k] + psi;
+            }
 #endif
-        
 #if DEVID==0 & MYLOCALID==0
-        if (gidx-FDOH<NAB){
-            
-            i =gidx-FDOH;
-            k =gidz-FDOH;
-            
-            psi_vy_x(k,i) = b_x_half[i] * psi_vy_x(k,i) + a_x_half[i] * vyx_r;
-            vyx_r = vyx_r / K_x_half[i] + psi_vy_x(k,i);
-            
-        }
+            if (gidx-FDOH<NAB){
+                i = gidx-FDOH;
+                k = gidz-FDOH;
+                psi = b_x_half[i]*psi_vy_x[PSIX(k,i)] + a_x_half[i]*dvyx;
+                psi_vy_x[PSIX(k,i)] = psi;
+                dvyx = dvyx/K_x_half[i] + psi;
+            }
 #endif
-        
 #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-        if (gidx>NX-NAB-FDOH-1){
-            
-            i =gidx - NX+NAB+FDOH+NAB;
-            k =gidz-FDOH;
-            ind=2*NAB-1-i;
-            
-            psi_vy_x(k,i) = b_x_half[ind] * psi_vy_x(k,i) + a_x_half[ind] * vyx_r;
-            vyx_r = vyx_r  /K_x_half[ind] + psi_vy_x(k,i);
+            if (gidx>NX-NAB-FDOH-1){
+                i = gidx-NX+NAB+FDOH+NAB;
+                k = gidz-FDOH;
+                ind = 2*NAB-1-i;
+                psi = b_x_half[ind]*psi_vy_x[PSIX(k,i)] + a_x_half[ind]*dvyx;
+                psi_vy_x[PSIX(k,i)] = psi;
+                dvyx = dvyx/K_x_half[ind] + psi;
+            }
+#endif
         }
 #endif
 
-    }
-#endif
-
-// Update adjoint stresses
-    {
+        // Update the adjoint stresses
 #if LVE==0
-    sxy_r(gidz,gidx)+=(fipjp*vyx_r);
-    syz_r(gidz,gidx)+=(fjpkp*vyz_r);
-    
-    
+        lsxy[c] += lmuipjp[c]*dvyx;
+        lsyz[c] += lmujpkp[c]*dvyz;
 #else
-    
-        /* computing sums of the old memory variables */
-        sumrxy=sumryz=0;
-        for (l=0;l<LVE;l++){
-            sumrxy+=rxy_r(gidz,gidx,l);
-            sumryz+=ryz_r(gidz,gidx,l);
+        float fipjp = lmuipjp[c]*(1.0f + (float)LVE*ltausipjp[c]);
+        float fjpkp = lmujpkp[c]*(1.0f + (float)LVE*ltausjpkp[c]);
+        float dipjp = lmuipjp[c]*ltausipjp[c]/DT;
+        float djpkp = lmujpkp[c]*ltausjpkp[c]/DT;
+        /* sums of the old memory variables */
+        float sumrxy = 0.0f, sumryz = 0.0f;
+        for (int l=0; l<LVE; l++){
+            int indr = l*NX*NZS + gidx*NZS + gidz;
+            sumrxy += ldf(rxyr, indr);
+            sumryz += ldf(ryzr, indr);
         }
-        
-        /* updating components of the stress tensor, partially */
-        
-        lsxy=(fipjp*vyx_r)+(DT2*sumrxy);
-        lsyz=(fjpkp*vyz_r)+(DT2*sumryz);
-        
-        sumrxy=sumryz=0;
-        for (l=0;l<LVE;l++){
-            b=1.0/(1.0+(leta[l]*0.5));
-            c=1.0-(leta[l]*0.5);
-            
-            rxy_r(gidz,gidx,l)=b*(rxy_r(gidz,gidx,l)*c-leta[l]*(dipjp*vyx_r));
-            ryz_r(gidz,gidx,l)=b*(ryz_r(gidz,gidx,l)*c-leta[l]*(djpkp*vyz_r));
-            
-            sumrxy+=rxy_r(gidz,gidx,l);
-            sumryz+=ryz_r(gidz,gidx,l);
+        /* stresses, partially */
+        float usxy = fipjp*dvyx + DT2*sumrxy;
+        float usyz = fjpkp*dvyz + DT2*sumryz;
+        /* memory variables, and their new sums */
+        sumrxy = sumryz = 0.0f;
+        for (int l=0; l<LVE; l++){
+            float b = 1.0f/(1.0f + eta[l]*0.5f);
+            float cc = 1.0f - eta[l]*0.5f;
+            int indr = l*NX*NZS + gidx*NZS + gidz;
+            float r;
+            r = b*(ldf(rxyr, indr)*cc - eta[l]*(dipjp*dvyx));
+            stf(rxyr, indr, r); sumrxy += r;
+            r = b*(ldf(ryzr, indr)*cc - eta[l]*(djpkp*dvyz));
+            stf(ryzr, indr, r); sumryz += r;
         }
-        
-        /* and now the components of the stress tensor are
-         completely updated */
-        sxy_r(gidz,gidx)+=lsxy+(DT2*sumrxy);
-        syz_r(gidz,gidx)+=lsyz+(DT2*sumryz);
+        lsxy[c] += usxy + DT2*sumrxy;
+        lsyz[c] += usyz + DT2*sumryz;
 #endif
-}
-    
-// Absorbing boundary
+
+        // Absorbing boundary (Cerjan). Until 2026-11-19 the SH stresses were not
+        // tapered (the old kernel tested "#if abstype==2", never defined; SH-D2).
 #if ABS_TYPE==2
-    {
+        float tp = 1.0f;
 #if FREESURF==0
-        if (gidz-FDOH<NAB){
-            sxy_r(gidz,gidx)*=taper[gidz-FDOH];
-            syz_r(gidz,gidx)*=taper[gidz-FDOH];
-        }
+        if (gidz-FDOH<NAB) tp *= taper[gidz-FDOH];
 #endif
-        
-        if (gidz>NZ-NAB-FDOH-1){
-            sxy_r(gidz,gidx)*=taper[NZ-FDOH-gidz-1];
-            syz_r(gidz,gidx)*=taper[NZ-FDOH-gidz-1];
-        }
-        
+        if (gidz>NZS-NAB-FDOH-1) tp *= taper[NZS-FDOH-gidz-1];
 #if DEVID==0 & MYLOCALID==0
-        if (gidx-FDOH<NAB){
-            sxy_r(gidz,gidx)*=taper[gidx-FDOH];
-            syz_r(gidz,gidx)*=taper[gidx-FDOH];
-        }
+        if (gidx-FDOH<NAB) tp *= taper[gidx-FDOH];
 #endif
-        
 #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
-        if (gidx>NX-NAB-FDOH-1){
-            sxy_r(gidz,gidx)*=taper[NX-FDOH-gidx-1];
-            syz_r(gidz,gidx)*=taper[NX-FDOH-gidx-1];
-        }
+        if (gidx>NX-NAB-FDOH-1) tp *= taper[NX-FDOH-gidx-1];
+#endif
+        lsxy[c] *= tp;
+        lsyz[c] *= tp;
 #endif
     }
-#endif
-    
-// Shear wave modulus gradient calculation on the fly    
-#if BACK_PROP_TYPE==1
-
-    /* gradmu is a 2-argument macro here (line 34); this was calling it with
-     * the 3D signature, so ND=21 with back_prop_type=1 did not compile at all.
-     * NOTE: the syz term uses fipjp where fjpkp would be expected, mirroring
-     * the sxy term. Left as written -- this path has never compiled, so there
-     * is no behaviour to preserve, but changing it is a physics decision that
-     * should be made deliberately rather than folded into a build fix. */
-    gradmu(gidz,gidx)+=-(sxy(gidz,gidx)*fipjp*vyx_r+syz(gidz,gidx)*fipjp*vyz_r)/(pown( (fipjp/DT+fjpkp/DT)/2.0,2));
-#endif
-    
-
-
+    stn(sxyr, indv, lsxy);
+    stn(syzr, indv, lsyz);
 }
-

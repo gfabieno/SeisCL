@@ -1005,17 +1005,21 @@ int assign_modeling_case(model * m){
         fprintf(stderr,"Error: N[0] (NZ=%d) must be a multiple of 2\n",
                 m->N[0]);
     }
-    /* SH (ND=21) gradients: the adjoint kernels update_adjs2D_SH.cl and
-       update_adjv2D_SH.cl do not compile under CUDA, and their arguments
-       (vy_r, sxy_r, syz_r, mu, rho, ...) do not match the names the host
-       binds: when made to compile they read out of bounds (finding B3 of the
-       2026-11 GPU memory audit). Refused for both back_prop_types until the
-       SH adjoint is rewritten. SH forward modelling is not affected. */
-    if (m->GRADOUT==1 && m->ND==21){
+    /* SH (ND=21) gradients: back_prop_type 2 only, velocity receivers only.
+       The SH adjoint and gradient kernels (2026-11-19) are the 3-D ones with
+       the terms that vanish by symmetry dropped (notes sh-gradient.md);
+       back_prop_type 1 (reverse-time reconstruction) is not implemented for
+       SH, and stress receivers would need the adjoint memory-variable source
+       of the P-SV pressure fix (thesis eq. 3.29), not ported. */
+    if (m->GRADOUT==1 && m->ND==21 && m->BACK_PROP_TYPE!=2){
         state=1;
-        fprintf(stderr,"Error: gradient computation is not available for "
-                       "ND=21 (SH): the SH adjoint kernels are broken (they "
-                       "read out of bounds). Forward modelling in SH works.\n");
+        fprintf(stderr,"Error: gradients in SH (ND=21) need back_prop_type=2 "
+                       "(back_prop_type 1 is not implemented for SH).\n");
+    }
+    if (m->GRADOUT==1 && m->ND==21 && m->VARSOUT!=1){
+        state=1;
+        fprintf(stderr,"Error: gradients in SH (ND=21) need velocity "
+                       "receivers (seisout=1).\n");
     }
     /* GRADABS: the full-layer storage is written for the Cerjan taper and the
        float kernels; the CPML adjoint inside the layers is not derived yet. */
@@ -1121,6 +1125,7 @@ int assign_modeling_case(model * m){
              updatev_adj = update_adjv2D_SH_source;
              updates_adj = update_adjs2D_SH_source;
              surface = surface2D_SH_source;
+             surface_adj = surface2D_SH_source;   /* kernel surface_adj in the same file */
              savebnd = savebnd2D_source;
          }
          else{
@@ -1175,14 +1180,17 @@ int assign_modeling_case(model * m){
         else{
             nheaders=2;
         }
-        if (m->ND==2 || m->ND==3){
+        if (m->ND==2 || m->ND==3 || m->ND==21){
+            /* SH: same format and headers as P-SV since 2026-11-19 */
             const char * aheaders[4] = {headers[0], headers[1],
                                         header_injectbnd_source, header_vec_source};
             __GUARD append_update(m->ups_adj, &ind, "update_adjv",
-                                  m->ND==3 ? update_adjv3D_source : update_adjv2D_source,
+                                  m->ND==3 ? update_adjv3D_source :
+                                  (m->ND==21 ? updatev_adj : update_adjv2D_source),
                                   4, aheaders);
             __GUARD append_update(m->ups_adj, &ind, "update_adjs",
-                                  m->ND==3 ? update_adjs3D_source : update_adjs2D_source,
+                                  m->ND==3 ? update_adjs3D_source :
+                                  (m->ND==21 ? updates_adj : update_adjs2D_source),
                                   4, aheaders);
         }
         else {
@@ -1222,7 +1230,8 @@ int assign_modeling_case(model * m){
         }
         if (m->GRADOUT){
             __GUARD prog_source(&m->bnd_cnds.surf_adj, "surface_adj", surface_adj,
-                                uni2 ? 3 : 2, uni2 ? vheaders : headers);
+                                (uni2 || m->ND==21) ? 3 : 2,
+                                (uni2 || m->ND==21) ? vheaders : headers);
             if (uni2){
                 __GUARD prog_source(&m->bnd_cnds.surf_adj_fold,
                                     "surface_adj_fold", surface_adj,

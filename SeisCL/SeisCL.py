@@ -765,6 +765,9 @@ class SeisCL:
         native = ['vp', 'vs', 'rho']
         if self.L > 0:
             native += ['taup', 'taus']
+        if self.ND == 21:
+            # SH has no P-wave physics: no vp (M) and no taup gradient.
+            native = ['vs', 'rho'] + (['taus'] if self.L > 0 else [])
         # An explicit param_names is a request for those datasets as the
         # engine wrote them: the chain rule below needs the full (vp, vs,
         # rho) triplet, so applying it to a caller-chosen subset would index
@@ -852,6 +855,9 @@ class SeisCL:
         native = ['vp', 'vs', 'rho']
         if self.L > 0:
             native += ['taup', 'taus']
+        if self.ND == 21:
+            # SH has no P-wave physics: no vp (M) and no taup gradient.
+            native = ['vs', 'rho'] + (['taus'] if self.L > 0 else [])
         explicit = param_names is not None  # see read_grad()
         if param_names is None:
             param_names = native

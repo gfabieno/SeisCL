@@ -39,3 +39,25 @@ FUNDEF void freesurface(GLOBARG STO *syz, int pdir)
         stf(syz, INDV(gidz-m, gidx), -ldf(syz, INDV(gidz+m-1, gidx)));
     }
 }
+
+/* Adjoint of the SH free surface, back_prop_type 2: the same image condition on
+   the adjoint stress (time_stepping.c runs it after the adjoint stress update,
+   where the forward runs freesurface after the stress update). In SH the image
+   acts on syz alone, which the transform of thesis Ch. 3 does not mix with any
+   other component (G is diagonal), so no transform bracket as in
+   surface2D_adj.cl (P-SV) should be needed (notes sh-gradient.md, 2.6): checked
+   by finite differences with freesurf = 1. Under back_prop_type 2, syzr is bound
+   to the syz buffer. */
+FUNDEF void surface_adj(GLOBARG STO *syzr, int pdir)
+{
+    #ifdef __OPENCL_VERSION__
+    int gidx = get_global_id(0) + FDOH;
+    #else
+    int gidx = blockIdx.x*blockDim.x + threadIdx.x + FDOH;
+    #endif
+    int gidz = FDOH;
+    if (gidx > NX-FDOH-1) return;
+    for (int m=1; m<=FDOH; m++){
+        stf(syzr, INDV(gidz-m, gidx), -ldf(syzr, INDV(gidz+m-1, gidx)));
+    }
+}
