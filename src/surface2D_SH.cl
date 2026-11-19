@@ -17,30 +17,25 @@
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  --------------------------------------------------------------------------*/
 
-/*This is the kernel that implement the free surface condition for SH waves*/
+/* Stress-image free surface (FREESURF 1) in 2D SH (Levander, 1988), in the format
+   of surface2D.cl (P-SV). One thread per column. vy lies on the surface row
+   z = FDOH; syz (at z+1/2) is mirrored with opposite sign about it, so that
+   syz = 0 at the surface: syz(FDOH-m) = -syz(FDOH+m-1), m = 1..FDOH. sxy needs no
+   condition. The old kernel (named "surface", OpenCL-only syntax) did the same but
+   could not be found by the host, which asks for "freesurface". */
 
-#define syz(z,x) syz[(x)*(NZ)+(z)]
+#define INDV(z,x) ((x)*NZS+(z))
 
-__kernel void surface(        __global float *syz)
+FUNDEF void freesurface(GLOBARG STO *syz, int pdir)
 {
-    /*Indice definition */
+    #ifdef __OPENCL_VERSION__
     int gidx = get_global_id(0) + FDOH;
-    int gidz=FDOH;
-    
-    /* Global work size is padded to be a multiple of local work size. The padding elements must not be updated */
-    if ( gidx>(NX-FDOH-1) ){
-        return;
+    #else
+    int gidx = blockIdx.x*blockDim.x + threadIdx.x + FDOH;
+    #endif
+    int gidz = FDOH;
+    if (gidx > NX-FDOH-1) return;               // the grid is rounded up to the work-group size
+    for (int m=1; m<=FDOH; m++){
+        stf(syz, INDV(gidz-m, gidx), -ldf(syz, INDV(gidz+m-1, gidx)));
     }
-    
-    /*Mirroring the components of the stress tensor to make
-     a stress free surface (method of imaging, Levander, 1988)*/
-    
-    for (int m=1; m<=FDOH; m++) {
-        syz(gidz-m, gidx)=-syz(gidz+m-1, gidx);
-    }
-
-
 }
-
-
-

@@ -1136,17 +1136,19 @@ int assign_modeling_case(model * m){
     /* Unified kernels (header_vec.cl): one source for FP16 0, 1 and 2, float
        arithmetic, storage and cells per thread set at compile time. */
     const char * vheaders[3] = {headers[0], headers[1], header_vec_source};
-    if (m->ND==2 || m->ND==3){
+    if (m->ND==2 || m->ND==3 || m->ND==21){
+        /* SH (ND 21) uses the same format and headers as P-SV since 2026-11-19 */
         __GUARD append_update(m->ups_f, &ind, "update_v",
-                              m->ND==3 ? update_v3D_source : update_v2D_source,
+                              m->ND==3 ? update_v3D_source : (m->ND==21 ? updatev : update_v2D_source),
                               3, vheaders);
     }
     else {
         __GUARD append_update(m->ups_f, &ind, "update_v", updatev, 2, headers);
     }
-    if (m->ND==2 || m->ND==3){
+    if (m->ND==2 || m->ND==3 || m->ND==21){
+        /* SH (ND 21) uses the same format and headers as P-SV since 2026-11-19 */
         __GUARD append_update(m->ups_f, &ind, "update_s",
-                              m->ND==3 ? update_s3D_source : update_s2D_source,
+                              m->ND==3 ? update_s3D_source : (m->ND==21 ? updates : update_s2D_source),
                               3, vheaders);
     }
     else {
@@ -1197,9 +1199,11 @@ int assign_modeling_case(model * m){
         int uni2 = (m->ND==2 || m->ND==3);
         const char * gheaders[4] = {headers[0], headers[1],
                                     header_injectbnd_source, header_vec_source};
-        if (uni2){
+        if (uni2 || m->ND==21){
+            /* SH: surface2D_SH.cl, same format and headers since 2026-11-19 */
             __GUARD prog_source(&m->bnd_cnds.surf, "freesurface",
-                                m->ND==3 ? surface3D_source : surface2D_source, 3, vheaders);
+                                m->ND==3 ? surface3D_source : (m->ND==21 ? surface : surface2D_source),
+                                3, vheaders);
         }
         else {
             __GUARD prog_source(&m->bnd_cnds.surf, "freesurface", surface, 2, headers);
