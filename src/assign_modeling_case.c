@@ -512,7 +512,10 @@ void mujpkp(void * mptr){
     float *mu = get_par(m->pars, m->npars, "mu")->gl_par;
     float *mujpkp = get_par(m->pars, m->npars, "mujpkp")->gl_par;
     int dir[2][3]={{0,1,0},{1,0,0}};
-    ave_harmonic_mu(mu, mujpkp, m->N, m->NDIM, dir);
+    /* SH (ND 21): the 3-D staggering with nothing varying along y, i.e. the
+       average along z only (second direction 0: two-point mean). */
+    int dsh[2][3]={{1,0,0},{0,0,0}};
+    ave_harmonic_mu(mu, mujpkp, m->N, m->NDIM, m->ND==21 ? dsh : dir);
 }
 void muipjp(void * mptr){
     
@@ -520,7 +523,10 @@ void muipjp(void * mptr){
     float *mu = get_par(m->pars, m->npars, "mu")->gl_par;
     float *muipjp = get_par(m->pars, m->npars, "muipjp")->gl_par;
     int dir[2][3]={{0,0,1},{0,1,0}};
-    ave_harmonic_mu(mu, muipjp, m->N, m->NDIM, dir);
+    /* SH (ND 21): the 3-D staggering with nothing varying along y, i.e. the
+       average along x only (second direction 0: two-point mean). */
+    int dsh[2][3]={{0,0,1},{0,0,0}};
+    ave_harmonic_mu(mu, muipjp, m->N, m->NDIM, m->ND==21 ? dsh : dir);
 }
 void tausipkp(void * mptr){
     
@@ -536,7 +542,10 @@ void tausjpkp(void * mptr){
     float *taus = get_par(m->pars, m->npars, "taus")->gl_par;
     float *tausjpkp = get_par(m->pars, m->npars, "tausjpkp")->gl_par;
     int dir[2][3]={{0,1,0},{1,0,0}};
-    ave_arithmetic_tau(taus, tausjpkp, m->N, m->NDIM, dir);
+    /* SH (ND 21): the 3-D staggering with nothing varying along y, i.e. the
+       average along z only (second direction 0: two-point mean). */
+    int dsh[2][3]={{1,0,0},{0,0,0}};
+    ave_arithmetic_tau(taus, tausjpkp, m->N, m->NDIM, m->ND==21 ? dsh : dir);
 }
 void tausipjp(void * mptr){
     
@@ -544,7 +553,10 @@ void tausipjp(void * mptr){
     float *taus = get_par(m->pars, m->npars, "taus")->gl_par;
     float *tausipjp = get_par(m->pars, m->npars, "tausipjp")->gl_par;
     int dir[2][3]={{0,0,1},{0,1,0}};
-    ave_arithmetic_tau(taus, tausipjp, m->N, m->NDIM, dir);
+    /* SH (ND 21): the 3-D staggering with nothing varying along y, i.e. the
+       average along x only (second direction 0: two-point mean). */
+    int dsh[2][3]={{0,0,1},{0,0,0}};
+    ave_arithmetic_tau(taus, tausipjp, m->N, m->NDIM, m->ND==21 ? dsh : dir);
 }
 void eta( void *mptr, void *cstptr, int ncst){
     //Viscoelastic constants initialization
@@ -1361,11 +1373,17 @@ int assign_modeling_case(model * m){
         __GUARD append_par(m, &ind, "muipjp", NULL, gpu_avg ? NULL : &muipjp);
         __GUARD append_par(m, &ind, "mujpkp", NULL, gpu_avg ? NULL : &mujpkp);
     }
+    if (m->ND==21){
+        /* SH stresses: sxy at (x+1/2, z) uses muipjp, syz at (x, z+1/2) mujpkp,
+           as the same stresses in 3-D (host averages; SH has no GPU path). */
+        __GUARD append_par(m, &ind, "muipjp", NULL, &muipjp);
+        __GUARD append_par(m, &ind, "mujpkp", NULL, &mujpkp);
+    }
     if (m->L>0){
         if (m->ND==2 || m->ND==3){
             __GUARD append_par(m, &ind, "tausipkp", NULL, &tausipkp);
         }
-        if (m->ND==3){
+        if (m->ND==3 || m->ND==21){
             __GUARD append_par(m, &ind, "tausipjp", NULL, &tausipjp);
             __GUARD append_par(m, &ind, "tausjpkp", NULL, &tausjpkp);
         }

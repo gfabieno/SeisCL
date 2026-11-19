@@ -110,11 +110,11 @@ FUNDEF void update_v(int offcomm,
                 i = gidx-NX+NAB+FDOH+NAB;
                 k = gidz-FDOH;
                 ind = 2*NAB-1-i;
-                /* SH-D3: P-SV uses index ind+1 for the same (integer-node) x derivative
-                   (update_v2D.cl, dsxzx); kept as in the old SH kernel until fixed. */
-                psi = b_x[ind]*psi_sxy_x[PSIX(k,i)] + a_x[ind]*dsxy;
+                /* ind+1, as P-SV for the same (integer-node) x derivative (update_v2D.cl,
+                   dsxzx); the old SH kernel used ind (SH-D3, fixed 2026-11-19). */
+                psi = b_x[ind+1]*psi_sxy_x[PSIX(k,i)] + a_x[ind+1]*dsxy;
                 psi_sxy_x[PSIX(k,i)] = psi;
-                dsxy = dsxy/K_x[ind] + psi;
+                dsxy = dsxy/K_x[ind+1] + psi;
             }
 #endif
         }

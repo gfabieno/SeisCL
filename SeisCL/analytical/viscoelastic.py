@@ -240,3 +240,64 @@ def viscoelastic_3D(vp, vs, rho, taup, taus, f0, fl, dt, rec_pos, src):
     vz = np.abs(vz) * np.sign(np.real(vz))
 
     return vx, vy, vz
+
+def viscoelastic_2D_SH(vs, rho, taus, f0, fl, dt, rec_pos, src, image_depth=None):
+    """
+    Analytic solution for a line force in the y direction (SH, out of the x-z
+    plane) in an infinite 2D homogeneous (visco)elastic space.
+
+    In the frequency domain (time dependence exp(i omega t), the convention of
+    np.fft.ifft used below and of viscoelastic_2D), the displacement solves
+    mu(omega) Laplacian(u) + rho omega^2 u = -F(omega) delta(x) delta(z), whose
+    solution is the 2D Helmholtz Green's function
+
+        u(r, omega) = F(omega) / (4 i mu(omega)) H0^(2)(omega r / v(omega)),
+        v(omega) = sqrt(mu(omega) / rho),
+
+    and the particle velocity is i omega u. This is the transverse (pure shear)
+    part of viscoelastic_2D's solution, whose G2 term reduces to it for a
+    receiver on the x axis. The viscoelastic case follows from the elastic one
+    by the correspondence principle (complex mu(omega) of the generalized
+    standard linear solid, complex_modulus above).
+
+    With image_depth = h, a second (image) source of the same sign is added at
+    depth -h: for a source at depth h below a stress-free surface z = 0 this is
+    the exact half-space solution (the SH free surface is a perfect mirror).
+
+    Args:
+         vs (float): S-wave velocity
+         rho (float): density
+         taus (float): S-wave attenuation level (0: elastic)
+         f0 (float): the source center frequency
+         fl (list): relaxation frequencies of each Maxwell body
+         dt (float): time step size
+         rec_pos (list): [[x, y, z]] of each receiver relative to the source
+         src (np.array): the source signal
+
+    Returns:
+        vy (np.array): the particle velocity in y, (nt, nrec).
+    """
+    nt = src.shape[0]
+    nrec = len(rec_pos)
+    F = np.fft.fft(src)
+    omega = 2 * np.pi * np.fft.fftfreq(F.shape[0], dt)
+    Vy = np.zeros([nt, nrec], dtype=np.complex128)
+    omegaL = 2 * np.pi * np.asarray(fl, dtype=float)
+    omega0 = 2 * np.pi * f0
+    for ii in range(1, nt // 2):
+        if taus:
+            _, mu = complex_modulus(1.0, vs, rho, 0.0, taus, omegaL, omega[ii], omega0)
+        else:
+            mu = rho * vs ** 2
+        ks = omega[ii] / np.sqrt(mu / rho)
+        for jj in range(nrec):
+            x, _, z = rec_pos[jj]
+            r = np.sqrt(x ** 2 + z ** 2)
+            u = hankel2(0, ks * r)
+            if image_depth is not None:
+                u = u + hankel2(0, ks * np.sqrt(x ** 2 + (z + 2 * image_depth) ** 2))
+            Vy[ii, jj] = F[ii] / (4j * mu) * u * 1j * omega[ii]
+    for ii in range(1, nt // 2):
+        Vy[-ii, :] = np.conj(Vy[ii, :])
+    vy = nt * np.fft.ifft(Vy, axis=0)
+    return np.real(vy)

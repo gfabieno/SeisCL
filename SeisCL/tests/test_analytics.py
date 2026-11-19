@@ -39,7 +39,7 @@ plt.interactive(False)
 import sys
 #sys.path.append('../')
 from SeisCL import SeisCL
-from SeisCL.analytical.viscoelastic import viscoelastic_3D, viscoelastic_2D
+from SeisCL.analytical.viscoelastic import viscoelastic_3D, viscoelastic_2D, viscoelastic_2D_SH
 from SeisCL.analytical import garvin2, lamb3D
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -532,6 +532,48 @@ def homogeneous_test(testname, vp=3500, vs=2000, rho=2000, taup=0, taus=0, L=1,
                  plots=plots)
 
 
+def sh_test(testname, vs=2000, rho=2000, taus=0, L=1, N=300, FDORDER=4,
+            freesurf=0, plots=True):
+    """
+    2D SH (ND = 21): a vy line force in a homogeneous (visco)elastic space,
+    against viscoelastic_2D_SH (2D Helmholtz Green's function; correspondence
+    principle for the viscoelastic case). With freesurf = 1 the source and the
+    receivers are 10 cells below the stress-free surface z = 0 and the solution
+    adds the image source (exact for SH).
+    """
+    seis = define_SeisCL(FDORDER=FDORDER, ND=2, N=N)
+    seis.ND = 21
+    seis.N = np.array([N, N])
+    seis.freesurf = freesurf
+    nbuf = seis.FDORDER * 2
+    nab = seis.nab
+    dh = seis.dh
+    NT = seis.NT
+    if taus != 0:
+        seis.L = L
+        seis.FL = np.array([seis.f0 / (l + 1) for l in range(L)])
+    sx = (nab + nbuf) * dh
+    sz = 10 * dh if freesurf else N // 2 * dh
+    offmin = 5 * dh
+    offmax = (N - nab - nbuf) * dh - sx
+    gx = np.arange(sx + offmin, sx + offmax, dh)
+    gz = gx * 0 + sz
+    seis.src_pos_all = np.stack([[sx], [0], [sz], [0], [1]], axis=0)    # vy force
+    seis.rec_pos = np.stack([gx, gx * 0, gz, gx * 0, np.arange(0, len(gx)),
+                             gx * 0 + 1, gx * 0, gx * 0], axis=0)
+    seis.rec_pos_all = seis.rec_pos
+    datafd = fd_solution(seis, vp=2 * vs, vs=vs, rho=rho, taup=0, taus=taus,
+                         fileout=testname + ".mat")[-1]
+    src = ricker_wavelet(seis.f0, 2 * NT, seis.dt)
+    rec_pos = [[gx[ii] - sx, 0, gz[ii] - sz] for ii in range(len(gx))]
+    analytic = viscoelastic_2D_SH(vs, rho, taus, seis.f0, seis.FL, seis.dt,
+                                  rec_pos, src,
+                                  image_depth=sz if freesurf else None)[:NT, :]
+    datafd = datafd / np.sqrt(np.sum(datafd ** 2))
+    analytic = analytic / np.sqrt(np.sum(analytic ** 2))
+    compare_data(datafd, analytic, gx - sx, seis.dt, testname, plots=plots)
+
+
 # Zero-argument test_* functions, in the same style as test_dft_gradient.py /
 # gradient_common.run_tests(): a real assert (raised inside compare_data),
 # no plots, no display required. This is what makes these part of the
@@ -541,6 +583,18 @@ def homogeneous_test(testname, vp=3500, vs=2000, rho=2000, taup=0, taus=0, L=1,
 # default (N=300); nab=112 is tuned for that size (see the ValueError on a
 # smaller N in prepare_data -- offmax goes negative and the receiver line is
 # empty).
+def test_elastic_2d_sh():
+    sh_test(testname="elastic_2D_SH", plots=False)
+
+
+def test_viscoelastic_2d_sh():
+    sh_test(testname="viscoelastic_2D_SH", taus=0.1, plots=False)
+
+
+def test_elastic_2d_sh_freesurface():
+    sh_test(testname="elastic_2D_SH_freesurface", freesurf=1, plots=False)
+
+
 def test_elastic_3d_inline():
     homogeneous_test(testname="elastic_3D_inline", testtype="inline",
                      plots=False)
