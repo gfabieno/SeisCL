@@ -196,6 +196,85 @@ static float * par_grad(model * m, const char * name, float ** value){
     return p->gl_grad;
 }
 
+static double gsls_alpha(model * m);
+
+/* One shear node (muipkp, tausipkp, ...) back to the cells (mu, taus).
+
+   With L > 0 the DFT kernels give, at each node n, g_mu = dJ/dmu_p,n and
+   g_tau = dJ/dtau_n at fixed mu_p,n, for the paper's modulus
+   mu_p,n = mu_s,n (1 + alpha tau_n) (GJI 2017 Appendix A). The averages
+   act on the STORED modulus and on tau: mu_s,n = harmonic(mu_s cells),
+   tau_n = arithmetic(tau cells). So, exactly:
+     1. node, paper -> node, stored:
+          dJ/dmu_s,n = g_mu (1 + alpha tau_n)
+          dJ/dtau_n|mu_s = g_tau + g_mu mu_s,n alpha
+     2. transpose of the harmonic (mu_s) and arithmetic (tau) averages;
+     3. cell, stored -> cell, paper (what chain_rule_par_type expects, as
+        for the cell-centred mu that needs no average):
+          dJ/dmu_p,c = dJ/dmu_s,c / (1 + alpha tau_c)
+          dJ/dtau_c|mu_p = dJ/dtau_c|mu_s - dJ/dmu_s,c mu_s,c alpha/(1+alpha tau_c)
+   Until 2026-11-19 the node gradients were transposed as if they were with
+   respect to stored values and converted at the cell: exact only where tau
+   and mu are uniform across the average (2-D heterogeneous test: taus 0.89).
+   mu_s enters steps 1 and 3 in physical units (muphys), the units the DFT
+   gradient refers to (unscale_grad_dft is uniform over the parameters).
+   Elastic (alpha = 0): plain transposes, as before. */
+static int shear_node_transpose(model * m, const char * muname,
+                                const char * tauname, int (*dir)[3]){
+    int state=0;
+    int i;
+    float * pmu; float * ptau=NULL;
+    float * pmun; float * ptaun=NULL;
+    float * gmu = par_grad(m, "mu", &pmu);
+    float * gmun = par_grad(m, muname, &pmun);
+    float * gtau = par_grad(m, "taus", &ptau);
+    float * gtaun = par_grad(m, tauname, &ptaun);
+    parameter * p;
+    double al = gsls_alpha(m);
+    double muphys = m->dh/m->dt*pow(2.0, -m->par_scale);
+    int n;
+    float * gm=NULL; float * gt=NULL; float * cm=NULL; float * ct=NULL;
+
+    if (!gmu || !gmun) {
+        /* taus without mu: plain arithmetic transpose. */
+        if (gtau && gtaun) grad_T_arithmetic_tau(gtaun, gtau, m->N, m->NDIM, dir);
+        return state;
+    }
+    if (al==0.0){
+        grad_T_harmonic_mu(pmu, gmun, gmu, m->N, m->NDIM, dir);
+        if (gtau && gtaun) grad_T_arithmetic_tau(gtaun, gtau, m->N, m->NDIM, dir);
+        return state;
+    }
+    /* Node and cell tau values are needed even when taus has no gradient. */
+    p = get_par(m->pars, m->npars, "taus");     if (p) ptau = p->gl_par;
+    p = get_par(m->pars, m->npars, tauname);    if (p) ptaun = p->gl_par;
+    if (!ptau || !ptaun){
+        fprintf(stderr, "Error: %s needs taus and %s\n", muname, tauname);
+        return 1;
+    }
+    n = get_par(m->pars, m->npars, "mu")->num_ele;
+    GMALLOC(gm, sizeof(float)*n);
+    GMALLOC(gt, sizeof(float)*n);
+    GMALLOC(cm, sizeof(float)*n);
+    GMALLOC(ct, sizeof(float)*n);
+    if (!state){
+        for (i=0;i<n;i++){
+            gm[i] = gmun[i]*(1.0+al*ptaun[i]);
+            gt[i] = (gtaun ? gtaun[i] : 0.0f) + gmun[i]*pmun[i]*muphys*al;
+            cm[i] = 0; ct[i] = 0;
+        }
+        grad_T_harmonic_mu(pmu, gm, cm, m->N, m->NDIM, dir);
+        grad_T_arithmetic_tau(gt, ct, m->N, m->NDIM, dir);
+        for (i=0;i<n;i++){
+            double k = 1.0+al*ptau[i];
+            gmu[i] += cm[i]/k;
+            if (gtau) gtau[i] += ct[i] - cm[i]*pmu[i]*muphys*al/k;
+        }
+    }
+    GFree(gm); GFree(gt); GFree(cm); GFree(ct);
+    return state;
+}
+
 int average_grad_transpose(model * m) {
     int state=0;
     float * gsrc; float * psrc;
@@ -217,49 +296,20 @@ int average_grad_transpose(model * m) {
             grad_T_arithmetic_rho(psrc, gavg, gsrc, m->N, m->NDIM, d1); }
     }
 
-    /* mu -> muipkp / muipjp / mujpkp */
-    gsrc = par_grad(m, "mu", &psrc);
-    if (gsrc){
-        gavg = par_grad(m, "muipkp", &pavg);
-        if (gavg){ d2[0][0]=0; d2[0][1]=0; d2[0][2]=1;
-                   d2[1][0]=1; d2[1][1]=0; d2[1][2]=0;
-            grad_T_harmonic_mu(psrc, gavg, gsrc, m->N, m->NDIM, d2); }
-        /* SH (ND 21): the 3-D averages with nothing varying along y, i.e.
-           along z (mujpkp) or x (muipjp) only, as assign_modeling_case.c
-           computes them; the 3-D directions would loop zero times (NY = 1)
-           and drop the SH gradient. */
-        gavg = par_grad(m, "mujpkp", &pavg);
-        if (gavg){ d2[0][0]=0; d2[0][1]=1; d2[0][2]=0;
-                   d2[1][0]=1; d2[1][1]=0; d2[1][2]=0;
-            if (m->ND==21){ d2[0][0]=1; d2[0][1]=0; d2[0][2]=0;
-                            d2[1][0]=0; d2[1][1]=0; d2[1][2]=0; }
-            grad_T_harmonic_mu(psrc, gavg, gsrc, m->N, m->NDIM, d2); }
-        gavg = par_grad(m, "muipjp", &pavg);
-        if (gavg){ d2[0][0]=0; d2[0][1]=0; d2[0][2]=1;
-                   d2[1][0]=0; d2[1][1]=1; d2[1][2]=0;
-            if (m->ND==21){ d2[1][1]=0; }
-            grad_T_harmonic_mu(psrc, gavg, gsrc, m->N, m->NDIM, d2); }
-    }
-
-    /* taus -> tausipkp / tausipjp / tausjpkp */
-    gsrc = par_grad(m, "taus", &psrc);
-    if (gsrc){
-        gavg = par_grad(m, "tausipkp", &pavg);
-        if (gavg){ d2[0][0]=0; d2[0][1]=0; d2[0][2]=1;
-                   d2[1][0]=1; d2[1][1]=0; d2[1][2]=0;
-            grad_T_arithmetic_tau(gavg, gsrc, m->N, m->NDIM, d2); }
-        gavg = par_grad(m, "tausjpkp", &pavg);
-        if (gavg){ d2[0][0]=0; d2[0][1]=1; d2[0][2]=0;
-                   d2[1][0]=1; d2[1][1]=0; d2[1][2]=0;
-            if (m->ND==21){ d2[0][0]=1; d2[0][1]=0; d2[0][2]=0;
-                            d2[1][0]=0; d2[1][1]=0; d2[1][2]=0; }
-            grad_T_arithmetic_tau(gavg, gsrc, m->N, m->NDIM, d2); }
-        gavg = par_grad(m, "tausipjp", &pavg);
-        if (gavg){ d2[0][0]=0; d2[0][1]=0; d2[0][2]=1;
-                   d2[1][0]=0; d2[1][1]=1; d2[1][2]=0;
-            if (m->ND==21){ d2[1][1]=0; }
-            grad_T_arithmetic_tau(gavg, gsrc, m->N, m->NDIM, d2); }
-    }
+    /* mu, taus -> the shear nodes muipkp / mujpkp / muipjp and their taus
+       twins. SH (ND 21): the 3-D averages with nothing varying along y,
+       i.e. along z (mujpkp) or x (muipjp) only, as assign_modeling_case.c
+       computes them; the 3-D directions would loop zero times (NY = 1) and
+       drop the SH gradient. */
+    d2[0][0]=0; d2[0][1]=0; d2[0][2]=1; d2[1][0]=1; d2[1][1]=0; d2[1][2]=0;
+    __GUARD shear_node_transpose(m, "muipkp", "tausipkp", d2);
+    d2[0][0]=0; d2[0][1]=1; d2[0][2]=0; d2[1][0]=1; d2[1][1]=0; d2[1][2]=0;
+    if (m->ND==21){ d2[0][0]=1; d2[0][1]=0; d2[0][2]=0;
+                    d2[1][0]=0; d2[1][1]=0; d2[1][2]=0; }
+    __GUARD shear_node_transpose(m, "mujpkp", "tausjpkp", d2);
+    d2[0][0]=0; d2[0][1]=0; d2[0][2]=1; d2[1][0]=0; d2[1][1]=1; d2[1][2]=0;
+    if (m->ND==21){ d2[1][1]=0; }
+    __GUARD shear_node_transpose(m, "muipjp", "tausipjp", d2);
 
     return state;
 }
