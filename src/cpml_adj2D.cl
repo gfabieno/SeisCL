@@ -32,7 +32,9 @@
  * update_adjv). The memories psit are the adjoint copies psi_*r of the
  * forward memories (same layout). The filtered fields go to the scratch
  * buffers cpfa..cpfd, which update_adjs2D.cl / update_adjv2D.cl
- * differentiate. Outside the layers they are copies of the fields.
+ * differentiate. Outside the layers they are not written: the adjoint updates read the
+ * fields there instead (header_vec.cl, load_tile*_cpf). Without tiles (NOTILE) they are
+ * written in the layers and in a band next to them (NT_SKIP2).
  * Checked against the exact matrix transpose of the time step (3.8e-16),
  * notes: torch-robust/cpmladj/ref.py. Single device only (assign_modeling_case.c).
  */
@@ -68,6 +70,11 @@ FUNDEF void cpml_adj_v(GLOBARG const STO * RESTRICT vxr,  GLOBARG const STO * RE
     if (gidz>NZS-FDOH-1 || gidx>NX-FDOH-1){
         return;
     }
+#if NOTILE
+    if (NT_SKIP2(gidz, gidx)) return;      /* no adjoint update reads the copy here (header_vec.cl) */
+#else
+    if (!CPML_CELL2(gidz, gidx)) return;   /* identity filter: read in place (header_vec.cl) */
+#endif
     int indv = gidx*NZS+gidz;
     int i,k,ind;
     float ex = ldf(vxr, indv), ez = ldf(vzr, indv);
@@ -138,6 +145,11 @@ FUNDEF void cpml_adj_s(GLOBARG const STO * RESTRICT sxxr, GLOBARG const STO * RE
     if (gidz>NZS-FDOH-1 || gidx>NX-FDOH-1){
         return;
     }
+#if NOTILE
+    if (NT_SKIP2(gidz, gidx)) return;      /* no adjoint update reads the copy here (header_vec.cl) */
+#else
+    if (!CPML_CELL2(gidz, gidx)) return;   /* identity filter: read in place (header_vec.cl) */
+#endif
     int indv = gidx*NZS+gidz;
     int i,k,ind;
     float exx = ldf(sxxr, indv), ezz = ldf(szzr, indv), exz = ldf(sxzr, indv);

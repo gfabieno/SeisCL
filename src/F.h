@@ -108,6 +108,12 @@ struct filenames {
 
 
 /* _____________Structure to intereact with OpenCL memory buffers ____________*/
+/* Double-buffered, asynchronous upload of the saved boundary in the adjoint
+   pass (time_stepping.c, bnd_async_*): CUDA, BACK_PROP_TYPE 1, one device and
+   one process per shot. Elsewhere inject_bnd uploads on the compute queue. */
+#define BND_ASYNC(m) ((m)->GRADOUT==1 && (m)->BACK_PROP_TYPE==1 \
+                      && (m)->NUM_DEVICES==1 && (m)->NLOCALP==1)
+
 typedef struct clbuf {
     
     MEM mem;
@@ -197,6 +203,8 @@ int prog_source(clprogram * prog,
 int prog_launch( QUEUE *inqueue, clprogram * prog);
 
 int prog_create(struct model * m, struct device * dev,clprogram * prog);
+int cpml_inline(struct model * m);
+int notile_on(struct model * m);
 
 int prog_arg(clprogram * prog, int i, void * mem, int size);
 

@@ -38,6 +38,12 @@
 #ifndef NV
 #define NV DIV
 #endif
+#ifndef NOTILE
+#define NOTILE 0      /* experiment, see the end of this file */
+#endif
+#ifndef CPMLINL
+#define CPMLINL 0     /* experiment: CPML adjoint inside the 3D adjoint updates */
+#endif
 #if FP16==2
 #define STO half
 #else
@@ -266,3 +272,254 @@ LFUNDEF float tdm(LOCID const float *t, int i, int s)
 {   const float hc[6] = HCV; float d = 0.0f;
     for (int m = 0; m < FDOH; m++) d += hc[m] * (t[i + m*s] - t[i - (m+1)*s]);
     return d; }
+
+/* ---- CPMLINL (experiment): exact CPML adjoint inside update_adjs/update_adjv ----
+   3D, BACK_PROP_TYPE 1, one device, NOTILE, FP16 0 (clprogram.c, cpml_inline()).
+   Replaces cpml_adj3D.cl and its cpf buffers. The filter of cpml_adj3D.cl along one
+   axis depends only on the coordinate along that axis, so the filtered value of a
+   stencil neighbour is computed where it is used:
+       f = e/K[c] + (b[c]*psit_old + a[c]*e)   in a layer of that axis,
+         computed as e*Ka[c] + b[c]*psit_old, Ka = 1/K + a (not bit-identical),
+       f = e                                    elsewhere,
+       f = 0                                    in the halo (the cpf buffers hold zeros there).
+   Each work-item writes psit_new of its own cell. The adjoint memories psi_*r are
+   double buffered (2 halves of PSI_H* floats, Init_OpenCL.c): read half nt&1, write
+   the other, so no work-item overwrites a value that a neighbour still reads.
+   Axis parameters: g coordinate (padded), n length (padded), low: the low layer
+   exists (z: FREESURF==0), full: coefficients on the full grid (index indm+1 in the
+   high layer) or the half grid (indm), pb/ps: psi index = pb + l*ps for layer index l. */
+#if CPMLINL
+#if !NOTILE || NV!=1
+#error "CPMLINL needs NOTILE and one cell per work-item (FP16 0)"
+#endif
+#define PSI_HX (2*NAB*(NYS-2*FDOH)*(NZS-2*FDOH))
+#define PSI_HY (2*NAB*(NX-2*FDOH)*(NZS-2*FDOH))
+#define PSI_HZ (2*NAB*(NX-2*FDOH)*(NYS-2*FDOH))
+#if FREESURF==0
+#define CPI_LOWZ 1
+#else
+#define CPI_LOWZ 0
+#endif
+/* layer index of coordinate g (interior), or -1; *c: index of the coefficients */
+LFUNDEF int cpi_layer(int g, int n, int low, int full, int *c)
+{
+    if (g > n-NAB-FDOH-1){ int l = g-n+NAB+FDOH+NAB; *c = 2*NAB-1-l+full; return l; }
+    if (low && g-FDOH < NAB){ *c = g-FDOH; return g-FDOH; }
+    return -1;
+}
+LFUNDEF float cpi_val(GLOBARG const STO *f, int ind, GLOBARG const float *psi, int pb, int ps,
+                      int g, int n, int low, int full,
+                      GLOBARG const float *Ka, GLOBARG const float *b)
+{
+    if (g < FDOH || g > n-FDOH-1) return 0.0f;
+    float e = ldf(f, ind);
+    int c;
+    int l = cpi_layer(g, n, low, full, &c);
+    if (l < 0) return e;
+    return e * Ka[c] + b[c] * psi[pb + l*ps];   /* Ka = 1/K + a (CPML_ka) */
+}
+/* no layer and no halo within FDOH of g: the plain derivative */
+#define CPI_CLEAR(g, n, low) ((g)-FDOH >= FDOH + (low)*NAB && (g)+FDOH <= (n)-NAB-FDOH-1)
+LFUNDEF float cpi_tdp(GLOBARG const STO *f, int ind, int s, GLOBARG const float *psi, int pb, int ps,
+                      int g, int n, int low, int full,
+                      GLOBARG const float *Ka, GLOBARG const float *b)
+{
+    if (CPI_CLEAR(g, n, low)) return tdp((LOCID const float *)f, ind, s);
+    const float hc[6] = HCV; float d = 0.0f;
+    for (int m = 0; m < FDOH; m++)
+        d += hc[m] * (cpi_val(f, ind + (m+1)*s, psi, pb, ps, g+m+1, n, low, full, Ka, b)
+                      - cpi_val(f, ind - m*s, psi, pb, ps, g-m, n, low, full, Ka, b));
+    return d;
+}
+LFUNDEF float cpi_tdm(GLOBARG const STO *f, int ind, int s, GLOBARG const float *psi, int pb, int ps,
+                      int g, int n, int low, int full,
+                      GLOBARG const float *Ka, GLOBARG const float *b)
+{
+    if (CPI_CLEAR(g, n, low)) return tdm((LOCID const float *)f, ind, s);
+    const float hc[6] = HCV; float d = 0.0f;
+    for (int m = 0; m < FDOH; m++)
+        d += hc[m] * (cpi_val(f, ind + m*s, psi, pb, ps, g+m, n, low, full, Ka, b)
+                      - cpi_val(f, ind - (m+1)*s, psi, pb, ps, g-m-1, n, low, full, Ka, b));
+    return d;
+}
+/* the three memories of one axis, in the cell's own values (psi_new = b*psi_old + a*e; one layer test,
+   fields read only in a layer). fullN: field N on the full grid (coefficients a, b) or half (ah, bh). */
+LFUNDEF void cpi_upd_one(GLOBARG const STO *f, int ind, GLOBARG float *psi, int H, int o, int i,
+                         GLOBARG const float *a, GLOBARG const float *b, int c)
+{
+    float e = ldf(f, ind);
+    psi[(o^1)*H + i] = b[c] * psi[o*H + i] + a[c] * e;
+}
+LFUNDEF void cpi_upd3(int ind, int g, int n, int low, int H, int o, int pb, int ps,
+                      GLOBARG const STO *f1, GLOBARG float *p1, int full1,
+                      GLOBARG const STO *f2, GLOBARG float *p2, int full2,
+                      GLOBARG const STO *f3, GLOBARG float *p3, int full3,
+                      GLOBARG const float *a, GLOBARG const float *b,
+                      GLOBARG const float *ah, GLOBARG const float *bh)
+{
+    int c;
+    int l = cpi_layer(g, n, low, 0, &c);
+    if (l < 0) return;
+    int hi = l != c;                     /* high layer: the full-grid coefficient is c+1 */
+    int i = pb + l*ps;
+    if (full1) cpi_upd_one(f1, ind, p1, H, o, i, a, b, c+hi); else cpi_upd_one(f1, ind, p1, H, o, i, ah, bh, c);
+    if (full2) cpi_upd_one(f2, ind, p2, H, o, i, a, b, c+hi); else cpi_upd_one(f2, ind, p2, H, o, i, ah, bh, c);
+    if (full3) cpi_upd_one(f3, ind, p3, H, o, i, a, b, c+hi); else cpi_upd_one(f3, ind, p3, H, o, i, ah, bh, c);
+}
+/* per-cell axis parameters; cpi_o: the half of a psi_*r array read this step (the other is written) */
+#define CPI_AXES \
+    int cpi_pbx = (gidy-FDOH)*(NZS-2*FDOH) + (zt-FDOH), cpi_psx = (NYS-2*FDOH)*(NZS-2*FDOH); \
+    int cpi_pby = (gidx-FDOH)*2*NAB*(NZS-2*FDOH) + (zt-FDOH), cpi_psy = NZS-2*FDOH; \
+    int cpi_pbz = ((gidx-FDOH)*(NYS-2*FDOH) + (gidy-FDOH))*2*NAB, cpi_psz = 1; \
+    int cpi_o = nt & 1, cpi_n = cpi_o ^ 1;
+#define CPI_X(psi) psi + cpi_o*PSI_HX, cpi_pbx, cpi_psx, gidx, NX, 1
+#define CPI_Y(psi) psi + cpi_o*PSI_HY, cpi_pby, cpi_psy, gidy, NYS, 1
+#define CPI_Z(psi) psi + cpi_o*PSI_HZ, cpi_pbz, cpi_psz, zt, NZS, CPI_LOWZ
+#endif
+
+/* ---- exact CPML adjoint (ABS_TYPE 1, BACK_PROP_TYPE 1) -------------------- */
+/* cpml_adj2D/3D.cl filter the adjoint fields into the cpf buffers only in the
+   cells of an absorbing layer (CPML_CELL; the top layer only without a free
+   surface; padded indices). Elsewhere the filter is the identity, so the
+   adjoint updates read the field itself there (load_tile*_cpf), and the cpf
+   buffer in the layers and in the halo (where it holds zeros, never written:
+   reading the field there would change the result under a free surface). */
+#if ABS_TYPE==1 && BACK_PROP_TYPE==1
+#if FREESURF==0
+#define CPML_TOPZ(z) ((z)-FDOH<NAB)
+#else
+#define CPML_TOPZ(z) 0
+#endif
+#define CPML_Z(z) ((z)>NZS-NAB-FDOH-1 || CPML_TOPZ(z))
+#define CPML_X(x) ((x)-FDOH<NAB || (x)>NX-NAB-FDOH-1)
+#define HALO_Z(z) ((z)<FDOH || (z)>NZS-FDOH-1)
+#define HALO_X(x) ((x)<FDOH || (x)>NX-FDOH-1)
+#if ND==3
+#define CPML_Y(y) ((y)-FDOH<NAB || (y)>NYS-NAB-FDOH-1)
+#define HALO_Y(y) ((y)<FDOH || (y)>NYS-FDOH-1)
+#define CPML_CELL3(z,y,x) (CPML_Z(z) || CPML_Y(y) || CPML_X(x))
+#define READ_CPF3(z,y,x) (CPML_CELL3(z,y,x) || HALO_Z(z) || HALO_Y(y) || HALO_X(x))
+#else
+#define CPML_CELL2(z,x) (CPML_Z(z) || CPML_X(x))
+#define READ_CPF2(z,x) (CPML_CELL2(z,x) || HALO_Z(z) || HALO_X(x))
+#endif
+
+/* Whole tiles: decided once per work group (the tile box is the same for all
+   its work-items), so that only the few tiles that straddle the edge of a layer
+   test each element. A box [z0,z1) x [y0,y1) x [x0,x1) is RAW when it lies in
+   the interior outside every layer, CPF when it lies in one layer slab (which
+   includes the halo next to it). */
+#if FREESURF==0
+#define CPML_ZLO (FDOH+NAB)
+#else
+#define CPML_ZLO FDOH
+#endif
+#define CPML_ZHI (NZS-NAB-FDOH)
+#define CPML_XLO (FDOH+NAB)
+#define CPML_XHI (NX-NAB-FDOH)
+#if FREESURF==0
+#define CPF_TOPBOX(z1) ((z1) <= CPML_ZLO)
+#else
+#define CPF_TOPBOX(z1) 0
+#endif
+#define RAW_BOX2(z0,z1,x0,x1) ((z0)>=CPML_ZLO && (z1)<=CPML_ZHI && (x0)>=CPML_XLO && (x1)<=CPML_XHI)
+#define CPF_BOX2(z0,z1,x0,x1) ((z0)>=CPML_ZHI || CPF_TOPBOX(z1) || (x1)<=CPML_XLO || (x0)>=CPML_XHI)
+#if ND==3
+#define CPML_YLO (FDOH+NAB)
+#define CPML_YHI (NYS-NAB-FDOH)
+#define RAW_BOX3(z0,z1,y0,y1,x0,x1) (RAW_BOX2(z0,z1,x0,x1) && (y0)>=CPML_YLO && (y1)<=CPML_YHI)
+#define CPF_BOX3(z0,z1,y0,y1,x0,x1) (CPF_BOX2(z0,z1,x0,x1) || (y1)<=CPML_YLO || (y0)>=CPML_YHI)
+#endif
+/* Without tiles (NOTILE): decided per work-item. A work-item (cells z..z+NV-1 at x, y) reads the
+   field itself when its stencil box is RAW (NT_RAW*), the cpf buffer otherwise. The cpf cells such a
+   reader can reach lie within 2*FDOH+NV-1 (z) and 2*FDOH (x, y) of a layer or of the halo, so
+   cpml_adj_* writes only there (NT_SKIP*: no reader needs this cell). */
+#define NT_MZ (2*FDOH+NV-1)
+#define NT_RAW2(z,x) RAW_BOX2((z)-FDOH, (z)+NV+FDOH, (x)-FDOH, (x)+FDOH+1)
+#define NT_SKIP2(z,x) RAW_BOX2((z)-NT_MZ, (z)+NT_MZ+1, (x)-2*FDOH, (x)+2*FDOH+1)
+#if ND==3
+#define NT_RAW3(z,y,x) RAW_BOX3((z)-FDOH, (z)+NV+FDOH, (y)-FDOH, (y)+FDOH+1, (x)-FDOH, (x)+FDOH+1)
+#define NT_SKIP3(z,y,x) RAW_BOX3((z)-NT_MZ, (z)+NT_MZ+1, (y)-2*FDOH, (y)+2*FDOH+1, (x)-2*FDOH, (x)+2*FDOH+1)
+#endif
+
+/* NV values at element i of cpf (where sel(c) is true) or of the field a. */
+#define LDN_CPF(cpf, a, i, v, sel) do{ \
+        int n_cpf = 0; \
+        for (int c = 0; c < NV; c++) n_cpf += (sel(c)) ? 1 : 0; \
+        if (n_cpf == NV) ldn(cpf, i, v); \
+        else if (n_cpf == 0) ldn(a, i, v); \
+        else for (int c = 0; c < NV; c++) (v)[c] = (sel(c)) ? ldf(cpf, (i)+c) : ldf(a, (i)+c); \
+    } while(0)
+
+#if ND==3
+/* 3D: not used for now. Reading the fields in place costs the 3D adjoint
+   kernels more (registers: 48 -> 60 for update_adjv, -20 % occupancy, measured
+   on an A6000) than the filter copies it saves; cpml_adj3D.cl still writes the
+   copies everywhere. Kept for the redesign of the 3D tiles. */
+#define CPML_INPLACE3 0
+LFUNDEF void load_tile3_cpf(LOCID float *tile, GLOBARG const STO *cpf, GLOBARG const STO *a,
+                            int z0, int y0, int x0, int tz, int ty, int tx)
+{
+#if !CPML_INPLACE3
+    load_tile3(tile, cpf, z0, y0, x0, tz, ty, tx); return;
+#endif
+    if (RAW_BOX3(z0, z0+tz, y0, y0+ty, x0, x0+tx)){ load_tile3(tile, a, z0, y0, x0, tz, ty, tx); return; }
+    if (CPF_BOX3(z0, z0+tz, y0, y0+ty, x0, x0+tx)){ load_tile3(tile, cpf, z0, y0, x0, tz, ty, tx); return; }
+    int nthr = LSZ0 * LSZ1 * LSZ2;
+    int nzv = tz / NV;
+    for (int i = LID0 + LSZ0*(LID1 + LSZ1*LID2); i < nzv * ty * tx; i += nthr){
+        int lz = (i % nzv) * NV, ly = (i / nzv) % ty, lx = i / (nzv * ty);
+        int gz = z0 + lz, gy = y0 + ly, gx = x0 + lx;
+        int it = (lx * ty + ly) * tz + lz;
+        if (gz >= 0 && gz + NV <= NZS && gy >= 0 && gy < NYS && gx >= 0 && gx < NX){
+            #define SEL3(c) READ_CPF3(gz+(c), gy, gx)
+            LDN_CPF(cpf, a, (gx * NYS + gy) * NZS + gz, &tile[it], SEL3);
+            #undef SEL3
+        }
+        else {
+            for (int c = 0; c < NV; c++) tile[it + c] = 0.0f;
+        }
+    }
+}
+#else
+LFUNDEF void load_tile2_cpf(LOCID float *tile, GLOBARG const STO *cpf, GLOBARG const STO *a,
+                            int z0, int x0, int tz, int tx)
+{
+    if (RAW_BOX2(z0, z0+tz, x0, x0+tx)){ load_tile2(tile, a, z0, x0, tz, tx); return; }
+    if (CPF_BOX2(z0, z0+tz, x0, x0+tx)){ load_tile2(tile, cpf, z0, x0, tz, tx); return; }
+    int nthr = LSZ0 * LSZ1;
+    int nzv = tz / NV;
+    for (int i = LID0 + LID1 * LSZ0; i < nzv * tx; i += nthr){
+        int lz = (i % nzv) * NV, lx = i / nzv;
+        int gz = z0 + lz, gx = x0 + lx;
+        if (gz >= 0 && gz + NV <= NZS && gx >= 0 && gx < NX){
+            #define SEL2(c) READ_CPF2(gz+(c), gx)
+            LDN_CPF(cpf, a, gx * NZS + gz, &tile[lx * tz + lz], SEL2);
+            #undef SEL2
+        }
+        else {
+            for (int c = 0; c < NV; c++) tile[lx * tz + lz + c] = 0.0f;
+        }
+    }
+}
+#endif
+#endif
+
+/* ---- experiment: no shared tiles (SEISCL_NOTILE=1, clprogram.c) ----------- */
+/* Defined only for update_v / update_s (CUDA, float storage). The kernels keep
+   their code: a "tile" is the array itself, with the global strides. */
+#if NOTILE
+#undef LOCDEF
+#define LOCDEF const float * lvar = 0;
+#undef BARRIER
+#define BARRIER
+#define load_tile2(t, a, z0, x0, tz, tx) ((t) = (const float *)(a))
+#define load_tile3(t, a, z0, y0, x0, tz, ty, tx) ((t) = (const float *)(a))
+/* exact CPML adjoint: the field itself or the filtered copy, per work-item (NT_RAW*; uses the
+   kernel's zt, gidy, gidx) */
+#define load_tile2_cpf(t, cpf, a, z0, x0, tz, tx) \
+    ((t) = NT_RAW2(zt, gidx) ? (const float *)(a) : (const float *)(cpf))
+#define load_tile3_cpf(t, cpf, a, z0, y0, x0, tz, ty, tx) \
+    ((t) = NT_RAW3(zt, gidy, gidx) ? (const float *)(a) : (const float *)(cpf))
+#endif
+

@@ -24,8 +24,11 @@
    holds the residual injected this step, which their own increment misses. These
    terms used to be computed in update_adjv / update_adjs by a loop over all the
    receivers IN EVERY CELL at every time step: with 196 receivers in 2-D, 115 s
-   for update_adjv against 1 s without. Here: one work-item loops over the
-   receivers (no write race when two receivers share a cell).
+   for update_adjv against 1 s without. Here: one work-item per receiver. Two
+   receivers can share a cell; to avoid a write race without atomics, only the
+   first receiver of a cell (lowest index) does work, and it adds the terms of
+   every receiver of that cell in increasing index order, the order of the
+   former one-work-item loop: the result is bit-identical to it.
 
    rec_grad_v runs at the start of the adjoint step, before update_adjs: the
    forward velocity is still v(t+1) (the velocity recorded by the residual of this
@@ -47,6 +50,33 @@
 #define INDP(z,y,x) (((x)-FDOH)*(NZS-2*FDOH)+((z)-FDOH))
 #endif
 
+
+/* Cell (k, j, i) of receiver g, padded indices. */
+#if ND==3
+#define REC_CELL(g, k, j, i) do{ i = (int)(rec_pos[0+8*(g)]/DH)+FDOH; \
+                                 j = (int)(rec_pos[1+8*(g)]/DH)+FDOH; \
+                                 k = (int)(rec_pos[2+8*(g)]/DH)+FDOH; } while(0)
+#else
+#define REC_CELL(g, k, j, i) do{ i = (int)(rec_pos[0+8*(g)]/DH)+FDOH; j = 0; \
+                                 k = (int)(rec_pos[2+8*(g)]/DH)+FDOH; } while(0)
+#endif
+
+/* This work-item's receiver g0, and whether it owns its cell: it returns if g0
+   is past the last receiver or if a receiver of lower index is in the same cell.
+   The owner then loops over g = g0 .. nrec-1 and skips the other cells. */
+#ifdef __OPENCL_VERSION__
+#define REC_GID get_global_id(0)
+#else
+#define REC_GID (blockIdx.x*blockDim.x + threadIdx.x)
+#endif
+#define REC_OWNER(g0, k0, j0, i0) \
+    int g0 = REC_GID; \
+    if (g0 >= nrec) return; \
+    int k0, j0, i0; \
+    REC_CELL(g0, k0, j0, i0); \
+    for (int h=0; h<g0; h++){ int kh, jh, ih; REC_CELL(h, kh, jh, ih); \
+        if (kh==k0 && jh==j0 && ih==i0) return; }
+
 FUNDEF void rec_grad_v(GLOBARG STO *vx,        GLOBARG STO *vy,        GLOBARG STO *vz,
                        GLOBARG float *vxout,   GLOBARG float *vyout,   GLOBARG float *vzout,
                        GLOBARG float *rec_pos, int nrec,               int nt,
@@ -55,18 +85,11 @@ FUNDEF void rec_grad_v(GLOBARG STO *vx,        GLOBARG STO *vy,        GLOBARG S
                        int src_scale,          int res_scale)
 {
 #if GRADOUT==1 && VELOUT==1
-    #ifdef __OPENCL_VERSION__
-    if (get_global_id(0) != 0) return;
-    #else
-    if (blockIdx.x*blockDim.x + threadIdx.x != 0) return;
-    #endif
-    for (int g=0; g<nrec; g++){
-        int i = (int)(rec_pos[0+8*g]/DH)+FDOH;
-        int j = (int)(rec_pos[1+8*g]/DH)+FDOH;
-        int k = (int)(rec_pos[2+8*g]/DH)+FDOH;
-        #if ND!=3
-        j = 0;
-        #endif
+    REC_OWNER(g0, k0, j0, i0)
+    for (int g=g0; g<nrec; g++){
+        int k, j, i;
+        REC_CELL(g, k, j, i);
+        if (k!=k0 || j!=j0 || i!=i0) continue;
         #if FREESURF==1
         if (k-FDOH < FDOH) continue;          /* direct form (surface_grad) */
         #endif
@@ -107,18 +130,11 @@ FUNDEF void rec_grad_s(GLOBARG STO *sxx,       GLOBARG STO *syy,       GLOBARG S
                        int src_scale,          int res_scale)
 {
 #if GRADOUT==1 && PRESOUT==1
-    #ifdef __OPENCL_VERSION__
-    if (get_global_id(0) != 0) return;
-    #else
-    if (blockIdx.x*blockDim.x + threadIdx.x != 0) return;
-    #endif
-    for (int g=0; g<nrec; g++){
-        int i = (int)(rec_pos[0+8*g]/DH)+FDOH;
-        int j = (int)(rec_pos[1+8*g]/DH)+FDOH;
-        int k = (int)(rec_pos[2+8*g]/DH)+FDOH;
-        #if ND!=3
-        j = 0;
-        #endif
+    REC_OWNER(g0, k0, j0, i0)
+    for (int g=g0; g<nrec; g++){
+        int k, j, i;
+        REC_CELL(g, k, j, i);
+        if (k!=k0 || j!=j0 || i!=i0) continue;
         #if FREESURF==1
         if (k-FDOH < SURFROWS) continue;      /* direct form (surface_grad) */
         #endif

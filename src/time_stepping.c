@@ -543,6 +543,91 @@ int save_bnd(model * m, device ** dev, int t){
     return state;
 }
 
+#ifndef __SEISCL__
+/* Asynchronous upload of the saved boundary in the adjoint pass (CUDA, see
+   BND_ASYNC in F.h). inject_bnd used to copy every variable's boundary from the
+   host on the compute queue at every step, in series with the kernels (8-10 %
+   of a step). Here the device buffer cl_varbnd has two halves (Init_OpenCL.c):
+   at step t the kernels read half t&1 while queuecomm uploads the boundary of
+   step t-1 into the other half, after the kernels of step t+1 have finished
+   with it. The kernels take &cl_varbnd.mem (prog_arg), so pointing .mem at a
+   half re-points them; .mem is restored to the start of the buffer at the end. */
+struct bnd_async {
+    CUevent up[2];        /* upload of a half done (queuecomm) */
+    CUevent done[2];      /* kernels done with a half (queue) */
+    CUdeviceptr * base;   /* start of each variable's buffer */
+};
+
+static int bnd_offset(model * m, device * dv, int t){
+    return m->FP16>1 ? dv->NBND*(t-1)/2 : dv->NBND*(t-1);
+}
+
+/* Queue the upload of the boundary of step t into half t&1. */
+static int bnd_async_upload(model * m, device * dv, struct bnd_async * b, int t){
+    int state = 0, i, h = t & 1, offset = bnd_offset(m, dv, t);
+    __GUARD cuStreamWaitEvent(dv->queuecomm, b->done[h], 0);
+    for (i=0;i<m->nvars;i++){
+        if (dv->vars[i].to_comm){
+            __GUARD cuMemcpyHtoDAsync(b->base[i] + h*dv->vars[i].cl_varbnd.size,
+                                      &dv->vars[i].cl_varbnd.host[offset],
+                                      dv->vars[i].cl_varbnd.size,
+                                      dv->queuecomm);
+        }
+    }
+    __GUARD cuEventRecord(b->up[h], dv->queuecomm);
+    return state;
+}
+
+static int bnd_async_begin(model * m, device * dv, struct bnd_async * b, int t){
+    int state = 0, i, h;
+    GMALLOC(b->base, sizeof(CUdeviceptr)*m->nvars);
+    for (i=0;i<m->nvars;i++) b->base[i] = dv->vars[i].cl_varbnd.mem;
+    for (h=0;h<2;h++){
+        __GUARD cuEventCreate(&b->up[h], CU_EVENT_DISABLE_TIMING);
+        __GUARD cuEventCreate(&b->done[h], CU_EVENT_DISABLE_TIMING);
+    }
+    /* the copies of the forward pass (save_bnd) into the same host buffer and
+       the previous shot's uploads are on queuecomm too: in order */
+    __GUARD bnd_async_upload(m, dv, b, t);
+    return state;
+}
+
+/* Before the kernels of step t: wait for its half and point the buffers at it,
+   then queue the upload of step t-1 (if any). */
+static int bnd_async_step(model * m, device * dv, struct bnd_async * b, int t){
+    int state = 0, i, h = t & 1;
+    __GUARD cuStreamWaitEvent(dv->queue, b->up[h], 0);
+    for (i=0;i<m->nvars;i++){
+        if (dv->vars[i].to_comm)
+            dv->vars[i].cl_varbnd.mem = b->base[i] + h*dv->vars[i].cl_varbnd.size;
+    }
+    if (t-1 > m->tmin) __GUARD bnd_async_upload(m, dv, b, t-1);
+    return state;
+}
+
+/* After the kernels of step t. */
+static int bnd_async_step_done(device * dv, struct bnd_async * b, int t){
+    return cuEventRecord(b->done[t & 1], dv->queue);
+}
+
+/* Always run, even after an error: restores the buffers and frees the events. */
+static int bnd_async_end(model * m, device * dv, struct bnd_async * b){
+    int state = 0, i, h;
+    cuStreamSynchronize(dv->queuecomm);
+    if (b->base){
+        for (i=0;i<m->nvars;i++) dv->vars[i].cl_varbnd.mem = b->base[i];
+        free(b->base);
+        b->base = NULL;
+    }
+    for (h=0;h<2;h++){
+        if (b->up[h]) cuEventDestroy(b->up[h]);
+        if (b->done[h]) cuEventDestroy(b->done[h]);
+        b->up[h] = b->done[h] = 0;
+    }
+    return state;
+}
+#endif
+
 int inject_bnd(model * m, device ** dev, int t){
 //TODO overlap comm and a kernel to inject the wavefield.
 // Must create a new kernel for injecting boundaries to do so.
@@ -650,7 +735,7 @@ int update_grid_adj(model * m, device ** dev){
            differentiates (velocities before update_adjs, i = 1; stresses
            before update_adjv, i = 0). See cpml_adj2D.cl. */
         for (d=0;d<m->NUM_DEVICES;d++){
-            if ((*dev)[d].bnd_cnds.cpml_adj_v.name){
+            if ((*dev)[d].bnd_cnds.cpml_adj_v.name && !cpml_inline(m)){
                 __GUARD prog_launch(&(*dev)[d].queue, i==1 ?
                                     &(*dev)[d].bnd_cnds.cpml_adj_v :
                                     &(*dev)[d].bnd_cnds.cpml_adj_s);
@@ -779,6 +864,9 @@ int initialize_forward(model * m, device ** dev, int s, int * pdir){
         (*dev)[d].src_recs.varsout.gsize[0]=(*dev)[d].src_recs.nrec[s];
         (*dev)[d].src_recs.varsoutinit.gsize[0]=(*dev)[d].src_recs.nrec[s]*m->NT;
         (*dev)[d].src_recs.residuals.gsize[0]=(*dev)[d].src_recs.nrec[s];
+        /* rec_grad.cl: one work-item per receiver of this shot */
+        (*dev)[d].bnd_cnds.rec_grad_v.gsize[0]=(*dev)[d].src_recs.nrec[s];
+        (*dev)[d].bnd_cnds.rec_grad_s.gsize[0]=(*dev)[d].src_recs.nrec[s];
         (*dev)[d].src_recs.init_gradsrc.gsize[0]=(*dev)[d].src_recs.nsrc[s]
                                                                         * m->NT;
         //Assign some arg to kernels
@@ -1118,6 +1206,12 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
             // Initialize adjoint time stepping
             pdir=-1;
             __GUARD initialize_adj(m, dev, s, &pdir);
+            #ifndef __SEISCL__
+            struct bnd_async bnda;
+            memset(&bnda, 0, sizeof(bnda));
+            int bnd_async = BND_ASYNC(m) && m->tmax-1 > m->tmin;
+            if (bnd_async) __GUARD bnd_async_begin(m, &(*dev)[0], &bnda, m->tmax-1);
+            #endif
 
             // Inverse time stepping
             for (t=m->tmax-1;t>m->tmin; t--){
@@ -1134,6 +1228,12 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
                 }
 
                 // Inject the forward variables boundaries
+                #ifndef __SEISCL__
+                if (bnd_async){
+                    __GUARD bnd_async_step(m, &(*dev)[0], &bnda, t);
+                }
+                else
+                #endif
                 if (m->BACK_PROP_TYPE==1){
                     __GUARD inject_bnd(m, dev, t);
                 }
@@ -1190,9 +1290,14 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
                     }
                     __GUARD clFlush((*dev)[d].queue);
                 }
+                #else
+                if (bnd_async) __GUARD bnd_async_step_done(&(*dev)[0], &bnda, t);
                 #endif
 
             }
+            #ifndef __SEISCL__
+            if (bnd_async) bnd_async_end(m, &(*dev)[0], &bnda);
+            #endif
 
             // Transfer  the source gradient to the host
             if (m->GRADSRCOUT==1){

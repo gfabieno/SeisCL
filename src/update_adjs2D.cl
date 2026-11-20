@@ -70,6 +70,16 @@ FUNDEF void update_adjs(int offcomm,
     int tile_z0 = Z0 + NV*GRP0*LSZ0 - ZH, tile_x0 = GRP1*LSZ1 + offcomm;
     int lx = LID1 + FDOH;
     int lz0 = ZH + NV*LID0;
+#if NOTILE
+    /* SEISCL_NOTILE=1 (experiment): no shared tiles, the derivatives read the
+       arrays in place; threads past the grid return before reading. */
+#if COMM12==0
+    if (zt > NZS-FDOH-1 || (gidx-offcomm) > (NX-FDOH-1-LCOMM)) return;
+#else
+    if (zt > NZS-FDOH-1) return;
+#endif
+    tz = NZS; lx = gidx; lz0 = zt;
+#endif
 
     // Spatial derivatives of the forward velocities (to rebuild the forward stresses)
 #if BACK_PROP_TYPE==1
@@ -94,19 +104,19 @@ FUNDEF void update_adjs(int offcomm,
     float vxxr[NV], vxzr[NV], vzzr[NV], vzxr[NV];
 #if ABS_TYPE==1 && BACK_PROP_TYPE==1
     /* exact CPML adjoint: the fields filtered by cpml_adj_v */
-    load_tile2(lvar, cpfa, tile_z0, tile_x0, tz, tx);
+    load_tile2_cpf(lvar, cpfa, vxr, tile_z0, tile_x0, tz, tx);
     BARRIER
     for (int c=0; c<NV; c++) vxxr[c] = tdxm(lvar, tz, lz0+c, lx);
     BARRIER
-    load_tile2(lvar, cpfb, tile_z0, tile_x0, tz, tx);
+    load_tile2_cpf(lvar, cpfb, vxr, tile_z0, tile_x0, tz, tx);
     BARRIER
     for (int c=0; c<NV; c++) vxzr[c] = tdzp(lvar, tz, lz0+c, lx);
     BARRIER
-    load_tile2(lvar, cpfc, tile_z0, tile_x0, tz, tx);
+    load_tile2_cpf(lvar, cpfc, vzr, tile_z0, tile_x0, tz, tx);
     BARRIER
     for (int c=0; c<NV; c++) vzzr[c] = tdzm(lvar, tz, lz0+c, lx);
     BARRIER
-    load_tile2(lvar, cpfd, tile_z0, tile_x0, tz, tx);
+    load_tile2_cpf(lvar, cpfd, vzr, tile_z0, tile_x0, tz, tx);
     BARRIER
     for (int c=0; c<NV; c++) vzxr[c] = tdxp(lvar, tz, lz0+c, lx);
 #else

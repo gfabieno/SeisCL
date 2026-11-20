@@ -1,3 +1,5 @@
+#include <string>
+#include <sys/stat.h>
 #include "engine_handle.h"
 
 #include <cstdlib>
@@ -67,6 +69,18 @@ void require_cpu(const torch::Tensor &t, const std::string &what) {
             what + " must be a CPU tensor (got a CUDA tensor); call .cpu() "
                    "on it first");
     }
+}
+
+// mkdir -p; true if the folder exists at the end.
+static bool make_dirs(const std::string &path) {
+    struct stat st;
+    for (std::size_t i = 1; i <= path.size(); ++i) {
+        if (i == path.size() || path[i] == '/') {
+            std::string sub = path.substr(0, i);
+            if (stat(sub.c_str(), &st) != 0) mkdir(sub.c_str(), 0777);
+        }
+    }
+    return stat(path.c_str(), &st) == 0 && S_ISDIR(st.st_mode);
 }
 
 void apply_config(model &m, const Config &cfg, int gradout, int inputres) {
@@ -163,11 +177,25 @@ void apply_config(model &m, const Config &cfg, int gradout, int inputres) {
     m.INPUTRES = inputres;
     m.VARSOUT = 1;
 
-    // Debug: SEISCL_CACHE_DIR=<existing folder> keeps each kernel's exact
-    // source and options there (<kernel>-0-0.src/.opt), as SeisCL_MPI does
-    // in <input>_cache, so that a memcheck line number can be read.
-    if (const char *dir = std::getenv("SEISCL_CACHE_DIR")) {
-        std::strncpy(m.cache_dir, dir, sizeof(m.cache_dir) - 1);
+    // Kernel cache (clprogram.c: compiled kernels by hash of source and
+    // options, about 1 MB per configuration). Without it every new process
+    // compiles every kernel again (1.5-4 s with NVRTC). SEISCL_CACHE_DIR
+    // chooses the folder (an empty value disables the cache); default
+    // $XDG_CACHE_HOME/seiscl, else ~/.cache/seiscl. The folder also keeps
+    // each kernel's exact source and options (<kernel>-0-0.src/.opt), so
+    // that a memcheck line number can be read.
+    {
+        std::string dir;
+        if (const char *env = std::getenv("SEISCL_CACHE_DIR")) {
+            dir = env;
+        } else if (const char *xdg = std::getenv("XDG_CACHE_HOME")) {
+            if (*xdg) dir = std::string(xdg) + "/seiscl";
+        } else if (const char *home = std::getenv("HOME")) {
+            if (*home) dir = std::string(home) + "/.cache/seiscl";
+        }
+        if (!dir.empty() && make_dirs(dir)) {
+            std::strncpy(m.cache_dir, dir.c_str(), sizeof(m.cache_dir) - 1);
+        }
     }
 
     // Single process, single group: no MPI (mirrors SeisCL_MPI.c:main()'s

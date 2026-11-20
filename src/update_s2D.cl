@@ -45,6 +45,17 @@ FUNDEF void update_s(int offcomm,
     int tz = NV*LSZ0 + 2*ZH, tx = LSZ1 + 2*FDOH;
     int tile_z0 = Z0 + NV*GRP0*LSZ0 - ZH, tile_x0 = GRP1*LSZ1 + offcomm;
     int lx = LID1 + FDOH;
+    int lz0 = ZH + NV*LID0;
+#if NOTILE
+    /* SEISCL_NOTILE=1 (experiment): no shared tiles, the derivatives read the
+       arrays in place; threads past the grid return before reading. */
+#if COMM12==0
+    if (zt > NZS-FDOH-1 || (gidx-offcomm) > (NX-FDOH-1-LCOMM)) return;
+#else
+    if (zt > NZS-FDOH-1) return;
+#endif
+    tz = NZS; lx = gidx; lz0 = zt;
+#endif
 
     float vxx[NV], vxz[NV], vzz[NV], vzx[NV];
 
@@ -52,15 +63,15 @@ FUNDEF void update_s(int offcomm,
     load_tile2(lvar, vx, tile_z0, tile_x0, tz, tx);
     BARRIER
     for (int c=0; c<NV; c++){
-        vxx[c] = tdxm(lvar, tz, ZH + NV*LID0 + c, lx);
-        vxz[c] = tdzp(lvar, tz, ZH + NV*LID0 + c, lx);
+        vxx[c] = tdxm(lvar, tz, lz0 + c, lx);
+        vxz[c] = tdzp(lvar, tz, lz0 + c, lx);
     }
     BARRIER
     load_tile2(lvar, vz, tile_z0, tile_x0, tz, tx);
     BARRIER
     for (int c=0; c<NV; c++){
-        vzz[c] = tdzm(lvar, tz, ZH + NV*LID0 + c, lx);
-        vzx[c] = tdxp(lvar, tz, ZH + NV*LID0 + c, lx);
+        vzz[c] = tdzm(lvar, tz, lz0 + c, lx);
+        vzx[c] = tdxp(lvar, tz, lz0 + c, lx);
     }
 
 #if COMM12==0

@@ -47,23 +47,34 @@ FUNDEF void update_v(int offcomm,
     int tz = NV*LSZ0 + 2*ZH, tx = LSZ1 + 2*FDOH;
     int tile_z0 = Z0 + NV*GRP0*LSZ0 - ZH, tile_x0 = GRP1*LSZ1 + offcomm;
     int lx = LID1 + FDOH;
+    int lz0 = ZH + NV*LID0;
+#if NOTILE
+    /* SEISCL_NOTILE=1 (experiment): no shared tiles, the derivatives read the
+       arrays in place; threads past the grid return before reading. */
+#if COMM12==0
+    if (zt > NZS-FDOH-1 || (gidx-offcomm) > (NX-FDOH-1-LCOMM)) return;
+#else
+    if (zt > NZS-FDOH-1) return;
+#endif
+    tz = NZS; lx = gidx; lz0 = zt;
+#endif
 
     float sxx_x[NV], szz_z[NV], sxz_x[NV], sxz_z[NV];
 
     // Spatial derivatives of the stresses, from shared tiles
     load_tile2(lvar, sxx, tile_z0, tile_x0, tz, tx);
     BARRIER
-    for (int c=0; c<NV; c++) sxx_x[c] = tdxp(lvar, tz, ZH + NV*LID0 + c, lx);
+    for (int c=0; c<NV; c++) sxx_x[c] = tdxp(lvar, tz, lz0 + c, lx);
     BARRIER
     load_tile2(lvar, szz, tile_z0, tile_x0, tz, tx);
     BARRIER
-    for (int c=0; c<NV; c++) szz_z[c] = tdzp(lvar, tz, ZH + NV*LID0 + c, lx);
+    for (int c=0; c<NV; c++) szz_z[c] = tdzp(lvar, tz, lz0 + c, lx);
     BARRIER
     load_tile2(lvar, sxz, tile_z0, tile_x0, tz, tx);
     BARRIER
     for (int c=0; c<NV; c++){
-        sxz_z[c] = tdzm(lvar, tz, ZH + NV*LID0 + c, lx);
-        sxz_x[c] = tdxm(lvar, tz, ZH + NV*LID0 + c, lx);
+        sxz_z[c] = tdzm(lvar, tz, lz0 + c, lx);
+        sxz_x[c] = tdxm(lvar, tz, lz0 + c, lx);
     }
 
     // Threads outside the grid stop here (the grid is rounded up to the work-group size)
