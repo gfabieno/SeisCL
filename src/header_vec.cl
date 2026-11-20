@@ -33,7 +33,13 @@
    NV cells z = Z0 + NV*t .. Z0 + NV*t + NV-1 of its column, aligned on NV in the
    padded array; with an odd FDOH the first and last thread own one halo cell,
    which it skips (INTERIOR_Z). The shared tiles are float, with a z halo ZH
-   (FDOH rounded up to a multiple of NV) so that every load is aligned. */
+   (FDOH rounded up to a multiple of NV) so that every load is aligned.
+
+   The adjoint kernels put #pragma unroll on their loops over the NV cells: without
+   it the compiler keeps the large loop (gradient, source term) rolled and the
+   per-cell arrays (lsxx[c], lM[c], ...) go to local memory; with FP16 1/2 that made
+   update_adjs 2-3x slower (measured). The forward kernels are left as they are:
+   unrolled, the 3-D FP16 1 forward kernels were slower. */
 
 #ifndef NV
 #define NV DIV

@@ -82,6 +82,7 @@ FUNDEF void update_adjs(int offcomm,
     float fvyx[NV], fvyz[NV];
     load_tile2(lvar, vy, tile_z0, tile_x0, tz, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++){
         fvyx[c] = tdxp(lvar, tz, lz0 + c, lx);
         fvyz[c] = tdzp(lvar, tz, lz0 + c, lx);
@@ -94,14 +95,17 @@ FUNDEF void update_adjs(int offcomm,
     /* exact CPML adjoint: the fields filtered by cpml_adj_v */
     load_tile2(lvar, cpfa, tile_z0, tile_x0, tz, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) vyx[c] = tdxp(lvar, tz, lz0 + c, lx);
     BARRIER
     load_tile2(lvar, cpfb, tile_z0, tile_x0, tz, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) vyz[c] = tdzp(lvar, tz, lz0 + c, lx);
 #else
     load_tile2(lvar, vyr, tile_z0, tile_x0, tz, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++){
         vyx[c] = tdxp(lvar, tz, lz0 + c, lx);
         vyz[c] = tdzp(lvar, tz, lz0 + c, lx);
@@ -131,6 +135,7 @@ FUNDEF void update_adjs(int offcomm,
     ldn(syz, indv, lsyzf);
 #endif
 
+    #pragma unroll
     for (int c=0; c<NV; c++){
         int gidz = zt + c;
         if (!INTERIOR_Z(gidz)) continue;              // halo cell of an aligned pair

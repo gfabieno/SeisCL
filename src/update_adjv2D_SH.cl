@@ -83,10 +83,12 @@ FUNDEF void update_adjv(int offcomm,
     float fsxy_x[NV], fsyz_z[NV];
     load_tile2(lvar, sxy, tile_z0, tile_x0, tz, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) fsxy_x[c] = tdxm(lvar, tz, lz0 + c, lx);
     BARRIER
     load_tile2(lvar, syz, tile_z0, tile_x0, tz, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) fsyz_z[c] = tdzm(lvar, tz, lz0 + c, lx);
     BARRIER
 #endif
@@ -96,18 +98,22 @@ FUNDEF void update_adjv(int offcomm,
     /* exact CPML adjoint: the fields filtered by cpml_adj_s */
     load_tile2(lvar, cpfa, tile_z0, tile_x0, tz, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) sxy_x[c] = tdxm(lvar, tz, lz0 + c, lx);
     BARRIER
     load_tile2(lvar, cpfb, tile_z0, tile_x0, tz, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) syz_z[c] = tdzm(lvar, tz, lz0 + c, lx);
 #else
     load_tile2(lvar, sxyr, tile_z0, tile_x0, tz, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) sxy_x[c] = tdxm(lvar, tz, lz0 + c, lx);
     BARRIER
     load_tile2(lvar, syzr, tile_z0, tile_x0, tz, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) syz_z[c] = tdzm(lvar, tz, lz0 + c, lx);
 #endif
 
@@ -127,6 +133,7 @@ FUNDEF void update_adjv(int offcomm,
     ldn(vy, indv, lvyf);
 #endif
 
+    #pragma unroll
     for (int c=0; c<NV; c++){
         int gidz = zt + c;
         if (!INTERIOR_Z(gidz)) continue;              // halo cell of an aligned pair
