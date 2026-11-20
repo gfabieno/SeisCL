@@ -139,20 +139,29 @@ FUNDEF void update_adjs(int offcomm,
 #if BACK_PROP_TYPE==1 && !(CPMLINL && LVE==0)
     load_tile3(lvar, vz, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vzx[c] = tdp(lvar, it0+c, sx);
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vzy[c] = tdp(lvar, it0+c, sy);
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vzz[c] = tdm(lvar, it0+c, 1);
     BARRIER
     load_tile3(lvar, vy, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vyx[c] = tdp(lvar, it0+c, sx);
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vyy[c] = tdm(lvar, it0+c, sy);
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vyz[c] = tdp(lvar, it0+c, 1);
     BARRIER
     load_tile3(lvar, vx, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vxx[c] = tdm(lvar, it0+c, sx);
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vxy[c] = tdp(lvar, it0+c, sy);
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vxz[c] = tdp(lvar, it0+c, 1);
     BARRIER
 #endif
@@ -161,57 +170,75 @@ FUNDEF void update_adjs(int offcomm,
 #elif ABS_TYPE==1 && BACK_PROP_TYPE==1
     load_tile3_cpf(lvar, cpf1, vxr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vxxr[c] = tdm(lvar, it0+c, sx);
     BARRIER
     load_tile3_cpf(lvar, cpf2, vxr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vxyr[c] = tdp(lvar, it0+c, sy);
     BARRIER
     load_tile3_cpf(lvar, cpf3, vxr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vxzr[c] = tdp(lvar, it0+c, 1);
     BARRIER
     load_tile3_cpf(lvar, cpf4, vyr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vyxr[c] = tdp(lvar, it0+c, sx);
     BARRIER
     load_tile3_cpf(lvar, cpf5, vyr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vyyr[c] = tdm(lvar, it0+c, sy);
     BARRIER
     load_tile3_cpf(lvar, cpf6, vyr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vyzr[c] = tdp(lvar, it0+c, 1);
     BARRIER
     load_tile3_cpf(lvar, cpf7, vzr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vzxr[c] = tdp(lvar, it0+c, sx);
     BARRIER
     load_tile3_cpf(lvar, cpf8, vzr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vzyr[c] = tdp(lvar, it0+c, sy);
     BARRIER
     load_tile3_cpf(lvar, cpf9, vzr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vzzr[c] = tdm(lvar, it0+c, 1);
     BARRIER
 #else
     load_tile3(lvar, vzr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vzxr[c] = tdp(lvar, it0+c, sx);
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vzyr[c] = tdp(lvar, it0+c, sy);
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vzzr[c] = tdm(lvar, it0+c, 1);
     BARRIER
     load_tile3(lvar, vyr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vyxr[c] = tdp(lvar, it0+c, sx);
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vyyr[c] = tdm(lvar, it0+c, sy);
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vyzr[c] = tdp(lvar, it0+c, 1);
     BARRIER
     load_tile3(lvar, vxr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vxxr[c] = tdm(lvar, it0+c, sx);
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vxyr[c] = tdp(lvar, it0+c, sy);
+    #pragma unroll
     for (int c=0; c<NV; c++) d_vxzr[c] = tdp(lvar, it0+c, 1);
     BARRIER
 #endif
@@ -222,6 +249,7 @@ FUNDEF void update_adjs(int offcomm,
     if (zt > NZS-FDOH-1 || gidy > NYS-FDOH-1) return;
 #endif
 
+    #pragma unroll
     for (int c=0; c<NV; c++){
         int gidz = zt + c;
         if (!INTERIOR_Z(gidz)) continue;              // halo cell of an aligned pair

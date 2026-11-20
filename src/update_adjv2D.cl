@@ -80,14 +80,17 @@ FUNDEF void update_adjv(int offcomm,
     float sxx_x[NV], szz_z[NV], sxz_x[NV], sxz_z[NV];
     load_tile2(lvar, sxx, tile_z0, tile_x0, tz, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) sxx_x[c] = tdxp(lvar, tz, lz0+c, lx);
     BARRIER
     load_tile2(lvar, szz, tile_z0, tile_x0, tz, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) szz_z[c] = tdzp(lvar, tz, lz0+c, lx);
     BARRIER
     load_tile2(lvar, sxz, tile_z0, tile_x0, tz, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++){
         sxz_z[c] = tdzm(lvar, tz, lz0+c, lx);
         sxz_x[c] = tdxm(lvar, tz, lz0+c, lx);
@@ -101,30 +104,37 @@ FUNDEF void update_adjv(int offcomm,
     /* exact CPML adjoint: the fields filtered by cpml_adj_s */
     load_tile2_cpf(lvar, cpfa, sxxr, tile_z0, tile_x0, tz, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) sxx_xr[c] = tdxp(lvar, tz, lz0+c, lx);
     BARRIER
     load_tile2_cpf(lvar, cpfb, sxzr, tile_z0, tile_x0, tz, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) sxz_zr[c] = tdzm(lvar, tz, lz0+c, lx);
     BARRIER
     load_tile2_cpf(lvar, cpfc, szzr, tile_z0, tile_x0, tz, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) szz_zr[c] = tdzp(lvar, tz, lz0+c, lx);
     BARRIER
     load_tile2_cpf(lvar, cpfd, sxzr, tile_z0, tile_x0, tz, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) sxz_xr[c] = tdxm(lvar, tz, lz0+c, lx);
 #else
     load_tile2(lvar, sxxr, tile_z0, tile_x0, tz, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) sxx_xr[c] = tdxp(lvar, tz, lz0+c, lx);
     BARRIER
     load_tile2(lvar, szzr, tile_z0, tile_x0, tz, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++) szz_zr[c] = tdzp(lvar, tz, lz0+c, lx);
     BARRIER
     load_tile2(lvar, sxzr, tile_z0, tile_x0, tz, tx);
     BARRIER
+    #pragma unroll
     for (int c=0; c<NV; c++){
         sxz_zr[c] = tdzm(lvar, tz, lz0+c, lx);
         sxz_xr[c] = tdxm(lvar, tz, lz0+c, lx);
@@ -149,6 +159,7 @@ FUNDEF void update_adjv(int offcomm,
     ldn(vz, indv, lvz);
 #endif
 
+    #pragma unroll
     for (int c=0; c<NV; c++){
         int gidz = zt + c;
         if (!INTERIOR_Z(gidz)) continue;              // halo cell of an aligned pair
