@@ -682,3 +682,76 @@ int res_scale(model * m, int s)
 }
 
 
+
+
+/* Receiver-cell term of the back_prop_type 2 density gradient (velocity receivers).
+
+   back_prop_type 1 pairs the residual injected at adjoint step t with the forward
+   velocity v(t+1), the recorded sample of index t (rec_grad.cl, rec_grad_v:
+   gradrip += -v(t+1) res(t)). The DFT correlation of back_prop_type 2 pairs the
+   whole adjoint increment of a step, residual included, with v(t): at a receiver
+   cell it lacks  -sum_t res(t) [v(t+1) - v(t)] = -sum_t res(t) [out(t) - out(t-1)],
+   with out the recorded trace. Measured before this term (FD / <g,dm>, bump on a
+   receiver, 0.25 % step): rho 1.18 (P-SV, force source), 1.20 (explosive), 1.13
+   (SH); vp, vs exact; back_prop_type 1 exact.
+   Units: rec_grad_v adds GSCALE(-v_dev res_dev), with v_dev = out 2^(src_scale -
+   par_scale) (kernel_varout) and res_dev = res 2^res_scale, i.e. -out res 2^par_scale;
+   back_prop_type 1 then multiplies by dh^2/dt^3 2^par_scale (unscale_grad),
+   back_prop_type 2 by 2 dh^2/dt^4 2^par_scale (unscale_grad_dft). So the term is
+   stored as -2^par_scale (dt/2) sum_t res(t) [out(t) - out(t-1)], added to the
+   device gradient after its readback (add_rec_grad_dft), before unscale_grad_dft.
+   Called once per shot after res_scale. Receivers inside a Cerjan layer: the taper
+   factor of rec_grad.cl is ignored. */
+int rec_grad_dft(model * m, int s)
+{
+    int state=0;
+    int i, g, t, pos, x, y, z;
+    int NT=m->NT;
+    int nrec=m->src_recs.nrec[s];
+    float sc = powf(2.0f, (float)m->par_scale)*m->dt/2.0f;
+    if (!(m->GRADOUT==1 && m->BACK_PROP_TYPE==2)) return state;
+    for (i=0;i<m->nvars;i++){
+        const char * pname = NULL;
+        if (!m->vars[i].to_output) continue;
+        if (strcmp(m->vars[i].name,"vx")==0) pname = "rip";
+        else if (strcmp(m->vars[i].name,"vy")==0) pname = (m->ND==21) ? "rho" : "rjp";
+        else if (strcmp(m->vars[i].name,"vz")==0) pname = "rkp";
+        else continue;
+        parameter * p = get_par(m->pars, m->npars, pname);
+        if (!p || !p->to_grad || !p->gl_grad) continue;
+        if (!p->gl_gradrec){
+            GMALLOC(p->gl_gradrec, sizeof(float)*p->num_ele);
+            if (state) return state;
+        }
+        for (g=0;g<nrec;g++){
+            x = m->src_recs.rec_pos[s][0+8*g]/m->dh;
+            y = m->src_recs.rec_pos[s][1+8*g]/m->dh;
+            z = m->src_recs.rec_pos[s][2+8*g]/m->dh;
+            if (m->NDIM==2) pos = x*m->N[0]+z;
+            else            pos = x*m->N[0]*m->N[1]+y*m->N[0]+z;
+            float * out = &m->vars[i].gl_varout[s][g*NT];
+            float * res = &m->vars[i].gl_var_res[s][g*NT];
+            double acc = 0.0;
+            for (t=m->tmin+1;t<m->tmax;t++){
+                acc += (double)res[t]*((double)out[t]-(double)out[t-1]);
+            }
+            p->gl_gradrec[pos] += (float)(-sc*acc);
+        }
+    }
+    return state;
+}
+
+/* Add the receiver-cell terms (rec_grad_dft) to the gradient read back from the devices. */
+int add_rec_grad_dft(model * m)
+{
+    int i, j;
+    for (i=0;i<m->npars;i++){
+        parameter * p = &m->pars[i];
+        if (!p->gl_gradrec || !p->gl_grad) continue;
+        for (j=0;j<p->num_ele;j++){
+            p->gl_grad[j] += p->gl_gradrec[j];
+            p->gl_gradrec[j] = 0.0f;
+        }
+    }
+    return 0;
+}

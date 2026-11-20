@@ -1200,8 +1200,10 @@ def _sh_physical_directions(FL, freesurf=0, tau=0.1, tol=0.02, F0=25.0, bpt=2, a
 
 
 def test_fd_sh_elastic():
-    """SH elastic, back_prop_type 2. Never worked before 2026-11-19."""
+    """SH elastic, back_prop_type 2. Never worked before 2026-11-19. Also a bump on a receiver cell (0.25 %
+    step; rho 1.13 before rec_grad_dft)."""
     _sh_physical_directions([])
+    _sh_physical_directions([], bump="rec", eps=0.0025)
 
 
 def test_fd_sh_visco_L2():
@@ -1689,6 +1691,60 @@ def _visco_physical_directions(srctype, seisout, tau=0.1, F0=25.0, FLf=(1.0, 4.0
             bad.append("%s %.4f" % (name, r))
     assert not bad, ("viscoelastic gradient off by more than 5%% along: %s. Each direction changes one physical "
                      "combination; see notes viscoelastic-gradient-theory.md (2026-11-17)." % ", ".join(bad))
+
+
+def _receiver_cell(ND, srctype, bpt):
+    """Elastic, velocity receivers: FD / <g, dm> for a Gaussian bump of rho (and of vs) centred on a receiver
+    cell, 0.25 % step (a 1 % step has several % of third-order terms next to a receiver)."""
+    wd = workdir("reccell_%dd_s%d_b%d" % (ND, int(srctype), bpt))
+    mk = lambda **k: _srccell_model(wd, ND=ND, srctype=srctype, seisout=1, **k)
+    s0, zs = mk()
+    shape = tuple(int(v) for v in s0.N)
+    start = {"vp": np.full(shape, 2000.0), "vs": np.full(shape, 1200.0), "rho": np.full(shape, 2000.0)}
+    true = {k: np.array(v) for k, v in start.items()}
+    sl = (slice(zs + 6, zs + 12),) + ((slice(None),) if ND == 3 else ()) + (slice(shape[-1] // 2 - 5, shape[-1] // 2 + 5),)
+    true["vs"][sl] += 150.0
+    s0.set_forward(s0.src_pos_all[3, :], true, withgrad=False)
+    s0.execute()
+    dobs = [np.asarray(a, np.float64) for a in s0.read_data()]
+    s0.write_data(dict(zip(s0.to_load_names, dobs)), filename="SeisCL_din.mat")
+    din = os.path.join(s0.workdir, "SeisCL_din.mat")
+    def misfit(p):
+        t, _ = mk(); t.file_din = din
+        t.set_forward(t.src_pos_all[3, :], p, withgrad=False); t.execute()
+        return t.misfit(t.read_data(), dobs=dobs)[0]
+    NT, DT = int(s0.NT), float(s0.dt)
+    g, _ = (mk(gradout=1, back_prop_type=2, gradfreqs=(1.0 / (NT * DT)) * np.arange(1, NT // 2)) if bpt == 2
+            else mk(gradout=1, back_prop_type=1))
+    g.file_din = din
+    g.set_forward(g.src_pos_all[3, :], start, withgrad=True); g.execute()
+    G = {nm: np.asarray(a, np.float64) for nm, a in zip(g.params, g.read_grad())}
+    cen = [int(round(s0.rec_pos_all[2, 3] / s0.dh))]
+    if ND == 3:
+        cen.append(int(round(s0.rec_pos_all[1, 3] / s0.dh)))
+    cen.append(int(s0.rec_pos_all[0, 3] / s0.dh))
+    idx = np.indices(shape)
+    bump = np.exp(-sum((idx[a] - cen[a]) ** 2 for a in range(ND)) / 4.0)
+    bad = []
+    for name, base in (("rho", 2000.0), ("vs", 1200.0)):
+        dm = 0.0025 * base * bump
+        pp = {k: np.array(v) for k, v in start.items()}; pm = {k: np.array(v) for k, v in start.items()}
+        pp[name] = pp[name] + dm; pm[name] = pm[name] - dm
+        r = (misfit(pp) - misfit(pm)) / 2.0 / float((G[name] * dm).sum())
+        print("  receiver cell, %dD, source %d, back_prop_type %d, %-3s FD/<g,dm> = %.4f" % (ND, int(srctype), bpt, name, r))
+        if abs(r - 1.0) > 0.01:
+            bad.append("%s %.4f" % (name, r))
+    assert not bad, "gradient at a velocity-receiver cell off: %s" % ", ".join(bad)
+
+
+def test_fd_receiver_cell_bpt2():
+    """back_prop_type 2, bump on a velocity-receiver cell: before 2026-11-19 rho was 1.18 (2-D force source),
+    1.20 (2-D explosive), 1.13 (SH): the DFT correlation paired the residual of step t with v(t) instead of the
+    recorded v(t+1) (residuals.c, rec_grad_dft). back_prop_type 1 for comparison."""
+    _receiver_cell(2, 0.0, 2)
+    _receiver_cell(2, 100.0, 2)
+    _receiver_cell(3, 0.0, 2)
+    _receiver_cell(2, 0.0, 1)
 
 
 def test_fd_visco_physical_directions_velocity():
@@ -2195,6 +2251,7 @@ TESTS = [
     test_fd_3d_elastic_bpt2_p,
     test_fd_3d_viscoelastic_bpt2_vel,
     test_fd_3d_viscoelastic_bpt2_p,
+    test_fd_receiver_cell_bpt2,
     test_fd_sh_elastic,
     test_fd_sh_visco_L2,
     test_fd_sh_freesurface,

@@ -1094,6 +1094,8 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
             if ((m->GRADOUT || m->RMSOUT || m->RESOUT)
                 && (!m->INPUTRES || m->GRADOUT)){
                 __GUARD m->res_scale(m,s);
+                /* back_prop_type 2: receiver-cell density term (residuals.c) */
+                __GUARD rec_grad_dft(m, s);
             }
 
             // Save the checkpoints. BACK_PROP_TYPE==2 keeps none: its
@@ -1281,6 +1283,7 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
                chain_rule_par_type evaluates its Jacobians at physical
                values. */
             __GUARD unpack_par_fp16(m);
+            __GUARD add_rec_grad_dft(m);
             __GUARD unscale_grad_dft(m);
             __GUARD average_grad_transpose(m);
             __GUARD unscale_par(m);

@@ -136,6 +136,7 @@ void parameter_freeGL(parameter * par){
     
     GFree(par->gl_par);
     GFree(par->gl_grad);
+    GFree(par->gl_gradrec);
     GFree(par->gl_H);
 }
 

@@ -242,6 +242,8 @@ int var_alloc_out(float *** var, struct model *m );
 int var_res_raw(struct model * m, int s);
 int rtm_res(struct model * m, int s);
 int res_scale(struct model * m, int s);
+int rec_grad_dft(struct model * m, int s);
+int add_rec_grad_dft(struct model * m);
 
 /* _____________Structure for parameters, or what can be inverted_____________*/
 typedef struct parameter{
@@ -254,6 +256,7 @@ typedef struct parameter{
     float * gl_par;
     float * gl_grad;
     float * gl_H;
+    float * gl_gradrec;   /* back_prop_type 2: receiver-cell term added on the host (rec_grad_dft) */
     int num_ele;
     int active;
     float scaler;
