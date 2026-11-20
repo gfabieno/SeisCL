@@ -64,6 +64,17 @@ FUNDEF void update_adjv(int offcomm,
     int tz = NV*LSZ0 + 2*ZH, tx = LSZ1 + 2*FDOH;
     int tile_z0 = Z0 + NV*GRP0*LSZ0 - ZH, tile_x0 = GRP1*LSZ1 + offcomm;
     int lx = LID1 + FDOH;
+    int lz0 = ZH + NV*LID0;
+#if NOTILE
+    /* no shared tiles (header_vec.cl): the derivatives read the arrays in place, with the global
+       indices; threads past the grid return before reading. */
+#if COMM12==0
+    if (zt > NZS-FDOH-1 || (gidx-offcomm) > (NX-FDOH-1-LCOMM)) return;
+#else
+    if (zt > NZS-FDOH-1) return;
+#endif
+    tz = NZS; lx = gidx; lz0 = zt;
+#endif
 
     float sxy_x[NV], syz_z[NV];
 
@@ -72,11 +83,11 @@ FUNDEF void update_adjv(int offcomm,
     float fsxy_x[NV], fsyz_z[NV];
     load_tile2(lvar, sxy, tile_z0, tile_x0, tz, tx);
     BARRIER
-    for (int c=0; c<NV; c++) fsxy_x[c] = tdxm(lvar, tz, ZH + NV*LID0 + c, lx);
+    for (int c=0; c<NV; c++) fsxy_x[c] = tdxm(lvar, tz, lz0 + c, lx);
     BARRIER
     load_tile2(lvar, syz, tile_z0, tile_x0, tz, tx);
     BARRIER
-    for (int c=0; c<NV; c++) fsyz_z[c] = tdzm(lvar, tz, ZH + NV*LID0 + c, lx);
+    for (int c=0; c<NV; c++) fsyz_z[c] = tdzm(lvar, tz, lz0 + c, lx);
     BARRIER
 #endif
 
@@ -85,19 +96,19 @@ FUNDEF void update_adjv(int offcomm,
     /* exact CPML adjoint: the fields filtered by cpml_adj_s */
     load_tile2(lvar, cpfa, tile_z0, tile_x0, tz, tx);
     BARRIER
-    for (int c=0; c<NV; c++) sxy_x[c] = tdxm(lvar, tz, ZH + NV*LID0 + c, lx);
+    for (int c=0; c<NV; c++) sxy_x[c] = tdxm(lvar, tz, lz0 + c, lx);
     BARRIER
     load_tile2(lvar, cpfb, tile_z0, tile_x0, tz, tx);
     BARRIER
-    for (int c=0; c<NV; c++) syz_z[c] = tdzm(lvar, tz, ZH + NV*LID0 + c, lx);
+    for (int c=0; c<NV; c++) syz_z[c] = tdzm(lvar, tz, lz0 + c, lx);
 #else
     load_tile2(lvar, sxyr, tile_z0, tile_x0, tz, tx);
     BARRIER
-    for (int c=0; c<NV; c++) sxy_x[c] = tdxm(lvar, tz, ZH + NV*LID0 + c, lx);
+    for (int c=0; c<NV; c++) sxy_x[c] = tdxm(lvar, tz, lz0 + c, lx);
     BARRIER
     load_tile2(lvar, syzr, tile_z0, tile_x0, tz, tx);
     BARRIER
-    for (int c=0; c<NV; c++) syz_z[c] = tdzm(lvar, tz, ZH + NV*LID0 + c, lx);
+    for (int c=0; c<NV; c++) syz_z[c] = tdzm(lvar, tz, lz0 + c, lx);
 #endif
 
     // Threads outside the grid stop here (the grid is rounded up to the work-group size)

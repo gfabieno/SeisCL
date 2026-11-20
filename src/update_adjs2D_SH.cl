@@ -63,6 +63,17 @@ FUNDEF void update_adjs(int offcomm,
     int tz = NV*LSZ0 + 2*ZH, tx = LSZ1 + 2*FDOH;
     int tile_z0 = Z0 + NV*GRP0*LSZ0 - ZH, tile_x0 = GRP1*LSZ1 + offcomm;
     int lx = LID1 + FDOH;
+    int lz0 = ZH + NV*LID0;
+#if NOTILE
+    /* no shared tiles (header_vec.cl): the derivatives read the arrays in place, with the global
+       indices; threads past the grid return before reading. */
+#if COMM12==0
+    if (zt > NZS-FDOH-1 || (gidx-offcomm) > (NX-FDOH-1-LCOMM)) return;
+#else
+    if (zt > NZS-FDOH-1) return;
+#endif
+    tz = NZS; lx = gidx; lz0 = zt;
+#endif
 
     float vyx[NV], vyz[NV];
 
@@ -72,8 +83,8 @@ FUNDEF void update_adjs(int offcomm,
     load_tile2(lvar, vy, tile_z0, tile_x0, tz, tx);
     BARRIER
     for (int c=0; c<NV; c++){
-        fvyx[c] = tdxp(lvar, tz, ZH + NV*LID0 + c, lx);
-        fvyz[c] = tdzp(lvar, tz, ZH + NV*LID0 + c, lx);
+        fvyx[c] = tdxp(lvar, tz, lz0 + c, lx);
+        fvyz[c] = tdzp(lvar, tz, lz0 + c, lx);
     }
     BARRIER
 #endif
@@ -83,17 +94,17 @@ FUNDEF void update_adjs(int offcomm,
     /* exact CPML adjoint: the fields filtered by cpml_adj_v */
     load_tile2(lvar, cpfa, tile_z0, tile_x0, tz, tx);
     BARRIER
-    for (int c=0; c<NV; c++) vyx[c] = tdxp(lvar, tz, ZH + NV*LID0 + c, lx);
+    for (int c=0; c<NV; c++) vyx[c] = tdxp(lvar, tz, lz0 + c, lx);
     BARRIER
     load_tile2(lvar, cpfb, tile_z0, tile_x0, tz, tx);
     BARRIER
-    for (int c=0; c<NV; c++) vyz[c] = tdzp(lvar, tz, ZH + NV*LID0 + c, lx);
+    for (int c=0; c<NV; c++) vyz[c] = tdzp(lvar, tz, lz0 + c, lx);
 #else
     load_tile2(lvar, vyr, tile_z0, tile_x0, tz, tx);
     BARRIER
     for (int c=0; c<NV; c++){
-        vyx[c] = tdxp(lvar, tz, ZH + NV*LID0 + c, lx);
-        vyz[c] = tdzp(lvar, tz, ZH + NV*LID0 + c, lx);
+        vyx[c] = tdxp(lvar, tz, lz0 + c, lx);
+        vyz[c] = tdzp(lvar, tz, lz0 + c, lx);
     }
 #endif
 
