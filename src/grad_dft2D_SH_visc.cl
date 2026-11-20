@@ -141,6 +141,47 @@ LFUNDEF void shear_stag_coef(double mu_s, double taus_s, double al, double L,
     }
 }
 
+/* Helpers of the exact discrete gradient (see grad_dft2D_visc.cl).
+ * phi(w) = 1/2 sum_l b_l eta_l (1+u)/(1 - b_l c_l u), u = exp(-i w DT). */
+LFUNDEF void visc_phi(GLOBARG float *FL, double wdt, double *pr, double *pi)
+{
+    double ur = cos(wdt), ui = -sin(wdt);
+    *pr = 0.0; *pi = 0.0;
+    for (int l=0; l<LVE; l++){
+        double et = 2.0*3.14159265358979323846*(double)FL[l]*(double)DT;
+        double bb = 1.0/(1.0+0.5*et), cc = 1.0-0.5*et;
+        double nr = 1.0+ur, ni = ui;
+        double dr = 1.0-bb*cc*ur, di = -bb*cc*ui;
+        double den = dr*dr+di*di;
+        *pr += 0.5*bb*et*(nr*dr+ni*di)/den;
+        *pi += 0.5*bb*et*(ni*dr-nr*di)/den;
+    }
+}
+/* (cr + i ci)/K^2, K = kr + i ki */
+LFUNDEF void divk2(double cr, double ci, double kr, double ki, double *tr, double *ti)
+{
+    double k2r = kr*kr-ki*ki, k2i = 2.0*kr*ki, k2n = k2r*k2r+k2i*k2i;
+    *tr = (cr*k2r + ci*k2i)/k2n;
+    *ti = (ci*k2r - cr*k2i)/k2n;
+}
+/* (1-u)/DT a = (s2dt + i sdt) a */
+LFUNDEF void incr(float2 a, double sdt, double s2dt, double *xr, double *xi)
+{
+    *xr = s2dt*(double)a.x - sdt*(double)a.y;
+    *xi = s2dt*(double)a.y + sdt*(double)a.x;
+}
+/* conj(A) (1-u)/DT F / (fs - phi ds)^2 for one shear stress */
+LFUNDEF void shear_term(float2 A, float2 F, double sdt, double s2dt, double fs,
+                        double ds, double phr, double phi_, double *tr, double *ti)
+{
+    *tr = 0.0; *ti = 0.0;
+    if (fs < 1.0) return;
+    double xr, xi;
+    incr(F, sdt, s2dt, &xr, &xi);
+    double cr = (double)A.x*xr + (double)A.y*xi, ci = (double)A.x*xi - (double)A.y*xr;
+    divk2(cr, ci, fs - phr*ds, -phi_*ds, tr, ti);
+}
+
 FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
                           GLOBARG float * FL,
                           GLOBARG PARARG * rho,
@@ -205,10 +246,12 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
     /* The paper's moduli at each node (grad_dft3D_visc.cl). */
     muipjp_p *= (1.0 + al*tausipjp_p);
     mujpkp_p *= (1.0 + al*tausjpkp_p);
-    double c2xy,c5xy,c10xy,c13xy;
-    double c2yz,c5yz,c10yz,c13yz;
-    shear_stag_coef(muipjp_p, tausipjp_p, al, Ld, &c2xy, &c5xy, &c10xy, &c13xy);
-    shear_stag_coef(mujpkp_p, tausjpkp_p, al, Ld, &c2yz, &c5yz, &c10yz, &c13yz);
+    /* Exact discrete gradient (grad_dft2D_visc.cl): K(w) = f - phi(w) d per shear
+     * stress, f = mu(1+L taus)/ist, d = mu taus/ist (paper's mu, ist = 1+al taus). */
+    double istxy = 1.0+al*tausipjp_p, istyz = 1.0+al*tausjpkp_p;
+    double fxy = muipjp_p*(1.0+Ld*tausipjp_p)/istxy, dxy = muipjp_p*tausipjp_p/istxy;
+    double fyz = mujpkp_p*(1.0+Ld*tausjpkp_p)/istyz, dyz = mujpkp_p*tausjpkp_p/istyz;
+    double Gfxy=0.0, Gdxy=0.0, Gfyz=0.0, Gdyz=0.0;
 
     /* Which source, if any, sits in this cell (eq. 26a source term). In SH the
      * only source acting on these fields is the vy force (code 1). */
@@ -259,25 +302,12 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
             }
         }
 
-        float2 Fxy = fsxy_f[id], Fyz = fsyz_f[id];
-        float2 Axy = fsxy[id],   Ayz = fsyz[id];
-        double d5xy=0.0, d5yz=0.0;
-        for (l=0; l<LVE; l++){
-            int il = indr(f,l,i,k);
-            double tausig = 1.0/(2.0*3.14159265358979323846*(double)FL[l]);
-            float2 Rxy_f = halfstep(frxy_f[il], w, HSGN);
-            float2 Ryz_f = halfstep(fryz_f[il], w, HSGN);
-            float2 Rxy_a = frxy[il], Ryz_a = fryz[il];
-            /* forward s' = s - sum R; adjoint s~' = s~ + integ(r~) (thesis 3.33) */
-            Fxy = sub2(Fxy, integ(Rxy_f, w));
-            Fyz = sub2(Fyz, integ(Ryz_f, w));
-            Axy = add2(Axy, integ(Rxy_a, w));
-            Ayz = add2(Ayz, integ(Ryz_a, w));
-            d5xy += sc_ss*rmreal(Rxy_a, Rxy_f, tausig, w)/dftnorm;
-            d5yz += sc_ss*rmreal(Ryz_a, Ryz_f, tausig, w)/dftnorm;
-        }
-        double d2xy = sc_ss*(sdt*itreal(Axy, Fxy) + s2dt*rreal(Axy, Fxy))/dftnorm;
-        double d2yz = sc_ss*(sdt*itreal(Ayz, Fyz) + s2dt*rreal(Ayz, Fyz))/dftnorm;
+        double phr, phi_, Tr, Ti, nrm = sc_ss/dftnorm;
+        visc_phi(FL, wdt, &phr, &phi_);
+        shear_term(fsxy[id], fsxy_f[id], sdt, s2dt, fxy, dxy, phr, phi_, &Tr, &Ti);
+        Gfxy += -nrm*Tr; Gdxy += nrm*(phr*Tr - phi_*Ti);
+        shear_term(fsyz[id], fsyz_f[id], sdt, s2dt, fyz, dyz, phr, phi_, &Tr, &Ti);
+        Gfyz += -nrm*Tr; Gdyz += nrm*(phr*Tr - phi_*Ti);
 
         /* Velocity block (3-D d8y): vy, its force source restored with the
          * FIELD weight DT*DTNYQ, and the eq. (26a) term. */
@@ -286,13 +316,13 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         double d8y = sc_vv*((sdt*itreal(Avy, Fvy) + s2dt*rreal(Avy, Fvy))
                      - (sstype==1 ? rreal(Avy, S) : 0.0))/dftnorm;
 
-        Gmuipjp   += -c2xy*d2xy + c5xy*d5xy;
-        Gmujpkp   += -c2yz*d2yz + c5yz*d5yz;
-        Gtausipjp += -c10xy*d2xy + c13xy*d5xy;
-        Gtausjpkp += -c10yz*d2yz + c13yz*d5yz;
         Grho      += -d8y;
     }
 
+    Gmuipjp = (Gfxy*(1.0+Ld*tausipjp_p) + Gdxy*tausipjp_p)/istxy;
+    Gmujpkp = (Gfyz*(1.0+Ld*tausjpkp_p) + Gdyz*tausjpkp_p)/istyz;
+    Gtausipjp = (Gfxy*(Ld-al) + Gdxy)*muipjp_p/(istxy*istxy);
+    Gtausjpkp = (Gfyz*(Ld-al) + Gdyz)*mujpkp_p/(istyz*istyz);
     gradmuipjp[gid]   += (float)Gmuipjp;
     gradmujpkp[gid]   += (float)Gmujpkp;
     gradtausipjp[gid] += (float)Gtausipjp;
