@@ -626,6 +626,20 @@ int Init_CUDA(model * m, device ** dev)  {
             
         }
         
+        /* Experiment: SEISCL_LSIZE=a,b[,c] sets the work-group size of the
+           update kernels (z, then x in 2D / y, x in 3D). */
+        {
+            const char * v = getenv("SEISCL_LSIZE");
+            if (v && !di->LOCAL_OFF){
+                int l[3] = {0,0,0};
+                int nl = sscanf(v, "%d,%d,%d", &l[0], &l[1], &l[2]);
+                if (nl == m->NDIM){
+                    for (i=0;i<m->NDIM;i++) lsize[i] = l[i];
+                    fprintf(stdout, "    SEISCL_LSIZE: work group %s\n", v);
+                }
+            }
+        }
+
         // Define the global work size of the update kernels.
         // To overlap computations and communications, we have 3 kernels:
         // One for the interior (no communications) and 2 for the front and back
@@ -1097,6 +1111,13 @@ int Init_CUDA(model * m, device ** dev)  {
                     j = di->vars_adj[i].to_comm - 1;
                     di->ups_adj[j].v2com[di->ups_adj[j].nvcom] = &di->vars_adj[i];
                     di->ups_adj[j].nvcom++;
+                }
+                /* SEISCL_CPMLINL (clprogram.c, cpml_inline): the adjoint CPML
+                   memories are double buffered (header_vec.cl, CPMLINL); the
+                   doubled num_ele makes vars_init zero both halves. */
+                if (cpml_inline(m) && strncmp(di->vars_adj[i].name, "psi_", 4)==0){
+                    di->vars_adj[i].num_ele *= 2;
+                    di->vars_adj[i].cl_var.size *= 2;
                 }
                 __GUARD clbuf_create(di->context_ptr, &di->vars_adj[i].cl_var);
                 if (di->vars[i].to_comm && (m->NUM_DEVICES > 1

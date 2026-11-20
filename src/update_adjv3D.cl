@@ -51,9 +51,15 @@ FUNDEF void update_adjv(int offcomm,
                           GLOBARG const float * RESTRICT K_y_half,  GLOBARG const float * RESTRICT a_y_half,  GLOBARG const float * RESTRICT b_y_half,
                           GLOBARG const float * RESTRICT K_z,       GLOBARG const float * RESTRICT a_z,       GLOBARG const float * RESTRICT b_z,
                           GLOBARG const float * RESTRICT K_z_half,  GLOBARG const float * RESTRICT a_z_half,  GLOBARG const float * RESTRICT b_z_half,
+                          GLOBARG const float * RESTRICT Ka_x,      GLOBARG const float * RESTRICT Ka_x_half,
+                          GLOBARG const float * RESTRICT Ka_y,      GLOBARG const float * RESTRICT Ka_y_half,
+                          GLOBARG const float * RESTRICT Ka_z,      GLOBARG const float * RESTRICT Ka_z_half,
                           GLOBARG float * RESTRICT psi_sxx_x,       GLOBARG float * RESTRICT psi_sxy_x,       GLOBARG float * RESTRICT psi_sxy_y,
                           GLOBARG float * RESTRICT psi_sxz_x,       GLOBARG float * RESTRICT psi_sxz_z,       GLOBARG float * RESTRICT psi_syy_y,
                           GLOBARG float * RESTRICT psi_syz_y,       GLOBARG float * RESTRICT psi_syz_z,       GLOBARG float * RESTRICT psi_szz_z,
+                          GLOBARG float * RESTRICT psi_vx_xr,       GLOBARG float * RESTRICT psi_vy_xr,       GLOBARG float * RESTRICT psi_vz_xr,
+                          GLOBARG float * RESTRICT psi_vx_yr,       GLOBARG float * RESTRICT psi_vy_yr,       GLOBARG float * RESTRICT psi_vz_yr,
+                          GLOBARG float * RESTRICT psi_vx_zr,       GLOBARG float * RESTRICT psi_vy_zr,       GLOBARG float * RESTRICT psi_vz_zr,
                           GLOBARG const STO * RESTRICT cpf1,
                           GLOBARG const STO * RESTRICT cpf2,
                           GLOBARG const STO * RESTRICT cpf3,
@@ -89,8 +95,18 @@ FUNDEF void update_adjv(int offcomm,
     int tile_z0 = Z0 + NV*GRP0*LSZ0 - ZH, tile_y0 = GRP1*LSZ1, tile_x0 = GRP2*LSZ2 + offcomm;
     int it0 = ((LID2+FDOH)*ty + (LID1+FDOH))*tz + ZH + NV*LID0;
     int sy = tz, sx = tz*ty;
+#if NOTILE
+    /* SEISCL_NOTILE=1 (experiment): no shared tiles, the derivatives read the
+       arrays in place; threads past the grid return before reading. */
+#if COMM12==0
+    if (zt > NZS-FDOH-1 || gidy > NYS-FDOH-1 || (gidx-offcomm) > (NX-FDOH-1-LCOMM)) return;
+#else
+    if (zt > NZS-FDOH-1 || gidy > NYS-FDOH-1) return;
+#endif
+    it0 = (gidx*NYS + gidy)*NZS + zt; sy = NZS; sx = NZS*NYS;
+#endif
     float d_sxx_x[NV], d_sxx_xr[NV], d_sxy_x[NV], d_sxy_xr[NV], d_sxy_y[NV], d_sxy_yr[NV], d_sxz_x[NV], d_sxz_xr[NV], d_sxz_z[NV], d_sxz_zr[NV], d_syy_y[NV], d_syy_yr[NV], d_syz_y[NV], d_syz_yr[NV], d_syz_z[NV], d_syz_zr[NV], d_szz_z[NV], d_szz_zr[NV];
-#if BACK_PROP_TYPE==1
+#if BACK_PROP_TYPE==1 && !CPMLINL
     load_tile3(lvar, szz, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
     for (int c=0; c<NV; c++) d_szz_z[c] = tdp(lvar, it0+c, 1);
@@ -119,7 +135,9 @@ FUNDEF void update_adjv(int offcomm,
     for (int c=0; c<NV; c++) d_sxy_y[c] = tdm(lvar, it0+c, sy);
     BARRIER
 #endif
-#if ABS_TYPE==1 && BACK_PROP_TYPE==1
+#if CPMLINL
+    /* derivatives computed where they are used (body), to keep few of them live */
+#elif ABS_TYPE==1 && BACK_PROP_TYPE==1
     load_tile3_cpf(lvar, cpf1, sxxr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
     for (int c=0; c<NV; c++) d_sxx_xr[c] = tdp(lvar, it0+c, sx);
@@ -197,6 +215,7 @@ FUNDEF void update_adjv(int offcomm,
         if (!INTERIOR_Z(gidz)) continue;              // halo cell of an aligned pair
         int indp = ((gidx-FDOH)*(NYS-2*FDOH) + (gidy-FDOH))*(NZS-2*FDOH) + (gidz-FDOH);
         int indv = (gidx*NYS + gidy)*NZS + gidz;
+#if !CPMLINL
         float sxx_x = d_sxx_x[c];
         float sxx_xr = d_sxx_xr[c];
         float sxy_x = d_sxy_x[c];
@@ -215,15 +234,23 @@ FUNDEF void update_adjv(int offcomm,
         float syz_zr = d_syz_zr[c];
         float szz_z = d_szz_z[c];
         float szz_zr = d_szz_zr[c];
+#endif
 
 
 // Backpropagate the forward velocity
 #if BACK_PROP_TYPE==1
     {
         float vxold = ldf(vx, indv), vyold = ldf(vy, indv), vzold = ldf(vz, indv);
+#if CPMLINL
+        #define FL(f) ((LOCID const float *)(f))
+        lvx=((tdp(FL(sxx), it0, sx) + tdm(FL(sxy), it0, sy) + tdm(FL(sxz), it0, 1))*ldf(rip, indp));
+        lvy=((tdp(FL(syy), it0, sy) + tdm(FL(sxy), it0, sx) + tdm(FL(syz), it0, 1))*ldf(rjp, indp));
+        lvz=((tdp(FL(szz), it0, 1) + tdm(FL(sxz), it0, sx) + tdm(FL(syz), it0, sy))*ldf(rkp, indp));
+#else
         lvx=((sxx_x + sxy_y + sxz_z)*ldf(rip, indp));
         lvy=((syy_y + sxy_x + syz_z)*ldf(rjp, indp));
         lvz=((szz_z + sxz_x + syz_y)*ldf(rkp, indp));
+#endif
 
         stf(vx, indv, ldf(vx, indv) - (lvx));
         stf(vy, indv, ldf(vy, indv) - (lvy));
@@ -371,9 +398,24 @@ FUNDEF void update_adjv(int offcomm,
 #endif
 
     // Update adjoint velocities
+#if CPMLINL
+    /* exact CPML adjoint of the stress derivatives, in place (header_vec.cl, CPMLINL;
+       replaces cpml_adj_s and cpf1..9 of cpml_adj3D.cl, same filters) */
+    CPI_AXES
+    lvx=((cpi_tdp(sxxr, it0, sx, CPI_X(psi_vx_xr), 1, Ka_x, b_x)
+        + cpi_tdm(sxyr, it0, sy, CPI_Y(psi_vx_yr), 0, Ka_y_half, b_y_half)
+        + cpi_tdm(sxzr, it0, 1,  CPI_Z(psi_vx_zr), 0, Ka_z_half, b_z_half))*ldf(rip, indp));
+    lvy=((cpi_tdp(syyr, it0, sy, CPI_Y(psi_vy_yr), 1, Ka_y, b_y)
+        + cpi_tdm(sxyr, it0, sx, CPI_X(psi_vy_xr), 0, Ka_x_half, b_x_half)
+        + cpi_tdm(syzr, it0, 1,  CPI_Z(psi_vy_zr), 0, Ka_z_half, b_z_half))*ldf(rjp, indp));
+    lvz=((cpi_tdp(szzr, it0, 1,  CPI_Z(psi_vz_zr), 1, Ka_z, b_z)
+        + cpi_tdm(sxzr, it0, sx, CPI_X(psi_vz_xr), 0, Ka_x_half, b_x_half)
+        + cpi_tdm(syzr, it0, sy, CPI_Y(psi_vz_yr), 0, Ka_y_half, b_y_half))*ldf(rkp, indp));
+#else
     lvx=((sxx_xr + sxy_yr + sxz_zr)*ldf(rip, indp));
     lvy=((syy_yr + sxy_xr + syz_zr)*ldf(rjp, indp));
     lvz=((szz_zr + sxz_xr + syz_yr)*ldf(rkp, indp));
+#endif
     stf(vxr, indv, ldf(vxr, indv) + (lvx));
     stf(vyr, indv, ldf(vyr, indv) + (lvy));
     stf(vzr, indv, ldf(vzr, indv) + (lvz));
@@ -474,6 +516,16 @@ FUNDEF void update_adjv(int offcomm,
     }
     #endif
 
+#if CPMLINL
+    {   /* the memory of the cell's own values: psi_new = b*psi_old + a*e */
+        cpi_upd3(it0, gidx, NX, 1, PSI_HX, cpi_o, cpi_pbx, cpi_psx, sxxr, psi_vx_xr, 1, sxyr, psi_vy_xr, 0,
+                 sxzr, psi_vz_xr, 0, a_x, b_x, a_x_half, b_x_half);
+        cpi_upd3(it0, gidy, NYS, 1, PSI_HY, cpi_o, cpi_pby, cpi_psy, sxyr, psi_vx_yr, 0, syyr, psi_vy_yr, 1,
+                 syzr, psi_vz_yr, 0, a_y, b_y, a_y_half, b_y_half);
+        cpi_upd3(it0, zt, NZS, CPI_LOWZ, PSI_HZ, cpi_o, cpi_pbz, cpi_psz, sxzr, psi_vx_zr, 0, syzr, psi_vy_zr, 0,
+                 szzr, psi_vz_zr, 1, a_z, b_z, a_z_half, b_z_half);
+    }
+#endif
 #if HOUT==1
     Hrho[inp])+= pown(ldf(vx, indv),2)+pown(ldf(vy, indv),2)+pown(ldf(vz, indv),2);
 #endif

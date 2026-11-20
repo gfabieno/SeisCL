@@ -64,6 +64,16 @@ FUNDEF void update_adjv(int offcomm,
     int tile_z0 = Z0 + NV*GRP0*LSZ0 - ZH, tile_x0 = GRP1*LSZ1 + offcomm;
     int lx = LID1 + FDOH;
     int lz0 = ZH + NV*LID0;
+#if NOTILE
+    /* SEISCL_NOTILE=1 (experiment): no shared tiles, the derivatives read the
+       arrays in place; threads past the grid return before reading. */
+#if COMM12==0
+    if (zt > NZS-FDOH-1 || (gidx-offcomm) > (NX-FDOH-1-LCOMM)) return;
+#else
+    if (zt > NZS-FDOH-1) return;
+#endif
+    tz = NZS; lx = gidx; lz0 = zt;
+#endif
 
     // Spatial derivatives of the forward stresses (to rebuild the forward velocities)
 #if BACK_PROP_TYPE==1

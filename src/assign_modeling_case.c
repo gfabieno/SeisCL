@@ -724,6 +724,25 @@ void CPML_y( void *mptr, void *cstptr, int ncst){
                a_i_half);
     
 }
+void CPML_ka( void *mptr, void *cstptr, int ncst){
+    /* Experiment (CPMLINL): Ka = 1/K + a, so the inline adjoint filter
+       e/K + (b*psi + a*e) is one fma: e*Ka + b*psi (header_vec.cl, cpi_val). */
+    model * m = (model *) mptr;
+    const char * ax[3] = {"x", "y", "z"};
+    char nk[16], na[16], nka[16];
+    for (int d = 0; d < 3; d++){
+        for (int h = 0; h < 2; h++){
+            sprintf(nk, "K_%s%s", ax[d], h ? "_half" : "");
+            sprintf(na, "a_%s%s", ax[d], h ? "_half" : "");
+            sprintf(nka, "Ka_%s%s", ax[d], h ? "_half" : "");
+            if (!get_cst(m->csts, m->ncsts, nka)->gl_cst) continue;
+            float * K = get_cst(m->csts, m->ncsts, nk)->gl_cst;
+            float * a = get_cst(m->csts, m->ncsts, na)->gl_cst;
+            float * ka = get_cst(m->csts, m->ncsts, nka)->gl_cst;
+            for (int i = 0; i < 2*m->NAB; i++) ka[i] = 1.0f/K[i] + a[i];
+        }
+    }
+}
 void size_varseis(int* N, void *mptr, void *varptr){
     
     model * m = (model *) mptr;
@@ -1548,7 +1567,7 @@ int assign_modeling_case(model * m){
     
     /* Arrays of constants size on all devices. The most constants we have
      here is 23 */
-    GMALLOC(m->csts, sizeof(constants)*23);
+    GMALLOC(m->csts, sizeof(constants)*29);
     if (m->ABS_TYPE==2)
     __GUARD append_cst(m,"taper",NULL,m->NAB,&taper);
     if (m->ABS_TYPE==1){
@@ -1571,6 +1590,13 @@ int assign_modeling_case(model * m){
             __GUARD append_cst(m,"K_y_half",NULL,2*m->NAB,NULL);
             __GUARD append_cst(m,"a_y_half",NULL,2*m->NAB,NULL);
             __GUARD append_cst(m,"b_y_half",NULL,2*m->NAB,NULL);
+            /* experiment, CPMLINL: 1/K + a (CPML_ka) */
+            __GUARD append_cst(m,"Ka_x",NULL,2*m->NAB,NULL);
+            __GUARD append_cst(m,"Ka_x_half",NULL,2*m->NAB,NULL);
+            __GUARD append_cst(m,"Ka_y",NULL,2*m->NAB,NULL);
+            __GUARD append_cst(m,"Ka_y_half",NULL,2*m->NAB,NULL);
+            __GUARD append_cst(m,"Ka_z",NULL,2*m->NAB,NULL);
+            __GUARD append_cst(m,"Ka_z_half",NULL,2*m->NAB,&CPML_ka);
         }
         
     }

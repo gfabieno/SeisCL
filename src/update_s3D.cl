@@ -81,6 +81,16 @@ FUNDEF void update_s(int offcomm,  int nt,
     int tile_z0 = Z0 + NV*GRP0*LSZ0 - ZH, tile_y0 = GRP1*LSZ1, tile_x0 = GRP2*LSZ2 + offcomm;
     int it0 = ((LID2+FDOH)*ty + (LID1+FDOH))*tz + ZH + NV*LID0;
     int sy = tz, sx = tz*ty;
+#if NOTILE
+    /* SEISCL_NOTILE=1 (experiment): no shared tiles, the derivatives read the
+       arrays in place; threads past the grid return before reading. */
+#if COMM12==0
+    if (zt > NZS-FDOH-1 || gidy > NYS-FDOH-1 || (gidx-offcomm) > (NX-FDOH-1-LCOMM)) return;
+#else
+    if (zt > NZS-FDOH-1 || gidy > NYS-FDOH-1) return;
+#endif
+    it0 = (gidx*NYS + gidy)*NZS + zt; sy = NZS; sx = NZS*NYS;
+#endif
     float d_vxx[NV], d_vxy[NV], d_vxz[NV], d_vyx[NV], d_vyy[NV], d_vyz[NV], d_vzx[NV], d_vzy[NV], d_vzz[NV];
     load_tile3(lvar, vz, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER

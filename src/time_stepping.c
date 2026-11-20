@@ -735,7 +735,7 @@ int update_grid_adj(model * m, device ** dev){
            differentiates (velocities before update_adjs, i = 1; stresses
            before update_adjv, i = 0). See cpml_adj2D.cl. */
         for (d=0;d<m->NUM_DEVICES;d++){
-            if ((*dev)[d].bnd_cnds.cpml_adj_v.name){
+            if ((*dev)[d].bnd_cnds.cpml_adj_v.name && !cpml_inline(m)){
                 __GUARD prog_launch(&(*dev)[d].queue, i==1 ?
                                     &(*dev)[d].bnd_cnds.cpml_adj_v :
                                     &(*dev)[d].bnd_cnds.cpml_adj_s);

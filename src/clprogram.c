@@ -886,6 +886,43 @@ int prog_arg(clprogram * prog, int i, void * mem, int size){
     return state;
 }
 
+/* Kernel settings measured fastest on Pascal and Ampere GPUs (notes: perf-shared-memory-pipeline).
+   Each one is on by default where it applies; SEISCL_<NAME>=0 turns it off.
+   * NOTILE: update and adjoint kernels without shared-memory tiles (header_vec.cl). CUDA, one
+     device, FP16 0 or 1. The exact CPML adjoint then reads the field itself where the stencil
+     box of a work-item is outside the layers, the filtered copy elsewhere (NT_RAW*, NT_SKIP*).
+   * CPMLINL: the exact CPML adjoint is computed inside update_adjs / update_adjv (header_vec.cl)
+     instead of cpml_adj_v / cpml_adj_s; the adjoint memories psi_*r are double buffered
+     (Init_OpenCL.c) and cpml_adj_* is not launched (time_stepping.c). 3D, NOTILE, FP16 0,
+     back_prop_type 1. The doubled buffers must be covered by the vars_init launch
+     ((N+FDORDER) per dimension); otherwise it is off.
+   * MAXRREG_ADJ: under CPMLINL, at most 56 registers for update_adjv / update_adjs on compute
+     capability 6.x (Pascal); SEISCL_MAXRREG_ADJ=n[,m] sets n for update_adjv, m for update_adjs. */
+static int env_on(const char * name){
+    const char * v = getenv(name);
+    return !(v && v[0]=='0');
+}
+int notile_on(model * m){
+#ifdef __SEISCL__
+    return 0;
+#else
+    static int env = -1;
+    if (env < 0) env = env_on("SEISCL_NOTILE");
+    return env && m->FP16 < 2 && m->NUM_DEVICES==1 && m->NLOCALP==1;
+#endif
+}
+int cpml_inline(model * m){
+    static int env = -1;
+    if (env < 0) env = env_on("SEISCL_CPMLINL");
+    if (!env || !notile_on(m) || m->ND!=3 || m->ABS_TYPE!=1 || m->BACK_PROP_TYPE!=1 || !m->GRADOUT
+        || m->FP16!=0 || m->NAB<1)
+        return 0;
+    long a = (long)m->N[0]*m->N[1], b = (long)m->N[0]*m->N[2], c = (long)m->N[1]*m->N[2];
+    long big = a > b ? a : b; big = big > c ? big : c;
+    long cover = (long)(m->N[0]+m->FDORDER)*(m->N[1]+m->FDORDER)*(m->N[2]+m->FDORDER);
+    return 2*2*m->NAB*big <= cover;
+}
+
 int prog_create(model * m,
                 device * dev,
                 clprogram * prog){
@@ -946,6 +983,42 @@ int prog_create(model * m,
                 SEISCL_MAX_BUILD_OPTIONS);
         return 1;
     }
+    /* No shared tiles (notile_on), the CPML adjoint inside the adjoint updates (cpml_inline) and the
+       register cap of the adjoint updates on Pascal: see notile_on above. */
+    int notile = 0;
+    if (notile_on(m) && !dev->LOCAL_OFF && noptions < SEISCL_MAX_BUILD_OPTIONS
+        && (strcmp(prog->name, "update_v")==0 || strcmp(prog->name, "update_s")==0
+            || strcmp(prog->name, "update_adjv")==0 || strcmp(prog->name, "update_adjs")==0
+            || strcmp(prog->name, "cpml_adj_v")==0 || strcmp(prog->name, "cpml_adj_s")==0)){
+        sprintf(build_options[noptions++], "-D NOTILE=1");
+        notile = 1;
+        if (cpml_inline(m) && noptions < SEISCL_MAX_BUILD_OPTIONS
+            && (strcmp(prog->name, "update_adjv")==0 || strcmp(prog->name, "update_adjs")==0))
+            sprintf(build_options[noptions++], "-D CPMLINL=1");
+    }
+    {
+        const char * v = getenv("SEISCL_MAXRREG_ADJ");
+        int nv = 0, ns = 0;
+        if (v){
+            nv = ns = atoi(v);
+            const char * comma = strchr(v, ',');
+            if (comma) ns = atoi(comma + 1);
+        }
+        else if (cpml_inline(m) && dev->cuda_arc[0] == 6)
+            nv = ns = 56;
+        int cap = strcmp(prog->name, "update_adjv")==0 ? nv : strcmp(prog->name, "update_adjs")==0 ? ns : 0;
+        if (cap > 0 && noptions < SEISCL_MAX_BUILD_OPTIONS)
+            sprintf(build_options[noptions++], "--maxrregcount=%d", cap);
+    }
+    /* cpml_adj_* is not launched under CPMLINL: the adjoint updates must have it */
+    if (cpml_inline(m) && (strcmp(prog->name, "update_adjv")==0 || strcmp(prog->name, "update_adjs")==0)){
+        int found = 0;
+        for (int o=0; o<noptions; o++) found |= strcmp(build_options[o], "-D CPMLINL=1")==0;
+        if (!found){
+            fprintf(stderr, "Error: SEISCL_CPMLINL could not be compiled into %s\n", prog->name);
+            return 1;
+        }
+    }
     
     state = compile((*prog).src,
                     (*prog).prog,
@@ -989,6 +1062,9 @@ int prog_create(model * m,
         }
         (*prog).shared_size=shared_size;
     }
+    #ifndef __SEISCL__
+    if (notile) (*prog).shared_size = 0;
+    #endif
     #ifdef __SEISCL__
     memsize = sizeof(cl_mem);
     #endif

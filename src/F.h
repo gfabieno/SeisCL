@@ -203,6 +203,8 @@ int prog_source(clprogram * prog,
 int prog_launch( QUEUE *inqueue, clprogram * prog);
 
 int prog_create(struct model * m, struct device * dev,clprogram * prog);
+int cpml_inline(struct model * m);
+int notile_on(struct model * m);
 
 int prog_arg(clprogram * prog, int i, void * mem, int size);
 
