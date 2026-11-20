@@ -49,6 +49,15 @@
 #else
 #define STO float
 #endif
+/* Operand of the derivative functions: a float tile in local memory or, without
+   tiles (NOTILE), the stored array itself, read through ldf (half -> float for FP16 2). */
+#if NOTILE
+#define TPTR GLOBARG const STO *
+#define TV(t, i) ldf((t), (i))
+#else
+#define TPTR LOCID const float *
+#define TV(t, i) ((t)[i])
+#endif
 
 #ifndef NZS
 #define NZS (NZ*DIV)
@@ -169,21 +178,21 @@ LFUNDEF void load_tile2(LOCID float *tile, GLOBARG const STO *a, int z0, int x0,
 
 /* ---- staggered derivatives on a tile (t[lx*tz + lz]) --------------------- */
 #define HCV {HC1, HC2, HC3, HC4, HC5, HC6}
-LFUNDEF float tdxp(LOCID const float *t, int tz, int lz, int lx)
+LFUNDEF float tdxp(TPTR t, int tz, int lz, int lx)
 {   const float hc[6] = HCV; float d = 0.0f;
-    for (int m = 0; m < FDOH; m++) d += hc[m] * (t[(lx+m+1)*tz + lz] - t[(lx-m)*tz + lz]);
+    for (int m = 0; m < FDOH; m++) d += hc[m] * (TV(t, (lx+m+1)*tz + lz) - TV(t, (lx-m)*tz + lz));
     return d; }
-LFUNDEF float tdxm(LOCID const float *t, int tz, int lz, int lx)
+LFUNDEF float tdxm(TPTR t, int tz, int lz, int lx)
 {   const float hc[6] = HCV; float d = 0.0f;
-    for (int m = 0; m < FDOH; m++) d += hc[m] * (t[(lx+m)*tz + lz] - t[(lx-m-1)*tz + lz]);
+    for (int m = 0; m < FDOH; m++) d += hc[m] * (TV(t, (lx+m)*tz + lz) - TV(t, (lx-m-1)*tz + lz));
     return d; }
-LFUNDEF float tdzp(LOCID const float *t, int tz, int lz, int lx)
+LFUNDEF float tdzp(TPTR t, int tz, int lz, int lx)
 {   const float hc[6] = HCV; float d = 0.0f;
-    for (int m = 0; m < FDOH; m++) d += hc[m] * (t[lx*tz + lz+m+1] - t[lx*tz + lz-m]);
+    for (int m = 0; m < FDOH; m++) d += hc[m] * (TV(t, lx*tz + lz+m+1) - TV(t, lx*tz + lz-m));
     return d; }
-LFUNDEF float tdzm(LOCID const float *t, int tz, int lz, int lx)
+LFUNDEF float tdzm(TPTR t, int tz, int lz, int lx)
 {   const float hc[6] = HCV; float d = 0.0f;
-    for (int m = 0; m < FDOH; m++) d += hc[m] * (t[lx*tz + lz+m] - t[lx*tz + lz-m-1]);
+    for (int m = 0; m < FDOH; m++) d += hc[m] * (TV(t, lx*tz + lz+m) - TV(t, lx*tz + lz-m-1));
     return d; }
 
 /* ---- the NV values of a model parameter for this thread (2D) ------------- */
@@ -264,13 +273,13 @@ LFUNDEF void ldp3(GLOBARG const STO *a, int gidx, int gidy, int zt, float *v)
 
 /* Staggered derivatives along any axis of a tile: element i, stride s
    (1 along z, tz along y, tz*ty along x in 3D; tz along x in 2D). */
-LFUNDEF float tdp(LOCID const float *t, int i, int s)
+LFUNDEF float tdp(TPTR t, int i, int s)
 {   const float hc[6] = HCV; float d = 0.0f;
-    for (int m = 0; m < FDOH; m++) d += hc[m] * (t[i + (m+1)*s] - t[i - m*s]);
+    for (int m = 0; m < FDOH; m++) d += hc[m] * (TV(t, i + (m+1)*s) - TV(t, i - m*s));
     return d; }
-LFUNDEF float tdm(LOCID const float *t, int i, int s)
+LFUNDEF float tdm(TPTR t, int i, int s)
 {   const float hc[6] = HCV; float d = 0.0f;
-    for (int m = 0; m < FDOH; m++) d += hc[m] * (t[i + m*s] - t[i - (m+1)*s]);
+    for (int m = 0; m < FDOH; m++) d += hc[m] * (TV(t, i + m*s) - TV(t, i - (m+1)*s));
     return d; }
 
 /* ---- CPMLINL (experiment): exact CPML adjoint inside update_adjs/update_adjv ----
@@ -324,7 +333,7 @@ LFUNDEF float cpi_tdp(GLOBARG const STO *f, int ind, int s, GLOBARG const float 
                       int g, int n, int low, int full,
                       GLOBARG const float *Ka, GLOBARG const float *b)
 {
-    if (CPI_CLEAR(g, n, low)) return tdp((LOCID const float *)f, ind, s);
+    if (CPI_CLEAR(g, n, low)) return tdp(f, ind, s);
     const float hc[6] = HCV; float d = 0.0f;
     for (int m = 0; m < FDOH; m++)
         d += hc[m] * (cpi_val(f, ind + (m+1)*s, psi, pb, ps, g+m+1, n, low, full, Ka, b)
@@ -335,7 +344,7 @@ LFUNDEF float cpi_tdm(GLOBARG const STO *f, int ind, int s, GLOBARG const float 
                       int g, int n, int low, int full,
                       GLOBARG const float *Ka, GLOBARG const float *b)
 {
-    if (CPI_CLEAR(g, n, low)) return tdm((LOCID const float *)f, ind, s);
+    if (CPI_CLEAR(g, n, low)) return tdm(f, ind, s);
     const float hc[6] = HCV; float d = 0.0f;
     for (int m = 0; m < FDOH; m++)
         d += hc[m] * (cpi_val(f, ind + m*s, psi, pb, ps, g+m, n, low, full, Ka, b)
@@ -505,21 +514,24 @@ LFUNDEF void load_tile2_cpf(LOCID float *tile, GLOBARG const STO *cpf, GLOBARG c
 #endif
 #endif
 
-/* ---- experiment: no shared tiles (SEISCL_NOTILE=1, clprogram.c) ----------- */
-/* Defined only for update_v / update_s (CUDA, float storage). The kernels keep
-   their code: a "tile" is the array itself, with the global strides. */
+/* ---- no shared tiles (NOTILE, clprogram.c: notile_on) ---------------------- */
+/* The kernels keep their code: a "tile" is the stored array itself, with the global
+   strides, read through TV (ldf: float, or half converted to float for FP16 2). */
 #if NOTILE
+#ifdef __OPENCL_VERSION__
+/* the __local kernel argument stays (the host passes 4 bytes) under another name */
+#undef LOCARG
+#define LOCARG __local float *nt_unused
+#endif
 #undef LOCDEF
-#define LOCDEF const float * lvar = 0;
+#define LOCDEF TPTR lvar = 0;
 #undef BARRIER
 #define BARRIER
-#define load_tile2(t, a, z0, x0, tz, tx) ((t) = (const float *)(a))
-#define load_tile3(t, a, z0, y0, x0, tz, ty, tx) ((t) = (const float *)(a))
+#define load_tile2(t, a, z0, x0, tz, tx) ((t) = (a))
+#define load_tile3(t, a, z0, y0, x0, tz, ty, tx) ((t) = (a))
 /* exact CPML adjoint: the field itself or the filtered copy, per work-item (NT_RAW*; uses the
    kernel's zt, gidy, gidx) */
-#define load_tile2_cpf(t, cpf, a, z0, x0, tz, tx) \
-    ((t) = NT_RAW2(zt, gidx) ? (const float *)(a) : (const float *)(cpf))
-#define load_tile3_cpf(t, cpf, a, z0, y0, x0, tz, ty, tx) \
-    ((t) = NT_RAW3(zt, gidy, gidx) ? (const float *)(a) : (const float *)(cpf))
+#define load_tile2_cpf(t, cpf, a, z0, x0, tz, tx) ((t) = NT_RAW2(zt, gidx) ? (a) : (cpf))
+#define load_tile3_cpf(t, cpf, a, z0, y0, x0, tz, ty, tx) ((t) = NT_RAW3(zt, gidy, gidx) ? (a) : (cpf))
 #endif
 
