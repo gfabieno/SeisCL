@@ -229,7 +229,7 @@ FUNDEF void update_adjs(int offcomm,
         int indv = (gidx*NYS + gidy)*NZS + gidz;
 #if CPMLINL
         CPI_AXES
-        #define FL(f) ((LOCID const float *)(f))
+        #define FL(f) ((TPTR)(f))
 #endif
 #if !CPMLINL
         float vxx = d_vxx[c];

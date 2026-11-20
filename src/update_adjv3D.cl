@@ -242,7 +242,7 @@ FUNDEF void update_adjv(int offcomm,
     {
         float vxold = ldf(vx, indv), vyold = ldf(vy, indv), vzold = ldf(vz, indv);
 #if CPMLINL
-        #define FL(f) ((LOCID const float *)(f))
+        #define FL(f) ((TPTR)(f))
         lvx=((tdp(FL(sxx), it0, sx) + tdm(FL(sxy), it0, sy) + tdm(FL(sxz), it0, 1))*ldf(rip, indp));
         lvy=((tdp(FL(syy), it0, sy) + tdm(FL(sxy), it0, sx) + tdm(FL(syz), it0, 1))*ldf(rjp, indp));
         lvz=((tdp(FL(szz), it0, 1) + tdm(FL(sxz), it0, sx) + tdm(FL(syz), it0, sy))*ldf(rkp, indp));
