@@ -225,12 +225,14 @@ class SeisCL:
                                  back_prop_type=2 (DFT). Each is used at the
                                  DFT bin floor(f/df), df = 1/(NT*dt); a value
                                  below df falls in bin 0 (zero frequency).
-                                 Viscoelastic (L>0): bin 0 and the Nyquist
-                                 bin count half; include bin 0 when
-                                 every bin is meant. It carries the static
-                                 part of the end-of-record terms; without it
-                                 a record that ends with waves in the grid
-                                 is off by several % near the receivers.
+                                 Bin 0 and the Nyquist bin count half (each
+                                 other bin stands for +f and -f). To match
+                                 the time-domain gradient (accuracy tests),
+                                 include bin 0: for L>0 it carries the static
+                                 part of the end-of-record terms, and without
+                                 it a record that ends with waves in the grid
+                                 is off by several % near the receivers. A
+                                 band of frequencies for FWI does not need it.
                                  The result is the gradient of the misfit
                                  restricted to these bins, NOT of the
                                  time-domain misfit: it equals

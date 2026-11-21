@@ -244,6 +244,9 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
     for (f=0; f<NFREQS; f++){
 
         double w = 2.0*3.14159265358979323846*dftdf*(double)gradfreqsn[f];
+        /* One-sided sum over bins: bins 0 and Nyquist stand for one
+         * frequency each, every other bin for +f and -f, so they count half. */
+        double dnf = dftnorm/(((int)gradfreqsn[f]==0 || 2*(int)gradfreqsn[f]==NTNYQ) ? 0.5 : 1.0);
         /* Exact discrete equivalent of BACK_PROP_TYPE==1's quadrature.
          *
          * bpt1 accumulates sum_t phi(t)*[psi(t) - psi(t+1)], i.e. it pairs the
@@ -335,17 +338,17 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         Fzz_mxxyy.y = (float)(ndm1*Fzz.y) - Fxx.y - Fyy.y;
 
         /* P1 with the eq. (26a) bracket intact: <sigma~, dt sigma - s>. */
-        double d0 = sc_ss*((sdt*itreal(App, Fpp) + s2dt*rreal(App, Fpp)) - (sstype==100 ? rreal(App, S) : 0.0))/dftnorm;
+        double d0 = sc_ss*((sdt*itreal(App, Fpp) + s2dt*rreal(App, Fpp)) - (sstype==100 ? rreal(App, S) : 0.0))/dnf;
         /* Kept apart per shear plane -- sxy/sxz/syz are each driven by a
          * different staggered mu, so they cannot be summed before the
          * coefficient is applied. */
-        double d2xy = sc_ss*(sdt*itreal(Axy, Fxy) + s2dt*rreal(Axy, Fxy))/dftnorm;
-        double d2xz = sc_ss*(sdt*itreal(Axz, Fxz) + s2dt*rreal(Axz, Fxz))/dftnorm;
-        double d2yz = sc_ss*(sdt*itreal(Ayz, Fyz) + s2dt*rreal(Ayz, Fyz))/dftnorm;
+        double d2xy = sc_ss*(sdt*itreal(Axy, Fxy) + s2dt*rreal(Axy, Fxy))/dnf;
+        double d2xz = sc_ss*(sdt*itreal(Axz, Fxz) + s2dt*rreal(Axz, Fxz))/dnf;
+        double d2yz = sc_ss*(sdt*itreal(Ayz, Fyz) + s2dt*rreal(Ayz, Fyz))/dnf;
         double d3 = d0;
         double d4 = sc_ss*((sdt*itreal(Axx, Fxx_myyzz) + s2dt*rreal(Axx, Fxx_myyzz))
                      + (sdt*itreal(Ayy, Fyy_mxxzz) + s2dt*rreal(Ayy, Fyy_mxxzz))
-                     + (sdt*itreal(Azz, Fzz_mxxyy) + s2dt*rreal(Azz, Fzz_mxxyy)))/dftnorm;
+                     + (sdt*itreal(Azz, Fzz_mxxyy) + s2dt*rreal(Azz, Fzz_mxxyy)))/dnf;
         /* vx/vy/vz sit at rip/rjp/rkp respectively (update_v3D.cl): different
          * parameters, so kept apart rather than summed. */
         /* Velocity block: a FORCE source's eq. (26a) term, mirroring the
@@ -363,11 +366,11 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         if (sstype==1){ Fvy.x += (float)((double)DT*(double)DTNYQ)*Sd.x; Fvy.y += (float)((double)DT*(double)DTNYQ)*Sd.y; }
         if (sstype==2){ Fvz.x += (float)((double)DT*(double)DTNYQ)*Sd.x; Fvz.y += (float)((double)DT*(double)DTNYQ)*Sd.y; }
         double d8x = sc_vv*((sdt*itreal(Avx, Fvx) + s2dt*rreal(Avx, Fvx))
-                     - (sstype==0 ? rreal(Avx, S) : 0.0))/dftnorm;
+                     - (sstype==0 ? rreal(Avx, S) : 0.0))/dnf;
         double d8y = sc_vv*((sdt*itreal(Avy, Fvy) + s2dt*rreal(Avy, Fvy))
-                     - (sstype==1 ? rreal(Avy, S) : 0.0))/dftnorm;
+                     - (sstype==1 ? rreal(Avy, S) : 0.0))/dnf;
         double d8z = sc_vv*((sdt*itreal(Avz, Fvz) + s2dt*rreal(Avz, Fvz))
-                     - (sstype==2 ? rreal(Avz, S) : 0.0))/dftnorm;
+                     - (sstype==2 ? rreal(Avz, S) : 0.0))/dnf;
 
 #if HOUT==1
         /* Approximate (Gauss-Newton style) Hessian diagonal, same pattern as
@@ -376,23 +379,23 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         {
             double w2 = w*w;
             double h0 = w2*((double)Fpp.x*(double)Fpp.x
-                          + (double)Fpp.y*(double)Fpp.y)/dftnorm;
+                          + (double)Fpp.y*(double)Fpp.y)/dnf;
             double h2 = w2*(((double)Fxy.x*(double)Fxy.x + (double)Fxy.y*(double)Fxy.y)
                           + ((double)Fxz.x*(double)Fxz.x + (double)Fxz.y*(double)Fxz.y)
                           + ((double)Fyz.x*(double)Fyz.x + (double)Fyz.y*(double)Fyz.y))
-                          /dftnorm;
+                          /dnf;
             double h3 = h0;
             double h4 = w2*(((double)Fxx_myyzz.x*(double)Fxx_myyzz.x
                            + (double)Fxx_myyzz.y*(double)Fxx_myyzz.y)
                           + ((double)Fyy_mxxzz.x*(double)Fyy_mxxzz.x
                            + (double)Fyy_mxxzz.y*(double)Fyy_mxxzz.y)
                           + ((double)Fzz_mxxyy.x*(double)Fzz_mxxyy.x
-                           + (double)Fzz_mxxyy.y*(double)Fzz_mxxyy.y))/dftnorm;
+                           + (double)Fzz_mxxyy.y*(double)Fzz_mxxyy.y))/dnf;
             float2 Vx = fvx_f[id], Vy = fvy_f[id], Vz = fvz_f[id];
             double h8 = w2*(((double)Vx.x*(double)Vx.x + (double)Vx.y*(double)Vx.y)
                           + ((double)Vy.x*(double)Vy.x + (double)Vy.y*(double)Vy.y)
                           + ((double)Vz.x*(double)Vz.x + (double)Vz.y*(double)Vz.y))
-                          /dftnorm;
+                          /dnf;
             hM   += h0*iden;
             hmu   += h2*imu2 - h3*i3den + h4*i2ndmu2;
             hrho += h8;
