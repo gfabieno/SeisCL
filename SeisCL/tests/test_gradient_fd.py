@@ -1160,7 +1160,7 @@ def _sh_physical_directions(FL, freesurf=0, tau=0.1, tol=0.02, F0=25.0, bpt=2, a
         t, _ = mk(); t.file_din = din
         t.set_forward(t.src_pos_all[3, :], p, withgrad=False); t.execute()
         return t.misfit(t.read_data(), dobs=dobs)[0]
-    fr = (1.0 / (int(s0.NT) * float(s0.dt))) * np.arange(1, int(s0.NT) // 2)
+    fr = (1.0 / (int(s0.NT) * float(s0.dt))) * np.arange(0 if L else 1, int(s0.NT) // 2)   # bin 0: see _fd_hetero
     g, _ = (mk(gradout=1, back_prop_type=2, gradfreqs=fr) if bpt == 2
             else mk(gradout=1, back_prop_type=1)); g.file_din = din
     g.set_forward(g.src_pos_all[3, :], start, withgrad=True); g.execute()
@@ -1544,7 +1544,11 @@ def _fd_hetero(ND, bpt, L=0, srctype=100.0, fp16=0, seed=20260907, tol=0.10):
         # misfit; they agree only with every bin (SeisCL.py, gradfreqs). Until
         # 2026-11-18 this used bins 4 .. 5 f0 (bin 0 gave NaN, now refused),
         # which made test_fd_hetero_2d_elastic_bpt2 fail on rho.
-        gcfg["gradfreqs"] = dfm * np.arange(1, g0NT // 2)
+        # Viscoelastic: bin 0 too. The exact correlation has no 1/w, and bin 0
+        # carries the static part of its end-of-record terms (grad_dft2D_visc.cl):
+        # without it, a record that ends with waves in the grid is off by
+        # several % near the receivers (taus 0.97 on the receiver row).
+        gcfg["gradfreqs"] = dfm * np.arange(0 if L else 1, g0NT // 2)
     g, _ = mk(gradout=1, back_prop_type=bpt, **gcfg)
     g.file_din = din
     g.set_forward(g.src_pos_all[3, :], init, withgrad=True)
@@ -1657,7 +1661,8 @@ def _visco_physical_directions(srctype, seisout, tau=0.1, F0=25.0, FLf=(1.0, 4.0
         return t.misfit(t.read_data(), dobs=dobs)[0]
 
     NT, DT = int(s0.NT), float(s0.dt)
-    g, _ = mk(gradout=1, back_prop_type=2, gradfreqs=(1.0 / (NT * DT)) * np.arange(1, NT // 2))
+    # Every bin, bin 0 included (viscoelastic: see _fd_hetero).
+    g, _ = mk(gradout=1, back_prop_type=2, gradfreqs=(1.0 / (NT * DT)) * np.arange(0, NT // 2))
     g.file_din = din
     g.set_forward(g.src_pos_all[3, :], start, withgrad=True)
     g.execute()

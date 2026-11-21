@@ -868,6 +868,14 @@ int initialize_adj(model * m, device ** dev, int s, int * pdir){
                     __GUARD clbuf_copy(&(*dev)[d].queue,
                                        &(*dev)[d].vars[i].cl_fvar,
                                        &(*dev)[d].vars[i].cl_fvar_f);
+                    /* Viscoelastic: keep the forward final state for the
+                     * end-of-record terms of the correlation, before init_f
+                     * zeroes cl_var for the adjoint run. */
+                    if ((*dev)[d].vars[i].cl_var_e.size>0){
+                        __GUARD clbuf_copy(&(*dev)[d].queue,
+                                           &(*dev)[d].vars[i].cl_var,
+                                           &(*dev)[d].vars[i].cl_var_e);
+                    }
                     if (m->DFTOUT){
                         __GUARD clbuf_read(&(*dev)[d].queue,
                                            &(*dev)[d].vars[i].cl_fvar);

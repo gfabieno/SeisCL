@@ -100,89 +100,77 @@ LFUNDEF double itreal(float2 a, float2 b)
     return (double)a.y*(double)b.x - (double)a.x*(double)b.y;
 }
 
-/* calc_grad.c's cl_rm: the memory-variable correlation. */
-/* calc_grad.c's cl_rm: Re(conj(a)*(tausig + 1/(i*w))*b), i.e. <r~, tausig*r + R>
- * with R the alternative memory variable dt(R) = r (thesis eq. 3.16). That IS
- * A2b's <R~, (1+tausig*dt)r> integrated by parts, using r~ = -dt(R~)
- * (thesis eq. 3.33) -- so the operator itself was never wrong.
+/* End-of-record terms of the exact discrete correlation (notes
+ * viscoelastic-gradient-theory.md, 2026-11-20; per-cell check
+ * fd-invest/exact/cell_check.py, exact to round-off).
  *
- * What was wrong is the DISCRETIZATION. The memory variables are advanced by
- * CRANK-NICOLSON (thesis eq. 2.47), not by the leapfrog centred differences
- * the stresses and velocities use, and CN is the bilinear (Tustin) transform:
- *     i*w  <->  i*(2/dt)*tan(w*dt/2),
- * so the discrete integral is
- *     1/(i*w)  <->  -i*(dt/2)*cot(w*dt/2).
- * That is PURELY IMAGINARY -- CN introduces no real part -- so only 1/w is
- * replaced and tausig is untouched. (An earlier attempt used the inverse of
- * the leapfrog forward-difference operator instead, which does carry a real
- * part, and made taup/taus worse: interior 1.4436 -> 1.9555.)
- *
- * The leapfrog variables keep their own symbol (see sdt/s2dt in the d-terms):
- * two discretizations, two symbols. */
-LFUNDEF double rmreal(float2 a, float2 b, double tausig, double w)
+ * K(w)^-1 is a recursive (relaxation) filter. The DFT of a record that ends
+ * with waves still in the grid is not K^-1 times the DFT of the increments:
+ * the forward memory variables carry the end of the record round onto its
+ * start, and the adjoint ones carry its start onto its end. Per mode m (scalar
+ * moduli: unrelaxed Gm, memory Eh = E*DT, relaxed K0 = Gm - L Eh), with
+ * a = b c, u = exp(-i w DT), z = conj(u), N = NT - TMIN:
+ *   forward:  u K Q = X + u^N [ s_e + sum_l DT2 u (1+a)/(1 - a u) r_e ]
+ *             (s_e, r_e: forward state after the last update, saved in
+ *             <var>_e before the adjoint run)
+ *   adjoint:  conj(K) Lam = A/DT - sum_l beta_l/(1 - a z),
+ *             beta_l = a DT2 (1+a)/(b eta) r~_l + b Eh lam1,
+ *             lam1 = [ s~ + sum_l DT2 (1+a)/(b eta) r~_l ] / K0
+ *             (s~, r~: adjoint state at t = TMIN+1, still in the buffers)
+ *   and the memory-modulus gradient gains
+ *             Re[ sum_l (beta_l/Eh)/(1 - a u) dEh u Q ].
+ * end_adj() builds beta_l and beta_l/Eh once per cell and mode; end_freq()
+ * gives, per frequency, the forward term to add to X, DT x the adjoint term to
+ * subtract from A, and Y = sum_l (beta_l/Eh)/(1 - a u). */
+LFUNDEF void end_adj(GLOBARG float *FL, double sa, const double *ra,
+                     double K0, double Eh, double *bet, double *betE)
 {
-    double th  = 0.5*w*(double)DT;
-    double iwd = 0.5*(double)DT*cos(th)/sin(th);   /* discrete 1/w */
-    return tausig*((double)a.x*(double)b.x + (double)a.y*(double)b.y)
-         + ((double)a.x*(double)b.y - (double)a.y*(double)b.x)*iwd;
-}
-
-/* calc_grad.c's cl_integral: divide the spectrum by i*w. */
-/* calc_grad.c's cl_integral: a/(i*w). Crank-Nicolson's discrete integral is
- * -i*(dt/2)*cot(w*dt/2) -- same form, warped frequency, no real part. See
- * rmreal above. */
-/* The memory variable enters the stress as the AVERAGE (r^n + r^{n+1})/2 (see
- * update_s2D.cl: DT2*sum(r) is added both before and after the update), whose
- * symbol is
- *     (1+z)/2 = cos(th)*e^{-i*th},   th = w*dt/2,  z = e^{-i*w*dt}
- * while savefreqs DFTs r at INTEGER steps and therefore stores plain R. The
- * stored spectrum has to be corrected by that factor before it is correlated.
- * SEISCL_HALFSTEP_SGN flips the sign of the phase for the time-reversed field. */
-#ifndef HSGN
-#define HSGN (-1.0)
-#endif
-LFUNDEF float2 halfstep(float2 a, double w, double sgn)
-{
-    double th = 0.5*w*(double)DT;
-    double cr = cos(th)*cos(th);
-    double ci = sgn*sin(th)*cos(th);
-    float2 o;
-    o.x = (float)((double)a.x*cr - (double)a.y*ci);
-    o.y = (float)((double)a.x*ci + (double)a.y*cr);
-    return o;
-}
-
-LFUNDEF float2 integ(float2 a, double w)
-{
-    double th  = 0.5*w*(double)DT;
-    double iwd = 0.5*(double)DT*cos(th)/sin(th);   /* discrete 1/w */
-    float2 o;
-    o.x = (float)((double)a.y*iwd);
-    o.y = (float)(-(double)a.x*iwd);
-    return o;
-}
-
-/* grad_coefvisc_1's c[2]/c[5]/c[10]/c[13] group -- the shear-stress
- * correlation's own coefficients -- depends only on mu and taus, evaluated
- * at the staggered muipkp/tausipkp rather than the cell-centred ones. See
- * calc_grad.c's shear_stag_coef, which this mirrors exactly. */
-LFUNDEF void shear_stag_coef(double mu_s, double taus_s, double al, double L,
-                              double *c2, double *c5, double *c10, double *c13)
-{
-    *c2=0.0; *c5=0.0; *c10=0.0; *c13=0.0;
-    if (mu_s>=1.0){
-        if (L>0.0 && taus_s!=0.0){
-            double Lst  = 1.0+L*taus_s;
-            double ist  = 1.0+al*taus_s;
-            double imu2 = 1.0/(mu_s*mu_s);
-            *c2  = ist*imu2/Lst;
-            *c5  = ist*imu2/taus_s;
-            *c10 = (L-al)/(mu_s*Lst*Lst);
-            *c13 = 1.0/(mu_s*taus_s*taus_s);
-        } else {
-            *c2 = 1.0/(mu_s*mu_s);
-        }
+    double v = sa;
+    for (int l=0; l<LVE; l++){
+        double et = 2.0*3.14159265358979323846*(double)FL[l]*(double)DT;
+        double bb = 1.0/(1.0+0.5*et), aa = bb*(1.0-0.5*et);
+        v += 0.5*(double)DT*(1.0+aa)/(bb*et)*ra[l];
     }
+    double lam1 = (K0!=0.0) ? v/K0 : 0.0;
+    for (int l=0; l<LVE; l++){
+        double et = 2.0*3.14159265358979323846*(double)FL[l]*(double)DT;
+        double bb = 1.0/(1.0+0.5*et), aa = bb*(1.0-0.5*et);
+        double c1 = aa*0.5*(double)DT*(1.0+aa)/(bb*et);
+        bet[l]  = c1*ra[l] + bb*Eh*lam1;
+        betE[l] = ((Eh!=0.0) ? c1*ra[l]/Eh : 0.0) + bb*lam1;
+    }
+}
+
+LFUNDEF void end_freq(GLOBARG float *FL, double wdt, double nwdt,
+                      double se, const double *re,
+                      const double *bet, const double *betE,
+                      double *bfr, double *bfi, double *bar, double *bai,
+                      double *yr, double *yi)
+{
+    double ur = cos(wdt), ui = -sin(wdt);
+    double sr = se, si = 0.0;
+    double ar = 0.0, ai = 0.0, wr = 0.0, wi = 0.0;
+    for (int l=0; l<LVE; l++){
+        double et = 2.0*3.14159265358979323846*(double)FL[l]*(double)DT;
+        double bb = 1.0/(1.0+0.5*et), aa = bb*(1.0-0.5*et);
+        double dr = 1.0-aa*ur, di = -aa*ui, dn = dr*dr+di*di;
+        double ir = dr/dn, ii = -di/dn;                    /* 1/(1 - a u) */
+        double c = 0.5*(double)DT*(1.0+aa)*re[l];
+        sr += c*(ur*ir - ui*ii); si += c*(ur*ii + ui*ir);  /* DT2 u(1+a)/(1-au) r_e */
+        ar += bet[l]*ir;  ai -= bet[l]*ii;                 /* beta/(1 - a z) */
+        wr += betE[l]*ir; wi += betE[l]*ii;
+    }
+    double nr = cos(nwdt), ni = -sin(nwdt);                /* u^N */
+    *bfr = nr*sr - ni*si; *bfi = nr*si + ni*sr;
+    *bar = (double)DT*ar; *bai = (double)DT*ai;
+    *yr = wr; *yi = wi;
+}
+
+/* Re(y x / k), complex y, x, k. */
+LFUNDEF double re_yxk(double yr, double yi, double xr, double xi, double kr, double ki)
+{
+    double pr = yr*xr - yi*xi, pi = yr*xi + yi*xr;
+    return (pr*kr + pi*ki)/(kr*kr + ki*ki);
 }
 
 FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
@@ -219,6 +207,18 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
                           GLOBARG float2 * frxx,
                           GLOBARG float2 * frzz,
                           GLOBARG float2 * frxz,
+                          GLOBARG PARARG * sxx_e,
+                          GLOBARG PARARG * szz_e,
+                          GLOBARG PARARG * sxz_e,
+                          GLOBARG PARARG * rxx_e,
+                          GLOBARG PARARG * rzz_e,
+                          GLOBARG PARARG * rxz_e,
+                          GLOBARG PARARG * sxx,
+                          GLOBARG PARARG * szz,
+                          GLOBARG PARARG * sxz,
+                          GLOBARG PARARG * rxx,
+                          GLOBARG PARARG * rzz,
+                          GLOBARG PARARG * rxz,
                           GLOBARG float * src,
                           GLOBARG float * src_pos,
                           int nsrc,
@@ -265,9 +265,6 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
 
     const double NDd = (double)ND;
     const double Ld  = (double)LVE;
-    /* calc_grad.c sets al=0 unconditionally (its only assignment), so every
-     * (1+al*tau) factor in grad_coefvisc_1 is 1. Kept named rather than
-     * folded away so the expressions stay comparable with the host. */
     /* The GSLS phase-velocity normalization. M()/mu() (assign_modeling_case.c)
      * divide the stored moduli by (1 + alpha*tau) so that the phase velocity
      * at f0 equals the vp/vs the user supplied -- the elastic convention. The
@@ -322,6 +319,29 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
     int live = (rho_p>0.0) && (mu_p>=1.0) && (2.0*gg-ff>0.0);
     int livex = (muipkp_p>=1.0);
 
+    /* End-of-record terms: final states per mode (p = xx+zz, m = xx-zz,
+     * x = xz), see end_adj above. */
+    double sep, sem, sex, rep[LVE], rem[LVE], rex[LVE];
+    double bep[LVE], bem[LVE], bex[LVE], bEp[LVE], bEm[LVE], bEx[LVE];
+    {
+        int i0 = indf(0,i,k);
+        double fxx = (double)PARCONV(sxx_e[i0]), fzz = (double)PARCONV(szz_e[i0]);
+        double axx = (double)PARCONV(sxx[i0]),   azz = (double)PARCONV(szz[i0]);
+        double rap[LVE], ram[LVE], rax[LVE];
+        sep = fxx+fzz; sem = fxx-fzz; sex = (double)PARCONV(sxz_e[i0]);
+        for (l=0; l<LVE; l++){
+            int il = indr(0,l,i,k);
+            double gxx = (double)PARCONV(rxx_e[il]), gzz = (double)PARCONV(rzz_e[il]);
+            double hxx = (double)PARCONV(rxx[il]),   hzz = (double)PARCONV(rzz[il]);
+            rep[l] = gxx+gzz; rem[l] = gxx-gzz; rex[l] = (double)PARCONV(rxz_e[il]);
+            rap[l] = hxx+hzz; ram[l] = hxx-hzz; rax[l] = (double)PARCONV(rxz[il]);
+        }
+        end_adj(FL, axx+azz, rap, (2.0*gg-ff) - Ld*(2.0*ee-dd), 2.0*ee-dd, bep, bEp);
+        end_adj(FL, axx-azz, ram, ff - Ld*dd, dd, bem, bEm);
+        end_adj(FL, (double)PARCONV(sxz[i0]), rax, fx - Ld*dx, dx, bex, bEx);
+    }
+    double nwdt0 = (double)DT*(double)(NT - TMIN);
+
     /* Which source, if any, sits in this cell (eq. 26a source term). */
     /* A FORCE source is the mirror case: velocity block only, so it
      * corrects d8x/d8y/d8z (hence the STAGGERED buoyancy slots) and
@@ -348,6 +368,9 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         double sdt  = sin(wdt)/(double)DT;
         double s2dt = 2.0*sin(0.5*wdt)*sin(0.5*wdt)/(double)DT;
         int id = indf(f,i,k);
+        /* Each bin stands for the pair (+f, -f); bin 0 and the Nyquist bin are
+         * their own pair and count half. Bin 0 is allowed: no 1/w remains. */
+        double dnf = dftnorm/(((int)gradfreqsn[f]==0 || 2*(int)gradfreqsn[f]==NTNYQ) ? 0.5 : 1.0);
 
         /* phi(w) */
         double ur = cos(wdt), ui = -sin(wdt);
@@ -415,8 +438,22 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         double Xxr = s2dt*(double)Fxz.x - sdt*(double)Fxz.y;
         double Xxi = s2dt*(double)Fxz.y + sdt*(double)Fxz.x;
 
-        /* conj(A) X / K^2 for the three modes (complex). */
+        /* End-of-record terms: X += forward term, A -= adjoint term. */
+        double Ypr, Ypi, Ymr, Ymi, Yxr, Yxi;
+        {
+            double bfr, bfi, bar, bai;
+            end_freq(FL, wdt, w*nwdt0, sep, rep, bep, bEp, &bfr, &bfi, &bar, &bai, &Ypr, &Ypi);
+            Xpr += bfr; Xpi += bfi; Apr -= bar; Api -= bai;
+            end_freq(FL, wdt, w*nwdt0, sem, rem, bem, bEm, &bfr, &bfi, &bar, &bai, &Ymr, &Ymi);
+            Xmr += bfr; Xmi += bfi; Amr -= bar; Ami -= bai;
+            end_freq(FL, wdt, w*nwdt0, sex, rex, bex, bEx, &bfr, &bfi, &bar, &bai, &Yxr, &Yxi);
+            Xxr += bfr; Xxi += bfi; Axz.x -= (float)bar; Axz.y -= (float)bai;
+        }
+
+        /* conj(A) X / K^2 for the three modes (complex); U = DT Y X / K, the
+         * extra memory-modulus term of the end of the record. */
         double Tpr=0.0, Tpi=0.0, Tmr=0.0, Tmi=0.0, Txr=0.0, Txi=0.0;
+        double Upr=0.0, Umr=0.0, Uxr=0.0;
         if (live){
             double kr = (2.0*gg-ff) - phr*(2.0*ee-dd), ki = -phi_*(2.0*ee-dd);
             double k2r = kr*kr-ki*ki, k2i = 2.0*kr*ki, k2n = k2r*k2r+k2i*k2i;
@@ -426,6 +463,8 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
             k2r = kr*kr-ki*ki; k2i = 2.0*kr*ki; k2n = k2r*k2r+k2i*k2i;
             cr = Amr*Xmr + Ami*Xmi; ci = Amr*Xmi - Ami*Xmr;
             Tmr = (cr*k2r + ci*k2i)/k2n; Tmi = (ci*k2r - cr*k2i)/k2n;
+            Upr = (double)DT*re_yxk(Ypr, Ypi, Xpr, Xpi, (2.0*gg-ff) - phr*(2.0*ee-dd), -phi_*(2.0*ee-dd));
+            Umr = (double)DT*re_yxk(Ymr, Ymi, Xmr, Xmi, ff - phr*dd, -phi_*dd);
         }
         if (livex){
             double kr = fx - phr*dx, ki = -phi_*dx;
@@ -433,19 +472,21 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
             double cr = (double)Axz.x*Xxr + (double)Axz.y*Xxi;
             double ci = (double)Axz.x*Xxi - (double)Axz.y*Xxr;
             Txr = (cr*k2r + ci*k2i)/k2n; Txi = (ci*k2r - cr*k2i)/k2n;
+            Uxr = (double)DT*re_yxk(Yxr, Yxi, Xxr, Xxi, fx - phr*dx, -phi_*dx);
         }
-        double nrm = sc_ss/dftnorm;
+        double nrm = sc_ss/dnf;
         /* dK/dg = 2 v1 v1^T, dK/df = -v1 v1^T + v2 v2^T, dK/de = -phi dK/dg, ... */
         double Pg = Tpr;                         /* Re(conj(App) Xpp / Kp^2) */
         double Pf = -0.5*Tpr + 0.5*Tmr;
-        double Pe = -(phr*Tpr - phi_*Tpi);       /* Re(-phi T) */
-        double Pd = -(phr*(-0.5*Tpr + 0.5*Tmr) - phi_*(-0.5*Tpi + 0.5*Tmi));
+        double Pe = -(phr*Tpr - phi_*Tpi) + Upr;          /* Re(-phi T) + end term */
+        double Pd = -(phr*(-0.5*Tpr + 0.5*Tmr) - phi_*(-0.5*Tpi + 0.5*Tmi))
+                    - 0.5*Upr + 0.5*Umr;
         Gg  += -nrm*Pg;
         Gf  += -nrm*Pf;
         Ge  += -nrm*Pe;
         Gd  += -nrm*Pd;
         Gfx += -nrm*Txr;
-        Gdx += -nrm*(-(phr*Txr - phi_*Txi));
+        Gdx += -nrm*(-(phr*Txr - phi_*Txi) + Uxr);
 
         /* Velocity block: a FORCE source's eq. (26a) term, mirroring the
          * trace above. savefreqs omits the injection here too, so the forward
@@ -460,9 +501,9 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
         if (sstype==0){ Fvx.x += (float)((double)DT*(double)DTNYQ)*Sd.x; Fvx.y += (float)((double)DT*(double)DTNYQ)*Sd.y; }
         if (sstype==2){ Fvz.x += (float)((double)DT*(double)DTNYQ)*Sd.x; Fvz.y += (float)((double)DT*(double)DTNYQ)*Sd.y; }
         double d8x = sc_vv*((sdt*itreal(Avx, Fvx) + s2dt*rreal(Avx, Fvx))
-                     - (sstype==0 ? rreal(Avx, S) : 0.0))/dftnorm;
+                     - (sstype==0 ? rreal(Avx, S) : 0.0))/dnf;
         double d8z = sc_vv*((sdt*itreal(Avz, Fvz) + s2dt*rreal(Avz, Fvz))
-                     - (sstype==2 ? rreal(Avz, S) : 0.0))/dftnorm;
+                     - (sstype==2 ? rreal(Avz, S) : 0.0))/dnf;
         Grip += -d8x;
         Grkp += -d8z;
     }

@@ -61,27 +61,11 @@ int Init_model_values(model * m) {
     }
     __GUARD m->check_stability( (void*) m);
 
-    /* A gradient frequency below the DFT resolution df = 1/(NT dt) falls in
-       bin 0 (gradfreqsn = floor(f/df)), where the viscoelastic correlation
-       divides by sin(0) (grad_dft*_visc.cl, integ): the whole gradient came
-       back NaN, without any message. */
-    if (m->GRADOUT==1 && m->BACK_PROP_TYPE==2 && m->L>0){
-        {
-        float * gfn = get_cst(m->csts, m->ncsts, "gradfreqsn")->gl_cst;
-        float * gf = get_cst(m->csts, m->ncsts, "gradfreqs")->gl_cst;
-        double df = 1.0/((double)m->NTNYQ*(double)m->dt*(double)m->DTNYQ);
-        for (i=0;i<m->NFREQS;i++){
-            if (gfn[i]<1){
-                fprintf(stderr, "Error: gradfreqs contains %g Hz, below the "
-                        "frequency resolution of the record (1/(NT*dt) = %g Hz). "
-                        "A viscoelastic gradient (L>0) cannot use it: remove "
-                        "it, or model a longer record.\n", gf[i], df);
-                state=1;
-                break;
-            }
-        }
-        }
-    }
+    /* Bin 0 (a gradient frequency below 1/(NT dt)) used to be refused for
+       L>0: the old viscoelastic correlation divided by sin(0). The exact
+       correlation (grad_dft*_visc.cl) has no 1/w, and bin 0 carries the
+       static part of the end-of-record terms, so it is allowed again; it
+       counts half, like the Nyquist bin. */
 
     float srcmax;
     if (m->FP16!=0){
