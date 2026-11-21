@@ -144,6 +144,9 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
     for (f=0; f<NFREQS; f++){
 
         double w = 2.0*3.14159265358979323846*dftdf*(double)gradfreqsn[f];
+        /* One-sided sum over bins: bins 0 and Nyquist stand for one
+         * frequency each, every other bin for +f and -f, so they count half. */
+        double dnf = dftnorm/(((int)gradfreqsn[f]==0 || 2*(int)gradfreqsn[f]==NTNYQ) ? 0.5 : 1.0);
         /* Exact discrete equivalent of back_prop_type 1's quadrature: see
          * grad_dft3D.cl. */
         double wdt  = w*(double)DT;
@@ -178,15 +181,15 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
 
         float2 Fxy = fsxy_f[id], Fyz = fsyz_f[id];
         float2 Axy = fsxy[id],   Ayz = fsyz[id];
-        double d2xy = sc_ss*(sdt*itreal(Axy, Fxy) + s2dt*rreal(Axy, Fxy))/dftnorm;
-        double d2yz = sc_ss*(sdt*itreal(Ayz, Fyz) + s2dt*rreal(Ayz, Fyz))/dftnorm;
+        double d2xy = sc_ss*(sdt*itreal(Axy, Fxy) + s2dt*rreal(Axy, Fxy))/dnf;
+        double d2yz = sc_ss*(sdt*itreal(Ayz, Fyz) + s2dt*rreal(Ayz, Fyz))/dnf;
 
         /* Velocity block (3-D d8y): vy, its force source restored with the
          * FIELD weight DT*DTNYQ, and the eq. (26a) term. */
         float2 Fvy = fvy_f[id], Avy = fvy[id];
         if (sstype==1){ Fvy.x += (float)((double)DT*(double)DTNYQ)*Sd.x; Fvy.y += (float)((double)DT*(double)DTNYQ)*Sd.y; }
         double d8y = sc_vv*((sdt*itreal(Avy, Fvy) + s2dt*rreal(Avy, Fvy))
-                     - (sstype==1 ? rreal(Avy, S) : 0.0))/dftnorm;
+                     - (sstype==1 ? rreal(Avy, S) : 0.0))/dnf;
 
         gmuipjp += -d2xy*imuipjp2;
         gmujpkp += -d2yz*imujpkp2;

@@ -223,6 +223,9 @@ typedef struct variable{
                          * correlation can run on the device instead of round
                          * tripping both spectra over PCIe. */
     clbuf cl_fvar_adj;  /* host-only mirror of the adjoint spectrum */
+    clbuf cl_var_e;     /* forward final state (BACK_PROP_TYPE==2, L>0): the
+                         * end-of-record terms of the viscoelastic DFT
+                         * correlation (grad_dft*_visc.cl) */
     clbuf cl_buf1;
     clbuf cl_buf2;
     clbuf cl_var_res;

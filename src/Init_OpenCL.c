@@ -1017,6 +1017,13 @@ int Init_CUDA(model * m, device ** dev)  {
                  * below. */
                 di->vars[i].cl_fvar_f.size= di->vars[i].cl_fvar.size;
                 __GUARD clbuf_create(di->context_ptr,&di->vars[i].cl_fvar_f);
+                /* Viscoelastic: the forward final state, copied before the
+                 * adjoint run reuses cl_var (time_stepping.c, initialize_adj).
+                 * One wavefield, not one per frequency. */
+                if (m->L>0){
+                    di->vars[i].cl_var_e.size= di->vars[i].cl_var.size;
+                    __GUARD clbuf_create(di->context_ptr,&di->vars[i].cl_var_e);
+                }
             }
             
             // If we want the movie, allocate memory for variables

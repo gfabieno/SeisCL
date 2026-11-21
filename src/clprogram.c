@@ -1156,6 +1156,15 @@ int prog_create(model * m,
                     argfound=1;
                     break;
                 }
+                /* <var>_e: the forward final state (viscoelastic DFT
+                 * correlation); <var> alone is the live buffer, which holds
+                 * the adjoint final state when calc_grad_dft runs. */
+                sprintf(str2comp,"%s_e",(*dev).vars[j].name);
+                if (strcmp(str2comp,(*prog).input_list[i])==0){
+                    prog_arg(prog, i, &(*dev).vars[j].cl_var_e.mem, memsize);
+                    argfound=1;
+                    break;
+                }
                 sprintf(str2comp,"%s_buf1",(*dev).vars[j].name);
                 if (strcmp(str2comp,(*prog).input_list[i])==0){
                     prog_arg(prog, i, &(*dev).vars[j].cl_buf1.mem, memsize);
