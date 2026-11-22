@@ -503,7 +503,12 @@ int kernel_sources(model * m,
            "    int k=(int)(src_pos[2+5*gid]/DH)+FDOH;\n"
            "\n");
 
-    sprintf(temp2,"    if (i-OFFSET<FDOH || i-OFFSET>N%s-FDOH-1){\n",
+    /* Inject in the own cells and in the x halo of an inner cut, which holds
+       the neighbour's copy of the cell: the halo is refreshed only after the
+       next update, so a source within FDOH of a cut would otherwise be
+       missing from the neighbour's stencil for one update (domain
+       decomposition). The outer padding never holds a source. */
+    sprintf(temp2,"    if (i-OFFSET<0 || i-OFFSET>N%s-1){\n",
             dev->N_names[dev->NDIM-1] );
     strcat(temp, temp2);
     strcat(temp,
@@ -761,7 +766,8 @@ int kernel_residuals(device * dev,
            "    int j=(int)(rec_pos[1+8*gid]/DH)+FDOH;\n"
            "    int k=(int)(rec_pos[2+8*gid]/DH)+FDOH;\n\n");
     
-    sprintf(temp2,"    if (i-OFFSET<FDOH || i-OFFSET>N%s-FDOH-1){\n",
+    /* Own cells and the x halo of an inner cut (see kernel_sources). */
+    sprintf(temp2,"    if (i-OFFSET<0 || i-OFFSET>N%s-1){\n",
             dev->N_names[dev->NDIM-1] );
     strcat(temp, temp2);
     strcat(temp,

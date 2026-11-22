@@ -623,6 +623,21 @@ int Init_CUDA(model * m, device ** dev)  {
             if (di->LOCAL_OFF==1){
                 lsize[0] = 1;
             }
+            /* Only the acoustic kernels (ND 22) still implement the
+               LOCAL_OFF fallback (one-dimensional launch); the others would
+               decode a 2-D/3-D index from it and address far outside the
+               grid (Xid 13 on cgm-geo1, 2026-11-21). */
+            if (di->LOCAL_OFF==1 && m->ND!=22){
+                state=1;
+                fprintf(stderr,"Error: device %d (process %d) cannot run "
+                        "the update kernels: it has %d cells along x (at "
+                        "least %d needed: 3 work groups of %d), or its local "
+                        "memory is too small (see the warnings above). With "
+                        "a split shot, use fewer GPUs or processes per shot, "
+                        "or a wider grid.\n",
+                        d, m->GID, di->N[m->NDIM-1],
+                        3*(int)lsize[m->NDIM-1], (int)lsize[m->NDIM-1]);
+            }
             
         }
         
