@@ -1373,15 +1373,10 @@ int Init_CUDA(model * m, device ** dev)  {
                 di->bnd_cnds.rec_grad_s.gsize[0]=1;
             }
         }
-        /* Exact CPML adjoint filters (cpml_adj2D.cl): one thread per cell. The
-           scratch buffers have no halo exchange, so a single device only. */
+        /* Exact CPML adjoint filters (cpml_adj2D.cl): one thread per cell. With
+           several subdomains, also the x halo of each inner cut, where they copy
+           the exchanged adjoint field (header_vec.cl, CPML_XH0 / CPML_XH1). */
         if (m->bnd_cnds.cpml_adj_v.name){
-            if (m->NUM_DEVICES!=1 || m->NLOCALP!=1){
-                state=1;
-                fprintf(stderr,"Error: gradients with abs_type=1 (CPML) and "
-                               "back_prop_type=1 need a single device and "
-                               "a single process per shot\n");
-            }
             di->bnd_cnds.cpml_adj_v=m->bnd_cnds.cpml_adj_v;
             __GUARD prog_create(m, di, &di->bnd_cnds.cpml_adj_v);
             di->bnd_cnds.cpml_adj_s=m->bnd_cnds.cpml_adj_s;
@@ -1391,6 +1386,12 @@ int Init_CUDA(model * m, device ** dev)  {
             for (i=0;i<m->NDIM;i++){
                 di->bnd_cnds.cpml_adj_v.gsize[i]=di->N[i];
                 di->bnd_cnds.cpml_adj_s.gsize[i]=di->N[i];
+            }
+            {
+                int nhx = ((d>0 || m->MYLOCALID>0) ? m->FDOH : 0)
+                        + ((d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1) ? m->FDOH : 0);
+                di->bnd_cnds.cpml_adj_v.gsize[m->NDIM-1]+=nhx;
+                di->bnd_cnds.cpml_adj_s.gsize[m->NDIM-1]+=nhx;
             }
         }
         //TODO Boundary conditions should be included in the update kernel

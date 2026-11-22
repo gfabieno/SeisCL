@@ -36,7 +36,9 @@
  * fields there instead (header_vec.cl, load_tile*_cpf). Without tiles (NOTILE) they are
  * written in the layers and in a band next to them (NT_SKIP2).
  * Checked against the exact matrix transpose of the time step (3.8e-16),
- * notes: torch-robust/cpmladj/ref.py. Single device only (assign_modeling_case.c).
+ * notes: torch-robust/cpmladj/ref.py. With domain decomposition along x, only
+ * the first and last subdomains have x layers; an inner cut gets identity copies
+ * over its halo (CPML_X, HALO_X in header_vec.cl).
  */
 
 #define psi_sxx_xr_I(z,x) ((x)*(NZS-2*FDOH)+(z))
@@ -62,14 +64,15 @@ FUNDEF void cpml_adj_v(GLOBARG const STO * RESTRICT vxr,  GLOBARG const STO * RE
 {
 #ifdef __OPENCL_VERSION__
     int gidz = get_global_id(0)+FDOH;
-    int gidx = get_global_id(1)+FDOH;
+    int gidx = get_global_id(1)+FDOH-CPML_XH0;
 #else
     int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
-    int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH;
+    int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH-CPML_XH0;
 #endif
-    if (gidz>NZS-FDOH-1 || gidx>NX-FDOH-1){
+    if (gidz>NZS-FDOH-1 || gidx>NX-FDOH-1+CPML_XH1){
         return;
     }
+    int hx = CPML_HALOX(gidx);   /* x halo of an inner cut: identity copies */
 #if NOTILE
     if (NT_SKIP2(gidz, gidx)) return;      /* no adjoint update reads the copy here (header_vec.cl) */
 #else
@@ -80,7 +83,7 @@ FUNDEF void cpml_adj_v(GLOBARG const STO * RESTRICT vxr,  GLOBARG const STO * RE
     float ex = ldf(vxr, indv), ez = ldf(vzr, indv);
     float fa = ex, fb = ex, fc = ez, fd = ez;
 
-    if (gidz>NZS-NAB-FDOH-1){
+    if (!hx && gidz>NZS-NAB-FDOH-1){
         i =gidx-FDOH;
         k =gidz - NZS+NAB+FDOH+NAB;
         ind=2*NAB-1-k;
@@ -90,7 +93,7 @@ FUNDEF void cpml_adj_v(GLOBARG const STO * RESTRICT vxr,  GLOBARG const STO * RE
         fc = ez / K_z_half[ind] + psi_szz_zr[psi_szz_zr_I(k,i)];
     }
 #if FREESURF==0
-    else if (gidz-FDOH<NAB){
+    else if (!hx && gidz-FDOH<NAB){
         i =gidx-FDOH;
         k =gidz-FDOH;
         { float ps = b_z[k] * psi_sxz_zr[psi_sxz_zr_I(k,i)] + a_z[k] * ex; psi_sxz_zr[psi_sxz_zr_I(k,i)] = ps; }
@@ -99,7 +102,7 @@ FUNDEF void cpml_adj_v(GLOBARG const STO * RESTRICT vxr,  GLOBARG const STO * RE
         fc = ez / K_z_half[k] + psi_szz_zr[psi_szz_zr_I(k,i)];
     }
 #endif
-    if (gidx-FDOH<NAB){
+    if (X_FIRST && gidx-FDOH<NAB){
         i =gidx-FDOH;
         k =gidz-FDOH;
         { float ps = b_x_half[i] * psi_sxx_xr[psi_sxx_xr_I(k,i)] + a_x_half[i] * ex; psi_sxx_xr[psi_sxx_xr_I(k,i)] = ps; }
@@ -107,7 +110,7 @@ FUNDEF void cpml_adj_v(GLOBARG const STO * RESTRICT vxr,  GLOBARG const STO * RE
         { float ps = b_x[i] * psi_sxz_xr[psi_sxz_xr_I(k,i)] + a_x[i] * ez; psi_sxz_xr[psi_sxz_xr_I(k,i)] = ps; }
         fd = ez / K_x[i] + psi_sxz_xr[psi_sxz_xr_I(k,i)];
     }
-    if (gidx>NX-NAB-FDOH-1){
+    if (X_LAST && gidx>NX-NAB-FDOH-1){
         i =gidx - NX+NAB+FDOH+NAB;
         k =gidz-FDOH;
         ind=2*NAB-1-i;
@@ -137,14 +140,15 @@ FUNDEF void cpml_adj_s(GLOBARG const STO * RESTRICT sxxr, GLOBARG const STO * RE
 {
 #ifdef __OPENCL_VERSION__
     int gidz = get_global_id(0)+FDOH;
-    int gidx = get_global_id(1)+FDOH;
+    int gidx = get_global_id(1)+FDOH-CPML_XH0;
 #else
     int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
-    int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH;
+    int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH-CPML_XH0;
 #endif
-    if (gidz>NZS-FDOH-1 || gidx>NX-FDOH-1){
+    if (gidz>NZS-FDOH-1 || gidx>NX-FDOH-1+CPML_XH1){
         return;
     }
+    int hx = CPML_HALOX(gidx);   /* x halo of an inner cut: identity copies */
 #if NOTILE
     if (NT_SKIP2(gidz, gidx)) return;      /* no adjoint update reads the copy here (header_vec.cl) */
 #else
@@ -155,7 +159,7 @@ FUNDEF void cpml_adj_s(GLOBARG const STO * RESTRICT sxxr, GLOBARG const STO * RE
     float exx = ldf(sxxr, indv), ezz = ldf(szzr, indv), exz = ldf(sxzr, indv);
     float fa = exx, fb = exz, fc = ezz, fd = exz;
 
-    if (gidz>NZS-NAB-FDOH-1){
+    if (!hx && gidz>NZS-NAB-FDOH-1){
         i =gidx-FDOH;
         k =gidz - NZS+NAB+FDOH+NAB;
         ind=2*NAB-1-k;
@@ -165,7 +169,7 @@ FUNDEF void cpml_adj_s(GLOBARG const STO * RESTRICT sxxr, GLOBARG const STO * RE
         fc = ezz / K_z[ind+1] + psi_vz_zr[psi_vz_zr_I(k,i)];
     }
 #if FREESURF==0
-    else if (gidz-FDOH<NAB){
+    else if (!hx && gidz-FDOH<NAB){
         i =gidx-FDOH;
         k =gidz-FDOH;
         { float ps = b_z_half[k] * psi_vx_zr[psi_vx_zr_I(k,i)] + a_z_half[k] * exz; psi_vx_zr[psi_vx_zr_I(k,i)] = ps; }
@@ -174,7 +178,7 @@ FUNDEF void cpml_adj_s(GLOBARG const STO * RESTRICT sxxr, GLOBARG const STO * RE
         fc = ezz / K_z[k] + psi_vz_zr[psi_vz_zr_I(k,i)];
     }
 #endif
-    if (gidx-FDOH<NAB){
+    if (X_FIRST && gidx-FDOH<NAB){
         i =gidx-FDOH;
         k =gidz-FDOH;
         { float ps = b_x[i] * psi_vx_xr[psi_vx_xr_I(k,i)] + a_x[i] * exx; psi_vx_xr[psi_vx_xr_I(k,i)] = ps; }
@@ -182,7 +186,7 @@ FUNDEF void cpml_adj_s(GLOBARG const STO * RESTRICT sxxr, GLOBARG const STO * RE
         { float ps = b_x_half[i] * psi_vz_xr[psi_vz_xr_I(k,i)] + a_x_half[i] * exz; psi_vz_xr[psi_vz_xr_I(k,i)] = ps; }
         fd = exz / K_x_half[i] + psi_vz_xr[psi_vz_xr_I(k,i)];
     }
-    if (gidx>NX-NAB-FDOH-1){
+    if (X_LAST && gidx>NX-NAB-FDOH-1){
         i =gidx - NX+NAB+FDOH+NAB;
         k =gidz-FDOH;
         ind=2*NAB-1-i;

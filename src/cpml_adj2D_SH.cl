@@ -39,21 +39,22 @@ FUNDEF void cpml_adj_v(GLOBARG const STO * RESTRICT vyr,
 {
 #ifdef __OPENCL_VERSION__
     int gidz = get_global_id(0)+FDOH;
-    int gidx = get_global_id(1)+FDOH;
+    int gidx = get_global_id(1)+FDOH-CPML_XH0;
 #else
     int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
-    int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH;
+    int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH-CPML_XH0;
 #endif
-    if (gidz>NZS-FDOH-1 || gidx>NX-FDOH-1){
+    if (gidz>NZS-FDOH-1 || gidx>NX-FDOH-1+CPML_XH1){
         return;
     }
+    int hx = CPML_HALOX(gidx);   /* x halo of an inner cut: identity copies */
     int indv = gidx*NZS+gidz;
     int i,k,ind;
     float e = ldf(vyr, indv);
     float fa = e, fb = e;
     float ps;
 
-    if (gidz>NZS-NAB-FDOH-1){
+    if (!hx && gidz>NZS-NAB-FDOH-1){
         i = gidx-FDOH;
         k = gidz-NZS+NAB+FDOH+NAB;
         ind = 2*NAB-1-k;
@@ -62,7 +63,7 @@ FUNDEF void cpml_adj_v(GLOBARG const STO * RESTRICT vyr,
         fb = e/K_z[ind+1] + ps;
     }
 #if FREESURF==0
-    else if (gidz-FDOH<NAB){
+    else if (!hx && gidz-FDOH<NAB){
         i = gidx-FDOH;
         k = gidz-FDOH;
         ps = b_z[k]*psi_syz_zr[PSIZ(k,i)] + a_z[k]*e;
@@ -70,14 +71,14 @@ FUNDEF void cpml_adj_v(GLOBARG const STO * RESTRICT vyr,
         fb = e/K_z[k] + ps;
     }
 #endif
-    if (gidx-FDOH<NAB){
+    if (X_FIRST && gidx-FDOH<NAB){
         i = gidx-FDOH;
         k = gidz-FDOH;
         ps = b_x[i]*psi_sxy_xr[PSIX(k,i)] + a_x[i]*e;
         psi_sxy_xr[PSIX(k,i)] = ps;
         fa = e/K_x[i] + ps;
     }
-    if (gidx>NX-NAB-FDOH-1){
+    if (X_LAST && gidx>NX-NAB-FDOH-1){
         i = gidx-NX+NAB+FDOH+NAB;
         k = gidz-FDOH;
         ind = 2*NAB-1-i;
@@ -97,21 +98,22 @@ FUNDEF void cpml_adj_s(GLOBARG const STO * RESTRICT sxyr, GLOBARG const STO * RE
 {
 #ifdef __OPENCL_VERSION__
     int gidz = get_global_id(0)+FDOH;
-    int gidx = get_global_id(1)+FDOH;
+    int gidx = get_global_id(1)+FDOH-CPML_XH0;
 #else
     int gidz = blockIdx.x*blockDim.x + threadIdx.x+FDOH;
-    int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH;
+    int gidx = blockIdx.y*blockDim.y + threadIdx.y+FDOH-CPML_XH0;
 #endif
-    if (gidz>NZS-FDOH-1 || gidx>NX-FDOH-1){
+    if (gidz>NZS-FDOH-1 || gidx>NX-FDOH-1+CPML_XH1){
         return;
     }
+    int hx = CPML_HALOX(gidx);   /* x halo of an inner cut: identity copies */
     int indv = gidx*NZS+gidz;
     int i,k,ind;
     float exy = ldf(sxyr, indv), eyz = ldf(syzr, indv);
     float fa = exy, fb = eyz;
     float ps;
 
-    if (gidz>NZS-NAB-FDOH-1){
+    if (!hx && gidz>NZS-NAB-FDOH-1){
         i = gidx-FDOH;
         k = gidz-NZS+NAB+FDOH+NAB;
         ind = 2*NAB-1-k;
@@ -120,7 +122,7 @@ FUNDEF void cpml_adj_s(GLOBARG const STO * RESTRICT sxyr, GLOBARG const STO * RE
         fb = eyz/K_z_half[ind] + ps;
     }
 #if FREESURF==0
-    else if (gidz-FDOH<NAB){
+    else if (!hx && gidz-FDOH<NAB){
         i = gidx-FDOH;
         k = gidz-FDOH;
         ps = b_z_half[k]*psi_vy_zr[PSIZ(k,i)] + a_z_half[k]*eyz;
@@ -128,14 +130,14 @@ FUNDEF void cpml_adj_s(GLOBARG const STO * RESTRICT sxyr, GLOBARG const STO * RE
         fb = eyz/K_z_half[k] + ps;
     }
 #endif
-    if (gidx-FDOH<NAB){
+    if (X_FIRST && gidx-FDOH<NAB){
         i = gidx-FDOH;
         k = gidz-FDOH;
         ps = b_x_half[i]*psi_vy_xr[PSIX(k,i)] + a_x_half[i]*exy;
         psi_vy_xr[PSIX(k,i)] = ps;
         fa = exy/K_x_half[i] + ps;
     }
-    if (gidx>NX-NAB-FDOH-1){
+    if (X_LAST && gidx>NX-NAB-FDOH-1){
         i = gidx-NX+NAB+FDOH+NAB;
         k = gidz-FDOH;
         ind = 2*NAB-1-i;

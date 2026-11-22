@@ -392,6 +392,18 @@ LFUNDEF void cpi_upd3(int ind, int g, int n, int low, int H, int o, int pb, int 
 #define CPI_Z(psi) psi + cpi_o*PSI_HZ, cpi_pbz, cpi_psz, zt, NZS, CPI_LOWZ
 #endif
 
+/* ---- domain decomposition along x (time_stepping.c, comm.c) ---------------- */
+/* Only the first subdomain has the low x layer and only the last the high one. The x halo
+   of an inner cut holds the neighbour's cells (exchanged every update): interior cells, not
+   a border. One device and one process: X_FIRST = X_LAST = 1, everything as before. */
+#define X_FIRST (DEVID==0 && MYLOCALID==0)
+#define X_LAST (DEVID==NUM_DEVICES-1 && MYLOCALID==NLOCALP-1)
+/* cpml_adj*: their x range also covers the halo of an inner cut (Init_OpenCL.c), where they
+   write the identity copy (no x layer there; the z and y filters are not read in the halo) */
+#define CPML_XH0 (X_FIRST ? 0 : FDOH)
+#define CPML_XH1 (X_LAST ? 0 : FDOH)
+#define CPML_HALOX(x) ((x)<FDOH || (x)>NX-FDOH-1)
+
 /* ---- exact CPML adjoint (ABS_TYPE 1, BACK_PROP_TYPE 1) -------------------- */
 /* cpml_adj2D/3D.cl filter the adjoint fields into the cpf buffers only in the
    cells of an absorbing layer (CPML_CELL; the top layer only without a free
@@ -406,9 +418,9 @@ LFUNDEF void cpi_upd3(int ind, int g, int n, int low, int H, int o, int pb, int 
 #define CPML_TOPZ(z) 0
 #endif
 #define CPML_Z(z) ((z)>NZS-NAB-FDOH-1 || CPML_TOPZ(z))
-#define CPML_X(x) ((x)-FDOH<NAB || (x)>NX-NAB-FDOH-1)
+#define CPML_X(x) ((X_FIRST && (x)-FDOH<NAB) || (X_LAST && (x)>NX-NAB-FDOH-1))
 #define HALO_Z(z) ((z)<FDOH || (z)>NZS-FDOH-1)
-#define HALO_X(x) ((x)<FDOH || (x)>NX-FDOH-1)
+#define HALO_X(x) ((X_FIRST && (x)<FDOH) || (X_LAST && (x)>NX-FDOH-1))
 #if ND==3
 #define CPML_Y(y) ((y)-FDOH<NAB || (y)>NYS-NAB-FDOH-1)
 #define HALO_Y(y) ((y)<FDOH || (y)>NYS-FDOH-1)
@@ -430,8 +442,8 @@ LFUNDEF void cpi_upd3(int ind, int g, int n, int low, int H, int o, int pb, int 
 #define CPML_ZLO FDOH
 #endif
 #define CPML_ZHI (NZS-NAB-FDOH)
-#define CPML_XLO (FDOH+NAB)
-#define CPML_XHI (NX-NAB-FDOH)
+#define CPML_XLO (X_FIRST ? FDOH+NAB : 0)
+#define CPML_XHI (X_LAST ? NX-NAB-FDOH : NX)
 #if FREESURF==0
 #define CPF_TOPBOX(z1) ((z1) <= CPML_ZLO)
 #else

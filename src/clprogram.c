@@ -889,13 +889,15 @@ int prog_arg(clprogram * prog, int i, void * mem, int size){
 /* Kernel settings measured fastest on Pascal and Ampere GPUs (notes: perf-shared-memory-pipeline).
    Each one is on by default where it applies; SEISCL_<NAME>=0 turns it off.
    * NOTILE: update and adjoint kernels without shared-memory tiles (header_vec.cl). CUDA and
-     OpenCL, one device, every FP16. The exact CPML adjoint then reads the field itself where the stencil
-     box of a work-item is outside the layers, the filtered copy elsewhere (NT_RAW*, NT_SKIP*).
+     OpenCL, every FP16, one or several devices and processes per shot (domain decomposition:
+     the com1 / com2 / center launches of time_stepping.c take the same offsets). The exact CPML
+     adjoint then reads the field itself where the stencil box of a work-item is outside the
+     layers, the filtered copy elsewhere (NT_RAW*, NT_SKIP*).
    * CPMLINL: the exact CPML adjoint is computed inside update_adjs / update_adjv (header_vec.cl)
      instead of cpml_adj_v / cpml_adj_s; the adjoint memories psi_*r are double buffered
      (Init_OpenCL.c) and cpml_adj_* is not launched (time_stepping.c). 3D, NOTILE, FP16 0,
-     back_prop_type 1. The doubled buffers must be covered by the vars_init launch
-     ((N+FDORDER) per dimension); otherwise it is off.
+     back_prop_type 1, one device and one process per shot. The doubled buffers must be covered
+     by the vars_init launch ((N+FDORDER) per dimension); otherwise it is off.
    * MAXRREG_ADJ: under CPMLINL, at most 56 registers for update_adjv / update_adjs on compute
      capability 6.x (Pascal, CUDA); SEISCL_MAXRREG_ADJ=n[,m] sets n for update_adjv, m for update_adjs. */
 static int env_on(const char * name){
@@ -905,12 +907,12 @@ static int env_on(const char * name){
 int notile_on(model * m){
     static int env = -1;
     if (env < 0) env = env_on("SEISCL_NOTILE");
-    return env && m->NUM_DEVICES==1 && m->NLOCALP==1;
+    return env;
 }
 int cpml_inline(model * m){
     static int env = -1;
     if (env < 0) env = env_on("SEISCL_CPMLINL");
-    if (!env || !notile_on(m) || m->ND!=3 || m->ABS_TYPE!=1 || m->BACK_PROP_TYPE!=1 || !m->GRADOUT
+    if (!env || !notile_on(m) || m->NUM_DEVICES!=1 || m->NLOCALP!=1 || m->ND!=3 || m->ABS_TYPE!=1 || m->BACK_PROP_TYPE!=1 || !m->GRADOUT
         || m->FP16!=0 || m->NAB<1)
         return 0;
     long a = (long)m->N[0]*m->N[1], b = (long)m->N[0]*m->N[2], c = (long)m->N[1]*m->N[2];
