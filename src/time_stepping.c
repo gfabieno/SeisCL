@@ -171,6 +171,11 @@ static int dump_dft(model * m, device ** dev, struct filenames files){
     return state;
 }
 
+/* Per-shot store (CKPT_SHOTSTORE), defined below checkpoint_flush(). */
+static int shotstore_slot(model * m, int s, int i);
+static void shotstore_swap_bnd(model * m, device ** dev, int s);
+static void shotstore_swap_var(model * m, device ** dev, int s);
+
 int checkpoint_d2h(model * m, device ** dev, hid_t file_id, int s){
     int state=0;
     int d, i, j;
@@ -205,6 +210,10 @@ int checkpoint_d2h(model * m, device ** dev, hid_t file_id, int s){
             }
         }
     }
+
+    /* CKPT_SHOTSTORE: read the final wavefield straight into shot s's own
+       buffer (no file is written: SKIP_CHECKPOINT_FILE is set with it). */
+    if (m->CKPT_SHOTSTORE) shotstore_swap_var(m, dev, s);
 
     // Transfer all variables to output to host for this time step
     for (d=0;d<m->NUM_DEVICES;d++){
@@ -261,6 +270,10 @@ int checkpoint_d2h(model * m, device ** dev, hid_t file_id, int s){
         }
     }
 
+    /* The reads above were waited for (WAITQUEUE): give the engine its own
+       buffer back. */
+    if (m->CKPT_SHOTSTORE) shotstore_swap_var(m, dev, s);
+
     return state;
 }
 
@@ -273,11 +286,45 @@ int checkpoint_d2h(model * m, device ** dev, hid_t file_id, int s){
  * skip itself is: checkpoint_d2h() runs per shot inside the shot loop, so
  * only the last shot's wavefield is ever in memory.
  */
+static int checkpoint_flush_store(model * m, device ** dev, const char * path) {
+    int s, i, k;
+    char name[100];
+    hsize_t dims[MAX_DIMS];
+    hid_t file_id;
+
+    remove(path);
+    file_id = create_file(path);
+    if (file_id < 0) return 1;
+    for (s = m->src_recs.smin; s < m->src_recs.smax; s++) {
+        for (i = 0; i < m->nvars; i++) {
+            k = shotstore_slot(m, s, i);
+            if (m->CKPT_STORE_VAR[k]) {
+                dims[0] = (*dev)[0].vars[i].num_ele;
+                sprintf(name, "src%d_dev%d_%s", s, 0, (*dev)[0].vars[i].name);
+                writetomat_nocomp(&file_id, name, m->CKPT_STORE_VAR[k], 1, dims);
+            }
+            if (m->CKPT_STORE_BND[k]) {
+                dims[0] = (*dev)[0].vars[i].cl_varbnd.sizepin / sizeof(float);
+                sprintf(name, "src%d_dev%d_%s_bnd", s, 0, (*dev)[0].vars[i].name);
+                writetomat_nocomp(&file_id, name, m->CKPT_STORE_BND[k], 1, dims);
+            }
+        }
+    }
+    H5Fclose(file_id);
+    return 0;
+}
+
 int checkpoint_flush(model * m, device ** dev, const char * path) {
 
     int state = 0;
     int skip;
     hid_t file_id;
+
+    /* Several shots in the per-shot store: write each one from its own
+       buffers, under the names checkpoint_d2h() uses, without touching the
+       device (it holds the last shot only). */
+    if (m->CKPT_SHOTSTORE && m->CKPT_STORE_VAR)
+        return checkpoint_flush_store(m, dev, path);
 
     if (m->src_recs.smax - m->src_recs.smin != 1) return 1;
 
@@ -296,6 +343,126 @@ int checkpoint_flush(model * m, device ** dev, const char * path) {
     H5Fclose(file_id);
 
     return state;
+}
+
+/* ---- Per-shot host buffers (CKPT_SHOTSTORE, see F.h) --------------------
+ * Several shots in one SeisCL.torch gradient: the forward call and the
+ * backward call are two time_stepping() runs, and every shot's final
+ * wavefield and boundary history must survive from the first to the second.
+ * The engine's host buffers hold one shot, so they used to be copied into an
+ * HDF5 file after each shot and back before each adjoint shot (~1.5 GB/s, the
+ * GPU idle meanwhile). With the store, shot s simply uses its own host
+ * buffers: shotstore_swap() exchanges the host pointer of cl_varbnd (for the
+ * whole shot) or cl_var (inside checkpoint_d2h/h2d) with shot s's slot.
+ * A swap is its own inverse, so the same call puts the engine's own buffer
+ * back. Only pointers move: the asynchronous copies already queued keep the
+ * address they were given. One device (NUM_DEVICES == 1, enforced by the
+ * caller), so dev[0] only. */
+static int shotstore_slot(model * m, int s, int i) {
+    return (s - m->src_recs.smin) * m->nvars + i;
+}
+
+static void shotstore_swap_bnd(model * m, device ** dev, int s) {
+    int i;
+    float * tmp;
+    if (!m->CKPT_STORE_BND) return;      /* allocation failed: state is set */
+    for (i = 0; i < m->nvars; i++) {
+        float ** slot = &m->CKPT_STORE_BND[shotstore_slot(m, s, i)];
+        if (!*slot) continue;
+        tmp = (*dev)[0].vars[i].cl_varbnd.host;
+        (*dev)[0].vars[i].cl_varbnd.host = *slot;
+        *slot = tmp;
+    }
+}
+
+static void shotstore_swap_var(model * m, device ** dev, int s) {
+    int i;
+    float * tmp;
+    if (!m->CKPT_STORE_VAR) return;      /* allocation failed: state is set */
+    for (i = 0; i < m->nvars; i++) {
+        float ** slot = &m->CKPT_STORE_VAR[shotstore_slot(m, s, i)];
+        if (!*slot) continue;
+        tmp = (*dev)[0].vars[i].cl_var.host;
+        (*dev)[0].vars[i].cl_var.host = *slot;
+        *slot = tmp;
+    }
+}
+
+void checkpoint_store_free(model * m, device * dev) {
+    int k, n;
+    if (!m->CKPT_STORE_VAR && !m->CKPT_STORE_BND) return;
+    n = m->CKPT_STORE_NS * m->nvars;
+    #ifndef __SEISCL__
+    /* Pinned memory is freed in the context that allocated it. */
+    if (dev && dev[0].context) cuCtxSetCurrent(dev[0].context);
+    #endif
+    for (k = 0; k < n; k++) {
+        if (m->CKPT_STORE_VAR && m->CKPT_STORE_VAR[k]) free(m->CKPT_STORE_VAR[k]);
+        if (m->CKPT_STORE_BND && m->CKPT_STORE_BND[k]) {
+            #ifdef __SEISCL__
+            free(m->CKPT_STORE_BND[k]);
+            #else
+            cuMemFreeHost(m->CKPT_STORE_BND[k]);
+            #endif
+        }
+    }
+    free(m->CKPT_STORE_VAR);
+    free(m->CKPT_STORE_BND);
+    m->CKPT_STORE_VAR = NULL;
+    m->CKPT_STORE_BND = NULL;
+    m->CKPT_STORE_NS = 0;
+}
+
+int checkpoint_store_alloc(model * m, device * dev) {
+    int ns = m->src_recs.smax - m->src_recs.smin;
+    int k, i, n;
+    if (m->CKPT_STORE_VAR && m->CKPT_STORE_NS == ns) return 0;   /* kept from an earlier call */
+    checkpoint_store_free(m, dev);
+    if (m->NUM_DEVICES != 1 || ns < 1) return 1;
+    #ifndef __SEISCL__
+    if (dev[0].context) cuCtxSetCurrent(dev[0].context);
+    #endif
+    n = ns * m->nvars;
+    m->CKPT_STORE_VAR = calloc(n, sizeof(float *));
+    m->CKPT_STORE_BND = calloc(n, sizeof(float *));
+    m->CKPT_STORE_NS = ns;
+    if (!m->CKPT_STORE_VAR || !m->CKPT_STORE_BND) {
+        checkpoint_store_free(m, dev);
+        return 1;
+    }
+    for (k = 0; k < ns; k++) {
+        for (i = 0; i < m->nvars; i++) {
+            variable * v = &dev[0].vars[i];
+            /* buf1/buf2 exist only with several devices: not handled here. */
+            if (v->cl_buf1.host || v->cl_buf2.host) {
+                checkpoint_store_free(m, dev);
+                return 1;
+            }
+            if (v->cl_var.host) {
+                /* checkpoint_d2h/h2d move cl_var.size bytes (half that with
+                   FP16 storage); the engine's own buffer is num_ele floats. */
+                m->CKPT_STORE_VAR[k * m->nvars + i] = malloc(sizeof(float) * v->num_ele);
+                if (!m->CKPT_STORE_VAR[k * m->nvars + i]) {
+                    checkpoint_store_free(m, dev);
+                    return 1;
+                }
+            }
+            if (v->cl_varbnd.host) {
+                void * p = NULL;
+                #ifdef __SEISCL__
+                p = malloc(v->cl_varbnd.sizepin);
+                #else
+                if (cuMemAllocHost(&p, v->cl_varbnd.sizepin) != CUDA_SUCCESS) p = NULL;
+                #endif
+                if (!p) {
+                    checkpoint_store_free(m, dev);
+                    return 1;
+                }
+                m->CKPT_STORE_BND[k * m->nvars + i] = p;
+            }
+        }
+    }
+    return 0;
 }
 
 int checkpoint_h2d(model * m, device ** dev, hid_t file_id, int s) {
@@ -317,6 +484,9 @@ int checkpoint_h2d(model * m, device ** dev, hid_t file_id, int s) {
         WAITQUEUE((*dev)[d].queue);
         if ((*dev)[d].queuecomm) WAITQUEUE((*dev)[d].queuecomm);
     }
+    /* CKPT_SHOTSTORE: send shot s's final wavefield from its own buffer
+       (nothing is read from a file: SKIP_CHECKPOINT_FILE is set with it). */
+    if (m->CKPT_SHOTSTORE) shotstore_swap_var(m, dev, s);
 
     // Transfer all variables to output to host for this time step
     for (d = 0; d < m->NUM_DEVICES; d++) {
@@ -414,6 +584,8 @@ int checkpoint_h2d(model * m, device ** dev, hid_t file_id, int s) {
     for (d=0;d<m->NUM_DEVICES;d++) {
         WAITQUEUE((*dev)[d].queue);
     }
+    /* The sends above have completed: give the engine its own buffer back. */
+    if (m->CKPT_SHOTSTORE) shotstore_swap_var(m, dev, s);
 
     return state;
 }
@@ -1076,8 +1248,21 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
             file_id = H5Fopen(files.checkpoint, H5F_ACC_RDWR, H5P_DEFAULT);
         }
     }
+    /* Per-shot host buffers (CKPT_SHOTSTORE, F.h): allocated on the first
+     * call, kept by the caller for the matching backward call. */
+    if (m->CKPT_SHOTSTORE && !state && checkpoint_store_alloc(m, *dev)){
+        fprintf(stderr, "Error: could not allocate the per-shot checkpoint "
+                        "buffers (%d shots)\n",
+                m->src_recs.smax - m->src_recs.smin);
+        state = 1;
+    }
     // Main loop over shots of this group
     for (s= m->src_recs.smin;s< m->src_recs.smax;s++){
+
+        /* CKPT_SHOTSTORE: shot s saves (forward) or reads (adjoint) its
+           boundary history in its own pinned buffer. Swapped back at the end
+           of the shot. */
+        if (m->CKPT_SHOTSTORE) shotstore_swap_bnd(m, dev, s);
 
         // Initialization of the seismic variables
         pdir=1;
@@ -1350,7 +1535,8 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
             }
 
         }
-        
+
+        if (m->CKPT_SHOTSTORE) shotstore_swap_bnd(m, dev, s);
 
     }
     // Using back-propagation, the gradient is computed on the devices. After
