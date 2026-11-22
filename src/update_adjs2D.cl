@@ -348,7 +348,7 @@ FUNDEF void update_adjs(int offcomm,
             if (nsrc>0 && sumform){
                 for (int srci=0; srci<nsrc; srci++){
                     if ((int)src_pos[4+5*srci]==100){
-                        int si = (int)(src_pos[0+5*srci]/DH)+FDOH;
+                        int si = (int)(src_pos[0+5*srci]/DH)+FDOH-OFFSET;   /* local x (domain decomposition) */
                         int sk = (int)(src_pos[2+5*srci]/DH)+FDOH;
                         if (si==gidx && sk==gidz){
                             float samp = pow2s(DT*src[srci*NT+nt], src_scale);

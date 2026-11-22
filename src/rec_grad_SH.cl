@@ -38,8 +38,9 @@ FUNDEF void rec_grad_v(GLOBARG STO *vy,        GLOBARG float *vyout,
     if (blockIdx.x*blockDim.x + threadIdx.x != 0) return;
     #endif
     for (int g=0; g<nrec; g++){
-        int i = (int)(rec_pos[0+8*g]/DH)+FDOH;
+        int i = (int)(rec_pos[0+8*g]/DH)+FDOH-OFFSET;   /* this subdomain */
         int k = (int)(rec_pos[2+8*g]/DH)+FDOH;
+        if (i<FDOH || i>NX-FDOH-1) continue;
         /* vy(t+1) without the taper of this step (see rec_grad.cl) */
         float gt = 1.0f;
         #if ABS_TYPE==2
@@ -47,8 +48,8 @@ FUNDEF void rec_grad_v(GLOBARG STO *vy,        GLOBARG float *vyout,
         if (k-FDOH<NAB) gt*=taper[k-FDOH];
         #endif
         if (k>NZS-NAB-FDOH-1) gt*=taper[NZS-FDOH-k-1];
-        if (i-FDOH<NAB) gt*=taper[i-FDOH];
-        if (i>NX-NAB-FDOH-1) gt*=taper[NX-FDOH-i-1];
+        if (DEVID==0 && MYLOCALID==0 && i-FDOH<NAB) gt*=taper[i-FDOH];
+        if (DEVID==NUM_DEVICES-1 && MYLOCALID==NLOCALP-1 && i>NX-NAB-FDOH-1) gt*=taper[NX-FDOH-i-1];
         #endif
         gradrho[INDP(k,i)] += GSCALE(-ldf(vy, INDV(k,i))/gt * pow2s(vyout[NT*g+nt], res_scale));
     }

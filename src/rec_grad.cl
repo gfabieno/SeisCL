@@ -51,18 +51,20 @@
 #endif
 
 
-/* Cell (k, j, i) of receiver g, padded indices. */
+/* Cell (k, j, i) of receiver g, padded indices of this subdomain (x shifted by
+   OFFSET, the first x cell of the subdomain; 0 with one device and process). */
 #if ND==3
-#define REC_CELL(g, k, j, i) do{ i = (int)(rec_pos[0+8*(g)]/DH)+FDOH; \
+#define REC_CELL(g, k, j, i) do{ i = (int)(rec_pos[0+8*(g)]/DH)+FDOH-OFFSET; \
                                  j = (int)(rec_pos[1+8*(g)]/DH)+FDOH; \
                                  k = (int)(rec_pos[2+8*(g)]/DH)+FDOH; } while(0)
 #else
-#define REC_CELL(g, k, j, i) do{ i = (int)(rec_pos[0+8*(g)]/DH)+FDOH; j = 0; \
+#define REC_CELL(g, k, j, i) do{ i = (int)(rec_pos[0+8*(g)]/DH)+FDOH-OFFSET; j = 0; \
                                  k = (int)(rec_pos[2+8*(g)]/DH)+FDOH; } while(0)
 #endif
 
 /* This work-item's receiver g0, and whether it owns its cell: it returns if g0
-   is past the last receiver or if a receiver of lower index is in the same cell.
+   is past the last receiver, outside this subdomain (domain decomposition along
+   x), or if a receiver of lower index is in the same cell.
    The owner then loops over g = g0 .. nrec-1 and skips the other cells. */
 #ifdef __OPENCL_VERSION__
 #define REC_GID get_global_id(0)
@@ -74,6 +76,7 @@
     if (g0 >= nrec) return; \
     int k0, j0, i0; \
     REC_CELL(g0, k0, j0, i0); \
+    if (i0<FDOH || i0>NX-FDOH-1) return; \
     for (int h=0; h<g0; h++){ int kh, jh, ih; REC_CELL(h, kh, jh, ih); \
         if (kh==k0 && jh==j0 && ih==i0) return; }
 
@@ -106,8 +109,9 @@ FUNDEF void rec_grad_v(GLOBARG STO *vx,        GLOBARG STO *vy,        GLOBARG S
         if (j-FDOH<NAB) gt*=taper[j-FDOH];
         if (j>NY-NAB-FDOH-1) gt*=taper[NY-FDOH-j-1];
         #endif
-        if (i-FDOH<NAB) gt*=taper[i-FDOH];
-        if (i>NX-NAB-FDOH-1) gt*=taper[NX-FDOH-i-1];
+        /* x layers only in the first and last subdomains */
+        if (DEVID==0 && MYLOCALID==0 && i-FDOH<NAB) gt*=taper[i-FDOH];
+        if (DEVID==NUM_DEVICES-1 && MYLOCALID==NLOCALP-1 && i>NX-NAB-FDOH-1) gt*=taper[NX-FDOH-i-1];
         #endif
         int iv = INDV(k,j,i), ip = INDP(k,j,i);
         #if VXOUT==1

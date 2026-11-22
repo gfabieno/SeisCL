@@ -530,7 +530,7 @@ FUNDEF void update_adjv(int offcomm,
         for (int srci=0; srci<nsrc; srci++){
             int st = (int)src_pos[4+5*srci];
             if (st>=0 && st<=2){
-                int si=(int)(src_pos[0+5*srci]/DH)+FDOH;
+                int si=(int)(src_pos[0+5*srci]/DH)+FDOH-OFFSET;   /* local x (domain decomposition) */
                 int sj=(int)(src_pos[1+5*srci]/DH)+FDOH;
                 int sk=(int)(src_pos[2+5*srci]/DH)+FDOH;
                 if (si==gidx && sj==gidy && sk==gidz){
