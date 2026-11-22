@@ -1133,77 +1133,52 @@ int Init_CUDA(model * m, device ** dev)  {
             }
         }
         if (m->BACK_PROP_TYPE==1 && (m->GRADOUT || m->INPUTRES)){
-            int lenz;
-            if (m->FREESURF==0){
-                lenz = di->N[0]-2*m->NAB-2*m->FDOH;
-            }
-            else{
-                lenz = di->N[0]-m->NAB-m->FDOH;
-            }
-            if (m->GRADABS==1 || (m->NUM_DEVICES==1 && m->NLOCALP==1
-                                   && m->FP16<3)){
-                /* Single-device frame (savebnd2D/3D.cl, header_injectbnd.cl,
-                   FR_* macros): cells between an outer box OL cells inside
-                   the grid edge and an inner box W cells further in. With
+            {
+                /* Frame of stored forward values (savebnd2D/3D.cl,
+                   header_injectbnd.cl, FR_* macros): cells between an outer
+                   box OL cells inside the grid edge and an inner box W cells
+                   further in, stored as scalar cells for every FP16. With
                    GRADABS the whole layers (OL = 0); without, the FDOH band
                    plus the last layer cell (OL = NAB-1), whose averaged
                    parameters straddle the band. On a free-surface top: FDOH
-                   rows from the surface. */
+                   rows from the surface. With domain decomposition along x,
+                   each subdomain stores the global frame clipped to its x
+                   range: the low x face on the first subdomain only, the high
+                   one on the last only. */
+                int first = (d==0 && m->MYLOCALID==0);
+                int last = (d==m->NUM_DEVICES-1
+                            && m->MYLOCALID==m->NLOCALP-1);
                 int OL = m->GRADABS ? 0 : (m->NAB>0 ? m->NAB-1 : 0);
                 int W = m->NAB+m->FDOH-OL;
                 int OT = m->FREESURF ? 0 : OL;
                 int Wt = m->FREESURF ? m->FDOH : W;
+                int W0 = first ? W : 0, W1 = last ? W : 0;
                 int nzo = di->N[0]-OT-OL;
-                int nxo = (m->ND==3 ? di->N[2] : di->N[1]) - 2*OL;
+                int nxo = (m->ND==3 ? di->N[2] : di->N[1])
+                          - (first ? OL : 0) - (last ? OL : 0);
                 int nyo = m->ND==3 ? di->N[1]-2*OL : 1;
-                if (m->NUM_DEVICES!=1 || m->NLOCALP!=1){
+                int nxm = nxo-W0-W1;
+                if (m->GRADABS==1 && (m->NUM_DEVICES!=1 || m->NLOCALP!=1)){
                     state=1;
                     fprintf(stderr,"Error: gradabs=1 requires a single "
                                    "device and a single process per shot\n");
                 }
-                if (nxo<=2*W || nzo<=Wt+W || (m->ND==3 && nyo<=2*W)){
+                if ((first && last ? nxm<=0 : nxm<0)
+                    || nzo<=Wt+W || (m->ND==3 && nyo<=2*W)){
                     state=1;
-                    fprintf(stderr,"Error: grid too small for the absorbing "
-                                   "layers and the stored band\n");
+                    fprintf(stderr,"Error: grid (or subdomain %d) too small "
+                                   "for the absorbing layers and the stored "
+                                   "band\n", d);
                 }
                 if (m->ND==3)
-                    di->NBND = 2*W*nyo*nzo + (nxo-2*W)*2*W*nzo
-                             + (nxo-2*W)*(nyo-2*W)*(Wt+W);
+                    di->NBND = (W0+W1)*nyo*nzo + nxm*2*W*nzo
+                             + nxm*(nyo-2*W)*(Wt+W);
                 else
-                    di->NBND = 2*W*nzo + (nxo-2*W)*(Wt+W);
+                    di->NBND = (W0+W1)*nzo + nxm*(Wt+W);
                 /* scalar cells; even, so that the half offsets
                    (NBND*t/2 floats, FP16 > 1) stay exact */
                 di->NBND += di->NBND % 2;
                 di->frame_cells = 1;
-            }
-            else if (m->ND==3){// For 3D
-                if (m->NUM_DEVICES==1 && m->NLOCALP==1)
-                    di->NBND=(di->N[2]-2*m->NAB)*(di->N[1]-2*m->NAB)*2*m->FDOH
-                    +(di->N[2]-2*m->NAB)*(lenz)*2*m->FDOH
-                    +(di->N[1]-2*m->NAB-2*m->FDOH)*(lenz)
-                    *2*m->FDOH;
-                
-                else if ( (d==0 && m->MYLOCALID==0)
-                         || (d==m->NUM_DEVICES-1 && m->MYLOCALID==m->NLOCALP-1))
-                    di->NBND=(di->N[2]-m->NAB)*(di->N[1]-2*m->NAB)*2*m->FDOH
-                    +(di->N[2]-m->NAB)*(lenz)*2*m->FDOH
-                    +(di->N[1]-2*m->NAB-2*m->FDOH)*(lenz)*m->FDOH;
-                
-                else
-                    di->NBND=di->N[2]*(di->N[1]-2*m->NAB)*2*m->FDOH+
-                    di->N[2]*(lenz)*2*m->FDOH;
-            }
-            else{
-                if (m->NUM_DEVICES==1 && m->NLOCALP==1){
-                    di->NBND=(di->N[1]-2*m->NAB)*2*m->FDOH+(lenz)*2*m->FDOH;
-                }
-                else if ( (d==0 && m->MYLOCALID==0)
-                         || (d==(m->NUM_DEVICES-1) && m->MYLOCALID==(m->NLOCALP-1))){
-                    di->NBND=(lenz)*m->FDOH+ (di->N[1]-m->NAB)*2*m->FDOH;
-                    }
-                else{
-                    di->NBND= (di->N[1])*2*m->FDOH;
-                }
             }
             for (i=0;i<m->nvars;i++){
                 if (di->vars[i].to_comm){
