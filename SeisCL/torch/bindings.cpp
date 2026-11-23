@@ -64,7 +64,12 @@ namespace {
 // "auto" keeps it in RAM while it fits the budget and spills to a real file
 // above that -- a realistic 2D survey (400x400, NT=3000, 50 shots) needs
 // ~19 GB, so this cannot simply always be memory.
-enum class CkptPolicy { kAuto, kMemory, kFile };
+// In RAM, each shot keeps its own host buffers (the per-shot store,
+// CKPT_SHOTSTORE in F.h): no copy between shots. "hdf5-memory" forces the
+// older RAM-backed HDF5 image instead (each shot copied into it and back),
+// kept for comparisons; it is also what RAM means with several devices per
+// shot, which the store does not handle.
+enum class CkptPolicy { kAuto, kMemory, kFile, kHdf5Memory };
 CkptPolicy g_ckpt_policy = CkptPolicy::kAuto;
 // 0 means "derive it from free memory"; anything else is an explicit cap.
 std::size_t g_ckpt_budget = 0;
@@ -102,6 +107,7 @@ std::size_t available_ram_bytes() {
 bool checkpoint_fits_in_memory(std::size_t bytes) {
     switch (g_ckpt_policy) {
         case CkptPolicy::kMemory: return true;
+        case CkptPolicy::kHdf5Memory: return true;
         case CkptPolicy::kFile: return false;
         case CkptPolicy::kAuto:
         default: {
@@ -548,6 +554,13 @@ py::dict run_forward(const Config &cfg, const py::dict &params,
             checkpoint_bytes_per_shot(*h) * h->m.src_recs.ns;
         in_memory = checkpoint_fits_in_memory(bytes);
     }
+    // In RAM, with one device: each shot keeps its own host buffers (no
+    // copy into an HDF5 image between shots; ~1.5x faster per shot, notes
+    // torch-benchmark-deepwave section 7.4). The RAM-backed HDF5 image
+    // stays for several devices per shot and for the "hdf5-memory" policy.
+    bool shot_store = in_memory && h->m.NUM_DEVICES == 1 &&
+                      g_ckpt_policy != CkptPolicy::kHdf5Memory;
+    if (shot_store) in_memory = false;
 
     // A previous forward on this handle whose backward never ran is about to
     // have its buffers overwritten. Persist its checkpoint now, so that
@@ -561,8 +574,9 @@ py::dict run_forward(const Config &cfg, const py::dict &params,
         }
     }
 
-    h->m.SKIP_CHECKPOINT_FILE = skip_file ? 1 : 0;
+    h->m.SKIP_CHECKPOINT_FILE = (skip_file || shot_store) ? 1 : 0;
     h->m.CKPT_IN_MEMORY = in_memory ? 1 : 0;
+    h->m.CKPT_SHOTSTORE = shot_store ? 1 : 0;
 
     struct filenames files;
     std::memset(&files, 0, sizeof(files));
@@ -578,7 +592,7 @@ py::dict run_forward(const Config &cfg, const py::dict &params,
     }
     if (state) fail_call(key, h, state, "forward pass");
 
-    if (skip_file || in_memory) {
+    if (skip_file || in_memory || shot_store) {
         h->pending_valid = true;
         h->pending_ckpt = checkpoint_path;
     }
@@ -697,6 +711,7 @@ py::dict run_backward(const Config &cfg, const py::dict &params,
         }
         // Whatever the forward did, this run must read the real file.
         h->m.CKPT_IN_MEMORY = 0;
+        h->m.CKPT_SHOTSTORE = 0;
     }
     h->m.SKIP_CHECKPOINT_FILE =
         (uses_checkpoint && from_memory && !via_ram_file) ? 1 : 0;
@@ -796,9 +811,12 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
                  seiscl_torch::g_ckpt_policy = seiscl_torch::CkptPolicy::kMemory;
              } else if (policy == "file") {
                  seiscl_torch::g_ckpt_policy = seiscl_torch::CkptPolicy::kFile;
+             } else if (policy == "hdf5-memory") {
+                 seiscl_torch::g_ckpt_policy = seiscl_torch::CkptPolicy::kHdf5Memory;
              } else {
                  throw std::invalid_argument(
-                     "checkpoint policy must be 'auto', 'memory' or 'file'");
+                     "checkpoint policy must be 'auto', 'memory', 'file' or "
+                     "'hdf5-memory'");
              }
              // None leaves the budget alone; 0 restores "derive from free
              // memory", which is the default.
@@ -817,7 +835,10 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
          "Where the boundary checkpoint of a multi-shot gradient run is "
          "kept. 'auto' (the default) keeps it in RAM while it fits, and "
          "spills to a file otherwise; 'memory' and 'file' force one or the "
-         "other. What 'fits' means: by default ram_fraction (0.5) of the "
+         "other ('memory' keeps each shot in its own host buffers; "
+         "'hdf5-memory' forces the older RAM-backed HDF5 image, which copies "
+         "every shot into it and back, for comparisons). "
+         "What 'fits' means: by default ram_fraction (0.5) of the "
          "memory the kernel reports as available right now, or budget_bytes "
          "if you set an explicit cap (0 restores the free-memory rule). "
          "Single-shot runs keep the wavefield in the engine's own buffers "
