@@ -38,7 +38,7 @@ int kernel_varout(device * dev,
     int scaler=0;
     
     char temp[MAX_KERN_STR]={0};;
-    char temp2[100]={0};
+    char temp2[1000]={0};   /* one generated line; 100 overflowed at FP16 2 */
     variable * vars = dev->vars;
     variable * tvars = dev->trans_vars;
     
@@ -403,7 +403,7 @@ int kernel_sources(model * m,
                                   "sxz", "sxy", "syz"};
     int src_codes[10] = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
     char temp[MAX_KERN_STR]={0};
-    char temp2[100]={0};
+    char temp2[1000]={0};   /* one generated line; 100 overflowed at FP16 2 */
 //    
     
     
@@ -668,7 +668,7 @@ int kernel_residuals(device * dev,
     int i,j;
     
     char temp[MAX_KERN_STR]={0};
-    char temp2[100]={0};
+    char temp2[1000]={0};   /* one generated line; 100 overflowed at FP16 2 */
     variable * vars = dev->vars;
     variable * tvars = dev->trans_vars;
     
@@ -1028,7 +1028,7 @@ int kernel_gradinit(device * dev,
     int i;
     
     char temp[MAX_KERN_STR]={0};
-    char temp2[100]={0};
+    char temp2[1000]={0};   /* one generated line; 100 overflowed at FP16 2 */
 
     strcat(temp, FUNDEF"void gradinit(");
     for (i=0;i<dev->npars;i++){
@@ -1519,7 +1519,7 @@ int kernel_fcom_out(device * dev,
             strcat(temp, ";\n");
         }
     }
-    char temp2[100]={0};
+    char temp2[1000]={0};   /* one generated line; 100 overflowed at FP16 2 */
     int precsize;
     int div;
     if (dev->FP16==0){
@@ -1781,7 +1781,7 @@ int kernel_fcom_in(device * dev,
     else{
         precsize = sizeof(float);
     }
-    char temp2[100]={0};
+    char temp2[1000]={0};   /* one generated line; 100 overflowed at FP16 2 */
 //    if (buff12==1){
 //        sprintf(temp2,"    if (idbuf>%d-1){\n",
 //                (int)(vars[0].cl_buf1.size/precsize));
