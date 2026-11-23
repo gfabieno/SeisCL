@@ -447,16 +447,20 @@ def test_cache_hit_rejects_wrong_src_length():
         "a cache-hit call accepted a src tensor of the wrong length")
 
 
-def _grad_of(vp_value, other_forward_vp=None):
+def _grad_of(vp_value, other_forward_vp=None, nshot=1):
     """Gradient of 0.5*sum(vx**2) w.r.t. M at vp_value.
 
     If other_forward_vp is given, a second forward pass runs *between* this
     one and its backward -- gradient accumulation, and the case where the
     in-memory checkpoint handoff must fall back to a file because the second
-    forward overwrites the first's boundary buffers.
+    forward overwrites the first's boundary buffers (one shot: the engine's
+    own buffers; several shots: the per-shot host buffers).
     """
     cfg = _make_config()
-    src, src_pos, rec_pos = _simple_geometry()
+    if nshot == 1:
+        src, src_pos, rec_pos = _simple_geometry()
+    else:
+        src, src_pos, rec_pos = _multishot_geometry(nshot)
     nz, nx = N
     mu = torch.full((nz * nx,), VS, dtype=torch.float32)
     rho = torch.full((nz * nx,), RHO, dtype=torch.float32)
@@ -478,7 +482,7 @@ def _grad_of(vp_value, other_forward_vp=None):
     return M.grad.clone()
 
 
-def test_checkpoint_survives_interleaved_forward():
+def test_checkpoint_survives_interleaved_forward(nshot=1):
     """A second forward before the first's backward must not corrupt it.
 
     The boundary wavefield normally stays in the engine's buffers between
@@ -488,15 +492,17 @@ def test_checkpoint_survives_interleaved_forward():
     this returns a gradient computed from the *wrong* wavefield, silently.
     """
     clear_engine_cache()
-    reference = _grad_of(VP)
+    reference = _grad_of(VP, nshot=nshot)
 
     clear_engine_cache()
-    interleaved = _grad_of(VP, other_forward_vp=VP + 300.0)
+    interleaved = _grad_of(VP, other_forward_vp=VP + 300.0, nshot=nshot)
 
     assert torch.equal(reference, interleaved), (
-        "gradient changed when another forward ran before backward: "
-        f"max abs diff {float((reference - interleaved).abs().max()):.6g}")
-    print("Testing: torch_checkpoint_survives_interleaved_forward ....... passed")
+        f"{nshot} shot(s): gradient changed when another forward ran before "
+        f"backward: max abs diff "
+        f"{float((reference - interleaved).abs().max()):.6g}")
+    print(f"Testing: torch_checkpoint_survives_interleaved_forward "
+          f"({nshot} shot(s)) ....... passed")
 
 
 def test_checkpoint_survives_cache_clear():
@@ -527,7 +533,7 @@ def test_checkpoint_survives_cache_clear():
         "backward() silently produced a gradient after its engine was dropped")
 
 
-def test_pending_checkpoint_survives_rekey():
+def test_pending_checkpoint_survives_rekey(nshot=1):
     """Two differentiable forwards, output_fields left at its default (an
     empty list resolved to "every declared field" once the engine is
     built), called back-to-back before either backward -- the "ordinary
@@ -547,10 +553,20 @@ def test_pending_checkpoint_survives_rekey():
     """
     clear_engine_cache()
     cfg = _make_config()
-    src, src_pos, rec_pos = _simple_geometry()
+    if nshot == 1:
+        src, src_pos, rec_pos = _simple_geometry()
+    else:
+        src, src_pos, rec_pos = _multishot_geometry(nshot)
     nz, nx = N
     mu = torch.full((nz * nx,), VS, dtype=torch.float32)
     rho = torch.full((nz * nx,), RHO, dtype=torch.float32)
+
+    # Reference: the first call alone, nothing in between.
+    M0 = torch.full((nz * nx,), VP, dtype=torch.float32).requires_grad_(True)
+    data0 = seiscl_forward(cfg, {"M": M0, "mu": mu, "rho": rho},
+                           src, src_pos, rec_pos)
+    (0.5 * (data0["vx"] ** 2).sum()).backward()
+    clear_engine_cache()
 
     M1 = torch.full((nz * nx,), VP, dtype=torch.float32).requires_grad_(True)
     data1 = seiscl_forward(cfg, {"M": M1, "mu": mu, "rho": rho},
@@ -568,7 +584,11 @@ def test_pending_checkpoint_survives_rekey():
 
     assert torch.isfinite(M1.grad).all() and M1.grad.abs().max() > 0
     assert torch.isfinite(M2.grad).all() and M2.grad.abs().max() > 0
-    print("Testing: torch_pending_checkpoint_survives_rekey ....... passed")
+    assert torch.equal(M1.grad, M0.grad), (
+        f"{nshot} shot(s): the displaced call's gradient changed: max abs diff "
+        f"{float((M1.grad - M0.grad).abs().max()):.6g}")
+    print(f"Testing: torch_pending_checkpoint_survives_rekey ({nshot} shot(s)) "
+          "....... passed")
 
 
 def _multishot_geometry(nshot, nrec=6):
@@ -669,7 +689,7 @@ def test_multishot_gradient_both_checkpoint_policies():
         return 0.5 * (data["vx"] ** 2).sum()
 
     grads = {}
-    for policy in ("file", "memory"):
+    for policy in ("file", "memory", "hdf5-memory"):
         seiscl_torch.set_checkpoint_policy(policy)
         clear_engine_cache()
         M = M0.clone().requires_grad_(True)
@@ -691,13 +711,136 @@ def test_multishot_gradient_both_checkpoint_policies():
                                 f"rel_diff={rel:.4f}")
 
     seiscl_torch.set_checkpoint_policy("auto")
-    # Not bit-identical: the engine itself is not run-to-run reproducible for
-    # multi-shot gradients (file-vs-file differs too), so compare loosely.
-    scale = float(grads["file"].abs().max())
-    drift = float((grads["file"] - grads["memory"]).abs().max()) / scale
-    assert drift < 0.02, f"RAM and file checkpoints disagree by {drift:.4f}"
+    # Bit-identical: only where the checkpoint is kept differs, not the
+    # arithmetic. (This used to be compared loosely; since the multi-shot
+    # race fixes of 2026-11-11 repeated runs are identical, measured
+    # 2026-11-21 with file/memory/file/memory/file.)
+    for policy in ("memory", "hdf5-memory"):
+        assert torch.equal(grads["file"], grads[policy]), (
+            f"{policy} and file checkpoints disagree: max abs diff "
+            f"{float((grads['file'] - grads[policy]).abs().max()):.6g}")
     print("Testing: torch_multishot_gradient_both_checkpoint_policies "
           "....... passed")
+
+
+def _three_param_grads(cfg, src, src_pos, rec_pos, field="vx"):
+    nz, nx = cfg.N
+    p = {k: torch.full((nz * nx,), v, dtype=torch.float32, requires_grad=True)
+         for k, v in (("M", VP), ("mu", VS), ("rho", RHO))}
+    d = seiscl_forward(cfg, p, src, src_pos, rec_pos, output_fields=[field])
+    (0.5 * (d[field].double() ** 2).sum()).backward()
+    return d[field].detach().clone(), {k: v.grad.clone() for k, v in p.items()}
+
+
+def test_multishot_shotstore():
+    """Several shots in one call keep each shot's checkpoint in its own host
+    buffers (policy "memory", the default "auto" when it fits): no copy into
+    an HDF5 image between shots.
+
+    Checks: (a) data and gradients bit-identical to the RAM-backed HDF5
+    image ("hdf5-memory") and to a real file ("file"); (b) the gradient of a
+    3-shot call equals the sum of 3 one-shot calls (each shot really gets its
+    own boundary history: the 2026-11-11 bug mixed the shots). 3 shots: the
+    sources of _multishot_geometry fit the 80-cell grid up to 3.
+    """
+    nshot = 3
+    cfg = _make_config()
+    src, src_pos, rec_pos = _multishot_geometry(nshot)
+
+    res = {}
+    for policy in ("hdf5-memory", "file", "memory"):
+        seiscl_torch.set_checkpoint_policy(policy)
+        clear_engine_cache()
+        res[policy] = _three_param_grads(cfg, src, src_pos, rec_pos)
+    seiscl_torch.set_checkpoint_policy("auto")
+    for policy in ("hdf5-memory", "file"):
+        assert torch.equal(res["memory"][0], res[policy][0]), (
+            f"data differ between memory and {policy}")
+        for k in ("M", "mu", "rho"):
+            a, b = res["memory"][1][k], res[policy][1][k]
+            assert torch.equal(a, b), (
+                f"d/d{k} differs between memory and {policy}: max abs diff "
+                f"{float((a - b).abs().max()):.6g}")
+
+    total = {k: torch.zeros_like(v) for k, v in res["memory"][1].items()}
+    clear_engine_cache()
+    for s in range(nshot):
+        sp = src_pos[s:s + 1].clone()
+        sp[:, 3] = 0.0
+        rp = rec_pos[rec_pos[:, 3] == s].clone()
+        rp[:, 3] = 0.0
+        g = _three_param_grads(cfg, src[s:s + 1], sp, rp)[1]
+        for k in total:
+            total[k] += g[k]
+    for k in total:
+        rel = float((total[k] - res["memory"][1][k]).abs().max()
+                    / total[k].abs().max())
+        print(f"    d/d{k}: {nshot}-shot call vs sum of one-shot calls, max rel "
+              f"diff {rel:.2e} (threshold 1e-5)")
+        assert rel <= 1e-5, f"d/d{k}: {nshot}-shot call != sum of one-shot calls"
+    print("Testing: torch_multishot_shotstore ....... passed")
+
+
+def test_multishot_shotstore_speed(nshot=4, ratio_max=1.15):
+    """A gradient call with several shots costs about as much per shot as a
+    call with one shot (it was ~1.46x when each shot's checkpoint was copied
+    into an HDF5 image; notes: torch-benchmark-deepwave section 7.4).
+
+    2-D 300 x 300, 1000 steps, force source, 32 receivers; median of 3 timed
+    repetitions after one warm-up, the 4-shot call against 4 one-shot calls.
+    """
+    import time
+    n, nt = 300, 1000
+    cfg = _make_config()
+    cfg.N = [n, n]
+    cfg.NT = nt
+    cfg.NAB = 20
+    cfg.ABS_TYPE = 1
+    t = np.arange(nt) * DT
+    a = (np.pi * 10.0 * (t - 0.12)) ** 2
+    ricker = ((1 - 2 * a) * np.exp(-a)).astype(np.float32)
+    sx = np.linspace(60, n - 60, nshot)
+    rx = np.linspace(30, n - 30, 32)
+    sp = torch.tensor([[x * DH, 0.0, n // 2 * DH, s, 2.0]
+                       for s, x in enumerate(sx)], dtype=torch.float32)
+    rp = torch.tensor([[x * DH, 0.0, 40 * DH, s, s * 32 + r + 1, 0, 0, 0]
+                       for s in range(nshot) for r, x in enumerate(rx)],
+                      dtype=torch.float32)
+    src = torch.from_numpy(np.tile(ricker, (nshot, 1)))
+    one = []
+    for s in range(nshot):
+        p1 = sp[s:s + 1].clone()
+        p1[:, 3] = 0.0
+        r1 = rp[rp[:, 3] == s].clone()
+        r1[:, 3] = 0.0
+        r1[:, 4] -= s * 32
+        one.append((src[s:s + 1], p1, r1))
+
+    def many():
+        _three_param_grads(cfg, src, sp, rp, field="vz")
+
+    def ones():
+        for args in one:
+            _three_param_grads(cfg, *args, field="vz")
+
+    seiscl_torch.set_checkpoint_policy("auto")
+    clear_engine_cache()
+    times = {}
+    for name, f in (("one call", many), ("one-shot calls", ones)):
+        f()                                    # warm-up: compile, allocate
+        tt = []
+        for _ in range(3):
+            t0 = time.perf_counter()
+            f()
+            tt.append(time.perf_counter() - t0)
+        times[name] = sorted(tt)[1]
+    ratio = times["one call"] / times["one-shot calls"]
+    print(f"    {nshot} shots: one call {times['one call']:.3f} s, "
+          f"{nshot} one-shot calls {times['one-shot calls']:.3f} s, "
+          f"ratio {ratio:.3f} (threshold {ratio_max})")
+    assert ratio <= ratio_max, (
+        f"several shots in one call cost {ratio:.2f}x the one-shot calls")
+    print("Testing: torch_multishot_shotstore_speed ....... passed")
 
 
 def test_dft_gradient_through_inputres():
@@ -812,10 +955,14 @@ if __name__ == "__main__":
         test_cache_eviction_correctness()
         test_cache_hit_rejects_wrong_src_length()
         test_checkpoint_survives_interleaved_forward()
+        test_checkpoint_survives_interleaved_forward(nshot=3)
         test_checkpoint_survives_cache_clear()
         test_pending_checkpoint_survives_rekey()
+        test_pending_checkpoint_survives_rekey(nshot=3)
         test_viscoelastic_requires_FL()
         test_multishot_gradient_both_checkpoint_policies()
+        test_multishot_shotstore()
+        test_multishot_shotstore_speed()
         test_dft_requires_gradfreqs()
         test_dft_gradient_through_inputres()
         test_dft_tmin_beyond_modeled_interval_rejected()
