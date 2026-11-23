@@ -920,7 +920,14 @@ int kernel_residuals(device * dev,
         else {
             strcpy(ld, "");
         }
-        strcat(temp, "#if LVE>0\n    {\n");
+        /* Own cells only: the parameters (M, mu, taup, taus) have no x halo,
+           so ip would be out of range in the halo of an inner cut, and a halo
+           memory variable is never read by the neighbour's stencil. The halo
+           copy of the stress keeps the injection above but not the O(dt)
+           correction below (domain decomposition). */
+        sprintf(temp2, "#if LVE>0\n    if (i-OFFSET>=FDOH && i-OFFSET<=N%s-FDOH-1){\n",
+                dev->N_names[dev->NDIM-1]);
+        strcat(temp, temp2);
         sprintf(temp2, "        int ip = %s;\n", ip);
         strcat(temp, temp2);
         sprintf(temp2, "        float lM=%s(M[ip]), lmu=%s(mu[ip]), ltp=%s(taup[ip]), lts=%s(taus[ip]);\n", ld, ld, ld, ld);
