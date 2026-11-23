@@ -48,6 +48,7 @@
 #include <mutex>
 #include <stdexcept>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 // engine_handle.h pulls in F.h (which has no include guard, so it must be
@@ -61,15 +62,19 @@ namespace seiscl_torch {
 namespace {
 
 // Where the boundary checkpoint of a multi-shot gradient run lives.
-// "auto" keeps it in RAM while it fits the budget and spills to a real file
-// above that -- a realistic 2D survey (400x400, NT=3000, 50 shots) needs
-// ~19 GB, so this cannot simply always be memory.
+// "auto" keeps it in RAM while it fits the budget -- a realistic 2D survey
+// (400x400, NT=3000, 50 shots) needs ~19 GB, so this cannot simply always be
+// memory -- and above that keeps no checkpoint: the backward call re-runs
+// each shot's forward pass before its adjoint (CKPT_RECOMPUTE in F.h; one
+// extra forward per shot, cheaper than a disk round trip on any disk short
+// of an NVMe SSD at every grid size a GPU holds, decision 75). "recompute"
+// forces that; "file" forces the old spill to an HDF5 file.
 // In RAM, each shot keeps its own host buffers (the per-shot store,
 // CKPT_SHOTSTORE in F.h): no copy between shots. "hdf5-memory" forces the
 // older RAM-backed HDF5 image instead (each shot copied into it and back),
 // kept for comparisons; it is also what RAM means with several devices per
 // shot, which the store does not handle.
-enum class CkptPolicy { kAuto, kMemory, kFile, kHdf5Memory };
+enum class CkptPolicy { kAuto, kMemory, kFile, kHdf5Memory, kRecompute };
 CkptPolicy g_ckpt_policy = CkptPolicy::kAuto;
 // 0 means "derive it from free memory"; anything else is an explicit cap.
 std::size_t g_ckpt_budget = 0;
@@ -78,11 +83,23 @@ std::size_t g_ckpt_budget = 0;
 // pair while the rest of the process keeps allocating, and overcommitting here
 // trades a slower run for an OOM kill.
 double g_ckpt_ram_fraction = 0.5;
+// Checkpoint paths whose forward pass chose to recompute: their backward call
+// re-runs the forward loop instead of looking for a checkpoint. Entries are
+// consumed by that backward call.
+std::unordered_set<std::string> g_recompute_ckpts;
+// What the last multi-shot forward call did with its checkpoint: "single"
+// (one shot, engine buffers), "shotstore", "hdf5-memory", "recompute",
+// "file", or "none" (no gradient checkpoint). For tests and diagnostics.
+std::string g_last_ckpt_mode = "none";
+std::size_t g_last_ckpt_bytes = 0;   // what that checkpoint needs in RAM
+// Tests only: when nonzero, replaces MemAvailable (bytes).
+std::size_t g_avail_override = 0;
 
 // What can actually be allocated right now without swapping. MemAvailable is
 // the kernel's own estimate and accounts for reclaimable page cache, which
 // MemFree does not.
 std::size_t available_ram_bytes() {
+    if (g_avail_override) return g_avail_override;
     std::ifstream meminfo("/proc/meminfo");
     std::string key;
     unsigned long long value = 0;
@@ -104,19 +121,24 @@ std::size_t available_ram_bytes() {
     return 0;
 }
 
-bool checkpoint_fits_in_memory(std::size_t bytes) {
+// `held`: bytes this engine already holds in its per-shot store from an
+// earlier call. They are reused (or freed) by this call, so they count as
+// available: MemAvailable does not include them, and without them a repeated
+// call would see its own previous checkpoint as used memory and spill.
+bool checkpoint_fits_in_memory(std::size_t bytes, std::size_t held) {
     switch (g_ckpt_policy) {
         case CkptPolicy::kMemory: return true;
         case CkptPolicy::kHdf5Memory: return true;
         case CkptPolicy::kFile: return false;
+        case CkptPolicy::kRecompute: return false;
         case CkptPolicy::kAuto:
         default: {
             if (g_ckpt_budget) return bytes <= g_ckpt_budget;
             std::size_t avail = available_ram_bytes();
-            // Unable to tell: fall back to the file rather than risk an OOM.
+            // Unable to tell: keep no checkpoint rather than risk an OOM.
             if (!avail) return false;
             return static_cast<double>(bytes) <=
-                   g_ckpt_ram_fraction * static_cast<double>(avail);
+                   g_ckpt_ram_fraction * static_cast<double>(avail + held);
         }
     }
 }
@@ -549,10 +571,17 @@ py::dict run_forward(const Config &cfg, const py::dict &params,
     // are reused per shot). Keep the per-shot datasets, but back them with
     // RAM rather than disk when they fit.
     bool in_memory = false;
+    bool recompute = false;
+    g_last_ckpt_bytes = 0;
     if (uses_checkpoint && !skip_file) {
         std::size_t bytes =
             checkpoint_bytes_per_shot(*h) * h->m.src_recs.ns;
-        in_memory = checkpoint_fits_in_memory(bytes);
+        std::size_t held = h->m.CKPT_STORE_VAR
+            ? checkpoint_bytes_per_shot(*h) * h->m.CKPT_STORE_NS : 0;
+        in_memory = checkpoint_fits_in_memory(bytes, held);
+        g_last_ckpt_bytes = bytes;
+        recompute = !in_memory && (g_ckpt_policy == CkptPolicy::kAuto ||
+                                   g_ckpt_policy == CkptPolicy::kRecompute);
     }
     // In RAM, with one device: each shot keeps its own host buffers (no
     // copy into an HDF5 image between shots; ~1.5x faster per shot, notes
@@ -574,9 +603,21 @@ py::dict run_forward(const Config &cfg, const py::dict &params,
         }
     }
 
-    h->m.SKIP_CHECKPOINT_FILE = (skip_file || shot_store) ? 1 : 0;
+    // This call does not use the per-shot store: give its RAM back (after
+    // the flush above, which may still have read a pending shot from it).
+    if (!shot_store && h->m.CKPT_STORE_VAR) {
+        checkpoint_store_free(&h->m, h->dev);
+    }
+    g_last_ckpt_mode = !uses_checkpoint ? "none"
+                     : skip_file ? "single"
+                     : shot_store ? "shotstore"
+                     : in_memory ? "hdf5-memory"
+                     : recompute ? "recompute" : "file";
+
+    h->m.SKIP_CHECKPOINT_FILE = (skip_file || shot_store || recompute) ? 1 : 0;
     h->m.CKPT_IN_MEMORY = in_memory ? 1 : 0;
     h->m.CKPT_SHOTSTORE = shot_store ? 1 : 0;
+    h->m.CKPT_RECOMPUTE = recompute ? 1 : 0;
 
     struct filenames files;
     std::memset(&files, 0, sizeof(files));
@@ -590,8 +631,14 @@ py::dict run_forward(const Config &cfg, const py::dict &params,
         py::gil_scoped_release nogil;
         state = time_stepping(&h->m, &h->dev, files);
     }
+    h->m.CKPT_RECOMPUTE = 0;
     if (state) fail_call(key, h, state, "forward pass");
 
+    if (recompute) {
+        g_recompute_ckpts.insert(checkpoint_path);
+    } else {
+        g_recompute_ckpts.erase(checkpoint_path);
+    }
     if (skip_file || in_memory || shot_store) {
         h->pending_valid = true;
         h->pending_ckpt = checkpoint_path;
@@ -694,13 +741,22 @@ py::dict run_backward(const Config &cfg, const py::dict &params,
     // BACK_PROP_TYPE=2 never writes a checkpoint -- time_stepping() re-runs
     // the forward pass on this call instead -- so there is nothing to locate.
     bool uses_checkpoint = cfg.BACK_PROP_TYPE == 1;
+    // The matching forward kept no checkpoint (CKPT_RECOMPUTE): re-run each
+    // shot's forward loop here, on whatever handle this is.
+    bool recompute = uses_checkpoint &&
+                     g_recompute_ckpts.erase(checkpoint_path) > 0;
     bool from_memory =
-        !uses_checkpoint ||
+        !uses_checkpoint || recompute ||
         (h->pending_valid && h->pending_ckpt == checkpoint_path);
     // Single shot keeps the wavefield in the engine's own buffers; multiple
     // shots keep the per-shot datasets in a RAM-backed HDF5 file.
-    bool via_ram_file = uses_checkpoint && from_memory &&
+    bool via_ram_file = uses_checkpoint && from_memory && !recompute &&
                         h->m.CKPT_IN_MEMORY && h->m.CKPT_FILE_ID > 0;
+    if (recompute) {
+        h->m.CKPT_IN_MEMORY = 0;
+        h->m.CKPT_SHOTSTORE = 0;
+    }
+    h->m.CKPT_RECOMPUTE = recompute ? 1 : 0;
     if (uses_checkpoint && !from_memory) {
         std::ifstream f(checkpoint_path.c_str());
         if (!f.good()) {
@@ -726,6 +782,7 @@ py::dict run_backward(const Config &cfg, const py::dict &params,
         py::gil_scoped_release nogil;
         state = time_stepping(&h->m, &h->dev, files);
     }
+    h->m.CKPT_RECOMPUTE = 0;
     // Consumed either way: the adjoint pass has overwritten the buffers.
     h->pending_valid = false;
     if (state) fail_call(key, h, state, "backward pass");
@@ -813,10 +870,12 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
                  seiscl_torch::g_ckpt_policy = seiscl_torch::CkptPolicy::kFile;
              } else if (policy == "hdf5-memory") {
                  seiscl_torch::g_ckpt_policy = seiscl_torch::CkptPolicy::kHdf5Memory;
+             } else if (policy == "recompute") {
+                 seiscl_torch::g_ckpt_policy = seiscl_torch::CkptPolicy::kRecompute;
              } else {
                  throw std::invalid_argument(
-                     "checkpoint policy must be 'auto', 'memory', 'file' or "
-                     "'hdf5-memory'");
+                     "checkpoint policy must be 'auto', 'memory', 'recompute', "
+                     "'file' or 'hdf5-memory'");
              }
              // None leaves the budget alone; 0 restores "derive from free
              // memory", which is the default.
@@ -833,9 +892,12 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
              }
          },
          "Where the boundary checkpoint of a multi-shot gradient run is "
-         "kept. 'auto' (the default) keeps it in RAM while it fits, and "
-         "spills to a file otherwise; 'memory' and 'file' force one or the "
-         "other ('memory' keeps each shot in its own host buffers; "
+         "kept. 'auto' (the default) keeps it in RAM while it fits; "
+         "otherwise it keeps none and the backward call re-runs each shot's "
+         "forward pass before its adjoint (one extra forward per shot, "
+         "faster than writing the checkpoint to a hard disk or SATA SSD). "
+         "'memory', 'recompute' and 'file' force one choice ('memory' keeps "
+         "each shot in its own host buffers; 'file' writes an HDF5 file; "
          "'hdf5-memory' forces the older RAM-backed HDF5 image, which copies "
          "every shot into it and back, for comparisons). "
          "What 'fits' means: by default ram_fraction (0.5) of the "
@@ -855,6 +917,24 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     m.def("available_ram_bytes", &seiscl_torch::available_ram_bytes,
          "Memory the kernel currently reports as available, which is what "
          "the 'auto' checkpoint policy sizes itself against. 0 if unknown.");
+
+    m.def("last_checkpoint_mode",
+         []() { return seiscl_torch::g_last_ckpt_mode; },
+         "What the last forward call did with its gradient checkpoint: "
+         "'single' (one shot), 'shotstore' (RAM, one buffer per shot), "
+         "'hdf5-memory', 'recompute' (none kept; the backward call re-runs "
+         "the forward), 'file', or 'none' (no gradient requested).");
+
+    m.def("last_checkpoint_bytes",
+         []() { return seiscl_torch::g_last_ckpt_bytes; },
+         "Bytes of RAM the last multi-shot forward call's checkpoint needs "
+         "(all shots), whether or not it was kept; 0 for one shot.");
+
+    m.def("_set_available_ram_override",
+         [](std::size_t bytes) { seiscl_torch::g_avail_override = bytes; },
+         "Tests only: pretend the kernel reports `bytes` as available "
+         "(0 restores /proc/meminfo).",
+         py::arg("bytes"));
 
     m.def("clear_engine_cache",
          []() {

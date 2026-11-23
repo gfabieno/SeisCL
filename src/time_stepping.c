@@ -1269,7 +1269,11 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
         __GUARD initialize_forward(m, dev, s, &pdir);
 
         // Loop for forward time stepping
-        if (!(m->INPUTRES && m->GRADOUT && m->BACK_PROP_TYPE==1)) {
+        /* Skipped in the backward call of the two-call protocol, which
+           restores the checkpoint instead -- unless CKPT_RECOMPUTE (F.h):
+           then this loop runs again and saves the boundaries itself. */
+        if (!(m->INPUTRES && m->GRADOUT && m->BACK_PROP_TYPE==1
+              && !m->CKPT_RECOMPUTE)) {
             for (t = 0; t < m->tmax; t++) {
                 //Assign the time step value to kernels
                 for (d = 0; d < m->NUM_DEVICES; d++) {
@@ -1327,7 +1331,10 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
                 // corrected sxx on the surface row. Saving them before the
                 // surface kernel made the rebuilt forward field wrong in the
                 // FDOH rows below the surface (gradient ratios 0.1-0.9).
-                if ((m->GRADOUT == 1 || m->INPUTRES) && m->BACK_PROP_TYPE == 1)
+                // CKPT_RECOMPUTE: the forward call keeps no boundaries; the
+                // backward call saves them when it re-runs this loop.
+                if ((m->GRADOUT == 1 || (m->INPUTRES && !m->CKPT_RECOMPUTE))
+                    && m->BACK_PROP_TYPE == 1)
                     __GUARD save_bnd(m, dev, t);
 
                 // Outputting seismograms
@@ -1383,7 +1390,8 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
             // adjoint call re-runs this forward pass instead (see the note
             // above the checkpoint file creation), so no file was opened and
             // file_id is not a valid location.
-            if (m->INPUTRES && m->GRADOUT==0 && m->BACK_PROP_TYPE==1){
+            if (m->INPUTRES && m->GRADOUT==0 && m->BACK_PROP_TYPE==1
+                && !m->CKPT_RECOMPUTE){
                 __GUARD checkpoint_d2h(m, dev, file_id, s);
 
             }

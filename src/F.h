@@ -532,6 +532,15 @@ typedef struct model {
      * buffer), and freed by checkpoint_store_free(), which the caller must
      * call before Free_OpenCL(). All zero by default. */
     int CKPT_SHOTSTORE;
+    /* Recompute instead of a checkpoint (two-call gradient protocol,
+     * BACK_PROP_TYPE 1; SeisCL/torch, when the checkpoint does not fit in
+     * RAM). With CKPT_RECOMPUTE=1 the forward call (INPUTRES=1, GRADOUT=0)
+     * saves no boundaries and no checkpoint, and the backward call
+     * (GRADOUT=1) runs each shot's forward loop again, saving its boundary
+     * history in the engine's own one-shot buffer, before that shot's
+     * adjoint: one extra forward per shot, no file. Needs
+     * SKIP_CHECKPOINT_FILE=1. Zero by default. */
+    int CKPT_RECOMPUTE;
     int CKPT_STORE_NS;
     float **CKPT_STORE_VAR;
     float **CKPT_STORE_BND;
