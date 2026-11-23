@@ -22,9 +22,12 @@ clear_engine_cache = _C.clear_engine_cache
 
 # Multi-shot gradient runs must hold every shot's boundary wavefield between
 # forward() and backward(). "auto" keeps it in RAM while it fits in half of
-# what the kernel reports as available, and spills to a file otherwise.
+# what the kernel reports as available; otherwise it keeps none, and the
+# backward call re-runs each shot's forward pass before its adjoint.
 set_checkpoint_policy = _C.set_checkpoint_policy
 available_ram_bytes = _C.available_ram_bytes
+last_checkpoint_mode = _C.last_checkpoint_mode
+last_checkpoint_bytes = _C.last_checkpoint_bytes
 
 # Free cached CUDA contexts/kernels/buffers while the driver is still up,
 # rather than relying on C++ static destruction order at interpreter exit.
@@ -32,4 +35,5 @@ atexit.register(_C._shutdown_engine_cache)
 
 __all__ = ["Config", "seiscl_forward", "set_engine_cache_size",
            "engine_cache_size", "clear_engine_cache",
-           "set_checkpoint_policy", "available_ram_bytes"]
+           "set_checkpoint_policy", "available_ram_bytes",
+           "last_checkpoint_mode", "last_checkpoint_bytes"]
