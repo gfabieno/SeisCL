@@ -46,6 +46,46 @@
    unscale_grad(), which is a uniform factor on a linear operator.
    --------------------------------------------------------------------------*/
 
+/* Loop order. The arrays are x-slowest, z-fastest (ind = i*NY*NZ + j*NZ + k),
+   so every loop below runs x outermost and z innermost: contiguous accesses.
+   Until 2026-11-25 they ran z outermost and x innermost, a stride of NY*NZ
+   floats per step: on a 3-D 128x128x384 gradient these transposes were ~2 s
+   of single-thread cache misses, more than half of the host time of the run.
+
+   The result is bit-identical to that order. A cell receives up to four
+   contributions (one per node that averages it), added in float one after the
+   other, so their order sets the rounding. The old scatter added them node by
+   node in its (z, y, x) order; scatter_order() gives that same order per cell,
+   and the 4-point transposes apply it as up to four passes, one contribution
+   per cell and pass. The 2-point density transpose needs no pass: the node of
+   a cell's second contribution is the cell itself, last in both orders. */
+
+/* The order in which the z-outer scatter added the contributions d = 0..3 of
+   the nodes (c - off[d]) to a cell c: the node first in (z, y, x) order, i.e.
+   the largest offset in that order, first; equal offsets (a zero direction,
+   SH) by d, as the old inner loop over d did. */
+static void scatter_order(int (*dir)[3], int order[4]){
+    int off[4][3];
+    int c, d, e, t, cmp;
+    for (c=0;c<3;c++){
+        off[0][c] = 0;
+        off[1][c] = dir[0][c];
+        off[2][c] = dir[1][c];
+        off[3][c] = dir[0][c]+dir[1][c];
+    }
+    for (d=0;d<4;d++) order[d] = d;
+    /* insertion sort, stable: larger offset first */
+    for (d=1;d<4;d++){
+        for (e=d;e>0;e--){
+            cmp = 0;
+            for (c=0;c<3 && cmp==0;c++)
+                cmp = off[order[e]][c] - off[order[e-1]][c];
+            if (cmp<=0) break;
+            t = order[e]; order[e] = order[e-1]; order[e-1] = t;
+        }
+    }
+}
+
 static void grad_T_arithmetic_rho(float * pin, float * gin, float * gout,
                                   int * N, int ndim, int * dir){
     int i,j,k;
@@ -55,9 +95,9 @@ static void grad_T_arithmetic_rho(float * pin, float * gin, float * gout,
     if (ndim==3){ NX=N[2]; NY=N[1]; NZ=N[0]; }
     else        { NX=N[1]; NY=1;    NZ=N[0]; }
 
-    for (k=0;k<NZ-dir[0];k++){
+    for (i=0;i<NX-dir[2];i++){
         for (j=0;j<NY-dir[1];j++){
-            for (i=0;i<NX-dir[2];i++){
+            for (k=0;k<NZ-dir[0];k++){
                 ind1 = (i  )*NY*NZ+(j)*NZ+(k);
                 ind2 = (i+dir[2])*NY*NZ+(j+dir[1])*NZ+(k+dir[0]);
                 /* The kernels accumulate gradrip/gradrkp against the
@@ -78,9 +118,9 @@ static void grad_T_arithmetic_rho(float * pin, float * gin, float * gout,
     if (dir[2]==1)      NX0=NX-1;
     else if (dir[1]==1) NY0=NY-1;
     if (dir[0]==1)      NZ0=NZ-1;
-    for (k=NZ0;k<NZ;k++){
+    for (i=NX0;i<NX;i++){
         for (j=NY0;j<NY;j++){
-            for (i=NX0;i<NX;i++){
+            for (k=NZ0;k<NZ;k++){
                 ind1 = (i  )*NY*NZ+(j)*NZ+(k);
                 gout[ind1] += gin[ind1];
             }
@@ -88,27 +128,61 @@ static void grad_T_arithmetic_rho(float * pin, float * gin, float * gout,
     }
 }
 
-static void grad_T_harmonic_mu(float * pin, float * gin, float * gout,
-                               int * N, int ndim, int (*dir)[3]){
+/* The copy region at the far edge of each averaging direction, where the
+   forward routines copy the cell instead of averaging (Jacobian 1). */
+static void grad_T_edge_copy(float * gin, float * gout,
+                             int NX, int NY, int NZ, int (*dir)[3]){
     int i,j,k,d;
-    int NX, NY, NZ;
-    int NX0=0, NY0=0, NZ0=0;
-    int ind[4];
+    int NX0, NY0, NZ0;
+    for (d=0;d<2;d++){
+        /* A zero direction (SH: 2-point average) has no edge region; without
+           this test the copy below would cover the whole grid. */
+        if (dir[d][0]==0 && dir[d][1]==0 && dir[d][2]==0) continue;
+        NX0=0; NY0=0; NZ0=0;
+        if (dir[d][2]==1)      NX0=NX-1;
+        else if (dir[d][1]==1) NY0=NY-1;
+        if (dir[d][0]==1)      NZ0=NZ-1;
+        for (i=NX0;i<NX;i++){
+            for (j=NY0;j<NY;j++){
+                for (k=NZ0;k<NZ;k++){
+                    gout[i*NY*NZ+j*NZ+k] += gin[i*NY*NZ+j*NZ+k];
+                }
+            }
+        }
+    }
+}
+
+static int grad_T_harmonic_mu(float * pin, float * gin, float * gout,
+                              int * N, int ndim, int (*dir)[3]){
+    int state=0;
+    int i,j,k,d,p,n,c;
+    int NX, NY, NZ, IX, IY, IZ;
+    int ind[4], off[4], order[4];
     double avg, s;
+    double * w=NULL;
+    unsigned char * valid=NULL;
     if (ndim==3){ NX=N[2]; NY=N[1]; NZ=N[0]; }
     else        { NX=N[1]; NY=1;    NZ=N[0]; }
+    IX = NX-dir[0][2]-dir[1][2];
+    IY = NY-dir[0][1]-dir[1][1];
+    IZ = NZ-dir[0][0]-dir[1][0];
+    off[0] = 0;
+    off[1] = dir[0][2]*NY*NZ+dir[0][1]*NZ+dir[0][0];
+    off[2] = dir[1][2]*NY*NZ+dir[1][1]*NZ+dir[1][0];
+    off[3] = off[1]+off[2];
+
+    GMALLOC(w, sizeof(double)*NX*NY*NZ);
+    GMALLOC(valid, sizeof(unsigned char)*NX*NY*NZ);
+    if (state){ GFree(w); GFree(valid); return state; }
 
     /* pout = 4/sum(1/p_j)  =>  d(pout)/d(p_j) = (pout^2/4)/p_j^2, and all four
-       are zero in a vacuum cell, where ave_harmonic_mu forces pout to 0. */
-    for (k=0;k<NZ-dir[0][0]-dir[1][0];k++){
-        for (j=0;j<NY-dir[0][1]-dir[1][1];j++){
-            for (i=0;i<NX-dir[0][2]-dir[1][2];i++){
-                ind[0] = (i)*NY*NZ+(j)*NZ+(k);
-                ind[1] = (i+dir[0][2])*NY*NZ+(j+dir[0][1])*NZ+(k+dir[0][0]);
-                ind[2] = (i+dir[1][2])*NY*NZ+(j+dir[1][1])*NZ+(k+dir[1][0]);
-                ind[3] = (i+dir[0][2]+dir[1][2])*NY*NZ
-                        +(j+dir[0][1]+dir[1][1])*NZ
-                        +(k+dir[0][0]+dir[1][0]);
+       are zero in a vacuum cell, where ave_harmonic_mu forces pout to 0.
+       First the node factor gin*pout^2/4, then the four contributions. */
+    for (i=0;i<IX;i++){
+        for (j=0;j<IY;j++){
+            for (k=0;k<IZ;k++){
+                n = i*NY*NZ+j*NZ+k;
+                for (d=0;d<4;d++) ind[d] = n+off[d];
                 if (pin[ind[0]]==0 || pin[ind[1]]==0
                     || pin[ind[2]]==0 || pin[ind[3]]==0){
                     continue;
@@ -117,74 +191,59 @@ static void grad_T_harmonic_mu(float * pin, float * gin, float * gout,
                   + 1.0/pin[ind[2]] + 1.0/pin[ind[3]];
                 if (s==0.0) continue;
                 avg = 4.0/s;
-                for (d=0;d<4;d++){
-                    gout[ind[d]] += gin[ind[0]]*0.25*avg*avg
-                                    /(pin[ind[d]]*pin[ind[d]]);
+                w[n] = gin[n]*0.25*avg*avg;
+                valid[n] = 1;
+            }
+        }
+    }
+    scatter_order(dir, order);
+    for (p=0;p<4;p++){
+        d = order[p];
+        for (i=0;i<IX;i++){
+            for (j=0;j<IY;j++){
+                for (k=0;k<IZ;k++){
+                    n = i*NY*NZ+j*NZ+k;
+                    if (!valid[n]) continue;
+                    c = n+off[d];
+                    gout[c] += w[n]/(pin[c]*pin[c]);
                 }
             }
         }
     }
-    for (d=0;d<2;d++){
-        /* A zero direction (SH: 2-point average) has no edge region; without
-           this test the copy below would cover the whole grid. */
-        if (dir[d][0]==0 && dir[d][1]==0 && dir[d][2]==0) continue;
-        NX0=0; NY0=0; NZ0=0;
-        if (dir[d][2]==1)      NX0=NX-1;
-        else if (dir[d][1]==1) NY0=NY-1;
-        if (dir[d][0]==1)      NZ0=NZ-1;
-        for (k=NZ0;k<NZ;k++){
-            for (j=NY0;j<NY;j++){
-                for (i=NX0;i<NX;i++){
-                    ind[0] = (i)*NY*NZ+(j)*NZ+(k);
-                    gout[ind[0]] += gin[ind[0]];
-                }
-            }
-        }
-    }
+    GFree(w); GFree(valid);
+    grad_T_edge_copy(gin, gout, NX, NY, NZ, dir);
+    return state;
 }
 
 static void grad_T_arithmetic_tau(float * gin, float * gout,
                                   int * N, int ndim, int (*dir)[3]){
-    int i,j,k,d;
-    int NX, NY, NZ;
-    int NX0=0, NY0=0, NZ0=0;
-    int ind[4];
+    int i,j,k,d,p,n;
+    int NX, NY, NZ, IX, IY, IZ;
+    int off[4], order[4];
     if (ndim==3){ NX=N[2]; NY=N[1]; NZ=N[0]; }
     else        { NX=N[1]; NY=1;    NZ=N[0]; }
+    IX = NX-dir[0][2]-dir[1][2];
+    IY = NY-dir[0][1]-dir[1][1];
+    IZ = NZ-dir[0][0]-dir[1][0];
+    off[0] = 0;
+    off[1] = dir[0][2]*NY*NZ+dir[0][1]*NZ+dir[0][0];
+    off[2] = dir[1][2]*NY*NZ+dir[1][1]*NZ+dir[1][0];
+    off[3] = off[1]+off[2];
 
     /* Plain 4-point arithmetic mean: every Jacobian entry is 0.25. */
-    for (k=0;k<NZ-dir[0][0]-dir[1][0];k++){
-        for (j=0;j<NY-dir[0][1]-dir[1][1];j++){
-            for (i=0;i<NX-dir[0][2]-dir[1][2];i++){
-                ind[0] = (i)*NY*NZ+(j)*NZ+(k);
-                ind[1] = (i+dir[0][2])*NY*NZ+(j+dir[0][1])*NZ+(k+dir[0][0]);
-                ind[2] = (i+dir[1][2])*NY*NZ+(j+dir[1][1])*NZ+(k+dir[1][0]);
-                ind[3] = (i+dir[0][2]+dir[1][2])*NY*NZ
-                        +(j+dir[0][1]+dir[1][1])*NZ
-                        +(k+dir[0][0]+dir[1][0]);
-                for (d=0;d<4;d++){
-                    gout[ind[d]] += 0.25*gin[ind[0]];
+    scatter_order(dir, order);
+    for (p=0;p<4;p++){
+        d = order[p];
+        for (i=0;i<IX;i++){
+            for (j=0;j<IY;j++){
+                for (k=0;k<IZ;k++){
+                    n = i*NY*NZ+j*NZ+k;
+                    gout[n+off[d]] += 0.25*gin[n];
                 }
             }
         }
     }
-    for (d=0;d<2;d++){
-        /* A zero direction (SH: 2-point average) has no edge region; without
-           this test the copy below would cover the whole grid. */
-        if (dir[d][0]==0 && dir[d][1]==0 && dir[d][2]==0) continue;
-        NX0=0; NY0=0; NZ0=0;
-        if (dir[d][2]==1)      NX0=NX-1;
-        else if (dir[d][1]==1) NY0=NY-1;
-        if (dir[d][0]==1)      NZ0=NZ-1;
-        for (k=NZ0;k<NZ;k++){
-            for (j=NY0;j<NY;j++){
-                for (i=NX0;i<NX;i++){
-                    ind[0] = (i)*NY*NZ+(j)*NZ+(k);
-                    gout[ind[0]] += gin[ind[0]];
-                }
-            }
-        }
-    }
+    grad_T_edge_copy(gin, gout, NX, NY, NZ, dir);
 }
 
 /* One helper so a missing parameter (SH has no M, elastic has no taus, ...)
@@ -241,7 +300,7 @@ static int shear_node_transpose(model * m, const char * muname,
         return state;
     }
     if (al==0.0){
-        grad_T_harmonic_mu(pmu, gmun, gmu, m->N, m->NDIM, dir);
+        __GUARD grad_T_harmonic_mu(pmu, gmun, gmu, m->N, m->NDIM, dir);
         if (gtau && gtaun) grad_T_arithmetic_tau(gtaun, gtau, m->N, m->NDIM, dir);
         return state;
     }
@@ -263,7 +322,9 @@ static int shear_node_transpose(model * m, const char * muname,
             gt[i] = (gtaun ? gtaun[i] : 0.0f) + gmun[i]*pmun[i]*muphys*al;
             cm[i] = 0; ct[i] = 0;
         }
-        grad_T_harmonic_mu(pmu, gm, cm, m->N, m->NDIM, dir);
+        state = grad_T_harmonic_mu(pmu, gm, cm, m->N, m->NDIM, dir);
+    }
+    if (!state){
         grad_T_arithmetic_tau(gt, ct, m->N, m->NDIM, dir);
         for (i=0;i<n;i++){
             double k = 1.0+al*ptau[i];
