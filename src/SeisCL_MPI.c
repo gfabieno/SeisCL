@@ -187,7 +187,25 @@ int main(int argc, char **argv) {
     if (m.GID == 0) {
         fprintf(stdout, "\nInitializing GPUs\n");
     }
-    if (!state) state = Init_CUDA(&m, &dev);
+    int agreed = 0;   /* 1: every process knows the run failed (all end with MPI_Finalize) */
+    if (!state){
+        state = Init_CUDA(&m, &dev);
+        #ifndef __NOMPI__
+        /* Start-up errors are local (a refused subdomain, a kernel that does not compile): every
+           process that reached Init_CUDA learns whether any failed, and all stop together. */
+        if (m.MPI_INIT==1){
+            int nproc = 1, any = 0;
+            MPI_Comm_size(MPI_COMM_WORLD, &nproc);
+            if (nproc > 1){
+                MPI_Allreduce(&state, &any, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+                if (any){
+                    if (!state) state = any;
+                    agreed = 1;
+                }
+            }
+        }
+        #endif
+    }
 
     time4=wtime();
     // Main part, where seismic modeling occurs
@@ -260,14 +278,31 @@ int main(int argc, char **argv) {
     // Free the memory
     Free_OpenCL(&m, dev);
 
-//    if (state){
-////        sleep(300000);
-//        MPI_Abort(MPI_COMM_WORLD, state);
-//    }
     #ifndef __NOMPI__
+    /* A process that failed must stop the others: they would wait forever at the next exchange
+       (halo of a split shot, broadcast, gather), and the run would hang with no message. The
+       error was already printed; the devices were drained and freed above. It exits without
+       MPI_Finalize: mpirun then ends every process of the job and returns an error status.
+       (MPI_Abort, and this exit too, hung now and then when every process failed at once,
+       2026-11-24: start-up failures are therefore agreed above and end with MPI_Finalize.)
+       One process: the ordinary exit, so its exit status and output stay as they were. */
+    if (state && !agreed && m.MPI_INIT==1){
+        int nproc = 1;
+        MPI_Comm_size(MPI_COMM_WORLD, &nproc);
+        if (nproc > 1){
+            fprintf(stderr, "Error: process %d stopped (error %d); ending all %d processes\n",
+                    m.GID, state, nproc);
+            fflush(stderr); fflush(stdout);
+            exit(state);
+        }
+    }
     if (m.MPI_INIT==1){
         MPI_Finalize();
     }
+    /* After an agreed failure only process 0 returns the error status: mpirun (OpenMPI 1.10 here)
+       hung when every process exited with an error at the same moment (2026-11-24, measured:
+       all processes gone, mpirun left waiting). Each failed process has printed its error. */
+    if (agreed && m.GID != 0) state = 0;
     #endif
     
     return state;

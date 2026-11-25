@@ -11,7 +11,8 @@ For every FP16 level, the split run is compared with one GPU at the same FP16:
     perf-ddecomp-2026-11-20)
 
 Also checked: a 2-D split into subdomains narrower than 48 cells must be refused at start-up
-(the update kernels need 3 work groups of 16 cells along x).
+(the update kernels need 3 work groups of 16 cells along x); and, with several MPI processes, when
+only one process is refused (uneven split) the others must stop too, not wait for it forever.
 
 Usage (one GPU per device or process, through the gpu tool):
     python test_decomp.py --bin <SeisCL_MPI> --workdir <folder> --nd 3 --ngpu 3 --nmpi 1
@@ -21,6 +22,8 @@ Prints one PASS / FAIL line per check; exits with 1 if any check fails.
 """
 import argparse
 import os
+import signal
+import subprocess
 import sys
 
 import numpy as np
@@ -163,20 +166,57 @@ for fp16 in [int(f) for f in args.fp16.split(",")]:
         report(np.isfinite(err) and err <= TOL[fp16],
                "%s, gradient %-4s: rel. diff %.2e <= %.0e" % (tag, name, err, TOL[fp16]))
 
-# ---- refusal of subdomains narrower than 3 work groups (2-D) -----------------------------------
-if not args.no_refusal and args.nd == 2 and args.ngpu * args.nmpi > 1:
-    seis.N = np.array([64, 16 * args.ngpu * args.nmpi])    # 16 cells per subdomain
-    nxr = seis.N[-1]
-    seis.src_pos_all[0, :] = (nxr // 2 - 4) * seis.dh     # outside the absorbing layers
-    seis.rec_pos_all[0, :] = (nxr // 2 + 4) * seis.dh
-    pars = {k: np.zeros(seis.N) + v.flat[0] for k, v in pars.items()}
+# ---- refusals: an error exit (status 1-127), with the message, never a crash or a hang ----------
+def run_raw(ngpu, nmpi, limit=120, withgrad=False):
+    """Run the current model and return (exit status, stderr), or (None, "") after a hang
+    (the whole process group is killed). A status >= 128 is a signal (139: segmentation fault)."""
+    seis.nmax_dev, seis.NP, seis.MPI_NPROC_SHOT, seis.FP16 = ngpu, nmpi, nmpi, 0
+    seis.set_forward(seis.src_pos_all[3, :], pars, withgrad=withgrad)
+    p = subprocess.Popen(seis.callcmd(seis.workdir), shell=True, stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE, start_new_session=True)
     try:
-        run(args.ngpu, args.nmpi, 0, False)
-        report(False, "2-D subdomains of 16 cells: the run was not refused")
-    except Exception as e:
-        report("cannot run the update kernels" in str(e),
-               "2-D subdomains of 16 cells refused at start-up (message: %s)"
-               % str(e).strip().splitlines()[-1][:90])
+        out, err = p.communicate(timeout=limit)
+    except subprocess.TimeoutExpired:
+        os.killpg(p.pid, signal.SIGKILL)
+        p.communicate()
+        return None, ""
+    return p.returncode, err.decode()
+
+
+def refused(nx, ngpu, nmpi, what):
+    global pars
+    seis.N = np.array([64, nx])
+    seis.src_pos_all[0, :] = (nx // 2 - 4) * seis.dh     # outside the absorbing layers
+    seis.rec_pos_all[0, :] = (nx // 2 + 4) * seis.dh
+    pars = {k: np.zeros(seis.N) + v.flat[0] for k, v in pars.items()}
+    rc, err = run_raw(ngpu, nmpi)
+    msg = [ln for ln in err.splitlines() if ln.startswith("Error")][:1]
+    if rc is None:
+        report(False, "%s: still running after 120 s (hang)" % what)
+    else:
+        report(0 < rc < 128 and "cannot run the update kernels" in err,
+               "%s (widths %s): error exit, status %d (1-127), message: %s"
+               % (what, subdomain_cuts(nx, nmpi, ngpu)[1], rc, msg[0][:80] if msg else "none"))
+
+
+if not args.no_refusal and args.nd == 2 and args.ngpu * args.nmpi > 1:
+    refused(16 * args.ngpu * args.nmpi, args.ngpu, args.nmpi, "2-D subdomains of 16 cells refused")
+if not args.no_refusal and args.nd == 2 and args.nmpi > 1:
+    # nx = 48 nmpi - 1: the first processes get 48 cells, the last 47 (< 48: refused alone); the
+    # others must stop too (MPI_Abort), not wait for it at the first exchange
+    refused(48 * args.nmpi - 1, 1, args.nmpi, "one of %d processes refused, all stop" % args.nmpi)
+if not args.no_refusal and args.nmpi > 1:
+    # process 0 alone reads the input files: a gradient without its observed data fails there,
+    # before start-up, while the others wait in the broadcasts of Init_MPI; all must stop
+    din = seis.file_din
+    seis.file_din = os.path.join(args.workdir, "no_such_data.mat")
+    rc, err = run_raw(args.ngpu, args.nmpi, withgrad=True)
+    seis.file_din = din
+    msg = [ln for ln in err.splitlines() if ln.startswith("Error")][:1]
+    report(rc is not None and 0 < rc < 128,
+           "process 0 fails before start-up (no data file), all %d stop: %s"
+           % (args.nmpi, "still running after 120 s (hang)" if rc is None else
+              "status %d (1-127), message: %s" % (rc, msg[0][:70] if msg else "none")))
 
 print("test_decomp: %d check(s) failed" % nfail)
 sys.exit(1 if nfail else 0)

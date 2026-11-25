@@ -637,6 +637,10 @@ int Init_CUDA(model * m, device ** dev)  {
                         "or a wider grid.\n",
                         d, m->GID, di->N[m->NDIM-1],
                         3*(int)lsize[m->NDIM-1], (int)lsize[m->NDIM-1]);
+                /* stop here: the blocks below fill tables that GMALLOC no longer allocates
+                   once state is set (segmentation fault, 2026-11-24); Free_OpenCL frees
+                   what was made */
+                return state;
             }
             
         }
@@ -1447,10 +1451,8 @@ int Init_CUDA(model * m, device ** dev)  {
     }
     __GUARD event_dependency(m, dev, adj);
 
-    #ifndef __NOMPI__
-    if (state && m->MPI_INIT==1)
-        MPI_Bcast( &state, 1, MPI_INT, m->GID, MPI_COMM_WORLD );
-    #endif
+    /* (A broadcast of state by the failed process alone was here: a collective the others never
+       entered. The processes now agree on start-up errors in main, SeisCL_MPI.c.) */
 
 
     return state;
