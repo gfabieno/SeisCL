@@ -174,7 +174,8 @@ CacheKey make_cache_key(const Config &cfg, int allns, int allng,
                         const std::vector<int> &nsrc,
                         const std::vector<int> &nrec,
                         const std::vector<std::string> &output_fields,
-                        int gradout, int inputres) {
+                        int gradout, int inputres,
+                        const std::vector<int> &src_types) {
     CacheKey k;
     k.N = cfg.N;
     k.ND = cfg.ND;
@@ -210,6 +211,7 @@ CacheKey make_cache_key(const Config &cfg, int allns, int allng,
     k.allng = allng;
     k.nsrc = nsrc;
     k.nrec = nrec;
+    k.src_types = src_types;
     k.output_fields = output_fields;
     std::sort(k.output_fields.begin(), k.output_fields.end());
     k.gradout = gradout;
@@ -245,8 +247,17 @@ CacheKey geometry_cache_key(const Config &cfg, torch::Tensor &src_pos,
         throw std::invalid_argument(
             "src_pos and rec_pos must contain the same number of shot ids");
     }
+    // Source types compiled into the sources kernel (see CacheKey::src_types).
+    std::vector<int> src_types;
+    const float *spp = sp.data_ptr<float>();
+    for (int i = 0; i < allns; i++) {
+        src_types.push_back(static_cast<int>(spp[4 + 5 * i]));
+    }
+    std::sort(src_types.begin(), src_types.end());
+    src_types.erase(std::unique(src_types.begin(), src_types.end()),
+                    src_types.end());
     return make_cache_key(cfg, allns, allng, nsrc, nrec, output_fields,
-                          gradout, inputres);
+                          gradout, inputres, src_types);
 }
 
 py::dict collect_data(model &m) {
