@@ -89,8 +89,9 @@ elif args.L == 1:
 nx = seis.N[-1]
 cuts, widths = subdomain_cuts(nx, args.nmpi, args.ngpu)
 print("N %s, subdomain widths %s, cuts at x = %s" % (list(seis.N), widths, cuts))
-xsrc = cuts[0] + args.src_gap     # default: one cell after the first cut
-xrec = cuts[-1] - args.rec_gap    # default: one cell before the last cut
+xsrc = (cuts[0] if cuts else nx // 3) + args.src_gap     # default: one cell after the first cut
+xrec = (cuts[-1] if cuts else 2 * nx // 3) - args.rec_gap    # default: one cell before the last cut
+# (no cut: --ngpu 1 --nmpi 1 runs the one-GPU case twice, to check it alone)
 z0 = seis.nab + 5
 ymid = seis.N[1] // 2 if args.nd == 3 else 0
 seis.src_pos_all = np.array([[xsrc * seis.dh], [ymid * seis.dh], [z0 * seis.dh], [0], [100]])

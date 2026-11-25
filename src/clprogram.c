@@ -952,6 +952,17 @@ static int perf_options(model * m, device * dev, clprogram * prog, char opt[3][6
         nv = ns = 56;
     #endif
     int cap = strcmp(prog->name, "update_adjv")==0 ? nv : strcmp(prog->name, "update_adjs")==0 ? ns : 0;
+    /* A work group must fit in the 64K registers of a multiprocessor: without a cap the compiler
+       may give a work-item more than 65536 / (work-group size) registers, and the launch fails
+       (OpenCL: CL_OUT_OF_RESOURCES; measured: update_adjs of a boundary strip, NOTILE, FP16 1,
+       3-D, 512 work-items; the interior variant uses 126 registers, the strip variant more).
+       Under NOTILE only: the tiled kernels are unchanged. */
+    if (*notile && prog->lsize[0] > 0){
+        size_t threads = 1;
+        for (int k = 0; k < prog->wdim && k < MAX_DIMS; k++) threads *= prog->lsize[k];
+        int fit = (int)(65536 / threads) & ~7;
+        if (fit < 255 && (cap == 0 || fit < cap)) cap = fit;
+    }
     if (cap > 0){
         #ifdef __SEISCL__
         sprintf(opt[n++], "-cl-nv-maxrregcount=%d", cap);
@@ -1377,6 +1388,22 @@ int prog_launch(QUEUE *inqueue, clprogram * prog){
                                    prog->nwait,
                                    prog->waits,
                                    event);
+    if (state != CL_SUCCESS){
+        /* what the launch asked against what the kernel allows: a CL_OUT_OF_RESOURCES is either
+           a work group too large for this build of the kernel or an earlier kernel's fault.
+           NVIDIA's CL_KERNEL_WORK_GROUP_SIZE is conservative (256 for kernels that run 512), so it
+           is printed, not used to decide. */
+        size_t wgmax = 0; cl_ulong lmem = 0, pmem = 0; cl_device_id dv;
+        clGetCommandQueueInfo(*inqueue, CL_QUEUE_DEVICE, sizeof(dv), &dv, NULL);
+        clGetKernelWorkGroupInfo(prog->kernel, dv, CL_KERNEL_WORK_GROUP_SIZE, sizeof(wgmax), &wgmax, NULL);
+        clGetKernelWorkGroupInfo(prog->kernel, dv, CL_KERNEL_LOCAL_MEM_SIZE, sizeof(lmem), &lmem, NULL);
+        clGetKernelWorkGroupInfo(prog->kernel, dv, CL_KERNEL_PRIVATE_MEM_SIZE, sizeof(pmem), &pmem, NULL);
+        fprintf(stderr, "    %s: global %zu %zu %zu, local %zu %zu %zu (wdim %d); kernel allows a work group "
+                "of %zu, local memory %llu B, private %llu B\n", prog->name,
+                prog->gsize[0], prog->wdim>1 ? prog->gsize[1] : 1, prog->wdim>2 ? prog->gsize[2] : 1,
+                lsize ? lsize[0] : 0, lsize && prog->wdim>1 ? lsize[1] : 0, lsize && prog->wdim>2 ? lsize[2] : 0,
+                (int)prog->wdim, wgmax, (unsigned long long)lmem, (unsigned long long)pmem);
+    }
     #else
     int i;
     unsigned int bsize[] ={1,1,1};
