@@ -423,9 +423,10 @@ def get_source_response(u, s):
     u[1:-1] = u[2:]-2*u[1:-1]+u[:-2]
     u[0] = u[-1] = 0
     #Convole the Green function with the wavelet.
-    U = np.fft.fft(u)
-    S = np.fft.fft(s)
-    v = np.real(np.fft.ifft(U * S))
+    # Linear, not circular, convolution: zero-pad both to len(u) + len(s) - 1 and keep the first len(u)
+    # samples. Without the padding, whatever arrives after the end of the record wrapped around to t = 0.
+    n = len(u) + len(s) - 1
+    v = np.real(np.fft.ifft(np.fft.fft(u, n) * np.fft.fft(s, n)))[:len(u)]
 
     return v
 
