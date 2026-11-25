@@ -66,6 +66,14 @@ struct CacheKey {
     std::vector<int> nsrc;
     std::vector<int> nrec;
 
+    // The set of source types in src_pos column 4 (sorted, unique).
+    // kernel_sources() (src/automatic_kernels.c) compiles them into the
+    // "sources" kernel -- with a single type there is not even a type test
+    // -- so a handle built for one set injects into the wrong variables for
+    // another. Without this field an explosive call after a force call with
+    // the same geometry returned the force data (2026-11-24).
+    std::vector<int> src_types;
+
     std::vector<std::string> output_fields;  // sorted by the builder
 
     // Both flags are baked into the build, not just the run: GRADOUT gates
@@ -98,6 +106,7 @@ struct CacheKey {
                nmax_dev == o.nmax_dev &&
                pref_device_type == o.pref_device_type && allns == o.allns &&
                allng == o.allng && nsrc == o.nsrc && nrec == o.nrec &&
+               src_types == o.src_types &&
                output_fields == o.output_fields && gradout == o.gradout &&
                inputres == o.inputres;
     }
@@ -145,6 +154,7 @@ struct CacheKeyHash {
         combine(h, k.allng);
         for (int n : k.nsrc) combine(h, n);
         for (int n : k.nrec) combine(h, n);
+        for (int n : k.src_types) combine(h, n);
         for (const std::string &f : k.output_fields) combine(h, f);
         combine(h, k.gradout);
         combine(h, k.inputres);
