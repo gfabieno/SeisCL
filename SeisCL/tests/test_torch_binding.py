@@ -369,6 +369,46 @@ def test_cache_hit_matches_fresh_build():
     print("Testing: torch_cache_hit_matches_fresh_build ....... passed")
 
 
+def test_cache_source_type_change():
+    """Changing only the source type between two calls rebuilds the source kernel.
+
+    kernel_sources (automatic_kernels.c) compiles the source types of src_pos
+    column 4 into the "sources" kernel, but the engine cache key did not hold
+    them: a second call with the same geometry and another source type reused
+    the first call's kernel. An explosive call after a vz-force call returned
+    the force data exactly (2-D full space, bench-deepwave-work/timing,
+    2026-11-24). Each call after another type must equal its fresh build;
+    threshold: relative difference <= 1e-6 (bit-identical expected).
+    """
+    def run(stype):
+        src, src_pos, rec_pos = _simple_geometry()
+        src_pos = src_pos.clone()
+        src_pos[0, 4] = stype
+        out = seiscl_forward(_make_config(), _homogeneous_params(), src,
+                             src_pos, rec_pos, output_fields=["vx", "vz"])
+        return torch.cat([out["vx"].flatten(), out["vz"].flatten()])
+
+    types = (2, 100, 0)                  # vz force, explosive, vx force
+    fresh = {}
+    for st in types:
+        clear_engine_cache()
+        fresh[st] = run(st)
+    clear_engine_cache()
+    for a, b in ((2, 100), (100, 0), (0, 2)):
+        run(a)
+        after = run(b)
+        ref = fresh[b]
+        rel = float((after - ref).abs().max() / ref.abs().max())
+        print("      type %d after type %d: max relative difference to a fresh "
+              "build %.2e (<= 1e-6)" % (b, a, rel))
+        assert float((fresh[a] - ref).abs().max() / ref.abs().max()) > 1e-2, \
+            "types %d and %d gave the same data -- the test is not sensitive" % (a, b)
+        assert rel <= 1e-6, (
+            "source type %d after type %d: relative difference %.2e to a fresh "
+            "build > 1e-6 -- the cached source kernel was reused" % (b, a, rel))
+    print("Testing: torch_cache_source_type_change ....... passed")
+
+
 def test_cache_shape_change_and_back():
     """Interleaving a different shape leaves the original still correct."""
     clear_engine_cache()
@@ -1112,6 +1152,7 @@ if __name__ == "__main__":
         test_cache_is_actually_used()
         test_cache_hit_matches_fresh_build()
         test_cache_shape_change_and_back()
+        test_cache_source_type_change()
         test_cache_eviction_correctness()
         test_cache_hit_rejects_wrong_src_length()
         test_checkpoint_survives_interleaved_forward()
