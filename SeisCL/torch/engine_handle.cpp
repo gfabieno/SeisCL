@@ -417,7 +417,7 @@ int engine_refresh_params(EngineHandle &h, const py::dict &params) {
             state = param_prep_upload(&h.m, &h.dev[d]);
             if (!state) state = param_prep_run(&h.m, &h.dev[d]);
             if (!state) state = param_average_run(&h.m, &h.dev[d]);
-            if (!state) state = param_prep_readback(&h.m, &h.dev[d]);
+            if (!state && host_needs_par(&h.m)) state = param_prep_readback(&h.m, &h.dev[d]);
         }
         clear_raw_src(h.m);
         return state;

@@ -341,6 +341,13 @@ int var_is_half(model * m, const char * name){
     return 1;
 }
 
+/* Whether the host needs its copy of the prepared parameters: the host
+   res_scale (not dev_res) and the host gradient post-processing (a gradient
+   without dev_grad). */
+int host_needs_par(model * m){
+    return !m->dev_res || (m->GRADOUT && !m->dev_grad);
+}
+
 int param_average_run(model * m, device * di){
     int state = 0;
     if (!use_gpu_average(m)) return 0;
@@ -354,6 +361,8 @@ int param_average_run(model * m, device * di){
         __GUARD prog_launch(&di->queue, &di->par_avg.muipjp);
         __GUARD prog_launch(&di->queue, &di->par_avg.mujpkp);
     }
+    /* only for a host consumer: res_scale and calc_grad, when not on the device */
+    if (!host_needs_par(m)) return state;
     for (int i=0; i<3; i++){
         parameter * p = get_par(di->pars, di->npars, names2[i]);
         __GUARD clbuf_read(&di->queue, &p->cl_par);
@@ -424,9 +433,13 @@ int param_prep_upload(model * m, device * di){
             fprintf(stderr, "Error: device raw parameters need the CUDA build\n");
             return 1;
             #else
-            __GUARD cuMemcpy((CUdeviceptr)di->pars[i].cl_raw.mem,
-                             (CUdeviceptr)m->pars[i].raw_src,
-                             di->pars[i].cl_raw.size);
+            /* on the queue of the kernels that read it: a copy between
+               device pointers is asynchronous with respect to the host, and
+               the legacy stream of cuMemcpy does not order the engine's
+               non-blocking queues */
+            __GUARD cuMemcpyAsync((CUdeviceptr)di->pars[i].cl_raw.mem,
+                                  (CUdeviceptr)m->pars[i].raw_src,
+                                  di->pars[i].cl_raw.size, di->queue);
             #endif
         }
         else {
@@ -1098,8 +1111,9 @@ int Init_CUDA(model * m, device ** dev)  {
                 __GUARD param_average_run(m, di);
             }
             if (!state && m->gpu_prep){
-                __GUARD param_prep_readback(m, di);
-                if (!m->keep_raw){
+                if (host_needs_par(m)) __GUARD param_prep_readback(m, di);
+                /* dev_grad keeps them: the physical parameters of gpost_run */
+                if (!m->keep_raw && !m->dev_grad){
                     for (i=0;i<m->npars;i++) clbuf_free(di, &di->pars[i].cl_raw);
                 }
             }

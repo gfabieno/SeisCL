@@ -833,6 +833,7 @@ int dio_create(model * m, device * di){
     __GUARD dio_mkprog(m, di, &di->dio.recgrad, &m->dio.recgrad, ng, 64);
     __GUARD dio_mkprog(m, di, &di->dio.recgrad_add, &m->dio.recgrad_add, 1, 1);
     __GUARD dio_mkprog(m, di, &di->dio.add_out, &m->dio.add_out, ng, 64);
+    __GUARD gpost_create(m, di);
     for (i=0;i<m->nvars;i++){
         if (!di->vars[i].to_output) continue;
         __GUARD dio_buf(di, &di->vars[i].cl_out_all, sizeof(float)*nout, 0);

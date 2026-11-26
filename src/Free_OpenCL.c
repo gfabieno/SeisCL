@@ -134,6 +134,8 @@ void parameter_freeCL(device *dev, parameter * par){
     clbuf_free(dev, &par->cl_par);
     clbuf_free(dev, &par->cl_raw);
     clbuf_free(dev, &par->cl_gradrec);
+    clbuf_free(dev, &par->cl_pwork);
+    clbuf_free(dev, &par->cl_gwork);
     clbuf_free(dev, &par->cl_grad);
     clbuf_free(dev, &par->cl_H);
 }
@@ -349,6 +351,18 @@ void device_free(device * dev){
     clbuf_free(dev, &dev->dio.red);
     clbuf_free(dev, &dev->dio.cst);
     clbuf_free(dev, &dev->dio.acc);
+    clprogram * gpp[12] = {&dev->gp.cvt, &dev->gp.addrec, &dev->gp.scale, &dev->gp.unbuoy,
+                           &dev->gp.trho, &dev->gp.tmu_w, &dev->gp.tmu_pass, &dev->gp.ttau_pass,
+                           &dev->gp.edge, &dev->gp.sn_pre, &dev->gp.sn_post, &dev->gp.chain};
+    for (int k=0;k<12;k++) clprogram_freeCL(gpp[k]);
+    clbuf_free(dev, &dev->gp.cst);
+    clbuf_free(dev, &dev->gp.w);
+    clbuf_free(dev, &dev->gp.valid);
+    clbuf_free(dev, &dev->gp.gm);
+    clbuf_free(dev, &dev->gp.gt);
+    clbuf_free(dev, &dev->gp.cm);
+    clbuf_free(dev, &dev->gp.ct);
+    clbuf_free(dev, &dev->gp.stage);
     
     if (dev->queue) QUEUEFREE(dev->queue);
     if (dev->queuecomm) QUEUEFREE(dev->queuecomm);

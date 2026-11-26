@@ -20,6 +20,7 @@
 #include "average_params.hcl"
 #include "prep_params.hcl"
 #include "dev_io.hcl"
+#include "grad_post.hcl"
 #include "savebnd2D.hcl"
 #include "savebnd3D.hcl"
 #include "savebnd2D_SH.hcl"
@@ -1395,6 +1396,25 @@ int assign_modeling_case(model * m){
         __GUARD prog_source(&m->dio.recgrad, "dio_recgrad", dev_io_source, 1, headers);
         __GUARD prog_source(&m->dio.recgrad_add, "dio_recgrad_add", dev_io_source, 1, headers);
         __GUARD prog_source(&m->dio.add_out, "dio_add_out", dev_io_source, 1, headers);
+    }
+    /* Gradient post-processing on the device (grad_post.cl): with dev_res,
+       par_type 0 (the only one the engine runs), without the Hessian. */
+    m->dev_grad = m->dev_res && m->GRADOUT && !m->HOUT && m->par_type==0
+                  && (m->BACK_PROP_TYPE==1 || m->BACK_PROP_TYPE==2);
+    {   /* SEISCL_HOST_GRAD=1: the host post-processing (tests) */
+        const char * v = getenv("SEISCL_HOST_GRAD");
+        if (v && v[0]=='1') m->dev_grad = 0;
+    }
+    if (m->dev_grad){
+        clprogram * gp[12] = {&m->gp.cvt, &m->gp.addrec, &m->gp.scale, &m->gp.unbuoy,
+                              &m->gp.trho, &m->gp.tmu_w, &m->gp.tmu_pass, &m->gp.ttau_pass,
+                              &m->gp.edge, &m->gp.sn_pre, &m->gp.sn_post, &m->gp.chain};
+        const char * gn[12] = {"gp_cvt", "gp_addrec", "gp_scale", "gp_unbuoy", "gp_trho",
+                               "gp_tmu_w", "gp_tmu_pass", "gp_ttau_pass", "gp_edge",
+                               "gp_sn_pre", "gp_sn_post", "gp_chain"};
+        for (int k=0;k<12;k++){
+            __GUARD prog_source(gp[k], (char *)gn[k], grad_post_source, 1, headers);
+        }
     }
     if (gpu_avg){
         __GUARD prog_source(&m->par_avg.rip, "ave_rip", average_params_source,

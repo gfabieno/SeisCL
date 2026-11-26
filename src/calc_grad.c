@@ -811,3 +811,377 @@ int transf_grad(model * m) {
 
 
 
+
+
+/* ---- Gradient post-processing on the device (grad_post.cl) -----------------
+   m->dev_grad: after the shot loop, the gradient slices and the stored
+   parameters of every device are gathered as whole-model float arrays on the
+   first device, and the host sequence (transf_grad for back_prop_type 1;
+   unpack, add_rec_grad_dft, unscale_grad_dft, average_grad_transpose,
+   unscale_par, chain_rule_par_type for 2) runs there as kernels, in the same
+   order and with the same roundings. The physical parameters overwrite the
+   raw buffers (cl_raw, re-uploaded at every call). SeisCL.torch takes the
+   result from the device (cl_grad, or cl_gwork with several devices);
+   SeisCL_MPI reads it into gl_grad for its output file. */
+#ifndef __SEISCL__
+static int gp_isnode(const char * n){
+    return strcmp(n,"muipkp")==0 || strcmp(n,"muipjp")==0 || strcmp(n,"mujpkp")==0
+        || strcmp(n,"tausipkp")==0 || strcmp(n,"tausipjp")==0 || strcmp(n,"tausjpkp")==0;
+}
+static int gp_buf(device * di, clbuf * b, size_t size, int host){
+    int state = 0;
+    b->size = size;
+    if (host){
+        GMALLOC(b->host, size);
+        b->free_host = 1;
+    }
+    __GUARD clbuf_create(di->context_ptr, b);
+    if (!state) state = cuMemsetD8(b->mem, 0, size);
+    return state;
+}
+#endif
+
+int gpost_create(model * m, device * di){
+    int state = 0;
+    #ifndef __SEISCL__
+    int i;
+    size_t n = 1;
+    for (i=0;i<m->NDIM;i++) n *= m->N[i];
+    if (!m->dev_grad || di->DEVID!=0) return 0;
+    clprogram * dp[12] = {&di->gp.cvt, &di->gp.addrec, &di->gp.scale, &di->gp.unbuoy,
+                          &di->gp.trho, &di->gp.tmu_w, &di->gp.tmu_pass, &di->gp.ttau_pass,
+                          &di->gp.edge, &di->gp.sn_pre, &di->gp.sn_post, &di->gp.chain};
+    clprogram * mp[12] = {&m->gp.cvt, &m->gp.addrec, &m->gp.scale, &m->gp.unbuoy,
+                          &m->gp.trho, &m->gp.tmu_w, &m->gp.tmu_pass, &m->gp.ttau_pass,
+                          &m->gp.edge, &m->gp.sn_pre, &m->gp.sn_post, &m->gp.chain};
+    for (i=0;i<12;i++){
+        *dp[i] = *mp[i];
+        __GUARD prog_create(m, di, dp[i]);
+        dp[i]->wdim = 1;
+        dp[i]->lsize[0] = 256;
+        dp[i]->gsize[0] = ((n + 255)/256)*256;
+    }
+    __GUARD gp_buf(di, &di->gp.cst, sizeof(double)*GP_NCST, 1);
+    __GUARD gp_buf(di, &di->gp.w, sizeof(double)*n, 0);
+    __GUARD gp_buf(di, &di->gp.valid, sizeof(int)*n, 0);
+    __GUARD gp_buf(di, &di->gp.stage, sizeof(float)*n, 0);
+    if (m->L>0){
+        __GUARD gp_buf(di, &di->gp.gm, sizeof(float)*n, 0);
+        __GUARD gp_buf(di, &di->gp.gt, sizeof(float)*n, 0);
+        __GUARD gp_buf(di, &di->gp.cm, sizeof(float)*n, 0);
+        __GUARD gp_buf(di, &di->gp.ct, sizeof(float)*n, 0);
+    }
+    for (i=0;i<m->npars;i++){
+        parameter * p = &di->pars[i];
+        if (m->L>0 && gp_isnode(p->name)){
+            __GUARD gp_buf(di, &p->cl_pwork, sizeof(float)*n, 0);
+        }
+        if (p->to_grad && m->NUM_DEVICES>1){
+            __GUARD gp_buf(di, &p->cl_gwork, sizeof(float)*n, 0);
+        }
+    }
+    #endif
+    return state;
+}
+
+#ifndef __SEISCL__
+/* the run-time state of gpost_run */
+typedef struct gpost_ctx {
+    model * m;
+    device * d0;
+    double * c;
+    size_t n;
+    int state;
+} gpost_ctx;
+
+/* bind pointer argument name of p to the device pointer held at mem */
+static void gp_arg(gpost_ctx * g, clprogram * p, const char * name, MEM * mem){
+    int i;
+    if (g->state) return;
+    for (i=0;i<p->ninputs;i++){
+        if (strcmp(p->input_list[i], name)==0){
+            prog_arg(p, i, mem ? mem : &g->d0->cuda_null, sizeof(MEM));
+            return;
+        }
+    }
+    fprintf(stderr, "Error: no argument %s in kernel %s\n", name, p->name);
+    g->state = 1;
+}
+static void gp_launch(gpost_ctx * g, clprogram * p){
+    if (g->state) return;
+    g->state = clbuf_send(&g->d0->queue, &g->d0->gp.cst);
+    if (!g->state) g->state = prog_launch(&g->d0->queue, p);
+}
+static void gp_reset(gpost_ctx * g){
+    memset(g->c, 0, sizeof(double)*GP_NCST);
+    g->c[0] = (double)g->n;
+    g->c[1] = g->m->N[0];
+    g->c[2] = (g->m->NDIM==3) ? g->m->N[1] : 1;
+    g->c[3] = (g->m->NDIM==3) ? g->m->N[2] : g->m->N[1];
+}
+/* the whole-model float array of a parameter, and its gradient */
+static MEM * gp_pw(gpost_ctx * g, const char * name){
+    parameter * p = get_par(g->d0->pars, g->d0->npars, name);
+    if (!p || !p->name) return NULL;
+    if (p->cl_raw.mem) return &p->cl_raw.mem;
+    if (p->cl_pwork.mem) return &p->cl_pwork.mem;
+    return NULL;
+}
+static MEM * gp_gw(gpost_ctx * g, const char * name){
+    parameter * p = get_par(g->d0->pars, g->d0->npars, name);
+    if (!p || !p->name || !p->to_grad) return NULL;
+    if (g->m->NUM_DEVICES>1) return p->cl_gwork.mem ? &p->cl_gwork.mem : NULL;
+    return p->cl_grad.mem ? &p->cl_grad.mem : NULL;
+}
+static void gp_scale_by(gpost_ctx * g, MEM * a, float factor){
+    if (!a) return;
+    gp_reset(g);
+    g->c[20] = factor;
+    gp_arg(g, &g->d0->gp.scale, "a", a);
+    gp_launch(g, &g->d0->gp.scale);
+}
+/* the four passes of a 4-point transpose, in the host's scatter order */
+static void gp_order(int (*dir)[3], int order[4]){
+    int off[4][3];
+    int c, d, e, t, cmp;
+    for (c=0;c<3;c++){
+        off[0][c] = 0; off[1][c] = dir[0][c]; off[2][c] = dir[1][c];
+        off[3][c] = dir[0][c]+dir[1][c];
+    }
+    for (d=0;d<4;d++) order[d] = d;
+    for (d=1;d<4;d++){
+        for (e=d;e>0;e--){
+            cmp = 0;
+            for (c=0;c<3 && cmp==0;c++) cmp = off[order[e]][c] - off[order[e-1]][c];
+            if (cmp<=0) break;
+            t = order[e]; order[e] = order[e-1]; order[e-1] = t;
+        }
+    }
+}
+static void gp_dirs(gpost_ctx * g, int (*dir)[3]){
+    int k;
+    for (k=0;k<3;k++){ g->c[4+k] = dir[0][k]; g->c[7+k] = dir[1][k]; }
+}
+/* grad_T_harmonic_mu(pin, gin, gout) */
+static void gp_tmu(gpost_ctx * g, MEM * pin, MEM * gin, MEM * gout, int (*dir)[3]){
+    int order[4], p;
+    device * d0 = g->d0;
+    gp_reset(g); gp_dirs(g, dir);
+    gp_arg(g, &d0->gp.tmu_w, "a", pin); gp_arg(g, &d0->gp.tmu_w, "b", gin);
+    gp_arg(g, &d0->gp.tmu_w, "e", &d0->gp.w.mem); gp_arg(g, &d0->gp.tmu_w, "f", &d0->gp.valid.mem);
+    gp_launch(g, &d0->gp.tmu_w);
+    gp_order(dir, order);
+    for (p=0;p<4;p++){
+        gp_reset(g); gp_dirs(g, dir); g->c[10] = order[p];
+        gp_arg(g, &d0->gp.tmu_pass, "a", pin); gp_arg(g, &d0->gp.tmu_pass, "e", &d0->gp.w.mem);
+        gp_arg(g, &d0->gp.tmu_pass, "f", &d0->gp.valid.mem); gp_arg(g, &d0->gp.tmu_pass, "d", gout);
+        gp_launch(g, &d0->gp.tmu_pass);
+    }
+    gp_reset(g); gp_dirs(g, dir);
+    gp_arg(g, &d0->gp.edge, "b", gin); gp_arg(g, &d0->gp.edge, "d", gout);
+    gp_launch(g, &d0->gp.edge);
+}
+/* grad_T_arithmetic_tau(gin, gout) */
+static void gp_ttau(gpost_ctx * g, MEM * gin, MEM * gout, int (*dir)[3]){
+    int order[4], p;
+    device * d0 = g->d0;
+    gp_order(dir, order);
+    for (p=0;p<4;p++){
+        gp_reset(g); gp_dirs(g, dir); g->c[10] = order[p];
+        gp_arg(g, &d0->gp.ttau_pass, "b", gin); gp_arg(g, &d0->gp.ttau_pass, "d", gout);
+        gp_launch(g, &d0->gp.ttau_pass);
+    }
+    gp_reset(g); gp_dirs(g, dir);
+    gp_arg(g, &d0->gp.edge, "b", gin); gp_arg(g, &d0->gp.edge, "d", gout);
+    gp_launch(g, &d0->gp.edge);
+}
+/* shear_node_transpose */
+static void gp_shear(gpost_ctx * g, const char * muname, const char * tauname, int (*dir)[3]){
+    device * d0 = g->d0;
+    model * m = g->m;
+    MEM * gmu = gp_gw(g, "mu");    MEM * pmu = gp_pw(g, "mu");
+    MEM * gmun = gp_gw(g, muname); MEM * pmun = gp_pw(g, muname);
+    MEM * gtau = gp_gw(g, "taus"); MEM * ptau = gp_pw(g, "taus");
+    MEM * gtaun = gp_gw(g, tauname); MEM * ptaun = gp_pw(g, tauname);
+    double al = gsls_alpha(m);
+    if (!gmu || !gmun){
+        if (gtau && gtaun) gp_ttau(g, gtaun, gtau, dir);
+        return;
+    }
+    if (al==0.0){
+        gp_tmu(g, pmu, gmun, gmu, dir);
+        if (gtau && gtaun) gp_ttau(g, gtaun, gtau, dir);
+        return;
+    }
+    if (!ptau || !ptaun){
+        fprintf(stderr, "Error: %s needs taus and %s\n", muname, tauname);
+        g->state = 1;
+        return;
+    }
+    double muphys = m->dh/m->dt*pow(2.0, -m->par_scale);
+    gp_reset(g);
+    g->c[21] = al; g->c[22] = muphys; g->c[26] = gtaun ? 1 : 0;
+    gp_arg(g, &d0->gp.sn_pre, "a", gmun); gp_arg(g, &d0->gp.sn_pre, "b", pmun);
+    gp_arg(g, &d0->gp.sn_pre, "e", ptaun); gp_arg(g, &d0->gp.sn_pre, "f", gtaun);
+    gp_arg(g, &d0->gp.sn_pre, "d", &d0->gp.gm.mem); gp_arg(g, &d0->gp.sn_pre, "g", &d0->gp.gt.mem);
+    gp_arg(g, &d0->gp.sn_pre, "h", &d0->gp.cm.mem); gp_arg(g, &d0->gp.sn_pre, "ct", &d0->gp.ct.mem);
+    gp_launch(g, &d0->gp.sn_pre);
+    gp_tmu(g, pmu, &d0->gp.gm.mem, &d0->gp.cm.mem, dir);
+    gp_ttau(g, &d0->gp.gt.mem, &d0->gp.ct.mem, dir);
+    gp_reset(g);
+    g->c[21] = al; g->c[22] = muphys; g->c[26] = gtau ? 2 : 0;
+    gp_arg(g, &d0->gp.sn_post, "a", gmu); gp_arg(g, &d0->gp.sn_post, "b", gtau);
+    gp_arg(g, &d0->gp.sn_post, "d", &d0->gp.cm.mem); gp_arg(g, &d0->gp.sn_post, "e", &d0->gp.ct.mem);
+    gp_arg(g, &d0->gp.sn_post, "f", ptau); gp_arg(g, &d0->gp.sn_post, "g", pmu);
+    gp_launch(g, &d0->gp.sn_post);
+}
+/* average_grad_transpose */
+static void gp_average_T(gpost_ctx * g){
+    device * d0 = g->d0;
+    model * m = g->m;
+    MEM * gsrc = gp_gw(g, "rho"); MEM * psrc = gp_pw(g, "rho");
+    const char * rn[3] = {"rip", "rjp", "rkp"};
+    int rd[3][3] = {{0,0,1},{0,1,0},{1,0,0}};
+    int k, d2[2][3];
+    if (gsrc){
+        for (k=0;k<3;k++){
+            MEM * gavg = gp_gw(g, rn[k]);
+            if (!gavg) continue;
+            gp_reset(g);
+            g->c[4] = rd[k][0]; g->c[5] = rd[k][1]; g->c[6] = rd[k][2];
+            gp_arg(g, &d0->gp.trho, "a", psrc); gp_arg(g, &d0->gp.trho, "b", gavg);
+            gp_arg(g, &d0->gp.trho, "d", gsrc);
+            gp_launch(g, &d0->gp.trho);
+        }
+    }
+    d2[0][0]=0; d2[0][1]=0; d2[0][2]=1; d2[1][0]=1; d2[1][1]=0; d2[1][2]=0;
+    gp_shear(g, "muipkp", "tausipkp", d2);
+    d2[0][0]=0; d2[0][1]=1; d2[0][2]=0; d2[1][0]=1; d2[1][1]=0; d2[1][2]=0;
+    if (m->ND==21){ d2[0][0]=1; d2[0][1]=0; d2[0][2]=0; d2[1][0]=0; d2[1][1]=0; d2[1][2]=0; }
+    gp_shear(g, "mujpkp", "tausjpkp", d2);
+    d2[0][0]=0; d2[0][1]=0; d2[0][2]=1; d2[1][0]=0; d2[1][1]=1; d2[1][2]=0;
+    if (m->ND==21){ d2[1][1]=0; }
+    gp_shear(g, "muipjp", "tausipjp", d2);
+}
+#endif
+
+int gpost_run(model * m, device ** dev){
+    int state = 0;
+    #ifndef __SEISCL__
+    int i, d;
+    device * d0 = &(*dev)[0];
+    gpost_ctx g;
+    g.m = m; g.d0 = d0; g.c = (double *)d0->gp.cst.host; g.state = 0;
+    g.n = 1;
+    for (i=0;i<m->NDIM;i++) g.n *= m->N[i];
+    size_t slice = (m->NDIM==3) ? (size_t)m->N[0]*m->N[1] : (size_t)m->N[0];
+
+    /* every queue of every device (queue and queuecomm) has finished */
+    for (d=0;d<m->NUM_DEVICES;d++){
+        __GUARD cuCtxSetCurrent((*dev)[d].context);
+        __GUARD cuCtxSynchronize();
+    }
+    __GUARD cuCtxSetCurrent(d0->context);
+    /* 1. the stored parameters, as float, whole model (unpack_par_fp16): the
+          raw parameters and, with L > 0, the shear nodes */
+    for (i=0;i<m->npars && !g.state;i++){
+        MEM * pw = gp_pw(&g, m->pars[i].name);
+        if (!pw) continue;
+        for (d=0;d<m->NUM_DEVICES && !g.state;d++){
+            device * dd = &(*dev)[d];
+            MEM * src = &dd->pars[i].cl_par.mem;
+            if (d>0){
+                /* on the queue of the kernels (see param_prep_upload) */
+                g.state = cuMemcpyAsync(d0->gp.stage.mem, dd->pars[i].cl_par.mem,
+                                        dd->pars[i].cl_par.size, d0->queue);
+                src = &d0->gp.stage.mem;
+            }
+            gp_reset(&g);
+            g.c[4] = (double)dd->OFFSET*slice;
+            g.c[5] = dd->pars[i].num_ele;
+            gp_arg(&g, &d0->gp.cvt, "a", pw);
+            gp_arg(&g, &d0->gp.cvt, "b", src);
+            gp_launch(&g, &d0->gp.cvt);
+            if (d>0 && !g.state) g.state = cuStreamSynchronize(d0->queue);   /* stage is reused */
+        }
+    }
+    /* 2. the gradient slices of every device (one device: in place) */
+    if (m->NUM_DEVICES>1){
+        for (i=0;i<m->npars && !g.state;i++){
+            if (!d0->pars[i].cl_gwork.mem) continue;
+            for (d=0;d<m->NUM_DEVICES && !g.state;d++){
+                device * dd = &(*dev)[d];
+                g.state = cuMemcpyAsync(d0->pars[i].cl_gwork.mem + sizeof(float)*dd->OFFSET*slice,
+                                        dd->pars[i].cl_grad.mem, dd->pars[i].cl_grad.size,
+                                        d0->queue);
+            }
+        }
+    }
+    /* 3. the host sequence */
+    float scale2 = powf(2.0f, (float)m->par_scale);
+    if (m->BACK_PROP_TYPE==2){
+        /* add_rec_grad_dft */
+        for (i=0;i<m->npars && !g.state;i++){
+            parameter * p = &d0->pars[i];
+            MEM * gw = gp_gw(&g, p->name);
+            if (!p->cl_gradrec.mem || !gw) continue;
+            gp_reset(&g);
+            gp_arg(&g, &d0->gp.addrec, "a", gw);
+            gp_arg(&g, &d0->gp.addrec, "b", &p->cl_gradrec.mem);
+            gp_launch(&g, &d0->gp.addrec);
+        }
+        /* unscale_grad_dft */
+        float dftcal = 2.0f*(m->dh*m->dh)/(m->dt*m->dt*m->dt*m->dt);
+        for (i=0;i<m->npars;i++) gp_scale_by(&g, gp_gw(&g, m->pars[i].name), dftcal*scale2);
+        gp_average_T(&g);
+    }
+    else {
+        gp_average_T(&g);
+    }
+    /* unscale_par */
+    {
+        const float sc = ldexpf(1.0f, -m->par_scale);
+        MEM * rho = gp_pw(&g, "rho");
+        gp_reset(&g);
+        g.c[23] = m->dt; g.c[24] = m->dh; g.c[25] = sc;
+        gp_arg(&g, &d0->gp.unbuoy, "a", rho);
+        gp_launch(&g, &d0->gp.unbuoy);
+        gp_scale_by(&g, gp_pw(&g, "M"), m->dh/m->dt*sc);
+        gp_scale_by(&g, gp_pw(&g, "mu"), m->dh/m->dt*sc);
+    }
+    /* unscale_grad (back_prop_type 1) */
+    if (m->BACK_PROP_TYPE==1){
+        gp_scale_by(&g, gp_gw(&g, "rho"), (m->dh*m->dh)/(m->dt*m->dt*m->dt)*scale2);
+        if (gp_pw(&g, "M")) gp_scale_by(&g, gp_gw(&g, "M"), scale2/m->dt);
+        if (gp_pw(&g, "mu")) gp_scale_by(&g, gp_gw(&g, "mu"), scale2/m->dt);
+    }
+    /* chain_rule_par_type (par_type 0) */
+    {
+        MEM * M = gp_pw(&g, "M"); MEM * mu = gp_pw(&g, "mu");
+        MEM * tp = (m->L>0) ? gp_pw(&g, "taup") : NULL;
+        MEM * ts = (m->L>0) ? gp_pw(&g, "taus") : NULL;
+        MEM * gM = gp_gw(&g, "M"); MEM * gmu = gp_gw(&g, "mu");
+        gp_reset(&g);
+        g.c[21] = gsls_alpha(m);
+        g.c[26] = (M ? 1 : 0) | (mu ? 2 : 0) | (tp ? 4 : 0) | (ts ? 8 : 0)
+                | (M && gM ? 16 : 0) | (mu && gmu ? 32 : 0);
+        gp_arg(&g, &d0->gp.chain, "a", gp_pw(&g, "rho"));
+        gp_arg(&g, &d0->gp.chain, "b", gp_gw(&g, "rho"));
+        gp_arg(&g, &d0->gp.chain, "d", M);  gp_arg(&g, &d0->gp.chain, "e", gM);
+        gp_arg(&g, &d0->gp.chain, "f", mu); gp_arg(&g, &d0->gp.chain, "g", gmu);
+        gp_arg(&g, &d0->gp.chain, "h", tp); gp_arg(&g, &d0->gp.chain, "ts", ts);
+        gp_launch(&g, &d0->gp.chain);
+    }
+    if (!g.state) g.state = WAITQUEUE(d0->queue);
+    state = g.state;
+    /* SeisCL_MPI: the gradient to the host, for the output file */
+    if (!state && !m->dev_data){
+        for (i=0;i<m->npars && !state;i++){
+            MEM * gw = gp_gw(&g, m->pars[i].name);
+            if (!gw || !m->pars[i].gl_grad) continue;
+            state = cuMemcpyDtoH(m->pars[i].gl_grad, *gw, sizeof(float)*m->pars[i].num_ele);
+        }
+    }
+    #endif
+    return state;
+}

@@ -1572,7 +1572,12 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
     }
     // Using back-propagation, the gradient is computed on the devices. After
     // all sources positions have been modeled, transfer back the gradient.
-    if (m->GRADOUT==1){
+    /* dev_grad: the readback and the host post-processing below run on the
+       device (calc_grad.c, gpost_run) */
+    if (m->GRADOUT==1 && m->dev_grad){
+        __GUARD gpost_run(m, dev);
+    }
+    else if (m->GRADOUT==1){
         /* BACK_PROP_TYPE==2 with the on-device correlation also accumulates
          * into cl_grad, so the readback is shared. It does *not* get
          * transf_grad: the DFT coefficients already carry the par_type chain

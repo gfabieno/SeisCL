@@ -898,7 +898,8 @@ def test_fp16_host_scaling_speed(ratio_max=1.0):
 
 
 def test_param_prep_no_upload(max_bytes=64 * 1024):
-    """A cached SeisCL.torch call does not copy the model through the host.
+    """A cached SeisCL.torch call does not copy the model, the seismograms,
+    the residuals or the gradients through the host (plan gpu-param-pipeline).
 
     The parameters are prepared on the GPU (src/prep_params.cl): the CUDA
     tensors are copied device to device into the engine's raw buffers, and the
@@ -906,9 +907,11 @@ def test_param_prep_no_upload(max_bytes=64 * 1024):
     Before, the tensors went to the host, were transformed there and uploaded
     (a parameter-sized upload per parameter and call).
 
-    Measured: bytes moved host to device by the engine during a second
-    (cached) forward call, 2-D 300 x 300, FP16 0 and 2. Threshold (plan
-    gpu-param-pipeline): <= 64 KB (the source wavelets and positions); one
+    Measured: bytes moved by the engine's buffer transfers (both directions)
+    during a second (cached) forward call, and a second gradient call
+    (back_prop_type 2: no checkpoint, which stays in host RAM, decision 80),
+    2-D 300 x 300, FP16 0 and 2. Threshold (plan gpu-param-pipeline): <= 64 KB
+    each way (the source wavelets, positions and a few scalars); one
     parameter is 360 KB.
     """
     cfg, src, sp, rp = _speed_geometry(1)
@@ -921,12 +924,30 @@ def test_param_prep_no_upload(max_bytes=64 * 1024):
         seiscl_forward(cfg, params, src, sp, rp, output_fields=["vz"])
         seiscl_torch._C.reset_transfer_bytes()
         seiscl_forward(cfg, params, src, sp, rp, output_fields=["vz"])
-        h2d, _ = seiscl_torch._C.transfer_bytes()
-        print(f"    FP16 {fp16}: {h2d} bytes host to device in a cached call "
-              f"(threshold {max_bytes})")
-        assert h2d <= max_bytes, (
-            f"FP16 {fp16}: a cached call uploads {h2d} bytes: the parameters "
-            f"went through the host")
+        h2d, d2h = seiscl_torch._C.transfer_bytes()
+        print(f"    FP16 {fp16} forward: {h2d} bytes host to device, {d2h} device "
+              f"to host in a cached call (threshold {max_bytes} each)")
+        assert h2d <= max_bytes and d2h <= max_bytes, (
+            f"FP16 {fp16}: a cached forward call moved {h2d} / {d2h} bytes: "
+            f"the model or the seismograms went through the host")
+        # a gradient (back_prop_type 2: no checkpoint, which stays in host RAM
+        # by decision 80): the residuals and gradients stay on the device too
+        cfg.BACK_PROP_TYPE, cfg.gradfreqs = 2, [5.0, 10.0]
+        gpar = {k: v.clone().requires_grad_(True) for k, v in params.items()}
+        clear_engine_cache()
+        for call in range(2):
+            if call == 1:
+                seiscl_torch._C.reset_transfer_bytes()
+            d = seiscl_forward(cfg, gpar, src, sp, rp, output_fields=["vz"])["vz"]
+            (d ** 2).sum().backward()
+        h2d, d2h = seiscl_torch._C.transfer_bytes()
+        assert gpar["M"].grad.is_cuda and d.is_cuda
+        print(f"    FP16 {fp16} gradient: {h2d} bytes host to device, {d2h} device "
+              f"to host in a cached call (threshold {max_bytes} each)")
+        assert h2d <= max_bytes and d2h <= max_bytes, (
+            f"FP16 {fp16}: a cached gradient call moved {h2d} / {d2h} bytes "
+            f"through the host")
+        cfg.BACK_PROP_TYPE = 1
     print("Testing: torch_param_prep_no_upload ....... passed")
 
 

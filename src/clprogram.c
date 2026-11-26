@@ -933,7 +933,8 @@ static int perf_options(model * m, device * dev, clprogram * prog, char opt[3][6
     /* prep_params.cl must give the bits of the host divisions: OpenCL allows an
        approximate float division (2.5 ulp; NVIDIA multiplies by the reciprocal),
        and folds the double division of two floats back into it. */
-    if (strncmp(prog->name, "prep_", 5)==0 || strncmp(prog->name, "dio_", 4)==0){
+    if (strncmp(prog->name, "prep_", 5)==0 || strncmp(prog->name, "dio_", 4)==0
+        || strncmp(prog->name, "gp_", 3)==0){
         sprintf(opt[n++], "-cl-fp32-correctly-rounded-divide-sqrt");
     }
     #endif
@@ -1307,6 +1308,10 @@ int prog_create(model * m,
             }
             else if (strcmp("dio_cst",(*prog).input_list[i])==0){
                 prog_arg(prog, i, &(*dev).dio.cst.mem, memsize);
+                argfound=1;
+            }
+            else if (strcmp("gp_cst",(*prog).input_list[i])==0){
+                prog_arg(prog, i, &(*dev).gp.cst.mem, memsize);
                 argfound=1;
             }
             else if (strcmp("dio_acc",(*prog).input_list[i])==0){
