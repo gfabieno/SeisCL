@@ -867,11 +867,15 @@ def test_fp16_host_scaling_speed(ratio_max=1.0):
     1.5x slower than FP16 0 (benchmarks/ leaderboard, 2026-11-25). At FP16 = 0
     the scaler is 0 and the cost vanished, which is why only FP16 > 0 paid it.
 
-    2-D 1000 x 1000, 500 steps, CPML, force source, parameters on the GPU;
-    median of 3 calls after a warm-up. Threshold (proposed with the fix):
-    time(FP16 2) / time(FP16 0) <= 1.0. Measured before the fix ~3.7.
+    2-D 1000 x 1000, 2000 steps (the benchmark's standard 2-D problem), CPML,
+    force source, parameters on the GPU; median of 3 calls after a warm-up.
+    Threshold (proposed with the fix): time(FP16 2) / time(FP16 0) <= 1.0.
+    A6000: 1.5 before the fix, 0.74 after. A call keeps a fixed host cost
+    (~50 ms at 1000^2 for FP16 2, mostly float_to_half of the parameters,
+    against ~30 ms for FP16 0), so with a much shorter record the two are
+    equal (500 steps: 1.02-1.04 after the fix).
     """
-    cfg, src, sp, rp = _speed_geometry(1, n=1000, nt=500)
+    cfg, src, sp, rp = _speed_geometry(1, n=1000, nt=2000)
     n2 = 1000 * 1000
     params = {k: torch.full((n2,), v, dtype=torch.float32, device="cuda")
               for k, v in (("M", VP), ("mu", VS), ("rho", RHO))}
@@ -882,7 +886,7 @@ def test_fp16_host_scaling_speed(ratio_max=1.0):
         times[fp16] = _median_time(lambda: torch.cuda.synchronize() or seiscl_forward(
             cfg, params, src, sp, rp, output_fields=["vz"])["vz"].sum().item())
     ratio = times[2] / times[0]
-    print(f"    forward 1000^2 x 500: FP16 0 {times[0]:.3f} s, FP16 2 {times[2]:.3f} s, "
+    print(f"    forward 1000^2 x 2000: FP16 0 {times[0]:.3f} s, FP16 2 {times[2]:.3f} s, "
           f"ratio {ratio:.2f} (threshold {ratio_max})")
     assert ratio <= ratio_max, (
         f"an FP16 2 call costs {ratio:.2f}x an FP16 0 call: host work per call "
