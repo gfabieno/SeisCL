@@ -377,9 +377,13 @@ void mu(void * mptr){
             m->set_par_scale( (void*) m);
         }
         scaler = m->par_scale;
-        
+        /* 2^scaler once, not one powf per cell: gcc does not hoist powf out
+           of the loop (errno), and SeisCL.torch re-runs this at every call
+           (0.3 s per call at 1000^2, 2026-11-25). Exact power of two: the
+           same values as powf(2, scaler). */
+        const float sc = ldexpf(1.0f, scaler);
         for (i=0;i<num_ele;i++){
-            mu[i]*=powf(2, scaler);
+            mu[i]*=sc;
         }
     }
     
@@ -447,9 +451,9 @@ void M(void * mptr){
     if (m->FP16>0){
         m->set_par_scale( (void*) m);
         scaler = m->par_scale;
-        
+        const float sc = ldexpf(1.0f, scaler);   /* once, see mu() */
         for (i=0;i<num_ele;i++){
-            M[i]*=powf(2,scaler);
+            M[i]*=sc;
         }
     }
     
@@ -463,6 +467,7 @@ void rho(void * mptr){
 
     int i;
     int num_ele = get_par(m->pars, m->npars, "rho")->num_ele;
+    const float sc = ldexpf(1.0f, -scaler);   /* = powf(2,-scaler), once, see mu() */
     for (i=0;i<num_ele;i++){
         /*A zero density marks a vacuum cell (improved vacuum free-surface
           formulation, FREESURF==2): keep its buoyancy exactly zero instead
@@ -472,7 +477,7 @@ void rho(void * mptr){
             rho[i]=0;
         }
         else{
-            rho[i]=1.0/rho[i]*m->dt/m->dh*powf(2,-scaler);
+            rho[i]=1.0/rho[i]*m->dt/m->dh*sc;
         }
     }
 }

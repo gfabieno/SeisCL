@@ -418,6 +418,10 @@ int unscale_par(model * m) {
     float * mu = get_par(m->pars, m->npars, "mu")->gl_par;
 
     int scaler=m->par_scale;
+    /* 2^-scaler once, not one powf per cell in each loop below (gcc does not
+       hoist powf, errno): SeisCL.torch runs this after every gradient call
+       (2026-11-25). Exact power of two, so the same values as before. */
+    const float sc = ldexpf(1.0f, -scaler);
 
     for (i=0;i<num_ele;i++){
         /* A zero buoyancy marks a vacuum cell (rho() in
@@ -435,17 +439,17 @@ int unscale_par(model * m) {
             rho[i]=0;
         }
         else{
-            rho[i]= 1.0/rho[i]*m->dt/m->dh*powf(2,-scaler);
+            rho[i]= 1.0/rho[i]*m->dt/m->dh*sc;
         }
     }
     if (M){
         for (i=0;i<num_ele;i++){
-            M[i]*=m->dh/m->dt*powf(2,-scaler);
+            M[i]*=m->dh/m->dt*sc;
         }
     }
     if (mu){
         for (i=0;i<num_ele;i++){
-            mu[i]*=m->dh/m->dt*powf(2,-scaler);
+            mu[i]*=m->dh/m->dt*sc;
         }
     }
     return state;
