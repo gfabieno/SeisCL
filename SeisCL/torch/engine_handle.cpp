@@ -15,6 +15,9 @@ EngineHandle::~EngineHandle() {
     // time_stepping() deliberately leaves a RAM-backed checkpoint open for
     // the adjoint pass; this is where it finally goes away.
     if (m.CKPT_FILE_ID > 0) H5Fclose(m.CKPT_FILE_ID);
+    // The per-shot checkpoint buffers (CKPT_SHOTSTORE) are kept across calls
+    // and freed here, in the engine's context, before the engine itself.
+    if (dev) checkpoint_store_free(&m, dev);
     if (built || dev) Free_OpenCL(&m, dev);
 }
 

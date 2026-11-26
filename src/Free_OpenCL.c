@@ -89,6 +89,7 @@ void variable_freeCL(device *dev, variable * var){
     clbuf_free(dev, &var->cl_varbnd);
     clbuf_free(dev, &var->cl_fvar);
     clbuf_free(dev, &var->cl_fvar_f);
+    clbuf_free(dev, &var->cl_var_e);
     clbuf_free(dev, &var->cl_fvar_adj);
     clbuf_free(dev, &var->cl_buf1);
     clbuf_free(dev, &var->cl_buf2);
@@ -101,6 +102,7 @@ void variable_adj_freeCL(device *dev, variable * var){
     clbuf_free(dev, &var->cl_varbnd);
     clbuf_free(dev, &var->cl_fvar);
     clbuf_free(dev, &var->cl_fvar_f);
+    clbuf_free(dev, &var->cl_var_e);
     clbuf_free(dev, &var->cl_fvar_adj);
     clbuf_free(dev, &var->cl_buf1);
     clbuf_free(dev, &var->cl_buf2);

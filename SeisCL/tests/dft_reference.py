@@ -142,6 +142,8 @@ def gradient_2d_elastic(fwd, adj, M, mu, rho, bins, ntnyq, dtnyq, dt,
     grkp = np.zeros((nz, nx), dtype=np.float64)
 
     for j, b in enumerate(bins):
+        # Bins 0 and Nyquist stand for one frequency, the others for +f and -f.
+        dnf = dftnorm * (0.5 if (int(b) == 0 or 2 * int(b) == ntnyq) else 1.0)
         w = 2.0 * np.pi * df * float(b)
         sdt = np.sin(w * dt) / dt
         s2dt = 2.0 * np.sin(0.5 * w * dt) ** 2 / dt
@@ -167,21 +169,21 @@ def gradient_2d_elastic(fwd, adj, M, mu, rho, bins, ntnyq, dtnyq, dt,
                 fvx = fvx.copy(); fvx[kz, kx] += dt * dtnyq * Sd
             elif st == 2:
                 fvz = fvz.copy(); fvz[kz, kx] += dt * dtnyq * Sd
-        d0 = _dd(sdt, s2dt, sxxzzr, sxxzz) / dftnorm
+        d0 = _dd(sdt, s2dt, sxxzzr, sxxzz) / dnf
         if srcs is not None and st == 100:
             # eq. (26a) source term: -<adjoint, s> at the source cell
-            d0[kz, kx] -= np.real(sxxzzr[kz, kx] * np.conj(S)) / dftnorm
-        d2 = _dd(sdt, s2dt, asxz, fsxz) / dftnorm
+            d0[kz, kx] -= np.real(sxxzzr[kz, kx] * np.conj(S)) / dnf
+        d2 = _dd(sdt, s2dt, asxz, fsxz) / dnf
         d3 = d0
-        d4 = (_dd(sdt, s2dt, asxx, sxx_mzz) + _dd(sdt, s2dt, aszz, szz_mxx)) / dftnorm
+        d4 = (_dd(sdt, s2dt, asxx, sxx_mzz) + _dd(sdt, s2dt, aszz, szz_mxx)) / dnf
         # vx sits at the rip position, vz at rkp: different parameters, so the
         # two must not be summed before the correlation is stored.
-        d8x = _dd(sdt, s2dt, avx, fvx) / dftnorm
-        d8z = _dd(sdt, s2dt, avz, fvz) / dftnorm
+        d8x = _dd(sdt, s2dt, avx, fvx) / dnf
+        d8z = _dd(sdt, s2dt, avz, fvz) / dnf
         if srcs is not None and st == 0:
-            d8x[kz, kx] -= np.real(avx[kz, kx] * np.conj(S)) / dftnorm
+            d8x[kz, kx] -= np.real(avx[kz, kx] * np.conj(S)) / dnf
         if srcs is not None and st == 2:
-            d8z[kz, kx] -= np.real(avz[kz, kx] * np.conj(S)) / dftnorm
+            d8z[kz, kx] -= np.real(avz[kz, kx] * np.conj(S)) / dnf
 
         gM += -d0 * iden
         gmu += d3 * i3den - d4 * i2ndmu2      # sxx/szz: cell-centred mu
@@ -299,6 +301,8 @@ def gradient_3d_elastic(fwd, adj, M, mu, rho, bins, ntnyq, dtnyq, dt,
     grkp = np.zeros((nz, ny, nx), dtype=np.float64)
 
     for j, b in enumerate(bins):
+        # Bins 0 and Nyquist stand for one frequency, the others for +f and -f.
+        dnf = dftnorm * (0.5 if (int(b) == 0 or 2 * int(b) == ntnyq) else 1.0)
         w = 2.0 * np.pi * df * float(b)
         sdt = np.sin(w * dt) / dt
         s2dt = 2.0 * np.sin(0.5 * w * dt) ** 2 / dt
@@ -335,25 +339,25 @@ def gradient_3d_elastic(fwd, adj, M, mu, rho, bins, ntnyq, dtnyq, dt,
                 fvy = fvy.copy(); fvy[kz, ky, kx] += dt * dtnyq * Sd
             elif st == 2:
                 fvz = fvz.copy(); fvz[kz, ky, kx] += dt * dtnyq * Sd
-        d0 = _dd(sdt, s2dt, spppr, sppp) / dftnorm
+        d0 = _dd(sdt, s2dt, spppr, sppp) / dnf
         if srcs is not None and st == 100:
-            d0[kz, ky, kx] -= np.real(spppr[kz, ky, kx] * np.conj(S)) / dftnorm
+            d0[kz, ky, kx] -= np.real(spppr[kz, ky, kx] * np.conj(S)) / dnf
         # Kept apart per shear plane -- each goes with a different staggered
         # mu, so they cannot be summed before the coefficient is applied.
-        d2xy = _dd(sdt, s2dt, asxy, fsxy) / dftnorm
-        d2xz = _dd(sdt, s2dt, asxz, fsxz) / dftnorm
-        d2yz = _dd(sdt, s2dt, asyz, fsyz) / dftnorm
+        d2xy = _dd(sdt, s2dt, asxy, fsxy) / dnf
+        d2xz = _dd(sdt, s2dt, asxz, fsxz) / dnf
+        d2yz = _dd(sdt, s2dt, asyz, fsyz) / dnf
         d3 = d0
         d4 = (_dd(sdt, s2dt, asxx, sxx_myyzz) + _dd(sdt, s2dt, asyy, syy_mxxzz)
-                  + _dd(sdt, s2dt, aszz, szz_mxxyy)) / dftnorm
+                  + _dd(sdt, s2dt, aszz, szz_mxxyy)) / dnf
         # vx/vy/vz sit at rip/rjp/rkp respectively: kept apart rather than
         # summed.
-        d8x = _dd(sdt, s2dt, avx, fvx) / dftnorm
-        d8y = _dd(sdt, s2dt, avy, fvy) / dftnorm
-        d8z = _dd(sdt, s2dt, avz, fvz) / dftnorm
+        d8x = _dd(sdt, s2dt, avx, fvx) / dnf
+        d8y = _dd(sdt, s2dt, avy, fvy) / dnf
+        d8z = _dd(sdt, s2dt, avz, fvz) / dnf
         if srcs is not None and st in (0, 1, 2):
             dv, av = (d8x, d8y, d8z)[st], (avx, avy, avz)[st]
-            dv[kz, ky, kx] -= np.real(av[kz, ky, kx] * np.conj(S)) / dftnorm
+            dv[kz, ky, kx] -= np.real(av[kz, ky, kx] * np.conj(S)) / dnf
 
         gM += -d0 * iden
         gmu += d3 * i3den - d4 * i2ndmu2         # sxx/syy/szz: cell-centred mu

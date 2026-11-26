@@ -279,6 +279,9 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
     for (f=0; f<NFREQS; f++){
 
         double w = 2.0*3.14159265358979323846*dftdf*(double)gradfreqsn[f];
+        /* One-sided sum over bins: bins 0 and Nyquist stand for one
+         * frequency each, every other bin for +f and -f, so they count half. */
+        double dnf = dftnorm/(((int)gradfreqsn[f]==0 || 2*(int)gradfreqsn[f]==NTNYQ) ? 0.5 : 1.0);
         /* Exact discrete equivalent of BACK_PROP_TYPE==1's quadrature.
          *
          * bpt1 accumulates sum_t phi(t)*[psi(t) - psi(t+1)], i.e. it pairs the
@@ -373,11 +376,11 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
          * (dt <-> i*w) on the source-restored forward field, and rreal is the
          * eq. (26a) source term, which carries no time derivative. */
         double d0 = sc_ss*((sdt*itreal(App, Fpp) + s2dt*rreal(App, Fpp))
-                           - (sstype==100 ? rreal(App, S) : 0.0))/dftnorm;
-        double d2 = sc_ss*(sdt*itreal(Axz, Fxz) + s2dt*rreal(Axz, Fxz))/dftnorm;
+                           - (sstype==100 ? rreal(App, S) : 0.0))/dnf;
+        double d2 = sc_ss*(sdt*itreal(Axz, Fxz) + s2dt*rreal(Axz, Fxz))/dnf;
         double d3 = d0;
         double d4 = sc_ss*((sdt*itreal(Axx, Fmm) + s2dt*rreal(Axx, Fmm))
-                     + (sdt*itreal(Azz, Fmz) + s2dt*rreal(Azz, Fmz)))/dftnorm;
+                     + (sdt*itreal(Azz, Fmz) + s2dt*rreal(Azz, Fmz)))/dnf;
         /* vx sits at the rip position and vz at the rkp one (update_v2D.cl),
          * so the two components carry different parameters and must not be
          * summed before the correlation is stored. */
@@ -398,9 +401,9 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
             Fvz.y += (float)((double)DT*(double)DTNYQ)*Sd.y;
         }
         double d8x = sc_vv*((sdt*itreal(Avx, Fvx) + s2dt*rreal(Avx, Fvx))
-                            - (sstype==0 ? rreal(Avx, S) : 0.0))/dftnorm;
+                            - (sstype==0 ? rreal(Avx, S) : 0.0))/dnf;
         double d8z = sc_vv*((sdt*itreal(Avz, Fvz) + s2dt*rreal(Avz, Fvz))
-                            - (sstype==2 ? rreal(Avz, S) : 0.0))/dftnorm;
+                            - (sstype==2 ? rreal(Avz, S) : 0.0))/dnf;
 
 #if HOUT==1
         /* Approximate (Gauss-Newton style) Hessian diagonal, transcribed from
@@ -416,19 +419,19 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
             double sh_ss = pow(2.0, -2.0*(double)src_scale);
             double sh_vv = sh_ss*pow(2.0, 2.0*(double)par_scale);
             double h0 = sh_ss*w2*((double)Fpp.x*(double)Fpp.x
-                          + (double)Fpp.y*(double)Fpp.y)/dftnorm;
+                          + (double)Fpp.y*(double)Fpp.y)/dnf;
             double h2 = sh_ss*w2*((double)Fxz.x*(double)Fxz.x
-                          + (double)Fxz.y*(double)Fxz.y)/dftnorm;
+                          + (double)Fxz.y*(double)Fxz.y)/dnf;
             double h3 = h0;
             double h4 = sh_ss*w2*(((double)Fmm.x*(double)Fmm.x
                            + (double)Fmm.y*(double)Fmm.y)
                           + ((double)Fmz.x*(double)Fmz.x
-                           + (double)Fmz.y*(double)Fmz.y))/dftnorm;
+                           + (double)Fmz.y*(double)Fmz.y))/dnf;
             float2 Vx = fvx_f[id], Vz = fvz_f[id];
             double h8x = sh_vv*w2*((double)Vx.x*(double)Vx.x
-                           + (double)Vx.y*(double)Vx.y)/dftnorm;
+                           + (double)Vx.y*(double)Vx.y)/dnf;
             double h8z = sh_vv*w2*((double)Vz.x*(double)Vz.x
-                           + (double)Vz.y*(double)Vz.y)/dftnorm;
+                           + (double)Vz.y*(double)Vz.y)/dnf;
             HMi      += h0*iden;
             Hmui     += -h3*i3den + h4*i2ndmu2;
             Hmuipkpi += h2*imuipkp2;

@@ -223,6 +223,9 @@ typedef struct variable{
                          * correlation can run on the device instead of round
                          * tripping both spectra over PCIe. */
     clbuf cl_fvar_adj;  /* host-only mirror of the adjoint spectrum */
+    clbuf cl_var_e;     /* forward final state (BACK_PROP_TYPE==2, L>0): the
+                         * end-of-record terms of the viscoelastic DFT
+                         * correlation (grad_dft*_visc.cl) */
     clbuf cl_buf1;
     clbuf cl_buf2;
     clbuf cl_var_res;
@@ -517,6 +520,30 @@ typedef struct model {
      * freed). Both default to 0, i.e. the ordinary on-disk behaviour. */
     int CKPT_IN_MEMORY;
     hid_t CKPT_FILE_ID;
+    /* Per-shot host buffers for the two-call gradient protocol, one device
+     * only (SeisCL/torch). With CKPT_SHOTSTORE=1 (and SKIP_CHECKPOINT_FILE=1),
+     * time_stepping() points the host side of each variable's cl_var (the
+     * wavefield at the end of the forward pass) and cl_varbnd (the boundary
+     * history, pinned) at shot s's own buffers while shot s runs, so each
+     * shot's checkpoint stays where the forward pass put it and nothing is
+     * copied into an HDF5 file between shots. The buffers are allocated by
+     * time_stepping() on first use, kept across calls (CKPT_STORE_NS shots x
+     * nvars, slot [k*nvars+i], NULL for a variable without that host
+     * buffer), and freed by checkpoint_store_free(), which the caller must
+     * call before Free_OpenCL(). All zero by default. */
+    int CKPT_SHOTSTORE;
+    /* Recompute instead of a checkpoint (two-call gradient protocol,
+     * BACK_PROP_TYPE 1; SeisCL/torch, when the checkpoint does not fit in
+     * RAM). With CKPT_RECOMPUTE=1 the forward call (INPUTRES=1, GRADOUT=0)
+     * saves no boundaries and no checkpoint, and the backward call
+     * (GRADOUT=1) runs each shot's forward loop again, saving its boundary
+     * history in the engine's own one-shot buffer, before that shot's
+     * adjoint: one extra forward per shot, no file. Needs
+     * SKIP_CHECKPOINT_FILE=1. Zero by default. */
+    int CKPT_RECOMPUTE;
+    int CKPT_STORE_NS;
+    float **CKPT_STORE_VAR;
+    float **CKPT_STORE_BND;
     int L;
 
     int ND;
@@ -674,6 +701,12 @@ int checkpoint_image_to_disk(hid_t file_id, const char *filename);
  * that ran the forward pass with SKIP_CHECKPOINT_FILE and now needs the file
  * after all. Returns nonzero if there isn't exactly one shot in flight. */
 int checkpoint_flush(model * m, device ** dev, const char * path);
+/* Per-shot host buffers of CKPT_SHOTSTORE (see model): allocate them for the
+ * shots of this process (returns nonzero on failure, nothing left allocated),
+ * and free them. checkpoint_store_free() is safe to call when nothing is
+ * allocated; it must run before Free_OpenCL(), with dev still valid. */
+int checkpoint_store_alloc(model * m, device * dev);
+void checkpoint_store_free(model * m, device * dev);
 /* Uncompressed variant of writetomat(), for transient data (the boundary
  * checkpoint) where gzip costs far more than the space it saves. */
 void writetomat_nocomp(hid_t* file_id,
