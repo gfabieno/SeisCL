@@ -37,6 +37,7 @@
 // names) for par_type=0 -- don't assume the two are interchangeable.
 
 #include <torch/extension.h>
+#include <torch/cuda.h>
 #include <pybind11/stl.h>
 
 #include <unistd.h>
@@ -258,6 +259,40 @@ CacheKey geometry_cache_key(const Config &cfg, torch::Tensor &src_pos,
                     src_types.end());
     return make_cache_key(cfg, allns, allng, nsrc, nrec, output_fields,
                           gradout, inputres, src_types);
+}
+
+// The device the caller holds its parameters on: outputs and gradients are
+// returned there (decision 81: CUDA parameters, CUDA results).
+torch::Device params_device(const py::dict &params) {
+    for (auto item : params) {
+        torch::Tensor t = py::cast<torch::Tensor>(item.second);
+        if (t.is_cuda()) return t.device();
+    }
+    return torch::Device(torch::kCPU);
+}
+
+// dev_data: the seismograms are on the first device (cl_out_all); copied
+// device to device into new tensors, then to the caller's device.
+py::dict collect_data_device(EngineHandle &h, const torch::Device &out_dev) {
+    py::dict result;
+    model &m = h.m;
+    device &d0 = h.dev[0];
+    if (cuCtxSetCurrent(d0.context) || cuStreamSynchronize(d0.queue)) {
+        throw std::runtime_error("SeisCL: device synchronization failed");
+    }
+    auto opts = torch::TensorOptions().dtype(torch::kFloat32)
+                    .device(torch::kCUDA, static_cast<int>(d0.cudev));
+    for (int i = 0; i < m.nvars; i++) {
+        if (!m.vars[i].to_output || !d0.vars[i].cl_out_all.mem) continue;
+        torch::Tensor out = torch::empty({m.src_recs.allng, m.NT}, opts);
+        if (cuMemcpyDtoD((CUdeviceptr)out.data_ptr<float>(),
+                         d0.vars[i].cl_out_all.mem,
+                         sizeof(float) * m.src_recs.allng * m.NT)) {
+            throw std::runtime_error("SeisCL: seismogram copy failed");
+        }
+        result[py::str(m.vars[i].name)] = out.to(out_dev);
+    }
+    return result;
 }
 
 py::dict collect_data(model &m) {
@@ -655,6 +690,9 @@ py::dict run_forward(const Config &cfg, const py::dict &params,
         h->pending_ckpt = checkpoint_path;
     }
 
+    if (h->m.dev_res && h->m.dev_data) {
+        return collect_data_device(*h, params_device(params));
+    }
     return collect_data(h->m);
 }
 
@@ -701,6 +739,36 @@ py::dict run_backward(const Config &cfg, const py::dict &params,
             torch::Tensor t = py::cast<torch::Tensor>(item.second)
                                   .to(torch::kFloat32)
                                   .contiguous();
+            if (h->m.dev_res && h->m.dev_data) {
+                // dev_data: the residuals go device to device into the
+                // first device's cl_res_all (nothing on the host)
+                int vi = -1;
+                for (int k = 0; k < h->m.nvars; k++) {
+                    if (name == h->m.vars[k].name) vi = k;
+                }
+                if (vi < 0 || !h->dev[0].vars[vi].cl_res_all.mem) {
+                    throw std::invalid_argument("Unknown field: " + name);
+                }
+                int64_t expected =
+                    static_cast<int64_t>(h->m.src_recs.allng) * h->m.NT;
+                if (t.numel() != expected) {
+                    throw std::invalid_argument(
+                        "Residual " + name + " has " +
+                        std::to_string(t.numel()) + " elements, expected " +
+                        std::to_string(expected));
+                }
+                t = t.to(torch::Device(torch::kCUDA,
+                                       static_cast<int>(h->dev[0].cudev)))
+                        .contiguous();
+                torch::cuda::synchronize(t.device().index());
+                if (cuCtxSetCurrent(h->dev[0].context) ||
+                    cuMemcpyDtoD(h->dev[0].vars[vi].cl_res_all.mem,
+                                 (CUdeviceptr)t.data_ptr<float>(),
+                                 sizeof(float) * expected)) {
+                    throw std::runtime_error("SeisCL: residual copy failed");
+                }
+                continue;
+            }
             require_cpu(t, "Residual " + name);
             variable *var = find_var(h->m, name);
             if (!var) {

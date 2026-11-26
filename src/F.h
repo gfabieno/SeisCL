@@ -229,6 +229,10 @@ typedef struct variable{
     clbuf cl_buf1;
     clbuf cl_buf2;
     clbuf cl_var_res;
+    /* dev_res (dev_io.c, first device only): the seismograms of every shot
+       and their residuals (allng x NT), on the device */
+    clbuf cl_out_all;
+    clbuf cl_res_all;
 
     float **    gl_varout;
     float **    gl_varin;
@@ -280,6 +284,9 @@ typedef struct parameter{
        (a device or host pointer, SeisCL.torch), copied by param_prep_upload. */
     clbuf cl_raw;
     const void * raw_src;
+    /* dev_res, back_prop_type 2: the receiver-cell gradient term (rec_grad_dft)
+       on the first device, whole model */
+    clbuf cl_gradrec;
 
 
 } parameter;
@@ -414,6 +421,22 @@ typedef struct param_avg {
 } param_avg;
 #define PREP_NCST 64
 
+/* Residual scaling on the device (dev_io.cl, residuals.c dio_*) */
+typedef struct dev_io_k {
+    clprogram gather;
+    clprogram res_scale;
+    clprogram recgrad;
+    clprogram recgrad_add;
+    clprogram add_out;
+    clbuf recpar;       /* this device: DIO_NP floats per receiver */
+    clbuf recpar_all;   /* first device: one recpar per device */
+    clbuf stage;        /* first device: the seismograms of another device */
+    clbuf red;
+    clbuf cst;
+    clbuf acc;
+} dev_io_k;
+#define DIO_NP 9
+
 
 /* _____________Structure that holds all information of a device _____________*/
 typedef struct device {
@@ -458,6 +481,7 @@ typedef struct device {
     gradients grads;
     boundary_conditions bnd_cnds;
     param_avg par_avg;
+    dev_io_k dio;
     
     CONTEXT context;
     CONTEXT * context_ptr;
@@ -630,6 +654,9 @@ typedef struct model {
     int halfpar;
     int par_scale;
     int gpu_prep;      /* parameters prepared on the device (use_gpu_prep) */
+    int dev_res;       /* residual scaling on the device (CUDA, gpu_prep) */
+    int dev_data;      /* seismograms and residuals stay on the device (SeisCL.torch) */
+    dev_io_k dio;
     int keep_raw;      /* keep the raw device buffers after the preparation (SeisCL.torch) */
 
     int (*res_calc)(struct model * , int );
@@ -683,6 +710,13 @@ int param_prep_upload(model * m, device * di);
 int param_prep_readback(model * m, device * di);
 void clbuf_free(device *dev, clbuf *buf);
 extern long long seiscl_bytes_h2d;
+int dio_create(model * m, device * dev);
+int dio_reset(model * m, device ** dev);
+int dio_reduce_seis(model * m, device ** dev, int s);
+int dio_res_scale(model * m, device ** dev, int s);
+int dio_rec_grad_dft(model * m, device ** dev, int s);
+int dio_res_to_adj(model * m, device ** dev, int s);
+int dio_gradrec_readback(model * m, device ** dev);
 extern long long seiscl_bytes_d2h;
 int check_stability_values(model * m, float vpmax, float vpmin, float vsmax, float vsmin);
 int set_par_scale_value(model * m, float Mmax);

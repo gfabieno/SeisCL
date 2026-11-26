@@ -283,7 +283,9 @@ def test_cuda_geometry_rejected():
 
 
 def test_cuda_params_accepted():
-    """GPU-resident model parameters give the same answer as CPU ones."""
+    """GPU-resident model parameters give the same answer as CPU ones, and
+    the seismograms come back on the device of the parameters (decision 81:
+    CUDA parameters, CUDA outputs; CPU parameters, CPU outputs)."""
     if not torch.cuda.is_available():
         print("Testing: torch_cuda_params_accepted ....... skipped (no CUDA)")
         return
@@ -298,8 +300,9 @@ def test_cuda_params_accepted():
     on_gpu = seiscl_forward(cfg, cuda_params, src, src_pos, rec_pos,
                             output_fields=["vx"])["vx"]
 
-    assert not on_gpu.is_cuda, "output should still be a CPU tensor"
-    assert torch.equal(on_cpu, on_gpu), \
+    assert not on_cpu.is_cuda, "CPU parameters: the output should be a CPU tensor"
+    assert on_gpu.is_cuda, "CUDA parameters: the output should be a CUDA tensor"
+    assert torch.equal(on_cpu, on_gpu.cpu()), \
         "CUDA-resident parameters gave a different result"
     print("Testing: torch_cuda_params_accepted ....... passed")
 

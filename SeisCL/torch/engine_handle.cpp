@@ -354,6 +354,7 @@ int engine_build(EngineHandle &h, const Config &cfg, int gradout, int inputres,
     std::vector<torch::Tensor> raw_keep;
     set_params(h.m, params, &raw_keep);
     h.m.keep_raw = 1;   // a reused engine prepares the parameters at every call
+    h.m.dev_data = 1;   // with dev_res: seismograms and residuals stay on the device
     set_srcrec(h.m, src, src_pos, rec_pos, output_fields);
 
     // FL is normally read from the csts file (read_hdf5.c, dataset "/FL");
@@ -524,6 +525,8 @@ void engine_reset_outputs(EngineHandle &h) {
             std::memset(h.m.trans_vars[i].gl_varout[0], 0, nbytes);
         }
     }
+    // dev_res: the device seismograms are accumulated too (reduce_seis)
+    if (h.dev) dio_reset(&h.m, &h.dev);
     // Also accumulated across a run (residuals.c:293-302).
     h.m.rms = 0.0f;
     h.m.rmsnorm = 0.0f;

@@ -94,6 +94,8 @@ void variable_freeCL(device *dev, variable * var){
     clbuf_free(dev, &var->cl_buf1);
     clbuf_free(dev, &var->cl_buf2);
     clbuf_free(dev, &var->cl_var_res);
+    clbuf_free(dev, &var->cl_out_all);
+    clbuf_free(dev, &var->cl_res_all);
     
 }
 void variable_adj_freeCL(device *dev, variable * var){
@@ -131,6 +133,7 @@ void parameter_freeCL(device *dev, parameter * par){
     
     clbuf_free(dev, &par->cl_par);
     clbuf_free(dev, &par->cl_raw);
+    clbuf_free(dev, &par->cl_gradrec);
     clbuf_free(dev, &par->cl_grad);
     clbuf_free(dev, &par->cl_H);
 }
@@ -335,6 +338,17 @@ void device_free(device * dev){
     clprogram_freeCL(&dev->par_avg.tausjpkp);
     clbuf_free(dev, &dev->par_avg.prep_red);
     clbuf_free(dev, &dev->par_avg.prep_cst);
+    clprogram_freeCL(&dev->dio.gather);
+    clprogram_freeCL(&dev->dio.res_scale);
+    clprogram_freeCL(&dev->dio.recgrad);
+    clprogram_freeCL(&dev->dio.recgrad_add);
+    clprogram_freeCL(&dev->dio.add_out);
+    clbuf_free(dev, &dev->dio.recpar);
+    clbuf_free(dev, &dev->dio.recpar_all);
+    clbuf_free(dev, &dev->dio.stage);
+    clbuf_free(dev, &dev->dio.red);
+    clbuf_free(dev, &dev->dio.cst);
+    clbuf_free(dev, &dev->dio.acc);
     
     if (dev->queue) QUEUEFREE(dev->queue);
     if (dev->queuecomm) QUEUEFREE(dev->queuecomm);

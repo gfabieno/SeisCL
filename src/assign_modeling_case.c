@@ -19,6 +19,7 @@
 #include "grad_dft3D_visc.hcl"
 #include "average_params.hcl"
 #include "prep_params.hcl"
+#include "dev_io.hcl"
 #include "savebnd2D.hcl"
 #include "savebnd3D.hcl"
 #include "savebnd2D_SH.hcl"
@@ -1380,6 +1381,20 @@ int assign_modeling_case(model * m){
             __GUARD prog_source(&m->par_avg.tausjpkp, "prep_tausjpkp", prep_params_source,
                                 1, headers);
         }
+    }
+    /* Residual scaling on the device (dev_io.cl): CUDA, with the device
+       preparation of the parameters, which it reads there. */
+    #ifndef __SEISCL__
+    m->dev_res = m->gpu_prep;
+    #else
+    m->dev_res = 0;
+    #endif
+    if (m->dev_res){
+        __GUARD prog_source(&m->dio.gather, "dio_rec_gather", dev_io_source, 1, headers);
+        __GUARD prog_source(&m->dio.res_scale, "dio_res_scale", dev_io_source, 1, headers);
+        __GUARD prog_source(&m->dio.recgrad, "dio_recgrad", dev_io_source, 1, headers);
+        __GUARD prog_source(&m->dio.recgrad_add, "dio_recgrad_add", dev_io_source, 1, headers);
+        __GUARD prog_source(&m->dio.add_out, "dio_add_out", dev_io_source, 1, headers);
     }
     if (gpu_avg){
         __GUARD prog_source(&m->par_avg.rip, "ave_rip", average_params_source,

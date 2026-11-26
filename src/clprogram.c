@@ -933,7 +933,7 @@ static int perf_options(model * m, device * dev, clprogram * prog, char opt[3][6
     /* prep_params.cl must give the bits of the host divisions: OpenCL allows an
        approximate float division (2.5 ulp; NVIDIA multiplies by the reciprocal),
        and folds the double division of two floats back into it. */
-    if (strncmp(prog->name, "prep_", 5)==0){
+    if (strncmp(prog->name, "prep_", 5)==0 || strncmp(prog->name, "dio_", 4)==0){
         sprintf(opt[n++], "-cl-fp32-correctly-rounded-divide-sqrt");
     }
     #endif
@@ -1291,6 +1291,26 @@ int prog_create(model * m,
             }
             else if (strcmp("prep_cst",(*prog).input_list[i])==0){
                 prog_arg(prog, i, &(*dev).par_avg.prep_cst.mem, memsize);
+                argfound=1;
+            }
+            else if (strcmp("dio_recpar",(*prog).input_list[i])==0){
+                prog_arg(prog, i, &(*dev).dio.recpar.mem, memsize);
+                argfound=1;
+            }
+            else if (strcmp("dio_recpar_all",(*prog).input_list[i])==0){
+                prog_arg(prog, i, &(*dev).dio.recpar_all.mem, memsize);
+                argfound=1;
+            }
+            else if (strcmp("dio_red",(*prog).input_list[i])==0){
+                prog_arg(prog, i, &(*dev).dio.red.mem, memsize);
+                argfound=1;
+            }
+            else if (strcmp("dio_cst",(*prog).input_list[i])==0){
+                prog_arg(prog, i, &(*dev).dio.cst.mem, memsize);
+                argfound=1;
+            }
+            else if (strcmp("dio_acc",(*prog).input_list[i])==0){
+                prog_arg(prog, i, &(*dev).dio.acc.mem, memsize);
                 argfound=1;
             }
         }
