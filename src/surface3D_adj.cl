@@ -281,7 +281,7 @@ FUNDEF void surface_grad(GLOBARG STO *vx,     GLOBARG STO *vy,
         __cprec1 axx = ldf(sxxr, iv), ayy = ldf(syyr, iv), azz = ldf(szzr, iv);
         #if PRESOUT==1
         for (int g=0; g<nrec; g++){
-            int ri=(int)(rec_pos[0+8*g]/DH)+FDOH;
+            int ri=(int)(rec_pos[0+8*g]/DH)+FDOH-OFFSET;   /* local x (domain decomposition) */
             int rj=(int)(rec_pos[1+8*g]/DH)+FDOH;
             int rk=(int)(rec_pos[2+8*g]/DH)+FDOH;
             if (ri==gidx && rj==gidy && rk==z){
@@ -333,7 +333,7 @@ FUNDEF void surface_grad(GLOBARG STO *vx,     GLOBARG STO *vy,
                 __cprec1 sx = 0, sy = 0, sz = 0;
                 for (int srci=0; srci<nsrc; srci++){
                     int st = (int)src_pos[4+5*srci];
-                    int si = (int)(src_pos[0+5*srci]/DH)+FDOH;
+                    int si = (int)(src_pos[0+5*srci]/DH)+FDOH-OFFSET;   /* local x (domain decomposition) */
                     int sj = (int)(src_pos[1+5*srci]/DH)+FDOH;
                     int sk = (int)(src_pos[2+5*srci]/DH)+FDOH;
                     if (si==gidx && sj==gidy && sk==z){

@@ -50,7 +50,7 @@ def test_seisout(seis, plot=False):
                 else:
                     err = (np.sum([np.sum((d-r)**2) for d, r in zip(data, ref)])
                            / np.sum([np.sum(r**2) for r in ref]))
-                    if err > 0.001:
+                    if not np.isfinite(err) or err > 0.001:   # NaN fails too
                         if plot:
                             plt.imshow(data[0]-ref[0], aspect='auto')
                             plt.show()
@@ -110,7 +110,7 @@ def test_backpropagation(seis, plot=False, ngpu=1, nmpi=1):
 
             seis.set_forward(seis.src_pos_all[3, :], pars, withgrad=True)
             seis.execute()
-            file = h5.File("./seiscl/SeisCL_movie.mat", "r")
+            file = h5.File(os.path.join(seis.workdir, "SeisCL_movie.mat"), "r")
             mov = file['movvx'][slicesp]
             file.close()
             
@@ -119,7 +119,7 @@ def test_backpropagation(seis, plot=False, ngpu=1, nmpi=1):
                 plt.show()
 
             err = np.max(mov)
-            if err > 1e-4:
+            if not np.isfinite(err) or err > 1e-4:   # NaN fails too
                 raise SeisCLError("    Error with data reference too large: %e"
                                   % err)
             print("passed (error %e)" % err)
@@ -174,7 +174,7 @@ def test_fp16_forward(seis, ref=None, plot=False, ngpu=1, nmpi=1):
             else:
                 err = (np.sum([np.sum((d-r)**2) for d, r in zip(data, ref)])
                        / np.sum([np.sum(r**2) for r in ref]))
-                if err > 0.001:
+                if not np.isfinite(err) or err > 0.001:   # NaN fails too
                     if plot:
                         plt.imshow(data[0]-ref[0], aspect='auto')
                         plt.show()
@@ -265,7 +265,7 @@ def test_fp16_grad(seis, ref=None, plot=False, ngpu=1, nmpi=1, inputres=0):
             else:
                 err = (np.sum([np.sum((g-r)**2) for g, r in zip(grad, ref)])
                        / np.sum([np.sum(r**2) for r in ref]))
-                if err > 0.001:
+                if not np.isfinite(err) or err > 0.001:   # NaN fails too
                     if plot:
                         plt.imshow(grad[0][slicesp]-ref[0][slicesp],
                                    aspect='auto')
@@ -331,16 +331,45 @@ if __name__ == "__main__":
                         help="Plot the test results (1) or not (0). Default: 0."
                         )
     
+    parser.add_argument("--bin", type=str, default=None,
+                        help="SeisCL_MPI to run (absolute path); default: "
+                             "$SEISCL_BIN/SeisCL_MPI, else the one on PATH")
+    parser.add_argument("--workdir", type=str, default="./seiscl",
+                        help="Folder for the SeisCL files")
+    parser.add_argument("--L", type=int, default=0,
+                        help="Attenuation mechanisms of the NGPU, MPI and HYB "
+                             "(domain decomposition) tests. Default: 0")
+    parser.add_argument("--ngpu", type=int, default=3,
+                        help="Devices per process of the NGPU tests. Default: 3")
+    parser.add_argument("--nmpi", type=int, default=3,
+                        help="Processes per shot of the MPI tests. Default: 3")
+    parser.add_argument("--abs_type", type=int, default=2,
+                        help="Absorbing boundary (1: CPML, 2: Cerjan). Default: 2")
+
     # Parse the input for training parameters
     args, unparsed = parser.parse_known_args()
     
     seis = SeisCL()
+    seisbin = args.bin
+    if seisbin is None and os.environ.get("SEISCL_BIN"):
+        seisbin = os.path.join(os.environ["SEISCL_BIN"], "SeisCL_MPI")
+    if seisbin is not None:
+        seis.progname = os.path.abspath(seisbin)
+    seis.workdir = args.workdir
     seis.dh = 10
     seis.dt = 0.0008
     seis.NT = 875
     seis.FDORDER = 8
-    seis.abs_type = 2
+    seis.abs_type = args.abs_type
     seis.N = np.array([64, 64, 64])
+
+    def decomp_L():
+        """Attenuation of the domain-decomposition tests (--L)."""
+        seis.L = args.L
+        if args.L > 1:
+            seis.FL = np.array([5.0, 15.0, 30.0, 45.0][:args.L])
+        elif args.L == 1:
+            seis.FL = np.array(15)
 
     # ND, L, freesurf, abs_type, FDORDER, forward, NGPU, NPROC
 
@@ -456,47 +485,47 @@ if __name__ == "__main__":
     if args.test == name or args.test == "all":
         print("Testing %s" % name)
         seis.N = np.array([64, 256])
-        seis.L = 0
+        decomp_L()
         seis.ND = 2
         seis.freesurf = 0
-        test_fp16_forward(seis, ref=None, plot=args.plot, ngpu=3)
+        test_fp16_forward(seis, ref=None, plot=args.plot, ngpu=args.ngpu)
 
     name = "2D_NGPU_grad"
     if args.test == name or args.test == "all":
         print("Testing %s" % name)
         seis.N = np.array([64, 256])
-        seis.L = 0
+        decomp_L()
         seis.ND = 2
         seis.freesurf = 0
-        test_fp16_grad(seis, ref=None, plot=args.plot, ngpu=3)
+        test_fp16_grad(seis, ref=None, plot=args.plot, ngpu=args.ngpu)
 
     name = "3D_NGPU_forward"
     if args.test == name or args.test == "all":
         print("Testing %s" % name)
         seis.N = np.array([64, 64, 256])
-        seis.L = 0
+        decomp_L()
         seis.ND = 3
         seis.freesurf = 0
-        test_fp16_forward(seis, ref=None, plot=args.plot, ngpu=3)
+        test_fp16_forward(seis, ref=None, plot=args.plot, ngpu=args.ngpu)
 
     name = "3D_NGPU_grad"
     if args.test == name or args.test == "all":
         print("Testing %s" % name)
         seis.N = np.array([64, 64, 256])
-        seis.L = 0
+        decomp_L()
         seis.ND = 3
         seis.freesurf = 0
-        test_fp16_grad(seis, ref=None, plot=args.plot, ngpu=3)
+        test_fp16_grad(seis, ref=None, plot=args.plot, ngpu=args.ngpu)
 
     name = "2D_MPI_forward"
     if args.test == name or args.test == "all":
         print("Testing %s" % name)
         seis.N = np.array([64, 256])
-        seis.L = 0
+        decomp_L()
         seis.ND = 2
         seis.freesurf = 0
-        seis.MPI_NPROC_SHOT = 3
-        test_fp16_forward(seis, ref=None, plot=args.plot, nmpi=3)
+        seis.MPI_NPROC_SHOT = args.nmpi
+        test_fp16_forward(seis, ref=None, plot=args.plot, nmpi=args.nmpi)
         seis.NP = 1
         seis.MPI_NPROC_SHOT = 1
 
@@ -504,11 +533,11 @@ if __name__ == "__main__":
     if args.test == name or args.test == "all":
         print("Testing %s" % name)
         seis.N = np.array([64, 256])
-        seis.L = 0
+        decomp_L()
         seis.ND = 2
         seis.freesurf = 0
-        seis.MPI_NPROC_SHOT = 4
-        test_fp16_grad(seis, ref=None, plot=args.plot, nmpi=4)
+        seis.MPI_NPROC_SHOT = args.nmpi
+        test_fp16_grad(seis, ref=None, plot=args.plot, nmpi=args.nmpi)
         seis.NP = 1
         seis.MPI_NPROC_SHOT = 1
 
@@ -516,11 +545,11 @@ if __name__ == "__main__":
     if args.test == name or args.test == "all":
         print("Testing %s" % name)
         seis.N = np.array([64, 64, 256])
-        seis.L = 0
+        decomp_L()
         seis.ND = 3
         seis.freesurf = 0
-        seis.MPI_NPROC_SHOT = 3
-        test_fp16_forward(seis, ref=None, plot=args.plot, nmpi=3)
+        seis.MPI_NPROC_SHOT = args.nmpi
+        test_fp16_forward(seis, ref=None, plot=args.plot, nmpi=args.nmpi)
         seis.NP = 1
         seis.MPI_NPROC_SHOT = 1
 
@@ -528,11 +557,63 @@ if __name__ == "__main__":
     if args.test == name or args.test == "all":
         print("Testing %s" % name)
         seis.N = np.array([64, 64, 256])
-        seis.L = 0
+        decomp_L()
         seis.ND = 3
         seis.freesurf = 0
-        seis.MPI_NPROC_SHOT = 3
-        test_fp16_grad(seis, ref=None, plot=args.plot, nmpi=3)
+        seis.MPI_NPROC_SHOT = args.nmpi
+        test_fp16_grad(seis, ref=None, plot=args.plot, nmpi=args.nmpi)
+        seis.NP = 1
+        seis.MPI_NPROC_SHOT = 1
+
+    name = "2D_HYB_forward"
+    if args.test == name or args.test == "all":
+        print("Testing %s" % name)
+        # --nmpi processes of --ngpu devices each: --nmpi x --ngpu subdomains
+        seis.N = np.array([64, 256])
+        decomp_L()
+        seis.ND = 2
+        seis.freesurf = 0
+        seis.MPI_NPROC_SHOT = args.nmpi
+        test_fp16_forward(seis, ref=None, plot=args.plot, ngpu=args.ngpu, nmpi=args.nmpi)
+        seis.NP = 1
+        seis.MPI_NPROC_SHOT = 1
+
+    name = "2D_HYB_grad"
+    if args.test == name or args.test == "all":
+        print("Testing %s" % name)
+        # --nmpi processes of --ngpu devices each: --nmpi x --ngpu subdomains
+        seis.N = np.array([64, 256])
+        decomp_L()
+        seis.ND = 2
+        seis.freesurf = 0
+        seis.MPI_NPROC_SHOT = args.nmpi
+        test_fp16_grad(seis, ref=None, plot=args.plot, ngpu=args.ngpu, nmpi=args.nmpi)
+        seis.NP = 1
+        seis.MPI_NPROC_SHOT = 1
+
+    name = "3D_HYB_forward"
+    if args.test == name or args.test == "all":
+        print("Testing %s" % name)
+        # --nmpi processes of --ngpu devices each: --nmpi x --ngpu subdomains
+        seis.N = np.array([64, 64, 256])
+        decomp_L()
+        seis.ND = 3
+        seis.freesurf = 0
+        seis.MPI_NPROC_SHOT = args.nmpi
+        test_fp16_forward(seis, ref=None, plot=args.plot, ngpu=args.ngpu, nmpi=args.nmpi)
+        seis.NP = 1
+        seis.MPI_NPROC_SHOT = 1
+
+    name = "3D_HYB_grad"
+    if args.test == name or args.test == "all":
+        print("Testing %s" % name)
+        # --nmpi processes of --ngpu devices each: --nmpi x --ngpu subdomains
+        seis.N = np.array([64, 64, 256])
+        decomp_L()
+        seis.ND = 3
+        seis.freesurf = 0
+        seis.MPI_NPROC_SHOT = args.nmpi
+        test_fp16_grad(seis, ref=None, plot=args.plot, ngpu=args.ngpu, nmpi=args.nmpi)
         seis.NP = 1
         seis.MPI_NPROC_SHOT = 1
 
@@ -549,20 +630,20 @@ if __name__ == "__main__":
     if args.test == name or args.test == "all":
         print("Testing %s" % name)
         seis.N = np.array([64, 256])
-        seis.L = 0
+        decomp_L()
         seis.ND = 2
         seis.freesurf = 0
-        test_backpropagation(seis, plot=args.plot, ngpu=3)
+        test_backpropagation(seis, plot=args.plot, ngpu=args.ngpu)
 
     name = "2D_MPI_backpropagation"
     if args.test == name or args.test == "all":
         print("Testing %s" % name)
         seis.N = np.array([64, 256])
-        seis.L = 0
+        decomp_L()
         seis.ND = 2
         seis.freesurf = 0
-        seis.MPI_NPROC_SHOT = 4
-        test_backpropagation(seis, plot=args.plot, nmpi=3)
+        seis.MPI_NPROC_SHOT = args.nmpi
+        test_backpropagation(seis, plot=args.plot, nmpi=args.nmpi)
         seis.NP = 1
         seis.MPI_NPROC_SHOT = 1
 
@@ -571,10 +652,10 @@ if __name__ == "__main__":
         print("Testing %s" % name)
         seis.NT = 300
         seis.N = np.array([48, 48, 144])
-        seis.L = 0
+        decomp_L()
         seis.ND = 3
         seis.freesurf = 0
-        test_backpropagation(seis, plot=args.plot, ngpu=3)
+        test_backpropagation(seis, plot=args.plot, ngpu=args.ngpu)
         seis.NT = 875
 
     name = "3D_MPI_backpropagation"
@@ -582,11 +663,11 @@ if __name__ == "__main__":
         print("Testing %s" % name)
         seis.NT = 300
         seis.N = np.array([48, 48, 144])
-        seis.L = 0
+        decomp_L()
         seis.ND = 3
         seis.freesurf = 0
-        seis.MPI_NPROC_SHOT = 3
-        test_backpropagation(seis, plot=args.plot, nmpi=3)
+        seis.MPI_NPROC_SHOT = args.nmpi
+        test_backpropagation(seis, plot=args.plot, nmpi=args.nmpi)
         seis.NT = 875
         seis.NP = 1
         seis.MPI_NPROC_SHOT = 1
@@ -613,40 +694,40 @@ if __name__ == "__main__":
     if args.test == name or args.test == "all":
         print("Testing %s" % name)
         seis.N = np.array([64, 256])
-        seis.L = 0
+        decomp_L()
         seis.ND = 2
         seis.freesurf = 0
-        test_fp16_grad(seis, ref=None, plot=args.plot, ngpu=3, inputres=1)
+        test_fp16_grad(seis, ref=None, plot=args.plot, ngpu=args.ngpu, inputres=1)
 
     name = "2D_MPI_inputres"
     if args.test == name or args.test == "all":
         print("Testing %s" % name)
         seis.N = np.array([64, 256])
-        seis.L = 0
+        decomp_L()
         seis.ND = 2
         seis.freesurf = 0
-        seis.MPI_NPROC_SHOT = 4
-        test_fp16_grad(seis, ref=None, plot=args.plot, nmpi=4, inputres=1)
+        seis.MPI_NPROC_SHOT = args.nmpi
+        test_fp16_grad(seis, ref=None, plot=args.plot, nmpi=args.nmpi, inputres=1)
         seis.NP = 1
         seis.MPI_NPROC_SHOT = 1
 
-    name = "3D_NGPU_grad"
+    name = "3D_NGPU_inputres"
     if args.test == name or args.test == "all":
         print("Testing %s" % name)
         seis.N = np.array([64, 64, 256])
-        seis.L = 0
+        decomp_L()
         seis.ND = 3
         seis.freesurf = 0
-        test_fp16_grad(seis, ref=None, plot=args.plot, ngpu=3, inputres=1)
+        test_fp16_grad(seis, ref=None, plot=args.plot, ngpu=args.ngpu, inputres=1)
 
     name = "3D_MPI_inputres"
     if args.test == name or args.test == "all":
         print("Testing %s" % name)
         seis.N = np.array([64, 64, 256])
-        seis.L = 0
+        decomp_L()
         seis.ND = 3
         seis.freesurf = 0
-        seis.MPI_NPROC_SHOT = 3
-        test_fp16_grad(seis, ref=None, plot=args.plot, nmpi=3, inputres=1)
+        seis.MPI_NPROC_SHOT = args.nmpi
+        test_fp16_grad(seis, ref=None, plot=args.plot, nmpi=args.nmpi, inputres=1)
         seis.NP = 1
         seis.MPI_NPROC_SHOT = 1

@@ -316,7 +316,7 @@ FUNDEF void surface_grad(GLOBARG STO *vx,         GLOBARG STO *vz,
            by one sample) is not yet part of T*nu_t: it enters the next step,
            propagated. kernel_residuals adds pout/2 to sxxr and szzr. */
         for (int g=0; g<nrec; g++){
-            int ri=(int)(rec_pos[0+8*g]/DH)+FDOH;
+            int ri=(int)(rec_pos[0+8*g]/DH)+FDOH-OFFSET;   /* local x (domain decomposition) */
             int rk=(int)(rec_pos[2+8*g]/DH)+FDOH;
             if (ri==gidx && rk==z){
                 axx -= 0.5f*pow2s(pout[NT*g+nt], res_scale);
@@ -365,7 +365,7 @@ FUNDEF void surface_grad(GLOBARG STO *vx,         GLOBARG STO *vz,
                 __cprec1 sx = 0, sz = 0;
                 for (int srci=0; srci<nsrc; srci++){
                     int st = (int)src_pos[4+5*srci];
-                    int si = (int)(src_pos[0+5*srci]/DH)+FDOH;
+                    int si = (int)(src_pos[0+5*srci]/DH)+FDOH-OFFSET;   /* local x (domain decomposition) */
                     int sk = (int)(src_pos[2+5*srci]/DH)+FDOH;
                     if (si==gidx && sk==z){
                         /* the velocities are stored scaled by 2^(src_scale - PARSCALE) */

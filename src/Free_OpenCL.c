@@ -401,6 +401,24 @@ int Free_OpenCL(model * m, device * dev)  {
     // Free all memory contained in all structures listed in F.h
     int d;
     if (dev){
+        /* Drain every device before freeing anything. After a failed launch
+           on one device (error path), the other devices may still have
+           asynchronous copies queued that read or write pinned host buffers
+           (boundary frames, halo staging); freeing those buffers first makes
+           the copy engine fault on an unmapped page (Xid 31), which can wedge
+           the driver. Errors are ignored here: a device in an error state
+           returns at once, and the others really wait. */
+        for (d=0;d<m->NUM_DEVICES;d++){
+            #ifdef __SEISCL__
+            if (dev[d].queue) clFinish(dev[d].queue);
+            if (dev[d].queuecomm) clFinish(dev[d].queuecomm);
+            #else
+            if (dev[d].context){
+                cuCtxSetCurrent(dev[d].context);
+                cuCtxSynchronize();
+            }
+            #endif
+        }
         for (d=0;d<m->NUM_DEVICES;d++){
             device_free( &dev[d]);
         }

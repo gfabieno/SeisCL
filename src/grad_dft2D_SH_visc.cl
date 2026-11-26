@@ -288,7 +288,7 @@ FUNDEF void calc_grad_dft(GLOBARG float * gradfreqsn,
     for (int q=0; q<nsrc; q++){
         int st = (int)src_pos[4+5*q];
         if (st==1
-            && (int)(src_pos[0+5*q]/DH)==i
+            && (int)(src_pos[0+5*q]/DH)==i+OFFSET   /* global x (domain decomposition) */
             && (int)(src_pos[2+5*q]/DH)==k){
             ssrc = q; sstype = st; break;
         }

@@ -26,6 +26,25 @@ if _REPO not in sys.path:
 
 from SeisCL.SeisCL import SeisCL, SeisCLError            # noqa: E402
 
+# Domain decomposition of every test shot: SEISCL_TEST_NDEV devices per process and
+# SEISCL_TEST_NP MPI processes per shot (default 1 and 1). The shot is cut along x
+# into NDEV x NP subdomains; the results must not change.
+TEST_NDEV = int(os.environ.get("SEISCL_TEST_NDEV", "1"))
+TEST_NP = int(os.environ.get("SEISCL_TEST_NP", "1"))
+
+
+if TEST_NDEV != 1 or TEST_NP != 1:
+    # every SeisCL of the tests, however built: set before the files are written
+    _set_forward = SeisCL.set_forward
+
+    def _set_forward_decomposed(self, *args, **kwargs):
+        self.nmax_dev = TEST_NDEV
+        self.NP = TEST_NP
+        self.MPI_NPROC_SHOT = TEST_NP
+        return _set_forward(self, *args, **kwargs)
+
+    SeisCL.set_forward = _set_forward_decomposed
+
 
 # Base model. Deliberately the same recipe as test_torch_binding.py's
 # _make_config(), the one existing assert-based numeric test, so failures here

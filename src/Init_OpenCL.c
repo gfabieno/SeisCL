@@ -623,6 +623,25 @@ int Init_CUDA(model * m, device ** dev)  {
             if (di->LOCAL_OFF==1){
                 lsize[0] = 1;
             }
+            /* Only the acoustic kernels (ND 22) still implement the
+               LOCAL_OFF fallback (one-dimensional launch); the others would
+               decode a 2-D/3-D index from it and address far outside the
+               grid (Xid 13 on cgm-geo1, 2026-11-21). */
+            if (di->LOCAL_OFF==1 && m->ND!=22){
+                state=1;
+                fprintf(stderr,"Error: device %d (process %d) cannot run "
+                        "the update kernels: it has %d cells along x (at "
+                        "least %d needed: 3 work groups of %d), or its local "
+                        "memory is too small (see the warnings above). With "
+                        "a split shot, use fewer GPUs or processes per shot, "
+                        "or a wider grid.\n",
+                        d, m->GID, di->N[m->NDIM-1],
+                        3*(int)lsize[m->NDIM-1], (int)lsize[m->NDIM-1]);
+                /* stop here: the blocks below fill tables that GMALLOC no longer allocates
+                   once state is set (segmentation fault, 2026-11-24); Free_OpenCL frees
+                   what was made */
+                return state;
+            }
             
         }
         
@@ -1140,77 +1159,52 @@ int Init_CUDA(model * m, device ** dev)  {
             }
         }
         if (m->BACK_PROP_TYPE==1 && (m->GRADOUT || m->INPUTRES)){
-            int lenz;
-            if (m->FREESURF==0){
-                lenz = di->N[0]-2*m->NAB-2*m->FDOH;
-            }
-            else{
-                lenz = di->N[0]-m->NAB-m->FDOH;
-            }
-            if (m->GRADABS==1 || (m->NUM_DEVICES==1 && m->NLOCALP==1
-                                   && m->FP16<3)){
-                /* Single-device frame (savebnd2D/3D.cl, header_injectbnd.cl,
-                   FR_* macros): cells between an outer box OL cells inside
-                   the grid edge and an inner box W cells further in. With
+            {
+                /* Frame of stored forward values (savebnd2D/3D.cl,
+                   header_injectbnd.cl, FR_* macros): cells between an outer
+                   box OL cells inside the grid edge and an inner box W cells
+                   further in, stored as scalar cells for every FP16. With
                    GRADABS the whole layers (OL = 0); without, the FDOH band
                    plus the last layer cell (OL = NAB-1), whose averaged
                    parameters straddle the band. On a free-surface top: FDOH
-                   rows from the surface. */
+                   rows from the surface. With domain decomposition along x,
+                   each subdomain stores the global frame clipped to its x
+                   range: the low x face on the first subdomain only, the high
+                   one on the last only. */
+                int first = (d==0 && m->MYLOCALID==0);
+                int last = (d==m->NUM_DEVICES-1
+                            && m->MYLOCALID==m->NLOCALP-1);
                 int OL = m->GRADABS ? 0 : (m->NAB>0 ? m->NAB-1 : 0);
                 int W = m->NAB+m->FDOH-OL;
                 int OT = m->FREESURF ? 0 : OL;
                 int Wt = m->FREESURF ? m->FDOH : W;
+                int W0 = first ? W : 0, W1 = last ? W : 0;
                 int nzo = di->N[0]-OT-OL;
-                int nxo = (m->ND==3 ? di->N[2] : di->N[1]) - 2*OL;
+                int nxo = (m->ND==3 ? di->N[2] : di->N[1])
+                          - (first ? OL : 0) - (last ? OL : 0);
                 int nyo = m->ND==3 ? di->N[1]-2*OL : 1;
-                if (m->NUM_DEVICES!=1 || m->NLOCALP!=1){
+                int nxm = nxo-W0-W1;
+                if (m->GRADABS==1 && (m->NUM_DEVICES!=1 || m->NLOCALP!=1)){
                     state=1;
                     fprintf(stderr,"Error: gradabs=1 requires a single "
                                    "device and a single process per shot\n");
                 }
-                if (nxo<=2*W || nzo<=Wt+W || (m->ND==3 && nyo<=2*W)){
+                if ((first && last ? nxm<=0 : nxm<0)
+                    || nzo<=Wt+W || (m->ND==3 && nyo<=2*W)){
                     state=1;
-                    fprintf(stderr,"Error: grid too small for the absorbing "
-                                   "layers and the stored band\n");
+                    fprintf(stderr,"Error: grid (or subdomain %d) too small "
+                                   "for the absorbing layers and the stored "
+                                   "band\n", d);
                 }
                 if (m->ND==3)
-                    di->NBND = 2*W*nyo*nzo + (nxo-2*W)*2*W*nzo
-                             + (nxo-2*W)*(nyo-2*W)*(Wt+W);
+                    di->NBND = (W0+W1)*nyo*nzo + nxm*2*W*nzo
+                             + nxm*(nyo-2*W)*(Wt+W);
                 else
-                    di->NBND = 2*W*nzo + (nxo-2*W)*(Wt+W);
+                    di->NBND = (W0+W1)*nzo + nxm*(Wt+W);
                 /* scalar cells; even, so that the half offsets
                    (NBND*t/2 floats, FP16 > 1) stay exact */
                 di->NBND += di->NBND % 2;
                 di->frame_cells = 1;
-            }
-            else if (m->ND==3){// For 3D
-                if (m->NUM_DEVICES==1 && m->NLOCALP==1)
-                    di->NBND=(di->N[2]-2*m->NAB)*(di->N[1]-2*m->NAB)*2*m->FDOH
-                    +(di->N[2]-2*m->NAB)*(lenz)*2*m->FDOH
-                    +(di->N[1]-2*m->NAB-2*m->FDOH)*(lenz)
-                    *2*m->FDOH;
-                
-                else if ( (d==0 && m->MYLOCALID==0)
-                         || (d==m->NUM_DEVICES-1 && m->MYLOCALID==m->NLOCALP-1))
-                    di->NBND=(di->N[2]-m->NAB)*(di->N[1]-2*m->NAB)*2*m->FDOH
-                    +(di->N[2]-m->NAB)*(lenz)*2*m->FDOH
-                    +(di->N[1]-2*m->NAB-2*m->FDOH)*(lenz)*m->FDOH;
-                
-                else
-                    di->NBND=di->N[2]*(di->N[1]-2*m->NAB)*2*m->FDOH+
-                    di->N[2]*(lenz)*2*m->FDOH;
-            }
-            else{
-                if (m->NUM_DEVICES==1 && m->NLOCALP==1){
-                    di->NBND=(di->N[1]-2*m->NAB)*2*m->FDOH+(lenz)*2*m->FDOH;
-                }
-                else if ( (d==0 && m->MYLOCALID==0)
-                         || (d==(m->NUM_DEVICES-1) && m->MYLOCALID==(m->NLOCALP-1))){
-                    di->NBND=(lenz)*m->FDOH+ (di->N[1]-m->NAB)*2*m->FDOH;
-                    }
-                else{
-                    di->NBND= (di->N[1])*2*m->FDOH;
-                }
             }
             for (i=0;i<m->nvars;i++){
                 if (di->vars[i].to_comm){
@@ -1380,15 +1374,10 @@ int Init_CUDA(model * m, device ** dev)  {
                 di->bnd_cnds.rec_grad_s.gsize[0]=1;
             }
         }
-        /* Exact CPML adjoint filters (cpml_adj2D.cl): one thread per cell. The
-           scratch buffers have no halo exchange, so a single device only. */
+        /* Exact CPML adjoint filters (cpml_adj2D.cl): one thread per cell. With
+           several subdomains, also the x halo of each inner cut, where they copy
+           the exchanged adjoint field (header_vec.cl, CPML_XH0 / CPML_XH1). */
         if (m->bnd_cnds.cpml_adj_v.name){
-            if (m->NUM_DEVICES!=1 || m->NLOCALP!=1){
-                state=1;
-                fprintf(stderr,"Error: gradients with abs_type=1 (CPML) and "
-                               "back_prop_type=1 need a single device and "
-                               "a single process per shot\n");
-            }
             di->bnd_cnds.cpml_adj_v=m->bnd_cnds.cpml_adj_v;
             __GUARD prog_create(m, di, &di->bnd_cnds.cpml_adj_v);
             di->bnd_cnds.cpml_adj_s=m->bnd_cnds.cpml_adj_s;
@@ -1398,6 +1387,12 @@ int Init_CUDA(model * m, device ** dev)  {
             for (i=0;i<m->NDIM;i++){
                 di->bnd_cnds.cpml_adj_v.gsize[i]=di->N[i];
                 di->bnd_cnds.cpml_adj_s.gsize[i]=di->N[i];
+            }
+            {
+                int nhx = ((d>0 || m->MYLOCALID>0) ? m->FDOH : 0)
+                        + ((d<m->NUM_DEVICES-1 || m->MYLOCALID<m->NLOCALP-1) ? m->FDOH : 0);
+                di->bnd_cnds.cpml_adj_v.gsize[m->NDIM-1]+=nhx;
+                di->bnd_cnds.cpml_adj_s.gsize[m->NDIM-1]+=nhx;
             }
         }
         //TODO Boundary conditions should be included in the update kernel
@@ -1463,10 +1458,8 @@ int Init_CUDA(model * m, device ** dev)  {
     }
     __GUARD event_dependency(m, dev, adj);
 
-    #ifndef __NOMPI__
-    if (state && m->MPI_INIT==1)
-        MPI_Bcast( &state, 1, MPI_INT, m->GID, MPI_COMM_WORLD );
-    #endif
+    /* (A broadcast of state by the failed process alone was here: a collective the others never
+       entered. The processes now agree on start-up errors in main, SeisCL_MPI.c.) */
 
 
     return state;

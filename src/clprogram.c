@@ -889,13 +889,15 @@ int prog_arg(clprogram * prog, int i, void * mem, int size){
 /* Kernel settings measured fastest on Pascal and Ampere GPUs (notes: perf-shared-memory-pipeline).
    Each one is on by default where it applies; SEISCL_<NAME>=0 turns it off.
    * NOTILE: update and adjoint kernels without shared-memory tiles (header_vec.cl). CUDA and
-     OpenCL, one device, every FP16. The exact CPML adjoint then reads the field itself where the stencil
-     box of a work-item is outside the layers, the filtered copy elsewhere (NT_RAW*, NT_SKIP*).
+     OpenCL, every FP16, one or several devices and processes per shot (domain decomposition:
+     the com1 / com2 / center launches of time_stepping.c take the same offsets). The exact CPML
+     adjoint then reads the field itself where the stencil box of a work-item is outside the
+     layers, the filtered copy elsewhere (NT_RAW*, NT_SKIP*).
    * CPMLINL: the exact CPML adjoint is computed inside update_adjs / update_adjv (header_vec.cl)
      instead of cpml_adj_v / cpml_adj_s; the adjoint memories psi_*r are double buffered
      (Init_OpenCL.c) and cpml_adj_* is not launched (time_stepping.c). 3D, NOTILE, FP16 0,
-     back_prop_type 1. The doubled buffers must be covered by the vars_init launch
-     ((N+FDORDER) per dimension); otherwise it is off.
+     back_prop_type 1, one device and one process per shot. The doubled buffers must be covered
+     by the vars_init launch ((N+FDORDER) per dimension); otherwise it is off.
    * MAXRREG_ADJ: under CPMLINL, at most 56 registers for update_adjv / update_adjs on compute
      capability 6.x (Pascal, CUDA); SEISCL_MAXRREG_ADJ=n[,m] sets n for update_adjv, m for update_adjs. */
 static int env_on(const char * name){
@@ -905,12 +907,12 @@ static int env_on(const char * name){
 int notile_on(model * m){
     static int env = -1;
     if (env < 0) env = env_on("SEISCL_NOTILE");
-    return env && m->NUM_DEVICES==1 && m->NLOCALP==1;
+    return env;
 }
 int cpml_inline(model * m){
     static int env = -1;
     if (env < 0) env = env_on("SEISCL_CPMLINL");
-    if (!env || !notile_on(m) || m->ND!=3 || m->ABS_TYPE!=1 || m->BACK_PROP_TYPE!=1 || !m->GRADOUT
+    if (!env || !notile_on(m) || m->NUM_DEVICES!=1 || m->NLOCALP!=1 || m->ND!=3 || m->ABS_TYPE!=1 || m->BACK_PROP_TYPE!=1 || !m->GRADOUT
         || m->FP16!=0 || m->NAB<1)
         return 0;
     long a = (long)m->N[0]*m->N[1], b = (long)m->N[0]*m->N[2], c = (long)m->N[1]*m->N[2];
@@ -950,6 +952,17 @@ static int perf_options(model * m, device * dev, clprogram * prog, char opt[3][6
         nv = ns = 56;
     #endif
     int cap = strcmp(prog->name, "update_adjv")==0 ? nv : strcmp(prog->name, "update_adjs")==0 ? ns : 0;
+    /* A work group must fit in the 64K registers of a multiprocessor: without a cap the compiler
+       may give a work-item more than 65536 / (work-group size) registers, and the launch fails
+       (OpenCL: CL_OUT_OF_RESOURCES; measured: update_adjs of a boundary strip, NOTILE, FP16 1,
+       3-D, 512 work-items; the interior variant uses 126 registers, the strip variant more).
+       Under NOTILE only: the tiled kernels are unchanged. */
+    if (*notile && prog->lsize[0] > 0){
+        size_t threads = 1;
+        for (int k = 0; k < prog->wdim && k < MAX_DIMS; k++) threads *= prog->lsize[k];
+        int fit = (int)(65536 / threads) & ~7;
+        if (fit < 255 && (cap == 0 || fit < cap)) cap = fit;
+    }
     if (cap > 0){
         #ifdef __SEISCL__
         sprintf(opt[n++], "-cl-nv-maxrregcount=%d", cap);
@@ -1384,6 +1397,22 @@ int prog_launch(QUEUE *inqueue, clprogram * prog){
                                    prog->nwait,
                                    prog->waits,
                                    event);
+    if (state != CL_SUCCESS){
+        /* what the launch asked against what the kernel allows: a CL_OUT_OF_RESOURCES is either
+           a work group too large for this build of the kernel or an earlier kernel's fault.
+           NVIDIA's CL_KERNEL_WORK_GROUP_SIZE is conservative (256 for kernels that run 512), so it
+           is printed, not used to decide. */
+        size_t wgmax = 0; cl_ulong lmem = 0, pmem = 0; cl_device_id dv;
+        clGetCommandQueueInfo(*inqueue, CL_QUEUE_DEVICE, sizeof(dv), &dv, NULL);
+        clGetKernelWorkGroupInfo(prog->kernel, dv, CL_KERNEL_WORK_GROUP_SIZE, sizeof(wgmax), &wgmax, NULL);
+        clGetKernelWorkGroupInfo(prog->kernel, dv, CL_KERNEL_LOCAL_MEM_SIZE, sizeof(lmem), &lmem, NULL);
+        clGetKernelWorkGroupInfo(prog->kernel, dv, CL_KERNEL_PRIVATE_MEM_SIZE, sizeof(pmem), &pmem, NULL);
+        fprintf(stderr, "    %s: global %zu %zu %zu, local %zu %zu %zu (wdim %d); kernel allows a work group "
+                "of %zu, local memory %llu B, private %llu B\n", prog->name,
+                prog->gsize[0], prog->wdim>1 ? prog->gsize[1] : 1, prog->wdim>2 ? prog->gsize[2] : 1,
+                lsize ? lsize[0] : 0, lsize && prog->wdim>1 ? lsize[1] : 0, lsize && prog->wdim>2 ? lsize[2] : 0,
+                (int)prog->wdim, wgmax, (unsigned long long)lmem, (unsigned long long)pmem);
+    }
     #else
     int i;
     unsigned int bsize[] ={1,1,1};

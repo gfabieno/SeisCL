@@ -38,7 +38,7 @@ int kernel_varout(device * dev,
     int scaler=0;
     
     char temp[MAX_KERN_STR]={0};;
-    char temp2[100]={0};
+    char temp2[1000]={0};   /* one generated line; 100 overflowed at FP16 2 */
     variable * vars = dev->vars;
     variable * tvars = dev->trans_vars;
     
@@ -403,7 +403,7 @@ int kernel_sources(model * m,
                                   "sxz", "sxy", "syz"};
     int src_codes[10] = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
     char temp[MAX_KERN_STR]={0};
-    char temp2[100]={0};
+    char temp2[1000]={0};   /* one generated line; 100 overflowed at FP16 2 */
 //    
     
     
@@ -503,7 +503,12 @@ int kernel_sources(model * m,
            "    int k=(int)(src_pos[2+5*gid]/DH)+FDOH;\n"
            "\n");
 
-    sprintf(temp2,"    if (i-OFFSET<FDOH || i-OFFSET>N%s-FDOH-1){\n",
+    /* Inject in the own cells and in the x halo of an inner cut, which holds
+       the neighbour's copy of the cell: the halo is refreshed only after the
+       next update, so a source within FDOH of a cut would otherwise be
+       missing from the neighbour's stencil for one update (domain
+       decomposition). The outer padding never holds a source. */
+    sprintf(temp2,"    if (i-OFFSET<0 || i-OFFSET>N%s-1){\n",
             dev->N_names[dev->NDIM-1] );
     strcat(temp, temp2);
     strcat(temp,
@@ -663,7 +668,7 @@ int kernel_residuals(device * dev,
     int i,j;
     
     char temp[MAX_KERN_STR]={0};
-    char temp2[100]={0};
+    char temp2[1000]={0};   /* one generated line; 100 overflowed at FP16 2 */
     variable * vars = dev->vars;
     variable * tvars = dev->trans_vars;
     
@@ -761,7 +766,8 @@ int kernel_residuals(device * dev,
            "    int j=(int)(rec_pos[1+8*gid]/DH)+FDOH;\n"
            "    int k=(int)(rec_pos[2+8*gid]/DH)+FDOH;\n\n");
     
-    sprintf(temp2,"    if (i-OFFSET<FDOH || i-OFFSET>N%s-FDOH-1){\n",
+    /* Own cells and the x halo of an inner cut (see kernel_sources). */
+    sprintf(temp2,"    if (i-OFFSET<0 || i-OFFSET>N%s-1){\n",
             dev->N_names[dev->NDIM-1] );
     strcat(temp, temp2);
     strcat(temp,
@@ -914,7 +920,14 @@ int kernel_residuals(device * dev,
         else {
             strcpy(ld, "");
         }
-        strcat(temp, "#if LVE>0\n    {\n");
+        /* Own cells only: the parameters (M, mu, taup, taus) have no x halo,
+           so ip would be out of range in the halo of an inner cut, and a halo
+           memory variable is never read by the neighbour's stencil. The halo
+           copy of the stress keeps the injection above but not the O(dt)
+           correction below (domain decomposition). */
+        sprintf(temp2, "#if LVE>0\n    if (i-OFFSET>=FDOH && i-OFFSET<=N%s-FDOH-1){\n",
+                dev->N_names[dev->NDIM-1]);
+        strcat(temp, temp2);
         sprintf(temp2, "        int ip = %s;\n", ip);
         strcat(temp, temp2);
         sprintf(temp2, "        float lM=%s(M[ip]), lmu=%s(mu[ip]), ltp=%s(taup[ip]), lts=%s(taus[ip]);\n", ld, ld, ld, ld);
@@ -1015,7 +1028,7 @@ int kernel_gradinit(device * dev,
     int i;
     
     char temp[MAX_KERN_STR]={0};
-    char temp2[100]={0};
+    char temp2[1000]={0};   /* one generated line; 100 overflowed at FP16 2 */
 
     strcat(temp, FUNDEF"void gradinit(");
     for (i=0;i<dev->npars;i++){
@@ -1506,7 +1519,7 @@ int kernel_fcom_out(device * dev,
             strcat(temp, ";\n");
         }
     }
-    char temp2[100]={0};
+    char temp2[1000]={0};   /* one generated line; 100 overflowed at FP16 2 */
     int precsize;
     int div;
     if (dev->FP16==0){
@@ -1768,7 +1781,7 @@ int kernel_fcom_in(device * dev,
     else{
         precsize = sizeof(float);
     }
-    char temp2[100]={0};
+    char temp2[1000]={0};   /* one generated line; 100 overflowed at FP16 2 */
 //    if (buff12==1){
 //        sprintf(temp2,"    if (idbuf>%d-1){\n",
 //                (int)(vars[0].cl_buf1.size/precsize));

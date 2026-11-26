@@ -80,7 +80,13 @@ int Init_MPI(model * m) {
         MPI_Bcast( &m->scalermsnorm, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->BACK_PROP_TYPE, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->NFREQS, 1, MPI_INT, 0, MPI_COMM_WORLD );
-        
+        /* Only process 0 reads the input file. Without dft_osamp the other
+           processes had 0, so DTNYQ fell to 1: with back_prop_type 2 and
+           several processes per shot, their subdomains accumulated the DFT
+           at another rate and the gradient was 0.3-0.6 % off there. */
+        MPI_Bcast( &m->dft_osamp, 1, MPI_FLOAT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->DFTOUT, 1, MPI_INT, 0, MPI_COMM_WORLD );
+
         MPI_Bcast( &m->FP16, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->INPUTRES, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->GRADABS, 1, MPI_INT, 0, MPI_COMM_WORLD );
