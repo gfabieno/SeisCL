@@ -856,6 +856,40 @@ def _median_time(f, reps=3):
     return sorted(tt)[reps // 2]
 
 
+def test_fp16_host_scaling_speed(ratio_max=1.0):
+    """An FP16 = 2 forward call is not slower than an FP16 = 0 one.
+
+    FP16 = 2 stores the wavefields in half precision: its kernels move half the
+    bytes and are ~1.6x faster (nsys, RTX A6000, 2-D 1000^2). But every call
+    re-scales the parameters on the host (Init_model_values), and that scaling
+    called powf(2, scaler) once per cell, which gcc does not hoist out of the
+    loop: ~0.3 s per call at 1000^2 while the GPU waited, so FP16 2 calls were
+    1.5x slower than FP16 0 (benchmarks/ leaderboard, 2026-11-25). At FP16 = 0
+    the scaler is 0 and the cost vanished, which is why only FP16 > 0 paid it.
+
+    2-D 1000 x 1000, 500 steps, CPML, force source, parameters on the GPU;
+    median of 3 calls after a warm-up. Threshold (proposed with the fix):
+    time(FP16 2) / time(FP16 0) <= 1.0. Measured before the fix ~3.7.
+    """
+    cfg, src, sp, rp = _speed_geometry(1, n=1000, nt=500)
+    n2 = 1000 * 1000
+    params = {k: torch.full((n2,), v, dtype=torch.float32, device="cuda")
+              for k, v in (("M", VP), ("mu", VS), ("rho", RHO))}
+    times = {}
+    for fp16 in (0, 2):
+        cfg.FP16 = fp16
+        clear_engine_cache()
+        times[fp16] = _median_time(lambda: torch.cuda.synchronize() or seiscl_forward(
+            cfg, params, src, sp, rp, output_fields=["vz"])["vz"].sum().item())
+    ratio = times[2] / times[0]
+    print(f"    forward 1000^2 x 500: FP16 0 {times[0]:.3f} s, FP16 2 {times[2]:.3f} s, "
+          f"ratio {ratio:.2f} (threshold {ratio_max})")
+    assert ratio <= ratio_max, (
+        f"an FP16 2 call costs {ratio:.2f}x an FP16 0 call: host work per call "
+        f"(parameter scaling) outweighs the faster half-precision kernels")
+    print("Testing: torch_fp16_host_scaling_speed ....... passed")
+
+
 def test_multishot_shotstore_speed(nshot=4, ratio_max=1.15):
     """A gradient call with several shots costs about as much per shot as a
     call with one shot (it was ~1.46x when each shot's checkpoint was copied
@@ -1164,6 +1198,7 @@ if __name__ == "__main__":
         test_multishot_gradient_both_checkpoint_policies()
         test_multishot_shotstore()
         test_multishot_shotstore_speed()
+        test_fp16_host_scaling_speed()
         test_recompute_matches_memory()
         test_auto_counts_own_checkpoint()
         test_recompute_interleaved()
