@@ -37,36 +37,12 @@
 
 
 
-/* Recompute every host-side parameter value that depends on the raw values
- * the caller supplied: scaling, the per-parameter transforms (e.g. squaring
- * vp/vs into Lame parameters for par_type=0), the stability check, and the
- * FP16 conversions. Allocation-free and idempotent with respect to a fresh
- * set of raw values, so the PyTorch binding (SeisCL/torch/engine_handle.cpp)
- * can call it on its own to refresh a reused engine without going through
- * Init_model()'s allocation. Split out of Init_model() so both callers share
- * one implementation.
- */
-int Init_model_values(model * m) {
-
+/* src_scale of each shot (FP16 > 0): needs par_scale (the scaler of the
+   velocities), so it runs after the parameters are prepared, on the host
+   (Init_model_values) or on the device (param_prep_run). */
+int Init_src_scales(model * m) {
     int state=0;
     int i,j,t;
-    half * hpar;
-
-
-    __GUARD m->set_par_scale( (void*) m);
-    for (i=0;i<m->npars;i++){
-        if (m->pars[i].transform !=NULL){
-            m->pars[i].transform( (void*) m);
-        }
-    }
-    __GUARD m->check_stability( (void*) m);
-
-    /* Bin 0 (a gradient frequency below 1/(NT dt)) used to be refused for
-       L>0: the old viscoelastic correlation divided by sin(0). The exact
-       correlation (grad_dft*_visc.cl) has no 1/w, and bin 0 carries the
-       static part of the end-of-record terms, so it is allowed again; it
-       counts half, like the Nyquist bin. */
-
     float srcmax;
     if (m->FP16!=0){
         for (i=0;i<m->src_recs.ns;i++){
@@ -104,6 +80,44 @@ int Init_model_values(model * m) {
             m->src_recs.src_scales[i]=-log2(srcmax*m->dt*1.0) + vsc;
         }
     }
+    
+    return state;
+}
+
+/* Recompute every host-side parameter value that depends on the raw values
+ * the caller supplied: scaling, the per-parameter transforms (e.g. squaring
+ * vp/vs into Lame parameters for par_type=0), the stability check, and the
+ * FP16 conversions. Allocation-free and idempotent with respect to a fresh
+ * set of raw values, so the PyTorch binding (SeisCL/torch/engine_handle.cpp)
+ * can call it on its own to refresh a reused engine without going through
+ * Init_model()'s allocation. Split out of Init_model() so both callers share
+ * one implementation.
+ */
+int Init_model_values(model * m) {
+
+    int state=0;
+    int i,j;
+    half * hpar;
+
+    /* gpu_prep: everything below runs on the device (param_prep_run,
+       Init_OpenCL.c), which then calls Init_src_scales. */
+    if (m->gpu_prep) return 0;
+
+    __GUARD m->set_par_scale( (void*) m);
+    for (i=0;i<m->npars;i++){
+        if (m->pars[i].transform !=NULL){
+            m->pars[i].transform( (void*) m);
+        }
+    }
+    __GUARD m->check_stability( (void*) m);
+
+    /* Bin 0 (a gradient frequency below 1/(NT dt)) used to be refused for
+       L>0: the old viscoelastic correlation divided by sin(0). The exact
+       correlation (grad_dft*_visc.cl) has no 1/w, and bin 0 carries the
+       static part of the end-of-record terms, so it is allowed again; it
+       counts half, like the Nyquist bin. */
+
+    __GUARD Init_src_scales(m);
     
     if (m->FP16>1){
         for (i=0;i<m->npars;i++){

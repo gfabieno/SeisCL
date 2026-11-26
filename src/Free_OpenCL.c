@@ -130,6 +130,7 @@ void variable_freeGL(variable * var){
 void parameter_freeCL(device *dev, parameter * par){
     
     clbuf_free(dev, &par->cl_par);
+    clbuf_free(dev, &par->cl_raw);
     clbuf_free(dev, &par->cl_grad);
     clbuf_free(dev, &par->cl_H);
 }
@@ -327,6 +328,13 @@ void device_free(device * dev){
     sources_records_freeCL(dev, &dev->src_recs);
     gradients_freeCL(&dev->grads);
     boundary_conditions_freeCL(&dev->bnd_cnds);
+    clprogram_freeCL(&dev->par_avg.prep_reduce);
+    clprogram_freeCL(&dev->par_avg.prep_store);
+    clprogram_freeCL(&dev->par_avg.tausipkp);
+    clprogram_freeCL(&dev->par_avg.tausipjp);
+    clprogram_freeCL(&dev->par_avg.tausjpkp);
+    clbuf_free(dev, &dev->par_avg.prep_red);
+    clbuf_free(dev, &dev->par_avg.prep_cst);
     
     if (dev->queue) QUEUEFREE(dev->queue);
     if (dev->queuecomm) QUEUEFREE(dev->queuecomm);

@@ -894,6 +894,87 @@ def test_fp16_host_scaling_speed(ratio_max=1.0):
     print("Testing: torch_fp16_host_scaling_speed ....... passed")
 
 
+def test_param_prep_no_upload(max_bytes=64 * 1024):
+    """A cached SeisCL.torch call does not copy the model through the host.
+
+    The parameters are prepared on the GPU (src/prep_params.cl): the CUDA
+    tensors are copied device to device into the engine's raw buffers, and the
+    kernels compute the moduli, the scaling and the half precision storage.
+    Before, the tensors went to the host, were transformed there and uploaded
+    (a parameter-sized upload per parameter and call).
+
+    Measured: bytes moved host to device by the engine during a second
+    (cached) forward call, 2-D 300 x 300, FP16 0 and 2. Threshold (plan
+    gpu-param-pipeline): <= 64 KB (the source wavelets and positions); one
+    parameter is 360 KB.
+    """
+    cfg, src, sp, rp = _speed_geometry(1)
+    n2 = cfg.N[0] * cfg.N[1]
+    params = {k: torch.full((n2,), v, dtype=torch.float32, device="cuda")
+              for k, v in (("M", VP), ("mu", VS), ("rho", RHO))}
+    for fp16 in (0, 2):
+        cfg.FP16 = fp16
+        clear_engine_cache()
+        seiscl_forward(cfg, params, src, sp, rp, output_fields=["vz"])
+        seiscl_torch._C.reset_transfer_bytes()
+        seiscl_forward(cfg, params, src, sp, rp, output_fields=["vz"])
+        h2d, _ = seiscl_torch._C.transfer_bytes()
+        print(f"    FP16 {fp16}: {h2d} bytes host to device in a cached call "
+              f"(threshold {max_bytes})")
+        assert h2d <= max_bytes, (
+            f"FP16 {fp16}: a cached call uploads {h2d} bytes: the parameters "
+            f"went through the host")
+    print("Testing: torch_param_prep_no_upload ....... passed")
+
+
+def test_param_prep_matches_host():
+    """The parameters prepared on the GPU give the bits of the host path.
+
+    SEISCL_HOST_PREP=1 keeps the host preparation (Init_model_values). Both
+    must give identical seismograms and gradients: same transforms, scaling,
+    tau averages and half conversion. Heterogeneous viscoelastic model
+    (L = 3, every cell its own values), 2-D, DFT gradient, FP16 0, 1, 2; and a
+    second call of the cached engine with another model. Threshold: identical
+    bits.
+    """
+    n, nt = 96, 300
+    out = {}
+    for mode in ("gpu", "host"):
+        if mode == "host":
+            os.environ["SEISCL_HOST_PREP"] = "1"
+        try:
+            for fp16 in (0, 1, 2):
+                cfg = _make_config()
+                cfg.N, cfg.NT, cfg.NAB, cfg.ABS_TYPE = [n, n], nt, 12, 1
+                cfg.FP16, cfg.L, cfg.FL = fp16, 3, [2.5, 10.0, 40.0]
+                cfg.BACK_PROP_TYPE, cfg.gradfreqs = 2, [5.0, 10.0, 15.0]
+                t = np.arange(nt) * DT
+                a = (np.pi * 10.0 * (t - 0.12)) ** 2
+                src = torch.from_numpy(((1 - 2 * a) * np.exp(-a)).astype(np.float32)[None])
+                sp = torch.tensor([[48 * DH, 0.0, 48 * DH, 0, 2.0]])
+                rp = torch.tensor([[x * DH, 0.0, 40 * DH, 0, i + 1, 0, 0, 0]
+                                   for i, x in enumerate(range(20, 76, 8))])
+                clear_engine_cache()
+                for call in range(2):
+                    rng = np.random.default_rng(call)
+                    par = {k: torch.from_numpy((v * (1 + 0.05 * rng.standard_normal(n * n)))
+                                               .astype(np.float32)).cuda().requires_grad_(True)
+                           for k, v in (("M", VP), ("mu", VS), ("rho", RHO),
+                                        ("taup", 0.05), ("taus", 0.05))}
+                    d = seiscl_forward(cfg, par, src, sp, rp, output_fields=["vz"])["vz"]
+                    (0.5 * (d.double() ** 2).sum()).backward()
+                    key = f"fp{fp16}/call{call}"
+                    out.setdefault(key, {})[mode] = [d.detach().cpu().numpy()] + [
+                        par[k].grad.cpu().numpy() for k in sorted(par)]
+        finally:
+            os.environ.pop("SEISCL_HOST_PREP", None)
+    bad = [k for k, v in out.items()
+           if not all(np.array_equal(a, b) for a, b in zip(v["gpu"], v["host"]))]
+    print(f"    {len(out) - len(bad)}/{len(out)} cases bit-identical (threshold: all)")
+    assert not bad, f"GPU and host parameter preparation differ: {bad}"
+    print("Testing: torch_param_prep_matches_host ....... passed")
+
+
 def test_multishot_shotstore_speed(nshot=4, ratio_max=1.15):
     """A gradient call with several shots costs about as much per shot as a
     call with one shot (it was ~1.46x when each shot's checkpoint was copied
@@ -1203,6 +1284,8 @@ if __name__ == "__main__":
         test_multishot_shotstore()
         test_multishot_shotstore_speed()
         test_fp16_host_scaling_speed()
+        test_param_prep_no_upload()
+        test_param_prep_matches_host()
         test_recompute_matches_memory()
         test_auto_counts_own_checkpoint()
         test_recompute_interleaved()

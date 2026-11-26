@@ -936,6 +936,14 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
          "'hdf5-memory', 'recompute' (none kept; the backward call re-runs "
          "the forward), 'file', or 'none' (no gradient requested).");
 
+    m.def("transfer_bytes",
+         []() { return std::make_pair(seiscl_bytes_h2d, seiscl_bytes_d2h); },
+         "(host to device, device to host) bytes moved by the engine's buffer "
+         "transfers since the last reset_transfer_bytes() (tests).");
+    m.def("reset_transfer_bytes",
+         []() { seiscl_bytes_h2d = 0; seiscl_bytes_d2h = 0; },
+         "Reset the counters of transfer_bytes().");
+
     m.def("last_checkpoint_bytes",
          []() { return seiscl_torch::g_last_ckpt_bytes; },
          "Bytes of RAM the last multi-shot forward call's checkpoint needs "

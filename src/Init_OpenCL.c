@@ -365,6 +365,159 @@ int param_average_run(model * m, device * di){
     return state;
 }
 
+/* ---- Parameter preparation on the device (prep_params.cl) ----------------
+   The raw parameters (M, mu, rho, taup, taus as the user gives them: the HDF5
+   values or the SeisCL.torch tensors) are copied to the device once per call,
+   whole, into cl_raw; prep_reduce gives the scalars the host needs (par_scale,
+   the stability check), prep_store and prep_tau* write this device's cl_par.
+   Bit-identical to the host path (SEISCL_HOST_PREP=1, Init_model_values). */
+static int is_raw_par(parameter * p){
+    return p->to_read != NULL;
+}
+
+/* Programs and buffers of one device (once, at build time) */
+int param_prep_create(model * m, device * di){
+    int state = 0;
+    int i;
+    size_t nloc = (size_t)di->pars[0].num_ele;
+    for (i=0;i<m->npars;i++){
+        if (!is_raw_par(&m->pars[i])) continue;
+        di->pars[i].cl_raw.size = sizeof(float)*m->pars[i].num_ele;
+        di->pars[i].cl_raw.host = m->pars[i].gl_par;
+        di->pars[i].cl_raw.free_host = 0;
+        __GUARD clbuf_create(di->context_ptr, &di->pars[i].cl_raw);
+    }
+    di->par_avg.prep_red.size = sizeof(unsigned int)*8;
+    GMALLOC(di->par_avg.prep_red.host, di->par_avg.prep_red.size);
+    di->par_avg.prep_red.free_host = 1;
+    __GUARD clbuf_create(di->context_ptr, &di->par_avg.prep_red);
+    di->par_avg.prep_cst.size = sizeof(float)*PREP_NCST;
+    GMALLOC(di->par_avg.prep_cst.host, di->par_avg.prep_cst.size);
+    di->par_avg.prep_cst.free_host = 1;
+    __GUARD clbuf_create(di->context_ptr, &di->par_avg.prep_cst);
+
+    clprogram * pp[5] = {&di->par_avg.prep_reduce, &di->par_avg.prep_store,
+                         &di->par_avg.tausipkp, &di->par_avg.tausipjp, &di->par_avg.tausjpkp};
+    clprogram * mp[5] = {&m->par_avg.prep_reduce, &m->par_avg.prep_store,
+                         &m->par_avg.tausipkp, &m->par_avg.tausipjp, &m->par_avg.tausjpkp};
+    for (i=0;i<5;i++){
+        if (!mp[i]->name) continue;
+        *pp[i] = *mp[i];
+        __GUARD prog_create(m, di, pp[i]);
+        pp[i]->wdim = 1;
+        pp[i]->lsize[0] = 256;
+        /* prep_reduce: a fixed grid, each work-item loops over the model */
+        pp[i]->gsize[0] = (i==0) ? 256*128 : ((nloc + 255)/256)*256;
+    }
+    return state;
+}
+
+/* Raw values to the device: from raw_src when set (SeisCL.torch: a device
+   or host pointer of the whole model), from gl_par otherwise (HDF5). */
+int param_prep_upload(model * m, device * di){
+    int state = 0;
+    int i;
+    for (i=0;i<m->npars;i++){
+        if (!is_raw_par(&m->pars[i]) || !di->pars[i].cl_raw.mem) continue;
+        if (m->pars[i].raw_src){
+            #ifdef __SEISCL__
+            fprintf(stderr, "Error: device raw parameters need the CUDA build\n");
+            return 1;
+            #else
+            __GUARD cuMemcpy((CUdeviceptr)di->pars[i].cl_raw.mem,
+                             (CUdeviceptr)m->pars[i].raw_src,
+                             di->pars[i].cl_raw.size);
+            #endif
+        }
+        else {
+            __GUARD clbuf_send(&di->queue, &di->pars[i].cl_raw);
+        }
+    }
+    return state;
+}
+
+static unsigned int prep_bits(float v){ unsigned int u; memcpy(&u, &v, 4); return u; }
+static float prep_float(unsigned int u){ float v; memcpy(&v, &u, 4); return v; }
+static void prep_seti(float * c, int k, int v){ memcpy(&c[k], &v, 4); }
+
+/* Transforms, scaling and storage on one device. The first device (DEVID 0)
+   also reduces and sets par_scale, the velocity scalers and the source
+   scales; the others reuse them. The device must be current (CUDA). */
+int param_prep_run(model * m, device * di){
+    int state = 0;
+    int l;
+    float * c = di->par_avg.prep_cst.host;
+    memset(c, 0, sizeof(float)*PREP_NCST);
+    c[0] = m->dt;
+    c[1] = m->dh;
+    /* the constants of the phase-velocity correction, as M() and mu() */
+    if (m->L>0){
+        if (16 + m->L > PREP_NCST){
+            fprintf(stderr, "Error: L=%d too large for prep_params\n", m->L);
+            return 1;
+        }
+        float * eta = get_cst(m->csts, m->ncsts, "eta")->gl_cst;
+        float ws=2.0*PI*m->f0;
+        float sumu=0.0;
+        for (l=0;l<m->L;l++){
+            float pts = m->dt/eta[l];
+            c[16+l] = pts;
+            sumu+= ((ws*ws*pts*pts)/(1.0+ws*ws*pts*pts));
+        }
+        c[2] = ws;
+        c[3] = sumu;
+    }
+    int ncell = 1, nz = m->N[0], ny = 1, nx = 1;
+    for (l=0;l<m->NDIM;l++) ncell *= m->N[l];
+    if (m->NDIM==3){ ny = m->N[1]; nx = m->N[2]; }
+    else { nx = m->N[1]; }
+    prep_seti(c, 6, m->par_type);
+    prep_seti(c, 7, m->halfpar);
+    prep_seti(c, 8, di->OFFSET*nz*ny);
+    prep_seti(c, 9, di->pars[0].num_ele);
+    prep_seti(c, 10, ncell);
+    prep_seti(c, 11, nz);
+    prep_seti(c, 12, ny);
+    prep_seti(c, 13, nx);
+
+    if (di->DEVID==0){
+        unsigned int * r = (unsigned int *)di->par_avg.prep_red.host;
+        r[0] = 0; r[1] = 0; r[2] = prep_bits(99999.0f); r[3] = 0; r[4] = prep_bits(99999.0f);
+        r[5] = r[6] = r[7] = 0;
+        __GUARD clbuf_send(&di->queue, &di->par_avg.prep_red);
+        __GUARD clbuf_send(&di->queue, &di->par_avg.prep_cst);
+        __GUARD prog_launch(&di->queue, &di->par_avg.prep_reduce);
+        __GUARD clbuf_read(&di->queue, &di->par_avg.prep_red);
+        __GUARD WAITQUEUE(di->queue);
+        if (state) return state;
+        __GUARD set_par_scale_value(m, prep_float(r[0]));
+        __GUARD check_stability_values(m, prep_float(r[1]), prep_float(r[2]),
+                                       prep_float(r[3]), prep_float(r[4]));
+        __GUARD Init_src_scales(m);
+    }
+    c[4] = ldexpf(1.0f, m->par_scale);
+    c[5] = ldexpf(1.0f, -m->par_scale);
+    __GUARD clbuf_send(&di->queue, &di->par_avg.prep_cst);
+    __GUARD prog_launch(&di->queue, &di->par_avg.prep_store);
+    if (di->par_avg.tausipkp.name) __GUARD prog_launch(&di->queue, &di->par_avg.tausipkp);
+    if (di->par_avg.tausipjp.name) __GUARD prog_launch(&di->queue, &di->par_avg.tausipjp);
+    if (di->par_avg.tausjpkp.name) __GUARD prog_launch(&di->queue, &di->par_avg.tausjpkp);
+    return state;
+}
+
+/* Until the residual scaling and the gradient run on the device (plan
+   gpu-param-pipeline, steps 2 and 3), the host keeps a copy of the prepared
+   parameters, as Init_model_values left it. */
+int param_prep_readback(model * m, device * di){
+    int state = 0;
+    int i;
+    for (i=0;i<m->npars;i++){
+        __GUARD clbuf_read(&di->queue, &di->pars[i].cl_par);
+    }
+    __GUARD WAITQUEUE(di->queue);
+    return state;
+}
+
 int Init_CUDA(model * m, device ** dev)  {
     /* Function that intialize model decomposition on multiple devices on one
        host. All OpenCL buffers and kernels are created and are contained in a
@@ -851,7 +1004,10 @@ int Init_CUDA(model * m, device ** dev)  {
                         di->pars[i].cl_par.size/=2;
                     }
                     __GUARD clbuf_create(di->context_ptr,&di->pars[i].cl_par);
-                    __GUARD clbuf_send(&di->queue,&di->pars[i].cl_par);
+                    /* gpu_prep: filled on the device below (param_prep_run) */
+                    if (!m->gpu_prep){
+                        __GUARD clbuf_send(&di->queue,&di->pars[i].cl_par);
+                    }
                     /* Also for BACK_PROP_TYPE==2 now: the DFT correlation
                      * accumulates into the same device gradient buffer as the
                      * boundary-saving path, so both share one output path. */
@@ -888,6 +1044,13 @@ int Init_CUDA(model * m, device ** dev)  {
             // launch (Init_OpenCL.c, below), which also leaves it to
             // prog_launch's own defaults.
             // FP16>1: the kernels read and write half (average_params.cl).
+            /* gpu_prep: the raw model goes to the device and the kernels of
+               prep_params.cl compute what the host did (Init_model_values). */
+            if (!state && m->gpu_prep){
+                __GUARD param_prep_create(m, di);
+                __GUARD param_prep_upload(m, di);
+                __GUARD param_prep_run(m, di);
+            }
             if (!state && use_gpu_average(m)){
                 int par_NY = (m->ND==3) ? di->N[1] : 1;
                 int par_NX = (m->ND==3) ? di->N[2] : di->N[1];
@@ -933,6 +1096,12 @@ int Init_CUDA(model * m, device ** dev)  {
                     di->par_avg.mujpkp.gsize[2]=par_NX;
                 }
                 __GUARD param_average_run(m, di);
+            }
+            if (!state && m->gpu_prep){
+                __GUARD param_prep_readback(m, di);
+                if (!m->keep_raw){
+                    for (i=0;i<m->npars;i++) clbuf_free(di, &di->pars[i].cl_raw);
+                }
             }
 
         }

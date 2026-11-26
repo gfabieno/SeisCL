@@ -68,7 +68,12 @@ void require_cpu(const torch::Tensor &t, const std::string &what);
 
 void apply_config(model &m, const Config &cfg, int gradout, int inputres);
 
-void set_params(model &m, const py::dict &params);
+// keep: when the engine prepares the parameters on the device (m.gpu_prep),
+// the tensors are not copied to the host: each parameter's raw_src points at
+// its tensor's data, which keep holds alive until param_prep_upload has run.
+void set_params(model &m, const py::dict &params,
+                std::vector<torch::Tensor> *keep = nullptr);
+void clear_raw_src(model &m);
 
 void set_srcrec(model &m, torch::Tensor &src, torch::Tensor &src_pos,
                 torch::Tensor &rec_pos,

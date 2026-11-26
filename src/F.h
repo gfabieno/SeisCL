@@ -275,6 +275,11 @@ typedef struct parameter{
     const char * to_read;
     int to_grad;
     void (*transform)(void *);
+    /* gpu_prep: the raw values (whole model, float) on the device, read by
+       prep_params.cl; raw_src: where they come from when not from gl_par
+       (a device or host pointer, SeisCL.torch), copied by param_prep_upload. */
+    clbuf cl_raw;
+    const void * raw_src;
 
 
 } parameter;
@@ -397,8 +402,17 @@ typedef struct param_avg {
     clprogram muipkp;
     clprogram muipjp;
     clprogram mujpkp;
+    /* Parameter preparation on the device (prep_params.cl, param_prep_run) */
+    clprogram prep_reduce;
+    clprogram prep_store;
+    clprogram tausipkp;
+    clprogram tausipjp;
+    clprogram tausjpkp;
+    clbuf prep_red;     /* 8 unsigned: float bits of max M, vp max/min, vs max/min */
+    clbuf prep_cst;     /* PREP_NCST floats, see prep_params.cl */
 
 } param_avg;
+#define PREP_NCST 64
 
 
 /* _____________Structure that holds all information of a device _____________*/
@@ -615,6 +629,8 @@ typedef struct model {
     int FP16;
     int halfpar;
     int par_scale;
+    int gpu_prep;      /* parameters prepared on the device (use_gpu_prep) */
+    int keep_raw;      /* keep the raw device buffers after the preparation (SeisCL.torch) */
 
     int (*res_calc)(struct model * , int );
     int (*res_scale)(struct model * , int );
@@ -660,6 +676,17 @@ int seiscl_set_srcrec(model * m,
 
 int assign_modeling_case(model * m);
 int use_gpu_average(model * m);
+int use_gpu_prep(model * m);
+int param_prep_run(model * m, device * dev);
+int param_prep_create(model * m, device * di);
+int param_prep_upload(model * m, device * di);
+int param_prep_readback(model * m, device * di);
+void clbuf_free(device *dev, clbuf *buf);
+extern long long seiscl_bytes_h2d;
+extern long long seiscl_bytes_d2h;
+int check_stability_values(model * m, float vpmax, float vpmin, float vsmax, float vsmin);
+int set_par_scale_value(model * m, float Mmax);
+int Init_src_scales(model * m);
 int param_average_run(model * m, device * di);
 
 

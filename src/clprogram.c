@@ -929,6 +929,14 @@ static int perf_options(model * m, device * dev, clprogram * prog, char opt[3][6
     int adj = strcmp(prog->name, "update_adjv")==0 || strcmp(prog->name, "update_adjs")==0;
     int cpa = strcmp(prog->name, "cpml_adj_v")==0 || strcmp(prog->name, "cpml_adj_s")==0;
     *notile = 0;
+    #ifdef __SEISCL__
+    /* prep_params.cl must give the bits of the host divisions: OpenCL allows an
+       approximate float division (2.5 ulp; NVIDIA multiplies by the reciprocal),
+       and folds the double division of two floats back into it. */
+    if (strncmp(prog->name, "prep_", 5)==0){
+        sprintf(opt[n++], "-cl-fp32-correctly-rounded-divide-sqrt");
+    }
+    #endif
     if (notile_on(m) && !dev->LOCAL_OFF && (upd || adj || cpa)){
         sprintf(opt[n++], "-D NOTILE=1");
         *notile = 1;
@@ -1120,6 +1128,13 @@ int prog_create(model * m,
 
                 break;
             }
+            /* <par>_raw: the raw values on the device (prep_params.cl) */
+            sprintf(str2comp,"%s_raw",(*dev).pars[j].name);
+            if (strcmp(str2comp,(*prog).input_list[i])==0){
+                prog_arg(prog, i, &(*dev).pars[j].cl_raw.mem, memsize);
+                argfound=1;
+                break;
+            }
             sprintf(str2comp,"grad%s",(*dev).pars[j].name);
             if (strcmp(str2comp,(*prog).input_list[i])==0){
                 prog_arg(prog, i, &(*dev).pars[j].cl_grad.mem, memsize);
@@ -1135,7 +1150,9 @@ int prog_create(model * m,
                 break;
             }
         }
-        if (!argfound){
+        /* (*dev).vars, trans_vars, csts do not exist yet for the kernels
+           created with the parameters (average_params.cl, prep_params.cl) */
+        if (!argfound && (*dev).vars){
             for (j=0;j<m->nvars;j++){
                 if (strcmp((*dev).vars[j].name,(*prog).input_list[i])==0){
                     prog_arg(prog, i, &(*dev).vars[j].cl_var.mem, memsize);
@@ -1204,7 +1221,7 @@ int prog_create(model * m,
                 }
             }
         }
-        if (!argfound){
+        if (!argfound && (*dev).trans_vars){
             for (j=0;j<m->ntvars;j++){
                 sprintf(str2comp,"%sout",(*dev).trans_vars[j].name);
                 if (strcmp(str2comp,(*prog).input_list[i])==0){
@@ -1215,7 +1232,7 @@ int prog_create(model * m,
                
             }
         }
-        if (!argfound){
+        if (!argfound && (*dev).vars){
             for (j=0;j<m->nvars;j++){
                 sprintf(str2comp,"%sr",(*dev).vars[j].name);
                 if (strcmp(str2comp,(*prog).input_list[i])==0){
@@ -1233,7 +1250,7 @@ int prog_create(model * m,
                 }
             }
         }
-        if (!argfound){
+        if (!argfound && (*dev).csts){
             for (j=0;j<m->ncsts;j++){
                 if (strcmp((*dev).csts[j].name,(*prog).input_list[i])==0){
                     prog_arg(prog, i, &(*dev).csts[j].cl_cst.mem, memsize);
@@ -1267,6 +1284,16 @@ int prog_create(model * m,
             }
         }
 
+        if (!argfound){
+            if (strcmp("prep_red",(*prog).input_list[i])==0){
+                prog_arg(prog, i, &(*dev).par_avg.prep_red.mem, memsize);
+                argfound=1;
+            }
+            else if (strcmp("prep_cst",(*prog).input_list[i])==0){
+                prog_arg(prog, i, &(*dev).par_avg.prep_cst.mem, memsize);
+                argfound=1;
+            }
+        }
         if (!argfound){
             if (strcmp("offcomm",(*prog).input_list[i])==0){
                 prog_arg(prog, i, &prog->OFFCOMM, sizeof(int));
