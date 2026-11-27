@@ -76,6 +76,22 @@
 #define ZH (FDOH + (NV - FDOH%NV)%NV)
 #define INTERIOR_Z(z) ((z)>=FDOH && (z)<NZS-FDOH)
 
+/* ---- v rounded to the storage precision (a store then a load) ------------ */
+LFUNDEF float rnd(float v)
+{
+#if FP16==2
+    #ifdef __OPENCL_VERSION__
+    ushort h;                          /* no half variables without cl_khr_fp16 */
+    vstore_half(v, 0, (half *)&h);
+    return vload_half(0, (const half *)&h);
+    #else
+    return __half2float(__float2half(v));
+    #endif
+#else
+    return v;
+#endif
+}
+
 /* ---- one value / NV aligned values, as float ---------------------------- */
 LFUNDEF float ldf(GLOBARG const STO *a, int i)
 {

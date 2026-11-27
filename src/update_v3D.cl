@@ -108,11 +108,20 @@ FUNDEF void update_v(int offcomm,
     if (zt > NZS-FDOH-1 || gidy > NYS-FDOH-1) return;
 #endif
 
+    /* own cells: one paired load and store per array (as in 2D), Cerjan taper in registers; rnd
+       rounds where a store and reload did (FP16 2), so the results keep their bits */
+    int indv0 = (gidx*NYS + gidy)*NZS + zt;
+    float lvx[NV], lvy[NV], lvz[NV], lrip[NV], lrjp[NV], lrkp[NV];
+    ldn(vx, indv0, lvx);
+    ldn(vy, indv0, lvy);
+    ldn(vz, indv0, lvz);
+    ldp3(rip, gidx, gidy, zt, lrip);
+    ldp3(rjp, gidx, gidy, zt, lrjp);
+    ldp3(rkp, gidx, gidy, zt, lrkp);
+
     for (int c=0; c<NV; c++){
         int gidz = zt + c;
         if (!INTERIOR_Z(gidz)) continue;              // halo cell of an aligned pair
-        int indp = ((gidx-FDOH)*(NYS-2*FDOH) + (gidy-FDOH))*(NZS-2*FDOH) + (gidz-FDOH);
-        int indv = (gidx*NYS + gidy)*NZS + gidz;
         float sxx_x = d_sxx_x[c];
         float sxy_x = d_sxy_x[c];
         float sxy_y = d_sxy_y[c];
@@ -236,9 +245,9 @@ FUNDEF void update_v(int offcomm,
 
 // Update the velocities
     {
-        stf(vx, indv, ldf(vx, indv) + (((sxx_x + sxy_y + sxz_z)*ldf(rip, indp))));
-        stf(vy, indv, ldf(vy, indv) + (((syy_y + sxy_x + syz_z)*ldf(rjp, indp))));
-        stf(vz, indv, ldf(vz, indv) + (((szz_z + sxz_x + syz_y)*ldf(rkp, indp))));
+        lvx[c] = rnd(lvx[c] + ((sxx_x + sxy_y + sxz_z)*lrip[c]));
+        lvy[c] = rnd(lvy[c] + ((syy_y + sxy_x + syz_z)*lrjp[c]));
+        lvz[c] = rnd(lvz[c] + ((szz_z + sxz_x + syz_y)*lrkp[c]));
     }
     
 // Absorbing boundary
@@ -246,42 +255,42 @@ FUNDEF void update_v(int offcomm,
     {
 #if FREESURF==0
         if (gidz-FDOH<NAB){
-            stf(vx, indv, ldf(vx, indv) * (taper[gidz-FDOH]));
-            stf(vy, indv, ldf(vy, indv) * (taper[gidz-FDOH]));
-            stf(vz, indv, ldf(vz, indv) * (taper[gidz-FDOH]));
+            lvx[c] = rnd(lvx[c] * (taper[gidz-FDOH]));
+            lvy[c] = rnd(lvy[c] * (taper[gidz-FDOH]));
+            lvz[c] = rnd(lvz[c] * (taper[gidz-FDOH]));
         }
 #endif
         
         if (gidz>NZS-NAB-FDOH-1){
-            stf(vx, indv, ldf(vx, indv) * (taper[NZS-FDOH-gidz-1]));
-            stf(vy, indv, ldf(vy, indv) * (taper[NZS-FDOH-gidz-1]));
-            stf(vz, indv, ldf(vz, indv) * (taper[NZS-FDOH-gidz-1]));
+            lvx[c] = rnd(lvx[c] * (taper[NZS-FDOH-gidz-1]));
+            lvy[c] = rnd(lvy[c] * (taper[NZS-FDOH-gidz-1]));
+            lvz[c] = rnd(lvz[c] * (taper[NZS-FDOH-gidz-1]));
         }
         
         if (gidy-FDOH<NAB){
-            stf(vx, indv, ldf(vx, indv) * (taper[gidy-FDOH]));
-            stf(vy, indv, ldf(vy, indv) * (taper[gidy-FDOH]));
-            stf(vz, indv, ldf(vz, indv) * (taper[gidy-FDOH]));
+            lvx[c] = rnd(lvx[c] * (taper[gidy-FDOH]));
+            lvy[c] = rnd(lvy[c] * (taper[gidy-FDOH]));
+            lvz[c] = rnd(lvz[c] * (taper[gidy-FDOH]));
         }
         
         if (gidy>NYS-NAB-FDOH-1){
-            stf(vx, indv, ldf(vx, indv) * (taper[NYS-FDOH-gidy-1]));
-            stf(vy, indv, ldf(vy, indv) * (taper[NYS-FDOH-gidy-1]));
-            stf(vz, indv, ldf(vz, indv) * (taper[NYS-FDOH-gidy-1]));
+            lvx[c] = rnd(lvx[c] * (taper[NYS-FDOH-gidy-1]));
+            lvy[c] = rnd(lvy[c] * (taper[NYS-FDOH-gidy-1]));
+            lvz[c] = rnd(lvz[c] * (taper[NYS-FDOH-gidy-1]));
         }
 #if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
-            stf(vx, indv, ldf(vx, indv) * (taper[gidx-FDOH]));
-            stf(vy, indv, ldf(vy, indv) * (taper[gidx-FDOH]));
-            stf(vz, indv, ldf(vz, indv) * (taper[gidx-FDOH]));
+            lvx[c] = rnd(lvx[c] * (taper[gidx-FDOH]));
+            lvy[c] = rnd(lvy[c] * (taper[gidx-FDOH]));
+            lvz[c] = rnd(lvz[c] * (taper[gidx-FDOH]));
         }
 #endif
         
 #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-NAB-FDOH-1){
-            stf(vx, indv, ldf(vx, indv) * (taper[NX-FDOH-gidx-1]));
-            stf(vy, indv, ldf(vy, indv) * (taper[NX-FDOH-gidx-1]));
-            stf(vz, indv, ldf(vz, indv) * (taper[NX-FDOH-gidx-1]));
+            lvx[c] = rnd(lvx[c] * (taper[NX-FDOH-gidx-1]));
+            lvy[c] = rnd(lvy[c] * (taper[NX-FDOH-gidx-1]));
+            lvz[c] = rnd(lvz[c] * (taper[NX-FDOH-gidx-1]));
         }
 #endif
     }
@@ -289,4 +298,7 @@ FUNDEF void update_v(int offcomm,
 
 
     }
+    stn(vx, indv0, lvx);
+    stn(vy, indv0, lvy);
+    stn(vz, indv0, lvz);
 }

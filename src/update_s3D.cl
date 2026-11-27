@@ -117,6 +117,27 @@ FUNDEF void update_s(int offcomm,  int nt,
     if (zt > NZS-FDOH-1 || gidy > NYS-FDOH-1) return;
 #endif
 
+#if LVE==0
+    /* own cells (elastic): one paired load and store per array, as in 2D, Cerjan taper in registers;
+       rnd rounds where a store and reload did (FP16 2), so the results keep their bits */
+    int indv0 = (gidx*NYS + gidy)*NZS + zt;
+    float l_sxx[NV], l_syy[NV], l_szz[NV], l_sxy[NV], l_syz[NV], l_sxz[NV];
+    float p_M[NV], p_mu[NV], p_muipjp[NV], p_mujpkp[NV], p_muipkp[NV];
+    ldn(sxy, indv0, l_sxy);
+    ldn(syz, indv0, l_syz);
+    ldn(sxz, indv0, l_sxz);
+    ldn(sxx, indv0, l_sxx);
+    ldn(syy, indv0, l_syy);
+    ldn(szz, indv0, l_szz);
+    ldp3(M, gidx, gidy, zt, p_M);
+    ldp3(mu, gidx, gidy, zt, p_mu);
+    ldp3(muipjp, gidx, gidy, zt, p_muipjp);
+    ldp3(mujpkp, gidx, gidy, zt, p_mujpkp);
+    ldp3(muipkp, gidx, gidy, zt, p_muipkp);
+#define TAPS(a, t) l_##a[c] = rnd(l_##a[c] * (t))
+#else
+#define TAPS(a, t) stf(a, indv, ldf(a, indv) * (t))
+#endif
 #if LVE>0
     /* Unrolled with memory variables: rolled, the 9 derivative arrays went to the stack at FP16 1/2
        (REG 145 STACK 72). A6000, 3-D 192^3 x 1000 forward: FP16 2 3.87 to 3.38 s, FP16 1 6.85 to 6.67 s.
@@ -254,11 +275,11 @@ FUNDEF void update_s(int offcomm,  int nt,
     {
 #if LVE==0
         
-        fipjp=ldf(muipjp, indp);
-        fjpkp=ldf(mujpkp, indp);
-        fipkp=ldf(muipkp, indp);
-        g=ldf(M, indp);
-        f=2.0*ldf(mu, indp);
+        fipjp=p_muipjp[c];
+        fjpkp=p_mujpkp[c];
+        fipkp=p_muipkp[c];
+        g=p_M[c];
+        f=2.0*p_mu[c];
         
 #else
         
@@ -304,12 +325,12 @@ FUNDEF void update_s(int offcomm,  int nt,
         vxxzz=vxx+vzz;
         vxxyy=vxx+vyy;
 
-        stf(sxy, indv, ldf(sxy, indv) + ((fipjp*vxyyx)));
-        stf(syz, indv, ldf(syz, indv) + ((fjpkp*vyzzy)));
-        stf(sxz, indv, ldf(sxz, indv) + ((fipkp*vxzzx)));
-        stf(sxx, indv, ldf(sxx, indv) + (((g*vxxyyzz)-(f*vyyzz))));
-        stf(syy, indv, ldf(syy, indv) + (((g*vxxyyzz)-(f*vxxzz))));
-        stf(szz, indv, ldf(szz, indv) + (((g*vxxyyzz)-(f*vxxyy))));
+        l_sxy[c] = rnd(l_sxy[c] + ((fipjp*vxyyx)));
+        l_syz[c] = rnd(l_syz[c] + ((fjpkp*vyzzy)));
+        l_sxz[c] = rnd(l_sxz[c] + ((fipkp*vxzzx)));
+        l_sxx[c] = rnd(l_sxx[c] + (((g*vxxyyzz)-(f*vyyzz))));
+        l_syy[c] = rnd(l_syy[c] + (((g*vxxyyzz)-(f*vxxzz))));
+        l_szz[c] = rnd(l_szz[c] + (((g*vxxyyzz)-(f*vxxyy))));
         
 #else
         
@@ -381,64 +402,73 @@ FUNDEF void update_s(int offcomm,  int nt,
         
 #if FREESURF==0
         if (gidz-FDOH<NAB){
-            stf(sxy, indv, ldf(sxy, indv) * (taper[gidz-FDOH]));
-            stf(syz, indv, ldf(syz, indv) * (taper[gidz-FDOH]));
-            stf(sxz, indv, ldf(sxz, indv) * (taper[gidz-FDOH]));
-            stf(sxx, indv, ldf(sxx, indv) * (taper[gidz-FDOH]));
-            stf(syy, indv, ldf(syy, indv) * (taper[gidz-FDOH]));
-            stf(szz, indv, ldf(szz, indv) * (taper[gidz-FDOH]));
+            TAPS(sxy, taper[gidz-FDOH]);
+            TAPS(syz, taper[gidz-FDOH]);
+            TAPS(sxz, taper[gidz-FDOH]);
+            TAPS(sxx, taper[gidz-FDOH]);
+            TAPS(syy, taper[gidz-FDOH]);
+            TAPS(szz, taper[gidz-FDOH]);
         }
 #endif
         
         if (gidz>NZS-NAB-FDOH-1){
-            stf(sxy, indv, ldf(sxy, indv) * (taper[NZS-FDOH-gidz-1]));
-            stf(syz, indv, ldf(syz, indv) * (taper[NZS-FDOH-gidz-1]));
-            stf(sxz, indv, ldf(sxz, indv) * (taper[NZS-FDOH-gidz-1]));
-            stf(sxx, indv, ldf(sxx, indv) * (taper[NZS-FDOH-gidz-1]));
-            stf(syy, indv, ldf(syy, indv) * (taper[NZS-FDOH-gidz-1]));
-            stf(szz, indv, ldf(szz, indv) * (taper[NZS-FDOH-gidz-1]));
+            TAPS(sxy, taper[NZS-FDOH-gidz-1]);
+            TAPS(syz, taper[NZS-FDOH-gidz-1]);
+            TAPS(sxz, taper[NZS-FDOH-gidz-1]);
+            TAPS(sxx, taper[NZS-FDOH-gidz-1]);
+            TAPS(syy, taper[NZS-FDOH-gidz-1]);
+            TAPS(szz, taper[NZS-FDOH-gidz-1]);
         }
         if (gidy-FDOH<NAB){
-            stf(sxy, indv, ldf(sxy, indv) * (taper[gidy-FDOH]));
-            stf(syz, indv, ldf(syz, indv) * (taper[gidy-FDOH]));
-            stf(sxz, indv, ldf(sxz, indv) * (taper[gidy-FDOH]));
-            stf(sxx, indv, ldf(sxx, indv) * (taper[gidy-FDOH]));
-            stf(syy, indv, ldf(syy, indv) * (taper[gidy-FDOH]));
-            stf(szz, indv, ldf(szz, indv) * (taper[gidy-FDOH]));
+            TAPS(sxy, taper[gidy-FDOH]);
+            TAPS(syz, taper[gidy-FDOH]);
+            TAPS(sxz, taper[gidy-FDOH]);
+            TAPS(sxx, taper[gidy-FDOH]);
+            TAPS(syy, taper[gidy-FDOH]);
+            TAPS(szz, taper[gidy-FDOH]);
         }
         
         if (gidy>NYS-NAB-FDOH-1){
-            stf(sxy, indv, ldf(sxy, indv) * (taper[NYS-FDOH-gidy-1]));
-            stf(syz, indv, ldf(syz, indv) * (taper[NYS-FDOH-gidy-1]));
-            stf(sxz, indv, ldf(sxz, indv) * (taper[NYS-FDOH-gidy-1]));
-            stf(sxx, indv, ldf(sxx, indv) * (taper[NYS-FDOH-gidy-1]));
-            stf(syy, indv, ldf(syy, indv) * (taper[NYS-FDOH-gidy-1]));
-            stf(szz, indv, ldf(szz, indv) * (taper[NYS-FDOH-gidy-1]));
+            TAPS(sxy, taper[NYS-FDOH-gidy-1]);
+            TAPS(syz, taper[NYS-FDOH-gidy-1]);
+            TAPS(sxz, taper[NYS-FDOH-gidy-1]);
+            TAPS(sxx, taper[NYS-FDOH-gidy-1]);
+            TAPS(syy, taper[NYS-FDOH-gidy-1]);
+            TAPS(szz, taper[NYS-FDOH-gidy-1]);
         }
         
 #if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
-            stf(sxy, indv, ldf(sxy, indv) * (taper[gidx-FDOH]));
-            stf(syz, indv, ldf(syz, indv) * (taper[gidx-FDOH]));
-            stf(sxz, indv, ldf(sxz, indv) * (taper[gidx-FDOH]));
-            stf(sxx, indv, ldf(sxx, indv) * (taper[gidx-FDOH]));
-            stf(syy, indv, ldf(syy, indv) * (taper[gidx-FDOH]));
-            stf(szz, indv, ldf(szz, indv) * (taper[gidx-FDOH]));
+            TAPS(sxy, taper[gidx-FDOH]);
+            TAPS(syz, taper[gidx-FDOH]);
+            TAPS(sxz, taper[gidx-FDOH]);
+            TAPS(sxx, taper[gidx-FDOH]);
+            TAPS(syy, taper[gidx-FDOH]);
+            TAPS(szz, taper[gidx-FDOH]);
         }
 #endif
         
 #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-NAB-FDOH-1){
-            stf(sxy, indv, ldf(sxy, indv) * (taper[NX-FDOH-gidx-1]));
-            stf(syz, indv, ldf(syz, indv) * (taper[NX-FDOH-gidx-1]));
-            stf(sxz, indv, ldf(sxz, indv) * (taper[NX-FDOH-gidx-1]));
-            stf(sxx, indv, ldf(sxx, indv) * (taper[NX-FDOH-gidx-1]));
-            stf(syy, indv, ldf(syy, indv) * (taper[NX-FDOH-gidx-1]));
-            stf(szz, indv, ldf(szz, indv) * (taper[NX-FDOH-gidx-1]));
+            TAPS(sxy, taper[NX-FDOH-gidx-1]);
+            TAPS(syz, taper[NX-FDOH-gidx-1]);
+            TAPS(sxz, taper[NX-FDOH-gidx-1]);
+            TAPS(sxx, taper[NX-FDOH-gidx-1]);
+            TAPS(syy, taper[NX-FDOH-gidx-1]);
+            TAPS(szz, taper[NX-FDOH-gidx-1]);
         }
 #endif
     }
 #endif
 
     }
+#if LVE==0
+    stn(sxy, indv0, l_sxy);
+    stn(syz, indv0, l_syz);
+    stn(sxz, indv0, l_sxz);
+    stn(sxx, indv0, l_sxx);
+    stn(syy, indv0, l_syy);
+    stn(szz, indv0, l_szz);
+#endif
+#undef TAPS
 }
