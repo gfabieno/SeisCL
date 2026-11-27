@@ -179,6 +179,10 @@ void ave_arithmetic_tau(float *pin, float *pout, int *N, int ndim, int dir[][3])
         }
     }
     
+    /* The last plane of the second direction keeps the cell value too
+       (NX0/NY0/NZ0 reset: without it only the corner was copied and the rest
+       of the plane stayed 0). A zero direction (SH) has no plane. */
+    NX0=0; NY0=0; NZ0=0;
     if (dir[1][2]==1){
         NX0=NX-1;
     }
@@ -189,6 +193,7 @@ void ave_arithmetic_tau(float *pin, float *pout, int *N, int ndim, int dir[][3])
         NZ0=NZ-1;
     }
     
+    if (dir[1][0] || dir[1][1] || dir[1][2]){
     for (k=NZ0;k<NZ;k++){
         for (j=NY0;j<NY;j++){
             for (i=NX0;i<NX;i++){
@@ -196,6 +201,7 @@ void ave_arithmetic_tau(float *pin, float *pout, int *N, int ndim, int dir[][3])
                 pout[ind1]= pin[ind1];
             }
         }
+    }
     }
     
     
@@ -262,6 +268,10 @@ void ave_harmonic_mu(float * pin, float * pout, int * N, int ndim, int dir[][3])
         }
     }
     
+    /* The last plane of the second direction keeps the cell value too
+       (NX0/NY0/NZ0 reset: without it only the corner was copied and the rest
+       of the plane stayed 0). A zero direction (SH) has no plane. */
+    NX0=0; NY0=0; NZ0=0;
     if (dir[1][2]==1){
         NX0=NX-1;
     }
@@ -272,6 +282,7 @@ void ave_harmonic_mu(float * pin, float * pout, int * N, int ndim, int dir[][3])
         NZ0=NZ-1;
     }
     
+    if (dir[1][0] || dir[1][1] || dir[1][2]){
     for (k=NZ0;k<NZ;k++){
         for (j=NY0;j<NY;j++){
             for (i=NX0;i<NX;i++){
@@ -279,6 +290,7 @@ void ave_harmonic_mu(float * pin, float * pout, int * N, int ndim, int dir[][3])
                 pout[ind1]= pin[ind1];
             }
         }
+    }
     }
     
     

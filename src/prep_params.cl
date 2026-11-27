@@ -35,7 +35,7 @@
    prep_store: transforms, scales by 2^par_scale (M, mu) and 2^-par_scale
        (buoyancy), stores M, mu, rho, taup, taus of this device's cells.
    prep_tausipkp, prep_tausipjp, prep_tausjpkp: the arithmetic averages of
-       taus, with the edges of ave_arithmetic_tau (cells it never writes stay 0).
+       taus, with the edges of ave_arithmetic_tau (the last plane of each direction keeps the cell).
 
    prep_cst (floats; ints stored as their bits), filled by param_prep_run:
        0 dt, 1 dh, 2 ws = 2 pi f0, 3 sumu (shear phase-velocity correction),
@@ -285,8 +285,7 @@ FUNDEF void prep_store(GLOBARG const float *M_raw, GLOBARG const float *mu_raw,
 
 /* ave_arithmetic_tau of assign_modeling_case.c for one cell, directions
    d0 = (z, y, x) and d1: the average of four taus where the host loop computes
-   it, a copy of the cell on the edges it copies, and 0 where it writes nothing
-   (the parameter buffers start at zero). */
+   it, and a copy of the cell on the last plane of each direction. */
 LFUNDEF float prep_tau_ave(GLOBARG const float *mu_raw, GLOBARG const float *taus_raw,
                            GLOBARG const float *c, int g,
                            int d00, int d01, int d02, int d10, int d11, int d12)
@@ -306,10 +305,12 @@ LFUNDEF float prep_tau_ave(GLOBARG const float *mu_raw, GLOBARG const float *tau
     else if (d01 == 1) gy0 = gny - 1;
     if (d00 == 1) gz0 = gnz - 1;
     if (k >= gz0 && j >= gy0 && i >= gx0) v = prep_taus(mu_raw, taus_raw, c, g);
+    gx0 = 0; gy0 = 0; gz0 = 0;
     if (d12 == 1) gx0 = gnx - 1;
     else if (d11 == 1) gy0 = gny - 1;
     if (d10 == 1) gz0 = gnz - 1;
-    if (k >= gz0 && j >= gy0 && i >= gx0) v = prep_taus(mu_raw, taus_raw, c, g);
+    if ((d10 || d11 || d12) && k >= gz0 && j >= gy0 && i >= gx0)
+        v = prep_taus(mu_raw, taus_raw, c, g);
     return v;
 }
 

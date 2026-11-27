@@ -211,7 +211,11 @@ FUNDEF void gp_edge(GLOBARG const float *b, GLOBARG float *d, GLOBARG const doub
         if (dx == 1) gx0 = gnx - 1;
         else if (dy == 1) gy0 = gny - 1;
         if (dz == 1) gz0 = gnz - 1;
-        if (i >= gx0 && j >= gy0 && k >= gz0) d[n] = FADD(d[n], b[n]);
+        if (!(i >= gx0 && j >= gy0 && k >= gz0)) continue;
+        /* a cell on the planes of both directions counts once */
+        if (dd == 1 && ((c[6] == 1 && i == gnx - 1) || (c[5] == 1 && j == gny - 1)
+                        || (c[4] == 1 && k == gnz - 1))) continue;
+        d[n] = FADD(d[n], b[n]);
     }
 }
 

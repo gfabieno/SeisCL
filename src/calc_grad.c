@@ -130,6 +130,12 @@ static void grad_T_arithmetic_rho(float * pin, float * gin, float * gout,
 
 /* The copy region at the far edge of each averaging direction, where the
    forward routines copy the cell instead of averaging (Jacobian 1). */
+/* the cell (i, j, k) lies on the last plane along direction d */
+static int edge_of(int *d, int i, int j, int k, int NX, int NY, int NZ){
+    if (d[0]==0 && d[1]==0 && d[2]==0) return 0;
+    return (d[2]==1 && i==NX-1) || (d[1]==1 && j==NY-1) || (d[0]==1 && k==NZ-1);
+}
+
 static void grad_T_edge_copy(float * gin, float * gout,
                              int NX, int NY, int NZ, int (*dir)[3]){
     int i,j,k,d;
@@ -145,6 +151,9 @@ static void grad_T_edge_copy(float * gin, float * gout,
         for (i=NX0;i<NX;i++){
             for (j=NY0;j<NY;j++){
                 for (k=NZ0;k<NZ;k++){
+                    /* a cell on the planes of both directions is copied
+                       once by the average: count it once */
+                    if (d==1 && edge_of(dir[0], i, j, k, NX, NY, NZ)) continue;
                     gout[i*NY*NZ+j*NZ+k] += gin[i*NY*NZ+j*NZ+k];
                 }
             }
