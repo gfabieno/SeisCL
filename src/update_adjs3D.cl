@@ -249,6 +249,43 @@ FUNDEF void update_adjs(int offcomm,
     if (zt > NZS-FDOH-1 || gidy > NYS-FDOH-1) return;
 #endif
 
+    /* own cells and parameters: one paired load and store per array (ldn/stn, ldp3), as in 2D;
+       rnd rounds where a store and reload did (FP16 2), so the results keep their bits */
+    int indv0 = (gidx*NYS + gidy)*NZS + zt;
+#if BACK_PROP_TYPE==1
+    float l_sxx[NV], l_syy[NV], l_szz[NV], l_sxy[NV], l_syz[NV], l_sxz[NV];
+    ldn(sxx, indv0, l_sxx);
+    ldn(syy, indv0, l_syy);
+    ldn(szz, indv0, l_szz);
+    ldn(sxy, indv0, l_sxy);
+    ldn(syz, indv0, l_syz);
+    ldn(sxz, indv0, l_sxz);
+#endif
+#if 1
+    float l_sxxr[NV], l_syyr[NV], l_szzr[NV], l_sxyr[NV], l_syzr[NV], l_sxzr[NV];
+    ldn(sxxr, indv0, l_sxxr);
+    ldn(syyr, indv0, l_syyr);
+    ldn(szzr, indv0, l_szzr);
+    ldn(sxyr, indv0, l_sxyr);
+    ldn(syzr, indv0, l_syzr);
+    ldn(sxzr, indv0, l_sxzr);
+#endif
+#if 1
+    float p_M[NV], p_mu[NV], p_muipjp[NV], p_mujpkp[NV], p_muipkp[NV];
+    ldp3(M, gidx, gidy, zt, p_M);
+    ldp3(mu, gidx, gidy, zt, p_mu);
+    ldp3(muipjp, gidx, gidy, zt, p_muipjp);
+    ldp3(mujpkp, gidx, gidy, zt, p_mujpkp);
+    ldp3(muipkp, gidx, gidy, zt, p_muipkp);
+#endif
+#if LVE>0
+    float p_taup[NV], p_taus[NV], p_tausipjp[NV], p_tausipkp[NV], p_tausjpkp[NV];
+    ldp3(taup, gidx, gidy, zt, p_taup);
+    ldp3(taus, gidx, gidy, zt, p_taus);
+    ldp3(tausipjp, gidx, gidy, zt, p_tausipjp);
+    ldp3(tausipkp, gidx, gidy, zt, p_tausipkp);
+    ldp3(tausjpkp, gidx, gidy, zt, p_tausjpkp);
+#endif
     #pragma unroll
     for (int c=0; c<NV; c++){
         int gidz = zt + c;
@@ -306,27 +343,27 @@ FUNDEF void update_adjs(int offcomm,
 
 // Read model parameters into local memory
 #if LVE==0
-    lM=ldf(M, indp);
-    lmu=ldf(mu, indp);
-    fipjp=ldf(muipjp, indp);
-    fjpkp=ldf(mujpkp, indp);
-    fipkp=ldf(muipkp, indp);
+    lM=p_M[c];
+    lmu=p_mu[c];
+    fipjp=p_muipjp[c];
+    fjpkp=p_mujpkp[c];
+    fipkp=p_muipkp[c];
     g=lM;
     f=2.0*lmu;
 
 
 #else
 
-    lM=ldf(M, indp);
-    lmu=ldf(mu, indp);
-    lmuipkp=ldf(muipkp, indp);
-    lmuipjp=ldf(muipjp, indp);
-    lmujpkp=ldf(mujpkp, indp);
-    ltaup=ldf(taup, indp);
-    ltaus=ldf(taus, indp);
-    ltausipkp=ldf(tausipkp, indp);
-    ltausipjp=ldf(tausipjp, indp);
-    ltausjpkp=ldf(tausjpkp, indp);
+    lM=p_M[c];
+    lmu=p_mu[c];
+    lmuipkp=p_muipkp[c];
+    lmuipjp=p_muipjp[c];
+    lmujpkp=p_mujpkp[c];
+    ltaup=p_taup[c];
+    ltaus=p_taus[c];
+    ltausipkp=p_tausipkp[c];
+    ltausipjp=p_tausipjp[c];
+    ltausjpkp=p_tausjpkp[c];
 
     for (l=0;l<LVE;l++){
         leta[l]=eta[l];
@@ -355,11 +392,11 @@ FUNDEF void update_adjs(int offcomm,
 #if CPMLINL
         /* derivatives computed where they are used, to keep few of them live */
         vxyyx=tdp(FL(vx), it0, sy)+tdp(FL(vy), it0, sx);
-        stf(sxy, indv, ldf(sxy, indv) - ((fipjp*vxyyx)));
+        l_sxy[c] = rnd(l_sxy[c] - ((fipjp*vxyyx)));
         vyzzy=tdp(FL(vy), it0, 1)+tdp(FL(vz), it0, sy);
-        stf(syz, indv, ldf(syz, indv) - ((fjpkp*vyzzy)));
+        l_syz[c] = rnd(l_syz[c] - ((fjpkp*vyzzy)));
         vxzzx=tdp(FL(vx), it0, 1)+tdp(FL(vz), it0, sx);
-        stf(sxz, indv, ldf(sxz, indv) - ((fipkp*vxzzx)));
+        l_sxz[c] = rnd(l_sxz[c] - ((fipkp*vxzzx)));
         {
         float vxx = tdm(FL(vx), it0, sx), vyy = tdm(FL(vy), it0, sy), vzz = tdm(FL(vz), it0, 1);
         vxxyyzz=vxx+vyy+vzz;
@@ -367,9 +404,9 @@ FUNDEF void update_adjs(int offcomm,
         vxxzz=vxx+vzz;
         vxxyy=vxx+vyy;
         }
-        stf(sxx, indv, ldf(sxx, indv) - (((g*vxxyyzz)-(f*vyyzz)) ));
-        stf(syy, indv, ldf(syy, indv) - (((g*vxxyyzz)-(f*vxxzz)) ));
-        stf(szz, indv, ldf(szz, indv) - (((g*vxxyyzz)-(f*vxxyy)) ));
+        l_sxx[c] = rnd(l_sxx[c] - (((g*vxxyyzz)-(f*vyyzz)) ));
+        l_syy[c] = rnd(l_syy[c] - (((g*vxxyyzz)-(f*vxxzz)) ));
+        l_szz[c] = rnd(l_szz[c] - (((g*vxxyyzz)-(f*vxxyy)) ));
 #else
         vxyyx=vxy+vyx;
         vyzzy=vyz+vzy;
@@ -379,12 +416,12 @@ FUNDEF void update_adjs(int offcomm,
         vxxzz=vxx+vzz;
         vxxyy=vxx+vyy;
 
-        stf(sxy, indv, ldf(sxy, indv) - ((fipjp*vxyyx)));
-        stf(syz, indv, ldf(syz, indv) - ((fjpkp*vyzzy)));
-        stf(sxz, indv, ldf(sxz, indv) - ((fipkp*vxzzx)));
-        stf(sxx, indv, ldf(sxx, indv) - (((g*vxxyyzz)-(f*vyyzz)) ));
-        stf(syy, indv, ldf(syy, indv) - (((g*vxxyyzz)-(f*vxxzz)) ));
-        stf(szz, indv, ldf(szz, indv) - (((g*vxxyyzz)-(f*vxxyy)) ));
+        l_sxy[c] = rnd(l_sxy[c] - ((fipjp*vxyyx)));
+        l_syz[c] = rnd(l_syz[c] - ((fjpkp*vyzzy)));
+        l_sxz[c] = rnd(l_sxz[c] - ((fipkp*vxzzx)));
+        l_sxx[c] = rnd(l_sxx[c] - (((g*vxxyyzz)-(f*vyyzz)) ));
+        l_syy[c] = rnd(l_syy[c] - (((g*vxxyyzz)-(f*vxxzz)) ));
+        l_szz[c] = rnd(l_szz[c] - (((g*vxxyyzz)-(f*vxxyy)) ));
 #endif
 
 // Backpropagation is not stable for viscoelastic wave equation
@@ -445,23 +482,23 @@ FUNDEF void update_adjs(int offcomm,
         /* and now the components of the stress tensor are
          completely updated */
 
-        stf(sxy, indv, ldf(sxy, indv) - (lsxy+(DT2*sumrxy)));
-        stf(syz, indv, ldf(syz, indv) - (lsyz+(DT2*sumryz)));
-        stf(sxz, indv, ldf(sxz, indv) - (lsxz+(DT2*sumrxz)));
-        stf(sxx, indv, ldf(sxx, indv) - (lsxx+(DT2*sumrxx)));
-        stf(syy, indv, ldf(syy, indv) - (lsyy+(DT2*sumryy)));
-        stf(szz, indv, ldf(szz, indv) - (lszz+(DT2*sumrzz)));
+        l_sxy[c] = rnd(l_sxy[c] - (lsxy+(DT2*sumrxy)));
+        l_syz[c] = rnd(l_syz[c] - (lsyz+(DT2*sumryz)));
+        l_sxz[c] = rnd(l_sxz[c] - (lsxz+(DT2*sumrxz)));
+        l_sxx[c] = rnd(l_sxx[c] - (lsxx+(DT2*sumrxx)));
+        l_syy[c] = rnd(l_syy[c] - (lsyy+(DT2*sumryy)));
+        l_szz[c] = rnd(l_szz[c] - (lszz+(DT2*sumrzz)));
 
 #endif
 
         m=inject_ind(gidz, gidy, gidx);
         if (m!=-1){
-            stf(sxx, indv, ldf(sxxbnd, m));
-            stf(syy, indv, ldf(syybnd, m));
-            stf(szz, indv, ldf(szzbnd, m));
-            stf(sxy, indv, ldf(sxybnd, m));
-            stf(syz, indv, ldf(syzbnd, m));
-            stf(sxz, indv, ldf(sxzbnd, m));
+            l_sxx[c] = rnd(ldf(sxxbnd, m));
+            l_syy[c] = rnd(ldf(syybnd, m));
+            l_szz[c] = rnd(ldf(szzbnd, m));
+            l_sxy[c] = rnd(ldf(sxybnd, m));
+            l_syz[c] = rnd(ldf(syzbnd, m));
+            l_sxz[c] = rnd(ldf(sxzbnd, m));
         }
 
     }
@@ -619,12 +656,12 @@ FUNDEF void update_adjs(int offcomm,
     lsyy=((g*vxxyyzzr)-(f*vxxzzr));
     lszz=((g*vxxyyzzr)-(f*vxxyyr));
 
-    stf(sxyr, indv, ldf(sxyr, indv) + (lsxy));
-    stf(syzr, indv, ldf(syzr, indv) + (lsyz));
-    stf(sxzr, indv, ldf(sxzr, indv) + (lsxz));
-    stf(sxxr, indv, ldf(sxxr, indv) + (lsxx));
-    stf(syyr, indv, ldf(syyr, indv) + (lsyy));
-    stf(szzr, indv, ldf(szzr, indv) + (lszz));
+    l_sxyr[c] = rnd(l_sxyr[c] + (lsxy));
+    l_syzr[c] = rnd(l_syzr[c] + (lsyz));
+    l_sxzr[c] = rnd(l_sxzr[c] + (lsxz));
+    l_sxxr[c] = rnd(l_sxxr[c] + (lsxx));
+    l_syyr[c] = rnd(l_syyr[c] + (lsyy));
+    l_szzr[c] = rnd(l_szzr[c] + (lszz));
 
 
 #else
@@ -679,12 +716,12 @@ FUNDEF void update_adjs(int offcomm,
 
     /* and now the components of the stress tensor are
      completely updated */
-    stf(sxyr, indv, ldf(sxyr, indv) + (lsxy+(DT2*sumrxy)));
-    stf(syzr, indv, ldf(syzr, indv) + (lsyz+(DT2*sumryz)));
-    stf(sxzr, indv, ldf(sxzr, indv) + (lsxz+(DT2*sumrxz)));
-    stf(sxxr, indv, ldf(sxxr, indv) + (lsxx+(DT2*sumrxx)));
-    stf(syyr, indv, ldf(syyr, indv) + (lsyy+(DT2*sumryy)));
-    stf(szzr, indv, ldf(szzr, indv) + (lszz+(DT2*sumrzz)));
+    l_sxyr[c] = rnd(l_sxyr[c] + (lsxy+(DT2*sumrxy)));
+    l_syzr[c] = rnd(l_syzr[c] + (lsyz+(DT2*sumryz)));
+    l_sxzr[c] = rnd(l_sxzr[c] + (lsxz+(DT2*sumrxz)));
+    l_sxxr[c] = rnd(l_sxxr[c] + (lsxx+(DT2*sumrxx)));
+    l_syyr[c] = rnd(l_syyr[c] + (lsyy+(DT2*sumryy)));
+    l_szzr[c] = rnd(l_szzr[c] + (lszz+(DT2*sumrzz)));
 
 #endif
 }
@@ -695,61 +732,61 @@ FUNDEF void update_adjs(int offcomm,
     {
         #if FREESURF==0
         if (gidz-FDOH<NAB){
-            stf(sxyr, indv, ldf(sxyr, indv) * (taper[gidz-FDOH]));
-            stf(syzr, indv, ldf(syzr, indv) * (taper[gidz-FDOH]));
-            stf(sxzr, indv, ldf(sxzr, indv) * (taper[gidz-FDOH]));
-            stf(sxxr, indv, ldf(sxxr, indv) * (taper[gidz-FDOH]));
-            stf(syyr, indv, ldf(syyr, indv) * (taper[gidz-FDOH]));
-            stf(szzr, indv, ldf(szzr, indv) * (taper[gidz-FDOH]));
+            l_sxyr[c] = rnd(l_sxyr[c] * (taper[gidz-FDOH]));
+            l_syzr[c] = rnd(l_syzr[c] * (taper[gidz-FDOH]));
+            l_sxzr[c] = rnd(l_sxzr[c] * (taper[gidz-FDOH]));
+            l_sxxr[c] = rnd(l_sxxr[c] * (taper[gidz-FDOH]));
+            l_syyr[c] = rnd(l_syyr[c] * (taper[gidz-FDOH]));
+            l_szzr[c] = rnd(l_szzr[c] * (taper[gidz-FDOH]));
         }
         #endif
 
         if (gidz>NZS-NAB-FDOH-1){
-            stf(sxyr, indv, ldf(sxyr, indv) * (taper[NZS-FDOH-gidz-1]));
-            stf(syzr, indv, ldf(syzr, indv) * (taper[NZS-FDOH-gidz-1]));
-            stf(sxzr, indv, ldf(sxzr, indv) * (taper[NZS-FDOH-gidz-1]));
-            stf(sxxr, indv, ldf(sxxr, indv) * (taper[NZS-FDOH-gidz-1]));
-            stf(syyr, indv, ldf(syyr, indv) * (taper[NZS-FDOH-gidz-1]));
-            stf(szzr, indv, ldf(szzr, indv) * (taper[NZS-FDOH-gidz-1]));
+            l_sxyr[c] = rnd(l_sxyr[c] * (taper[NZS-FDOH-gidz-1]));
+            l_syzr[c] = rnd(l_syzr[c] * (taper[NZS-FDOH-gidz-1]));
+            l_sxzr[c] = rnd(l_sxzr[c] * (taper[NZS-FDOH-gidz-1]));
+            l_sxxr[c] = rnd(l_sxxr[c] * (taper[NZS-FDOH-gidz-1]));
+            l_syyr[c] = rnd(l_syyr[c] * (taper[NZS-FDOH-gidz-1]));
+            l_szzr[c] = rnd(l_szzr[c] * (taper[NZS-FDOH-gidz-1]));
 
         }
         if (gidy-FDOH<NAB){
-            stf(sxyr, indv, ldf(sxyr, indv) * (taper[gidy-FDOH]));
-            stf(syzr, indv, ldf(syzr, indv) * (taper[gidy-FDOH]));
-            stf(sxzr, indv, ldf(sxzr, indv) * (taper[gidy-FDOH]));
-            stf(sxxr, indv, ldf(sxxr, indv) * (taper[gidy-FDOH]));
-            stf(syyr, indv, ldf(syyr, indv) * (taper[gidy-FDOH]));
-            stf(szzr, indv, ldf(szzr, indv) * (taper[gidy-FDOH]));
+            l_sxyr[c] = rnd(l_sxyr[c] * (taper[gidy-FDOH]));
+            l_syzr[c] = rnd(l_syzr[c] * (taper[gidy-FDOH]));
+            l_sxzr[c] = rnd(l_sxzr[c] * (taper[gidy-FDOH]));
+            l_sxxr[c] = rnd(l_sxxr[c] * (taper[gidy-FDOH]));
+            l_syyr[c] = rnd(l_syyr[c] * (taper[gidy-FDOH]));
+            l_szzr[c] = rnd(l_szzr[c] * (taper[gidy-FDOH]));
         }
 
         if (gidy>NYS-NAB-FDOH-1){
-            stf(sxyr, indv, ldf(sxyr, indv) * (taper[NYS-FDOH-gidy-1]));
-            stf(syzr, indv, ldf(syzr, indv) * (taper[NYS-FDOH-gidy-1]));
-            stf(sxzr, indv, ldf(sxzr, indv) * (taper[NYS-FDOH-gidy-1]));
-            stf(sxxr, indv, ldf(sxxr, indv) * (taper[NYS-FDOH-gidy-1]));
-            stf(syyr, indv, ldf(syyr, indv) * (taper[NYS-FDOH-gidy-1]));
-            stf(szzr, indv, ldf(szzr, indv) * (taper[NYS-FDOH-gidy-1]));
+            l_sxyr[c] = rnd(l_sxyr[c] * (taper[NYS-FDOH-gidy-1]));
+            l_syzr[c] = rnd(l_syzr[c] * (taper[NYS-FDOH-gidy-1]));
+            l_sxzr[c] = rnd(l_sxzr[c] * (taper[NYS-FDOH-gidy-1]));
+            l_sxxr[c] = rnd(l_sxxr[c] * (taper[NYS-FDOH-gidy-1]));
+            l_syyr[c] = rnd(l_syyr[c] * (taper[NYS-FDOH-gidy-1]));
+            l_szzr[c] = rnd(l_szzr[c] * (taper[NYS-FDOH-gidy-1]));
         }
 
 #if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
-            stf(sxyr, indv, ldf(sxyr, indv) * (taper[gidx-FDOH]));
-            stf(syzr, indv, ldf(syzr, indv) * (taper[gidx-FDOH]));
-            stf(sxzr, indv, ldf(sxzr, indv) * (taper[gidx-FDOH]));
-            stf(sxxr, indv, ldf(sxxr, indv) * (taper[gidx-FDOH]));
-            stf(syyr, indv, ldf(syyr, indv) * (taper[gidx-FDOH]));
-            stf(szzr, indv, ldf(szzr, indv) * (taper[gidx-FDOH]));
+            l_sxyr[c] = rnd(l_sxyr[c] * (taper[gidx-FDOH]));
+            l_syzr[c] = rnd(l_syzr[c] * (taper[gidx-FDOH]));
+            l_sxzr[c] = rnd(l_sxzr[c] * (taper[gidx-FDOH]));
+            l_sxxr[c] = rnd(l_sxxr[c] * (taper[gidx-FDOH]));
+            l_syyr[c] = rnd(l_syyr[c] * (taper[gidx-FDOH]));
+            l_szzr[c] = rnd(l_szzr[c] * (taper[gidx-FDOH]));
         }
 #endif
 
 #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-NAB-FDOH-1){
-            stf(sxyr, indv, ldf(sxyr, indv) * (taper[NX-FDOH-gidx-1]));
-            stf(syzr, indv, ldf(syzr, indv) * (taper[NX-FDOH-gidx-1]));
-            stf(sxzr, indv, ldf(sxzr, indv) * (taper[NX-FDOH-gidx-1]));
-            stf(sxxr, indv, ldf(sxxr, indv) * (taper[NX-FDOH-gidx-1]));
-            stf(syyr, indv, ldf(syyr, indv) * (taper[NX-FDOH-gidx-1]));
-            stf(szzr, indv, ldf(szzr, indv) * (taper[NX-FDOH-gidx-1]));
+            l_sxyr[c] = rnd(l_sxyr[c] * (taper[NX-FDOH-gidx-1]));
+            l_syzr[c] = rnd(l_syzr[c] * (taper[NX-FDOH-gidx-1]));
+            l_sxzr[c] = rnd(l_sxzr[c] * (taper[NX-FDOH-gidx-1]));
+            l_sxxr[c] = rnd(l_sxxr[c] * (taper[NX-FDOH-gidx-1]));
+            l_syyr[c] = rnd(l_syyr[c] * (taper[NX-FDOH-gidx-1]));
+            l_szzr[c] = rnd(l_szzr[c] * (taper[NX-FDOH-gidx-1]));
         }
 #endif
     }
@@ -771,13 +808,13 @@ FUNDEF void update_adjs(int offcomm,
     // reading the raw buffer here is the safer choice regardless. This did
     // NOT fix the NaN gradmuipkp/gradmuipjp/gradmujpkp observed via
     // instrumentation (average_grad_transpose() dump, host-side
-    // ldf(muipkp, indp) is confirmed nonzero/sane at this same index) -- the
+    // p_muipkp[c] is confirmed nonzero/sane at this same index) -- the
     // real cause is still open, see notes/todo.md item 1's 3D section.
     // Kept because it removes one real risk (stale locals) even though it
     // is not the fix; do not assume this is done.
-    float gfipkp=ldf(muipkp, indp);
-    float gfipjp=ldf(muipjp, indp);
-    float gfjpkp=ldf(mujpkp, indp);
+    float gfipkp=p_muipkp[c];
+    float gfipjp=p_muipjp[c];
+    float gfjpkp=p_mujpkp[c];
     // Fluid/padding cells (staggered mu==0, e.g. muipkp/muipjp/mujpkp can
     // legitimately be 0 at domain-edge ghost positions even where the
     // cell-centred lmu is not) must drop the shear coefficient entirely,
@@ -786,7 +823,7 @@ FUNDEF void update_adjs(int offcomm,
     // Inf*0 (whenever the correlated stress happens to be exactly 0 at
     // that same cell) gives NaN, which silently poisons the whole
     // gradmuipkp/gradmuipjp/gradmujpkp buffer through the += accumulation.
-    // Confirmed via instrumentation: ldf(muipkp, indp) is 0 at 4032/262144
+    // Confirmed via instrumentation: p_muipkp[c] is 0 at 4032/262144
     // cells for this test model.
     float c3xz = (gfipkp>0.0f) ? 1.0f/gfipkp/gfipkp : 0.0f;
     float c3xy = (gfipjp>0.0f) ? 1.0f/gfipjp/gfipjp : 0.0f;
@@ -796,7 +833,7 @@ FUNDEF void update_adjs(int offcomm,
     /* Receiver cells: the residual term of the gradient is added by
        rec_grad.cl (see there). */
 
-    float dM=c1*( ldf(sxx, indv)+ldf(syy, indv)+ldf(szz, indv) )*( lsxx+lsyy+lszz );
+    float dM=c1*( l_sxx[c]+l_syy[c]+l_szz[c] )*( lsxx+lsyy+lszz );
 
     int sumform = 1;
     #if FREESURF==1
@@ -804,12 +841,12 @@ FUNDEF void update_adjs(int offcomm,
     #endif
     if (sumform){
     gradM[indp] += GSCALE(-dM);
-    gradmuipkp[indp] += GSCALE(-c3xz*(ldf(sxz, indv)*lsxz));
-    gradmuipjp[indp] += GSCALE(-c3xy*(ldf(sxy, indv)*lsxy));
-    gradmujpkp[indp] += GSCALE(-c3yz*(ldf(syz, indv)*lsyz));
-    gradmu[indp] += GSCALE(4.0/3*dM-c5*(lsxx*(2.0*ldf(sxx, indv)- ldf(syy, indv)-ldf(szz, indv) )
-                      +lsyy*(2.0*ldf(syy, indv)- ldf(sxx, indv)-ldf(szz, indv) )
-                      +lszz*(2.0*ldf(szz, indv)- ldf(sxx, indv)-ldf(syy, indv) )));
+    gradmuipkp[indp] += GSCALE(-c3xz*(l_sxz[c]*lsxz));
+    gradmuipjp[indp] += GSCALE(-c3xy*(l_sxy[c]*lsxy));
+    gradmujpkp[indp] += GSCALE(-c3yz*(l_syz[c]*lsyz));
+    gradmu[indp] += GSCALE(4.0/3*dM-c5*(lsxx*(2.0*l_sxx[c]- l_syy[c]-l_szz[c] )
+                      +lsyy*(2.0*l_syy[c]- l_sxx[c]-l_szz[c] )
+                      +lszz*(2.0*l_szz[c]- l_sxx[c]-l_syy[c] )));
     }
 
     /* Source term of the misfit gradient -- GJI 2017 eq. (26a), thesis
@@ -837,7 +874,7 @@ FUNDEF void update_adjs(int offcomm,
                 int sk=(int)(src_pos[2+5*srci]/DH)+FDOH;
                 if (si==gidx && sj==gidy && sk==gidz){
                     float samp = pow2s(DT*src[srci*NT+nt], src_scale);
-                    float Csrc = c1*( ldf(sxxr, indv)+ldf(syyr, indv)+ldf(szzr, indv) )*samp;
+                    float Csrc = c1*( l_sxxr[c]+l_syyr[c]+l_szzr[c] )*samp;
                     gradM[indp] += GSCALE(Csrc);
                     gradmu[indp] += GSCALE(-4.0/3*Csrc);
                 }
@@ -846,23 +883,23 @@ FUNDEF void update_adjs(int offcomm,
     }
     #endif
     #if HOUT==1
-    float dMH=c1*(ldf(sxx, indv)+ldf(syy, indv)+ldf(szz, indv))*(ldf(sxx, indv)+ldf(syy, indv)+ldf(szz, indv));
+    float dMH=c1*(l_sxx[c]+l_syy[c]+l_szz[c])*(l_sxx[c]+l_syy[c]+l_szz[c]);
     HM[indp] += GSCALE(dMH);
-    Hmu[indp] += GSCALE(c3xz*ldf(sxz, indv)*ldf(sxz, indv)+c3xy*ldf(sxy, indv)*ldf(sxy, indv)+c3yz*ldf(syz, indv)*ldf(syz, indv)
+    Hmu[indp] += GSCALE(c3xz*l_sxz[c]*l_sxz[c]+c3xy*l_sxy[c]*l_sxy[c]+c3yz*l_syz[c]*l_syz[c]
                     - 4.0/3*dM
-                    +c5*( (2.0*ldf(sxx, indv)- ldf(syy, indv)-ldf(szz, indv))*(2.0*ldf(sxx, indv)- ldf(syy, indv)-ldf(szz, indv)))
-                         +(2.0*ldf(syy, indv)- ldf(sxx, indv)-ldf(szz, indv))*(2.0*ldf(syy, indv)- ldf(sxx, indv)-ldf(szz, indv))
-                         +(2.0*ldf(szz, indv)- ldf(sxx, indv)-ldf(syy, indv))*(2.0*ldf(szz, indv)- ldf(sxx, indv)-ldf(syy, indv))));
+                    +c5*( (2.0*l_sxx[c]- l_syy[c]-l_szz[c])*(2.0*l_sxx[c]- l_syy[c]-l_szz[c]))
+                         +(2.0*l_syy[c]- l_sxx[c]-l_szz[c])*(2.0*l_syy[c]- l_sxx[c]-l_szz[c])
+                         +(2.0*l_szz[c]- l_sxx[c]-l_syy[c])*(2.0*l_szz[c]- l_sxx[c]-l_syy[c])));
     #endif
     #endif
 
     #if RESTYPE==1
-    float dM=(ldf(sxx, indv)+ldf(syy, indv)+ldf(szz, indv) )*( lsxx+lsyy+lszz );
+    float dM=(l_sxx[c]+l_syy[c]+l_szz[c] )*( lsxx+lsyy+lszz );
 
     gradM[indp] += GSCALE(-dM);
 
     #if HOUT==1
-    float dMH= (ldf(sxx, indv)+ldf(syy, indv)+ldf(szz, indv))*(ldf(sxx, indv)+ldf(syy, indv)+ldf(szz, indv));
+    float dMH= (l_sxx[c]+l_syy[c]+l_szz[c])*(l_sxx[c]+l_syy[c]+l_szz[c]);
     HM[indp] += GSCALE(dMH);
 
     #endif
@@ -897,7 +934,7 @@ FUNDEF void update_adjs(int offcomm,
 //
 //                if (i==gidx && j==gidy && k==gidz){
 //
-//                    pressure=(ldf(sxxr, indv)+ldf(syyr, indv)+ldf(szzr, indv) )/(2.0*DH*DH*DH);
+//                    pressure=(l_sxxr[c]+l_syyr[c]+l_szzr[c] )/(2.0*DH*DH*DH);
 //                    if ( (nt>0) && (nt< NT ) ){
 //                        gradsrc(srci,nt+1)+=pressure;
 //                        gradsrc(srci,nt-1)-=pressure;
@@ -917,4 +954,20 @@ FUNDEF void update_adjs(int offcomm,
 
 
     }
+#if BACK_PROP_TYPE==1
+    stn(sxx, indv0, l_sxx);
+    stn(syy, indv0, l_syy);
+    stn(szz, indv0, l_szz);
+    stn(sxy, indv0, l_sxy);
+    stn(syz, indv0, l_syz);
+    stn(sxz, indv0, l_sxz);
+#endif
+#if 1
+    stn(sxxr, indv0, l_sxxr);
+    stn(syyr, indv0, l_syyr);
+    stn(szzr, indv0, l_szzr);
+    stn(sxyr, indv0, l_sxyr);
+    stn(syzr, indv0, l_syzr);
+    stn(sxzr, indv0, l_sxzr);
+#endif
 }
