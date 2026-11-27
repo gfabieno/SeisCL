@@ -993,7 +993,12 @@ static int perf_options(model * m, device * dev, clprogram * prog, char opt[3][6
     if (*notile && prog->lsize[0] > 0){
         size_t threads = 1;
         for (int k = 0; k < prog->wdim && k < MAX_DIMS; k++) threads *= prog->lsize[k];
-        int fit = (int)(65536 / threads) & ~7;
+        /* registers go to a work group by groups of 4 warps (allocation granularity): a group of
+           9 warps (3-D, FDORDER 6: 32 x 3 x 3) takes the registers of 12. Without the rounding,
+           update_adjs at 3-D FDORDER 6 FP16 1/2 got 198 registers and could not be launched
+           (CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES; 12 x 32 x 200 > 65536). */
+        size_t warps = ((threads + 31) / 32 + 3) / 4 * 4;
+        int fit = (int)(65536 / (warps * 32)) & ~7;
         if (fit < 255 && (cap == 0 || fit < cap)) cap = fit;
     }
     if (cap > 0){

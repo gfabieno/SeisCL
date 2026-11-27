@@ -1033,6 +1033,16 @@ int initialize_forward(model * m, device ** dev, int s, int * pdir){
             (*dev)[d].src_recs.cl_grad_src.host=(*dev)[d].src_recs.gradsrc[s];
         }
         
+        #ifndef __SEISCL__
+        if (m->src_recs.src_dev){
+            /* the wavelets are on a device (SeisCL.torch): device to device */
+            size_t off = sizeof(float)*(size_t)(m->src_recs.src[s]-m->src_recs.src[0]);
+            __GUARD cuMemcpyAsync((*dev)[d].src_recs.cl_src.mem,
+                                  (CUdeviceptr)(m->src_recs.src_dev+off),
+                                  (*dev)[d].src_recs.cl_src.size, (*dev)[d].queue);
+        }
+        else
+        #endif
         __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].src_recs.cl_src);
         __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].src_recs.cl_src_pos);
         __GUARD clbuf_send(&(*dev)[d].queue, &(*dev)[d].src_recs.cl_rec_pos);

@@ -237,6 +237,27 @@ FUNDEF void update_adjv(int offcomm,
     if (zt > NZS-FDOH-1 || gidy > NYS-FDOH-1) return;
 #endif
 
+    /* own cells and parameters: one paired load and store per array (ldn/stn, ldp3), as in 2D;
+       rnd rounds where a store and reload did (FP16 2), so the results keep their bits */
+    int indv0 = (gidx*NYS + gidy)*NZS + zt;
+#if BACK_PROP_TYPE==1
+    float l_vx[NV], l_vy[NV], l_vz[NV];
+    ldn(vx, indv0, l_vx);
+    ldn(vy, indv0, l_vy);
+    ldn(vz, indv0, l_vz);
+#endif
+#if 1
+    float l_vxr[NV], l_vyr[NV], l_vzr[NV];
+    ldn(vxr, indv0, l_vxr);
+    ldn(vyr, indv0, l_vyr);
+    ldn(vzr, indv0, l_vzr);
+#endif
+#if 1
+    float p_rip[NV], p_rjp[NV], p_rkp[NV];
+    ldp3(rip, gidx, gidy, zt, p_rip);
+    ldp3(rjp, gidx, gidy, zt, p_rjp);
+    ldp3(rkp, gidx, gidy, zt, p_rkp);
+#endif
     #pragma unroll
     for (int c=0; c<NV; c++){
         int gidz = zt + c;
@@ -268,21 +289,21 @@ FUNDEF void update_adjv(int offcomm,
 // Backpropagate the forward velocity
 #if BACK_PROP_TYPE==1
     {
-        float vxold = ldf(vx, indv), vyold = ldf(vy, indv), vzold = ldf(vz, indv);
+        float vxold = l_vx[c], vyold = l_vy[c], vzold = l_vz[c];
 #if CPMLINL
         #define FL(f) ((TPTR)(f))
-        lvx=((tdp(FL(sxx), it0, sx) + tdm(FL(sxy), it0, sy) + tdm(FL(sxz), it0, 1))*ldf(rip, indp));
-        lvy=((tdp(FL(syy), it0, sy) + tdm(FL(sxy), it0, sx) + tdm(FL(syz), it0, 1))*ldf(rjp, indp));
-        lvz=((tdp(FL(szz), it0, 1) + tdm(FL(sxz), it0, sx) + tdm(FL(syz), it0, sy))*ldf(rkp, indp));
+        lvx=((tdp(FL(sxx), it0, sx) + tdm(FL(sxy), it0, sy) + tdm(FL(sxz), it0, 1))*p_rip[c]);
+        lvy=((tdp(FL(syy), it0, sy) + tdm(FL(sxy), it0, sx) + tdm(FL(syz), it0, 1))*p_rjp[c]);
+        lvz=((tdp(FL(szz), it0, 1) + tdm(FL(sxz), it0, sx) + tdm(FL(syz), it0, sy))*p_rkp[c]);
 #else
-        lvx=((sxx_x + sxy_y + sxz_z)*ldf(rip, indp));
-        lvy=((syy_y + sxy_x + syz_z)*ldf(rjp, indp));
-        lvz=((szz_z + sxz_x + syz_y)*ldf(rkp, indp));
+        lvx=((sxx_x + sxy_y + sxz_z)*p_rip[c]);
+        lvy=((syy_y + sxy_x + syz_z)*p_rjp[c]);
+        lvz=((szz_z + sxz_x + syz_y)*p_rkp[c]);
 #endif
 
-        stf(vx, indv, ldf(vx, indv) - (lvx));
-        stf(vy, indv, ldf(vy, indv) - (lvy));
-        stf(vz, indv, ldf(vz, indv) - (lvz));
+        l_vx[c] = rnd(l_vx[c] - (lvx));
+        l_vy[c] = rnd(l_vy[c] - (lvy));
+        l_vz[c] = rnd(l_vz[c] - (lvz));
         fvx = lvx;
         fvy = lvy;
         fvz = lvz;
@@ -290,9 +311,9 @@ FUNDEF void update_adjv(int offcomm,
         // Inject the boundary values
         m=inject_ind(gidz, gidy, gidx);
         if (m!=-1){
-            stf(vx, indv, ldf(vxbnd, m));
-            stf(vy, indv, ldf(vybnd, m));
-            stf(vz, indv, ldf(vzbnd, m));
+            l_vx[c] = rnd(ldf(vxbnd, m));
+            l_vy[c] = rnd(ldf(vybnd, m));
+            l_vz[c] = rnd(ldf(vzbnd, m));
             /* Exact forward increment from the two stored states (see
                update_adjv2D.cl). */
             float gt = 1.0f;
@@ -310,9 +331,9 @@ FUNDEF void update_adjv(int offcomm,
             if (gidx>NX-NAB-FDOH-1) gt*=taper[NX-FDOH-gidx-1];
             #endif
             #endif
-            fvx = vxold/gt - ldf(vx, indv);
-            fvy = vyold/gt - ldf(vy, indv);
-            fvz = vzold/gt - ldf(vz, indv);
+            fvx = vxold/gt - l_vx[c];
+            fvy = vyold/gt - l_vy[c];
+            fvz = vzold/gt - l_vz[c];
         }
     }
 #endif
@@ -432,21 +453,21 @@ FUNDEF void update_adjv(int offcomm,
     CPI_AXES
     lvx=((cpi_tdp(sxxr, it0, sx, CPI_X(psi_vx_xr), 1, Ka_x, b_x)
         + cpi_tdm(sxyr, it0, sy, CPI_Y(psi_vx_yr), 0, Ka_y_half, b_y_half)
-        + cpi_tdm(sxzr, it0, 1,  CPI_Z(psi_vx_zr), 0, Ka_z_half, b_z_half))*ldf(rip, indp));
+        + cpi_tdm(sxzr, it0, 1,  CPI_Z(psi_vx_zr), 0, Ka_z_half, b_z_half))*p_rip[c]);
     lvy=((cpi_tdp(syyr, it0, sy, CPI_Y(psi_vy_yr), 1, Ka_y, b_y)
         + cpi_tdm(sxyr, it0, sx, CPI_X(psi_vy_xr), 0, Ka_x_half, b_x_half)
-        + cpi_tdm(syzr, it0, 1,  CPI_Z(psi_vy_zr), 0, Ka_z_half, b_z_half))*ldf(rjp, indp));
+        + cpi_tdm(syzr, it0, 1,  CPI_Z(psi_vy_zr), 0, Ka_z_half, b_z_half))*p_rjp[c]);
     lvz=((cpi_tdp(szzr, it0, 1,  CPI_Z(psi_vz_zr), 1, Ka_z, b_z)
         + cpi_tdm(sxzr, it0, sx, CPI_X(psi_vz_xr), 0, Ka_x_half, b_x_half)
-        + cpi_tdm(syzr, it0, sy, CPI_Y(psi_vz_yr), 0, Ka_y_half, b_y_half))*ldf(rkp, indp));
+        + cpi_tdm(syzr, it0, sy, CPI_Y(psi_vz_yr), 0, Ka_y_half, b_y_half))*p_rkp[c]);
 #else
-    lvx=((sxx_xr + sxy_yr + sxz_zr)*ldf(rip, indp));
-    lvy=((syy_yr + sxy_xr + syz_zr)*ldf(rjp, indp));
-    lvz=((szz_zr + sxz_xr + syz_yr)*ldf(rkp, indp));
+    lvx=((sxx_xr + sxy_yr + sxz_zr)*p_rip[c]);
+    lvy=((syy_yr + sxy_xr + syz_zr)*p_rjp[c]);
+    lvz=((szz_zr + sxz_xr + syz_yr)*p_rkp[c]);
 #endif
-    stf(vxr, indv, ldf(vxr, indv) + (lvx));
-    stf(vyr, indv, ldf(vyr, indv) + (lvy));
-    stf(vzr, indv, ldf(vzr, indv) + (lvz));
+    l_vxr[c] = rnd(l_vxr[c] + (lvx));
+    l_vyr[c] = rnd(l_vyr[c] + (lvy));
+    l_vzr[c] = rnd(l_vzr[c] + (lvz));
 
 
 // Absorbing boundary
@@ -454,42 +475,42 @@ FUNDEF void update_adjv(int offcomm,
     {
         #if FREESURF==0
         if (gidz-FDOH<NAB){
-            stf(vxr, indv, ldf(vxr, indv) * (taper[gidz-FDOH]));
-            stf(vyr, indv, ldf(vyr, indv) * (taper[gidz-FDOH]));
-            stf(vzr, indv, ldf(vzr, indv) * (taper[gidz-FDOH]));
+            l_vxr[c] = rnd(l_vxr[c] * (taper[gidz-FDOH]));
+            l_vyr[c] = rnd(l_vyr[c] * (taper[gidz-FDOH]));
+            l_vzr[c] = rnd(l_vzr[c] * (taper[gidz-FDOH]));
         }
         #endif
 
         if (gidz>NZS-NAB-FDOH-1){
-            stf(vxr, indv, ldf(vxr, indv) * (taper[NZS-FDOH-gidz-1]));
-            stf(vyr, indv, ldf(vyr, indv) * (taper[NZS-FDOH-gidz-1]));
-            stf(vzr, indv, ldf(vzr, indv) * (taper[NZS-FDOH-gidz-1]));
+            l_vxr[c] = rnd(l_vxr[c] * (taper[NZS-FDOH-gidz-1]));
+            l_vyr[c] = rnd(l_vyr[c] * (taper[NZS-FDOH-gidz-1]));
+            l_vzr[c] = rnd(l_vzr[c] * (taper[NZS-FDOH-gidz-1]));
         }
 
         if (gidy-FDOH<NAB){
-            stf(vxr, indv, ldf(vxr, indv) * (taper[gidy-FDOH]));
-            stf(vyr, indv, ldf(vyr, indv) * (taper[gidy-FDOH]));
-            stf(vzr, indv, ldf(vzr, indv) * (taper[gidy-FDOH]));
+            l_vxr[c] = rnd(l_vxr[c] * (taper[gidy-FDOH]));
+            l_vyr[c] = rnd(l_vyr[c] * (taper[gidy-FDOH]));
+            l_vzr[c] = rnd(l_vzr[c] * (taper[gidy-FDOH]));
         }
 
         if (gidy>NYS-NAB-FDOH-1){
-            stf(vxr, indv, ldf(vxr, indv) * (taper[NYS-FDOH-gidy-1]));
-            stf(vyr, indv, ldf(vyr, indv) * (taper[NYS-FDOH-gidy-1]));
-            stf(vzr, indv, ldf(vzr, indv) * (taper[NYS-FDOH-gidy-1]));
+            l_vxr[c] = rnd(l_vxr[c] * (taper[NYS-FDOH-gidy-1]));
+            l_vyr[c] = rnd(l_vyr[c] * (taper[NYS-FDOH-gidy-1]));
+            l_vzr[c] = rnd(l_vzr[c] * (taper[NYS-FDOH-gidy-1]));
         }
 #if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
-            stf(vxr, indv, ldf(vxr, indv) * (taper[gidx-FDOH]));
-            stf(vyr, indv, ldf(vyr, indv) * (taper[gidx-FDOH]));
-            stf(vzr, indv, ldf(vzr, indv) * (taper[gidx-FDOH]));
+            l_vxr[c] = rnd(l_vxr[c] * (taper[gidx-FDOH]));
+            l_vyr[c] = rnd(l_vyr[c] * (taper[gidx-FDOH]));
+            l_vzr[c] = rnd(l_vzr[c] * (taper[gidx-FDOH]));
         }
 #endif
 
 #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-NAB-FDOH-1){
-            stf(vxr, indv, ldf(vxr, indv) * (taper[NX-FDOH-gidx-1]));
-            stf(vyr, indv, ldf(vyr, indv) * (taper[NX-FDOH-gidx-1]));
-            stf(vzr, indv, ldf(vzr, indv) * (taper[NX-FDOH-gidx-1]));
+            l_vxr[c] = rnd(l_vxr[c] * (taper[NX-FDOH-gidx-1]));
+            l_vyr[c] = rnd(l_vyr[c] * (taper[NX-FDOH-gidx-1]));
+            l_vzr[c] = rnd(l_vzr[c] * (taper[NX-FDOH-gidx-1]));
         }
 #endif
     }
@@ -512,9 +533,9 @@ FUNDEF void update_adjv(int offcomm,
     if (gidz-FDOH < FDOH) sumform = 0;
     #endif
     if (sumform){
-    gradrip[indp] += GSCALE(-ldf(vx, indv)*lvx);
-    gradrjp[indp] += GSCALE(-ldf(vy, indv)*lvy);
-    gradrkp[indp] += GSCALE(-ldf(vz, indv)*lvz);
+    gradrip[indp] += GSCALE(-l_vx[c]*lvx);
+    gradrjp[indp] += GSCALE(-l_vy[c]*lvy);
+    gradrkp[indp] += GSCALE(-l_vz[c]*lvz);
     }
 
     /* Source term of the misfit gradient -- GJI 2017 eq. (26a) -- for a FORCE
@@ -535,9 +556,9 @@ FUNDEF void update_adjv(int offcomm,
                 int sk=(int)(src_pos[2+5*srci]/DH)+FDOH;
                 if (si==gidx && sj==gidy && sk==gidz){
                     float samp = pow2s(DT*src[srci*NT+nt], src_scale - PARSCALE);
-                    if      (st==0) gradrip[indp] += GSCALE(ldf(vxr, indv)*samp);
-                    else if (st==1) gradrjp[indp] += GSCALE(ldf(vyr, indv)*samp);
-                    else            gradrkp[indp] += GSCALE(ldf(vzr, indv)*samp);
+                    if      (st==0) gradrip[indp] += GSCALE(l_vxr[c]*samp);
+                    else if (st==1) gradrjp[indp] += GSCALE(l_vyr[c]*samp);
+                    else            gradrkp[indp] += GSCALE(l_vzr[c]*samp);
                 }
             }
         }
@@ -555,7 +576,7 @@ FUNDEF void update_adjv(int offcomm,
     }
 #endif
 #if HOUT==1
-    Hrho[inp])+= pown(ldf(vx, indv),2)+pown(ldf(vy, indv),2)+pown(ldf(vz, indv),2);
+    Hrho[inp])+= pown(l_vx[c],2)+pown(l_vy[c],2)+pown(l_vz[c],2);
 #endif
 
 #endif
@@ -578,17 +599,17 @@ FUNDEF void update_adjv(int offcomm,
 //
 //                if (SOURCE_TYPE==2){
 //                    /* single force in x */
-//                    gradsrc(srci,nt)+= ldf(vxr, indv)/ldf(rip, inp)/(DH*DH*DH);
+//                    gradsrc(srci,nt)+= l_vxr[c]/ldf(rip, inp)/(DH*DH*DH);
 //                }
 //                else if (SOURCE_TYPE==3){
 //                    /* single force in y */
 //
-//                    gradsrc(srci,nt)+= ldf(vyr, indv)/ldf(rip, inp)/(DH*DH*DH);
+//                    gradsrc(srci,nt)+= l_vyr[c]/ldf(rip, inp)/(DH*DH*DH);
 //                }
 //                else if (SOURCE_TYPE==4){
 //                    /* single force in z */
 //
-//                    gradsrc(srci,nt)+= ldf(vzr, indv)/ldf(rip, inp)/(DH*DH*DH);
+//                    gradsrc(srci,nt)+= l_vzr[c]/ldf(rip, inp)/(DH*DH*DH);
 //                }
 //
 //            }
@@ -600,4 +621,14 @@ FUNDEF void update_adjv(int offcomm,
     
 
     }
+#if BACK_PROP_TYPE==1
+    stn(vx, indv0, l_vx);
+    stn(vy, indv0, l_vy);
+    stn(vz, indv0, l_vz);
+#endif
+#if 1
+    stn(vxr, indv0, l_vxr);
+    stn(vyr, indv0, l_vyr);
+    stn(vzr, indv0, l_vzr);
+#endif
 }

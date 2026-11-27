@@ -262,10 +262,10 @@ def _forward_with_vp(vp, nrec=10):
 
 
 def test_cuda_geometry_rejected():
-    """CUDA geometry tensors are refused rather than read as host pointers.
+    """CUDA position tensors (src_pos, rec_pos) are refused rather than read as host pointers.
 
-    Parameters are the exception -- they're copied down automatically, see
-    test_cuda_params_accepted.
+    Parameters and source wavelets are accepted on the GPU (test_cuda_params_accepted,
+    test_src_on_device).
     """
     if not torch.cuda.is_available():
         print("Testing: torch_cuda_geometry_rejected ....... skipped (no CUDA)")
@@ -273,12 +273,12 @@ def test_cuda_geometry_rejected():
     cfg = _make_config()
     src, src_pos, rec_pos = _simple_geometry()
     try:
-        seiscl_forward(cfg, _homogeneous_params(), src.cuda(), src_pos,
+        seiscl_forward(cfg, _homogeneous_params(), src, src_pos.cuda(),
                        rec_pos, output_fields=["vx"])
     except (ValueError, RuntimeError) as e:
         assert "CPU tensor" in str(e), f"unexpected error message: {e}"
     else:
-        raise AssertionError("a CUDA src tensor was silently accepted")
+        raise AssertionError("a CUDA src_pos tensor was silently accepted")
     print("Testing: torch_cuda_geometry_rejected ....... passed")
 
 
@@ -999,6 +999,112 @@ def test_param_prep_matches_host():
     print("Testing: torch_param_prep_matches_host ....... passed")
 
 
+def test_src_on_device():
+    """Source wavelets given as a CUDA tensor give the bits of the same wavelets on the CPU, and do not go
+    through the host (plan gpu-param-pipeline, step 4).
+
+    With a CUDA wavelet tensor the engine copies each shot's wavelets device to device into its source
+    buffer, and the FP16 source scale src_scale = -log2(dt max|s|) takes the maximum of each source from a
+    reduction on the device (one float per source to the host). Two shots of different amplitude (factor
+    1000, so that the two src_scale differ) and type (pressure, force), FP16 0, 1, 2, forward and gradient
+    (back_prop_type 1 and 2), fresh then cached engine; threshold: identical bits. Bytes host to device in a
+    cached forward call, CUDA wavelets: below the CPU-wavelet call by at least the wavelets
+    (2 x NT x 4 bytes).
+    """
+    n, nt = 96, 300
+    t = np.arange(nt) * DT
+    a = (np.pi * 10.0 * (t - 0.12)) ** 2
+    w = ((1 - 2 * a) * np.exp(-a)).astype(np.float32)
+    src_cpu = torch.from_numpy(np.stack([w, 1e3 * w[::-1].copy()]))
+    sp = torch.tensor([[40 * DH, 0.0, 48 * DH, 0, 100.0], [56 * DH, 0.0, 48 * DH, 1, 2.0]])
+    rp = torch.tensor([[x * DH, 0.0, 40 * DH, sh, i + 1, 0, 0, 0]
+                       for sh in (0, 1) for i, x in enumerate(range(20, 76, 8))])
+    bad, ncase = [], 0
+    for fp16 in (0, 1, 2):
+        for bpt in (1, 2):
+            cfg = _make_config()
+            cfg.N, cfg.NT, cfg.NAB, cfg.FP16 = [n, n], nt, 12, fp16
+            cfg.BACK_PROP_TYPE = bpt
+            if bpt == 2:
+                cfg.gradfreqs = [5.0, 10.0, 15.0]
+            out = {}
+            for where in ("cpu", "cuda"):
+                clear_engine_cache()
+                for call in range(2):
+                    rng = np.random.default_rng(call)
+                    par = {k: torch.from_numpy((v * (1 + 0.05 * rng.standard_normal(n * n)))
+                                               .astype(np.float32)).cuda().requires_grad_(True)
+                           for k, v in (("M", VP), ("mu", VS), ("rho", RHO))}
+                    src = src_cpu.cuda() if where == "cuda" else src_cpu
+                    d = seiscl_forward(cfg, par, src, sp, rp, output_fields=["vz"])["vz"]
+                    (0.5 * (d.double() ** 2).sum()).backward()
+                    out.setdefault(call, {})[where] = [d.detach().cpu().numpy()] + [
+                        par[k].grad.cpu().numpy() for k in sorted(par)]
+            for call, v in out.items():
+                ncase += 1
+                if not all(np.array_equal(x, y) for x, y in zip(v["cpu"], v["cuda"])):
+                    bad.append(f"fp{fp16}/bpt{bpt}/call{call}")
+    print(f"    {ncase - len(bad)}/{ncase} cases bit-identical, CUDA vs CPU wavelets (threshold: all)")
+    assert not bad, f"CUDA and CPU wavelets differ: {bad}"
+    # bytes host to device in a cached forward call
+    cfg = _make_config()
+    cfg.N, cfg.NT, cfg.NAB, cfg.FP16 = [n, n], nt, 12, 2
+    par = {k: torch.full((n * n,), v, dtype=torch.float32, device="cuda")
+           for k, v in (("M", VP), ("mu", VS), ("rho", RHO))}
+    h2d = {}
+    for where in ("cpu", "cuda"):
+        src = src_cpu.cuda() if where == "cuda" else src_cpu
+        clear_engine_cache()
+        seiscl_forward(cfg, par, src, sp, rp, output_fields=["vz"])
+        seiscl_torch._C.reset_transfer_bytes()
+        seiscl_forward(cfg, par, src, sp, rp, output_fields=["vz"])
+        h2d[where] = seiscl_torch._C.transfer_bytes()[0]
+    saved = h2d["cpu"] - h2d["cuda"]
+    print(f"    cached forward call, host to device: CPU wavelets {h2d['cpu']} B, CUDA wavelets "
+          f"{h2d['cuda']} B (threshold: {2 * nt * 4} B less)")
+    assert saved >= 2 * nt * 4, f"the CUDA wavelets went through the host ({h2d})"
+    print("Testing: torch_src_on_device ....... passed")
+
+
+def test_3d_fd6_fp16_gradient_launches():
+    """The 3-D back_prop_type 1 gradient runs with FDORDER 6 at FP16 1 and 2, and agrees with FP16 0.
+
+    A 3-D work group of FDORDER 6 has 32 x 3 x 3 = 288 threads, 9 warps. The register cap of the update
+    kernels (clprogram.c) divided 65536 by the threads, but registers go to a work group by groups of 4
+    warps: update_adjs got 198 registers, 12 x 32 x 200 > 65536, and could not be launched
+    (CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES; every build up to 2305373, CPML and Cerjan). 3-D 40^3, CPML,
+    one force source, velocity receivers. Thresholds: FP16 1 relative difference to FP16 0 below 1e-3
+    (float storage); FP16 2 cosine with FP16 0 above 0.97 (half storage, as test_dft_gradient's levels).
+    """
+    n, nt = 40, 250
+    t = np.arange(nt) * DT - 0.1
+    src = torch.from_numpy(((1 - 2 * (np.pi * 10 * t) ** 2) * np.exp(-(np.pi * 10 * t) ** 2))
+                           .astype(np.float32)[None])
+    sp = torch.tensor([[20 * DH, 20 * DH, 20 * DH, 0, 2.0]])
+    rp = torch.tensor([[x * DH, 20 * DH, 14 * DH, 0, i + 1, 0, 0, 0]
+                       for i, x in enumerate(range(12, 30, 4))])
+    rng = np.random.default_rng(0)
+    vals = {k: (v * (1 + 0.05 * rng.standard_normal(n ** 3))).astype(np.float32)
+            for k, v in (("M", VP), ("mu", VS), ("rho", RHO))}
+    grads = {}
+    for fp16 in (0, 1, 2):
+        cfg = _make_config()
+        cfg.N, cfg.ND, cfg.NT, cfg.NAB, cfg.FDORDER = [n, n, n], 3, nt, 8, 6
+        cfg.ABS_TYPE, cfg.FP16, cfg.f0 = 1, fp16, 10.0
+        par = {k: torch.from_numpy(v).cuda().requires_grad_(True) for k, v in vals.items()}
+        clear_engine_cache()
+        d = seiscl_forward(cfg, par, src, sp, rp, output_fields=["vz"])["vz"]
+        (0.5 * (d.double() ** 2).sum()).backward()
+        grads[fp16] = np.concatenate([par[k].grad.cpu().numpy().astype(np.float64) for k in sorted(par)])
+    a = grads[0]
+    rel1 = float(np.linalg.norm(grads[1] - a) / np.linalg.norm(a))
+    cos2 = float(grads[2] @ a / (np.linalg.norm(grads[2]) * np.linalg.norm(a)))
+    print(f"    3-D FDORDER 6: FP16 1 rel. diff {rel1:.2e} (threshold 1e-3), FP16 2 cos {cos2:.5f} "
+          f"(threshold 0.97)")
+    assert rel1 < 1e-3 and cos2 > 0.97, "3-D FDORDER 6 FP16 gradients differ from FP16 0"
+    print("Testing: torch_3d_fd6_fp16_gradient_launches ....... passed")
+
+
 def test_param_scale_reused_engine():
     """A cached engine gives the bits of a fresh engine when the FP16 scale changes.
 
@@ -1410,6 +1516,8 @@ if __name__ == "__main__":
         test_param_prep_no_upload()
         test_param_prep_matches_host()
         test_param_scale_reused_engine()
+        test_src_on_device()
+        test_3d_fd6_fp16_gradient_launches()
         test_recompute_matches_memory()
         test_auto_counts_own_checkpoint()
         test_recompute_interleaved()

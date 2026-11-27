@@ -51,6 +51,9 @@ struct EngineHandle {
     // this is set the handle is pinned against LRU eviction, since evicting
     // it would destroy the only copy.
     bool pending_valid = false;
+
+    // max |wavelet| of each source of a CUDA wavelet tensor (attach_src)
+    std::vector<float> src_rowmax;
     std::string pending_ckpt;
 
     EngineHandle();
@@ -93,6 +96,9 @@ int engine_refresh_srcrec(EngineHandle &h, torch::Tensor &src,
 
 // Clear the host-side accumulators that time_stepping() adds into.
 void engine_reset_outputs(EngineHandle &h);
+
+void attach_src(EngineHandle &h, const torch::Tensor &src);
+void detach_src(EngineHandle &h);
 
 // Bytes one shot's boundary checkpoint occupies. Multiplied by the shot
 // count, this is what a RAM-backed checkpoint would cost.

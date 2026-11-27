@@ -126,7 +126,8 @@ def seiscl_forward(cfg, params, src, src_pos, rec_pos, output_fields=None):
     src, src_pos, rec_pos : torch.Tensor
         Source wavelets [allns, NT] and geometry [allns, 5] / [allng, 8],
         same convention as SeisCL.py's src_all/src_pos_all/rec_pos_all.
-        These must be CPU tensors.
+        src may be a CUDA tensor (it then stays on the GPU); src_pos and
+        rec_pos must be CPU tensors.
     output_fields : list[str], optional
         Which fields to record seismograms for (e.g. ["vx", "vz"],
         matching SeisCL.py's seisout=1 default for 2D). Defaults to every
