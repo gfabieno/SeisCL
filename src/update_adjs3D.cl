@@ -96,7 +96,7 @@ FUNDEF void update_adjs(int offcomm,
                           int src_scale,
                           GLOBARG const float * RESTRICT pout,      GLOBARG const float * RESTRICT rec_pos,
                           int nrec,                                 int res_scale,
-                          LOCARG)
+                          int par_scale, LOCARG)
 {
     LOCDEF
 

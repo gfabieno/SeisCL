@@ -249,7 +249,7 @@ FUNDEF void surface_grad(GLOBARG STO *vx,     GLOBARG STO *vy,
                          int nsrc,               int nt,
                          GLOBARG float *pout,    GLOBARG float *rec_pos,
                          int nrec,              int src_scale,
-                         int res_scale)
+                         int res_scale, int par_scale)
 {
     #ifdef __OPENCL_VERSION__
     int gidy = get_global_id(0) + FDOH;

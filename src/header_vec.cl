@@ -553,3 +553,10 @@ LFUNDEF void load_tile2_cpf(LOCID float *tile, GLOBARG const STO *cpf, GLOBARG c
 #define load_tile3_cpf(t, cpf, a, z0, y0, x0, tz, ty, tx) ((t) = NT_RAW3(zt, gidy, gidx) ? (a) : (cpf))
 #endif
 
+/* The FP16 scale of the model is the kernel argument par_scale (set at each
+   shot by time_stepping.c), not a build option: one compiled program serves
+   every model. (OpenCL build options are upper-cased, so it cannot be passed
+   as -D PARSCALE=par_scale.) */
+#ifndef PARSCALE
+#define PARSCALE par_scale
+#endif

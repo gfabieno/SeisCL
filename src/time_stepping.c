@@ -1065,6 +1065,10 @@ int initialize_forward(model * m, device ** dev, int s, int * pdir){
                 ind=(*dev)[d].progs[i]->scinput-1;
                 __GUARD prog_arg((*dev)[d].progs[i], ind, &m->src_recs.src_scales[s], sizeof(int));
             }
+            if ((*dev)[d].progs[i]->psinput>0){
+                ind=(*dev)[d].progs[i]->psinput-1;
+                __GUARD prog_arg((*dev)[d].progs[i], ind, &m->par_scale, sizeof(int));
+            }
         }
         
         // Implement initial conditions

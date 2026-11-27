@@ -85,7 +85,7 @@ FUNDEF void rec_grad_v(GLOBARG STO *vx,        GLOBARG STO *vy,        GLOBARG S
                        GLOBARG float *rec_pos, int nrec,               int nt,
                        GLOBARG float *taper,
                        GLOBARG float *gradrip, GLOBARG float *gradrjp, GLOBARG float *gradrkp,
-                       int src_scale,          int res_scale)
+                       int src_scale,          int res_scale, int par_scale)
 {
 #if GRADOUT==1 && VELOUT==1
     REC_OWNER(g0, k0, j0, i0)
@@ -131,7 +131,7 @@ FUNDEF void rec_grad_s(GLOBARG STO *sxx,       GLOBARG STO *syy,       GLOBARG S
                        GLOBARG float *pout,    GLOBARG float *rec_pos, int nrec,
                        int nt,                 GLOBARG STO *M,         GLOBARG STO *mu,
                        GLOBARG float *gradM,   GLOBARG float *gradmu,
-                       int src_scale,          int res_scale)
+                       int src_scale,          int res_scale, int par_scale)
 {
 #if GRADOUT==1 && PRESOUT==1
     REC_OWNER(g0, k0, j0, i0)

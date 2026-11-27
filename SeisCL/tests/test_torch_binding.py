@@ -999,6 +999,58 @@ def test_param_prep_matches_host():
     print("Testing: torch_param_prep_matches_host ....... passed")
 
 
+def test_param_scale_reused_engine():
+    """A cached engine gives the bits of a fresh engine when the FP16 scale changes.
+
+    The FP16 scale par_scale = -log2(max M) is a kernel argument set at each shot (it was compiled into the
+    kernels, and the engine cache key did not hold it: a reused engine kept the scale of its first model in
+    the adjoint, source and output kernels while the host used the new one). Two models whose max(M) differ
+    by a factor 4 (two powers of two), force source (velocity scaled by par_scale), velocity receivers, FP16 1
+    and 2, back_prop_type 1 and 2: the second model through the cached engine against a fresh engine.
+    Threshold: identical bits.
+    """
+    n, nt = 96, 300
+    t = np.arange(nt) * DT
+    a = (np.pi * 10.0 * (t - 0.12)) ** 2
+    src = torch.from_numpy(((1 - 2 * a) * np.exp(-a)).astype(np.float32)[None])
+    sp = torch.tensor([[48 * DH, 0.0, 48 * DH, 0, 2.0]])
+    rp = torch.tensor([[x * DH, 0.0, 40 * DH, 0, i + 1, 0, 0, 0]
+                       for i, x in enumerate(range(20, 76, 8))])
+    bad, ncase = [], 0
+    for fp16 in (1, 2):
+        for bpt in (1, 2):
+            cfg = _make_config()
+            cfg.N, cfg.NT, cfg.NAB, cfg.ABS_TYPE = [n, n], nt, 12, 1
+            cfg.FP16, cfg.BACK_PROP_TYPE = fp16, bpt
+            if bpt == 2:
+                cfg.gradfreqs = [5.0, 10.0, 15.0]
+
+            def call(scale):
+                rng = np.random.default_rng(1)
+                par = {k: torch.from_numpy((v * (1 + 0.05 * rng.standard_normal(n * n)))
+                                           .astype(np.float32)).cuda().requires_grad_(True)
+                       for k, v in (("M", VP * scale), ("mu", VS * scale), ("rho", RHO))}
+                d = seiscl_forward(cfg, par, src, sp, rp, output_fields=["vz"])["vz"]
+                (0.5 * (d.double() ** 2).sum()).backward()
+                return [d.detach().cpu().numpy()] + [par[k].grad.cpu().numpy() for k in sorted(par)]
+
+            clear_engine_cache()
+            call(1.0)                     # the engine is compiled for this model
+            reused = call(2.0)            # vp x2: max(M) x4
+            clear_engine_cache()
+            fresh = call(2.0)
+            ncase += 1
+            same = all(np.array_equal(x, y) for x, y in zip(reused, fresh))
+            if not same:
+                rel = max(float(np.max(np.abs(x - y)) / max(np.max(np.abs(y)), 1e-30))
+                          for x, y in zip(reused, fresh))
+                bad.append(f"FP16 {fp16} bpt {bpt} (max rel. diff {rel:.1e})")
+    clear_engine_cache()
+    print(f"    {ncase - len(bad)}/{ncase} cases bit-identical (threshold: all)")
+    assert not bad, f"reused engine differs from a fresh one after the FP16 scale changed: {bad}"
+    print("Testing: torch_param_scale_reused_engine ..... passed")
+
+
 def test_multishot_shotstore_speed(nshot=4, ratio_max=1.15):
     """A gradient call with several shots costs about as much per shot as a
     call with one shot (it was ~1.46x when each shot's checkpoint was copied
@@ -1310,6 +1362,7 @@ if __name__ == "__main__":
         test_fp16_host_scaling_speed()
         test_param_prep_no_upload()
         test_param_prep_matches_host()
+        test_param_scale_reused_engine()
         test_recompute_matches_memory()
         test_auto_counts_own_checkpoint()
         test_recompute_interleaved()

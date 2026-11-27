@@ -30,6 +30,12 @@ static void chop_tail(char * s, size_t n){
         s[len - n] = '\0';
 }
 
+/* vx, vy, vz carry the FP16 scale par_scale (set_par_scale_value); the
+   generated kernels take it as their argument par_scale, not as a constant. */
+static int vel_scaled(const char * name){
+    return strcmp(name, "vx")==0 || strcmp(name, "vy")==0 || strcmp(name, "vz")==0;
+}
+
 int kernel_varout(device * dev,
                   clprogram * prog){
  
@@ -43,7 +49,7 @@ int kernel_varout(device * dev,
     variable * tvars = dev->trans_vars;
     
     strcat(temp, FUNDEF"void varsout"
-                 "(int nt, int nrec,"GLOBARG"float * rec_pos, int src_scale,");
+                 "(int nt, int nrec,"GLOBARG"float * rec_pos, int src_scale, int par_scale,");
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
             if (dev->FP16<=1){
@@ -169,9 +175,8 @@ int kernel_varout(device * dev,
                     strcat(temp, ")");
                 }
                 strcat(temp,", -src_scale");
-                if (abs(vars[i].scaler)>0){
-                    sprintf(temp2,"+ %d", vars[i].scaler );
-                    strcat(temp, temp2);
+                if (vel_scaled(vars[i].name)){
+                    strcat(temp, "+ par_scale");
                 }
                 strcat(temp, ")");
             }
@@ -186,12 +191,7 @@ int kernel_varout(device * dev,
             strcat(temp, "out[NT*gid+nt+1]=(");
             for (j=0;j<tvars->n2ave;j++){
                 if (dev->FP16>0){
-                    for (k=0;k<dev->nvars;k++){
-                        if (strcmp(tvars[i].var2ave[j],dev->vars[k].name)==0){
-                            scaler=dev->vars[k].scaler;
-                            break;
-                        }
-                    }
+                    scaler = vel_scaled(tvars[i].var2ave[j]);
                     #ifdef __SEISCL__
                     strcat(temp, "ldexp(");
                     #else
@@ -208,9 +208,8 @@ int kernel_varout(device * dev,
                         strcat(temp, ")");
                     }
                     strcat(temp,", -src_scale");
-                    if (abs(scaler)>0){
-                        sprintf(temp2,"+ %d", scaler );
-                        strcat(temp, temp2);
+                    if (scaler){
+                        strcat(temp, "+ par_scale");
                     }
                     strcat(temp, ")");
                 }
@@ -455,7 +454,7 @@ int kernel_sources(model * m,
     }
     
     strcat(temp, FUNDEF"void sources(int nt, int nsrc,"
-                 "int src_scale,"GLOBARG"float * src_pos,"GLOBARG"float * src, int pdir, ");
+                 "int src_scale, int par_scale,"GLOBARG"float * src_pos,"GLOBARG"float * src, int pdir, ");
     for (i=0;i<dev->nvars;i++){
         if (tosources[i]){
             if (dev->FP16<=1){
@@ -580,11 +579,11 @@ int kernel_sources(model * m,
         
         if (tosources[i]){
             char ampstr[64];
-            if (dev->FP16>0 && vars[i].scaler!=0){
+            if (dev->FP16>0 && vel_scaled(vars[i].name)){
                 #ifdef __SEISCL__
-                sprintf(ampstr, "ldexp(amp, %d)", -vars[i].scaler);
+                sprintf(ampstr, "ldexp(amp, -par_scale)");
                 #else
-                sprintf(ampstr, "scalbnf(amp, %d)", -vars[i].scaler);
+                sprintf(ampstr, "scalbnf(amp, -par_scale)");
                 #endif
             }
             else{

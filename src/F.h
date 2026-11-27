@@ -173,6 +173,7 @@ typedef struct clprogram {
     int nsinput;
     int nrinput;
     int scinput;
+    int psinput;     /* index+1 of the par_scale argument (set at each shot) */
     int rcinput;
     size_t lsize[MAX_DIMS];
     size_t gsize[MAX_DIMS];

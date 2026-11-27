@@ -380,7 +380,7 @@ char *get_build_options(device *dev,
             "-D BACK_PROP_TYPE=%d -D COMM12=%d -D NTNYQ=%d -D DTNYQ=%d "
             "-D VARSOUT=%d -D RESOUT=%d  -D RMSOUT=%d -D MOVOUT=%d "
             "-D GRADOUT=%d -D HOUT=%d -D GRADSRCOUT=%d -D DIRPROP=%d "
-            "-D RESTYPE=%d -D FP16=%d -D PARSCALE=%d -D FREQ0=%9.9ff "
+            "-D RESTYPE=%d -D FP16=%d -D FREQ0=%9.9ff "
             "-D PARNZ=%d -D PARNY=%d -D PARNX=%d -D TMIN=%d "
             "-D PRESOUT=%d -D VELOUT=%d -D VXOUT=%d -D VYOUT=%d -D VZOUT=%d -D GRADABS=%d",
             (*m).NDIM, (*dev).OFFSET, (*m).FDOH, (*m).dt/(*m).dh, (*m).dh,
@@ -391,7 +391,7 @@ char *get_build_options(device *dev,
             (*m).BACK_PROP_TYPE, comm, (*m).NTNYQ, (*m).DTNYQ,
             (*m).VARSOUT, (*m).RESOUT, (*m).RMSOUT, (*m).MOVOUT,
             (*m).GRADOUT, (*m).HOUT, (*m).GRADSRCOUT, DIRPROP, (*m).restype,
-            (*m).FP16, (*m).par_scale, (*m).f0,
+            (*m).FP16, (*m).f0,
             (*dev).N[0], parny, parnx, (*m).tmin, presout, velout, vout[0], vout[1], vout[2], (*m).GRADABS) ;
 
 
@@ -601,8 +601,8 @@ int get_build_options(device *dev,
     
     *n+=1;
     sprintf(build_options[*n-1],"-D FP16=%d ",(*m).FP16);
-    GMALLOC(build_options[*n], sizeof(char)*30); *n+=1;
-    sprintf(build_options[*n-1],"-D PARSCALE=%d ",(*m).par_scale);
+    /* PARSCALE: the kernel argument par_scale (header_CUDACL.cl), set at
+       each shot, not a constant: a compiled program serves any model. */
     /* f0: the viscoelastic gradient needs it to rebuild the
        phase-velocity factor alpha -- see grad_dft2D_visc.cl. */
     GMALLOC(build_options[*n], sizeof(char)*30); *n+=1;
@@ -1385,6 +1385,9 @@ int prog_create(model * m,
         }
         if (!argfound){
             if (strcmp("par_scale"  ,(*prog).input_list[i])==0){
+                /* bound now and again at each shot (time_stepping.c): the
+                   FP16 scale of the model, which a reused engine may change */
+                prog->psinput=i+1;
                 prog_arg(prog, i, &m->par_scale, sizeof(int));
                 argfound=1;
             }

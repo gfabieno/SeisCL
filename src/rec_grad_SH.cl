@@ -29,7 +29,7 @@
 FUNDEF void rec_grad_v(GLOBARG STO *vy,        GLOBARG float *vyout,
                        GLOBARG float *rec_pos, int nrec,               int nt,
                        GLOBARG float *taper,   GLOBARG float *gradrho,
-                       int src_scale,          int res_scale)
+                       int src_scale,          int res_scale, int par_scale)
 {
 #if GRADOUT==1 && VELOUT==1 && VYOUT==1
     #ifdef __OPENCL_VERSION__

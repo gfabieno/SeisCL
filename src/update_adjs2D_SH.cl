@@ -55,7 +55,7 @@ FUNDEF void update_adjs(int offcomm,
                      GLOBARG const STO * RESTRICT cpfa,      GLOBARG const STO * RESTRICT cpfb,
                      GLOBARG float * RESTRICT gradmuipjp,    GLOBARG float * RESTRICT gradmujpkp,
                      int src_scale,                          int res_scale,
-                     LOCARG)
+                     int par_scale, LOCARG)
 {
     LOCDEF
     int gidx = GRP1*LSZ1 + LID1 + FDOH + offcomm;
