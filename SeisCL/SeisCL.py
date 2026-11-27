@@ -250,9 +250,9 @@ class SeisCL:
         :param dft_step:         back_prop_type=2 only. Accumulate the DFT of
                                  the wavefields every dft_step time steps
                                  instead of every step. The DFT accumulation
-                                 is most of the cost of a DFT gradient (85 %
-                                 of a viscoelastic one), so a larger step is
-                                 much faster. Its error is aliasing: the
+                                 can be most of the cost of a DFT gradient
+                                 (85 % of the GPU time with L=3 and 10
+                                 frequencies), so a larger step is faster. Its error is aliasing: the
                                  wavefield energy above the sampling Nyquist
                                  frequency 1/(2 dft_step dt) folds onto the
                                  gradient frequencies. It must therefore be
@@ -260,17 +260,22 @@ class SeisCL:
                                  the source spectrum; a step with Nyquist
                                  frequency <= max(gradfreqs) is refused.
                                  Measured 2026-11-27 (Quadro P6000,
-                                 viscoelastic, Ricker source, gradfreqs
-                                 5-23 Hz, dt 1 ms, Nyquist of the record
-                                 500 Hz), time of one gradient and largest
-                                 difference to dft_step=1, relative to the
-                                 gradient maximum:
+                                 SeisCL.torch, L=3, 10 gradfreqs 5-23 Hz,
+                                 Ricker source, dt 1 ms, FD order 4), time
+                                 of one gradient and largest difference to
+                                 dft_step=1, relative to the gradient
+                                 maximum:
                                    dft_step 1:  2-D 28.1 s, 3-D 63.3 s, 0
                                    dft_step 3:  11.7 s, 27.5 s, 0.14 %
                                    dft_step 6:   7.6 s, 18.6 s, 0.42 %
                                    dft_step 11:  5.8 s, 14.4 s, 0.69 %
                                  (2-D 1000x1000 cells, 2000 steps; 3-D 128^3,
-                                 1000 steps.) Make NT (or tmax - tmin) a
+                                 1000 steps.) The gain is smaller with fewer
+                                 frequencies or mechanisms, and with this
+                                 class, which also pays a start-up per run
+                                 (L=1, 7 frequencies, 1000x1000: 1.7x at
+                                 dft_step=5). The error is largest at the
+                                 source and receiver cells. Make NT (or tmax - tmin) a
                                  multiple of dft_step: otherwise the DFT bins
                                  df = 1/(NTNYQ dft_step dt) differ slightly
                                  from 1/(NT dt) and from one step to another.
