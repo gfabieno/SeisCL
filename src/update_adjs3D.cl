@@ -286,6 +286,24 @@ FUNDEF void update_adjs(int offcomm,
     ldp3(tausipkp, gidx, gidy, zt, p_tausipkp);
     ldp3(tausjpkp, gidx, gidy, zt, p_tausjpkp);
 #endif
+#if LVE>0
+    float l_rxx[LVE][NV], l_ryy[LVE][NV], l_rzz[LVE][NV], l_rxy[LVE][NV], l_ryz[LVE][NV], l_rxz[LVE][NV];
+    for (int lp=0; lp<LVE; lp++) ldn(rxx, lp*NX*NYS*NZS + indv0, l_rxx[lp]);
+    for (int lp=0; lp<LVE; lp++) ldn(ryy, lp*NX*NYS*NZS + indv0, l_ryy[lp]);
+    for (int lp=0; lp<LVE; lp++) ldn(rzz, lp*NX*NYS*NZS + indv0, l_rzz[lp]);
+    for (int lp=0; lp<LVE; lp++) ldn(rxy, lp*NX*NYS*NZS + indv0, l_rxy[lp]);
+    for (int lp=0; lp<LVE; lp++) ldn(ryz, lp*NX*NYS*NZS + indv0, l_ryz[lp]);
+    for (int lp=0; lp<LVE; lp++) ldn(rxz, lp*NX*NYS*NZS + indv0, l_rxz[lp]);
+#endif
+#if LVE>0
+    float l_rxxr[LVE][NV], l_ryyr[LVE][NV], l_rzzr[LVE][NV], l_rxyr[LVE][NV], l_ryzr[LVE][NV], l_rxzr[LVE][NV];
+    for (int lp=0; lp<LVE; lp++) ldn(rxxr, lp*NX*NYS*NZS + indv0, l_rxxr[lp]);
+    for (int lp=0; lp<LVE; lp++) ldn(ryyr, lp*NX*NYS*NZS + indv0, l_ryyr[lp]);
+    for (int lp=0; lp<LVE; lp++) ldn(rzzr, lp*NX*NYS*NZS + indv0, l_rzzr[lp]);
+    for (int lp=0; lp<LVE; lp++) ldn(rxyr, lp*NX*NYS*NZS + indv0, l_rxyr[lp]);
+    for (int lp=0; lp<LVE; lp++) ldn(ryzr, lp*NX*NYS*NZS + indv0, l_ryzr[lp]);
+    for (int lp=0; lp<LVE; lp++) ldn(rxzr, lp*NX*NYS*NZS + indv0, l_rxzr[lp]);
+#endif
     #pragma unroll
     for (int c=0; c<NV; c++){
         int gidz = zt + c;
@@ -432,12 +450,12 @@ FUNDEF void update_adjs(int offcomm,
         sumrxy=sumryz=sumrxz=sumrxx=sumryy=sumrzz=0;
         for (l=0;l<LVE;l++){
             indr = l*NX*NYS*NZS + gidx*NYS*NZS + gidy*NZS +gidz;
-            sumrxy+=ldf(rxy, indr);
-            sumryz+=ldf(ryz, indr);
-            sumrxz+=ldf(rxz, indr);
-            sumrxx+=ldf(rxx, indr);
-            sumryy+=ldf(ryy, indr);
-            sumrzz+=ldf(rzz, indr);
+            sumrxy+=l_rxy[l][c];
+            sumryz+=l_ryz[l][c];
+            sumrxz+=l_rxz[l][c];
+            sumrxx+=l_rxx[l][c];
+            sumryy+=l_ryy[l][c];
+            sumrzz+=l_rzz[l][c];
         }
 
         /* updating components of the stress tensor, partially */
@@ -464,19 +482,19 @@ FUNDEF void update_adjs(int offcomm,
             cv=1.0-(leta[l]*0.5);
             indr = l*NX*NYS*NZS + gidx*NYS*NZS + gidy*NZS +gidz;
 
-            stf(rxy, indr, b*(ldf(rxy, indr)*cv-leta[l]*(dipjp*vxyyx)));
-            stf(ryz, indr, b*(ldf(ryz, indr)*cv-leta[l]*(djpkp*vyzzy)));
-            stf(rxz, indr, b*(ldf(rxz, indr)*cv-leta[l]*(dipkp*vxzzx)));
-            stf(rxx, indr, b*(ldf(rxx, indr)*cv-leta[l]*((e*vxxyyzz)-(d*vyyzz))));
-            stf(ryy, indr, b*(ldf(ryy, indr)*cv-leta[l]*((e*vxxyyzz)-(d*vxxzz))));
-            stf(rzz, indr, b*(ldf(rzz, indr)*cv-leta[l]*((e*vxxyyzz)-(d*vxxyy))));
+            l_rxy[l][c] = rnd(b*(l_rxy[l][c]*cv-leta[l]*(dipjp*vxyyx)));
+            l_ryz[l][c] = rnd(b*(l_ryz[l][c]*cv-leta[l]*(djpkp*vyzzy)));
+            l_rxz[l][c] = rnd(b*(l_rxz[l][c]*cv-leta[l]*(dipkp*vxzzx)));
+            l_rxx[l][c] = rnd(b*(l_rxx[l][c]*cv-leta[l]*((e*vxxyyzz)-(d*vyyzz))));
+            l_ryy[l][c] = rnd(b*(l_ryy[l][c]*cv-leta[l]*((e*vxxyyzz)-(d*vxxzz))));
+            l_rzz[l][c] = rnd(b*(l_rzz[l][c]*cv-leta[l]*((e*vxxyyzz)-(d*vxxyy))));
 
-            sumrxy+=ldf(rxy, indr);
-            sumryz+=ldf(ryz, indr);
-            sumrxz+=ldf(rxz, indr);
-            sumrxx+=ldf(rxx, indr);
-            sumryy+=ldf(ryy, indr);
-            sumrzz+=ldf(rzz, indr);
+            sumrxy+=l_rxy[l][c];
+            sumryz+=l_ryz[l][c];
+            sumrxz+=l_rxz[l][c];
+            sumrxx+=l_rxx[l][c];
+            sumryy+=l_ryy[l][c];
+            sumrzz+=l_rzz[l][c];
         }
 
         /* and now the components of the stress tensor are
@@ -670,12 +688,12 @@ FUNDEF void update_adjs(int offcomm,
     sumrxy=sumryz=sumrxz=sumrxx=sumryy=sumrzz=0;
     for (l=0;l<LVE;l++){
         indr = l*NX*NYS*NZS + gidx*NYS*NZS + gidy*NZS +gidz;
-        sumrxy+=ldf(rxyr, indr);
-        sumryz+=ldf(ryzr, indr);
-        sumrxz+=ldf(rxzr, indr);
-        sumrxx+=ldf(rxxr, indr);
-        sumryy+=ldf(ryyr, indr);
-        sumrzz+=ldf(rzzr, indr);
+        sumrxy+=l_rxyr[l][c];
+        sumryz+=l_ryzr[l][c];
+        sumrxz+=l_rxzr[l][c];
+        sumrxx+=l_rxxr[l][c];
+        sumryy+=l_ryyr[l][c];
+        sumrzz+=l_rzzr[l][c];
     }
 
     vxyyxr=vxyr+vyxr;
@@ -706,12 +724,12 @@ FUNDEF void update_adjs(int offcomm,
            DT2*(sum_old+sum_new), an O(dt) adjoint attenuation error (3-D visco 3-14 %).
            Keep the new value in a register, as update_adjs2D.cl does. */
         float r;
-        r = b*(ldf(rxyr, indr)*cv-leta[l]*(dipjp*vxyyxr)); stf(rxy, indr, r); sumrxy += r;
-        r = b*(ldf(ryzr, indr)*cv-leta[l]*(djpkp*vyzzyr)); stf(ryz, indr, r); sumryz += r;
-        r = b*(ldf(rxzr, indr)*cv-leta[l]*(dipkp*vxzzxr)); stf(rxz, indr, r); sumrxz += r;
-        r = b*(ldf(rxxr, indr)*cv-leta[l]*((e*vxxyyzzr)-(d*vyyzzr))); stf(rxx, indr, r); sumrxx += r;
-        r = b*(ldf(ryyr, indr)*cv-leta[l]*((e*vxxyyzzr)-(d*vxxzzr))); stf(ryy, indr, r); sumryy += r;
-        r = b*(ldf(rzzr, indr)*cv-leta[l]*((e*vxxyyzzr)-(d*vxxyyr))); stf(rzz, indr, r); sumrzz += r;
+        r = b*(l_rxyr[l][c]*cv-leta[l]*(dipjp*vxyyxr)); l_rxy[l][c] = rnd(r); sumrxy += r;
+        r = b*(l_ryzr[l][c]*cv-leta[l]*(djpkp*vyzzyr)); l_ryz[l][c] = rnd(r); sumryz += r;
+        r = b*(l_rxzr[l][c]*cv-leta[l]*(dipkp*vxzzxr)); l_rxz[l][c] = rnd(r); sumrxz += r;
+        r = b*(l_rxxr[l][c]*cv-leta[l]*((e*vxxyyzzr)-(d*vyyzzr))); l_rxx[l][c] = rnd(r); sumrxx += r;
+        r = b*(l_ryyr[l][c]*cv-leta[l]*((e*vxxyyzzr)-(d*vxxzzr))); l_ryy[l][c] = rnd(r); sumryy += r;
+        r = b*(l_rzzr[l][c]*cv-leta[l]*((e*vxxyyzzr)-(d*vxxyyr))); l_rzz[l][c] = rnd(r); sumrzz += r;
     }
 
     /* and now the components of the stress tensor are
@@ -969,5 +987,13 @@ FUNDEF void update_adjs(int offcomm,
     stn(sxyr, indv0, l_sxyr);
     stn(syzr, indv0, l_syzr);
     stn(sxzr, indv0, l_sxzr);
+#endif
+#if LVE>0
+    for (int lp=0; lp<LVE; lp++) stn(rxx, lp*NX*NYS*NZS + indv0, l_rxx[lp]);
+    for (int lp=0; lp<LVE; lp++) stn(ryy, lp*NX*NYS*NZS + indv0, l_ryy[lp]);
+    for (int lp=0; lp<LVE; lp++) stn(rzz, lp*NX*NYS*NZS + indv0, l_rzz[lp]);
+    for (int lp=0; lp<LVE; lp++) stn(rxy, lp*NX*NYS*NZS + indv0, l_rxy[lp]);
+    for (int lp=0; lp<LVE; lp++) stn(ryz, lp*NX*NYS*NZS + indv0, l_ryz[lp]);
+    for (int lp=0; lp<LVE; lp++) stn(rxz, lp*NX*NYS*NZS + indv0, l_rxz[lp]);
 #endif
 }
