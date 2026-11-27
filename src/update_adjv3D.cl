@@ -77,7 +77,7 @@ FUNDEF void update_adjv(int offcomm,
                           int nsrc,                                 int nt,
                           GLOBARG const float * RESTRICT vxout,     GLOBARG const float * RESTRICT vyout,
                           GLOBARG const float * RESTRICT vzout,     GLOBARG const float * RESTRICT rec_pos,
-                          int nrec)
+                          int nrec, int par_scale)
 {
     LOCDEF
 

@@ -991,6 +991,52 @@ def test_fp16_gradient_scale_every_receiver_type():
           % (worst, len(cases)))
 
 
+def test_host_res_scale_visco_pressure_fp16_2():
+    """The host residual scaling gives the bits of the device one: viscoelastic, pressure receivers, FP16=2.
+
+    The adjoint pressure source is scaled by the unrelaxed trace modulus N M (1 + L taup) - 2 (N-1) mu
+    (1 + L taus) at the receiver (residuals.c, res_scale). At FP16>1 the host parameters are half, and until
+    2026-11-27 res_scale read taup and taus there as float (M and mu as half), so the source was scaled by
+    a wrong factor. The host path runs for OpenCL (which refuses FP16=2), SH and SEISCL_HOST_PREP=1; the
+    device path (dio_res_scale, CUDA) reads the moduli correctly. The CUDA build with SEISCL_HOST_PREP=1
+    against the same build without it, 2-D, L=1, heterogeneous taup and taus, DFT gradient. Threshold:
+    identical bits for the data and the gradients.
+    """
+    if "build-ocl" in os.environ.get("SEISCL_BIN", ""):
+        print("  skipped: the OpenCL build refuses FP16=2 and has no device residual path")
+        return
+    wd = workdir("host_res_scale_visco")
+    extra = dict(L=1, FL=np.array([15.0]), back_prop_type=2,
+                 gradfreqs=np.array([11.0, 19.0, 27.0]))
+    s0 = make_seiscl(wd, **extra)
+    nz, nx = int(s0.N[0]), int(s0.N[1])
+    zz, xx = np.meshgrid(np.arange(nz), np.arange(nx), indexing="ij")
+    params = homogeneous(s0)
+    params["taup"] = 0.05 + 0.02 * np.sin(2 * np.pi * xx / nx) * np.cos(np.pi * zz / nz)
+    params["taus"] = 0.04 + 0.02 * np.cos(2 * np.pi * xx / nx)
+    true_params = {k: v.copy() for k, v in params.items()}
+    true_params["vp"][nz // 2 - 5:nz // 2 + 5, nx // 2 - 5:nx // 2 + 5] += 300.0
+    din = make_observed(s0, params=true_params)
+    out = {}
+    for mode in ("device", "host"):
+        if mode == "host":
+            os.environ["SEISCL_HOST_PREP"] = "1"
+        try:
+            s = make_seiscl(wd, gradout=1, FP16=2, **extra)
+            s.file_din = din
+            s.set_forward(s.src_pos_all[3, :], params, withgrad=True)
+            s.execute()
+            out[mode] = [np.asarray(g) for g in s.read_grad()]
+        finally:
+            os.environ.pop("SEISCL_HOST_PREP", None)
+    worst = max(float(np.max(np.abs(a - b)) / max(np.max(np.abs(a)), 1e-30))
+                for a, b in zip(out["device"], out["host"]))
+    same = all(np.array_equal(a, b) for a, b in zip(out["device"], out["host"]))
+    print("  %s  host vs device res_scale, FP16=2 L=1 pressure receivers: max rel. diff %.3g "
+          "(threshold: identical bits)" % ("PASS" if same else "FAIL", worst))
+    assert same, "host res_scale differs from the device one (max rel. diff %.3g)" % worst
+
+
 TESTS = [
     test_dft_forward_spectrum_vs_numpy,
     test_dft_forward_spectrum_multifreq,
@@ -1006,6 +1052,7 @@ TESTS = [
     test_dft_gradient_every_fp16_level,
     test_fp16_gradient_scale_every_receiver_type,
     test_dense_dft_matches_backprop,
+    test_host_res_scale_visco_pressure_fp16_2,
 ]
 
 # Known-open failures, documented in the corresponding docstring.

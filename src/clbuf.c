@@ -20,11 +20,17 @@
 
 #include "F.h"
 
+/* Bytes moved between the host and the devices by the functions below, for
+   the tests (SeisCL.torch: _C.transfer_bytes). */
+long long seiscl_bytes_h2d = 0;
+long long seiscl_bytes_d2h = 0;
+
 CL_INT clbuf_send(QUEUE *inqueue, clbuf * buf)
 {
     /*Routine to allocate memory buffers to the device*/
     
     CL_INT state = 0;
+    seiscl_bytes_h2d += buf->size;
     #ifdef __SEISCL__
     cl_event * event=NULL;
     if (buf->outevent_s){
@@ -69,6 +75,7 @@ CL_INT clbuf_sendfrom(QUEUE *inqueue,
     /*Routine to allocate memory buffers to the device*/
     
     CL_INT state = 0;
+    seiscl_bytes_h2d += buf->size;
     /*Transfer memory from host to the device*/
     #ifdef __SEISCL__
     cl_event * event=NULL;
@@ -113,6 +120,7 @@ CL_INT clbuf_read(QUEUE *inqueue, clbuf * buf)
     /*Routine to read memory buffers from the device*/
     
     CL_INT state = 0;
+    seiscl_bytes_d2h += buf->size;
     
     /*Read memory from device to the host*/
     #ifdef __SEISCL__
@@ -161,6 +169,7 @@ CL_INT clbuf_readto(QUEUE *inqueue,
     /*Routine to read memory buffers from the device*/
     
     CL_INT state = 0;
+    seiscl_bytes_d2h += buf->size;
     
     /*Read memory from device to the host*/
     #ifdef __SEISCL__

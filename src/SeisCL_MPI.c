@@ -34,7 +34,9 @@ int main(int argc, char **argv) {
 
     int state = 0;
 
-    model m = {0};
+    /* static: the model holds the kernel programs with their sources
+       (clprogram.src, MAX_KERN_STR each), ~10 MB, past the 8 MB stack */
+    static model m;
     device *dev = NULL;
     int i;
     double time1 = 0.0, time2 = 0.0, time3 = 0.0, time4 = 0.0, time5 = 0.0, time6 = 0.0;

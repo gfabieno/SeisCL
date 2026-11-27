@@ -94,6 +94,8 @@ void variable_freeCL(device *dev, variable * var){
     clbuf_free(dev, &var->cl_buf1);
     clbuf_free(dev, &var->cl_buf2);
     clbuf_free(dev, &var->cl_var_res);
+    clbuf_free(dev, &var->cl_out_all);
+    clbuf_free(dev, &var->cl_res_all);
     
 }
 void variable_adj_freeCL(device *dev, variable * var){
@@ -130,6 +132,10 @@ void variable_freeGL(variable * var){
 void parameter_freeCL(device *dev, parameter * par){
     
     clbuf_free(dev, &par->cl_par);
+    clbuf_free(dev, &par->cl_raw);
+    clbuf_free(dev, &par->cl_gradrec);
+    clbuf_free(dev, &par->cl_pwork);
+    clbuf_free(dev, &par->cl_gwork);
     clbuf_free(dev, &par->cl_grad);
     clbuf_free(dev, &par->cl_H);
 }
@@ -157,6 +163,7 @@ void sources_records_freeCL(device *dev, sources_records * src_rec){
     clbuf_free(dev, &src_rec->cl_src);
     clbuf_free(dev, &src_rec->cl_src_pos);
     clbuf_free(dev, &src_rec->cl_rec_pos);
+    clbuf_free(dev, &src_rec->cl_recmod);
     clbuf_free(dev, &src_rec->cl_grad_src);
     
     clprogram_freeCL(&src_rec->sources);
@@ -196,6 +203,7 @@ void sources_records_freeGL(sources_records * src_rec){
     GFree(src_rec->rec_pos);
     GFree(src_rec->src_scales);
     GFree(src_rec->res_scales);
+    GFree(src_rec->recmod);
     
 }
 
@@ -327,6 +335,37 @@ void device_free(device * dev){
     sources_records_freeCL(dev, &dev->src_recs);
     gradients_freeCL(&dev->grads);
     boundary_conditions_freeCL(&dev->bnd_cnds);
+    clprogram_freeCL(&dev->par_avg.prep_reduce);
+    clprogram_freeCL(&dev->par_avg.prep_store);
+    clprogram_freeCL(&dev->par_avg.tausipkp);
+    clprogram_freeCL(&dev->par_avg.tausipjp);
+    clprogram_freeCL(&dev->par_avg.tausjpkp);
+    clbuf_free(dev, &dev->par_avg.prep_red);
+    clbuf_free(dev, &dev->par_avg.prep_cst);
+    clprogram_freeCL(&dev->dio.gather);
+    clprogram_freeCL(&dev->dio.res_scale);
+    clprogram_freeCL(&dev->dio.recgrad);
+    clprogram_freeCL(&dev->dio.recgrad_add);
+    clprogram_freeCL(&dev->dio.add_out);
+    clprogram_freeCL(&dev->dio.recmod);
+    clbuf_free(dev, &dev->dio.recpar);
+    clbuf_free(dev, &dev->dio.recpar_all);
+    clbuf_free(dev, &dev->dio.stage);
+    clbuf_free(dev, &dev->dio.red);
+    clbuf_free(dev, &dev->dio.cst);
+    clbuf_free(dev, &dev->dio.acc);
+    clprogram * gpp[12] = {&dev->gp.cvt, &dev->gp.addrec, &dev->gp.scale, &dev->gp.unbuoy,
+                           &dev->gp.trho, &dev->gp.tmu_w, &dev->gp.tmu_pass, &dev->gp.ttau_pass,
+                           &dev->gp.edge, &dev->gp.sn_pre, &dev->gp.sn_post, &dev->gp.chain};
+    for (int k=0;k<12;k++) clprogram_freeCL(gpp[k]);
+    clbuf_free(dev, &dev->gp.cst);
+    clbuf_free(dev, &dev->gp.w);
+    clbuf_free(dev, &dev->gp.valid);
+    clbuf_free(dev, &dev->gp.gm);
+    clbuf_free(dev, &dev->gp.gt);
+    clbuf_free(dev, &dev->gp.cm);
+    clbuf_free(dev, &dev->gp.ct);
+    clbuf_free(dev, &dev->gp.stage);
     
     if (dev->queue) QUEUEFREE(dev->queue);
     if (dev->queuecomm) QUEUEFREE(dev->queuecomm);

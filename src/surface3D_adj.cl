@@ -248,8 +248,11 @@ FUNDEF void surface_grad(GLOBARG STO *vx,     GLOBARG STO *vy,
                          GLOBARG float *src,     GLOBARG float *src_pos,
                          int nsrc,               int nt,
                          GLOBARG float *pout,    GLOBARG float *rec_pos,
+                         GLOBARG float *sxxout,  GLOBARG float *syyout,
+                         GLOBARG float *szzout,  GLOBARG float *sxzout,
+                         GLOBARG float *sxyout,  GLOBARG float *syzout,
                          int nrec,              int src_scale,
-                         int res_scale)
+                         int res_scale, int par_scale)
 {
     #ifdef __OPENCL_VERSION__
     int gidy = get_global_id(0) + FDOH;
@@ -291,6 +294,37 @@ FUNDEF void surface_grad(GLOBARG STO *vx,     GLOBARG STO *vy,
             }
         }
         #endif
+        __cprec1 axy = ldf(sxyr, iv), axz = ldf(sxzr, iv), ayz = ldf(syzr, iv);
+        #if SOUT>0
+        /* stress receivers: what kernel_residuals added this step (residuals.c) */
+        {
+            __cprec1 cr = (lM != 0) ? lam/lM : 0;
+            for (int g=0; g<nrec; g++){
+                int ri=(int)(rec_pos[0+8*g]/DH)+FDOH-OFFSET;
+                int rj=(int)(rec_pos[1+8*g]/DH)+FDOH;
+                int rk=(int)(rec_pos[2+8*g]/DH)+FDOH;
+                if (ri!=gidx || rj!=gidy || rk!=z) continue;
+                #if SOUT & 1
+                { float R = pow2s(sxxout[NT*g+nt], res_scale); axx -= R; ayy -= cr*R; azz -= cr*R; }
+                #endif
+                #if SOUT & 2
+                { float R = pow2s(syyout[NT*g+nt], res_scale); ayy -= R; axx -= cr*R; azz -= cr*R; }
+                #endif
+                #if SOUT & 4
+                { float R = pow2s(szzout[NT*g+nt], res_scale); azz -= R; axx -= cr*R; ayy -= cr*R; }
+                #endif
+                #if SOUT & 8
+                axz -= pow2s(sxzout[NT*g+nt], res_scale);
+                #endif
+                #if SOUT & 16
+                axy -= pow2s(sxyout[NT*g+nt], res_scale);
+                #endif
+                #if SOUT & 32
+                ayz -= pow2s(syzout[NT*g+nt], res_scale);
+                #endif
+            }
+        }
+        #endif
         __cprec1 nxx=0, nyy=0, nzz=0;
         if (lmu != 0){
             __cprec1 sa = axx+ayy+azz;
@@ -311,9 +345,9 @@ FUNDEF void surface_grad(GLOBARG STO *vx,     GLOBARG STO *vy,
         }
         gradM[ip] += GSCALE(gM);
         gradmu[ip] += GSCALE(gmu);
-        if (ldf(muipjp, ip) != 0) gradmuipjp[ip] += GSCALE(-ldf(sxyr, iv)/ldf(muipjp, ip)*(vxy+vyx));
-        if (ldf(muipkp, ip) != 0) gradmuipkp[ip] += GSCALE(-ldf(sxzr, iv)/ldf(muipkp, ip)*(vxz+vzx));
-        if (ldf(mujpkp, ip) != 0) gradmujpkp[ip] += GSCALE(-ldf(syzr, iv)/ldf(mujpkp, ip)*(vyz+vzy));
+        if (ldf(muipjp, ip) != 0) gradmuipjp[ip] += GSCALE(-axy/ldf(muipjp, ip)*(vxy+vyx));
+        if (ldf(muipkp, ip) != 0) gradmuipkp[ip] += GSCALE(-axz/ldf(muipkp, ip)*(vxz+vzx));
+        if (ldf(mujpkp, ip) != 0) gradmujpkp[ip] += GSCALE(-ayz/ldf(mujpkp, ip)*(vyz+vzy));
 
         if (k<FDOH){
             int mb = inject_ind(z, gidy, gidx);

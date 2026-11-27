@@ -449,6 +449,83 @@ int var_res_raw(model * m, int s)
     
     return state;
 }
+/* ---- Stress receivers ------------------------------------------------------
+   The adjoint source of a stress receiver is the unrelaxed stiffness applied
+   to the misfit derivative (thesis eq. 3.33, the rule res_scale already uses
+   for the pressure, whose residual is shared by the normal stresses): a
+   residual r of sxx enters the adjoint sxx with g = M (1 + L taup), the other
+   normal stresses with g - f, f = 2 mu (1 + L taus), and a residual of sxz
+   enters sxz with muipkp (1 + L tausipkp) (sxy, syz: muipjp, mujpkp). The
+   moduli are those of update_s. res_scale scales the trace by its diagonal
+   modulus (g, or the shear modulus), as the pressure trace by its trace
+   modulus, and kernel_residuals adds the coupling (g - f)/g to the other
+   normal stresses, and the memory-variable source (viscoelastic). Both read
+   the parameters at the receiver cell from recmod (REC_NMOD values per
+   receiver, F.h), filled per shot by rec_mod_fill (host parameters) or
+   dio_res_scale (device). */
+int rec_mod_needed(model * m){
+    int i;
+    if (!(m->GRADOUT || m->INPUTRES) || m->ND==21) return 0;
+    for (i=0;i<m->nvars;i++){
+        if (m->vars[i].to_output && stress_kind(m->vars[i].name)>=0) return 1;
+    }
+    return 0;
+}
+
+/* sxx 0, syy 1, szz 2 (normal), sxz 3, sxy 4, syz 5 (shear), -1 otherwise */
+int stress_kind(const char * name){
+    const char * sn[6] = {"sxx", "syy", "szz", "sxz", "sxy", "syz"};
+    int q;
+    for (q=0;q<6;q++) if (strcmp(name, sn[q])==0) return q;
+    return -1;
+}
+
+/* the stored parameter name at cell pos, as float (0 if absent) */
+static float rec_par(model * m, const char * name, int pos){
+    parameter * p = get_par(m->pars, m->npars, name);
+    if (!p || !p->gl_par) return 0.0f;
+    if (m->FP16>1) return half_to_float(((half*)p->gl_par)[pos]);
+    return p->gl_par[pos];
+}
+
+/* the cell of receiver g of shot s (as res_scale) */
+static int rec_cell(model * m, int s, int g){
+    int x = m->src_recs.rec_pos[s][0+8*g]/m->dh;
+    int y = m->src_recs.rec_pos[s][1+8*g]/m->dh;
+    int z = m->src_recs.rec_pos[s][2+8*g]/m->dh;
+    if (m->NDIM==2) return x*m->N[0]+z;
+    return x*m->N[0]*m->N[1]+y*m->N[0]+z;
+}
+
+/* recmod of shot s from the host parameters */
+int rec_mod_fill(model * m, int s){
+    int state = 0, g, k;
+    const char * names[REC_NMOD] = {"M", "mu", "taup", "taus", "muipkp", "tausipkp",
+                                    "muipjp", "tausipjp", "mujpkp", "tausjpkp"};
+    if (!m->src_recs.recmod){
+        GMALLOC(m->src_recs.recmod, sizeof(float)*REC_NMOD*m->src_recs.ngmax);
+        if (state) return state;
+    }
+    for (g=0;g<m->src_recs.nrec[s];g++){
+        int pos = rec_cell(m, s, g);
+        for (k=0;k<REC_NMOD;k++){
+            m->src_recs.recmod[g*REC_NMOD+k] = rec_par(m, names[k], pos);
+        }
+    }
+    return state;
+}
+
+/* the diagonal modulus of stress kind q at a receiver, from its recmod values
+   r (unrelaxed, as update_s): g for a normal stress, the shear modulus of the
+   node for a shear stress */
+float rec_mod_diag(const float * r, int q, int L){
+    float Lf = (float)L;
+    if (q<=2) return r[0]*(1.0f+Lf*r[2]);
+    if (q==3) return r[4]*(1.0f+Lf*r[5]);
+    if (q==4) return r[6]*(1.0f+Lf*r[7]);
+    return r[8]*(1.0f+Lf*r[9]);
+}
+
 int res_scale(model * m, int s)
 {
     // Scale by the material parameters
@@ -625,10 +702,10 @@ int res_scale(model * m, int s)
                      * and only the viscoelastic gradient drifted with tau. */
                     float ltp = 1.0f, lts = 1.0f;
                     if (m->L > 0){
-                        float * taup_a = get_par(m->pars,m->npars,"taup")->gl_par;
-                        float * taus_a = get_par(m->pars,m->npars,"taus")->gl_par;
-                        if (taup_a) ltp = 1.0f + (float)m->L*taup_a[pos];
-                        if (taus_a) lts = 1.0f + (float)m->L*taus_a[pos];
+                        /* rec_par reads half at FP16>1, as par and par2 below
+                         * (until 2026-11-27 taup/taus were read as float there) */
+                        ltp = 1.0f + (float)m->L*rec_par(m, "taup", pos);
+                        lts = 1.0f + (float)m->L*rec_par(m, "taus", pos);
                     }
                     if (m->FP16>1){
                         trmod = NDf*half_to_float( ((half*)par)[pos] )*ltp
@@ -662,6 +739,25 @@ int res_scale(model * m, int s)
                         }
                     }
                     
+                }
+            }
+        }
+    }
+    /* Stress receivers: the trace times its diagonal modulus, with the
+       dt/dh and FP16 factors of the pressure above */
+    if (rec_mod_needed(m)){
+        if (rec_mod_fill(m, s)) return 1;
+        for (i=0;i<m->nvars;i++){
+            int q = stress_kind(m->vars[i].name);
+            if (!m->vars[i].to_output || q<0) continue;
+            for (g=0;g<nrec;g++){
+                float md = rec_mod_diag(&m->src_recs.recmod[g*REC_NMOD], q, m->L);
+                parscal = -md*m->dt/m->dh*powf(2,-2.0f*scaler);
+                for (t=0;t<tmax;t++){
+                    m->vars[i].gl_var_res[s][g*NT+t]*=parscal*m->dt;
+                    if (m->FP16>0 && resmax<fabsf(m->vars[i].gl_var_res[s][g*NT+t])){
+                        resmax=fabsf(m->vars[i].gl_var_res[s][g*NT+t]);
+                    }
                 }
             }
         }
@@ -754,4 +850,397 @@ int add_rec_grad_dft(model * m)
         }
     }
     return 0;
+}
+
+
+/* ---- Residual scaling on the device (dev_io.cl) ----------------------------
+   m->dev_res (CUDA, parameters prepared on the device): res_scale() and
+   rec_grad_dft() run as kernels on the first device, reading the parameters
+   at the receivers on the devices that hold them. m->dev_data (SeisCL.torch):
+   the seismograms and residuals never reach the host either (cl_out_all,
+   cl_res_all of the first device). Otherwise (SeisCL_MPI) the host keeps its
+   seismograms (written to the output file, used by res_calc) and the residual
+   of each shot is uploaded for its scaling. Same results as the host
+   functions (bit-identical). */
+#ifndef __SEISCL__
+static int dio_buf(device * di, clbuf * b, size_t size, int host){
+    int state = 0;
+    b->size = size;
+    if (host){
+        GMALLOC(b->host, size);
+        b->free_host = 1;
+    }
+    __GUARD clbuf_create(di->context_ptr, b);
+    if (!state) state = cuMemsetD8(b->mem, 0, size);
+    return state;
+}
+static int dio_mkprog(model * m, device * di, clprogram * p, clprogram * mp, size_t gsize, size_t lsize){
+    int state = 0;
+    *p = *mp;
+    __GUARD prog_create(m, di, p);
+    p->wdim = 1;
+    p->lsize[0] = lsize;
+    p->gsize[0] = ((gsize + lsize - 1)/lsize)*lsize;
+    return state;
+}
+/* bind argument name of prog to the device pointer held at mem */
+static int dio_arg(clprogram * p, const char * name, void * mem){
+    int i;
+    for (i=0;i<p->ninputs;i++){
+        if (strcmp(p->input_list[i], name)==0){
+            prog_arg(p, i, mem, sizeof(MEM));
+            return 0;
+        }
+    }
+    fprintf(stderr, "Error: no argument %s in kernel %s\n", name, p->name);
+    return 1;
+}
+static void dio_seti(float * c, int k, int v){ memcpy(&c[k], &v, 4); }
+static int dio_row(model * m, int s){
+    int r = 0, i;
+    for (i=0;i<s;i++) r += m->src_recs.nrec[i];
+    return r;
+}
+static float dio_float(unsigned int u){ float v; memcpy(&v, &u, 4); return v; }
+/* the receiver-cell gradient parameter of output variable name (rec_grad_dft) */
+static const char * dio_pname(model * m, const char * name){
+    if (strcmp(name,"vx")==0) return "rip";
+    if (strcmp(name,"vy")==0) return (m->ND==21) ? "rho" : "rjp";
+    if (strcmp(name,"vz")==0) return "rkp";
+    return NULL;
+}
+#endif
+
+int dio_create(model * m, device * di){
+    int state = 0;
+    #ifndef __SEISCL__
+    int i;
+    int ng = m->src_recs.ngmax;
+    size_t nout = (size_t)m->src_recs.allng*m->NT;
+    __GUARD dio_buf(di, &di->dio.recpar, sizeof(float)*ng*DIO_NP, 0);
+    __GUARD dio_buf(di, &di->dio.cst, sizeof(float)*PREP_NCST, 1);
+    __GUARD dio_mkprog(m, di, &di->dio.gather, &m->dio.gather, ng, 64);
+    if (di->DEVID!=0) return state;
+    __GUARD dio_buf(di, &di->dio.recpar_all, sizeof(float)*ng*DIO_NP*m->NUM_DEVICES, 0);
+    __GUARD dio_buf(di, &di->dio.stage, sizeof(float)*ng*m->NT, 0);
+    __GUARD dio_buf(di, &di->dio.red, sizeof(unsigned int)*8, 1);
+    __GUARD dio_buf(di, &di->dio.acc, sizeof(double)*ng, 0);
+    __GUARD dio_mkprog(m, di, &di->dio.res_scale, &m->dio.res_scale, ng, 64);
+    __GUARD dio_mkprog(m, di, &di->dio.recgrad, &m->dio.recgrad, ng, 64);
+    __GUARD dio_mkprog(m, di, &di->dio.recgrad_add, &m->dio.recgrad_add, 1, 1);
+    __GUARD dio_mkprog(m, di, &di->dio.add_out, &m->dio.add_out, ng, 64);
+    if (rec_mod_needed(m))
+        __GUARD dio_mkprog(m, di, &di->dio.recmod, &m->dio.recmod, ng, 64);
+    __GUARD gpost_create(m, di);
+    for (i=0;i<m->nvars;i++){
+        if (!di->vars[i].to_output) continue;
+        __GUARD dio_buf(di, &di->vars[i].cl_out_all, sizeof(float)*nout, 0);
+        __GUARD dio_buf(di, &di->vars[i].cl_res_all, sizeof(float)*nout, 0);
+    }
+    for (i=0;i<m->ntvars;i++){
+        if (!di->trans_vars[i].to_output) continue;
+        __GUARD dio_buf(di, &di->trans_vars[i].cl_out_all, sizeof(float)*nout, 0);
+        __GUARD dio_buf(di, &di->trans_vars[i].cl_res_all, sizeof(float)*nout, 0);
+    }
+    if (m->GRADOUT && m->BACK_PROP_TYPE==2){
+        for (i=0;i<m->nvars;i++){
+            const char * pn = di->vars[i].to_output ? dio_pname(m, di->vars[i].name) : NULL;
+            if (!pn) continue;
+            parameter * p = get_par(di->pars, di->npars, pn);
+            if (!p || !p->to_grad || p->cl_gradrec.mem) continue;
+            __GUARD dio_buf(di, &p->cl_gradrec,
+                            sizeof(float)*get_par(m->pars, m->npars, pn)->num_ele, 0);
+        }
+    }
+    #endif
+    return state;
+}
+
+/* Zero the seismograms of every shot before a call (reduce_seis adds) */
+int dio_reset(model * m, device ** dev){
+    int state = 0;
+    #ifndef __SEISCL__
+    int i;
+    if (!m->dev_res) return 0;
+    __GUARD cuCtxSetCurrent((*dev)[0].context);
+    for (i=0;i<m->nvars;i++){
+        if ((*dev)[0].vars[i].cl_out_all.mem)
+            __GUARD cuMemsetD8((*dev)[0].vars[i].cl_out_all.mem, 0, (*dev)[0].vars[i].cl_out_all.size);
+    }
+    for (i=0;i<m->ntvars;i++){
+        if ((*dev)[0].trans_vars[i].cl_out_all.mem)
+            __GUARD cuMemsetD8((*dev)[0].trans_vars[i].cl_out_all.mem, 0, (*dev)[0].trans_vars[i].cl_out_all.size);
+    }
+    #endif
+    return state;
+}
+
+#ifndef __SEISCL__
+/* reduce_seis for one variable list (vars or trans_vars) */
+static int dio_reduce_list(model * m, device ** dev, int s, int trans){
+    int state = 0;
+    int d, k;
+    device * d0 = &(*dev)[0];
+    int nrec = m->src_recs.nrec[s];
+    int nv = trans ? m->ntvars : m->nvars;
+    float * c = d0->dio.cst.host;
+    for (d=0;d<m->NUM_DEVICES;d++){
+        device * dd = &(*dev)[d];
+        for (k=0;k<nv;k++){
+            variable * v = trans ? &dd->trans_vars[k] : &dd->vars[k];
+            variable * v0 = trans ? &d0->trans_vars[k] : &d0->vars[k];
+            if (!v->to_output) continue;
+            void * src = &v->cl_varout.mem;
+            if (d>0){
+                __GUARD cuCtxSetCurrent(dd->context);
+                __GUARD cuMemcpyAsync(d0->dio.stage.mem, v->cl_varout.mem,
+                                      sizeof(float)*nrec*m->NT, dd->queue);
+                __GUARD cuStreamSynchronize(dd->queue);
+                src = &d0->dio.stage.mem;
+            }
+            memset(c, 0, sizeof(float)*PREP_NCST);
+            c[0] = m->dh;
+            dio_seti(c, 2, nrec);
+            dio_seti(c, 3, m->NT);
+            dio_seti(c, 10, dio_row(m, s));
+            dio_seti(c, 11, dd->OFFSET);
+            dio_seti(c, 12, dd->N[dd->NDIM-1]);
+            __GUARD clbuf_send(&d0->queue, &d0->dio.cst);
+            __GUARD dio_arg(&d0->dio.add_out, "out", &v0->cl_out_all.mem);
+            __GUARD dio_arg(&d0->dio.add_out, "varout", src);
+            __GUARD prog_launch(&d0->queue, &d0->dio.add_out);
+            if (d>0) __GUARD cuStreamSynchronize(d0->queue);   /* stage is reused */
+        }
+    }
+    return state;
+}
+#endif
+
+int dio_reduce_seis(model * m, device ** dev, int s){
+    int state = 0;
+    #ifndef __SEISCL__
+    __GUARD dio_reduce_list(m, dev, s, 0);
+    __GUARD dio_reduce_list(m, dev, s, 1);
+    #endif
+    return state;
+}
+
+/* res_scale() on the device: residuals of shot s scaled in cl_res_all */
+int dio_res_scale(model * m, device ** dev, int s){
+    int state = 0;
+    #ifndef __SEISCL__
+    int d, i;
+    device * d0 = &(*dev)[0];
+    int nrec = m->src_recs.nrec[s];
+    int row = dio_row(m, s);
+    int ng = m->src_recs.ngmax;
+    size_t bytes = sizeof(float)*nrec*m->NT;
+    int scaler = (m->FP16>0) ? m->par_scale : 0;
+
+    /* SeisCL_MPI: the residuals of res_calc (host) to the device */
+    if (!m->dev_data){
+        __GUARD cuCtxSetCurrent(d0->context);
+        for (i=0;i<m->nvars;i++){
+            if (!d0->vars[i].to_output) continue;
+            __GUARD cuMemcpyHtoD(d0->vars[i].cl_res_all.mem + sizeof(float)*row*m->NT,
+                                 m->vars[i].gl_var_res[s], bytes);
+        }
+        for (i=0;i<m->ntvars;i++){
+            if (!d0->trans_vars[i].to_output) continue;
+            __GUARD cuMemcpyHtoD(d0->trans_vars[i].cl_res_all.mem + sizeof(float)*row*m->NT,
+                                 m->trans_vars[i].gl_var_res[s], bytes);
+        }
+    }
+    /* the parameters at the receivers, from the device that holds each one */
+    for (d=0;d<m->NUM_DEVICES;d++){
+        device * dd = &(*dev)[d];
+        float * c = dd->dio.cst.host;
+        memset(c, 0, sizeof(float)*PREP_NCST);
+        c[0] = m->dh;
+        dio_seti(c, 2, nrec);
+        dio_seti(c, 8, ng);
+        dio_seti(c, 11, dd->OFFSET);
+        dio_seti(c, 12, dd->N[dd->NDIM-1]);
+        dio_seti(c, 13, m->N[0]);
+        dio_seti(c, 14, m->NDIM==3 ? m->N[1] : 1);
+        dio_seti(c, 15, 0);
+        __GUARD clbuf_send(&dd->queue, &dd->dio.cst);
+        __GUARD prog_launch(&dd->queue, &dd->dio.gather);
+        __GUARD cuCtxSetCurrent(dd->context);
+        __GUARD cuMemcpyAsync(d0->dio.recpar_all.mem + sizeof(float)*d*ng*DIO_NP,
+                              dd->dio.recpar.mem, sizeof(float)*ng*DIO_NP, dd->queue);
+        __GUARD cuStreamSynchronize(dd->queue);
+    }
+    /* stress receivers: the parameters at the receivers, on every device */
+    if (rec_mod_needed(m)){
+        float * c = d0->dio.cst.host;
+        memset(c, 0, sizeof(float)*PREP_NCST);
+        c[0] = m->dh;
+        dio_seti(c, 2, nrec);
+        dio_seti(c, 7, m->NUM_DEVICES);
+        dio_seti(c, 8, ng);
+        __GUARD cuCtxSetCurrent(d0->context);
+        __GUARD clbuf_send(&d0->queue, &d0->dio.cst);
+        __GUARD prog_launch(&d0->queue, &d0->dio.recmod);
+        __GUARD cuStreamSynchronize(d0->queue);
+        for (d=1;d<m->NUM_DEVICES;d++){
+            device * dd = &(*dev)[d];
+            __GUARD cuCtxSetCurrent(dd->context);
+            __GUARD cuMemcpyAsync(dd->src_recs.cl_recmod.mem, d0->src_recs.cl_recmod.mem,
+                                  sizeof(float)*REC_NMOD*nrec, dd->queue);
+        }
+        __GUARD cuCtxSetCurrent(d0->context);
+    }
+    unsigned int * r = (unsigned int *)d0->dio.red.host;
+    memset(r, 0, d0->dio.red.size);
+    __GUARD clbuf_send(&d0->queue, &d0->dio.red);
+    float * c = d0->dio.cst.host;
+    for (i=0;i<m->nvars+m->ntvars;i++){
+        variable * v0 = (i<m->nvars) ? &d0->vars[i] : &d0->trans_vars[i-m->nvars];
+        if (!v0->to_output) continue;
+        int kind = -1;
+        if (i<m->nvars){
+            if (strcmp(v0->name,"vx")==0) kind = 0;
+            else if (strcmp(v0->name,"vy")==0) kind = 1;
+            else if (strcmp(v0->name,"vz")==0) kind = 2;
+        }
+        else if (strcmp(v0->name,"p")==0) kind = 3;
+        if (i<m->nvars && kind<0 && rec_mod_needed(m) && stress_kind(v0->name)>=0)
+            kind = 4 + stress_kind(v0->name);
+        if (kind<0) continue;          /* res_scale leaves the other residuals as they are */
+        memset(c, 0, sizeof(float)*PREP_NCST);
+        c[0] = m->dh;
+        c[1] = m->dt;
+        dio_seti(c, 2, nrec);
+        dio_seti(c, 3, m->NT);
+        dio_seti(c, 4, m->tmax);
+        dio_seti(c, 5, scaler);
+        dio_seti(c, 6, kind);
+        dio_seti(c, 7, m->NUM_DEVICES);
+        dio_seti(c, 8, ng);
+        dio_seti(c, 9, m->L);
+        dio_seti(c, 10, row);
+        __GUARD clbuf_send(&d0->queue, &d0->dio.cst);
+        __GUARD dio_arg(&d0->dio.res_scale, "res", &v0->cl_res_all.mem);
+        __GUARD prog_launch(&d0->queue, &d0->dio.res_scale);
+    }
+    __GUARD clbuf_read(&d0->queue, &d0->dio.red);
+    __GUARD WAITQUEUE(d0->queue);
+    if (m->FP16>0){
+        float resmax = dio_float(r[0]);
+        m->src_recs.res_scales[s]=-log2(resmax/10.0);
+        #ifndef __NOMPI__
+        MPI_Allreduce(&m->src_recs.res_scales[s],
+                      &m->src_recs.res_scales[s],
+                      1,
+                      MPI_INT,
+                      MPI_MIN,
+                      m->mpigroupcomm);
+        #endif
+    }
+    /* SeisCL_MPI: the host keeps the scaled residuals, as res_scale() left them */
+    if (!m->dev_data){
+        __GUARD cuCtxSetCurrent(d0->context);
+        for (i=0;i<m->nvars;i++){
+            if (!d0->vars[i].to_output) continue;
+            __GUARD cuMemcpyDtoH(m->vars[i].gl_var_res[s],
+                                 d0->vars[i].cl_res_all.mem + sizeof(float)*row*m->NT, bytes);
+        }
+        for (i=0;i<m->ntvars;i++){
+            if (!d0->trans_vars[i].to_output) continue;
+            __GUARD cuMemcpyDtoH(m->trans_vars[i].gl_var_res[s],
+                                 d0->trans_vars[i].cl_res_all.mem + sizeof(float)*row*m->NT, bytes);
+        }
+    }
+    #endif
+    return state;
+}
+
+/* rec_grad_dft() on the device, into cl_gradrec of the first device */
+int dio_rec_grad_dft(model * m, device ** dev, int s){
+    int state = 0;
+    #ifndef __SEISCL__
+    int i;
+    device * d0 = &(*dev)[0];
+    if (!(m->GRADOUT==1 && m->BACK_PROP_TYPE==2)) return state;
+    float * c = d0->dio.cst.host;
+    for (i=0;i<m->nvars;i++){
+        variable * v0 = &d0->vars[i];
+        const char * pn = v0->to_output ? dio_pname(m, v0->name) : NULL;
+        if (!pn) continue;
+        parameter * p = get_par(d0->pars, d0->npars, pn);
+        if (!p || !p->to_grad || !p->cl_gradrec.mem) continue;
+        memset(c, 0, sizeof(float)*PREP_NCST);
+        c[0] = m->dh;
+        dio_seti(c, 2, m->src_recs.nrec[s]);
+        dio_seti(c, 3, m->NT);
+        dio_seti(c, 4, m->tmax);
+        dio_seti(c, 10, dio_row(m, s));
+        dio_seti(c, 13, m->N[0]);
+        dio_seti(c, 14, m->NDIM==3 ? m->N[1] : 1);
+        dio_seti(c, 16, m->tmin);
+        c[17] = powf(2.0f, (float)m->par_scale)*m->dt/2.0f;
+        __GUARD clbuf_send(&d0->queue, &d0->dio.cst);
+        __GUARD dio_arg(&d0->dio.recgrad, "out", &v0->cl_out_all.mem);
+        __GUARD dio_arg(&d0->dio.recgrad, "res", &v0->cl_res_all.mem);
+        __GUARD prog_launch(&d0->queue, &d0->dio.recgrad);
+        __GUARD dio_arg(&d0->dio.recgrad_add, "gradrec", &p->cl_gradrec.mem);
+        __GUARD prog_launch(&d0->queue, &d0->dio.recgrad_add);
+    }
+    __GUARD WAITQUEUE(d0->queue);
+    #endif
+    return state;
+}
+
+/* initialize_adj: the scaled residuals of shot s become the adjoint sources */
+int dio_res_to_adj(model * m, device ** dev, int s){
+    int state = 0;
+    #ifndef __SEISCL__
+    int d, i;
+    device * d0 = &(*dev)[0];
+    size_t row = dio_row(m, s);
+    size_t bytes = sizeof(float)*m->src_recs.nrec[s]*m->NT;
+    __GUARD WAITQUEUE(d0->queue);
+    for (d=0;d<m->NUM_DEVICES;d++){
+        device * dd = &(*dev)[d];
+        __GUARD cuCtxSetCurrent(dd->context);
+        for (i=0;i<m->nvars;i++){
+            if (!dd->vars[i].to_output) continue;
+            __GUARD cuMemcpyAsync(dd->vars[i].cl_varout.mem,
+                                  d0->vars[i].cl_res_all.mem + sizeof(float)*row*m->NT,
+                                  bytes, dd->queue);
+        }
+        for (i=0;i<m->ntvars;i++){
+            if (!dd->trans_vars[i].to_output) continue;
+            __GUARD cuMemcpyAsync(dd->trans_vars[i].cl_varout.mem,
+                                  d0->trans_vars[i].cl_res_all.mem + sizeof(float)*row*m->NT,
+                                  bytes, dd->queue);
+        }
+    }
+    #endif
+    return state;
+}
+
+/* Until the gradient post-processing runs on the device (plan
+   gpu-param-pipeline, step 3): the receiver-cell terms to the host, where
+   add_rec_grad_dft adds them. */
+int dio_gradrec_readback(model * m, device ** dev){
+    int state = 0;
+    #ifndef __SEISCL__
+    int i;
+    device * d0 = &(*dev)[0];
+    __GUARD cuCtxSetCurrent(d0->context);
+    for (i=0;i<d0->npars;i++){
+        parameter * p = &d0->pars[i];
+        if (!p->cl_gradrec.mem) continue;
+        parameter * pm = &m->pars[i];
+        if (!pm->gl_gradrec){
+            GMALLOC(pm->gl_gradrec, sizeof(float)*pm->num_ele);
+            if (state) return state;
+        }
+        __GUARD cuMemcpyDtoH(pm->gl_gradrec, p->cl_gradrec.mem, p->cl_gradrec.size);
+        __GUARD cuMemsetD8(p->cl_gradrec.mem, 0, p->cl_gradrec.size);
+    }
+    #endif
+    return state;
 }

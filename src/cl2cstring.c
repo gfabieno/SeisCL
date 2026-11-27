@@ -62,7 +62,7 @@ int main(int argc, char **argv) {
         fprintf(fh, "_source[] = \"");
         for (ii=0;ii<statbuf.st_size;ii++){
             ch = program_source[ii];
-            if (ch >=0 && ch <=125){
+            if (ch >=0 && ch <=126){   /* 126: the ~ operator (it was dropped) */
                 switch (ch) {
                     case '\"':
                         fputs("\\\"", fh);

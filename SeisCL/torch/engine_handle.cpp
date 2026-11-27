@@ -1,6 +1,7 @@
 #include <string>
 #include <sys/stat.h>
 #include "engine_handle.h"
+#include <torch/cuda.h>
 
 #include <cstdlib>
 #include <cstring>
@@ -215,9 +216,37 @@ void apply_config(model &m, const Config &cfg, int gradout, int inputres) {
     m.MPI_INIT = 0;
 }
 
-void set_params(model &m, const py::dict &params) {
+void clear_raw_src(model &m) {
+    for (int i = 0; i < m.npars; i++) m.pars[i].raw_src = nullptr;
+}
+
+void set_params(model &m, const py::dict &params,
+                std::vector<torch::Tensor> *keep) {
     for (auto item : params) {
         std::string name = py::cast<std::string>(item.first);
+        if (m.gpu_prep && keep) {
+            // Device preparation: nothing goes through the host. The values
+            // stay where the caller has them (a CUDA tensor, or a CPU one);
+            // param_prep_upload copies them into the engine's raw buffers.
+            torch::Tensor t = py::cast<torch::Tensor>(item.second)
+                                  .to(torch::kFloat32)
+                                  .contiguous();
+            parameter *par = find_par(m, name);
+            if (!par) {
+                throw std::invalid_argument("Unknown parameter: " + name);
+            }
+            if (t.numel() != par->num_ele) {
+                throw std::invalid_argument(
+                    "Parameter " + name + " has " + std::to_string(t.numel()) +
+                    " elements, expected " + std::to_string(par->num_ele));
+            }
+            // The copy runs on the CUDA legacy stream: wait for the work
+            // that produced the tensor on its own stream.
+            if (t.is_cuda()) torch::cuda::synchronize(t.device().index());
+            keep->push_back(t);
+            par->raw_src = t.data_ptr<float>();
+            continue;
+        }
         // CUDA parameter tensors are accepted and copied down here. This is
         // a convenience, not a fast path: Init_model_values() runs
         // set_par_scale/transform/check_stability on the host gl_par array
@@ -322,7 +351,10 @@ int engine_build(EngineHandle &h, const Config &cfg, int gradout, int inputres,
 
     // May throw; the caller evicts the handle, whose destructor frees
     // whatever assign_modeling_case already allocated.
-    set_params(h.m, params);
+    std::vector<torch::Tensor> raw_keep;
+    set_params(h.m, params, &raw_keep);
+    h.m.keep_raw = 1;   // a reused engine prepares the parameters at every call
+    h.m.dev_data = 1;   // with dev_res: seismograms and residuals stay on the device
     set_srcrec(h.m, src, src_pos, rec_pos, output_fields);
 
     // FL is normally read from the csts file (read_hdf5.c, dataset "/FL");
@@ -363,12 +395,33 @@ int engine_build(EngineHandle &h, const Config &cfg, int gradout, int inputres,
 
     if (!state) state = Init_model(&h.m);
     if (!state) state = Init_CUDA(&h.m, &h.dev);
+    clear_raw_src(h.m);   // raw_keep's tensors go out of scope with this call
 
     if (!state) h.built = true;
     return state;
 }
 
 int engine_refresh_params(EngineHandle &h, const py::dict &params) {
+
+    // Device preparation (m.gpu_prep): the tensors go straight into the raw
+    // device buffers and the kernels of prep_params.cl do the rest; nothing
+    // passes through the host.
+    if (h.m.gpu_prep) {
+        std::vector<torch::Tensor> keep;
+        set_params(h.m, params, &keep);
+        int state = 0;
+        for (int d = 0; d < static_cast<int>(h.m.NUM_DEVICES) && !state; d++) {
+#ifndef __SEISCL__
+            if (cuCtxSetCurrent(h.dev[d].context)) { state = 1; break; }
+#endif
+            state = param_prep_upload(&h.m, &h.dev[d]);
+            if (!state) state = param_prep_run(&h.m, &h.dev[d]);
+            if (!state) state = param_average_run(&h.m, &h.dev[d]);
+            if (!state && host_needs_par(&h.m)) state = param_prep_readback(&h.m, &h.dev[d]);
+        }
+        clear_raw_src(h.m);
+        return state;
+    }
 
     // Same host memcpy as the build path, straight into the existing
     // gl_par arrays.
@@ -472,6 +525,8 @@ void engine_reset_outputs(EngineHandle &h) {
             std::memset(h.m.trans_vars[i].gl_varout[0], 0, nbytes);
         }
     }
+    // dev_res: the device seismograms are accumulated too (reduce_seis)
+    if (h.dev) dio_reset(&h.m, &h.dev);
     // Also accumulated across a run (residuals.c:293-302).
     h.m.rms = 0.0f;
     h.m.rmsnorm = 0.0f;

@@ -22,3 +22,11 @@
     #define LOCID
     #define BARRIER __syncthreads();
 #endif
+
+/* The FP16 scale of the model is the kernel argument par_scale (set at each
+   shot by time_stepping.c), not a build option: one compiled program serves
+   every model. (OpenCL build options are upper-cased, so it cannot be passed
+   as -D PARSCALE=par_scale.) */
+#ifndef PARSCALE
+#define PARSCALE par_scale
+#endif

@@ -61,7 +61,7 @@ FUNDEF void surface_adj(GLOBARG STO *vyr,     GLOBARG STO *syzr,
                         GLOBARG STO *syz,     GLOBARG STO *mujpkp,
                         GLOBARG float *gradmujpkp,
                         int src_scale,        int res_scale,
-                        int pdir)
+                        int pdir, int par_scale)
 {
     #ifdef __OPENCL_VERSION__
     int gidx = get_global_id(0) + FDOH;

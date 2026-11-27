@@ -774,7 +774,7 @@ def _report_rho_conditioning(fd, params_init, dm):
 
 def _run_2d_elastic(seisout, back_prop_type, calibrated, tol=0.02,
                     spread_tol=0.1):
-    tag = "p" if seisout == 2 else "vel"
+    tag = {1: "vel", 2: "p", 3: "stress"}[seisout]
     wd = workdir("fd_2d_elastic_bpt%d_%s" % (back_prop_type, tag))
     make = lambda **kw: _crosswell_2d(wd, seisout=seisout, **kw)
     s0 = make()
@@ -970,7 +970,7 @@ def test_fd_2d_viscoelastic_bpt1_is_rejected():
 
 def _run_3d_elastic(seisout, back_prop_type, calibrated, tol=0.05,
                     spread_tol=0.15):
-    tag = "p" if seisout == 2 else "vel"
+    tag = {1: "vel", 2: "p", 3: "stress"}[seisout]
     wd = workdir("fd_3d_elastic_bpt%d_%s" % (back_prop_type, tag))
     make = lambda **kw: _crosswell_3d(wd, seisout=seisout, **kw)
     s0 = make()
@@ -1698,11 +1698,12 @@ def _visco_physical_directions(srctype, seisout, tau=0.1, F0=25.0, FLf=(1.0, 4.0
                      "combination; see notes viscoelastic-gradient-theory.md (2026-11-17)." % ", ".join(bad))
 
 
-def _receiver_cell(ND, srctype, bpt):
-    """Elastic, velocity receivers: FD / <g, dm> for a Gaussian bump of rho (and of vs) centred on a receiver
-    cell, 0.25 % step (a 1 % step has several % of third-order terms next to a receiver)."""
-    wd = workdir("reccell_%dd_s%d_b%d" % (ND, int(srctype), bpt))
-    mk = lambda **k: _srccell_model(wd, ND=ND, srctype=srctype, seisout=1, **k)
+def _receiver_cell(ND, srctype, bpt, seisout=1):
+    """Elastic, velocity (seisout 1) or stress (seisout 3) receivers: FD / <g, dm> for a Gaussian bump of rho
+    (and of vs) centred on a receiver cell, 0.25 % step (a 1 % step has several % of third-order terms next to
+    a receiver)."""
+    wd = workdir("reccell_%dd_s%d_b%d_o%d" % (ND, int(srctype), bpt, seisout))
+    mk = lambda **k: _srccell_model(wd, ND=ND, srctype=srctype, seisout=seisout, **k)
     s0, zs = mk()
     shape = tuple(int(v) for v in s0.N)
     start = {"vp": np.full(shape, 2000.0), "vs": np.full(shape, 1200.0), "rho": np.full(shape, 2000.0)}
@@ -1731,7 +1732,7 @@ def _receiver_cell(ND, srctype, bpt):
     idx = np.indices(shape)
     bump = np.exp(-sum((idx[a] - cen[a]) ** 2 for a in range(ND)) / 4.0)
     bad = []
-    for name, base in (("rho", 2000.0), ("vs", 1200.0)):
+    for name, base in (("rho", 2000.0), ("vs", 1200.0)) + ((("vp", 2000.0),) if seisout == 3 else ()):
         dm = 0.0025 * base * bump
         pp = {k: np.array(v) for k, v in start.items()}; pm = {k: np.array(v) for k, v in start.items()}
         pp[name] = pp[name] + dm; pm[name] = pm[name] - dm
@@ -1739,7 +1740,7 @@ def _receiver_cell(ND, srctype, bpt):
         print("  receiver cell, %dD, source %d, back_prop_type %d, %-3s FD/<g,dm> = %.4f" % (ND, int(srctype), bpt, name, r))
         if abs(r - 1.0) > 0.01:
             bad.append("%s %.4f" % (name, r))
-    assert not bad, "gradient at a velocity-receiver cell off: %s" % ", ".join(bad)
+    assert not bad, "gradient at a receiver cell (seisout %d) off: %s" % (seisout, ", ".join(bad))
 
 
 def test_fd_receiver_cell_bpt2():
@@ -1764,6 +1765,45 @@ def test_fd_visco_physical_directions_pressure():
     on sigma = sigma' + sum_l R^l; thesis eq. 3.29). Before 2026-11-17: every direction 6-14 % off."""
     _visco_physical_directions(100.0, 2)
 
+
+
+# ---------------------------------------------------------------------------
+# Stress receivers (seisout=3: sxx, szz, sxz; 3-D sxx, syy, szz, sxz, sxy, syz).
+# Their adjoint source is the unrelaxed stiffness applied to the residual
+# (residuals.c, kernel_residuals), plus the receiver-cell term of
+# back_prop_type 1 (rec_grad.cl, rec_grad_s). Until 2026-11-26 the residual
+# went unscaled into its own stress only: the gradient was 0.
+# ---------------------------------------------------------------------------
+
+def test_fd_2d_elastic_bpt1_stress():
+    """2D elastic, back_prop_type=1, stress receivers; thresholds of the pressure case."""
+    _run_2d_elastic(seisout=3, back_prop_type=1, calibrated=True, tol=0.02)
+
+
+def test_fd_2d_elastic_bpt2_stress():
+    """2D elastic, back_prop_type=2, stress receivers; thresholds of the pressure case."""
+    _run_2d_elastic(seisout=3, back_prop_type=2, calibrated=False, spread_tol=0.1)
+
+
+def test_fd_3d_elastic_bpt2_stress():
+    """3D elastic, back_prop_type=2, stress receivers (all six); thresholds of the pressure case."""
+    _run_3d_elastic(seisout=3, back_prop_type=2, calibrated=False, spread_tol=0.15)
+
+
+def test_fd_receiver_cell_stress():
+    """Bump on a stress-receiver cell (rho, vs, vp), 2-D and 3-D, back_prop_type 1 and 2, threshold 1 %
+    (that of the velocity receivers): the receiver-cell terms of the stress adjoint source."""
+    _receiver_cell(2, 0.0, 1, seisout=3)
+    _receiver_cell(2, 0.0, 2, seisout=3)
+    _receiver_cell(2, 100.0, 1, seisout=3)
+    _receiver_cell(3, 0.0, 1, seisout=3)
+    _receiver_cell(3, 0.0, 2, seisout=3)
+
+
+def test_fd_visco_physical_directions_stress():
+    """Viscoelastic DFT gradient with STRESS receivers: the residual drives the adjoint memory variables
+    as for the pressure (kernel_residuals); threshold 5 % (that of the pressure case)."""
+    _visco_physical_directions(100.0, 3)
 
 def test_visco_multishot_identical_L3():
     """Two identical shots in one run, three relaxation mechanisms: shot 2 must equal shot 1 exactly.
@@ -2288,6 +2328,11 @@ TESTS = [
     test_fd_hetero_2d_visco_L2,
     test_fd_hetero_3d_elastic_bpt1,
     test_fd_hetero_3d_visco_L2,
+    test_fd_2d_elastic_bpt1_stress,
+    test_fd_2d_elastic_bpt2_stress,
+    test_fd_3d_elastic_bpt2_stress,
+    test_fd_receiver_cell_stress,
+    test_fd_visco_physical_directions_stress,
 ]
 
 # Known-open failures, each tracked in notes/todo.md -- see the docstring of

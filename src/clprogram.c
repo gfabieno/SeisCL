@@ -367,6 +367,17 @@ char *get_build_options(device *dev,
         if (strcmp((*dev).vars[i].name,"vz")==0) vout[2] = 1;
     }
     velout = vout[0] || vout[1] || vout[2];
+    /* Stress outputs, one bit each (stress receivers: their residuals and
+       receiver-cell terms, kernel_residuals and rec_grad.cl) */
+    int sout = 0;
+    {
+        const char * sn[6] = {"sxx", "syy", "szz", "sxz", "sxy", "syz"};
+        int q;
+        for (i=0;i<(*dev).nvars;i++){
+            if (!(*dev).vars[i].to_output) continue;
+            for (q=0;q<6;q++) if (strcmp((*dev).vars[i].name, sn[q])==0) sout |= 1<<q;
+        }
+    }
 
     parny = (m->NDIM==3) ? (*dev).N[1] : 1;
     parnx = (m->NDIM==3) ? (*dev).N[2] : (*dev).N[1];
@@ -380,9 +391,9 @@ char *get_build_options(device *dev,
             "-D BACK_PROP_TYPE=%d -D COMM12=%d -D NTNYQ=%d -D DTNYQ=%d "
             "-D VARSOUT=%d -D RESOUT=%d  -D RMSOUT=%d -D MOVOUT=%d "
             "-D GRADOUT=%d -D HOUT=%d -D GRADSRCOUT=%d -D DIRPROP=%d "
-            "-D RESTYPE=%d -D FP16=%d -D PARSCALE=%d -D FREQ0=%9.9ff "
+            "-D RESTYPE=%d -D FP16=%d -D FREQ0=%9.9ff "
             "-D PARNZ=%d -D PARNY=%d -D PARNX=%d -D TMIN=%d "
-            "-D PRESOUT=%d -D VELOUT=%d -D VXOUT=%d -D VYOUT=%d -D VZOUT=%d -D GRADABS=%d",
+            "-D PRESOUT=%d -D VELOUT=%d -D VXOUT=%d -D VYOUT=%d -D VZOUT=%d -D GRADABS=%d -D SOUT=%d",
             (*m).NDIM, (*dev).OFFSET, (*m).FDOH, (*m).dt/(*m).dh, (*m).dh,
             (*m).dt, (*m).dt/2.0, (*m).NT, (*m).NAB, (*dev).NBND,
             (*dev).LOCAL_OFF, (*m).L, (*dev).DEVID, (*m).NUM_DEVICES,
@@ -391,8 +402,8 @@ char *get_build_options(device *dev,
             (*m).BACK_PROP_TYPE, comm, (*m).NTNYQ, (*m).DTNYQ,
             (*m).VARSOUT, (*m).RESOUT, (*m).RMSOUT, (*m).MOVOUT,
             (*m).GRADOUT, (*m).HOUT, (*m).GRADSRCOUT, DIRPROP, (*m).restype,
-            (*m).FP16, (*m).par_scale, (*m).f0,
-            (*dev).N[0], parny, parnx, (*m).tmin, presout, velout, vout[0], vout[1], vout[2], (*m).GRADABS) ;
+            (*m).FP16, (*m).f0,
+            (*dev).N[0], parny, parnx, (*m).tmin, presout, velout, vout[0], vout[1], vout[2], (*m).GRADABS, sout) ;
 
 
     strcat(build_options,src2);
@@ -544,6 +555,17 @@ int get_build_options(device *dev,
         if (strcmp((*dev).vars[i].name,"vz")==0) vout[2] = 1;
     }
     velout = vout[0] || vout[1] || vout[2];
+    /* Stress outputs, one bit each (stress receivers: their residuals and
+       receiver-cell terms, kernel_residuals and rec_grad.cl) */
+    int sout = 0;
+    {
+        const char * sn[6] = {"sxx", "syy", "szz", "sxz", "sxy", "syz"};
+        int q;
+        for (i=0;i<(*dev).nvars;i++){
+            if (!(*dev).vars[i].to_output) continue;
+            for (q=0;q<6;q++) if (strcmp((*dev).vars[i].name, sn[q])==0) sout |= 1<<q;
+        }
+    }
     
     *n=0;
     
@@ -601,8 +623,8 @@ int get_build_options(device *dev,
     
     *n+=1;
     sprintf(build_options[*n-1],"-D FP16=%d ",(*m).FP16);
-    GMALLOC(build_options[*n], sizeof(char)*30); *n+=1;
-    sprintf(build_options[*n-1],"-D PARSCALE=%d ",(*m).par_scale);
+    /* PARSCALE: the kernel argument par_scale (header_CUDACL.cl), set at
+       each shot, not a constant: a compiled program serves any model. */
     /* f0: the viscoelastic gradient needs it to rebuild the
        phase-velocity factor alpha -- see grad_dft2D_visc.cl. */
     GMALLOC(build_options[*n], sizeof(char)*30); *n+=1;
@@ -692,6 +714,8 @@ int get_build_options(device *dev,
     sprintf(build_options[*n-1],"-D VYOUT=%d",vout[1]);
     *n+=1;
     sprintf(build_options[*n-1],"-D VZOUT=%d",vout[2]);
+    *n+=1;
+    sprintf(build_options[*n-1],"-D SOUT=%d",sout);
     *n+=1;
     sprintf(build_options[*n-1],"-D GRADABS=%d",(*m).GRADABS);
     // Raw (unpadded) per-dimension grid size, matching the material
@@ -929,6 +953,15 @@ static int perf_options(model * m, device * dev, clprogram * prog, char opt[3][6
     int adj = strcmp(prog->name, "update_adjv")==0 || strcmp(prog->name, "update_adjs")==0;
     int cpa = strcmp(prog->name, "cpml_adj_v")==0 || strcmp(prog->name, "cpml_adj_s")==0;
     *notile = 0;
+    #ifdef __SEISCL__
+    /* prep_params.cl must give the bits of the host divisions: OpenCL allows an
+       approximate float division (2.5 ulp; NVIDIA multiplies by the reciprocal),
+       and folds the double division of two floats back into it. */
+    if (strncmp(prog->name, "prep_", 5)==0 || strncmp(prog->name, "dio_", 4)==0
+        || strncmp(prog->name, "gp_", 3)==0){
+        sprintf(opt[n++], "-cl-fp32-correctly-rounded-divide-sqrt");
+    }
+    #endif
     if (notile_on(m) && !dev->LOCAL_OFF && (upd || adj || cpa)){
         sprintf(opt[n++], "-D NOTILE=1");
         *notile = 1;
@@ -1120,6 +1153,13 @@ int prog_create(model * m,
 
                 break;
             }
+            /* <par>_raw: the raw values on the device (prep_params.cl) */
+            sprintf(str2comp,"%s_raw",(*dev).pars[j].name);
+            if (strcmp(str2comp,(*prog).input_list[i])==0){
+                prog_arg(prog, i, &(*dev).pars[j].cl_raw.mem, memsize);
+                argfound=1;
+                break;
+            }
             sprintf(str2comp,"grad%s",(*dev).pars[j].name);
             if (strcmp(str2comp,(*prog).input_list[i])==0){
                 prog_arg(prog, i, &(*dev).pars[j].cl_grad.mem, memsize);
@@ -1135,7 +1175,9 @@ int prog_create(model * m,
                 break;
             }
         }
-        if (!argfound){
+        /* (*dev).vars, trans_vars, csts do not exist yet for the kernels
+           created with the parameters (average_params.cl, prep_params.cl) */
+        if (!argfound && (*dev).vars){
             for (j=0;j<m->nvars;j++){
                 if (strcmp((*dev).vars[j].name,(*prog).input_list[i])==0){
                     prog_arg(prog, i, &(*dev).vars[j].cl_var.mem, memsize);
@@ -1204,7 +1246,7 @@ int prog_create(model * m,
                 }
             }
         }
-        if (!argfound){
+        if (!argfound && (*dev).trans_vars){
             for (j=0;j<m->ntvars;j++){
                 sprintf(str2comp,"%sout",(*dev).trans_vars[j].name);
                 if (strcmp(str2comp,(*prog).input_list[i])==0){
@@ -1215,7 +1257,7 @@ int prog_create(model * m,
                
             }
         }
-        if (!argfound){
+        if (!argfound && (*dev).vars){
             for (j=0;j<m->nvars;j++){
                 sprintf(str2comp,"%sr",(*dev).vars[j].name);
                 if (strcmp(str2comp,(*prog).input_list[i])==0){
@@ -1233,7 +1275,7 @@ int prog_create(model * m,
                 }
             }
         }
-        if (!argfound){
+        if (!argfound && (*dev).csts){
             for (j=0;j<m->ncsts;j++){
                 if (strcmp((*dev).csts[j].name,(*prog).input_list[i])==0){
                     prog_arg(prog, i, &(*dev).csts[j].cl_cst.mem, memsize);
@@ -1256,6 +1298,10 @@ int prog_create(model * m,
                 prog_arg(prog, i, &(*dev).src_recs.cl_rec_pos.mem, memsize);
                 argfound=1;
             }
+            else if (strcmp("recmod" ,(*prog).input_list[i])==0){
+                prog_arg(prog, i, &(*dev).src_recs.cl_recmod.mem, memsize);
+                argfound=1;
+            }
             /* The kernels (init_gradsrc, update_adj*) call it "gradsrc"; only
                "grad_src" was matched, so the source gradient was bound to the
                4-byte placeholder and every write went out of bounds
@@ -1267,6 +1313,40 @@ int prog_create(model * m,
             }
         }
 
+        if (!argfound){
+            if (strcmp("prep_red",(*prog).input_list[i])==0){
+                prog_arg(prog, i, &(*dev).par_avg.prep_red.mem, memsize);
+                argfound=1;
+            }
+            else if (strcmp("prep_cst",(*prog).input_list[i])==0){
+                prog_arg(prog, i, &(*dev).par_avg.prep_cst.mem, memsize);
+                argfound=1;
+            }
+            else if (strcmp("dio_recpar",(*prog).input_list[i])==0){
+                prog_arg(prog, i, &(*dev).dio.recpar.mem, memsize);
+                argfound=1;
+            }
+            else if (strcmp("dio_recpar_all",(*prog).input_list[i])==0){
+                prog_arg(prog, i, &(*dev).dio.recpar_all.mem, memsize);
+                argfound=1;
+            }
+            else if (strcmp("dio_red",(*prog).input_list[i])==0){
+                prog_arg(prog, i, &(*dev).dio.red.mem, memsize);
+                argfound=1;
+            }
+            else if (strcmp("dio_cst",(*prog).input_list[i])==0){
+                prog_arg(prog, i, &(*dev).dio.cst.mem, memsize);
+                argfound=1;
+            }
+            else if (strcmp("gp_cst",(*prog).input_list[i])==0){
+                prog_arg(prog, i, &(*dev).gp.cst.mem, memsize);
+                argfound=1;
+            }
+            else if (strcmp("dio_acc",(*prog).input_list[i])==0){
+                prog_arg(prog, i, &(*dev).dio.acc.mem, memsize);
+                argfound=1;
+            }
+        }
         if (!argfound){
             if (strcmp("offcomm",(*prog).input_list[i])==0){
                 prog_arg(prog, i, &prog->OFFCOMM, sizeof(int));
@@ -1333,6 +1413,9 @@ int prog_create(model * m,
         }
         if (!argfound){
             if (strcmp("par_scale"  ,(*prog).input_list[i])==0){
+                /* bound now and again at each shot (time_stepping.c): the
+                   FP16 scale of the model, which a reused engine may change */
+                prog->psinput=i+1;
                 prog_arg(prog, i, &m->par_scale, sizeof(int));
                 argfound=1;
             }

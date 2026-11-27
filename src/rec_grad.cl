@@ -85,7 +85,7 @@ FUNDEF void rec_grad_v(GLOBARG STO *vx,        GLOBARG STO *vy,        GLOBARG S
                        GLOBARG float *rec_pos, int nrec,               int nt,
                        GLOBARG float *taper,
                        GLOBARG float *gradrip, GLOBARG float *gradrjp, GLOBARG float *gradrkp,
-                       int src_scale,          int res_scale)
+                       int src_scale,          int res_scale, int par_scale)
 {
 #if GRADOUT==1 && VELOUT==1
     REC_OWNER(g0, k0, j0, i0)
@@ -128,12 +128,18 @@ FUNDEF void rec_grad_v(GLOBARG STO *vx,        GLOBARG STO *vy,        GLOBARG S
 }
 
 FUNDEF void rec_grad_s(GLOBARG STO *sxx,       GLOBARG STO *syy,       GLOBARG STO *szz,
+                       GLOBARG STO *sxz,       GLOBARG STO *sxy,       GLOBARG STO *syz,
                        GLOBARG float *pout,    GLOBARG float *rec_pos, int nrec,
+                       GLOBARG float *sxxout,  GLOBARG float *syyout,  GLOBARG float *szzout,
+                       GLOBARG float *sxzout,  GLOBARG float *sxyout,  GLOBARG float *syzout,
                        int nt,                 GLOBARG STO *M,         GLOBARG STO *mu,
+                       GLOBARG STO *muipkp,    GLOBARG STO *muipjp,    GLOBARG STO *mujpkp,
                        GLOBARG float *gradM,   GLOBARG float *gradmu,
-                       int src_scale,          int res_scale)
+                       GLOBARG float *gradmuipkp, GLOBARG float *gradmuipjp,
+                       GLOBARG float *gradmujpkp,
+                       int src_scale,          int res_scale, int par_scale)
 {
-#if GRADOUT==1 && PRESOUT==1
+#if GRADOUT==1 && (PRESOUT==1 || SOUT>0)
     REC_OWNER(g0, k0, j0, i0)
     for (int g=g0; g<nrec; g++){
         int k, j, i;
@@ -144,19 +150,76 @@ FUNDEF void rec_grad_s(GLOBARG STO *sxx,       GLOBARG STO *syy,       GLOBARG S
         #endif
         int iv = INDV(k,j,i), ip = INDP(k,j,i);
         float lM = ldf(M, ip), lmu = ldf(mu, ip);
-        float res = pow2s(pout[NT*g+nt], res_scale);
         #if ND==3
         float den = 3.0f*lM-4.0f*lmu;
+        #else
+        float den = 2.0f*lM-2.0f*lmu;
+        #endif
+        #if PRESOUT==1
+        {
+        float res = pow2s(pout[NT*g+nt], res_scale);
+        #if ND==3
         float c1 = (den!=0.0f) ? 1.0f/(den*den) : 0.0f;
         float dM = c1*(ldf(sxx, iv)+ldf(syy, iv)+ldf(szz, iv))*res;
         gradM[ip]  += GSCALE(-dM);
         gradmu[ip] += GSCALE(4.0f/3.0f*dM);
         #else
-        float den = 2.0f*lM-2.0f*lmu;
         float c1 = (den!=0.0f) ? 1.0f/(den*den) : 0.0f;
         float dM = c1*(ldf(sxx, iv)+ldf(szz, iv))*res;
         gradM[ip]  += GSCALE(-dM);
         gradmu[ip] += GSCALE(dM);
+        #endif
+        }
+        #endif
+        #if SOUT>0
+        /* Stress receivers (kernel_residuals): the adjoint source of a residual
+           R of stress c is C e_c Rt, Rt = R/md (md: the modulus res_scale
+           scaled it by, g = M for a normal stress, the node's shear modulus
+           for a shear stress). Its term, as the pressure's above, is
+           -eps^T (dC/dm) e_c Rt with eps the forward strain of the cell:
+             normal c: gradM -= theta Rt, gradmu += 2 (theta - eps_c) Rt,
+                       theta = trace(s)/den, eps_c = (s_c - (M-2mu) theta)/(2mu);
+             shear c:  gradmu_node -= s_c/mu_node Rt. */
+        {
+            #if ND==3
+            float tr = ldf(sxx, iv)+ldf(syy, iv)+ldf(szz, iv);
+            #else
+            float tr = ldf(sxx, iv)+ldf(szz, iv);
+            #endif
+            float th = (den!=0.0f) ? tr/den : 0.0f;
+            float lam = lM-2.0f*lmu;
+            float iM = (lM!=0.0f) ? 1.0f/lM : 0.0f;
+            #define REC_NORMAL(sname, outname) { \
+                float Rt = pow2s(outname[NT*g+nt], res_scale)*iM; \
+                float ec = (lmu!=0.0f) ? (ldf(sname, iv)-lam*th)/(2.0f*lmu) : th/(float)NDIM; \
+                gradM[ip]  += GSCALE(-th*Rt); \
+                gradmu[ip] += GSCALE(2.0f*(th-ec)*Rt); }
+            #define REC_SHEAR(sname, outname, mname, gname) { \
+                float lm = ldf(mname, ip); \
+                if (lm!=0.0f){ \
+                    float Rt = pow2s(outname[NT*g+nt], res_scale)/lm; \
+                    gname[ip] += GSCALE(-ldf(sname, iv)/lm*Rt); } }
+            #if SOUT & 1
+            REC_NORMAL(sxx, sxxout)
+            #endif
+            #if (SOUT & 2) && ND==3
+            REC_NORMAL(syy, syyout)
+            #endif
+            #if SOUT & 4
+            REC_NORMAL(szz, szzout)
+            #endif
+            #if SOUT & 8
+            REC_SHEAR(sxz, sxzout, muipkp, gradmuipkp)
+            #endif
+            #if (SOUT & 16) && ND==3
+            REC_SHEAR(sxy, sxyout, muipjp, gradmuipjp)
+            #endif
+            #if (SOUT & 32) && ND==3
+            REC_SHEAR(syz, syzout, mujpkp, gradmujpkp)
+            #endif
+            #undef REC_NORMAL
+            #undef REC_SHEAR
+        }
         #endif
     }
 #endif

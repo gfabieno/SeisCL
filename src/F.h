@@ -173,6 +173,7 @@ typedef struct clprogram {
     int nsinput;
     int nrinput;
     int scinput;
+    int psinput;     /* index+1 of the par_scale argument (set at each shot) */
     int rcinput;
     size_t lsize[MAX_DIMS];
     size_t gsize[MAX_DIMS];
@@ -229,6 +230,10 @@ typedef struct variable{
     clbuf cl_buf1;
     clbuf cl_buf2;
     clbuf cl_var_res;
+    /* dev_res (dev_io.c, first device only): the seismograms of every shot
+       and their residuals (allng x NT), on the device */
+    clbuf cl_out_all;
+    clbuf cl_res_all;
 
     float **    gl_varout;
     float **    gl_varin;
@@ -253,6 +258,10 @@ int var_alloc_out(float *** var, struct model *m );
 int var_res_raw(struct model * m, int s);
 int rtm_res(struct model * m, int s);
 int res_scale(struct model * m, int s);
+int rec_mod_needed(struct model * m);
+int stress_kind(const char * name);
+int rec_mod_fill(struct model * m, int s);
+float rec_mod_diag(const float * r, int q, int L);
 int rec_grad_dft(struct model * m, int s);
 int add_rec_grad_dft(struct model * m);
 
@@ -275,6 +284,19 @@ typedef struct parameter{
     const char * to_read;
     int to_grad;
     void (*transform)(void *);
+    /* gpu_prep: the raw values (whole model, float) on the device, read by
+       prep_params.cl; raw_src: where they come from when not from gl_par
+       (a device or host pointer, SeisCL.torch), copied by param_prep_upload. */
+    clbuf cl_raw;
+    const void * raw_src;
+    /* dev_res, back_prop_type 2: the receiver-cell gradient term (rec_grad_dft)
+       on the first device, whole model */
+    clbuf cl_gradrec;
+    /* dev_grad, first device: whole-model float work arrays (gpost_run): the
+       parameter (node parameters only; the others use cl_raw) and, with several
+       devices, the gradient (one device: cl_grad itself) */
+    clbuf cl_pwork;
+    clbuf cl_gwork;
 
 
 } parameter;
@@ -308,12 +330,20 @@ typedef struct constants{
 
 
 /* ______________Structure that control sources and receivers ________________*/
+/* recmod: stored M, mu, taup, taus, muipkp, tausipkp, muipjp, tausipjp,
+   mujpkp, tausjpkp at the receiver cell (0 where absent) */
+#define REC_NMOD 10
 typedef struct sources_records{
 
     clbuf cl_src;
     clbuf cl_src_pos;
     clbuf cl_rec_pos;
     clbuf cl_grad_src;
+    /* Stress receivers: the parameters at each receiver cell of the shot,
+       REC_NMOD floats per receiver (residuals.c, rec_mod_fill), read by the
+       residual injection (kernel_residuals) on every device, halo included */
+    clbuf cl_recmod;
+    float * recmod;
     
     clprogram sources;
     clprogram varsout;
@@ -397,8 +427,45 @@ typedef struct param_avg {
     clprogram muipkp;
     clprogram muipjp;
     clprogram mujpkp;
+    /* Parameter preparation on the device (prep_params.cl, param_prep_run) */
+    clprogram prep_reduce;
+    clprogram prep_store;
+    clprogram tausipkp;
+    clprogram tausipjp;
+    clprogram tausjpkp;
+    clbuf prep_red;     /* 8 unsigned: float bits of max M, vp max/min, vs max/min */
+    clbuf prep_cst;     /* PREP_NCST floats, see prep_params.cl */
 
 } param_avg;
+#define PREP_NCST 64
+
+/* Residual scaling on the device (dev_io.cl, residuals.c dio_*) */
+typedef struct dev_io_k {
+    clprogram gather;
+    clprogram res_scale;
+    clprogram recgrad;
+    clprogram recgrad_add;
+    clprogram add_out;
+    clprogram recmod;   /* stress receivers: recmod of the first device */
+    clbuf recpar;       /* this device: DIO_NP floats per receiver */
+    clbuf recpar_all;   /* first device: one recpar per device */
+    clbuf stage;        /* first device: the seismograms of another device */
+    clbuf red;
+    clbuf cst;
+    clbuf acc;
+} dev_io_k;
+#define DIO_NP 15
+
+/* Gradient post-processing on the device (grad_post.cl, calc_grad.c gpost_*) */
+typedef struct gpost_k {
+    clprogram cvt, addrec, scale, unbuoy, trho, tmu_w, tmu_pass, ttau_pass, edge,
+              sn_pre, sn_post, chain;
+    clbuf cst;          /* GP_NCST doubles */
+    clbuf w, valid;     /* grad_T_harmonic_mu: node factors */
+    clbuf gm, gt, cm, ct;   /* shear_node_transpose with L > 0 */
+    clbuf stage;        /* another device's parameter slice */
+} gpost_k;
+#define GP_NCST 32
 
 
 /* _____________Structure that holds all information of a device _____________*/
@@ -444,6 +511,8 @@ typedef struct device {
     gradients grads;
     boundary_conditions bnd_cnds;
     param_avg par_avg;
+    dev_io_k dio;
+    gpost_k gp;
     
     CONTEXT context;
     CONTEXT * context_ptr;
@@ -615,6 +684,13 @@ typedef struct model {
     int FP16;
     int halfpar;
     int par_scale;
+    int gpu_prep;      /* parameters prepared on the device (use_gpu_prep) */
+    int dev_res;       /* residual scaling on the device (CUDA, gpu_prep) */
+    int dev_data;      /* seismograms and residuals stay on the device (SeisCL.torch) */
+    int dev_grad;      /* gradient post-processing on the device (dev_res, no Hessian) */
+    dev_io_k dio;
+    gpost_k gp;
+    int keep_raw;      /* keep the raw device buffers after the preparation (SeisCL.torch) */
 
     int (*res_calc)(struct model * , int );
     int (*res_scale)(struct model * , int );
@@ -660,6 +736,27 @@ int seiscl_set_srcrec(model * m,
 
 int assign_modeling_case(model * m);
 int use_gpu_average(model * m);
+int use_gpu_prep(model * m);
+int param_prep_run(model * m, device * dev);
+int param_prep_create(model * m, device * di);
+int param_prep_upload(model * m, device * di);
+int param_prep_readback(model * m, device * di);
+void clbuf_free(device *dev, clbuf *buf);
+extern long long seiscl_bytes_h2d;
+int dio_create(model * m, device * dev);
+int dio_reset(model * m, device ** dev);
+int dio_reduce_seis(model * m, device ** dev, int s);
+int dio_res_scale(model * m, device ** dev, int s);
+int dio_rec_grad_dft(model * m, device ** dev, int s);
+int dio_res_to_adj(model * m, device ** dev, int s);
+int dio_gradrec_readback(model * m, device ** dev);
+int gpost_create(model * m, device * di);
+int gpost_run(model * m, device ** dev);
+int host_needs_par(model * m);
+extern long long seiscl_bytes_d2h;
+int check_stability_values(model * m, float vpmax, float vpmin, float vsmax, float vsmin);
+int set_par_scale_value(model * m, float Mmax);
+int Init_src_scales(model * m);
 int param_average_run(model * m, device * di);
 
 
@@ -758,7 +855,8 @@ int kernel_varinit(device * dev,
 
 int kernel_residuals(device * dev,
                      clprogram * prog,
-                     int BACK_PROP_TYPE);
+                     int BACK_PROP_TYPE,
+                     int stressrec);
 
 int kernel_gradinit(device * dev,
                     parameter * pars,

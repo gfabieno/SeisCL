@@ -54,7 +54,7 @@ FUNDEF void update_adjv(int offcomm,
                      GLOBARG const float * RESTRICT src,     GLOBARG const float * RESTRICT src_pos,
                      int nsrc,                               int nt,
                      int src_scale,                          int res_scale,
-                     LOCARG)
+                     int par_scale, LOCARG)
 {
     LOCDEF
     /* This thread: column gidx, cells z = zt .. zt+NV-1 (padded indices). */

@@ -27,6 +27,12 @@ int reduce_seis(model * m, device ** dev, int s){
     int state=0;
     int posx, i, j, k, d;
     
+    // dev_res: the seismograms of the shot on the first device (residuals.c);
+    // dev_data: only there
+    if (m->dev_res){
+        __GUARD dio_reduce_seis(m, dev, s);
+        if (m->dev_data) return state;
+    }
     // Transfer the seismogram from GPUs to host
     for (d=0;d<m->NUM_DEVICES;d++){
         for (i=0;i<m->nvars;i++){
@@ -1059,6 +1065,10 @@ int initialize_forward(model * m, device ** dev, int s, int * pdir){
                 ind=(*dev)[d].progs[i]->scinput-1;
                 __GUARD prog_arg((*dev)[d].progs[i], ind, &m->src_recs.src_scales[s], sizeof(int));
             }
+            if ((*dev)[d].progs[i]->psinput>0){
+                ind=(*dev)[d].progs[i]->psinput-1;
+                __GUARD prog_arg((*dev)[d].progs[i], ind, &m->par_scale, sizeof(int));
+            }
         }
         
         // Implement initial conditions
@@ -1089,7 +1099,17 @@ int initialize_adj(model * m, device ** dev, int s, int * pdir){
     // and transfer the residual to GPUs
     for (d=0;d<m->NUM_DEVICES;d++){
         
-        // Transfer the residuals to the gpus
+        /* stress receivers: the parameters at the receivers (residuals.c;
+           dev_res: written on the devices by dio_res_scale) */
+        if (rec_mod_needed(m) && !m->dev_res){
+            __GUARD clbuf_sendfrom(&(*dev)[d].queue, &(*dev)[d].src_recs.cl_recmod,
+                                   m->src_recs.recmod);
+        }
+        // Transfer the residuals to the gpus (dev_res: from the first device)
+        if (m->dev_res){
+            if (d==0) __GUARD dio_res_to_adj(m, dev, s);
+        }
+        else
         for (i=0;i<m->nvars;i++){
             if ( (*dev)[d].vars[i].to_output){
                 __GUARD clbuf_sendfrom(&(*dev)[d].queue,
@@ -1097,6 +1117,7 @@ int initialize_adj(model * m, device ** dev, int s, int * pdir){
                                        (*dev)[d].vars[i].gl_var_res[s]);
             }
         }
+        if (!m->dev_res)
         for (i=0;i<m->ntvars;i++){
             if ( (*dev)[d].trans_vars[i].to_output){
                 __GUARD clbuf_sendfrom(&(*dev)[d].queue,
@@ -1381,9 +1402,16 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
              * adjoint source and the gradient comes out identically zero. */
             if ((m->GRADOUT || m->RMSOUT || m->RESOUT)
                 && (!m->INPUTRES || m->GRADOUT)){
-                __GUARD m->res_scale(m,s);
-                /* back_prop_type 2: receiver-cell density term (residuals.c) */
-                __GUARD rec_grad_dft(m, s);
+                if (m->dev_res){
+                    __GUARD dio_res_scale(m, dev, s);
+                    /* back_prop_type 2: receiver-cell density term (residuals.c) */
+                    __GUARD dio_rec_grad_dft(m, dev, s);
+                }
+                else {
+                    __GUARD m->res_scale(m,s);
+                    /* back_prop_type 2: receiver-cell density term (residuals.c) */
+                    __GUARD rec_grad_dft(m, s);
+                }
             }
 
             // Save the checkpoints. BACK_PROP_TYPE==2 keeps none: its
@@ -1398,7 +1426,12 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
         }
         else {
             checkpoint_h2d(m, dev, file_id, s);
-            __GUARD m->res_scale(m,s);
+            if (m->dev_res){
+                __GUARD dio_res_scale(m, dev, s);
+            }
+            else {
+                __GUARD m->res_scale(m,s);
+            }
         }
 
         // Calculation of the gradient for this shot, if required
@@ -1549,7 +1582,12 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
     }
     // Using back-propagation, the gradient is computed on the devices. After
     // all sources positions have been modeled, transfer back the gradient.
-    if (m->GRADOUT==1){
+    /* dev_grad: the readback and the host post-processing below run on the
+       device (calc_grad.c, gpost_run) */
+    if (m->GRADOUT==1 && m->dev_grad){
+        __GUARD gpost_run(m, dev);
+    }
+    else if (m->GRADOUT==1){
         /* BACK_PROP_TYPE==2 with the on-device correlation also accumulates
          * into cl_grad, so the readback is shared. It does *not* get
          * transf_grad: the DFT coefficients already carry the par_type chain
@@ -1590,6 +1628,9 @@ int time_stepping(model * m, device ** dev, struct filenames files) {
                chain_rule_par_type evaluates its Jacobians at physical
                values. */
             __GUARD unpack_par_fp16(m);
+            if (m->dev_res){
+                __GUARD dio_gradrec_readback(m, dev);
+            }
             __GUARD add_rec_grad_dft(m);
             __GUARD unscale_grad_dft(m);
             __GUARD average_grad_transpose(m);

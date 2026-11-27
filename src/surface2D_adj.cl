@@ -287,8 +287,10 @@ FUNDEF void surface_grad(GLOBARG STO *vx,         GLOBARG STO *vz,
                          GLOBARG float *gradrkp,     GLOBARG float *src,
                          GLOBARG float *src_pos,     int nsrc,
                          int nt,                     GLOBARG float *pout,
+                         GLOBARG float *sxxout,      GLOBARG float *szzout,
+                         GLOBARG float *sxzout,
                          GLOBARG float *rec_pos,     int nrec,
-                         int src_scale,              int res_scale)
+                         int src_scale,              int res_scale, int par_scale)
 {
     #ifdef __OPENCL_VERSION__
     int gidx = get_global_id(0) + FDOH;
@@ -324,6 +326,28 @@ FUNDEF void surface_grad(GLOBARG STO *vx,         GLOBARG STO *vz,
             }
         }
         #endif
+        __cprec1 axz = ldf(sxzr, indv(z, gidx));
+        #if SOUT>0
+        /* stress receivers: what kernel_residuals added this step (residuals.c:
+           R to the stress, (g-f)/g R to the other normal stress) */
+        {
+            __cprec1 cr = (lM != 0) ? (lM-(__cprec1)2.0*lmu)/lM : 0;
+            for (int g=0; g<nrec; g++){
+                int ri=(int)(rec_pos[0+8*g]/DH)+FDOH-OFFSET;
+                int rk=(int)(rec_pos[2+8*g]/DH)+FDOH;
+                if (ri!=gidx || rk!=z) continue;
+                #if SOUT & 1
+                { float R = pow2s(sxxout[NT*g+nt], res_scale); axx -= R; azz -= cr*R; }
+                #endif
+                #if SOUT & 4
+                { float R = pow2s(szzout[NT*g+nt], res_scale); azz -= R; axx -= cr*R; }
+                #endif
+                #if SOUT & 8
+                axz -= pow2s(sxzout[NT*g+nt], res_scale);
+                #endif
+            }
+        }
+        #endif
         __cprec1 det = (__cprec1)4.0*lmu*(lM-lmu);
         __cprec1 nxx = 0, nzz = 0, nxz = 0;
         if (det != 0){
@@ -331,7 +355,7 @@ FUNDEF void surface_grad(GLOBARG STO *vx,         GLOBARG STO *vz,
             nzz = -(lM*azz - (lM-(__cprec1)2.0*lmu)*axx)/det;
         }
         if (lmuipkp != 0){
-            nxz = -ldf(sxzr, indv(z, gidx))/lmuipkp;
+            nxz = -axz/lmuipkp;
         }
         __cprec1 gM, gmu;
         if (k==0){

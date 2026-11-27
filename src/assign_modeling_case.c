@@ -18,6 +18,9 @@
 #include "grad_dft3D.hcl"
 #include "grad_dft3D_visc.hcl"
 #include "average_params.hcl"
+#include "prep_params.hcl"
+#include "dev_io.hcl"
+#include "grad_post.hcl"
 #include "savebnd2D.hcl"
 #include "savebnd3D.hcl"
 #include "savebnd2D_SH.hcl"
@@ -176,6 +179,10 @@ void ave_arithmetic_tau(float *pin, float *pout, int *N, int ndim, int dir[][3])
         }
     }
     
+    /* The last plane of the second direction keeps the cell value too
+       (NX0/NY0/NZ0 reset: without it only the corner was copied and the rest
+       of the plane stayed 0). A zero direction (SH) has no plane. */
+    NX0=0; NY0=0; NZ0=0;
     if (dir[1][2]==1){
         NX0=NX-1;
     }
@@ -186,6 +193,7 @@ void ave_arithmetic_tau(float *pin, float *pout, int *N, int ndim, int dir[][3])
         NZ0=NZ-1;
     }
     
+    if (dir[1][0] || dir[1][1] || dir[1][2]){
     for (k=NZ0;k<NZ;k++){
         for (j=NY0;j<NY;j++){
             for (i=NX0;i<NX;i++){
@@ -193,6 +201,7 @@ void ave_arithmetic_tau(float *pin, float *pout, int *N, int ndim, int dir[][3])
                 pout[ind1]= pin[ind1];
             }
         }
+    }
     }
     
     
@@ -259,6 +268,10 @@ void ave_harmonic_mu(float * pin, float * pout, int * N, int ndim, int dir[][3])
         }
     }
     
+    /* The last plane of the second direction keeps the cell value too
+       (NX0/NY0/NZ0 reset: without it only the corner was copied and the rest
+       of the plane stayed 0). A zero direction (SH) has no plane. */
+    NX0=0; NY0=0; NZ0=0;
     if (dir[1][2]==1){
         NX0=NX-1;
     }
@@ -269,6 +282,7 @@ void ave_harmonic_mu(float * pin, float * pout, int * N, int ndim, int dir[][3])
         NZ0=NZ-1;
     }
     
+    if (dir[1][0] || dir[1][1] || dir[1][2]){
     for (k=NZ0;k<NZ;k++){
         for (j=NY0;j<NY;j++){
             for (i=NX0;i<NX;i++){
@@ -276,6 +290,7 @@ void ave_harmonic_mu(float * pin, float * pout, int * N, int ndim, int dir[][3])
                 pout[ind1]= pin[ind1];
             }
         }
+    }
     }
     
     
@@ -377,9 +392,13 @@ void mu(void * mptr){
             m->set_par_scale( (void*) m);
         }
         scaler = m->par_scale;
-        
+        /* 2^scaler once, not one powf per cell: gcc does not hoist powf out
+           of the loop (errno), and SeisCL.torch re-runs this at every call
+           (0.3 s per call at 1000^2, 2026-11-25). Exact power of two: the
+           same values as powf(2, scaler). */
+        const float sc = ldexpf(1.0f, scaler);
         for (i=0;i<num_ele;i++){
-            mu[i]*=powf(2, scaler);
+            mu[i]*=sc;
         }
     }
     
@@ -447,9 +466,9 @@ void M(void * mptr){
     if (m->FP16>0){
         m->set_par_scale( (void*) m);
         scaler = m->par_scale;
-        
+        const float sc = ldexpf(1.0f, scaler);   /* once, see mu() */
         for (i=0;i<num_ele;i++){
-            M[i]*=powf(2,scaler);
+            M[i]*=sc;
         }
     }
     
@@ -463,6 +482,7 @@ void rho(void * mptr){
 
     int i;
     int num_ele = get_par(m->pars, m->npars, "rho")->num_ele;
+    const float sc = ldexpf(1.0f, -scaler);   /* = powf(2,-scaler), once, see mu() */
     for (i=0;i<num_ele;i++){
         /*A zero density marks a vacuum cell (improved vacuum free-surface
           formulation, FREESURF==2): keep its buoyancy exactly zero instead
@@ -472,7 +492,7 @@ void rho(void * mptr){
             rho[i]=0;
         }
         else{
-            rho[i]=1.0/rho[i]*m->dt/m->dh*powf(2,-scaler);
+            rho[i]=1.0/rho[i]*m->dt/m->dh*sc;
         }
     }
 }
@@ -821,8 +841,6 @@ int check_stability( void *mptr){
     float vpmin=99999;
     float vsmin=99999;
     float thisvs, thisvp;
-    float vmin, vmax;
-    float g, gamma, dtstable;
     
     model * m = (model *) mptr;
     float *mu = get_par(m->pars, m->npars, "mu")->gl_par;
@@ -846,6 +864,16 @@ int check_stability( void *mptr){
             if (vpmin>thisvp && thisvp>0.1) vpmin=thisvp;
         }
     }
+    return check_stability_values(m, vpmax, vpmin, vsmax, vsmin);
+}
+
+/* The checks of check_stability() on the velocity extrema (vsmin, vpmin: of the
+   values > 0.1; 99999 if none), computed by the host loop above or on the
+   device (prep_params.cl, prep_reduce). */
+int check_stability_values(model * m, float vpmax, float vpmin, float vsmax, float vsmin){
+    int state=0;
+    float vmin, vmax;
+    float g, gamma, dtstable;
     if (vsmin==99999){
         vmin=vpmin;
     }
@@ -936,6 +964,17 @@ int set_par_scale( void *mptr){
                 if (Mmax<mu[i]) Mmax=mu[i];
             }
         }
+    }
+    return set_par_scale_value(m, Mmax);
+}
+
+/* par_scale from the maximum of M (FP16 > 0; 0 otherwise), and the scaler of
+   the velocities. Mmax from the host loop above or from the device
+   (prep_params.cl, prep_reduce). */
+int set_par_scale_value(model * m, float Mmax){
+    int state=0;
+    int scaler = 0;
+    if (m->FP16>0){
         //TODO review scaler constant
         scaler = -log2(Mmax*1.0);
     }
@@ -962,6 +1001,17 @@ int use_gpu_average(model * m){
     const char * v = getenv("SEISCL_HOST_AVERAGE");
     if (v && v[0]=='1') return 0;
     return (m->ND==2 || m->ND==3);
+}
+
+/* Whether the parameters are prepared on the device (prep_params.cl): the
+   transforms, scaling, stability check, tau averages and half conversion of
+   the host (Init_model_values) run as kernels on the raw values. Where the
+   material averages run on the device (ND 2 and 3). SEISCL_HOST_PREP=1 keeps
+   the host path, so that tests can compare both. */
+int use_gpu_prep(model * m){
+    const char * v = getenv("SEISCL_HOST_PREP");
+    if (v && v[0]=='1') return 0;
+    return use_gpu_average(m);
 }
 
 int assign_modeling_case(model * m){
@@ -1328,6 +1378,57 @@ int assign_modeling_case(model * m){
        cgm-geo1). With SEISCL_HOST_AVERAGE=1 the averages are computed on the
        host instead, by the transforms below. */
     int gpu_avg = use_gpu_average(m);
+    m->gpu_prep = use_gpu_prep(m);
+    if (m->gpu_prep){
+        __GUARD prog_source(&m->par_avg.prep_reduce, "prep_reduce", prep_params_source,
+                            1, headers);
+        __GUARD prog_source(&m->par_avg.prep_store, "prep_store", prep_params_source,
+                            1, headers);
+        if (m->L>0 && (m->ND==2 || m->ND==3)){
+            __GUARD prog_source(&m->par_avg.tausipkp, "prep_tausipkp", prep_params_source,
+                                1, headers);
+        }
+        if (m->L>0 && m->ND==3){
+            __GUARD prog_source(&m->par_avg.tausipjp, "prep_tausipjp", prep_params_source,
+                                1, headers);
+            __GUARD prog_source(&m->par_avg.tausjpkp, "prep_tausjpkp", prep_params_source,
+                                1, headers);
+        }
+    }
+    /* Residual scaling on the device (dev_io.cl): CUDA, with the device
+       preparation of the parameters, which it reads there. */
+    #ifndef __SEISCL__
+    m->dev_res = m->gpu_prep;
+    #else
+    m->dev_res = 0;
+    #endif
+    if (m->dev_res){
+        __GUARD prog_source(&m->dio.gather, "dio_rec_gather", dev_io_source, 1, headers);
+        __GUARD prog_source(&m->dio.res_scale, "dio_res_scale", dev_io_source, 1, headers);
+        __GUARD prog_source(&m->dio.recgrad, "dio_recgrad", dev_io_source, 1, headers);
+        __GUARD prog_source(&m->dio.recgrad_add, "dio_recgrad_add", dev_io_source, 1, headers);
+        __GUARD prog_source(&m->dio.add_out, "dio_add_out", dev_io_source, 1, headers);
+        __GUARD prog_source(&m->dio.recmod, "dio_recmod", dev_io_source, 1, headers);
+    }
+    /* Gradient post-processing on the device (grad_post.cl): with dev_res,
+       par_type 0 (the only one the engine runs), without the Hessian. */
+    m->dev_grad = m->dev_res && m->GRADOUT && !m->HOUT && m->par_type==0
+                  && (m->BACK_PROP_TYPE==1 || m->BACK_PROP_TYPE==2);
+    {   /* SEISCL_HOST_GRAD=1: the host post-processing (tests) */
+        const char * v = getenv("SEISCL_HOST_GRAD");
+        if (v && v[0]=='1') m->dev_grad = 0;
+    }
+    if (m->dev_grad){
+        clprogram * gp[12] = {&m->gp.cvt, &m->gp.addrec, &m->gp.scale, &m->gp.unbuoy,
+                              &m->gp.trho, &m->gp.tmu_w, &m->gp.tmu_pass, &m->gp.ttau_pass,
+                              &m->gp.edge, &m->gp.sn_pre, &m->gp.sn_post, &m->gp.chain};
+        const char * gn[12] = {"gp_cvt", "gp_addrec", "gp_scale", "gp_unbuoy", "gp_trho",
+                               "gp_tmu_w", "gp_tmu_pass", "gp_ttau_pass", "gp_edge",
+                               "gp_sn_pre", "gp_sn_post", "gp_chain"};
+        for (int k=0;k<12;k++){
+            __GUARD prog_source(gp[k], (char *)gn[k], grad_post_source, 1, headers);
+        }
+    }
     if (gpu_avg){
         __GUARD prog_source(&m->par_avg.rip, "ave_rip", average_params_source,
                             1, headers);
@@ -1416,12 +1517,13 @@ int assign_modeling_case(model * m){
         __GUARD append_par(m, &ind, "mujpkp", NULL, &mujpkp);
     }
     if (m->L>0){
+        /* gpu_prep: computed on the device (prep_tau*), no host transform */
         if (m->ND==2 || m->ND==3){
-            __GUARD append_par(m, &ind, "tausipkp", NULL, &tausipkp);
+            __GUARD append_par(m, &ind, "tausipkp", NULL, m->gpu_prep ? NULL : &tausipkp);
         }
         if (m->ND==3 || m->ND==21){
-            __GUARD append_par(m, &ind, "tausipjp", NULL, &tausipjp);
-            __GUARD append_par(m, &ind, "tausjpkp", NULL, &tausjpkp);
+            __GUARD append_par(m, &ind, "tausipjp", NULL, m->gpu_prep ? NULL : &tausipjp);
+            __GUARD append_par(m, &ind, "tausjpkp", NULL, m->gpu_prep ? NULL : &tausjpkp);
         }
     }
     m->npars = ind;

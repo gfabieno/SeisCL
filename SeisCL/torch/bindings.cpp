@@ -37,6 +37,7 @@
 // names) for par_type=0 -- don't assume the two are interchangeable.
 
 #include <torch/extension.h>
+#include <torch/cuda.h>
 #include <pybind11/stl.h>
 
 #include <unistd.h>
@@ -260,6 +261,44 @@ CacheKey geometry_cache_key(const Config &cfg, torch::Tensor &src_pos,
                           gradout, inputres, src_types);
 }
 
+// The device the caller holds its parameters on: outputs and gradients are
+// returned there (decision 81: CUDA parameters, CUDA results).
+torch::Device params_device(const py::dict &params) {
+    for (auto item : params) {
+        torch::Tensor t = py::cast<torch::Tensor>(item.second);
+        if (t.is_cuda()) return t.device();
+    }
+    return torch::Device(torch::kCPU);
+}
+
+// dev_data: the seismograms are on the first device (cl_out_all); copied
+// device to device into new tensors, then to the caller's device.
+py::dict collect_data_device(EngineHandle &h, const torch::Device &out_dev) {
+    py::dict result;
+    model &m = h.m;
+    device &d0 = h.dev[0];
+    // the engine's queue, and torch's (its new tensors may reuse memory that
+    // pending torch work still uses)
+    torch::cuda::synchronize(static_cast<int>(d0.cudev));
+    if (cuCtxSetCurrent(d0.context) || cuStreamSynchronize(d0.queue)) {
+        throw std::runtime_error("SeisCL: device synchronization failed");
+    }
+    auto opts = torch::TensorOptions().dtype(torch::kFloat32)
+                    .device(torch::kCUDA, static_cast<int>(d0.cudev));
+    for (int i = 0; i < m.nvars; i++) {
+        if (!m.vars[i].to_output || !d0.vars[i].cl_out_all.mem) continue;
+        torch::Tensor out = torch::empty({m.src_recs.allng, m.NT}, opts);
+        if (cuMemcpyDtoDAsync((CUdeviceptr)out.data_ptr<float>(),
+                              d0.vars[i].cl_out_all.mem,
+                              sizeof(float) * m.src_recs.allng * m.NT, d0.queue) ||
+            cuStreamSynchronize(d0.queue)) {
+            throw std::runtime_error("SeisCL: seismogram copy failed");
+        }
+        result[py::str(m.vars[i].name)] = out.to(out_dev);
+    }
+    return result;
+}
+
 py::dict collect_data(model &m) {
     py::dict result;
     for (int i = 0; i < m.nvars; i++) {
@@ -349,6 +388,70 @@ void crop_boundary(float *grad, const model &m) {
             }
         }
     }
+}
+
+// crop_boundary on a device tensor (the same cells, with tensor slicing)
+void crop_boundary_tensor(torch::Tensor g, const model &m) {
+    if (m.BACK_PROP_TYPE != 1 && m.ABS_TYPE != 1) {
+        if (m.FREESURF == 2) {
+            int nz = m.N[0];
+            int ncol = (m.NDIM == 3) ? m.N[1] * m.N[2] : m.N[1];
+            g.view({ncol, nz}).narrow(1, 0, std::min(m.FDOH, nz)).zero_();
+        }
+        return;
+    }
+    bool gradabs = m.BACK_PROP_TYPE == 1 && (m.ABS_TYPE == 1 || m.ABS_TYPE == 2) && m.GRADABS;
+    int nab = gradabs ? 0 : m.NAB;
+    int ztop = (m.FREESURF == 2) ? m.FDOH : nab;
+    using torch::indexing::Slice;
+    if (m.NDIM == 2) {
+        int nz = m.N[0], nx = m.N[1];
+        torch::Tensor v = g.view({nx, nz});
+        if (m.FREESURF != 1) v.index_put_({Slice(), Slice(0, std::min(ztop, nz))}, 0.0f);
+        v.index_put_({Slice(), Slice(std::max(nz - nab, 0), nz)}, 0.0f);
+        v.index_put_({Slice(0, std::min(nab, nx)), Slice()}, 0.0f);
+        v.index_put_({Slice(std::max(nx - nab, 0), nx), Slice()}, 0.0f);
+    } else if (m.NDIM == 3) {
+        int nz = m.N[0], ny = m.N[1], nx = m.N[2];
+        torch::Tensor v = g.view({nx, ny, nz});
+        if (m.FREESURF != 1) v.index_put_({Slice(), Slice(), Slice(0, std::min(ztop, nz))}, 0.0f);
+        v.index_put_({Slice(), Slice(), Slice(std::max(nz - nab, 0), nz)}, 0.0f);
+        v.index_put_({Slice(), Slice(0, std::min(nab, ny)), Slice()}, 0.0f);
+        v.index_put_({Slice(), Slice(std::max(ny - nab, 0), ny), Slice()}, 0.0f);
+        v.index_put_({Slice(0, std::min(nab, nx)), Slice(), Slice()}, 0.0f);
+        v.index_put_({Slice(std::max(nx - nab, 0), nx), Slice(), Slice()}, 0.0f);
+    }
+}
+
+// dev_grad: the gradients are on the first device (gpost_run); copied device
+// to device into new tensors, cropped there, then to the caller's device.
+py::dict collect_grads_device(EngineHandle &h, const torch::Device &out_dev) {
+    py::dict result;
+    model &m = h.m;
+    device &d0 = h.dev[0];
+    // the engine's queue, and torch's (its new tensors may reuse memory that
+    // pending torch work still uses)
+    torch::cuda::synchronize(static_cast<int>(d0.cudev));
+    if (cuCtxSetCurrent(d0.context) || cuStreamSynchronize(d0.queue)) {
+        throw std::runtime_error("SeisCL: device synchronization failed");
+    }
+    auto opts = torch::TensorOptions().dtype(torch::kFloat32)
+                    .device(torch::kCUDA, static_cast<int>(d0.cudev));
+    for (int i = 0; i < m.npars; i++) {
+        if (!m.pars[i].to_grad || !m.pars[i].gl_grad) continue;
+        CUdeviceptr src = (m.NUM_DEVICES > 1) ? d0.pars[i].cl_gwork.mem
+                                              : d0.pars[i].cl_grad.mem;
+        if (!src) continue;
+        torch::Tensor g = torch::empty({m.pars[i].num_ele}, opts);
+        if (cuMemcpyDtoDAsync((CUdeviceptr)g.data_ptr<float>(), src,
+                              sizeof(float) * m.pars[i].num_ele, d0.queue) ||
+            cuStreamSynchronize(d0.queue)) {
+            throw std::runtime_error("SeisCL: gradient copy failed");
+        }
+        crop_boundary_tensor(g, m);
+        result[py::str(m.pars[i].name)] = g.to(out_dev);
+    }
+    return result;
 }
 
 py::dict collect_grads(model &m) {
@@ -655,6 +758,9 @@ py::dict run_forward(const Config &cfg, const py::dict &params,
         h->pending_ckpt = checkpoint_path;
     }
 
+    if (h->m.dev_res && h->m.dev_data) {
+        return collect_data_device(*h, params_device(params));
+    }
     return collect_data(h->m);
 }
 
@@ -701,6 +807,38 @@ py::dict run_backward(const Config &cfg, const py::dict &params,
             torch::Tensor t = py::cast<torch::Tensor>(item.second)
                                   .to(torch::kFloat32)
                                   .contiguous();
+            if (h->m.dev_res && h->m.dev_data) {
+                // dev_data: the residuals go device to device into the
+                // first device's cl_res_all (nothing on the host)
+                int vi = -1;
+                for (int k = 0; k < h->m.nvars; k++) {
+                    if (name == h->m.vars[k].name) vi = k;
+                }
+                if (vi < 0 || !h->dev[0].vars[vi].cl_res_all.mem) {
+                    throw std::invalid_argument("Unknown field: " + name);
+                }
+                int64_t expected =
+                    static_cast<int64_t>(h->m.src_recs.allng) * h->m.NT;
+                if (t.numel() != expected) {
+                    throw std::invalid_argument(
+                        "Residual " + name + " has " +
+                        std::to_string(t.numel()) + " elements, expected " +
+                        std::to_string(expected));
+                }
+                t = t.to(torch::Device(torch::kCUDA,
+                                       static_cast<int>(h->dev[0].cudev)))
+                        .contiguous();
+                torch::cuda::synchronize(t.device().index());
+                // on the engine queue, then wait: t is freed after this loop
+                if (cuCtxSetCurrent(h->dev[0].context) ||
+                    cuMemcpyDtoDAsync(h->dev[0].vars[vi].cl_res_all.mem,
+                                      (CUdeviceptr)t.data_ptr<float>(),
+                                      sizeof(float) * expected, h->dev[0].queue) ||
+                    cuStreamSynchronize(h->dev[0].queue)) {
+                    throw std::runtime_error("SeisCL: residual copy failed");
+                }
+                continue;
+            }
             require_cpu(t, "Residual " + name);
             variable *var = find_var(h->m, name);
             if (!var) {
@@ -798,6 +936,9 @@ py::dict run_backward(const Config &cfg, const py::dict &params,
     h->pending_valid = false;
     if (state) fail_call(key, h, state, "backward pass");
 
+    if (h->m.dev_grad && h->m.dev_data) {
+        return collect_grads_device(*h, params_device(params));
+    }
     return collect_grads(h->m);
 }
 
@@ -935,6 +1076,14 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
          "'single' (one shot), 'shotstore' (RAM, one buffer per shot), "
          "'hdf5-memory', 'recompute' (none kept; the backward call re-runs "
          "the forward), 'file', or 'none' (no gradient requested).");
+
+    m.def("transfer_bytes",
+         []() { return std::make_pair(seiscl_bytes_h2d, seiscl_bytes_d2h); },
+         "(host to device, device to host) bytes moved by the engine's buffer "
+         "transfers since the last reset_transfer_bytes() (tests).");
+    m.def("reset_transfer_bytes",
+         []() { seiscl_bytes_h2d = 0; seiscl_bytes_d2h = 0; },
+         "Reset the counters of transfer_bytes().");
 
     m.def("last_checkpoint_bytes",
          []() { return seiscl_torch::g_last_ckpt_bytes; },
