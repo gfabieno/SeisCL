@@ -632,7 +632,12 @@ void gradfreqsn( void *mptr, void *cstptr, int ncst){
      * the error is energy above the decimated Nyquist folding onto the selected
      * bins. For a Ricker at f0 the spectrum is ~e^-64 at 8*f0, so with
      * fmax ~ 2*f0 an oversample of 8 puts the decimated Nyquist at 8*f0. */
-    m->DTNYQ=ceil((1.0/m->dft_osamp)/fmaxout/m->dt);
+    /* dft_step > 0 sets the step directly (read_hdf5.c and the torch
+     * binding refuse a step whose Nyquist frequency is not above fmax). */
+    if (m->dft_step>0)
+        m->DTNYQ=m->dft_step;
+    else
+        m->DTNYQ=ceil((1.0/m->dft_osamp)/fmaxout/m->dt);
     if (m->DTNYQ<1) m->DTNYQ=1;
     /* NTNYQ is the DFT period: it must equal the number of samples savefreqs
      * actually accumulates, otherwise the basis is not orthogonal and every bin

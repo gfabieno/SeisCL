@@ -502,6 +502,12 @@ int read_csts(hid_t file_id, model * m){
         fprintf(stderr,"Error: dft_osamp must be > 0 (got %g)\n", m->dft_osamp);
         state=1;
     }
+    m->dft_step=0;
+    read_optional(file_id, H5T_NATIVE_INT,     "/dft_step", &m->dft_step);
+    if (m->dft_step<0){
+        fprintf(stderr,"Error: dft_step must be >= 0 (got %d)\n", m->dft_step);
+        state=1;
+    }
     read_optional(file_id, H5T_NATIVE_FLOAT,   "/fmax", &m->fmax);
     read_optional(file_id, H5T_NATIVE_FLOAT,   "/fmin", &m->fmin);
     read_optional(file_id, H5T_NATIVE_INT,   "/scalerms", &m->scalerms);
@@ -554,6 +560,25 @@ int read_csts(hid_t file_id, model * m){
     if (m->BACK_PROP_TYPE==2 && m->GRADOUT==1){
         __GUARD checkexists(file_id,"/gradfreqs");
         m->NFREQS =  getnelement(file_id, "/gradfreqs");
+        /* Sampling the DFT every dft_step steps puts its Nyquist frequency
+         * at 1/(2 dft_step dt); a gradient frequency at or above it would be
+         * an alias, not the frequency requested. */
+        if (!state && m->dft_step>0 && m->NFREQS>0){
+            float *gf=malloc(sizeof(float)*m->NFREQS), fmx=0;
+            int j;
+            if (!gf) {state=1; fprintf(stderr,"Error: memory allocation\n");}
+            if (!state) __GUARD readvar(file_id, H5T_NATIVE_FLOAT, "/gradfreqs", gf);
+            for (j=0; !state && j<m->NFREQS; j++) if (gf[j]>fmx) fmx=gf[j];
+            if (!state && 2.0*m->dft_step*m->dt*fmx>=1.0){
+                fprintf(stderr,"Error: dft_step=%d samples the DFT at %g Hz, "
+                        "so its Nyquist frequency %g Hz must be above the "
+                        "highest gradfreqs %g Hz: use dft_step < %g\n",
+                        m->dft_step, 1.0/(m->dft_step*m->dt),
+                        0.5/(m->dft_step*m->dt), fmx, 0.5/(m->dt*fmx));
+                state=1;
+            }
+            free(gf);
+        }
     }
 
     return state;

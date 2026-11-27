@@ -1329,6 +1329,53 @@ def test_dft_tmin_beyond_modeled_interval_rejected():
     raise AssertionError("cfg.tmin beyond cfg.NT was silently accepted")
 
 
+def test_dft_step():
+    """cfg.dft_step sets the DFT sampling step: dft_step=3 gives the same
+    gradient, bit for bit, as the dft_osamp that gives a step of 3 through the
+    automatic rule; a changed step is a new engine (cache key); a step whose
+    Nyquist frequency 1/(2 dft_step dt) is not above max(gradfreqs) and a
+    negative step are refused."""
+    src, src_pos, rec_pos = _simple_geometry(nrec=2)
+    nz, nx = N
+    mu = torch.full((nz * nx,), VS, dtype=torch.float32)
+    rho = torch.full((nz * nx,), RHO, dtype=torch.float32)
+
+    def cfg_dft(**kw):
+        cfg = _make_config()
+        cfg.BACK_PROP_TYPE = 2
+        cfg.gradfreqs = [10.0, 20.0, 30.0]
+        for k, v in kw.items():
+            setattr(cfg, k, v)
+        return cfg
+
+    def grad_for(config):
+        M = torch.full((nz * nx,), VP, dtype=torch.float32).requires_grad_(True)
+        data = seiscl_forward(config, {"M": M, "mu": mu, "rho": rho},
+                              src, src_pos, rec_pos, output_fields=["vx"])
+        (0.5 * (data["vx"] ** 2).sum()).backward()
+        return M.grad.clone()
+
+    clear_engine_cache()
+    g1 = grad_for(cfg_dft(dft_step=1))
+    g3 = grad_for(cfg_dft(dft_step=3))          # same engine cache, new key
+    g_osamp = grad_for(cfg_dft(dft_osamp=1.0 / (2.5 * 30.0 * DT)))  # ceil(2.5) = 3
+    diff = float((g3 - g_osamp).abs().max())
+    rel = float((g3 - g1).abs().max() / g1.abs().max())
+    assert diff == 0.0, f"dft_step=3 and the dft_osamp giving step 3 differ by {diff}"
+    assert 0.0 < rel < 0.1, (f"dft_step=3 vs 1: relative difference {rel:.3e} "
+                             "(expected small but nonzero: a cached engine "
+                             "reused across steps would give 0)")
+    for bad in (-1, int(np.ceil(0.5 / (DT * 30.0)))):
+        try:
+            grad_for(cfg_dft(dft_step=bad))
+        except (ValueError, RuntimeError) as e:
+            assert "dft_step" in str(e), f"unexpected error: {e}"
+        else:
+            raise AssertionError(f"cfg.dft_step={bad} was accepted")
+    print("Testing: torch_dft_step ....... passed "
+          f"(step 3 vs dft_osamp: max |diff| {diff}; vs step 1: {rel:.2e})")
+
+
 if __name__ == "__main__":
     if not _TORCH_AVAILABLE:
         print("SeisCL.torch not importable (torch extra not installed) "
@@ -1370,3 +1417,4 @@ if __name__ == "__main__":
         test_dft_requires_gradfreqs()
         test_dft_gradient_through_inputres()
         test_dft_tmin_beyond_modeled_interval_rejected()
+        test_dft_step()

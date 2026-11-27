@@ -553,6 +553,122 @@ def test_dft_osamp_convergence():
         "lost its DTNYQ factor again (calc_grad.c dftnorm)."
         % (at2[0] if at2 else float("nan")))
 
+def test_dft_step_option():
+    """dft_step sets the DFT sampling step directly.
+
+    dft_step=3 must give DTNYQ=3 (read_dft), and the same gradient, bit for
+    bit, as the dft_osamp that gives DTNYQ=3 through the automatic rule. A
+    step whose sampling Nyquist frequency is not above max(gradfreqs) is
+    refused by the class (ValueError) and by the engine (SeisCLError) when the
+    class check is bypassed. Negative steps are refused.
+    """
+    wd = workdir("t8_dft_step")
+    geom = dict(NT=240)
+    s0 = make_seiscl(wd, **geom)
+    params = homogeneous(s0)
+    true_params = {k: v.copy() for k, v in params.items()}
+    nz, nx = int(s0.N[0]), int(s0.N[1])
+    true_params["vp"][nz//2-5:nz//2+5, nx//2-5:nx//2+5] += 300.0
+    din = make_observed(s0, params=true_params)
+    gradfreqs = np.array([10.0, 17.0, 25.0])
+    dt = float(s0.dt)
+
+    def run(**kw):
+        s = make_seiscl(wd, gradout=1, back_prop_type=2, dftout=1,
+                        gradfreqs=gradfreqs, **geom, **kw)
+        s.file_din = din
+        s.set_forward(s.src_pos_all[3, :], params, withgrad=True)
+        s.execute()
+        return int(s.read_dft()["DTNYQ"]), s.read_grad()
+
+    dtnyq, g_step = run(dft_step=3)
+    print("  dft_step=3 -> DTNYQ %d (expected 3)" % dtnyq)
+    assert dtnyq == 3, "dft_step=3 gave DTNYQ=%d" % dtnyq
+    osamp = 1.0 / (2.5 * gradfreqs.max() * dt)      # ceil(2.5) = 3
+    dtnyq_o, g_osamp = run(dft_osamp=osamp)
+    assert dtnyq_o == 3, "dft_osamp=%g gave DTNYQ=%d, not 3" % (osamp, dtnyq_o)
+    diff = max(float(np.abs(a - b).max()) for a, b in zip(g_step, g_osamp))
+    print("  dft_step=3 vs dft_osamp=%.3f (DTNYQ 3): max |difference| %g "
+          "(expected 0)" % (osamp, diff))
+    assert diff == 0.0, "dft_step=3 and dft_osamp giving DTNYQ=3 differ by %g" % diff
+
+    nyq_step = int(np.ceil(0.5 / (dt * gradfreqs.max())))   # Nyquist == fmax or below
+    for bad in (-1, nyq_step):
+        s = make_seiscl(wd, gradout=1, back_prop_type=2, gradfreqs=gradfreqs,
+                        dft_step=bad, **geom)
+        s.file_din = din
+        try:
+            s.set_forward(s.src_pos_all[3, :], params, withgrad=True)
+        except ValueError as e:
+            print("  dft_step=%d refused by the class: %s" % (bad, e))
+        else:
+            raise AssertionError("dft_step=%d was not refused" % bad)
+    # The engine's own check: write a valid file, then set the bad step in it.
+    s = make_seiscl(wd, gradout=1, back_prop_type=2, gradfreqs=gradfreqs,
+                    dft_step=1, **geom)
+    s.file_din = din
+    s.set_forward(s.src_pos_all[3, :], params, withgrad=True)
+    with h5.File(os.path.join(s.workdir, s.file_csts), "a") as f:
+        f["dft_step"][()] = nyq_step
+    try:
+        s.execute()
+    except SeisCLError as e:
+        msg = str(e).strip().splitlines()
+        print("  dft_step=%d refused by the engine: %s" % (nyq_step, msg[-1] if msg else ""))
+    else:
+        raise AssertionError("the engine accepted dft_step=%d (Nyquist %g Hz <= %g Hz)"
+                             % (nyq_step, 0.5 / (nyq_step * dt), gradfreqs.max()))
+
+
+def test_dft_step_convergence_visco():
+    """dft_step on a viscoelastic gradient (L=1 and L=3): the error grows with
+    the step and stays small.
+
+    Same structure as test_dft_osamp_convergence (elastic), for the
+    viscoelastic DFT kernels: steps 1, 2, 4, 7 with NT=504, a multiple of
+    every step (so the DFT bins are the same in every run). The difference to
+    dft_step=1, relative to the gradient maximum of each parameter, must grow
+    with the step and be below 1e-2 at step 2. Measured 2026-11-27 (CUDA and
+    OpenCL identical): L=1 8.0e-4 / 2.3e-3 / 4.3e-3, L=3 5.5e-4 / 1.6e-3 /
+    3.1e-3 at steps 2 / 4 / 7.
+    """
+    for L, FL in ((1, [25.0]), (3, [6.0, 25.0, 100.0])):
+        wd = workdir("t8_dft_step_visco_L%d" % L)
+        geom = dict(NT=504, L=L, FL=np.array(FL))
+        s0 = make_seiscl(wd, **geom)
+        params = homogeneous(s0)
+        nz, nx = int(s0.N[0]), int(s0.N[1])
+        for k in ("taup", "taus"):
+            params[k] = np.full((nz, nx), 0.05)
+        true_params = {k: v.copy() for k, v in params.items()}
+        true_params["vp"][nz//2-4:nz//2+4, nx//2-4:nx//2+4] += 300.0
+        din = make_observed(s0, params=true_params)
+        f0 = float(s0.f0)
+        gradfreqs = np.linspace(0.4 * f0, 1.6 * f0, 7)
+        ref, rows = None, []
+        for step in (1, 2, 4, 7):
+            s = make_seiscl(wd, gradout=1, back_prop_type=2, dftout=1,
+                            gradfreqs=gradfreqs, dft_step=step, **geom)
+            s.file_din = din
+            s.set_forward(s.src_pos_all[3, :], params, withgrad=True)
+            s.execute()
+            assert int(s.read_dft()["DTNYQ"]) == step
+            g = [np.asarray(x, np.float64) for x in s.read_grad()]
+            assert all(np.all(np.isfinite(x)) for x in g), "non-finite gradient"
+            if ref is None:
+                ref = g
+            err = max(float(np.abs(a - b).max() / (np.abs(a).max() or 1.0))
+                      for a, b in zip(ref, g))
+            rows.append((step, err))
+        print("  L=%d: dft_step / largest relative difference to dft_step=1: %s"
+              % (L, ", ".join("%d %.2e" % r for r in rows)))
+        errs = [e for _, e in rows]
+        assert all(b > a for a, b in zip(errs, errs[1:])), (
+            "L=%d: the difference does not grow with dft_step: %s" % (L, errs))
+        assert errs[1] < 1e-2, (
+            "L=%d: difference at dft_step=2 is %.3e (threshold 1e-2)" % (L, errs[1]))
+
+
 def test_param_type_chain_rule():
     """Python-side parameterization: the gradient must predict the same change.
 
@@ -1044,6 +1160,8 @@ TESTS = [
     test_dft_gradient_vs_numpy_heterogeneous,
     test_dft_gradient_vs_numpy_heterogeneous_3d,
     test_dft_osamp_convergence,
+    test_dft_step_option,
+    test_dft_step_convergence_visco,
     test_param_type_chain_rule,
     test_finite_difference_python_objective,
     test_engine_rejects_nonzero_par_type,

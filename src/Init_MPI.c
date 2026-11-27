@@ -85,6 +85,7 @@ int Init_MPI(model * m) {
            several processes per shot, their subdomains accumulated the DFT
            at another rate and the gradient was 0.3-0.6 % off there. */
         MPI_Bcast( &m->dft_osamp, 1, MPI_FLOAT, 0, MPI_COMM_WORLD );
+        MPI_Bcast( &m->dft_step, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPI_Bcast( &m->DFTOUT, 1, MPI_INT, 0, MPI_COMM_WORLD );
 
         MPI_Bcast( &m->FP16, 1, MPI_INT, 0, MPI_COMM_WORLD );

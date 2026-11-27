@@ -564,6 +564,9 @@ typedef struct model {
     /* Oversampling factor of max(gradfreqs) at which savefreqs accumulates.
      * Default 64, which is what the hardcoded 0.0156 used to give. */
     float dft_osamp;
+    /* BACK_PROP_TYPE 2: savefreqs accumulates the DFT every dft_step time
+     * steps. 0 (default): the step is derived from dft_osamp. */
+    int dft_step;
     int INPUTRES;
     /* GRADABS=1 (BACK_PROP_TYPE 1, Cerjan, single device, FP16 0): save the
      * forward wavefield in the whole absorbing layers (plus the FDOH band

@@ -205,6 +205,7 @@ CacheKey make_cache_key(const Config &cfg, int allns, int allng,
     k.GRADABS = cfg.GRADABS;
     k.gradfreqs = cfg.gradfreqs;
     k.dft_osamp = cfg.dft_osamp;
+    k.dft_step = cfg.dft_step;
     k.tmin = cfg.tmin;
     k.nmax_dev = cfg.nmax_dev;
     k.pref_device_type = cfg.pref_device_type;
@@ -977,6 +978,10 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         .def_readwrite("GRADABS", &Config::GRADABS)
         .def_readwrite("gradfreqs", &Config::gradfreqs)
         .def_readwrite("dft_osamp", &Config::dft_osamp)
+        .def_readwrite("dft_step", &Config::dft_step,
+            "BACK_PROP_TYPE 2: accumulate the DFT every dft_step time steps "
+            "(1 = every step, exact; 2-4 are about 2-5x faster within 1 %). "
+            "0 (default): derived from dft_osamp.")
         .def_readwrite("tmin", &Config::tmin)
         .def_readwrite("nmax_dev", &Config::nmax_dev)
         .def_readwrite("pref_device_type", &Config::pref_device_type);
