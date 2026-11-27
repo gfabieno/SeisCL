@@ -367,6 +367,17 @@ char *get_build_options(device *dev,
         if (strcmp((*dev).vars[i].name,"vz")==0) vout[2] = 1;
     }
     velout = vout[0] || vout[1] || vout[2];
+    /* Stress outputs, one bit each (stress receivers: their residuals and
+       receiver-cell terms, kernel_residuals and rec_grad.cl) */
+    int sout = 0;
+    {
+        const char * sn[6] = {"sxx", "syy", "szz", "sxz", "sxy", "syz"};
+        int q;
+        for (i=0;i<(*dev).nvars;i++){
+            if (!(*dev).vars[i].to_output) continue;
+            for (q=0;q<6;q++) if (strcmp((*dev).vars[i].name, sn[q])==0) sout |= 1<<q;
+        }
+    }
 
     parny = (m->NDIM==3) ? (*dev).N[1] : 1;
     parnx = (m->NDIM==3) ? (*dev).N[2] : (*dev).N[1];
@@ -382,7 +393,7 @@ char *get_build_options(device *dev,
             "-D GRADOUT=%d -D HOUT=%d -D GRADSRCOUT=%d -D DIRPROP=%d "
             "-D RESTYPE=%d -D FP16=%d -D FREQ0=%9.9ff "
             "-D PARNZ=%d -D PARNY=%d -D PARNX=%d -D TMIN=%d "
-            "-D PRESOUT=%d -D VELOUT=%d -D VXOUT=%d -D VYOUT=%d -D VZOUT=%d -D GRADABS=%d",
+            "-D PRESOUT=%d -D VELOUT=%d -D VXOUT=%d -D VYOUT=%d -D VZOUT=%d -D GRADABS=%d -D SOUT=%d",
             (*m).NDIM, (*dev).OFFSET, (*m).FDOH, (*m).dt/(*m).dh, (*m).dh,
             (*m).dt, (*m).dt/2.0, (*m).NT, (*m).NAB, (*dev).NBND,
             (*dev).LOCAL_OFF, (*m).L, (*dev).DEVID, (*m).NUM_DEVICES,
@@ -392,7 +403,7 @@ char *get_build_options(device *dev,
             (*m).VARSOUT, (*m).RESOUT, (*m).RMSOUT, (*m).MOVOUT,
             (*m).GRADOUT, (*m).HOUT, (*m).GRADSRCOUT, DIRPROP, (*m).restype,
             (*m).FP16, (*m).f0,
-            (*dev).N[0], parny, parnx, (*m).tmin, presout, velout, vout[0], vout[1], vout[2], (*m).GRADABS) ;
+            (*dev).N[0], parny, parnx, (*m).tmin, presout, velout, vout[0], vout[1], vout[2], (*m).GRADABS, sout) ;
 
 
     strcat(build_options,src2);
@@ -544,6 +555,17 @@ int get_build_options(device *dev,
         if (strcmp((*dev).vars[i].name,"vz")==0) vout[2] = 1;
     }
     velout = vout[0] || vout[1] || vout[2];
+    /* Stress outputs, one bit each (stress receivers: their residuals and
+       receiver-cell terms, kernel_residuals and rec_grad.cl) */
+    int sout = 0;
+    {
+        const char * sn[6] = {"sxx", "syy", "szz", "sxz", "sxy", "syz"};
+        int q;
+        for (i=0;i<(*dev).nvars;i++){
+            if (!(*dev).vars[i].to_output) continue;
+            for (q=0;q<6;q++) if (strcmp((*dev).vars[i].name, sn[q])==0) sout |= 1<<q;
+        }
+    }
     
     *n=0;
     
@@ -692,6 +714,8 @@ int get_build_options(device *dev,
     sprintf(build_options[*n-1],"-D VYOUT=%d",vout[1]);
     *n+=1;
     sprintf(build_options[*n-1],"-D VZOUT=%d",vout[2]);
+    *n+=1;
+    sprintf(build_options[*n-1],"-D SOUT=%d",sout);
     *n+=1;
     sprintf(build_options[*n-1],"-D GRADABS=%d",(*m).GRADABS);
     // Raw (unpadded) per-dimension grid size, matching the material
@@ -1272,6 +1296,10 @@ int prog_create(model * m,
             }
             else if (strcmp("rec_pos" ,(*prog).input_list[i])==0){
                 prog_arg(prog, i, &(*dev).src_recs.cl_rec_pos.mem, memsize);
+                argfound=1;
+            }
+            else if (strcmp("recmod" ,(*prog).input_list[i])==0){
+                prog_arg(prog, i, &(*dev).src_recs.cl_recmod.mem, memsize);
                 argfound=1;
             }
             /* The kernels (init_gradsrc, update_adj*) call it "gradsrc"; only

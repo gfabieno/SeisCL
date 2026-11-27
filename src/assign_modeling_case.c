@@ -1408,6 +1408,7 @@ int assign_modeling_case(model * m){
         __GUARD prog_source(&m->dio.recgrad, "dio_recgrad", dev_io_source, 1, headers);
         __GUARD prog_source(&m->dio.recgrad_add, "dio_recgrad_add", dev_io_source, 1, headers);
         __GUARD prog_source(&m->dio.add_out, "dio_add_out", dev_io_source, 1, headers);
+        __GUARD prog_source(&m->dio.recmod, "dio_recmod", dev_io_source, 1, headers);
     }
     /* Gradient post-processing on the device (grad_post.cl): with dev_res,
        par_type 0 (the only one the engine runs), without the Hessian. */

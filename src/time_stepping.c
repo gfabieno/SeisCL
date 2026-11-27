@@ -1099,6 +1099,12 @@ int initialize_adj(model * m, device ** dev, int s, int * pdir){
     // and transfer the residual to GPUs
     for (d=0;d<m->NUM_DEVICES;d++){
         
+        /* stress receivers: the parameters at the receivers (residuals.c;
+           dev_res: written on the devices by dio_res_scale) */
+        if (rec_mod_needed(m) && !m->dev_res){
+            __GUARD clbuf_sendfrom(&(*dev)[d].queue, &(*dev)[d].src_recs.cl_recmod,
+                                   m->src_recs.recmod);
+        }
         // Transfer the residuals to the gpus (dev_res: from the first device)
         if (m->dev_res){
             if (d==0) __GUARD dio_res_to_adj(m, dev, s);

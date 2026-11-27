@@ -1129,6 +1129,11 @@ int Init_CUDA(model * m, device ** dev)  {
             __GUARD clbuf_create(di->context_ptr, &di->src_recs.cl_src_pos);
             __GUARD clbuf_create(di->context_ptr, &di->src_recs.cl_rec_pos);
             __GUARD clbuf_create(di->context_ptr, &di->src_recs.cl_src);
+            if (rec_mod_needed(m)){
+                di->src_recs.cl_recmod.size=sizeof(float)*REC_NMOD*m->src_recs.ngmax;
+                di->src_recs.cl_recmod.host=NULL;
+                __GUARD clbuf_create(di->context_ptr, &di->src_recs.cl_recmod);
+            }
             if (m->GRADSRCOUT){
                 di->src_recs.cl_grad_src.size=sizeof(float)
                 * m->NT * m->src_recs.nsmax;
@@ -1508,7 +1513,8 @@ int Init_CUDA(model * m, device ** dev)  {
         if (m->GRADOUT){
             __GUARD kernel_residuals(di,
                                      &di->src_recs.residuals,
-                                     m->BACK_PROP_TYPE);
+                                     m->BACK_PROP_TYPE,
+                                     rec_mod_needed(m));
             __GUARD prog_create(m, di,  &di->src_recs.residuals);
             
             /* The gradient-zeroing kernel is needed by both methods now:

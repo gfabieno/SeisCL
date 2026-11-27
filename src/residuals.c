@@ -449,6 +449,83 @@ int var_res_raw(model * m, int s)
     
     return state;
 }
+/* ---- Stress receivers ------------------------------------------------------
+   The adjoint source of a stress receiver is the unrelaxed stiffness applied
+   to the misfit derivative (thesis eq. 3.33, the rule res_scale already uses
+   for the pressure, whose residual is shared by the normal stresses): a
+   residual r of sxx enters the adjoint sxx with g = M (1 + L taup), the other
+   normal stresses with g - f, f = 2 mu (1 + L taus), and a residual of sxz
+   enters sxz with muipkp (1 + L tausipkp) (sxy, syz: muipjp, mujpkp). The
+   moduli are those of update_s. res_scale scales the trace by its diagonal
+   modulus (g, or the shear modulus), as the pressure trace by its trace
+   modulus, and kernel_residuals adds the coupling (g - f)/g to the other
+   normal stresses, and the memory-variable source (viscoelastic). Both read
+   the parameters at the receiver cell from recmod (REC_NMOD values per
+   receiver, F.h), filled per shot by rec_mod_fill (host parameters) or
+   dio_res_scale (device). */
+int rec_mod_needed(model * m){
+    int i;
+    if (!(m->GRADOUT || m->INPUTRES) || m->ND==21) return 0;
+    for (i=0;i<m->nvars;i++){
+        if (m->vars[i].to_output && stress_kind(m->vars[i].name)>=0) return 1;
+    }
+    return 0;
+}
+
+/* sxx 0, syy 1, szz 2 (normal), sxz 3, sxy 4, syz 5 (shear), -1 otherwise */
+int stress_kind(const char * name){
+    const char * sn[6] = {"sxx", "syy", "szz", "sxz", "sxy", "syz"};
+    int q;
+    for (q=0;q<6;q++) if (strcmp(name, sn[q])==0) return q;
+    return -1;
+}
+
+/* the stored parameter name at cell pos, as float (0 if absent) */
+static float rec_par(model * m, const char * name, int pos){
+    parameter * p = get_par(m->pars, m->npars, name);
+    if (!p || !p->gl_par) return 0.0f;
+    if (m->FP16>1) return half_to_float(((half*)p->gl_par)[pos]);
+    return p->gl_par[pos];
+}
+
+/* the cell of receiver g of shot s (as res_scale) */
+static int rec_cell(model * m, int s, int g){
+    int x = m->src_recs.rec_pos[s][0+8*g]/m->dh;
+    int y = m->src_recs.rec_pos[s][1+8*g]/m->dh;
+    int z = m->src_recs.rec_pos[s][2+8*g]/m->dh;
+    if (m->NDIM==2) return x*m->N[0]+z;
+    return x*m->N[0]*m->N[1]+y*m->N[0]+z;
+}
+
+/* recmod of shot s from the host parameters */
+int rec_mod_fill(model * m, int s){
+    int state = 0, g, k;
+    const char * names[REC_NMOD] = {"M", "mu", "taup", "taus", "muipkp", "tausipkp",
+                                    "muipjp", "tausipjp", "mujpkp", "tausjpkp"};
+    if (!m->src_recs.recmod){
+        GMALLOC(m->src_recs.recmod, sizeof(float)*REC_NMOD*m->src_recs.ngmax);
+        if (state) return state;
+    }
+    for (g=0;g<m->src_recs.nrec[s];g++){
+        int pos = rec_cell(m, s, g);
+        for (k=0;k<REC_NMOD;k++){
+            m->src_recs.recmod[g*REC_NMOD+k] = rec_par(m, names[k], pos);
+        }
+    }
+    return state;
+}
+
+/* the diagonal modulus of stress kind q at a receiver, from its recmod values
+   r (unrelaxed, as update_s): g for a normal stress, the shear modulus of the
+   node for a shear stress */
+float rec_mod_diag(const float * r, int q, int L){
+    float Lf = (float)L;
+    if (q<=2) return r[0]*(1.0f+Lf*r[2]);
+    if (q==3) return r[4]*(1.0f+Lf*r[5]);
+    if (q==4) return r[6]*(1.0f+Lf*r[7]);
+    return r[8]*(1.0f+Lf*r[9]);
+}
+
 int res_scale(model * m, int s)
 {
     // Scale by the material parameters
@@ -666,6 +743,25 @@ int res_scale(model * m, int s)
             }
         }
     }
+    /* Stress receivers: the trace times its diagonal modulus, with the
+       dt/dh and FP16 factors of the pressure above */
+    if (rec_mod_needed(m)){
+        if (rec_mod_fill(m, s)) return 1;
+        for (i=0;i<m->nvars;i++){
+            int q = stress_kind(m->vars[i].name);
+            if (!m->vars[i].to_output || q<0) continue;
+            for (g=0;g<nrec;g++){
+                float md = rec_mod_diag(&m->src_recs.recmod[g*REC_NMOD], q, m->L);
+                parscal = -md*m->dt/m->dh*powf(2,-2.0f*scaler);
+                for (t=0;t<tmax;t++){
+                    m->vars[i].gl_var_res[s][g*NT+t]*=parscal*m->dt;
+                    if (m->FP16>0 && resmax<fabsf(m->vars[i].gl_var_res[s][g*NT+t])){
+                        resmax=fabsf(m->vars[i].gl_var_res[s][g*NT+t]);
+                    }
+                }
+            }
+        }
+    }
     if (m->FP16>0){
         m->src_recs.res_scales[s]=-log2(resmax/10.0);
         #ifndef __NOMPI__
@@ -833,6 +929,8 @@ int dio_create(model * m, device * di){
     __GUARD dio_mkprog(m, di, &di->dio.recgrad, &m->dio.recgrad, ng, 64);
     __GUARD dio_mkprog(m, di, &di->dio.recgrad_add, &m->dio.recgrad_add, 1, 1);
     __GUARD dio_mkprog(m, di, &di->dio.add_out, &m->dio.add_out, ng, 64);
+    if (rec_mod_needed(m))
+        __GUARD dio_mkprog(m, di, &di->dio.recmod, &m->dio.recmod, ng, 64);
     __GUARD gpost_create(m, di);
     for (i=0;i<m->nvars;i++){
         if (!di->vars[i].to_output) continue;
@@ -973,6 +1071,26 @@ int dio_res_scale(model * m, device ** dev, int s){
                               dd->dio.recpar.mem, sizeof(float)*ng*DIO_NP, dd->queue);
         __GUARD cuStreamSynchronize(dd->queue);
     }
+    /* stress receivers: the parameters at the receivers, on every device */
+    if (rec_mod_needed(m)){
+        float * c = d0->dio.cst.host;
+        memset(c, 0, sizeof(float)*PREP_NCST);
+        c[0] = m->dh;
+        dio_seti(c, 2, nrec);
+        dio_seti(c, 7, m->NUM_DEVICES);
+        dio_seti(c, 8, ng);
+        __GUARD cuCtxSetCurrent(d0->context);
+        __GUARD clbuf_send(&d0->queue, &d0->dio.cst);
+        __GUARD prog_launch(&d0->queue, &d0->dio.recmod);
+        __GUARD cuStreamSynchronize(d0->queue);
+        for (d=1;d<m->NUM_DEVICES;d++){
+            device * dd = &(*dev)[d];
+            __GUARD cuCtxSetCurrent(dd->context);
+            __GUARD cuMemcpyAsync(dd->src_recs.cl_recmod.mem, d0->src_recs.cl_recmod.mem,
+                                  sizeof(float)*REC_NMOD*nrec, dd->queue);
+        }
+        __GUARD cuCtxSetCurrent(d0->context);
+    }
     unsigned int * r = (unsigned int *)d0->dio.red.host;
     memset(r, 0, d0->dio.red.size);
     __GUARD clbuf_send(&d0->queue, &d0->dio.red);
@@ -987,6 +1105,8 @@ int dio_res_scale(model * m, device ** dev, int s){
             else if (strcmp(v0->name,"vz")==0) kind = 2;
         }
         else if (strcmp(v0->name,"p")==0) kind = 3;
+        if (i<m->nvars && kind<0 && rec_mod_needed(m) && stress_kind(v0->name)>=0)
+            kind = 4 + stress_kind(v0->name);
         if (kind<0) continue;          /* res_scale leaves the other residuals as they are */
         memset(c, 0, sizeof(float)*PREP_NCST);
         c[0] = m->dh;

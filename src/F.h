@@ -258,6 +258,10 @@ int var_alloc_out(float *** var, struct model *m );
 int var_res_raw(struct model * m, int s);
 int rtm_res(struct model * m, int s);
 int res_scale(struct model * m, int s);
+int rec_mod_needed(struct model * m);
+int stress_kind(const char * name);
+int rec_mod_fill(struct model * m, int s);
+float rec_mod_diag(const float * r, int q, int L);
 int rec_grad_dft(struct model * m, int s);
 int add_rec_grad_dft(struct model * m);
 
@@ -326,12 +330,20 @@ typedef struct constants{
 
 
 /* ______________Structure that control sources and receivers ________________*/
+/* recmod: stored M, mu, taup, taus, muipkp, tausipkp, muipjp, tausipjp,
+   mujpkp, tausjpkp at the receiver cell (0 where absent) */
+#define REC_NMOD 10
 typedef struct sources_records{
 
     clbuf cl_src;
     clbuf cl_src_pos;
     clbuf cl_rec_pos;
     clbuf cl_grad_src;
+    /* Stress receivers: the parameters at each receiver cell of the shot,
+       REC_NMOD floats per receiver (residuals.c, rec_mod_fill), read by the
+       residual injection (kernel_residuals) on every device, halo included */
+    clbuf cl_recmod;
+    float * recmod;
     
     clprogram sources;
     clprogram varsout;
@@ -434,6 +446,7 @@ typedef struct dev_io_k {
     clprogram recgrad;
     clprogram recgrad_add;
     clprogram add_out;
+    clprogram recmod;   /* stress receivers: recmod of the first device */
     clbuf recpar;       /* this device: DIO_NP floats per receiver */
     clbuf recpar_all;   /* first device: one recpar per device */
     clbuf stage;        /* first device: the seismograms of another device */
@@ -441,7 +454,7 @@ typedef struct dev_io_k {
     clbuf cst;
     clbuf acc;
 } dev_io_k;
-#define DIO_NP 9
+#define DIO_NP 15
 
 /* Gradient post-processing on the device (grad_post.cl, calc_grad.c gpost_*) */
 typedef struct gpost_k {
@@ -842,7 +855,8 @@ int kernel_varinit(device * dev,
 
 int kernel_residuals(device * dev,
                      clprogram * prog,
-                     int BACK_PROP_TYPE);
+                     int BACK_PROP_TYPE,
+                     int stressrec);
 
 int kernel_gradinit(device * dev,
                     parameter * pars,

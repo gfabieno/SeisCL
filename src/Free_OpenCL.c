@@ -163,6 +163,7 @@ void sources_records_freeCL(device *dev, sources_records * src_rec){
     clbuf_free(dev, &src_rec->cl_src);
     clbuf_free(dev, &src_rec->cl_src_pos);
     clbuf_free(dev, &src_rec->cl_rec_pos);
+    clbuf_free(dev, &src_rec->cl_recmod);
     clbuf_free(dev, &src_rec->cl_grad_src);
     
     clprogram_freeCL(&src_rec->sources);
@@ -202,6 +203,7 @@ void sources_records_freeGL(sources_records * src_rec){
     GFree(src_rec->rec_pos);
     GFree(src_rec->src_scales);
     GFree(src_rec->res_scales);
+    GFree(src_rec->recmod);
     
 }
 
@@ -345,6 +347,7 @@ void device_free(device * dev){
     clprogram_freeCL(&dev->dio.recgrad);
     clprogram_freeCL(&dev->dio.recgrad_add);
     clprogram_freeCL(&dev->dio.add_out);
+    clprogram_freeCL(&dev->dio.recmod);
     clbuf_free(dev, &dev->dio.recpar);
     clbuf_free(dev, &dev->dio.recpar_all);
     clbuf_free(dev, &dev->dio.stage);

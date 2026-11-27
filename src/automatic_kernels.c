@@ -659,9 +659,39 @@ int kernel_sources(model * m,
     
 }
 
+/* One statement of kernel_residuals: name[pos] += expr, for the storage of
+   FP16 (half: through float on CUDA) */
+static void res_add(char * temp, device * dev, const char * name, const char * pos,
+                    const char * expr){
+    char line[600];
+    if (dev->FP16>1){
+        #ifdef __SEISCL__
+        sprintf(line, "        %s%s += (%s);\n", name, pos, expr);
+        #else
+        sprintf(line, "        %s%s = __float2half(__half2float(%s%s) + (%s));\n",
+                name, pos, name, pos, expr);
+        #endif
+    }
+    else {
+        sprintf(line, "        %s%s += (%s);\n", name, pos, expr);
+    }
+    strcat(temp, line);
+}
+
+/* Add the argument "<type> name, " to temp unless it is there already */
+static void res_arg(char * temp, const char * type, const char * name){
+    char token[100];
+    snprintf(token, sizeof(token), " %s, ", name);
+    if (strstr(temp, token)) return;
+    strcat(temp, type);
+    strcat(temp, name);
+    strcat(temp, ", ");
+}
+
 int kernel_residuals(device * dev,
                      clprogram * prog,
-                     int BACK_PROP_TYPE){
+                     int BACK_PROP_TYPE,
+                     int stressrec){
     
     int state=0;
     int i,j;
@@ -747,6 +777,45 @@ int kernel_residuals(device * dev,
             strcat(temp, temp2);
         }
     }
+    /* Stress receivers: the parameters at the receivers, every normal stress
+       (the coupling), and with memory variables (viscoelastic) their arrays */
+    int smem = 0;
+    if (stressrec){
+        const char * pt = (dev->FP16>1) ? GLOBARG"half * " : GLOBARG"float * ";
+        const char * rs = (BACK_PROP_TYPE==1) ? "r" : "";
+        const char * nn[3] = {"sxx", "syy", "szz"};
+        const char * mn[6] = {"rxx", "ryy", "rzz", "rxz", "rxy", "ryz"};
+        char nm[20];
+        int q, hasr = 0;
+        res_arg(temp, GLOBARG"float * ", "recmod");
+        for (q=0;q<3;q++){
+            if (q==1 && dev->NDIM!=3) continue;
+            sprintf(nm, "%s%s", nn[q], rs);
+            res_arg(temp, pt, nm);
+        }
+        for (i=0;i<dev->nvars;i++){
+            if (strcmp(vars[i].name, "rxx")==0) hasr = 1;
+        }
+        if (hasr){
+            smem = 1;
+            res_arg(temp, GLOBARG"float * ", "eta");
+            for (i=0;i<dev->nvars;i++){
+                int k = stress_kind(vars[i].name);
+                if (!vars[i].to_output || k<0) continue;
+                if (k<=2){
+                    for (q=0;q<3;q++){
+                        if (q==1 && dev->NDIM!=3) continue;
+                        sprintf(nm, "%s%s", mn[q], rs);
+                        res_arg(temp, pt, nm);
+                    }
+                }
+                else {
+                    sprintf(nm, "%s%s", mn[k], rs);
+                    res_arg(temp, pt, nm);
+                }
+            }
+        }
+    }
     chop_tail(temp, 2);
     strcat(temp, "){\n\n");
     
@@ -800,6 +869,7 @@ int kernel_residuals(device * dev,
     
     for (i=0;i<dev->nvars;i++){
         if (vars[i].to_output){
+            if (stressrec && stress_kind(vars[i].name)>=0) continue;   /* below */
             strcat(temp, "        ");
             strcat(temp, vars[i].name);
             if (BACK_PROP_TYPE==1)
@@ -885,6 +955,126 @@ int kernel_residuals(device * dev,
         }
     }
     
+    /* Stress receivers (residuals.c, rec_mod_fill): the residual R of a
+       stress, scaled by res_scale with its diagonal modulus, enters that
+       stress; a normal one enters the other normal stresses too, times
+       (g - f)/g, with the moduli of update_s at the receiver (recmod). The
+       strain of this source is e_c R/md (md: the diagonal modulus): with
+       memory variables (viscoelastic) it drives them as the pressure does
+       below, r_q target -b eta X_q, X_q = e R/g for q = c, (e - d) R/g for
+       the other normal stresses, dipkp R/fipkp for a shear stress (and the
+       stresses lose DT2 sum_l of the injection, see the pressure). */
+    if (stressrec){
+        const char * rs = (BACK_PROP_TYPE==1) ? "r" : "";
+        const char * nn[3] = {"sxx", "syy", "szz"};
+        const char * mn[6] = {"rxx", "ryy", "rzz", "rxz", "rxy", "ryz"};
+        int q;
+        strcat(temp, "    {\n"
+                     "        "GLOBARG"const float * rm = &recmod[10*gid];\n"
+                     "        float g = rm[0]*(1.0f+LVE*rm[2]), f = 2.0f*rm[1]*(1.0f+LVE*rm[3]);\n"
+                     "        float cr = (g!=0.0f) ? (g-f)/g : 0.0f;\n");
+        for (i=0;i<dev->nvars;i++){
+            int k = stress_kind(vars[i].name);
+            char nm[20], expr[300], rv[200];
+            if (!vars[i].to_output || k<0) continue;
+            if (dev->FP16==0){
+                sprintf(rv, "%sout[NT*gid+nt]", vars[i].name);
+            }
+            else {
+                #ifdef __SEISCL__
+                sprintf(rv, "ldexp(%sout[NT*gid+nt],res_scale)", vars[i].name);
+                #else
+                sprintf(rv, "scalbnf(%sout[NT*gid+nt],res_scale)", vars[i].name);
+                #endif
+            }
+            sprintf(temp2, "        { float R = %s;\n", rv);
+            strcat(temp, temp2);
+            sprintf(nm, "%s%s", vars[i].name, rs);
+            res_add(temp, dev, nm, posstr, "R");
+            if (k<=2){
+                for (q=0;q<3;q++){
+                    if (q==k || (q==1 && dev->NDIM!=3)) continue;
+                    sprintf(nm, "%s%s", nn[q], rs);
+                    res_add(temp, dev, nm, posstr, "cr*R");
+                }
+            }
+            if (smem){
+                /* own cells only, as the pressure's memory source */
+                int div = (dev->FP16>0) ? 2 : 1;
+                char stride[200], ld[40], im[200];
+                if (dev->NDIM==3){
+                    sprintf(stride, "N%s*N%s*(N%s*%d)", dev->N_names[2], dev->N_names[1],
+                            dev->N_names[0], div);
+                }
+                else {
+                    sprintf(stride, "N%s*(N%s*%d)", dev->N_names[1], dev->N_names[0], div);
+                }
+                strcpy(im, posstr+1);
+                im[strlen(im)-1] = '\0';          /* posstr without its brackets */
+                strcpy(ld, (dev->FP16>1) ? "__half2float" : "");
+                (void)ld;
+                sprintf(temp2, "#if LVE>0\n        if (i-OFFSET>=FDOH && i-OFFSET<=N%s-FDOH-1){\n"
+                               "            int im = %s;\n",
+                        dev->N_names[dev->NDIM-1], im);
+                strcat(temp, temp2);
+                if (k<=2){
+                    strcat(temp, "            float e = rm[0]*rm[2]/DT, d = 2.0f*rm[1]*rm[3]/DT;\n"
+                                 "            float Rt = (g!=0.0f) ? R/g : 0.0f;\n");
+                }
+                else {
+                    int o = (k==3) ? 4 : (k==4 ? 6 : 8);
+                    sprintf(temp2, "            float fs = rm[%d]*(1.0f+LVE*rm[%d]);\n"
+                                   "            float ds = rm[%d]*rm[%d]/DT;\n"
+                                   "            float Rt = (fs!=0.0f) ? R/fs : 0.0f;\n",
+                            o, o+1, o, o+1);
+                    strcat(temp, temp2);
+                }
+                for (q=0;q<6;q++){
+                    char X[100], rn[20], sn[20], st[400];
+                    if (k<=2 && q>2) continue;
+                    if (k>2 && q!=k) continue;
+                    if (q==1 && dev->NDIM!=3) continue;
+                    if (k<=2) sprintf(X, (q==k) ? "e*Rt" : "(e-d)*Rt");
+                    else      sprintf(X, "ds*Rt");
+                    sprintf(rn, "%s%s", mn[q], rs);
+                    sprintf(sn, "%s%s", (q<=2) ? nn[q] : vars[i].name, rs);
+                    sprintf(temp2, "            { float sx = 0.0f;\n"
+                                   "              for (int l=0; l<LVE; l++){\n"
+                                   "                float a = -eta[l]*(%s)/(1.0f - eta[l]*0.5f);\n"
+                                   "                sx += a;\n"
+                                   "                int ir = l*%s + im;\n", X, stride);
+                    strcat(temp, temp2);
+                    if (dev->FP16>1){
+                        #ifdef __SEISCL__
+                        sprintf(st, "                %s[ir] += a;\n", rn);
+                        #else
+                        sprintf(st, "                %s[ir] = __float2half(__half2float(%s[ir]) + a);\n", rn, rn);
+                        #endif
+                    }
+                    else {
+                        sprintf(st, "                %s[ir] += a;\n", rn);
+                    }
+                    strcat(temp, st);
+                    strcat(temp, "              }\n");
+                    if (dev->FP16>1){
+                        #ifdef __SEISCL__
+                        sprintf(st, "              %s[im] -= DT2*sx; }\n", sn);
+                        #else
+                        sprintf(st, "              %s[im] = __float2half(__half2float(%s[im]) - DT2*sx); }\n", sn, sn);
+                        #endif
+                    }
+                    else {
+                        sprintf(st, "              %s[im] -= DT2*sx; }\n", sn);
+                    }
+                    strcat(temp, st);
+                }
+                strcat(temp, "        }\n#endif\n");
+            }
+            strcat(temp, "        }\n");
+        }
+        strcat(temp, "    }\n");
+    }
+
     /* Adjoint memory-variable source for pressure data (viscoelastic).
        Pressure depends on sigma = sigma' + sum_l R^l, so dX/dR^l = dX/dsigma
        and the adjoint source G dX/dphi (thesis eq. 3.29, G = blockdiag(1/rho,

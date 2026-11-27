@@ -23,10 +23,15 @@
 
    dio_rec_gather: on each device, the parameters at the receivers it owns
        (the x slice OFFSET .. OFFSET+NX-1), as float, into dio_recpar
-       (DIO_NP values per receiver; the last is 1 for an owned receiver).
+       (DIO_NP values per receiver: rip rjp rkp rho M mu taup taus muipkp
+       muipjp mujpkp tausipkp tausipjp tausjpkp; the last is 1 for an owned
+       receiver).
    dio_res_scale: one work-item per receiver: scales the residual of one
        output variable (first argument, set by dev_io.c) as res_scale(), and
        the maximum |residual| (float bits) into dio_red.
+   dio_recmod: one work-item per receiver: the parameters of the receiver
+       cell, from the device that owns it, into recmod (rec_mod_fill of
+       residuals.c: stress receivers).
    dio_recgrad: one work-item per receiver: the receiver-cell sum of
        rec_grad_dft(), in double, into dio_acc.
    dio_recgrad_add: one work-item: adds the sums to the gradient term, in the
@@ -34,7 +39,7 @@
 
    dio_cst (floats; ints as their bits), filled by dev_io.c before each launch:
        0 dh, 1 dt, 2 nrec, 3 NT, 4 tmax, 5 scaler, 6 kind (0 vx, 1 vy, 2 vz,
-       3 p), 7 number of slots of dio_recpar_all, 8 ngmax, 9 L, 10 first row of
+       3 p, 4 + stress_kind: sxx syy szz sxz sxy syz), 7 number of slots of dio_recpar_all, 8 ngmax, 9 L, 10 first row of
        the shot, 11 OFFSET, 12 cells along x of this device, 13 N[0], 14 N[1],
        15 slot of this device, 16 tmin, 17 sc of rec_grad_dft. */
 
@@ -76,7 +81,7 @@
 #define DLD(p, i) ((p)[(i)])
 #endif
 
-#define DIO_NP 9
+#define DIO_NP 15
 
 /* Receiver g of the shot: its cell (as residuals.c: x = pos/dh, truncated) */
 LFUNDEF void dio_cell(GLOBARG const float *rec_pos, GLOBARG const float *c, int g,
@@ -92,6 +97,9 @@ FUNDEF void dio_rec_gather(GLOBARG const DPAR *rip, GLOBARG const DPAR *rjp,
                            GLOBARG const DPAR *rkp, GLOBARG const DPAR *rho,
                            GLOBARG const DPAR *M, GLOBARG const DPAR *mu,
                            GLOBARG const DPAR *taup, GLOBARG const DPAR *taus,
+                           GLOBARG const DPAR *muipkp, GLOBARG const DPAR *muipjp,
+                           GLOBARG const DPAR *mujpkp, GLOBARG const DPAR *tausipkp,
+                           GLOBARG const DPAR *tausipjp, GLOBARG const DPAR *tausjpkp,
                            GLOBARG const float *rec_pos, GLOBARG float *dio_recpar,
                            GLOBARG const float *dio_cst)
 {
@@ -129,7 +137,21 @@ FUNDEF void dio_rec_gather(GLOBARG const DPAR *rip, GLOBARG const DPAR *rjp,
     o[7] = DLD(taus, i);
     #endif
 #endif
-    o[8] = 1.0f;
+#if ND==2 || ND==3
+    o[8] = DLD(muipkp, i);
+    #if ND==3
+    o[9] = DLD(muipjp, i);
+    o[10] = DLD(mujpkp, i);
+    #endif
+    #if LVE>0
+    o[11] = DLD(tausipkp, i);
+        #if ND==3
+    o[12] = DLD(tausipjp, i);
+    o[13] = DLD(tausjpkp, i);
+        #endif
+    #endif
+#endif
+    o[DIO_NP - 1] = 1.0f;
 }
 
 /* the parameters of receiver g: the slot of the device that owns it */
@@ -139,7 +161,7 @@ LFUNDEF GLOBARG const float * dio_owner(GLOBARG const float *dio_recpar_all,
     int ns = DIO_I(c, 7), ng = DIO_I(c, 8);
     for (int d = 0; d < ns; d++){
         GLOBARG const float *p = &dio_recpar_all[(d * ng + g) * DIO_NP];
-        if (p[8] == 1.0f) return p;
+        if (p[DIO_NP - 1] == 1.0f) return p;
     }
     return &dio_recpar_all[g * DIO_NP];
 }
@@ -166,6 +188,27 @@ FUNDEF void dio_res_scale(GLOBARG float *res, GLOBARG const float *dio_recpar_al
             float v = (float)DMUL((double)r[t], f);
             r[t] = v;
             if (resmax < fabs(v)) resmax = fabs(v);
+        }
+    }
+    else if (kind >= 4){
+        /* stress receivers: the diagonal modulus (rec_mod_diag of residuals.c) */
+        int q = kind - 4;
+        float Lf = (float)DIO_I(c, 9);
+        float md = (q <= 2) ? FMUL(p[4], FADD(1.0f, FMUL(Lf, p[6])))
+                 : (q == 3) ? FMUL(p[8], FADD(1.0f, FMUL(Lf, p[11])))
+                 : (q == 4) ? FMUL(p[9], FADD(1.0f, FMUL(Lf, p[12])))
+                 :            FMUL(p[10], FADD(1.0f, FMUL(Lf, p[13])));
+        int s2 = -2 * scaler;
+        float sc2 = 1.0f;
+        for (int k = 0; k < (s2 > 0 ? s2 : -s2); k++) sc2 = (s2 > 0) ? sc2 * 2.0f : sc2 * 0.5f;
+        float parscal = FMUL(FMUL(-md, dt) / dh, sc2);
+        float f = FMUL(parscal, dt);
+        for (int t = 0; t < tmax; t++){
+            float v = FMUL(r[t], f);
+            r[t] = v;
+#if FP16>0
+            if (resmax < fabs(v)) resmax = fabs(v);
+#endif
         }
     }
     else {
@@ -246,4 +289,19 @@ FUNDEF void dio_add_out(GLOBARG float *out, GLOBARG const float *varout,
     GLOBARG float *o = &out[(DIO_I(c, 10) + g) * NTt];
     GLOBARG const float *v = &varout[g * NTt];
     for (int t = 0; t < NTt; t++) o[t] = FADD(o[t], v[t]);
+}
+
+/* rec_mod_fill of residuals.c on the device: the parameters of the cell of
+   receiver g (owner's slot) in the order of recmod (F.h) */
+FUNDEF void dio_recmod(GLOBARG const float *dio_recpar_all, GLOBARG const float *dio_cst,
+                       GLOBARG float *recmod)
+{
+    GLOBARG const float *c = dio_cst;
+    int g = DIO_GID;
+    if (g >= DIO_I(c, 2)) return;
+    GLOBARG const float *p = dio_owner(dio_recpar_all, c, g);
+    GLOBARG float *o = &recmod[g * 10];
+    o[0] = p[4];  o[1] = p[5];  o[2] = p[6];  o[3] = p[7];
+    o[4] = p[8];  o[5] = p[11]; o[6] = p[9];  o[7] = p[12];
+    o[8] = p[10]; o[9] = p[13];
 }
