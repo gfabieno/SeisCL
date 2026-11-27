@@ -109,39 +109,30 @@ FUNDEF void update_adjv(int offcomm,
 #if BACK_PROP_TYPE==1 && !CPMLINL
     load_tile3(lvar, szz, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_szz_z[c] = tdp(lvar, it0+c, 1);
+    tdpn(lvar, it0, 1, d_szz_z);
     BARRIER
     load_tile3(lvar, sxx, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_sxx_x[c] = tdp(lvar, it0+c, sx);
+    tdpn(lvar, it0, sx, d_sxx_x);
     BARRIER
     load_tile3(lvar, sxz, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_sxz_x[c] = tdm(lvar, it0+c, sx);
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_sxz_z[c] = tdm(lvar, it0+c, 1);
+    tdmn(lvar, it0, sx, d_sxz_x);
+    tdmn(lvar, it0, 1, d_sxz_z);
     BARRIER
     load_tile3(lvar, syz, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_syz_y[c] = tdm(lvar, it0+c, sy);
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_syz_z[c] = tdm(lvar, it0+c, 1);
+    tdmn(lvar, it0, sy, d_syz_y);
+    tdmn(lvar, it0, 1, d_syz_z);
     BARRIER
     load_tile3(lvar, syy, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_syy_y[c] = tdp(lvar, it0+c, sy);
+    tdpn(lvar, it0, sy, d_syy_y);
     BARRIER
     load_tile3(lvar, sxy, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_sxy_x[c] = tdm(lvar, it0+c, sx);
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_sxy_y[c] = tdm(lvar, it0+c, sy);
+    tdmn(lvar, it0, sx, d_sxy_x);
+    tdmn(lvar, it0, sy, d_sxy_y);
     BARRIER
 #endif
 #if CPMLINL
@@ -149,85 +140,67 @@ FUNDEF void update_adjv(int offcomm,
 #elif ABS_TYPE==1 && BACK_PROP_TYPE==1
     load_tile3_cpf(lvar, cpf1, sxxr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_sxx_xr[c] = tdp(lvar, it0+c, sx);
+    tdpn(lvar, it0, sx, d_sxx_xr);
     BARRIER
     load_tile3_cpf(lvar, cpf2, sxyr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_sxy_yr[c] = tdm(lvar, it0+c, sy);
+    tdmn(lvar, it0, sy, d_sxy_yr);
     BARRIER
     load_tile3_cpf(lvar, cpf3, sxzr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_sxz_zr[c] = tdm(lvar, it0+c, 1);
+    tdmn(lvar, it0, 1, d_sxz_zr);
     BARRIER
     load_tile3_cpf(lvar, cpf4, sxyr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_sxy_xr[c] = tdm(lvar, it0+c, sx);
+    tdmn(lvar, it0, sx, d_sxy_xr);
     BARRIER
     load_tile3_cpf(lvar, cpf5, syyr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_syy_yr[c] = tdp(lvar, it0+c, sy);
+    tdpn(lvar, it0, sy, d_syy_yr);
     BARRIER
     load_tile3_cpf(lvar, cpf6, syzr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_syz_zr[c] = tdm(lvar, it0+c, 1);
+    tdmn(lvar, it0, 1, d_syz_zr);
     BARRIER
     load_tile3_cpf(lvar, cpf7, sxzr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_sxz_xr[c] = tdm(lvar, it0+c, sx);
+    tdmn(lvar, it0, sx, d_sxz_xr);
     BARRIER
     load_tile3_cpf(lvar, cpf8, syzr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_syz_yr[c] = tdm(lvar, it0+c, sy);
+    tdmn(lvar, it0, sy, d_syz_yr);
     BARRIER
     load_tile3_cpf(lvar, cpf9, szzr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_szz_zr[c] = tdp(lvar, it0+c, 1);
+    tdpn(lvar, it0, 1, d_szz_zr);
     BARRIER
 #else
     load_tile3(lvar, szzr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_szz_zr[c] = tdp(lvar, it0+c, 1);
+    tdpn(lvar, it0, 1, d_szz_zr);
     BARRIER
     load_tile3(lvar, sxxr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_sxx_xr[c] = tdp(lvar, it0+c, sx);
+    tdpn(lvar, it0, sx, d_sxx_xr);
     BARRIER
     load_tile3(lvar, sxzr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_sxz_xr[c] = tdm(lvar, it0+c, sx);
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_sxz_zr[c] = tdm(lvar, it0+c, 1);
+    tdmn(lvar, it0, sx, d_sxz_xr);
+    tdmn(lvar, it0, 1, d_sxz_zr);
     BARRIER
     load_tile3(lvar, syzr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_syz_yr[c] = tdm(lvar, it0+c, sy);
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_syz_zr[c] = tdm(lvar, it0+c, 1);
+    tdmn(lvar, it0, sy, d_syz_yr);
+    tdmn(lvar, it0, 1, d_syz_zr);
     BARRIER
     load_tile3(lvar, syyr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_syy_yr[c] = tdp(lvar, it0+c, sy);
+    tdpn(lvar, it0, sy, d_syy_yr);
     BARRIER
     load_tile3(lvar, sxyr, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_sxy_xr[c] = tdm(lvar, it0+c, sx);
-    #pragma unroll
-    for (int c=0; c<NV; c++) d_sxy_yr[c] = tdm(lvar, it0+c, sy);
+    tdmn(lvar, it0, sx, d_sxy_xr);
+    tdmn(lvar, it0, sy, d_sxy_yr);
     BARRIER
 #endif
 

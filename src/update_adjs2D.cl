@@ -86,19 +86,13 @@ FUNDEF void update_adjs(int offcomm,
     float vxx[NV], vxz[NV], vzz[NV], vzx[NV];
     load_tile2(lvar, vx, tile_z0, tile_x0, tz, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++){
-        vxx[c] = tdxm(lvar, tz, lz0+c, lx);
-        vxz[c] = tdzp(lvar, tz, lz0+c, lx);
-    }
+    tdmn(lvar, lx*tz + lz0, tz, vxx);
+    tdpn(lvar, lx*tz + lz0, 1, vxz);
     BARRIER
     load_tile2(lvar, vz, tile_z0, tile_x0, tz, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++){
-        vzz[c] = tdzm(lvar, tz, lz0+c, lx);
-        vzx[c] = tdxp(lvar, tz, lz0+c, lx);
-    }
+    tdmn(lvar, lx*tz + lz0, 1, vzz);
+    tdpn(lvar, lx*tz + lz0, tz, vzx);
     BARRIER
 #endif
 
@@ -108,39 +102,29 @@ FUNDEF void update_adjs(int offcomm,
     /* exact CPML adjoint: the fields filtered by cpml_adj_v */
     load_tile2_cpf(lvar, cpfa, vxr, tile_z0, tile_x0, tz, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) vxxr[c] = tdxm(lvar, tz, lz0+c, lx);
+    tdmn(lvar, lx*tz + lz0, tz, vxxr);
     BARRIER
     load_tile2_cpf(lvar, cpfb, vxr, tile_z0, tile_x0, tz, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) vxzr[c] = tdzp(lvar, tz, lz0+c, lx);
+    tdpn(lvar, lx*tz + lz0, 1, vxzr);
     BARRIER
     load_tile2_cpf(lvar, cpfc, vzr, tile_z0, tile_x0, tz, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) vzzr[c] = tdzm(lvar, tz, lz0+c, lx);
+    tdmn(lvar, lx*tz + lz0, 1, vzzr);
     BARRIER
     load_tile2_cpf(lvar, cpfd, vzr, tile_z0, tile_x0, tz, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) vzxr[c] = tdxp(lvar, tz, lz0+c, lx);
+    tdpn(lvar, lx*tz + lz0, tz, vzxr);
 #else
     load_tile2(lvar, vxr, tile_z0, tile_x0, tz, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++){
-        vxxr[c] = tdxm(lvar, tz, lz0+c, lx);
-        vxzr[c] = tdzp(lvar, tz, lz0+c, lx);
-    }
+    tdmn(lvar, lx*tz + lz0, tz, vxxr);
+    tdpn(lvar, lx*tz + lz0, 1, vxzr);
     BARRIER
     load_tile2(lvar, vzr, tile_z0, tile_x0, tz, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++){
-        vzzr[c] = tdzm(lvar, tz, lz0+c, lx);
-        vzxr[c] = tdxp(lvar, tz, lz0+c, lx);
-    }
+    tdmn(lvar, lx*tz + lz0, 1, vzzr);
+    tdpn(lvar, lx*tz + lz0, tz, vzxr);
 #endif
 
 #if COMM12==0

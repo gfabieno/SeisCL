@@ -62,17 +62,13 @@ FUNDEF void update_s(int offcomm,
     // Spatial derivatives of the velocities, from shared tiles
     load_tile2(lvar, vx, tile_z0, tile_x0, tz, tx);
     BARRIER
-    for (int c=0; c<NV; c++){
-        vxx[c] = tdxm(lvar, tz, lz0 + c, lx);
-        vxz[c] = tdzp(lvar, tz, lz0 + c, lx);
-    }
+    tdmn(lvar, lx*tz + lz0, tz, vxx);
+    tdpn(lvar, lx*tz + lz0, 1, vxz);
     BARRIER
     load_tile2(lvar, vz, tile_z0, tile_x0, tz, tx);
     BARRIER
-    for (int c=0; c<NV; c++){
-        vzz[c] = tdzm(lvar, tz, lz0 + c, lx);
-        vzx[c] = tdxp(lvar, tz, lz0 + c, lx);
-    }
+    tdmn(lvar, lx*tz + lz0, 1, vzz);
+    tdpn(lvar, lx*tz + lz0, tz, vzx);
 
 #if COMM12==0
     if (zt > NZS-FDOH-1 || (gidx-offcomm) > (NX-FDOH-1-LCOMM)) return;
