@@ -745,6 +745,7 @@ py::dict run_forward(const Config &cfg, const py::dict &params,
         py::gil_scoped_release nogil;
         state = time_stepping(&h->m, &h->dev, files);
     }
+    detach_src(*h);
     h->m.CKPT_RECOMPUTE = 0;
     if (state) fail_call(key, h, state, "forward pass");
 
@@ -931,6 +932,7 @@ py::dict run_backward(const Config &cfg, const py::dict &params,
         py::gil_scoped_release nogil;
         state = time_stepping(&h->m, &h->dev, files);
     }
+    detach_src(*h);
     h->m.CKPT_RECOMPUTE = 0;
     // Consumed either way: the adjoint pass has overwritten the buffers.
     h->pending_valid = false;

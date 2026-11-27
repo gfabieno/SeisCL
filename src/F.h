@@ -363,6 +363,14 @@ typedef struct sources_records{
     int * src_scales;
     int * res_scales;
     float **src;
+    /* SeisCL.torch with a CUDA wavelet tensor (plan gpu-param-pipeline, step 4):
+       src_dev is the device address of the wavelets of all shots (allns x NT,
+       the layout of src[0]), copied device to device into cl_src at each shot;
+       src_rowmax the max |wavelet| of each source, computed on the device, for
+       Init_src_scales. Both 0 / NULL: the host values src[] are used. Set for
+       one call by the binding. */
+    unsigned long long src_dev;
+    float * src_rowmax;
     float **gradsrc;
     float **src_pos;
     float **rec_pos;

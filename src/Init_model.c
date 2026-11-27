@@ -47,9 +47,20 @@ int Init_src_scales(model * m) {
     if (m->FP16!=0){
         for (i=0;i<m->src_recs.ns;i++){
             srcmax=0;
-            for (t=0;t<m->NT*m->src_recs.nsrc[i];t++){
-                if (srcmax<fabsf(m->src_recs.src[i][t])){
-                    srcmax=fabsf(m->src_recs.src[i][t]);
+            if (m->src_recs.src_rowmax){
+                /* the maxima of each source, from the device (same max) */
+                int r0 = (int)((m->src_recs.src[i]-m->src_recs.src[0])/m->NT);
+                for (t=0;t<m->src_recs.nsrc[i];t++){
+                    if (srcmax<m->src_recs.src_rowmax[r0+t]){
+                        srcmax=m->src_recs.src_rowmax[r0+t];
+                    }
+                }
+            }
+            else {
+                for (t=0;t<m->NT*m->src_recs.nsrc[i];t++){
+                    if (srcmax<fabsf(m->src_recs.src[i][t])){
+                        srcmax=fabsf(m->src_recs.src[i][t]);
+                    }
                 }
             }
             /* es of eq. (6) in Fabien-Ouellet (2020), Geophysics 85(3) F65:

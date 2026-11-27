@@ -276,7 +276,6 @@ void set_srcrec(model &m, torch::Tensor &src, torch::Tensor &src_pos,
     src = src.to(torch::kFloat32).contiguous();
     src_pos = src_pos.to(torch::kFloat32).contiguous();
     rec_pos = rec_pos.to(torch::kFloat32).contiguous();
-    require_cpu(src, "src");
     require_cpu(src_pos, "src_pos");
     require_cpu(rec_pos, "rec_pos");
 
@@ -291,9 +290,13 @@ void set_srcrec(model &m, torch::Tensor &src, torch::Tensor &src_pos,
     if (src.numel() != static_cast<int64_t>(allns) * m.NT) {
         throw std::invalid_argument("src must have shape [allns, NT]");
     }
+    // A CUDA wavelet tensor stays on the device (attach_src): the host
+    // arrays are only allocated here, with zeros.
+    torch::Tensor hsrc = src.is_cuda()
+        ? torch::zeros({src.numel()}, torch::kFloat32) : src;
 
     int state = seiscl_set_srcrec(&m, src_pos.data_ptr<float>(), allns,
-                                  src.data_ptr<float>(),
+                                  hsrc.data_ptr<float>(),
                                   rec_pos.data_ptr<float>(), allng);
     if (state) {
         throw std::runtime_error("seiscl_set_srcrec failed");
@@ -356,6 +359,7 @@ int engine_build(EngineHandle &h, const Config &cfg, int gradout, int inputres,
     h.m.keep_raw = 1;   // a reused engine prepares the parameters at every call
     h.m.dev_data = 1;   // with dev_res: seismograms and residuals stay on the device
     set_srcrec(h.m, src, src_pos, rec_pos, output_fields);
+    attach_src(h, src);
 
     // FL is normally read from the csts file (read_hdf5.c, dataset "/FL");
     // with no file, fill it here. assign_modeling_case() has allocated the
@@ -463,7 +467,6 @@ int engine_refresh_srcrec(EngineHandle &h, torch::Tensor &src,
     src = src.to(torch::kFloat32).contiguous();
     src_pos = src_pos.to(torch::kFloat32).contiguous();
     rec_pos = rec_pos.to(torch::kFloat32).contiguous();
-    require_cpu(src, "src");
     require_cpu(src_pos, "src_pos");
     require_cpu(rec_pos, "rec_pos");
 
@@ -490,8 +493,11 @@ int engine_refresh_srcrec(EngineHandle &h, torch::Tensor &src,
     // than calling it again.
     std::memcpy(sr.src_pos[0], src_pos.data_ptr<float>(),
                 sizeof(float) * allns * 5);
-    std::memcpy(sr.src[0], src.data_ptr<float>(),
-                sizeof(float) * allns * h.m.NT);
+    if (!src.is_cuda()) {
+        std::memcpy(sr.src[0], src.data_ptr<float>(),
+                    sizeof(float) * allns * h.m.NT);
+    }
+    attach_src(h, src);
     std::memcpy(sr.rec_pos[0], rec_pos.data_ptr<float>(),
                 sizeof(float) * allng * 8);
 
@@ -501,6 +507,32 @@ int engine_refresh_srcrec(EngineHandle &h, torch::Tensor &src,
     // re-uploads cl_src/cl_src_pos/cl_rec_pos per shot unconditionally
     // (time_stepping.c:563-575), so no device transfer is needed here.
     return 0;
+}
+
+// The wavelets of a CUDA tensor stay on the device (plan gpu-param-pipeline,
+// step 4): time_stepping copies each shot's rows device to device into
+// cl_src, and Init_src_scales takes the max |wavelet| of each source from a
+// reduction on the device (one float per source to the host, FP16 > 0 only).
+// src must stay alive until detach_src, after the call: the caller's tensor.
+void attach_src(EngineHandle &h, const torch::Tensor &src) {
+    sources_records &sr = h.m.src_recs;
+    sr.src_dev = 0;
+    sr.src_rowmax = nullptr;
+    if (!src.is_cuda()) return;
+    if (h.m.FP16 != 0) {
+        torch::Tensor mx = src.reshape({sr.allns, h.m.NT}).abs().amax(1)
+                              .to(torch::kCPU).contiguous();
+        h.src_rowmax.assign(mx.data_ptr<float>(), mx.data_ptr<float>() + sr.allns);
+        sr.src_rowmax = h.src_rowmax.data();
+    }
+    // the engine copies on its own queues: wait for the stream that wrote src
+    torch::cuda::synchronize(src.device().index());
+    sr.src_dev = reinterpret_cast<unsigned long long>(src.data_ptr<float>());
+}
+
+void detach_src(EngineHandle &h) {
+    h.m.src_recs.src_dev = 0;
+    h.m.src_recs.src_rowmax = nullptr;
 }
 
 void engine_reset_outputs(EngineHandle &h) {
