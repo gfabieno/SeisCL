@@ -117,6 +117,12 @@ FUNDEF void update_s(int offcomm,  int nt,
     if (zt > NZS-FDOH-1 || gidy > NYS-FDOH-1) return;
 #endif
 
+#if LVE>0
+    /* Unrolled with memory variables: rolled, the 9 derivative arrays went to the stack at FP16 1/2
+       (REG 145 STACK 72). A6000, 3-D 192^3 x 1000 forward: FP16 2 3.87 to 3.38 s, FP16 1 6.85 to 6.67 s.
+       Elastic (LVE 0) stays rolled: unrolled it was slower (FP16 1 2.45 to 2.98 s). */
+    #pragma unroll
+#endif
     for (int c=0; c<NV; c++){
         int gidz = zt + c;
         if (!INTERIOR_Z(gidz)) continue;              // halo cell of an aligned pair
