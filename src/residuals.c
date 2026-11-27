@@ -702,10 +702,10 @@ int res_scale(model * m, int s)
                      * and only the viscoelastic gradient drifted with tau. */
                     float ltp = 1.0f, lts = 1.0f;
                     if (m->L > 0){
-                        float * taup_a = get_par(m->pars,m->npars,"taup")->gl_par;
-                        float * taus_a = get_par(m->pars,m->npars,"taus")->gl_par;
-                        if (taup_a) ltp = 1.0f + (float)m->L*taup_a[pos];
-                        if (taus_a) lts = 1.0f + (float)m->L*taus_a[pos];
+                        /* rec_par reads half at FP16>1, as par and par2 below
+                         * (until 2026-11-27 taup/taus were read as float there) */
+                        ltp = 1.0f + (float)m->L*rec_par(m, "taup", pos);
+                        lts = 1.0f + (float)m->L*rec_par(m, "taus", pos);
                     }
                     if (m->FP16>1){
                         trmod = NDf*half_to_float( ((half*)par)[pos] )*ltp
