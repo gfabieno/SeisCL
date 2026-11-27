@@ -64,18 +64,16 @@ FUNDEF void update_v(int offcomm,
     // Spatial derivatives of the stresses, from shared tiles
     load_tile2(lvar, sxx, tile_z0, tile_x0, tz, tx);
     BARRIER
-    for (int c=0; c<NV; c++) sxx_x[c] = tdxp(lvar, tz, lz0 + c, lx);
+    tdpn(lvar, lx*tz + lz0, tz, sxx_x);
     BARRIER
     load_tile2(lvar, szz, tile_z0, tile_x0, tz, tx);
     BARRIER
-    for (int c=0; c<NV; c++) szz_z[c] = tdzp(lvar, tz, lz0 + c, lx);
+    tdpn(lvar, lx*tz + lz0, 1, szz_z);
     BARRIER
     load_tile2(lvar, sxz, tile_z0, tile_x0, tz, tx);
     BARRIER
-    for (int c=0; c<NV; c++){
-        sxz_z[c] = tdzm(lvar, tz, lz0 + c, lx);
-        sxz_x[c] = tdxm(lvar, tz, lz0 + c, lx);
-    }
+    tdmn(lvar, lx*tz + lz0, 1, sxz_z);
+    tdmn(lvar, lx*tz + lz0, tz, sxz_x);
 
     // Threads outside the grid stop here (the grid is rounded up to the work-group size)
 #if COMM12==0

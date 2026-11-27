@@ -923,7 +923,8 @@ int prog_arg(clprogram * prog, int i, void * mem, int size){
      back_prop_type 1, one device and one process per shot. The doubled buffers must be covered
      by the vars_init launch ((N+FDORDER) per dimension); otherwise it is off.
    * MAXRREG_ADJ: under CPMLINL, at most 56 registers for update_adjv / update_adjs on compute
-     capability 6.x (Pascal, CUDA); SEISCL_MAXRREG_ADJ=n[,m] sets n for update_adjv, m for update_adjs. */
+     capability 6.x (Pascal, CUDA); SEISCL_MAXRREG_ADJ=n[,m] sets n for update_adjv, m for update_adjs.
+   * MAXRREG_UPD: update_v / update_s on compute capability 6.x, elastic FP16 2 (see perf_options). */
 static int env_on(const char * name){
     const char * v = getenv(name);
     return !(v && v[0]=='0');
@@ -985,6 +986,27 @@ static int perf_options(model * m, device * dev, clprogram * prog, char opt[3][6
         nv = ns = 56;
     #endif
     int cap = strcmp(prog->name, "update_adjv")==0 ? nv : strcmp(prog->name, "update_adjs")==0 ? ns : 0;
+    if (upd){
+        /* update_v / update_s: on compute capability 6.x (Pascal, CUDA), elastic, FP16 2, at most 48
+           registers in 2-D and 64 in 3-D. The two cells of a work-item take 82-98 registers, so a quarter
+           of the warps are resident (achieved occupancy 0.22-0.24 against 0.51-0.61 at FP16 0, latency
+           bound). Measured on the P6000 (forward 1000^2 x 2000 / 192^3 x 1000): 2-D 0.345 to 0.302 s,
+           3-D 3.04 to 2.71 s; gradients 2-3 % faster. Not on the A6000 (no gain, caps 40-64) nor with
+           memory variables (2-3x slower: spills). SEISCL_MAXRREG_UPD=n[,m] sets n for update_v and m for
+           update_s (0: no cap). The cap changes no arithmetic. */
+        int uv = 0, us = 0;
+        const char * u = getenv("SEISCL_MAXRREG_UPD");
+        if (u){
+            uv = us = atoi(u);
+            const char * cm = strchr(u, ',');
+            if (cm) us = atoi(cm + 1);
+        }
+        #ifndef __SEISCL__
+        else if (dev->cuda_arc[0] == 6 && m->FP16 == 2 && m->L == 0 && (m->ND == 2 || m->ND == 3))
+            uv = us = (m->ND == 2) ? 48 : 64;
+        #endif
+        cap = strcmp(prog->name, "update_v")==0 ? uv : us;
+    }
     /* A work group must fit in the 64K registers of a multiprocessor: without a cap the compiler
        may give a work-item more than 65536 / (work-group size) registers, and the launch fails
        (OpenCL: CL_OUT_OF_RESOURCES; measured: update_adjs of a boundary strip, NOTILE, FP16 1,

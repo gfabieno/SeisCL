@@ -94,21 +94,21 @@ FUNDEF void update_s(int offcomm,  int nt,
     float d_vxx[NV], d_vxy[NV], d_vxz[NV], d_vyx[NV], d_vyy[NV], d_vyz[NV], d_vzx[NV], d_vzy[NV], d_vzz[NV];
     load_tile3(lvar, vz, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
-    for (int c=0; c<NV; c++) d_vzx[c] = tdp(lvar, it0+c, sx);
-    for (int c=0; c<NV; c++) d_vzy[c] = tdp(lvar, it0+c, sy);
-    for (int c=0; c<NV; c++) d_vzz[c] = tdm(lvar, it0+c, 1);
+    tdpn(lvar, it0, sx, d_vzx);
+    tdpn(lvar, it0, sy, d_vzy);
+    tdmn(lvar, it0, 1, d_vzz);
     BARRIER
     load_tile3(lvar, vy, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
-    for (int c=0; c<NV; c++) d_vyx[c] = tdp(lvar, it0+c, sx);
-    for (int c=0; c<NV; c++) d_vyy[c] = tdm(lvar, it0+c, sy);
-    for (int c=0; c<NV; c++) d_vyz[c] = tdp(lvar, it0+c, 1);
+    tdpn(lvar, it0, sx, d_vyx);
+    tdmn(lvar, it0, sy, d_vyy);
+    tdpn(lvar, it0, 1, d_vyz);
     BARRIER
     load_tile3(lvar, vx, tile_z0, tile_y0, tile_x0, tz, ty, tx);
     BARRIER
-    for (int c=0; c<NV; c++) d_vxx[c] = tdm(lvar, it0+c, sx);
-    for (int c=0; c<NV; c++) d_vxy[c] = tdp(lvar, it0+c, sy);
-    for (int c=0; c<NV; c++) d_vxz[c] = tdp(lvar, it0+c, 1);
+    tdmn(lvar, it0, sx, d_vxx);
+    tdpn(lvar, it0, sy, d_vxy);
+    tdpn(lvar, it0, 1, d_vxz);
     BARRIER
 
 #if COMM12==0

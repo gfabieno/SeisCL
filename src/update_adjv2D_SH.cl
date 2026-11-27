@@ -83,13 +83,11 @@ FUNDEF void update_adjv(int offcomm,
     float fsxy_x[NV], fsyz_z[NV];
     load_tile2(lvar, sxy, tile_z0, tile_x0, tz, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) fsxy_x[c] = tdxm(lvar, tz, lz0 + c, lx);
+    tdmn(lvar, lx*tz + lz0, tz, fsxy_x);
     BARRIER
     load_tile2(lvar, syz, tile_z0, tile_x0, tz, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) fsyz_z[c] = tdzm(lvar, tz, lz0 + c, lx);
+    tdmn(lvar, lx*tz + lz0, 1, fsyz_z);
     BARRIER
 #endif
 
@@ -98,23 +96,19 @@ FUNDEF void update_adjv(int offcomm,
     /* exact CPML adjoint: the fields filtered by cpml_adj_s */
     load_tile2(lvar, cpfa, tile_z0, tile_x0, tz, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) sxy_x[c] = tdxm(lvar, tz, lz0 + c, lx);
+    tdmn(lvar, lx*tz + lz0, tz, sxy_x);
     BARRIER
     load_tile2(lvar, cpfb, tile_z0, tile_x0, tz, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) syz_z[c] = tdzm(lvar, tz, lz0 + c, lx);
+    tdmn(lvar, lx*tz + lz0, 1, syz_z);
 #else
     load_tile2(lvar, sxyr, tile_z0, tile_x0, tz, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) sxy_x[c] = tdxm(lvar, tz, lz0 + c, lx);
+    tdmn(lvar, lx*tz + lz0, tz, sxy_x);
     BARRIER
     load_tile2(lvar, syzr, tile_z0, tile_x0, tz, tx);
     BARRIER
-    #pragma unroll
-    for (int c=0; c<NV; c++) syz_z[c] = tdzm(lvar, tz, lz0 + c, lx);
+    tdmn(lvar, lx*tz + lz0, 1, syz_z);
 #endif
 
     // Threads outside the grid stop here (the grid is rounded up to the work-group size)

@@ -304,6 +304,43 @@ LFUNDEF float tdm(TPTR t, int i, int s)
     for (int m = 0; m < FDOH; m++) d += hc[m] * (TV(t, i + m*s) - TV(t, i - (m+1)*s));
     return d; }
 
+/* The same for the NV cells of a work-item at once, d[c] = tdp/tdm(t, i+c, s), i aligned on NV. Without
+   tiles and with two cells per work-item (FP16 1/2), the values are read by pairs and converted once: a tap
+   across z (s != 1) is a pair for both cells; along z the two cells share a window of 2 ZH + 2 values
+   (ZH + 1 pairs). The sums are those of tdp/tdm, term by term, so the results keep their bits. 2D: the x
+   derivative of tdxp(t, tz, lz, lx) is tdp(t, lx*tz + lz, tz), the z one tdp(t, lx*tz + lz, 1). */
+#if NOTILE && NV==2
+LFUNDEF void tdn(TPTR t, int i, int s, int minus, float *d)
+{
+    const float hc[6] = HCV;
+    if (s == 1){
+        float w[2*ZH+2];
+        for (int k = 0; k < ZH+1; k++) ldn(t, i - ZH + 2*k, &w[2*k]);
+        for (int c = 0; c < 2; c++){
+            float a = 0.0f;
+            for (int m = 0; m < FDOH; m++)
+                a += minus ? hc[m] * (w[ZH+c+m] - w[ZH+c-m-1]) : hc[m] * (w[ZH+c+m+1] - w[ZH+c-m]);
+            d[c] = a;
+        }
+    }
+    else {
+        float a0 = 0.0f, a1 = 0.0f, p[2], q[2];
+        for (int m = 0; m < FDOH; m++){
+            if (minus){ ldn(t, i + m*s, p); ldn(t, i - (m+1)*s, q); }
+            else      { ldn(t, i + (m+1)*s, p); ldn(t, i - m*s, q); }
+            a0 += hc[m] * (p[0] - q[0]);
+            a1 += hc[m] * (p[1] - q[1]);
+        }
+        d[0] = a0; d[1] = a1;
+    }
+}
+#define tdpn(t, i, s, d) tdn((t), (i), (s), 0, (d))
+#define tdmn(t, i, s, d) tdn((t), (i), (s), 1, (d))
+#else
+#define tdpn(t, i, s, d) do { for (int c_ = 0; c_ < NV; c_++) (d)[c_] = tdp((t), (i) + c_, (s)); } while (0)
+#define tdmn(t, i, s, d) do { for (int c_ = 0; c_ < NV; c_++) (d)[c_] = tdm((t), (i) + c_, (s)); } while (0)
+#endif
+
 /* ---- CPMLINL (experiment): exact CPML adjoint inside update_adjs/update_adjv ----
    3D, BACK_PROP_TYPE 1, one device, NOTILE, FP16 0 (clprogram.c, cpml_inline()).
    Replaces cpml_adj3D.cl and its cpf buffers. The filter of cpml_adj3D.cl along one
