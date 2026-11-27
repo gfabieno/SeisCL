@@ -4,29 +4,12 @@ Building block for the viscoelastic FWI notebook. Kept as a plain module so
 the notebook can import it rather than duplicating the setup, and so it can be
 run headless as a smoke test:
 
-    SEISCL_BIN=<build-ocl> python visco_crosswell.py
+    PATH=<build>:$PATH python visco_crosswell.py
 
-WHY OpenCL AND NOT CUDA
------------------------
-A viscoelastic (L>0) gradient only works on an **OpenCL** build today. The
-on-device DFT correlation is registered for `m->L==0` only
-(assign_modeling_case.c), so an L>0 run falls back to the host `calc_grad()`,
-which is `#ifdef __SEISCL__` and a no-op stub in the CUDA build. The result is
-a silently **zero** gradient -- no error, no warning. Measured on a 60x60
-crosswell model:
-
-    build      L=0  vp=6.147e-19  vs=1.021e-18  rho=4.046e-19   OK
-    build      L=1  vp=0.000e+00  vs=0.000e+00  rho=0.000e+00   ZERO
-    build-ocl  L=0  vp=6.147e-19  vs=7.129e-19  rho=3.590e-19   OK
-    build-ocl  L=1  vp=6.364e-19  vs=7.208e-19  rho=3.518e-19
-                    taup=6.031e-15 taus=1.891e-15               OK
-
-The same follows for `SeisCL.torch`, which is CUDA-only: it cannot produce a
-viscoelastic gradient at all until the viscoelastic DFT device kernel is
-written (todo.md item 6's remaining half). back_prop_type=1 is not an
-alternative either -- it rejects L>0 outright, because reverse-time
-reconstruction of a dissipative medium is unconditionally unstable
-(todo.md item 17).
+A viscoelastic (L>0) gradient needs back_prop_type=2 (DFT): back_prop_type=1
+refuses L>0, because rebuilding a wavefield backward in time through an
+attenuating medium is unstable. It works on CUDA and OpenCL builds and through
+SeisCL.torch.
 """
 import os
 
@@ -126,7 +109,7 @@ def observed(workdir, params):
 
 
 def gradient(workdir, params, din, gradfreqs):
-    """Viscoelastic gradient via back_prop_type=2. OpenCL build only."""
+    """Viscoelastic gradient via back_prop_type=2 (CUDA or OpenCL)."""
     s = make_seiscl(workdir, gradout=1, back_prop_type=2,
                     gradfreqs=np.asarray(gradfreqs, dtype=float))
     s.file_din = din
@@ -162,6 +145,5 @@ if __name__ == "__main__":
         print("  grad%-5s max|.| = %.4e   %s"
               % (n, np.abs(a).max(), "OK" if np.abs(a).max() > 0 else "ZERO"))
     assert np.abs(np.asarray(g[3])).max() > 0, (
-        "gradtaup is zero -- viscoelastic gradients need the OpenCL build; "
-        "the CUDA build has no host calc_grad and no L>0 device kernel")
+        "gradtaup is zero: the viscoelastic gradient was not computed")
     print("visco_crosswell: PASS")
