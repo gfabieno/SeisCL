@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <string>
 #include <sys/stat.h>
 #include "engine_handle.h"
@@ -152,6 +153,24 @@ void apply_config(model &m, const Config &cfg, int gradout, int inputres) {
     // filled in by engine_build() once that allocation exists.
     m.NFREQS = static_cast<int>(cfg.gradfreqs.size());
     m.dft_osamp = cfg.dft_osamp;
+    m.dft_step = cfg.dft_step;
+    if (cfg.dft_step < 0) {
+        throw std::invalid_argument("cfg.dft_step must be >= 0 (0: automatic)");
+    }
+    if (cfg.BACK_PROP_TYPE == 2 && cfg.dft_step > 0 && !cfg.gradfreqs.empty()) {
+        // Same check as src/read_hdf5.c: the DFT sampled every dft_step
+        // steps has its Nyquist frequency at 1/(2 dft_step dt).
+        float fmx = 0;
+        for (float f : cfg.gradfreqs) fmx = std::max(fmx, f);
+        if (2.0 * cfg.dft_step * cfg.dt * fmx >= 1.0) {
+            throw std::invalid_argument(
+                "cfg.dft_step=" + std::to_string(cfg.dft_step) +
+                ": the Nyquist frequency of the sampled DFT, " +
+                std::to_string(0.5 / (cfg.dft_step * cfg.dt)) +
+                " Hz, must be above the highest gradfreqs (" +
+                std::to_string(fmx) + " Hz)");
+        }
+    }
     m.tmin = cfg.tmin;
     // Same check as the standalone HDF5 path (src/read_hdf5.c, "tmax<tmin").
     // Left unguarded, NTNYQ = (tmax-tmin+DTNYQ-1)/DTNYQ (Init_cst(), via

@@ -28,7 +28,7 @@ csts = [ 'N', 'ND', 'dh', 'dt', 'NT', 'freesurf', 'FDORDER', 'MAXRELERROR',
         'scalermsnorm', 'scaleshot',
         'fmin', 'fmax', 'gradout', 'Hout', 'gradsrcout', 'seisout', 'resout',
         'rmsout', 'movout', 'restype', 'inputres', 'FP16', 'dftout', 'gradabs',
-        'dft_osamp']
+        'dft_osamp', 'dft_step']
 
 SOURCE_TYPES = {
     "Fx": 0,
@@ -83,7 +83,7 @@ class SeisCL:
 
                  seisout: int = 2, resout: int = 0, rmsout: int = 0,
                  movout: int = 0, dftout: int = 0,
-                 dft_osamp: float = 64.0,
+                 dft_osamp: float = 64.0, dft_step: int = 0,
 
                  file: str = "SeisCL", workdir: str = "./seiscl",
                  ):
@@ -247,6 +247,44 @@ class SeisCL:
                                  source and pressure receivers the choice
                                  matters much less (earlier note, 2026-09-02:
                                  a sparse selection skewed vp/vs/rho by 1.8x).
+        :param dft_step:         back_prop_type=2 only. Accumulate the DFT of
+                                 the wavefields every dft_step time steps
+                                 instead of every step. The DFT accumulation
+                                 is most of the cost of a DFT gradient (85 %
+                                 of a viscoelastic one), so a larger step is
+                                 much faster. Its error is aliasing: the
+                                 wavefield energy above the sampling Nyquist
+                                 frequency 1/(2 dft_step dt) folds onto the
+                                 gradient frequencies. It must therefore be
+                                 well above max(gradfreqs) and above most of
+                                 the source spectrum; a step with Nyquist
+                                 frequency <= max(gradfreqs) is refused.
+                                 Measured 2026-11-27 (Quadro P6000,
+                                 viscoelastic, Ricker source, gradfreqs
+                                 5-23 Hz, dt 1 ms, Nyquist of the record
+                                 500 Hz), time of one gradient and largest
+                                 difference to dft_step=1, relative to the
+                                 gradient maximum:
+                                   dft_step 1:  2-D 28.1 s, 3-D 63.3 s, 0
+                                   dft_step 3:  11.7 s, 27.5 s, 0.14 %
+                                   dft_step 6:   7.6 s, 18.6 s, 0.42 %
+                                   dft_step 11:  5.8 s, 14.4 s, 0.69 %
+                                 (2-D 1000x1000 cells, 2000 steps; 3-D 128^3,
+                                 1000 steps.) Make NT (or tmax - tmin) a
+                                 multiple of dft_step: otherwise the DFT bins
+                                 df = 1/(NTNYQ dft_step dt) differ slightly
+                                 from 1/(NT dt) and from one step to another.
+                                 Use dft_step=1 for accuracy tests against
+                                 back_prop_type=1 or finite differences.
+                                 0 (default): automatic, the step is
+                                 ceil(1/(dft_osamp max(gradfreqs) dt)), which
+                                 is 1 for the usual dt but larger when
+                                 max(gradfreqs) dt < 1/64. read_dft()
+                                 returns the step used (DTNYQ).
+        :param dft_osamp:        back_prop_type=2, when dft_step=0 only:
+                                 sampling rate of the DFT as a multiple of
+                                 max(gradfreqs) (default 64). Prefer
+                                 dft_step.
         :param param_type:       Type of parametrization:
                                  0:(rho,vp,vs,taup,taus)
                                  1:(rho, M, mu, taup, taus),
@@ -395,6 +433,7 @@ class SeisCL:
         self.movout = movout
         self.dftout = dftout
         self.dft_osamp = dft_osamp
+        self.dft_step = dft_step
 
         self.file = file
         self.file_datalist = None
@@ -980,6 +1019,18 @@ class SeisCL:
             workdir = self.workdir
         if filename is None:
             filename = self.file_csts
+        if self.dft_step != int(self.dft_step) or self.dft_step < 0:
+            raise ValueError("dft_step must be an integer >= 0 (0: automatic),"
+                             " got %r" % (self.dft_step,))
+        gf = np.asarray(self.gradfreqs, dtype=float).ravel()
+        if (self.back_prop_type == 2 and self.dft_step > 0 and gf.size
+                and 2.0 * self.dft_step * self.dt * gf.max() >= 1.0):
+            raise ValueError(
+                "dft_step=%d samples the DFT at %g Hz: its Nyquist frequency "
+                "%g Hz must be above max(gradfreqs) = %g Hz. Use dft_step < %g."
+                % (self.dft_step, 1.0 / (self.dft_step * self.dt),
+                   0.5 / (self.dft_step * self.dt), gf.max(),
+                   0.5 / (self.dt * gf.max())))
         try:
             with h5.File(os.path.join(workdir, filename), "w") as f:
                 for el in csts:
@@ -989,6 +1040,8 @@ class SeisCL:
                     # gradient itself, so it always asks for the native one.
                     if el == 'param_type':
                         val = 0
+                    if el == 'dft_step':
+                        val = int(val)
                     if isinstance(val, np.ndarray):
                         f[el] = np.transpose(val)
                     else:
