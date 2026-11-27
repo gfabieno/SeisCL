@@ -117,26 +117,42 @@ FUNDEF void update_s(int offcomm,  int nt,
     if (zt > NZS-FDOH-1 || gidy > NYS-FDOH-1) return;
 #endif
 
-#if LVE==0
-    /* own cells (elastic): one paired load and store per array, as in 2D, Cerjan taper in registers;
+    /* own cells and parameters: one paired load and store per array (ldn/stn, ldp3), as in 2D;
        rnd rounds where a store and reload did (FP16 2), so the results keep their bits */
     int indv0 = (gidx*NYS + gidy)*NZS + zt;
+#if 1
     float l_sxx[NV], l_syy[NV], l_szz[NV], l_sxy[NV], l_syz[NV], l_sxz[NV];
-    float p_M[NV], p_mu[NV], p_muipjp[NV], p_mujpkp[NV], p_muipkp[NV];
-    ldn(sxy, indv0, l_sxy);
-    ldn(syz, indv0, l_syz);
-    ldn(sxz, indv0, l_sxz);
     ldn(sxx, indv0, l_sxx);
     ldn(syy, indv0, l_syy);
     ldn(szz, indv0, l_szz);
+    ldn(sxy, indv0, l_sxy);
+    ldn(syz, indv0, l_syz);
+    ldn(sxz, indv0, l_sxz);
+#endif
+#if 1
+    float p_M[NV], p_mu[NV], p_muipjp[NV], p_mujpkp[NV], p_muipkp[NV];
     ldp3(M, gidx, gidy, zt, p_M);
     ldp3(mu, gidx, gidy, zt, p_mu);
     ldp3(muipjp, gidx, gidy, zt, p_muipjp);
     ldp3(mujpkp, gidx, gidy, zt, p_mujpkp);
     ldp3(muipkp, gidx, gidy, zt, p_muipkp);
-#define TAPS(a, t) l_##a[c] = rnd(l_##a[c] * (t))
-#else
-#define TAPS(a, t) stf(a, indv, ldf(a, indv) * (t))
+#endif
+#if LVE>0
+    float p_taup[NV], p_taus[NV], p_tausipjp[NV], p_tausipkp[NV], p_tausjpkp[NV];
+    ldp3(taup, gidx, gidy, zt, p_taup);
+    ldp3(taus, gidx, gidy, zt, p_taus);
+    ldp3(tausipjp, gidx, gidy, zt, p_tausipjp);
+    ldp3(tausipkp, gidx, gidy, zt, p_tausipkp);
+    ldp3(tausjpkp, gidx, gidy, zt, p_tausjpkp);
+#endif
+#if LVE>0
+    float l_rxx[LVE][NV], l_ryy[LVE][NV], l_rzz[LVE][NV], l_rxy[LVE][NV], l_ryz[LVE][NV], l_rxz[LVE][NV];
+    for (int lp=0; lp<LVE; lp++) ldn(rxx, lp*NX*NYS*NZS + indv0, l_rxx[lp]);
+    for (int lp=0; lp<LVE; lp++) ldn(ryy, lp*NX*NYS*NZS + indv0, l_ryy[lp]);
+    for (int lp=0; lp<LVE; lp++) ldn(rzz, lp*NX*NYS*NZS + indv0, l_rzz[lp]);
+    for (int lp=0; lp<LVE; lp++) ldn(rxy, lp*NX*NYS*NZS + indv0, l_rxy[lp]);
+    for (int lp=0; lp<LVE; lp++) ldn(ryz, lp*NX*NYS*NZS + indv0, l_ryz[lp]);
+    for (int lp=0; lp<LVE; lp++) ldn(rxz, lp*NX*NYS*NZS + indv0, l_rxz[lp]);
 #endif
 #if LVE>0
     /* Unrolled with memory variables: rolled, the 9 derivative arrays went to the stack at FP16 1/2
@@ -283,16 +299,16 @@ FUNDEF void update_s(int offcomm,  int nt,
         
 #else
         
-        lM=ldf(M, indp);
-        lmu=ldf(mu, indp);
-        lmuipkp=ldf(muipkp, indp);
-        lmuipjp=ldf(muipjp, indp);
-        lmujpkp=ldf(mujpkp, indp);
-        ltaup=ldf(taup, indp);
-        ltaus=ldf(taus, indp);
-        ltausipkp=ldf(tausipkp, indp);
-        ltausipjp=ldf(tausipjp, indp);
-        ltausjpkp=ldf(tausjpkp, indp);
+        lM=p_M[c];
+        lmu=p_mu[c];
+        lmuipkp=p_muipkp[c];
+        lmuipjp=p_muipjp[c];
+        lmujpkp=p_mujpkp[c];
+        ltaup=p_taup[c];
+        ltaus=p_taus[c];
+        ltausipkp=p_tausipkp[c];
+        ltausipjp=p_tausipjp[c];
+        ltausjpkp=p_tausjpkp[c];
         
         for (l=0;l<LVE;l++){
             leta[l]=eta[l];
@@ -338,12 +354,12 @@ FUNDEF void update_s(int offcomm,  int nt,
         sumrxy=sumryz=sumrxz=sumrxx=sumryy=sumrzz=0;
         for (l=0;l<LVE;l++){
             indr = l*NX*NYS*NZS + gidx*NYS*NZS + gidy*NZS +gidz;
-            sumrxy+=ldf(rxy, indr);
-            sumryz+=ldf(ryz, indr);
-            sumrxz+=ldf(rxz, indr);
-            sumrxx+=ldf(rxx, indr);
-            sumryy+=ldf(ryy, indr);
-            sumrzz+=ldf(rzz, indr);
+            sumrxy+=l_rxy[l][c];
+            sumryz+=l_ryz[l][c];
+            sumrxz+=l_rxz[l][c];
+            sumrxx+=l_rxx[l][c];
+            sumryy+=l_ryy[l][c];
+            sumrzz+=l_rzz[l][c];
         }
         
         /* updating components of the stress tensor, partially */
@@ -369,29 +385,29 @@ FUNDEF void update_s(int offcomm,  int nt,
             b=1.0/(1.0+(leta[l]*0.5));
             cv=1.0-(leta[l]*0.5);
             indr = l*NX*NYS*NZS + gidx*NYS*NZS + gidy*NZS +gidz;
-            stf(rxy, indr, b*(ldf(rxy, indr)*cv-leta[l]*(dipjp*vxyyx)));
-            stf(ryz, indr, b*(ldf(ryz, indr)*cv-leta[l]*(djpkp*vyzzy)));
-            stf(rxz, indr, b*(ldf(rxz, indr)*cv-leta[l]*(dipkp*vxzzx)));
-            stf(rxx, indr, b*(ldf(rxx, indr)*cv-leta[l]*((e*vxxyyzz)-(d*vyyzz))));
-            stf(ryy, indr, b*(ldf(ryy, indr)*cv-leta[l]*((e*vxxyyzz)-(d*vxxzz))));
-            stf(rzz, indr, b*(ldf(rzz, indr)*cv-leta[l]*((e*vxxyyzz)-(d*vxxyy))));
+            l_rxy[l][c] = rnd(b*(l_rxy[l][c]*cv-leta[l]*(dipjp*vxyyx)));
+            l_ryz[l][c] = rnd(b*(l_ryz[l][c]*cv-leta[l]*(djpkp*vyzzy)));
+            l_rxz[l][c] = rnd(b*(l_rxz[l][c]*cv-leta[l]*(dipkp*vxzzx)));
+            l_rxx[l][c] = rnd(b*(l_rxx[l][c]*cv-leta[l]*((e*vxxyyzz)-(d*vyyzz))));
+            l_ryy[l][c] = rnd(b*(l_ryy[l][c]*cv-leta[l]*((e*vxxyyzz)-(d*vxxzz))));
+            l_rzz[l][c] = rnd(b*(l_rzz[l][c]*cv-leta[l]*((e*vxxyyzz)-(d*vxxyy))));
 
-            sumrxy+=ldf(rxy, indr);
-            sumryz+=ldf(ryz, indr);
-            sumrxz+=ldf(rxz, indr);
-            sumrxx+=ldf(rxx, indr);
-            sumryy+=ldf(ryy, indr);
-            sumrzz+=ldf(rzz, indr);
+            sumrxy+=l_rxy[l][c];
+            sumryz+=l_ryz[l][c];
+            sumrxz+=l_rxz[l][c];
+            sumrxx+=l_rxx[l][c];
+            sumryy+=l_ryy[l][c];
+            sumrzz+=l_rzz[l][c];
         }
 
         /* and now the components of the stress tensor are
          completely updated */
-        stf(sxy, indv, ldf(sxy, indv) + (lsxy+(DT2*sumrxy)));
-        stf(syz, indv, ldf(syz, indv) + (lsyz+(DT2*sumryz)));
-        stf(sxz, indv, ldf(sxz, indv) + (lsxz+(DT2*sumrxz)));
-        stf(sxx, indv, ldf(sxx, indv) + (lsxx+(DT2*sumrxx)));
-        stf(syy, indv, ldf(syy, indv) + (lsyy+(DT2*sumryy)));
-        stf(szz, indv, ldf(szz, indv) + (lszz+(DT2*sumrzz)));
+        l_sxy[c] = rnd(l_sxy[c] + (lsxy+(DT2*sumrxy)));
+        l_syz[c] = rnd(l_syz[c] + (lsyz+(DT2*sumryz)));
+        l_sxz[c] = rnd(l_sxz[c] + (lsxz+(DT2*sumrxz)));
+        l_sxx[c] = rnd(l_sxx[c] + (lsxx+(DT2*sumrxx)));
+        l_syy[c] = rnd(l_syy[c] + (lsyy+(DT2*sumryy)));
+        l_szz[c] = rnd(l_szz[c] + (lszz+(DT2*sumrzz)));
 
 #endif
     }
@@ -402,73 +418,80 @@ FUNDEF void update_s(int offcomm,  int nt,
         
 #if FREESURF==0
         if (gidz-FDOH<NAB){
-            TAPS(sxy, taper[gidz-FDOH]);
-            TAPS(syz, taper[gidz-FDOH]);
-            TAPS(sxz, taper[gidz-FDOH]);
-            TAPS(sxx, taper[gidz-FDOH]);
-            TAPS(syy, taper[gidz-FDOH]);
-            TAPS(szz, taper[gidz-FDOH]);
+            l_sxy[c] = rnd(l_sxy[c] * (taper[gidz-FDOH]));
+            l_syz[c] = rnd(l_syz[c] * (taper[gidz-FDOH]));
+            l_sxz[c] = rnd(l_sxz[c] * (taper[gidz-FDOH]));
+            l_sxx[c] = rnd(l_sxx[c] * (taper[gidz-FDOH]));
+            l_syy[c] = rnd(l_syy[c] * (taper[gidz-FDOH]));
+            l_szz[c] = rnd(l_szz[c] * (taper[gidz-FDOH]));
         }
 #endif
         
         if (gidz>NZS-NAB-FDOH-1){
-            TAPS(sxy, taper[NZS-FDOH-gidz-1]);
-            TAPS(syz, taper[NZS-FDOH-gidz-1]);
-            TAPS(sxz, taper[NZS-FDOH-gidz-1]);
-            TAPS(sxx, taper[NZS-FDOH-gidz-1]);
-            TAPS(syy, taper[NZS-FDOH-gidz-1]);
-            TAPS(szz, taper[NZS-FDOH-gidz-1]);
+            l_sxy[c] = rnd(l_sxy[c] * (taper[NZS-FDOH-gidz-1]));
+            l_syz[c] = rnd(l_syz[c] * (taper[NZS-FDOH-gidz-1]));
+            l_sxz[c] = rnd(l_sxz[c] * (taper[NZS-FDOH-gidz-1]));
+            l_sxx[c] = rnd(l_sxx[c] * (taper[NZS-FDOH-gidz-1]));
+            l_syy[c] = rnd(l_syy[c] * (taper[NZS-FDOH-gidz-1]));
+            l_szz[c] = rnd(l_szz[c] * (taper[NZS-FDOH-gidz-1]));
         }
         if (gidy-FDOH<NAB){
-            TAPS(sxy, taper[gidy-FDOH]);
-            TAPS(syz, taper[gidy-FDOH]);
-            TAPS(sxz, taper[gidy-FDOH]);
-            TAPS(sxx, taper[gidy-FDOH]);
-            TAPS(syy, taper[gidy-FDOH]);
-            TAPS(szz, taper[gidy-FDOH]);
+            l_sxy[c] = rnd(l_sxy[c] * (taper[gidy-FDOH]));
+            l_syz[c] = rnd(l_syz[c] * (taper[gidy-FDOH]));
+            l_sxz[c] = rnd(l_sxz[c] * (taper[gidy-FDOH]));
+            l_sxx[c] = rnd(l_sxx[c] * (taper[gidy-FDOH]));
+            l_syy[c] = rnd(l_syy[c] * (taper[gidy-FDOH]));
+            l_szz[c] = rnd(l_szz[c] * (taper[gidy-FDOH]));
         }
         
         if (gidy>NYS-NAB-FDOH-1){
-            TAPS(sxy, taper[NYS-FDOH-gidy-1]);
-            TAPS(syz, taper[NYS-FDOH-gidy-1]);
-            TAPS(sxz, taper[NYS-FDOH-gidy-1]);
-            TAPS(sxx, taper[NYS-FDOH-gidy-1]);
-            TAPS(syy, taper[NYS-FDOH-gidy-1]);
-            TAPS(szz, taper[NYS-FDOH-gidy-1]);
+            l_sxy[c] = rnd(l_sxy[c] * (taper[NYS-FDOH-gidy-1]));
+            l_syz[c] = rnd(l_syz[c] * (taper[NYS-FDOH-gidy-1]));
+            l_sxz[c] = rnd(l_sxz[c] * (taper[NYS-FDOH-gidy-1]));
+            l_sxx[c] = rnd(l_sxx[c] * (taper[NYS-FDOH-gidy-1]));
+            l_syy[c] = rnd(l_syy[c] * (taper[NYS-FDOH-gidy-1]));
+            l_szz[c] = rnd(l_szz[c] * (taper[NYS-FDOH-gidy-1]));
         }
         
 #if DEVID==0 & MYLOCALID==0
         if (gidx-FDOH<NAB){
-            TAPS(sxy, taper[gidx-FDOH]);
-            TAPS(syz, taper[gidx-FDOH]);
-            TAPS(sxz, taper[gidx-FDOH]);
-            TAPS(sxx, taper[gidx-FDOH]);
-            TAPS(syy, taper[gidx-FDOH]);
-            TAPS(szz, taper[gidx-FDOH]);
+            l_sxy[c] = rnd(l_sxy[c] * (taper[gidx-FDOH]));
+            l_syz[c] = rnd(l_syz[c] * (taper[gidx-FDOH]));
+            l_sxz[c] = rnd(l_sxz[c] * (taper[gidx-FDOH]));
+            l_sxx[c] = rnd(l_sxx[c] * (taper[gidx-FDOH]));
+            l_syy[c] = rnd(l_syy[c] * (taper[gidx-FDOH]));
+            l_szz[c] = rnd(l_szz[c] * (taper[gidx-FDOH]));
         }
 #endif
         
 #if DEVID==NUM_DEVICES-1 & MYLOCALID==NLOCALP-1
         if (gidx>NX-NAB-FDOH-1){
-            TAPS(sxy, taper[NX-FDOH-gidx-1]);
-            TAPS(syz, taper[NX-FDOH-gidx-1]);
-            TAPS(sxz, taper[NX-FDOH-gidx-1]);
-            TAPS(sxx, taper[NX-FDOH-gidx-1]);
-            TAPS(syy, taper[NX-FDOH-gidx-1]);
-            TAPS(szz, taper[NX-FDOH-gidx-1]);
+            l_sxy[c] = rnd(l_sxy[c] * (taper[NX-FDOH-gidx-1]));
+            l_syz[c] = rnd(l_syz[c] * (taper[NX-FDOH-gidx-1]));
+            l_sxz[c] = rnd(l_sxz[c] * (taper[NX-FDOH-gidx-1]));
+            l_sxx[c] = rnd(l_sxx[c] * (taper[NX-FDOH-gidx-1]));
+            l_syy[c] = rnd(l_syy[c] * (taper[NX-FDOH-gidx-1]));
+            l_szz[c] = rnd(l_szz[c] * (taper[NX-FDOH-gidx-1]));
         }
 #endif
     }
 #endif
 
     }
-#if LVE==0
-    stn(sxy, indv0, l_sxy);
-    stn(syz, indv0, l_syz);
-    stn(sxz, indv0, l_sxz);
+#if 1
     stn(sxx, indv0, l_sxx);
     stn(syy, indv0, l_syy);
     stn(szz, indv0, l_szz);
+    stn(sxy, indv0, l_sxy);
+    stn(syz, indv0, l_syz);
+    stn(sxz, indv0, l_sxz);
 #endif
-#undef TAPS
+#if LVE>0
+    for (int lp=0; lp<LVE; lp++) stn(rxx, lp*NX*NYS*NZS + indv0, l_rxx[lp]);
+    for (int lp=0; lp<LVE; lp++) stn(ryy, lp*NX*NYS*NZS + indv0, l_ryy[lp]);
+    for (int lp=0; lp<LVE; lp++) stn(rzz, lp*NX*NYS*NZS + indv0, l_rzz[lp]);
+    for (int lp=0; lp<LVE; lp++) stn(rxy, lp*NX*NYS*NZS + indv0, l_rxy[lp]);
+    for (int lp=0; lp<LVE; lp++) stn(ryz, lp*NX*NYS*NZS + indv0, l_ryz[lp]);
+    for (int lp=0; lp<LVE; lp++) stn(rxz, lp*NX*NYS*NZS + indv0, l_rxz[lp]);
+#endif
 }
