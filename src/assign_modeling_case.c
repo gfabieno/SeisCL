@@ -1016,6 +1016,12 @@ int use_gpu_average(model * m){
 int use_gpu_prep(model * m){
     const char * v = getenv("SEISCL_HOST_PREP");
     if (v && v[0]=='1') return 0;
+    /* A shot split over MPI processes (MPI_NPROC_SHOT > 1): each process holds only its slab, and the
+       device preparation, residual scaling and gradient post-processing (prep_params.cl, dev_io.cl,
+       grad_post.cl) see the whole shot on the devices of one process. They gave wrong gradients at the
+       cuts (OpenCL) and out-of-bounds reads in gp_tmu_w (CUDA, Xid 43) on devel 72e94c8 to 6e7a9a7. The
+       host path (as the shared build deb23a7) handles the split with MPI. */
+    if (m->MPI_NPROC_SHOT>1 && m->GNP>1) return 0;
     return use_gpu_average(m);
 }
 
