@@ -19,7 +19,7 @@ This module contains several functions:
 import numpy as np
 import matplotlib.pyplot as plt
 
-def Garvin2(x,z,pois=0.25,h=1,Cs=1,rho=1, plot=1, N=1000):
+def Garvin2(x,z,pois=0.25,h=1,Cs=1,rho=1, plot=1, N=1000, tmax=None):
     """
      Solves the generalized Garvin problem of a line blast
      source applied at depth h within a homogeneous half-space.
@@ -36,6 +36,9 @@ def Garvin2(x,z,pois=0.25,h=1,Cs=1,rho=1, plot=1, N=1000):
      h = Depth of source > 0 " " 1 " " "
      Cs = Shear wave velocity " " 1 " " "
      rho = mass density " " 1 " " "
+     N = number of time steps from the P to the PS arrival (default 1000)
+     tmax = last time of the solution (default and minimum 3 tPS). With a high vp/vs, 3 tPS comes before the
+            Rayleigh wave: pass the record length.
 
      Sign convention:
      x from left to right, z=0 at the surface, z points down
@@ -69,7 +72,8 @@ def Garvin2(x,z,pois=0.25,h=1,Cs=1,rho=1, plot=1, N=1000):
     dt = (tPS-tP)/N # time step
     t1 = np.arange((tP+dt),(tPP-dt), dt) # time before reflections
     t2 = np.arange((tPP+dt), tPS, dt) # time from PP to PS reflection
-    t3 = np.arange((tPS+dt),3*tPS, dt) # time after arrival of PS waves
+    tend = 3 * tPS if tmax is None else max(3 * tPS, tmax)
+    t3 = np.arange((tPS+dt), tend, dt) # time after arrival of PS waves
     # Find q3(tau) from tau(q3) by solving quartic
     X=x/r2; Z=z/r2; H=h/r2;
     A = ((H+Z)**2+X**2)*((H-Z)**2+X**2)
@@ -348,7 +352,7 @@ def compute_shot(offsets, vp, vs, rho, dt, src, rectype="x", zsrc=1, zrec=1):
 
     traces = [[] for _ in offsets]
     for ii, r in enumerate(offsets):
-        ux, uz, t = Garvin2(r, zrec, pois=pois, h=zsrc, Cs=vs, rho=rho, plot=0)
+        ux, uz, t = Garvin2(r, zrec, pois=pois, h=zsrc, Cs=vs, rho=rho, plot=0, tmax=tmax + dt)
         # Garvin2 returns the time as t * vs / r1 and the displacement as u * r1 * mu, with r1 the
         # source-receiver distance (not the offset r: they differ when zsrc != zrec).
         r1 = np.sqrt(r ** 2 + (zrec - zsrc) ** 2)

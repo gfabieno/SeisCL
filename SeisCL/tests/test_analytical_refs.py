@@ -23,6 +23,10 @@ Absolute amplitude and geometry, against closed-form time-domain solutions compu
              dtau, along the source-receiver direction (no transverse motion)
 
   relative RMS error <= 1e-4 (viscoelastic) and 1e-2 (garvin2, limited by its own time sampling)
+
+garvin2 with a high vp/vs (3.5): the record must contain the Rayleigh wave, the largest arrival on vz at the
+surface for a shallow source: the largest peak lies within 1 / f0 of offset / cR + 1.5 / f0 (cR from the Rayleigh
+equation; peak there / peak of the trace >= 0.5). Garvin2 used to stop at 3 tPS, before the Rayleigh wave.
 Usage: python SeisCL/tests/test_analytical_refs.py   (from the repository root, PYTHONPATH=.)
 """
 import sys
@@ -184,6 +188,27 @@ def test_garvin2_source_receiver_depths():
         f"garvin2 with zsrc != zrec: radial error {err:.2e} or transverse {tr:.2e} > {GARVIN_TOL:.0e}")
 
 
+def test_garvin2_rayleigh_high_vpvs():
+    vp, x, zsrc, zrec = 3.5 * VS, 1200.0, 50.0, 5.0
+    ratio = vp / VS
+    rayleigh = lambda c: (2 - c ** 2) ** 2 - 4 * np.sqrt(1 - c ** 2) * np.sqrt(1 - c ** 2 / ratio ** 2)
+    lo, hi = 0.5, 0.999                              # bisection for cR / vs
+    for _ in range(60):
+        mid = 0.5 * (lo + hi)
+        lo, hi = (mid, hi) if rayleigh(lo) * rayleigh(mid) > 0 else (lo, mid)
+    cr = 0.5 * (lo + hi) * VS
+    nt = 4000                                        # 1 s
+    src = ricker(RESAMP * nt - 1, DT / RESAMP)
+    vz = garvin2.compute_shot(np.array([x]), vp, VS, RHO, DT / RESAMP, src, rectype="z", zsrc=zsrc,
+                              zrec=zrec)[::RESAMP, 0][:nt]
+    t = np.arange(nt) * DT
+    window = np.abs(t - (x / cr + 1.5 / F0)) < 1.0 / F0
+    share = np.max(np.abs(vz[window])) / np.max(np.abs(vz))
+    print(f"      vp/vs {ratio:g}, source {zsrc:.0f} m, receiver {zrec:.0f} m deep, offset {x:.0f} m: "
+          f"peak in the Rayleigh window / peak of the trace {share:.3f} (>= 0.5)")
+    assert share >= 0.5, f"garvin2: no Rayleigh wave at vp/vs {ratio:g} ({share:.3f} < 0.5)"
+
 if __name__ == "__main__":
     sys.exit(run_tests([test_garvin2_no_wraparound, test_lamb3D_no_wraparound,
-                        test_viscoelastic_absolute_amplitude, test_garvin2_source_receiver_depths]) > 0)
+                        test_viscoelastic_absolute_amplitude, test_garvin2_source_receiver_depths,
+                        test_garvin2_rayleigh_high_vpvs]) > 0)
