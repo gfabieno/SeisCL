@@ -19,7 +19,7 @@ This module contains several functions:
 import numpy as np
 import matplotlib.pyplot as plt
 
-def Garvin2(x,z,pois=0.25,h=1,Cs=1,rho=1, plot=1):
+def Garvin2(x,z,pois=0.25,h=1,Cs=1,rho=1, plot=1, N=1000):
     """
      Solves the generalized Garvin problem of a line blast
      source applied at depth h within a homogeneous half-space.
@@ -51,7 +51,7 @@ def Garvin2(x,z,pois=0.25,h=1,Cs=1,rho=1, plot=1):
      1969, pp. 495-504
      default data
     """
-    N = 1000 # number of time steps to arrival of PS waves
+    # N: number of time steps from the P to the PS arrival (argument)
     mu = rho*Cs**2 # shear modulus
     r1 = np.sqrt(x**2+(z-h)**2) # source-receiver distance
     r2 = np.sqrt(x**2+(z+h)**2) # image source-receiver distance
@@ -171,7 +171,7 @@ def Garvin2(x,z,pois=0.25,h=1,Cs=1,rho=1, plot=1):
         tit = 'Horizontal displacements at x =%f z =%f' % (x, z)
         plt.title(tit)
         plt.xlabel('t*\beta/r1')
-        plt.ylabel('Ux*r1*\mu')
+        plt.ylabel(r'Ux*r1*\mu')
         plt.grid()
         plt.show()
 
@@ -179,7 +179,7 @@ def Garvin2(x,z,pois=0.25,h=1,Cs=1,rho=1, plot=1):
         tit = 'Vertical displacements at x =%f z =%f' % (x, z)
         plt.title(tit)
         plt.xlabel('t*\beta/r1')
-        plt.ylabel('Uz*r1*\mu')
+        plt.ylabel(r'Uz*r1*\mu')
         plt.grid()
         plt.show()
     return u, w, time
@@ -247,6 +247,56 @@ def resample(u, t, dt, tmin=0, tmax=None):
     ti = np.arange(tmin, tmax+dt, dt)
     return np.interp(ti, t, u), ti
 
+def bin_average(u, t, tP, tPP, dt, tmax):
+    """
+    Average of Garvin2's displacement u(t) over each output interval [ti - dt/2, ti + dt/2], ti = 0, dt, ..., tmax.
+
+    In 2-D the Heaviside response is singular as 1/sqrt(t - ta) just after the direct P (ta = tP) and the reflected
+    PP (ta = tPP) arrivals. Garvin2 samples u at ta + dt_g, ta + 2 dt_g, ... (dt_g its own step), so sampling or
+    linearly interpolating u misses most of the area under the singularity: the error falls only as sqrt(dt_g)
+    (16 % on a direct P wave with Garvin2's default N). Here u is integrated first: the interval [ta, ta + dt_g]
+    exactly for c / sqrt(t - ta) (area 2 dt_g times the first sample's singular part), the rest with the trapezoid
+    rule; the integral is continuous, so its linear interpolation and difference are accurate. After Garvin2's last
+    time u is held constant.
+
+    Args:
+        u (np.array): displacement returned by Garvin2 (physical units)
+        t (np.array): its time samples (physical, s)
+        tP, tPP (float): arrival times of the direct P and the PP waves (s)
+        dt (float): output time step
+        tmax (float): last output time
+
+    Returns:
+        ui (np.array): u averaged over each output interval
+    """
+    ia = np.searchsorted(t, tP * (1 + 1e-9), side="right")    # first sample after tP (t holds tP itself)
+    ib = np.searchsorted(t, tPP * (1 + 1e-9), side="right")   # first sample after tPP
+    area = np.zeros_like(t)                         # area[k]: integral of u from t[k-1] to t[k]
+    area[1:] = 0.5 * (u[1:] + u[:-1]) * np.diff(t)
+    # Direct P: u = c / sqrt(t - tP) on [tP, t[ia]].
+    area[ia] = 2 * u[ia] * (t[ia] - tP)
+    # PP: u = (smooth part, continued from the sample before tPP) + c / sqrt(t - tPP) on [tPP, t[ib]].
+    smooth = u[ib - 1]
+    area[ib] = smooth * (t[ib] - t[ib - 1]) + 2 * (u[ib] - smooth) * (t[ib] - tPP)
+    U = np.cumsum(area)
+    # Inside [ta, t[i]] the integral grows as sqrt(t - ta), not linearly: add sub-samples that follow it.
+    tt, UU = [t], [U]
+    for ta, i, sing in ((tP, ia, area[ia]), (tPP, ib, 2 * (u[ib] - smooth) * (t[ib] - tPP))):
+        f = np.linspace(0, 1, 41)[1:-1]
+        ts = ta + f * (t[i] - ta)
+        lin = smooth * (ts - t[i - 1]) if i == ib else 0 * ts      # smooth part (PP only), linear in t
+        tt.append(ts)
+        UU.append(U[i - 1] + lin + sing * np.sqrt(f) if i == ib else U[i - 1] + sing * np.sqrt(f))
+    # After Garvin2's last time (3 tPS) u is held at its last value, as the earlier point sampling did.
+    edges = np.arange(-0.5, round(tmax / dt) + 1.5) * dt
+    tend = max(edges[-1], t[-1]) + dt
+    tt.append([tend])
+    UU.append([U[-1] + u[-1] * (tend - t[-1])])
+    tt, UU = np.concatenate(tt), np.concatenate(UU)
+    order = np.argsort(tt, kind="stable")
+    return np.diff(np.interp(edges, tt[order], UU[order])) / dt
+
+
 def get_source_response(u, s):
     """
     Converts garvin2 original solution which is for the displacement due to
@@ -299,14 +349,19 @@ def compute_shot(offsets, vp, vs, rho, dt, src, rectype="x", zsrc=1, zrec=1):
     traces = [[] for _ in offsets]
     for ii, r in enumerate(offsets):
         ux, uz, t = Garvin2(r, zrec, pois=pois, h=zsrc, Cs=vs, rho=rho, plot=0)
-        t = t * r / vs
-        ux = ux / r / mu
-        uz = uz / r / mu
+        # Garvin2 returns the time as t * vs / r1 and the displacement as u * r1 * mu, with r1 the
+        # source-receiver distance (not the offset r: they differ when zsrc != zrec).
+        r1 = np.sqrt(r ** 2 + (zrec - zsrc) ** 2)
+        t = t * r1 / vs
+        ux = ux / r1 / mu
+        uz = uz / r1 / mu
 
+        tP = r1 / vp
+        tPP = np.sqrt(r ** 2 + (zrec + zsrc) ** 2) / vp
         if rectype == "x":
-            u, ti = resample(ux, t, dt, tmax=tmax)
+            u = bin_average(ux, t, tP, tPP, dt, tmax)
         elif rectype == "z":
-            u, ti = resample(uz, t, dt, tmax=tmax)
+            u = bin_average(uz, t, tP, tPP, dt, tmax)
         else:
             raise ValueError("rectype must be either \"x\" or \"z\"")
 

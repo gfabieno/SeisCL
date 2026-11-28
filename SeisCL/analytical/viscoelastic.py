@@ -86,7 +86,8 @@ def viscoelastic_2D(vp, vs, rho, taup, taus, f0, fl, dt, rec_pos, src):
          src (np.array): the src signal
 
     Returns:
-        vx, vz (np.array): The particle velocities in x an z for this shot.
+        vx, vz (np.array): The particle velocities in x an z for this shot, in m/s for a line force src(t) in
+                           N/m (physical units).
 
     """
 
@@ -131,8 +132,8 @@ def viscoelastic_2D(vp, vs, rho, taup, taus, f0, fl, dt, rec_pos, src):
         Vx[-ii, :] = np.conj(Vx[ii, :])
         Vz[-ii, :] = np.conj(Vz[ii, :])
 
-    vx = nt * np.fft.ifft(Vx, axis=0)
-    vz = nt * np.fft.ifft(Vz, axis=0)
+    vx = np.fft.ifft(Vx, axis=0)
+    vz = np.fft.ifft(Vz, axis=0)
     vx = np.abs(vx) * np.sign(np.real(vx))
     vz = np.abs(vz) * np.sign(np.real(vz))
 
@@ -163,7 +164,7 @@ def viscoelastic_3D(vp, vs, rho, taup, taus, f0, fl, dt, rec_pos, src):
          src (np.array): the src signal
 
     Returns:
-        vx, vz (np.array): The particle velocities in x an z for this shot.
+        vx, vy, vz (np.array): The particle velocities for this shot, in m/s for a point force src(t) in N (physical units).
 
     """
 
@@ -232,9 +233,9 @@ def viscoelastic_3D(vp, vs, rho, taup, taus, f0, fl, dt, rec_pos, src):
         Vy[-ii, :] = np.conj(Vy[ii, :])
         Vz[-ii, :] = np.conj(Vz[ii, :])
 
-    vx = nt * np.fft.ifft(Vx, axis=0)
-    vy = nt * np.fft.ifft(Vy, axis=0)
-    vz = nt * np.fft.ifft(Vz, axis=0)
+    vx = np.fft.ifft(Vx, axis=0)
+    vy = np.fft.ifft(Vy, axis=0)
+    vz = np.fft.ifft(Vz, axis=0)
     vx = np.abs(vx) * np.sign(np.real(vx))
     vy = np.abs(vy) * np.sign(np.real(vy))
     vz = np.abs(vz) * np.sign(np.real(vz))
@@ -275,7 +276,7 @@ def viscoelastic_2D_SH(vs, rho, taus, f0, fl, dt, rec_pos, src, image_depth=None
          src (np.array): the source signal
 
     Returns:
-        vy (np.array): the particle velocity in y, (nt, nrec).
+        vy (np.array): the particle velocity in y, (nt, nrec), in m/s for a line force src(t) in N/m (physical units).
     """
     nt = src.shape[0]
     nrec = len(rec_pos)
@@ -299,5 +300,5 @@ def viscoelastic_2D_SH(vs, rho, taus, f0, fl, dt, rec_pos, src, image_depth=None
             Vy[ii, jj] = F[ii] / (4j * mu) * u * 1j * omega[ii]
     for ii in range(1, nt // 2):
         Vy[-ii, :] = np.conj(Vy[ii, :])
-    vy = nt * np.fft.ifft(Vy, axis=0)
+    vy = np.fft.ifft(Vy, axis=0)
     return np.real(vy)
