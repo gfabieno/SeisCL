@@ -115,6 +115,13 @@ class SeisCL:
                                  0: Taylor-coeff.
                                  Holberg-coeff with maximum phase velocity error
                                  1: 0.1 % 2: 0.5 % 3: 1.0 % 4: 3.0 %
+                                 Holberg coefficients allow fewer points per
+                                 wavelength, but their phase-velocity error
+                                 does not vanish on a finer grid: with 1, a
+                                 wave is off by up to 0.1 % of its travel
+                                 time (3-5 % RMS against an exact solution
+                                 after 1000 m). Use 0 to compare with an
+                                 analytical solution or another code.
         :param FP16:             precision: 0: float; 1: float, two cells per
                                  thread (needs N[0] even); 2: storage in half
                                  precision, computation in float (CUDA, faster
@@ -138,12 +145,10 @@ class SeisCL:
                                  Array [gx gy gz srcid recid - - -] x nb traces
                                  srcid is the source number
                                  recid is the trace number in the record
-        :param src_all:          Source signals. NT x number of sources
-                                 Point-force amplitudes are interpreted as
-                                 Newtons and scaled by 1/(rho·cell volume).
-                                 Strain-rate moment components are multiplied
-                                 by the stiffness tensor Cijkl so that signals
-                                 are injected as stress-rate (Pa/s).
+        :param src_all:          Source signals. NT x number of sources.
+                                 No scaling is applied: at each time step,
+                                 dt * src is added to the source variable of
+                                 the source cell (see NOTE below).
 
         **Source units and scaling**
 
@@ -162,9 +167,20 @@ class SeisCL:
 
               s_σij = -λ Tr(s_ij)δ_ij   + 2μ s_ij
 
-        - For volume force density (N) (source_type=0,1,2)::
+        - For a point force f_i (N) in 3D, or a line force f_i (N/m) in 2D
+          (source_type=0,1,2), with ρ at the velocity node::
 
-              s_vi = (1/ρ) s_i / (dh^3)
+              s_vi = (1/ρ) f_i / dh^ND
+
+        What a signal sample s means physically (ND = 2 or 3, z down):
+
+        - force (0, 1, 2): s is s_vi (m/s^2), i.e. the force ρ dh^ND s;
+        - explosive (100): s/ND is added to each normal stress, i.e. the
+          moment rate dM_ii/dt = -dh^ND s/ND (moment per unit length in 2D);
+        - stress (4-9): s is added to σ_ij, i.e. dM_ij/dt = -dh^ND s.
+
+        The minus sign is the usual one of a moment tensor source,
+        ∂t σ_ij = ... - dM_ij/dt δ(x).
 
         This scaling solves the reciprocal wave equation given by::
 
